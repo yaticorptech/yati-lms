@@ -17,3 +17,6 @@ scripts/migrateToMultiTenant.js
 
 # Never commit env backups/variants (they contain live credentials)
 .env.*
+
+# ...but the (secret-free) template must be committed
+!.env.example
