@@ -135,7 +135,7 @@ const ActivationPending = () => {
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3 text-left">
                     <p className="flex items-start gap-2.5 text-slate-800 font-semibold">
                         <Clock size={18} className="text-indigo-600 flex-shrink-0 mt-0.5" />
-                        <span>Your learning path will start <strong>48 hours</strong> from now.</span>
+                        <span>Your learning path will start after <strong>48 hours</strong> from now.</span>
                     </p>
                     <p className="text-sm text-slate-600 pl-[26px]">
                         Your activation takes some time to process. We're preparing your
