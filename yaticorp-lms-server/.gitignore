@@ -1,0 +1,19 @@
+node_modules/
+.env
+.DS_Store
+dist/
+build/
+*.log
+.env
+
+# Seed and utility scripts
+seed-admin.js
+seedCard.js
+inspect-db.js
+test-db.js
+test-api.js
+test-query.js
+scripts/migrateToMultiTenant.js
+
+# Never commit env backups/variants (they contain live credentials)
+.env.*
