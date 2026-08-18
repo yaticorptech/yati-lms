@@ -6,6 +6,7 @@ const Course = require('../models/Course');
 const Module = require('../models/Module');
 const Lesson = require('../models/Lesson');
 const fs = require('fs');
+const path = require('path');
 const vdoCipherController = require('./vdoCipherController');
 const { uploadToBunny, uploadStreamToBunny } = require('../utils/bunnyStorage');
 
@@ -498,7 +499,10 @@ const uploadLessonFile = async (req, res) => {
         return res.status(400).json({ message: 'No file provided' });
     }
     try {
-        const isPdf = req.file.mimetype === 'application/pdf';
+        // The browser sends application/octet-stream for types its OS registry
+        // doesn't know, so fall back to the extension to classify the file.
+        const isPdf = req.file.mimetype === 'application/pdf'
+            || path.extname(req.file.originalname || '').toLowerCase() === '.pdf';
         const folder = isPdf ? 'lesson-pdfs' : 'lesson-videos';
         const stream = fs.createReadStream(req.file.path);
         const url = await uploadStreamToBunny(stream, req.file.originalname, folder, req.file.size);

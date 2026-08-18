@@ -8,22 +8,54 @@ const { protectAdmin } = require('../middleware/authMiddleware');
 const { authLimiter } = require('../middleware/rateLimiter');
 const multer = require('multer');
 const os = require('os');
+const path = require('path');
 const { upload: imageUpload } = require('../middleware/uploadMiddleware');
 
 // Configure multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Lesson video/PDF upload — disk-backed (streamed to Bunny) so large videos
-// never sit fully in memory. Accepts video/* and application/pdf up to 1 GB.
+// never sit fully in memory. Course videos routinely run past 1 GB, so the cap
+// is generous and tunable via MAX_LESSON_UPLOAD_MB.
+//
+// The browser decides the MIME type from the OS file-type registry, and for
+// containers it has no mapping for (.mkv, .ts, .m4v, and .mov/.avi on many
+// Windows machines) it sends application/octet-stream or nothing at all. Those
+// are real videos, so fall back to the file extension before rejecting.
+const VIDEO_EXTENSIONS = new Set([
+    '.mp4', '.mov', '.m4v', '.mkv', '.avi', '.webm', '.wmv',
+    '.flv', '.mpeg', '.mpg', '.ts', '.3gp', '.ogv',
+]);
+const UNKNOWN_MIMES = new Set(['', 'application/octet-stream', 'binary/octet-stream']);
+
+const LESSON_UPLOAD_MAX_MB = Number(process.env.MAX_LESSON_UPLOAD_MB) || 5120; // 5 GB
+
+// Lets the error handler name the limit in its 413 instead of just "too large".
+const tagUploadLimit = (req, res, next) => {
+    req.uploadLimitMb = LESSON_UPLOAD_MAX_MB;
+    next();
+};
+
 const lessonUpload = multer({
     storage: multer.diskStorage({ destination: os.tmpdir() }),
-    limits: { fileSize: 1024 * 1024 * 1024 },
+    limits: { fileSize: LESSON_UPLOAD_MAX_MB * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        if (file.mimetype.startsWith('video/') || file.mimetype === 'application/pdf') {
-            cb(null, true);
-        } else {
-            cb(new Error('Only video or PDF files are allowed'), false);
+        const mime = (file.mimetype || '').trim().toLowerCase();
+        const ext = path.extname(file.originalname || '').toLowerCase();
+        const unknownMime = UNKNOWN_MIMES.has(mime);
+
+        if (mime.startsWith('video/') || (unknownMime && VIDEO_EXTENSIONS.has(ext))) {
+            return cb(null, true);
         }
+        if (mime === 'application/pdf' || (unknownMime && ext === '.pdf')) {
+            return cb(null, true);
+        }
+
+        const error = new Error(
+            `Only video or PDF files are allowed (received "${file.originalname}", type "${mime || 'unknown'}")`
+        );
+        error.status = 400;
+        cb(error, false);
     },
 });
 
@@ -53,7 +85,7 @@ router.route('/enrollments/:id').delete(protectAdmin, enrollmentCtrl.deleteEnrol
 // Course Management Routes
 router.route('/courses').get(protectAdmin, courseCtrl.getCourses).post(protectAdmin, courseCtrl.createCourse);
 router.post('/courses/thumbnail', protectAdmin, imageUpload.single('image'), courseCtrl.uploadThumbnail);
-router.post('/lessons/upload', protectAdmin, lessonUpload.single('file'), courseCtrl.uploadLessonFile);
+router.post('/lessons/upload', protectAdmin, tagUploadLimit, lessonUpload.single('file'), courseCtrl.uploadLessonFile);
 router.route('/courses/:id').get(protectAdmin, courseCtrl.getCourseById).put(protectAdmin, courseCtrl.updateCourse).delete(protectAdmin, courseCtrl.deleteCourse);
 router.get('/courses/:id/students', protectAdmin, courseCtrl.getCourseStudents);
 

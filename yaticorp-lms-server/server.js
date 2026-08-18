@@ -57,7 +57,9 @@ app.use(cors({
             return callback(null, true);
         }
         console.warn(`CORS blocked request from origin: ${origin}`);
-        return callback(new Error(`CORS policy does not allow access from origin: ${origin}`), false);
+        const corsError = new Error(`CORS policy does not allow access from origin: ${origin}`);
+        corsError.status = 403;
+        return callback(corsError, false);
     },
     credentials: true
 }));
@@ -85,6 +87,11 @@ app.use('/api/vdocipher', require('./src/routes/vdoCipherRoutes'));
 app.use('/api/bunny', require('./src/routes/bunnyRoutes'));
 app.use('/api/tickets', require('./src/routes/ticketRoutes'));
 app.use('/api/community', require('./src/routes/communityRoutes'));
+
+// Error handler — must come after every route so next(err) lands here instead
+// of Express's default HTML "Internal Server Error" page.
+const { errorHandler } = require('./src/middleware/errorHandler');
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
