@@ -23,6 +23,7 @@ Monorepo for YatiCorp Learning Management System applications:
 - [Legacy server notes](./docs/SERVER.md)
 - [Legacy student notes](./docs/STUDENT.md)
 - [Legacy admin notes](./docs/ADMIN.md)
+- [Career Path (FuturePath) section](./docs/CAREER-PATH.md)
 
 ## Quick Start (All Apps)
 

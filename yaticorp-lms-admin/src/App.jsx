@@ -28,6 +28,7 @@ import Community from './pages/Community';
 import NotFound from './pages/NotFound';
 import Analytics from './pages/Analytics';
 import Announcements from './pages/Announcements';
+import CareerPath from './pages/CareerPath';
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
         <Route path="tickets" element={<Tickets />} />
         <Route path="community" element={<Community />} />
         <Route path="analytics" element={<Analytics />} />
+        <Route path="career-path" element={<CareerPath />} />
         <Route path="announcements" element={<Announcements />} />
       </Route>
       <Route path="*" element={<NotFound />} />

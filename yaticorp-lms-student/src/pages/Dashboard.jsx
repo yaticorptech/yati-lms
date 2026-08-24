@@ -133,7 +133,7 @@ const Dashboard = () => {
                     onClick={() => setActiveTab('bundles')}
                     className={`pb-4 px-2 mr-6 font-bold text-lg transition-colors relative ${activeTab === 'bundles' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                    My Bundles
+                    Bundles
                     {activeTab === 'bundles' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-t-full"></div>}
                 </button>
                 <button
@@ -318,9 +318,9 @@ const Dashboard = () => {
                             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                                 <Award size={32} className="text-slate-400" />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-800 mb-2">No active bundle enrollments</h3>
+                            <h3 className="text-xl font-bold text-slate-800 mb-2">No bundles yet</h3>
                             <p className="text-slate-500 max-w-sm mb-6">
-                                You are currently not enrolled in any course bundles.
+                                No course bundles have been published yet. Check back soon.
                             </p>
                         </div>
                     )

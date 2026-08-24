@@ -16,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google/genai": "^2.18.0",
     "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
     "canvas": "^3.2.1",

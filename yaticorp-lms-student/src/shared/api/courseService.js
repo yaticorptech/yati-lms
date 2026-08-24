@@ -18,6 +18,23 @@ export const getCourseServices = (apiClient) => ({
     },
 
     /**
+     * Fetch every published bundle. Open to any signed-in student, so this is
+     * the same list for everybody — only the progress on it differs.
+     */
+    getBundles: async () => {
+        const res = await apiClient.get('/user/bundles');
+        return res.data.bundles || [];
+    },
+
+    /**
+     * Fetch one published bundle with the courses inside it
+     */
+    getBundle: async (bundleId) => {
+        const res = await apiClient.get(`/user/bundles/${bundleId}`);
+        return res.data.bundle;
+    },
+
+    /**
      * Fetch available courses for purchase
      */
     getAvailableCourses: async () => {

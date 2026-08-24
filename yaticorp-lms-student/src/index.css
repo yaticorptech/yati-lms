@@ -1,1 +1,10 @@
+/* Inter, for the Career Path section. Must be the first rule in the bundle:
+   @import is only valid ahead of every other rule, and nesting it inside
+   career.css put it after Tailwind's output, where the bundler drops it.
+   Nothing outside `.futurepath` asks for this family. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
+/* Career Path (FuturePath) design tokens and section styles. Everything in
+   there that is not a token is scoped to `.futurepath`, so it cannot reach
+   the rest of the student panel. */
+@import "./career/career.css";

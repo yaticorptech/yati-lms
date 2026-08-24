@@ -1,6 +1,6 @@
 /**
  * @author Preethesh Kulal
- * @description Student page to view courses inside an enrolled bundle
+ * @description Student page to view courses inside a published bundle
  */
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
@@ -17,21 +17,15 @@ const BundleViewer = () => {
     useEffect(() => {
         const fetchBundleDetails = async () => {
             try {
-                // Fetch the user's courses payload which now contains the populated bundle data
-                const res = await api.get('/user/courses');
-                const bundles = res.data.bundles || [];
-                const foundBundle = bundles.find(b => b._id === id);
-                
-                if (foundBundle) {
-                    setBundle(foundBundle);
-                    // The courses array in the bundle object contains the populated course data
-                    // Filter out any unpublished courses from the bundle specifically
-                    setCourses(foundBundle.courses.filter(c => c.isPublished) || []);
-                } else {
-                    // Not found or not enrolled
-                    navigate('/dashboard');
-                }
+                // Fetched by id rather than picked out of the enrolled list: a
+                // published bundle is open to anyone signed in, so there is no
+                // enrollment to look it up through. The server returns only the
+                // published courses inside, already carrying their progress.
+                const res = await api.get(`/user/bundles/${id}`);
+                setBundle(res.data.bundle);
+                setCourses(res.data.bundle?.courses || []);
             } catch (err) {
+                // 404 means unpublished or deleted — nothing to show either way.
                 console.error('Failed to fetch bundle:', err);
                 navigate('/dashboard');
             } finally {
@@ -40,9 +34,6 @@ const BundleViewer = () => {
         };
         fetchBundleDetails();
     }, [id, navigate]);
-
-    // Note: We'd ideally fetch specific progress per course within the bundle here
-    // For now, we reuse the generic layout, progress can be added to the API later
 
     if (loading) {
         return (
@@ -83,7 +74,7 @@ const BundleViewer = () => {
                         </span>
                         <h1 className="text-3xl md:text-5xl font-extrabold mb-4 leading-tight">{bundle.title}</h1>
                         <p className="text-indigo-100/80 text-lg max-w-2xl leading-relaxed">
-                            {bundle.description || "You have full access to all the courses included in this premium learning bundle."}
+                            {bundle.description || "Every course in this bundle is yours to open."}
                         </p>
                         
                         <div className="flex items-center gap-6 mt-8">

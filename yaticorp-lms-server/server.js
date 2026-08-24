@@ -87,6 +87,14 @@ app.use('/api/vdocipher', require('./src/routes/vdoCipherRoutes'));
 app.use('/api/bunny', require('./src/routes/bunnyRoutes'));
 app.use('/api/tickets', require('./src/routes/ticketRoutes'));
 app.use('/api/community', require('./src/routes/communityRoutes'));
+// Career Path (FuturePath) — student-only AI roadmap section. One mount; the
+// module's own router fans out to /goals, /roadmap, /tasks, /chat and the rest.
+app.use('/api/career', require('./src/career'));
+// Public share links for Career Path milestone badges: /b/<code> renders the
+// page a student's followers open, /b/<code>/image.png is what LinkedIn, X and
+// WhatsApp embed. Deliberately outside /api and deliberately unauthenticated —
+// a social crawler has no session. Short path because it is a link people see.
+app.use('/b', require('./src/career/routes/publicBadgeRoutes'));
 
 // Error handler — must come after every route so next(err) lands here instead
 // of Express's default HTML "Internal Server Error" page.
