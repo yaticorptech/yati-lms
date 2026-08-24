@@ -8,6 +8,13 @@ const settingSchema = new mongoose.Schema({
     isCreditSystemEnabled: {
         type: Boolean,
         default: true
+    },
+    // The Career Path section as a whole. Locking it hides the student tab and
+    // closes the /api/career endpoints behind it; admin reporting on the
+    // section keeps working, so an operator can still see what was collected.
+    isCareerPathEnabled: {
+        type: Boolean,
+        default: true
     }
 }, { timestamps: true });
 

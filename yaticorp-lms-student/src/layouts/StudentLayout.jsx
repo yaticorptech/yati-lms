@@ -5,7 +5,7 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass } from 'lucide-react';
 import api from '../utils/api';
 
 // Contact Support Modal
@@ -66,8 +66,12 @@ const ContactModal = ({ onClose, user }) => {
     );
 };
 
+/** How many Career Path hits a search returned, across all three groups. */
+const careerHitCount = (career) =>
+    (career?.phases?.length || 0) + (career?.tasks?.length || 0) + (career?.skills?.length || 0);
+
 const StudentLayout = () => {
-    const { user, logout, isCreditSystemEnabled } = useContext(AuthContext);
+    const { user, logout, isCreditSystemEnabled, isCareerPathEnabled } = useContext(AuthContext);
     const location = useLocation();
     const navigate = useNavigate();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -80,7 +84,14 @@ const StudentLayout = () => {
     const confirmLogout = () => { setShowLogoutConfirm(false); logout(); };
 
     // Announcements / notifications
+    //
+    // One bell, two sources. Career Path arrived with a bell of its own inside
+    // its section, which meant a student could earn a badge, never open Career
+    // Path again, and never find out — while the header bell three centimetres
+    // away sat empty. Both feeds land here now, tagged so the panel can say
+    // where each item came from.
     const [announcements, setAnnouncements] = useState([]);
+    const [careerNotifs, setCareerNotifs] = useState([]);
     const [showNotif, setShowNotif] = useState(false);
     const [notifSeen, setNotifSeen] = useState(() => parseInt(localStorage.getItem('notif_seen') || '0'));
     const notifRef = useRef(null);
@@ -93,34 +104,63 @@ const StudentLayout = () => {
 
     useEffect(() => {
         api.get('/user/announcements').then(r => setAnnouncements(r.data)).catch(() => {});
+        // Best-effort: a student with no career goal yet simply has none of these.
+        api.get('/career/notifications').then(r => setCareerNotifs(r.data || [])).catch(() => {});
     }, [location.pathname]);
 
-    const unreadCount = Math.max(0, announcements.length - notifSeen);
+    // Announcements have no per-user read state on the server, so they are
+    // counted against a high-water mark in localStorage the way they always
+    // were. Career Path notifications carry their own isRead, so they are
+    // counted honestly and stay unread until the student actually opens them.
+    const careerUnread = careerNotifs.filter(n => !n.isRead).length;
+    const unreadCount = Math.max(0, announcements.length - notifSeen) + careerUnread;
+
+    // Merged newest-first. `kind` is what lets one panel render two shapes.
+    const feed = [
+        ...announcements.map(a => ({
+            kind: 'announcement', id: a._id, title: a.title,
+            body: a.message, at: a.createdAt, read: true
+        })),
+        ...careerNotifs.map(n => ({
+            kind: 'career', id: n._id, title: n.title,
+            body: n.message, at: n.createdAt, read: Boolean(n.isRead)
+        }))
+    ].sort((a, b) => new Date(b.at) - new Date(a.at));
 
     const openNotif = () => {
+        const opening = !showNotif;
         setShowNotif(v => !v);
+        if (!opening) return;
+
         const seen = announcements.length;
         setNotifSeen(seen);
         localStorage.setItem('notif_seen', String(seen));
+
+        // Career items are marked read server-side so the count is right on the
+        // student's other device too, not just in this tab.
+        const unread = careerNotifs.filter(n => !n.isRead);
+        if (unread.length) {
+            setCareerNotifs(list => list.map(n => ({ ...n, isRead: true })));
+            Promise.all(
+                unread.map(n => api.put(`/career/notifications/${n._id}/read`).catch(() => {}))
+            );
+        }
     };
 
     const clearNotifications = async () => {
-    console.log("CLEAR CLICKED");
+        // Both feeds, since the panel shows both. Settled independently: a
+        // student with no career goal has no Career Path notifications, and that
+        // call failing must not stop announcements being cleared.
+        await Promise.allSettled([
+            api.post('/user/announcements/clear'),
+            api.delete('/career/notifications')
+        ]);
 
-    try {
-        await api.post('/user/announcements/clear');
-
-        // clear UI
         setAnnouncements([]);
-
-        // reset badge
+        setCareerNotifs([]);
         setNotifSeen(0);
         localStorage.setItem('notif_seen', '0');
-
-    } catch (err) {
-        console.error(err);
-    }
-};
+    };
 
     // Close dropdowns on outside click
     useEffect(() => {
@@ -138,12 +178,19 @@ const StudentLayout = () => {
         clearTimeout(searchTimer.current);
         if (val.length < 2) { setSearchResults(null); return; }
         searchTimer.current = setTimeout(async () => {
-            try {
-                const res = await api.get(`/user/search?q=${encodeURIComponent(val)}`);
-                setSearchResults(res.data);
-            } catch {
-                // Search is best-effort; a failed lookup just shows no results.
-            }
+            // Two endpoints, merged here. The LMS search covers courses and
+            // lessons; Career Path searches its own roadmap, tasks and skills.
+            // Kept separate on the server so the LMS never reads career_* data —
+            // composing them is the frontend's job.
+            const [lms, career] = await Promise.allSettled([
+                api.get(`/user/search?q=${encodeURIComponent(val)}`),
+                api.get(`/career/search?q=${encodeURIComponent(val)}`)
+            ]);
+            if (lms.status === 'rejected' && career.status === 'rejected') return;
+            setSearchResults({
+                ...(lms.value?.data || { courses: [], lessons: [] }),
+                career: career.value?.data || null
+            });
         }, 350);
     };
 
@@ -155,8 +202,16 @@ const StudentLayout = () => {
         setSearchQ(''); setSearchResults(null);
         navigate(`/learn/${course._id}`);
     };
+    const goToCareer = (path) => {
+        setSearchQ(''); setSearchResults(null);
+        navigate(path);
+    };
 
     const isActive = (path) => location.pathname === path;
+    // Career Path is the one nav entry with screens beneath it, so it stays lit
+    // on /career/planner, /career/roadmap and the rest — not just on /career.
+    const isSectionActive = (path) =>
+        location.pathname === path || location.pathname.startsWith(`${path}/`);
 
     // Get initials from name
     const getInitials = (name = '') =>
@@ -175,6 +230,14 @@ const StudentLayout = () => {
             <Link to="/community" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isActive('/community') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                 <MessageSquare size={20} /> <span>Community</span>
             </Link>
+            {/* Withdrawn entirely when an admin locks the section, rather than
+                shown disabled: a tab that cannot be opened only invites the
+                question of when it will be. */}
+            {isCareerPathEnabled && (
+                <Link to="/career" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isSectionActive('/career') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    <Compass size={20} /> <span>Career Path</span>
+                </Link>
+            )}
             <Link to="/profile" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isActive('/profile') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                 <User size={20} /> <span>My Profile</span>
             </Link>
@@ -202,11 +265,11 @@ const StudentLayout = () => {
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                     <p className="font-bold text-slate-800 text-sm flex items-center gap-2">
                         <Megaphone size={16} className="text-indigo-600" />
-                        Announcements
+                        Notifications
                     </p>
 
                     {/* ✅ MODERN GLASS BUTTON */}
-                    {announcements.length > 0 && (
+                    {feed.length > 0 && (
                         <button
                             onClick={clearNotifications}
                             className="px-3 py-1.5 text-xs font-semibold rounded-lg 
@@ -222,36 +285,53 @@ const StudentLayout = () => {
                 </div>
 
                 {/* ✅ CONTENT */}
-                {announcements.length === 0 ? (
+                {feed.length === 0 ? (
                     <div className="p-8 text-center text-slate-400">
                         <Bell size={32} className="mx-auto mb-2 opacity-20" />
-                        <p className="text-sm">No announcements yet.</p>
+                        <p className="text-sm">Nothing yet.</p>
                     </div>
                 ) : (
                     <div className="divide-y divide-slate-50">
-                        {[...announcements].reverse().map(a => (
-                            <div
-                                key={a._id}
-                                className="px-4 py-4 hover:bg-slate-50 transition-colors cursor-default"
-                            >
-                                <p className="font-bold text-slate-800 text-sm leading-tight">
-                                    {a.title}
-                                </p>
-                                <p className="text-slate-600 text-xs mt-1.5 leading-relaxed">
-                                    {a.message}
-                                </p>
-                                <div className="flex items-center gap-2 mt-2">
-                                    <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                                    <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">
-                                        {new Date(a.createdAt).toLocaleDateString(undefined, {
-                                            month: 'short',
-                                            day: 'numeric',
-                                            year: 'numeric'
-                                        })}
-                                    </p>
+                        {feed.map(item => {
+                            const career = item.kind === 'career';
+                            return (
+                                <div
+                                    key={`${item.kind}-${item.id}`}
+                                    className={`px-4 py-4 transition-colors ${career ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default hover:bg-slate-50'}`}
+                                    onClick={career ? () => { setShowNotif(false); navigate('/career'); } : undefined}
+                                >
+                                    <div className="flex items-start gap-2">
+                                        <span
+                                            className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                                                career
+                                                    ? 'bg-indigo-100 text-indigo-700'
+                                                    : 'bg-slate-100 text-slate-600'
+                                            }`}
+                                        >
+                                            {career ? 'Career' : 'Notice'}
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-bold text-slate-800 text-sm leading-tight">
+                                                {item.title}
+                                            </p>
+                                            <p className="text-slate-600 text-xs mt-1.5 leading-relaxed">
+                                                {item.body}
+                                            </p>
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                                <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">
+                                                    {new Date(item.at).toLocaleDateString(undefined, {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        year: 'numeric'
+                                                    })}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -311,7 +391,9 @@ const StudentLayout = () => {
                     </div>
                     {searchResults && (
                         <div className="absolute left-4 right-4 top-full mt-1 bg-white rounded-xl shadow-2xl border border-slate-100 z-50 max-h-72 overflow-y-auto">
-                            {searchResults.courses?.length === 0 && searchResults.lessons?.length === 0 ? (
+                            {searchResults.courses?.length === 0 &&
+                             searchResults.lessons?.length === 0 &&
+                             !careerHitCount(searchResults.career) ? (
                                 <p className="text-slate-400 text-sm px-4 py-3">No results found.</p>
                             ) : (
                                 <>
@@ -333,6 +415,31 @@ const StudentLayout = () => {
                                                 <button key={l._id} onClick={() => goToLesson(l)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
                                                     <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">{l.type}</span>
                                                     <span className="text-slate-700 truncate">{l.title}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {careerHitCount(searchResults.career) > 0 && (
+                                        <div className="px-3 pb-2 pt-1 border-t border-slate-100">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 mt-1">Career Path</p>
+                                            {searchResults.career.phases?.map(p => (
+                                                <button key={`p${p.index}`} onClick={() => goToCareer('/career/roadmap')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
+                                                    <Compass size={14} className="text-indigo-500 flex-shrink-0" />
+                                                    <span className="text-slate-700 truncate">{p.title}</span>
+                                                    {p.completed && <span className="ml-auto text-[9px] font-bold text-emerald-600 uppercase flex-shrink-0">Done</span>}
+                                                </button>
+                                            ))}
+                                            {searchResults.career.tasks?.map(t => (
+                                                <button key={t._id} onClick={() => goToCareer('/career/planner')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
+                                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">task</span>
+                                                    <span className="text-slate-700 truncate">{t.title}</span>
+                                                </button>
+                                            ))}
+                                            {searchResults.career.skills?.map(sk => (
+                                                <button key={sk._id} onClick={() => goToCareer('/career/skills')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
+                                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">skill</span>
+                                                    <span className="text-slate-700 truncate">{sk.skillName}</span>
+                                                    <span className="ml-auto text-[10px] text-slate-400 flex-shrink-0">{sk.progress}%</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -428,7 +535,8 @@ const StudentLayout = () => {
                             {isActive('/') ? 'My Learning Dashboard' :
                              isActive('/enrolled-courses') ? 'Enrolled Courses' :
                              isActive('/community') ? 'Student Community' :
-                             isActive('/profile') ? 'My Profile' : ''}
+                             isActive('/profile') ? 'My Profile' :
+                             isSectionActive('/career') ? 'Career Path' : ''}
                         </h1>
                     </div>
 

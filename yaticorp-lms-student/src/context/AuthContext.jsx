@@ -14,6 +14,9 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isCreditSystemEnabled, setIsCreditSystemEnabled] = useState(true);
+    // Defaults open, so a settings request that is slow or fails never hides a
+    // section that is actually available. The server is the real gate.
+    const [isCareerPathEnabled, setIsCareerPathEnabled] = useState(true);
     const navigate = useNavigate();
 
     const authService = getAuthServices(api);
@@ -34,9 +37,11 @@ export const AuthProvider = ({ children }) => {
             try {
                 const res = await api.get('/user/settings');
                 setIsCreditSystemEnabled(res.data?.isCreditSystemEnabled ?? true);
+                setIsCareerPathEnabled(res.data?.isCareerPathEnabled ?? true);
             } catch (err) {
                 console.error('Failed to load settings in AuthContext:', err);
                 setIsCreditSystemEnabled(true);
+                setIsCareerPathEnabled(true);
             }
 
             setLoading(false);
@@ -65,7 +70,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, setUser, loading, login, logout, isCreditSystemEnabled }}>
+        <AuthContext.Provider value={{ user, setUser, loading, login, logout, isCreditSystemEnabled, isCareerPathEnabled }}>
             {children}
         </AuthContext.Provider>
     );

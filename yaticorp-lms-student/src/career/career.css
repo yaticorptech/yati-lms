@@ -1,0 +1,470 @@
+/* ===========================================================================
+   Career Path (FuturePath) — section stylesheet
+   ===========================================================================
+
+   Ported from the standalone FuturePath app's index.css. Two things changed on
+   the way in, and only two:
+
+   1. `@import "tailwindcss"` was dropped — src/index.css already does it.
+   2. Everything that used to style `body`, `html` or a bare element selector is
+      now scoped under `.futurepath`, the wrapper CareerShell puts around this
+      section. Left global, the Inter font stack, the `--canvas` background and
+      the animation utilities would have quietly restyled Dashboard, Enrolled
+      Courses, Community and every other existing student screen. The port is
+      supposed to add a section, not redesign the panel around it.
+
+   The token blocks below are NOT scoped, on purpose. `@theme` generates utility
+   classes (brand-*, ink-*, surface-*, line-*) and custom properties; neither
+   exists anywhere else in the student app, so they are additive and inert
+   outside this section.
+   =========================================================================== */
+
+/* Inter only. 900 is included for the big display numbers in the stats band;
+   dropping Playfair also removes a second font file from the critical path.
+
+   The @import itself lives at the top of ../index.css, not here: an @import is
+   only valid ahead of every other rule in the bundle, and this file is pulled
+   in after Tailwind's output, so the bundler drops it silently. */
+
+/* ---------------------------------------------------------------
+   Design tokens
+   Tailwind v4 reads theme values from this block (no JS config).
+--------------------------------------------------------------- */
+@theme {
+  --color-brand-50:  #eef4ff;
+  --color-brand-100: #dbe6fe;
+  --color-brand-200: #bfd3fe;
+  --color-brand-300: #93b4fd;
+  --color-brand-400: #608cfa;
+  --color-brand-500: #3b66f6;
+  --color-brand-600: #2547eb;
+  --color-brand-700: #1d35d8;
+  --color-brand-800: #1e2faf;
+  --color-brand-900: #1e2d8a;
+
+  /* Warm counterweight to the blues. A single-hue palette reads flat on a
+     marketing page; one warm accent used sparingly (numbers, highlights, the
+     occasional icon) is what gives it life without becoming a second brand. */
+  --color-accent-50:  #fff7ed;
+  --color-accent-100: #ffedd5;
+  --color-accent-200: #fed7aa;
+  --color-accent-400: #fb923c;
+  --color-accent-500: #f97316;
+  --color-accent-600: #ea580c;
+  --color-accent-700: #c2410c;
+
+  /* ---------------------------------------------------------------
+     Adaptive surfaces, lines and text.
+
+     Cards, borders and body copy refer to these rather than to a literal
+     slate step, so dark mode is a change of about twenty values in one
+     place instead of a `dark:` class on six hundred elements.
+
+     Literal colours are still used wherever a panel is meant to be dark in
+     BOTH themes — the roadmap hero, the mentor header, the celebration
+     card. That is why `text-white` and `bg-white/15` were deliberately
+     left alone by the migration: flipping those would have turned white
+     text on a dark gradient into dark text on a dark gradient.
+  --------------------------------------------------------------- */
+  --color-surface:     #ffffff;   /* cards, nav, inputs        */
+  --color-surface-50:  #f8fafc;   /* recessed fill inside a card */
+  --color-surface-100: #f1f5f9;
+  --color-surface-200: #e2e8f0;
+
+  --color-line-100: #f1f5f9;
+  --color-line-200: #e2e8f0;
+  --color-line-300: #cbd5e1;
+
+  --color-ink-900: #0f172a;   /* headings          */
+  --color-ink-800: #1e293b;
+  --color-ink-700: #334155;
+  --color-ink-600: #475569;   /* body              */
+  /* Darker than the slate steps these replaced (#64748b / #94a3b8), which
+     measured 4.44:1 and 2.56:1 against the page — both below the 4.5:1 needed
+     to be readable. The ramp is more compressed as a result; that is the price
+     of muted grey on a light background. */
+  --color-ink-500: #55637a;   /* secondary         */
+  --color-ink-400: #5f6e85;   /* meta labels       */
+  /* NOT darkened: this one is also the muted copy on the dark roadmap hero,
+     where it has to stay light. It is otherwise used for separators and
+     disabled icons rather than for anything that has to be read. */
+  --color-ink-300: #cbd5e1;
+
+  /* Brand used as TEXT. Split from --color-brand-600 because that same step
+     is the primary button's background: a value light enough to read on a
+     dark card is far too light to carry white button text. */
+  --color-link:        #2547eb;
+  --color-link-strong: #1d35d8;
+
+  /* Solid status fills that always carry white text, so they must stay deep
+     in both themes while the -600 text steps around them go light. */
+  --color-solid-emerald: #059669;
+  --color-solid-rose:    #e11d48;
+
+  --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.06);
+  --shadow-card-hover: 0 8px 24px -6px rgb(16 24 40 / 0.12), 0 2px 6px -2px rgb(16 24 40 / 0.06);
+  --shadow-float: 0 20px 40px -12px rgb(16 24 40 / 0.22);
+}
+
+/* Page background and the few colours only CSS uses. Kept out of @theme so
+   they do not generate utility classes nobody writes. */
+:root {
+  --canvas: #f6f7f9;
+  --skeleton: #e8eaee;
+  --sheen: rgb(255 255 255 / 0.6);
+  --scroll-thumb: #d4d8e0;
+  --scroll-thumb-hover: #b6bcc9;
+  color-scheme: light;
+}
+
+/* ---------------------------------------------------------------
+   Dark theme
+
+   `:root` is <html>, so `html.dark` overrides the values above for the
+   whole document — no component needs a `dark:` class.
+
+   The tinted 50–300 steps go dark and the 600–800 steps go light, because
+   in this product they are always used as a pair: a pale chip carrying
+   deep-coloured text. Inverting only one half would leave the chips
+   unreadable. The vivid 400/500 steps are untouched — they are progress
+   bars and dots, which should stay bright in both themes.
+--------------------------------------------------------------- */
+.dark {
+  color-scheme: dark;
+
+  --canvas: #0b0f15;
+  --skeleton: #212a37;
+  --sheen: rgb(255 255 255 / 0.06);
+  --scroll-thumb: #333f4f;
+  --scroll-thumb-hover: #455266;
+
+  --color-surface:     #161c26;
+  --color-surface-50:  #1b222d;
+  --color-surface-100: #212a37;
+  --color-surface-200: #2b3543;
+
+  --color-line-100: #222b37;
+  --color-line-200: #2c3644;
+  --color-line-300: #3d4959;
+
+  --color-ink-900: #f1f5f9;
+  --color-ink-800: #e2e8f0;
+  --color-ink-700: #cfd8e3;
+  --color-ink-600: #b7c2d0;
+  --color-ink-500: #9dabbd;
+  --color-ink-400: #8b99ac;
+  --color-ink-300: #74839a;
+
+  --color-link:        #9dbaff;
+  --color-link-strong: #c3d4ff;
+
+  --color-brand-50:  #17203a;
+  --color-brand-100: #1d2a4d;
+  --color-brand-200: #9dbaff;   /* only ever used as text on dark panels */
+
+  --color-emerald-50:  #0d2a20;
+  --color-emerald-100: #123729;
+  --color-emerald-200: #1c4b39;
+  --color-emerald-600: #34d399;
+  --color-emerald-700: #6ee7b7;
+
+  --color-teal-100: #0f3330;
+
+  --color-amber-50:  #2a2009;
+  --color-amber-100: #3a2c0c;
+  --color-amber-600: #fbbf24;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+
+  --color-orange-100: #3a2410;
+
+  --color-rose-50:  #2d1218;
+  --color-rose-100: #3b171f;
+  --color-rose-200: #4e1f29;
+  --color-rose-300: #6b2b37;
+  --color-rose-600: #fb7185;
+  --color-rose-700: #fda4af;
+
+  --color-pink-100: #3a1626;
+
+  --color-sky-50:  #0c2233;
+  --color-sky-100: #102d42;
+  --color-sky-200: #17415e;
+  --color-sky-600: #38bdf8;
+  --color-sky-700: #7dd3fc;
+
+  --color-violet-50:  #1e1633;
+  --color-violet-100: #291d45;
+  --color-violet-200: #382a5c;
+  --color-violet-600: #a78bfa;
+  --color-violet-700: #c4b5fd;
+
+  --color-fuchsia-100: #331a3d;
+
+  /* Shadows are invisible on a dark canvas; a hairline does the lifting. */
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-card-hover: 0 10px 26px -8px rgb(0 0 0 / 0.6);
+  --shadow-float: 0 20px 40px -12px rgb(0 0 0 / 0.65);
+}
+
+
+/* ===========================================================================
+   Scoped base
+
+   `.futurepath` is the wrapper around the whole section. Everything from here
+   down is deliberately behind it.
+   =========================================================================== */
+
+/* Anything this section portals to document.body — SuggestField's dropdown, and
+   any overlay added later — sits outside `.futurepath` and so has to opt back
+   in to the section's typography by hand. */
+.futurepath-portal {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--color-ink-900);
+}
+
+.futurepath {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--canvas);
+  color: var(--color-ink-900);
+  /* Nothing should ever scroll the page sideways on a phone. Decorative blurs
+     and wide tables are contained by their own overflow rules. */
+  overflow-x: hidden;
+}
+
+/* Media never forces the layout wider than the viewport. */
+.futurepath img,
+.futurepath video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Long unbroken strings (URLs, AI-generated identifiers) wrap instead of
+   pushing the layout wide. */
+.futurepath h1,
+.futurepath h2,
+.futurepath h3,
+.futurepath h4,
+.futurepath p,
+.futurepath li,
+.futurepath td,
+.futurepath span {
+  overflow-wrap: break-word;
+}
+
+/* One typeface, headings included. Weight, size and tight tracking carry the
+   hierarchy rather than a second font family. */
+.futurepath h1,
+.futurepath h2,
+.futurepath h3,
+.futurepath h4,
+.futurepath h5,
+.futurepath h6 {
+  font-family: inherit;
+  letter-spacing: -0.021em;
+  font-weight: 700;
+}
+
+/* Large display text needs tighter tracking than small text to look even —
+   optical sizing, which a single global value cannot provide. */
+.futurepath h1 { letter-spacing: -0.035em; }
+.futurepath h2 { letter-spacing: -0.03em; }
+
+/* Tabular numerals keep animated counters from jittering as digits change. */
+.futurepath .tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------
+   Scrollbars
+--------------------------------------------------------------- */
+.futurepath ::-webkit-scrollbar { width: 10px; height: 10px; }
+.futurepath ::-webkit-scrollbar-track { background: transparent; }
+.futurepath ::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.futurepath ::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+  background-clip: content-box;
+}
+
+/* ---------------------------------------------------------------
+   Focus baseline
+
+   Every interactive element gets a visible keyboard indicator without each one
+   having to remember. :focus-visible rather than :focus, so the ring appears
+   for keyboard and assistive navigation but not on a mouse click, where a
+   lingering ring reads as a stuck selection.
+
+   Components that style their own ring (Button, Input) override this via their
+   utility classes, which win on specificity.
+--------------------------------------------------------------- */
+.futurepath :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brand-600);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+/* A mouse click should not leave a ring behind. */
+.futurepath :where(a, button, input, select, textarea, summary, [tabindex]):focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ===========================================================================
+   Motion
+
+   The @keyframes stay global — a keyframe name generates no styling on its own,
+   and nothing outside this section references these. The classes that USE them
+   are scoped, because `.animate-fade-in` is a plausible name for the existing
+   panel to reach for (StudentLayout's mobile drawer already does), and this
+   port must not change how that behaves.
+   =========================================================================== */
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.futurepath .animate-fade-in-up { animation: fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.futurepath .animate-fade-in    { animation: fade-in 0.3s ease-out both; }
+.futurepath .animate-scale-in   { animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.futurepath .animate-slide-in   { animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* ---------------------------------------------------------------
+   Reward motion
+
+   Finishing a lesson is the moment the whole product exists for, and it used to
+   pass as a 6-second toast in the corner. These are the pieces that make it
+   land. All of them are transform/opacity only — no blur, no filter — so they
+   composite on the GPU.
+
+   Every one is finite. Nothing here loops forever; a celebration that never
+   stops is a distraction, not a reward.
+--------------------------------------------------------------- */
+
+/* One confetti piece. Distance, drift, spin and colour are handed in per-piece
+   as inline custom properties so 40 elements share one rule. */
+@keyframes confetti-fall {
+  0%   { opacity: 1; transform: translate3d(0, 0, 0) rotate(0deg); }
+  100% { opacity: 0; transform: translate3d(var(--drift, 0px), var(--fall, 70vh), 0) rotate(var(--spin, 540deg)); }
+}
+.futurepath .confetti-piece,
+.futurepath-portal .confetti-piece {
+  position: absolute;
+  animation: confetti-fall var(--dur, 2.4s) cubic-bezier(0.22, 0.61, 0.36, 1) var(--delay, 0s) both;
+  will-change: transform, opacity;
+}
+
+/* The celebration card itself: overshoots slightly, then settles. */
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.82) translateY(12px); }
+  60%  { opacity: 1; transform: scale(1.03) translateY(0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.futurepath .animate-pop-in,
+.futurepath-portal .animate-pop-in { animation: pop-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* A checkmark badge drawing attention to itself once, on arrival. */
+@keyframes badge-burst {
+  0%   { transform: scale(0); }
+  55%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.futurepath .animate-badge-burst,
+.futurepath-portal .animate-badge-burst { animation: badge-burst 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both; }
+
+/* XP flying up and away from where it was earned. */
+@keyframes xp-rise {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.9); }
+  25%  { opacity: 1; transform: translateY(0) scale(1); }
+  75%  { opacity: 1; transform: translateY(-4px) scale(1); }
+  100% { opacity: 0; transform: translateY(-16px) scale(0.96); }
+}
+.futurepath .animate-xp-rise,
+.futurepath-portal .animate-xp-rise { animation: xp-rise 2.2s ease-out both; }
+
+/* Marks the one task to start next. Three pulses, then it stops — enough to
+   catch the eye on arrival without nagging afterwards. */
+@keyframes attention-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(59 102 246 / 0); }
+  50%      { box-shadow: 0 0 0 5px rgb(59 102 246 / 0.16); }
+}
+.futurepath .animate-attention { animation: attention-ring 2s ease-in-out 3; }
+
+/* A light sweeping across a surface — used once on the "up next" row so the eye
+   is drawn to it before anything else on the page. */
+@keyframes sheen {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+.futurepath .animate-sheen { animation: sheen 1.5s ease-in-out 0.4s 2 both; }
+
+/* A step completing in the lesson stepper. */
+@keyframes step-land {
+  0%   { transform: scale(0.7); }
+  60%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.futurepath .animate-step-land { animation: step-land 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Stagger helpers: let a list of cards cascade in rather than pop at once. */
+.futurepath .stagger > * { animation: fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.futurepath .stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.futurepath .stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.futurepath .stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.futurepath .stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.futurepath .stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.futurepath .stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.futurepath .stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.futurepath .stagger > *:nth-child(8) { animation-delay: 0.30s; }
+.futurepath .stagger > *:nth-child(n+9) { animation-delay: 0.34s; }
+
+/* Skeleton shimmer */
+.futurepath .skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--skeleton);
+}
+.futurepath .skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--sheen), transparent);
+  animation: shimmer 1.6s infinite;
+}
+
+/* Respect users who ask the OS to reduce motion. Scoped like everything else —
+   the existing panel is not this port's to change. */
+@media (prefers-reduced-motion: reduce) {
+  .futurepath, .futurepath *, .futurepath *::before, .futurepath *::after,
+  .futurepath-portal, .futurepath-portal *,
+  .futurepath-portal *::before, .futurepath-portal *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

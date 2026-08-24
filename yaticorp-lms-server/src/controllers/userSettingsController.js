@@ -16,7 +16,8 @@ const getUserSettings = async (req, res) => {
 
         // Return only the settings safe/relevant for students
         res.json({
-            isCreditSystemEnabled: settings.isCreditSystemEnabled
+            isCreditSystemEnabled: settings.isCreditSystemEnabled,
+            isCareerPathEnabled: settings.isCareerPathEnabled
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error fetching settings', error: error.message });

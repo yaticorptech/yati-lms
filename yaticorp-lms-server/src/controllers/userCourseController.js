@@ -9,6 +9,37 @@ const Enrollment = require('../models/Enrollment');
 const Bundle = require('../models/Bundle');
 const Progress = require('../models/Progress');
 
+/**
+ * Every published bundle, with only its published courses attached.
+ *
+ * Bundles are open to anyone with an account — enrolment decides which
+ * standalone courses land in "My Courses", not what a student may open. The
+ * populate match matters: without it an unpublished course stays listed inside
+ * the bundle and links to a player that then refuses it.
+ */
+const findPublishedBundles = (filter = {}) =>
+    Bundle.find({ ...filter, isPublished: true }).populate({
+        path: 'courses',
+        match: { isPublished: true },
+        select: 'title thumbnail description isPublished'
+    });
+
+/**
+ * Bundle completion as the average of its courses' percentages.
+ *
+ * A course the student has never opened has no Progress document and counts as
+ * zero rather than being skipped, so a half-finished bundle cannot report 100%.
+ */
+const bundleProgress = (bundle, progressByCourse) => {
+    const courses = bundle.courses || [];
+    if (courses.length === 0) return 0;
+    const total = courses.reduce(
+        (sum, c) => sum + (progressByCourse.get(c._id.toString()) || 0),
+        0
+    );
+    return Math.round(total / courses.length);
+};
+
 // @desc    Get all courses student is enrolled in directly or via bundle
 // @route   GET /api/user/courses
 // @access  Private/User
@@ -47,6 +78,11 @@ const getMyCourses = async (req, res) => {
             });
         }
 
+        // Every published bundle, not only the enrolled ones — a bundle is open
+        // to any signed-in student, so the list is the same for everybody and
+        // only the progress on it differs.
+        const bundles = await findPublishedBundles();
+
         const courses = await Course.find({ _id: { $in: Array.from(courseIds) }, isPublished: true });
         const foundCourseIds = new Set(courses.map(c => c._id.toString()));
 
@@ -62,8 +98,18 @@ const getMyCourses = async (req, res) => {
             Enrollment.deleteMany({ _id: { $in: orphanEnrollmentIds } }).catch(() => {});
         }
 
-        // Get progress for each
-        const progressDocs = await Progress.find({ userId: req.user._id, courseId: { $in: Array.from(courseIds) } });
+        // Progress covers the bundle courses as well as the enrolled ones: a
+        // student can now start a course inside a bundle without ever being
+        // enrolled in it, and that progress still has to show on the bundle.
+        const progressCourseIds = new Set(courseIds);
+        bundles.forEach(b => b.courses?.forEach(c => progressCourseIds.add(c._id.toString())));
+        const progressDocs = await Progress.find({
+            userId: req.user._id,
+            courseId: { $in: Array.from(progressCourseIds) }
+        });
+        const progressByCourse = new Map(
+            progressDocs.map(p => [p.courseId.toString(), Math.min(100, p.percentage)])
+        );
 
         const coursesWithProgress = courses.map(course => {
             const prog = progressDocs.find(p => p.courseId.toString() === course._id.toString());
@@ -74,31 +120,11 @@ const getMyCourses = async (req, res) => {
             };
         });
 
-        // Get bundles with populated courses
-        const bundles = await Bundle.find({ _id: { $in: Array.from(bundleIds) }, isPublished: true }).populate('courses', 'title thumbnail');
 
-        // Calculate progress for bundles
-        const bundlesWithProgress = bundles.map(bundle => {
-            if (!bundle.courses || bundle.courses.length === 0) return { ...bundle.toObject(), progress: 0 };
-
-            let totalBundleLessons = 0;
-            let completedBundleLessons = 0;
-
-            bundle.courses.forEach(bc => {
-                const cwp = coursesWithProgress.find(c => c._id.toString() === bc._id.toString());
-                if (cwp) {
-                    totalBundleLessons += 100;
-                    completedBundleLessons += cwp.progress;
-                }
-            });
-
-            const bundleProgress = totalBundleLessons === 0 ? 0 : Math.round((completedBundleLessons / totalBundleLessons) * 100);
-
-            return {
-                ...bundle.toObject(),
-                progress: bundleProgress
-            };
-        });
+        const bundlesWithProgress = bundles.map(bundle => ({
+            ...bundle.toObject(),
+            progress: bundleProgress(bundle, progressByCourse)
+        }));
 
         res.json({ courses: coursesWithProgress, bundles: bundlesWithProgress });
     } catch (error) {
@@ -282,6 +308,70 @@ const enrollCourse = async (req, res) => {
     }
 };
 
+// @desc    List every published bundle, open to any signed-in student
+// @route   GET /api/user/bundles
+// @access  Private/User
+const getBundles = async (req, res) => {
+    try {
+        const bundles = await findPublishedBundles();
+        const courseIds = new Set();
+        bundles.forEach(b => b.courses?.forEach(c => courseIds.add(c._id.toString())));
+
+        const progressDocs = await Progress.find({
+            userId: req.user._id,
+            courseId: { $in: Array.from(courseIds) }
+        });
+        const progressByCourse = new Map(
+            progressDocs.map(p => [p.courseId.toString(), Math.min(100, p.percentage)])
+        );
+
+        res.json({
+            bundles: bundles.map(bundle => ({
+                ...bundle.toObject(),
+                progress: bundleProgress(bundle, progressByCourse)
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    One published bundle and the courses inside it
+// @route   GET /api/user/bundles/:id
+// @access  Private/User
+const getBundleContent = async (req, res) => {
+    try {
+        // No enrolment check: login is the only requirement. An unpublished or
+        // missing bundle is still a 404 — publishing is what opens it.
+        const [bundle] = await findPublishedBundles({ _id: req.params.id });
+        if (!bundle) {
+            return res.status(404).json({ message: 'This bundle is unavailable.' });
+        }
+
+        const courseIds = (bundle.courses || []).map(c => c._id.toString());
+        const progressDocs = await Progress.find({
+            userId: req.user._id,
+            courseId: { $in: courseIds }
+        });
+        const progressByCourse = new Map(
+            progressDocs.map(p => [p.courseId.toString(), Math.min(100, p.percentage)])
+        );
+
+        res.json({
+            bundle: {
+                ...bundle.toObject(),
+                courses: (bundle.courses || []).map(c => ({
+                    ...c.toObject(),
+                    progress: progressByCourse.get(c._id.toString()) || 0
+                })),
+                progress: bundleProgress(bundle, progressByCourse)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 // @desc    Search enrolled courses and lessons
 // @route   GET /api/user/search?q=
 // @access  Private/User
@@ -339,6 +429,8 @@ const searchContent = async (req, res) => {
 
 module.exports = {
     getMyCourses,
+    getBundles,
+    getBundleContent,
     getCourseContent,
     updateProgress,
     getAvailableCourses,

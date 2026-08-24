@@ -8,8 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Layers, LogOut,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User
-} from 'lucide-react';
+    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 
@@ -166,6 +165,9 @@ const AdminLayout = () => {
                     </Link>
                     <Link to="/analytics" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/analytics') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                         <BarChart2 size={20} /> <span className="font-medium">Analytics</span>
+                    </Link>
+                    <Link to="/career-path" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/career-path') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                        <Compass size={20} /> <span className="font-medium">Career Path</span>
                     </Link>
                     <Link to="/announcements" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/announcements') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                         <Megaphone size={20} /> <span className="font-medium">Announcements</span>

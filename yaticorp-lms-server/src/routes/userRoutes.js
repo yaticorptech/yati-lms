@@ -9,7 +9,7 @@ const { protectUser } = require('../middleware/authMiddleware');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { updatePassword } = require('../controllers/userPasswordController');
 const { upload } = require('../middleware/uploadMiddleware');
-const { getMyCourses, getCourseContent, updateProgress, getAvailableCourses, enrollCourse, searchContent } = require('../controllers/userCourseController');
+const { getMyCourses, getBundles, getBundleContent, getCourseContent, updateProgress, getAvailableCourses, enrollCourse, searchContent } = require('../controllers/userCourseController');
 const { createTicket, getMyTickets } = require('../controllers/ticketController');
 const { getMyCertificates } = require('../controllers/certificateController');
 const { getAnnouncementsForUser, clearUserNotifications } = require('../controllers/announcementController');
@@ -27,6 +27,11 @@ router.get('/courses/available', protectUser, getAvailableCourses);
 router.get('/courses/:id', protectUser, getCourseContent);
 router.post('/courses/:id/enroll', protectUser, enrollCourse);
 router.post('/progress/update', protectUser, updateProgress);
+
+// Bundle Routes — every published bundle is open to any signed-in student, so
+// these are gated on login alone and never on an enrollment record.
+router.get('/bundles', protectUser, getBundles);
+router.get('/bundles/:id', protectUser, getBundleContent);
 
 // Settings Routes
 const userSettingsController = require('../controllers/userSettingsController');

@@ -6,8 +6,52 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Key, Plus, Trash2, Smartphone, Bell, ChevronRight, ArrowLeft, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Shield, Key, Plus, Trash2, Smartphone, Bell, ChevronRight, ArrowLeft, CheckCircle2, Eye, EyeOff, Compass, Lock, Unlock } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
+
+/**
+ * One feature switch, stated in plain words.
+ *
+ * The button says what it will DO rather than what the state is — "Lock" /
+ * "Unlock" — because a switch labelled with its current state is read both ways
+ * by different people, and this one takes a section away from every student.
+ */
+const FeatureRow = ({ icon: Icon, title, description, enabled, saving, onToggle }) => (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+        <div className="flex items-start gap-3">
+            <span className={`p-2 rounded-lg shrink-0 ${enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                <Icon size={18} />
+            </span>
+            <div>
+                <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-800">{title}</h3>
+                    <span className={`text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded ${enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {enabled ? 'Unlocked' : 'Locked'}
+                    </span>
+                </div>
+                <p className="text-sm text-slate-500 mt-0.5 max-w-xl">{description}</p>
+                <p className="text-xs text-slate-400 mt-1">
+                    {enabled
+                        ? 'Visible to every student.'
+                        : 'Hidden from every student. Their saved roadmaps and progress are kept and come back on unlock.'}
+                </p>
+            </div>
+        </div>
+
+        <button
+            onClick={() => onToggle(!enabled)}
+            disabled={saving}
+            className={`shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                enabled
+                    ? 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+            }`}
+        >
+            {enabled ? <Lock size={16} /> : <Unlock size={16} />}
+            {saving ? 'Saving…' : enabled ? 'Lock' : 'Unlock'}
+        </button>
+    </div>
+);
 
 const Settings = () => {
     const { admin } = useAuth();
@@ -25,6 +69,11 @@ const Settings = () => {
     const [showEditAdminModal, setShowEditAdminModal] = useState(false);
     const [editAdminForm, setEditAdminForm] = useState({ _id: '', name: '', email: '', password: '', role: 'admin' });
 
+    // Platform feature switches. Loaded from /admin/settings, which creates the
+    // document on first read, so there is always something to show.
+    const [features, setFeatures] = useState(null);
+    const [savingFeature, setSavingFeature] = useState(null);
+
     // 2FA Setup State
     const [qrCode, setQrCode] = useState(null);
     const [tokenInput, setTokenInput] = useState('');
@@ -38,10 +87,31 @@ const Settings = () => {
                 const res = await api.get('/admin/admins');
                 setAdmins(res.data);
             }
+            const settingsRes = await api.get('/admin/settings');
+            setFeatures(settingsRes.data);
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to fetch data');
         } finally {
             setLoading(false);
+        }
+    };
+
+    /**
+     * Flip one feature switch.
+     *
+     * The server's reply replaces local state rather than the optimistic value
+     * being kept — if the save is refused, the toggle snaps back to what is
+     * actually stored instead of showing a lock that was never applied.
+     */
+    const toggleFeature = async (key, value) => {
+        setSavingFeature(key);
+        try {
+            const res = await api.put('/admin/settings', { [key]: value });
+            setFeatures(res.data);
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to update settings');
+        } finally {
+            setSavingFeature(null);
         }
     };
 
@@ -134,6 +204,35 @@ const Settings = () => {
                         <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">Platform Settings</h1>
                         <p className="text-sm lg:text-base text-slate-500 mt-1">Configure security and manage administrator access.</p>
                     </div>
+                </div>
+            </div>
+
+            {/* Feature Access ----------------------------------------------
+                Full width above the rest: this is the only control on the page
+                that changes what students see, so it should not be mistaken for
+                one of the admin-account settings beside it. */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex items-center space-x-3 bg-slate-50">
+                    <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><Compass size={20} /></div>
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-800">Student Features</h2>
+                        <p className="text-sm text-slate-500">Lock a section to withdraw it from every student at once.</p>
+                    </div>
+                </div>
+
+                <div className="p-6">
+                    {features === null ? (
+                        <div className="text-slate-500 text-sm">Loading settings…</div>
+                    ) : (
+                        <FeatureRow
+                            icon={Compass}
+                            title="Career Path"
+                            description="The AI roadmap section: goals, planner, skills, badges and the mentor chat."
+                            enabled={features.isCareerPathEnabled !== false}
+                            saving={savingFeature === 'isCareerPathEnabled'}
+                            onToggle={(next) => toggleFeature('isCareerPathEnabled', next)}
+                        />
+                    )}
                 </div>
             </div>
 

@@ -1,8 +1,9 @@
 import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
 import Cropper from 'react-easy-crop';
-import { User, CreditCard, Mail, Phone, Award, Download, Loader2, Edit2, Check, X, Camera, ZoomIn, ZoomOut } from 'lucide-react';
+import { User, CreditCard, Mail, Phone, Award, Download, Loader2, Edit2, Check, X, Camera, ZoomIn, ZoomOut, Compass, Zap, ArrowRight } from 'lucide-react';
 
 // Helper: convert crop area to a cropped blob
 const getCroppedBlob = (imageSrc, pixelCrop) =>
@@ -20,8 +21,12 @@ const getCroppedBlob = (imageSrc, pixelCrop) =>
     });
 
 const Profile = () => {
-    const { user, setUser } = useContext(AuthContext);
+    const { user, setUser, isCareerPathEnabled } = useContext(AuthContext);
     const [certificates, setCertificates] = useState([]);
+    // Career Path standing. Fetched here so the profile shows one student rather
+    // than two: credits are earned in courses, XP and levels in Career Path, and
+    // until now neither page mentioned the other's existence.
+    const [career, setCareer] = useState(null);
     const [loading, setLoading] = useState(true);
     const [downloadingId, setDownloadingId] = useState(null);
     const [certError, setCertError] = useState(null);
@@ -50,6 +55,9 @@ const Profile = () => {
     useEffect(() => {
         const fetchCertificates = async () => {
             try {
+                api.get('/user/profile')
+                    .then(r => setCareer(r.data?.user || null))
+                    .catch(() => setCareer(null));
                 const res = await api.get('/certificates');
                 setCertificates(res.data);
             } catch (err) {
@@ -329,6 +337,50 @@ const Profile = () => {
                             </div>
                         )}
                     </div>
+                </div>
+            </div>
+
+            {/* Two scores, one student.
+                Credits come from course quizzes and are the LMS's own measure;
+                XP and levels come from Career Path. Showing them side by side —
+                and saying plainly what each is for — was the alternative to
+                fusing them into one number, which would have let an unbounded
+                source (a student can ask Career Path for more tasks whenever
+                they like) inflate a figure the LMS treats as earned. */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                <h2 className="text-lg font-bold text-slate-800 mb-4">Your progress</h2>
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <span className="bg-amber-100 text-amber-600 p-1.5 rounded-lg"><Award size={15} /></span>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Credits</p>
+                        </div>
+                        <p className="text-3xl font-bold text-slate-800 tabular-nums">{user?.credits || 0}</p>
+                        <p className="text-xs text-slate-500 mt-1">Earned from course quizzes, once per quiz.</p>
+                    </div>
+
+                    {/* Goes with the sidebar tab when an admin locks the
+                        section — a card that links somewhere the student is
+                        bounced straight back from is worse than no card. */}
+                    {isCareerPathEnabled && (
+                    <Link
+                        to="/career"
+                        className="group rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 transition-colors hover:border-indigo-300"
+                    >
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg"><Compass size={15} /></span>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Career Path</p>
+                            <ArrowRight size={14} className="ml-auto text-indigo-400 transition-transform group-hover:translate-x-0.5" />
+                        </div>
+                        <p className="text-3xl font-bold text-slate-800 tabular-nums">
+                            Level {career?.level || 1}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                            <Zap size={11} className="text-amber-500" />
+                            {career?.xp || 0} XP from finishing your daily tasks.
+                        </p>
+                    </Link>
+                    )}
                 </div>
             </div>
 
