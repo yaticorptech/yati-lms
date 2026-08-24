@@ -1,6 +1,6 @@
 /**
  * @author Preethesh Kulal
- * @description Multi-step student registration with QR code scan/manual entry and course selection
+ * @description Multi-step student registration with QR code scan/manual entry
  */
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -110,23 +110,8 @@ const Signup = () => {
         email: '',
         phone: '',
         password: '',
-        confirmPassword: '',
-        courseId: ''
+        confirmPassword: ''
     });
-
-    const [contentOptions, setContentOptions] = useState({ courses: [], bundles: [] });
-
-    useEffect(() => {
-        const fetchContent = async () => {
-            try {
-                const res = await api.get('/auth/published-content');
-                setContentOptions(res.data);
-            } catch (err) {
-                console.error('Failed to load published content:', err);
-            }
-        };
-        fetchContent();
-    }, []);
 
     // Start camera scanner
     const startScanner = async () => {
@@ -223,19 +208,6 @@ const Signup = () => {
         const pwError = getPasswordStrengthError(formData.password);
         if (pwError) return setError(pwError);
 
-        // Choosing a course is optional. Only work out the content type when the
-        // student actually picked something.
-        let contentType = '';
-        if (formData.courseId) {
-            if (contentOptions.courses.some(c => c._id === formData.courseId)) {
-                contentType = 'Course';
-            } else if (contentOptions.bundles.some(b => b._id === formData.courseId)) {
-                contentType = 'Bundle';
-            } else {
-                return setError('Invalid content selection.');
-            }
-        }
-
         setLoading(true);
         try {
             const res = await api.post('/auth/register', {
@@ -245,9 +217,7 @@ const Signup = () => {
                 CardNumber: cardDetails.CardNumber,
                 CVV: cardDetails.CVV,
                 qrCodeNumber: qrCodeNumber.trim(),
-                password: formData.password,
-                courseId: formData.courseId || undefined,
-                contentType: contentType || undefined
+                password: formData.password
             });
 
             localStorage.setItem('studentToken', res.data.token);
@@ -276,7 +246,7 @@ const Signup = () => {
                 <p className="mt-2 text-center text-sm text-slate-500">
                     {step === 1 && 'Step 1: QR Code Verification'}
                     {step === 2 && 'Step 2: Personal Details'}
-                    {step === 3 && 'Step 3: Password & Course Selection'}
+                    {step === 3 && 'Step 3: Set Your Password'}
                 </p>
                 {/* Stepper Dots */}
                 <div className="flex justify-center items-center space-x-2 mt-4">
@@ -443,36 +413,15 @@ const Signup = () => {
                         </form>
                     )}
 
-                    {/* Step 3: Password & Course */}
+                    {/* Step 3: Password */}
                     {step === 3 && (
                         <form className="space-y-5" onSubmit={handleRegistrationSubmit}>
-                            <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">Set Security & Selection</h3>
+                            <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">Set Your Password</h3>
 
-                            {/* Course selection is optional — only offered when published
-                                content actually exists. Students can enrol later from
-                                their dashboard. */}
-                            {(contentOptions.courses.length > 0 || contentOptions.bundles.length > 0) && (
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Select a Course</label>
-                                    <select
-                                        name="courseId"
-                                        value={formData.courseId}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    >
-                                        <option value="">-- Choose First Course or Bundle (optional) --</option>
-                                        {contentOptions.courses.map(course => (
-                                            <option key={course._id} value={course._id}>{course.title}</option>
-                                        ))}
-                                        {contentOptions.bundles.map(bundle => (
-                                            <option key={bundle._id} value={bundle._id}>{bundle.title}</option>
-                                        ))}
-                                    </select>
-                                    <p className="mt-1 text-xs text-slate-500">You can enroll in more content later from your dashboard.</p>
-                                </div>
-                            )}
-
-                            <div className="space-y-4 pt-2 border-t border-slate-100">
+                            {/* No course to pick any more. Every published bundle is open
+                                to a signed-in student, so asking them to choose one thing
+                                up front only made the rest look unavailable. */}
+                            <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-1">Set Password *</label>
                                     <div className="relative">

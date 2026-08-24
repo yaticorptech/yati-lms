@@ -75,6 +75,8 @@ router.route('/users/:id/progress/:courseId').delete(protectAdmin, resetProgress
 
 // Bundle Management Routes
 router.route('/bundles').get(protectAdmin, bundleCtrl.getBundles).post(protectAdmin, bundleCtrl.createBundle);
+// Ahead of /bundles/:id, or "thumbnail" is read as a bundle id.
+router.post('/bundles/thumbnail', protectAdmin, imageUpload.single('image'), bundleCtrl.uploadThumbnail);
 router.route('/bundles/:id').get(protectAdmin, bundleCtrl.getBundleById).put(protectAdmin, bundleCtrl.updateBundle).delete(protectAdmin, bundleCtrl.deleteBundle);
 
 // Enrollment Management Routes

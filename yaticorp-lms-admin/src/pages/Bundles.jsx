@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import api from '../utils/api';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
-import { Plus, Edit2, Trash2, Layers, Check, X, AlertCircle, CheckCircle2 } from 'lucide-react'; {/* MY CHANGES — added AlertCircle, CheckCircle2 icons */}
+import { Plus, Edit2, Trash2, Layers, Check, X, AlertCircle, CheckCircle2, FilePlus } from 'lucide-react'; {/* MY CHANGES — added AlertCircle, CheckCircle2 icons */}
 import useAutoRefresh from '../hooks/useAutoRefresh';
 
 const Bundles = () => {
@@ -16,6 +16,32 @@ const Bundles = () => {
     const [showModal, setShowModal] = useState(false);
     const [editId, setEditId] = useState(null);
     const [formData, setFormData] = useState({ title: '', description: '', thumbnail: '', isPublished: false, courses: [] });
+
+    const [uploadingThumb, setUploadingThumb] = useState(false);
+    const [thumbError, setThumbError] = useState('');
+
+    /**
+     * Send the chosen file to Bunny and keep the URL it comes back with.
+     *
+     * The form still stores a URL — that is what the bundle document holds and
+     * what students' pages render. Only the way the operator supplies it has
+     * changed: pick a file instead of hosting an image somewhere first.
+     */
+    const handleThumbnailUpload = async (file) => {
+        if (!file) return;
+        setThumbError('');
+        setUploadingThumb(true);
+        try {
+            const fd = new FormData();
+            fd.append('image', file);
+            const res = await api.post('/admin/bundles/thumbnail', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setFormData(prev => ({ ...prev, thumbnail: res.data.url }));
+        } catch (err) {
+            setThumbError(err.response?.data?.message || 'Upload failed');
+        } finally {
+            setUploadingThumb(false);
+        }
+    };
 
     const [formError, setFormError] = useState(''); // MY CHANGES — state for inline error message
     const [formSuccess, setFormSuccess] = useState(''); // MY CHANGES — state for inline success message
@@ -268,11 +294,23 @@ const Bundles = () => {
                                         ></textarea>
                                     </div>
                                     <div className="col-span-2">
-                                        <label className="block text-sm font-semibold text-slate-700 mb-1">Thumbnail URL</label>
-                                        <input   
-                                            type="text" value={formData.thumbnail} onChange={e => setFormData({ ...formData, thumbnail: e.target.value })}
-                                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                        />
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1">Thumbnail</label>
+                                        {formData.thumbnail && (
+                                            <div className="mb-2 relative w-full h-40 rounded-lg overflow-hidden border border-slate-200">
+                                                <img src={formData.thumbnail} alt="Thumbnail preview" className="w-full h-full object-cover" />
+                                                <button type="button" onClick={() => setFormData({ ...formData, thumbnail: '' })}
+                                                    className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80">
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                        )}
+                                        <label className="flex items-center justify-center gap-2 w-full px-4 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50 transition-colors text-sm font-medium text-slate-600">
+                                            <FilePlus size={16} />
+                                            {uploadingThumb ? 'Uploading...' : (formData.thumbnail ? 'Change image' : 'Upload from device')}
+                                            <input type="file" accept="image/*" className="hidden" disabled={uploadingThumb}
+                                                onChange={e => handleThumbnailUpload(e.target.files?.[0])} />
+                                        </label>
+                                        {thumbError && <p className="text-xs text-red-500 mt-1">{thumbError}</p>}
                                     </div>
                                 </div>
 
