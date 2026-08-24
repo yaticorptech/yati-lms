@@ -3,6 +3,7 @@
  * @description CRUD operations for course bundles scoped to admin's organization
  */
 const Bundle = require('../models/Bundle');
+const { uploadToBunny } = require('../utils/bunnyStorage');
 
 // @desc    Get all bundles
 // @route   GET /api/admin/bundles
@@ -134,6 +135,25 @@ const deleteBundle = async (req, res) => {
     }
 };
 
+// @desc    Upload a bundle thumbnail → Bunny Storage → return CDN URL
+// @route   POST /api/admin/bundles/thumbnail
+// @access  Private/Admin
+const uploadThumbnail = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No image file provided' });
+        }
+        // Its own folder rather than course-thumbnails: the two are managed
+        // separately, and a shared folder makes it impossible to tell later
+        // which images are still referenced by what.
+        const url = await uploadToBunny(req.file.buffer, req.file.originalname, 'bundle-thumbnails');
+        res.json({ url });
+    } catch (error) {
+        console.error('Bundle thumbnail upload error:', error);
+        res.status(500).json({ message: 'Thumbnail upload failed', error: error.message });
+    }
+};
+
 module.exports = {
-    getBundles, getBundleById, createBundle, updateBundle, deleteBundle
+    getBundles, getBundleById, createBundle, updateBundle, deleteBundle, uploadThumbnail
 };
