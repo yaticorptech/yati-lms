@@ -12,7 +12,7 @@ const Roadmap = require('../models/Roadmap');
 const Goal = require('../models/Goal');
 const User = require('../../models/User');
 const { renderBadge } = require('../services/badgeImage');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 /** The label a phase shows on the roadmap, so the badge matches the page. */
 const phaseTitleOf = (phase, index) =>
@@ -93,10 +93,15 @@ const issuePhaseBadge = async (req, res) => {
       return res.status(400).json({ message: 'That phase is not completed yet.' });
     }
 
-    let badge = await MilestoneBadge.findOne({ userId, phaseIndex: index });
+    // Scoped to this roadmap, not to the index alone. Regenerating a roadmap
+    // for a new goal keeps the indices but changes what they mean, so a lookup
+    // on { userId, phaseIndex } returns the badge for an achievement the
+    // student is no longer working towards.
+    let badge = await MilestoneBadge.findOne({ userId, roadmapId: roadmap._id, phaseIndex: index });
     if (!badge) {
       badge = await MilestoneBadge.create({
         userId,
+        roadmapId: roadmap._id,
         phaseIndex: index,
         phaseTitle: phaseTitleOf(phases[index], index),
         studentName: user.name,
@@ -107,21 +112,50 @@ const issuePhaseBadge = async (req, res) => {
     res.status(200).json(publicShape(req, badge));
   } catch (error) {
     console.error('Milestone badge error:', error);
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
-// @desc    Every milestone badge this student has earned
-// @route   GET /api/career/milestones
-// @access  Private
+/**
+ * @desc    The milestone badges this student has earned and still holds
+ * @route   GET /api/career/milestones
+ * @access  Private
+ *
+ * Filtered to what is true right now, on two counts:
+ *
+ *   - Badges from a roadmap the student has since regenerated. Phase 0 of an
+ *     abandoned "Frontend Developer" roadmap is not a milestone on the MCA path
+ *     they are walking today, and listing it beside the current ones reads as
+ *     a badge they cannot account for.
+ *   - Badges for a phase they have reopened. Reopening says the phase is not
+ *     finished after all, and a card saying MILESTONE ACHIEVED under it
+ *     contradicts the roadmap on the previous screen.
+ *
+ * Neither case deletes anything. The row and its /b/<code> link survive
+ * untouched, because a link that may already have been posted cannot be taken
+ * back — and re-completing the phase brings the same badge back, same link,
+ * rather than minting a second one.
+ */
 const getMyBadges = async (req, res) => {
   try {
-    const badges = await MilestoneBadge.find({ userId: req.user._id })
+    const userId = req.user._id;
+
+    const roadmap = await Roadmap.findOne({ userId }).select('completedPhases').lean();
+    // No roadmap means nothing is currently being worked towards, so no badge
+    // is current either. Any that exist belong to a roadmap that is gone.
+    if (!roadmap) return res.status(200).json([]);
+
+    const earned = new Set(Roadmap.completedPrefix(roadmap.completedPhases));
+
+    const badges = await MilestoneBadge.find({ userId, roadmapId: roadmap._id })
       .sort({ phaseIndex: 1 })
       .lean();
-    res.status(200).json(badges.map((b) => publicShape(req, b)));
+
+    res.status(200).json(
+      badges.filter((b) => earned.has(b.phaseIndex)).map((b) => publicShape(req, b))
+    );
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -142,7 +176,7 @@ const getBadgeImage = async (req, res) => {
     res.send(png);
   } catch (error) {
     console.error('Badge image error:', error);
-    if (!res.headersSent) res.status(error.status || 500).json(aiAwareBody(error));
+    if (!res.headersSent) res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

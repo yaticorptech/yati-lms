@@ -7,7 +7,7 @@ const Task = require('../models/Task');
 const SkillProgress = require('../models/SkillProgress');
 const PlannerContext = require('../models/PlannerContext');
 const Recommendation = require('../models/Recommendation');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // @desc    Generate a new roadmap for the user's goal
 // @route   POST /api/roadmap/generate
@@ -97,7 +97,7 @@ const generateRoadmap = async (req, res) => {
     res.status(201).json(roadmap);
   } catch (error) {
     console.error('Roadmap Generation Error:', error);
-    res.status(error.status || 500).json(aiAwareBody(error, 'Failed to generate roadmap'));
+    res.status(statusFor(error)).json(aiAwareBody(error, 'Failed to generate roadmap'));
   }
 };
 
@@ -122,23 +122,18 @@ const getRoadmap = async (req, res) => {
 
     res.status(200).json(roadmap);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
 /**
- * Education phases run in sequence, so "completed" is always a prefix of the
- * roadmap: you cannot have finished Class 12 while Class 11 is outstanding.
+ * Stored progress is normalised to [0..highest] on both read and write. This
+ * also repairs older records written before the rule existed — a saved [7]
+ * becomes [0..7] rather than needing a migration.
  *
- * Stored progress is therefore normalised to [0..highest] on both read and
- * write. This also repairs older records written before the rule existed —
- * a saved [7] becomes [0..7] rather than needing a migration.
+ * The rule itself lives on the model, because the milestone list needs it too.
  */
-const asPrefix = (completed = []) => {
-  if (!completed.length) return [];
-  const highest = Math.max(...completed);
-  return Array.from({ length: highest + 1 }, (_, i) => i);
-};
+const asPrefix = Roadmap.completedPrefix;
 
 // @desc    Toggle a roadmap phase between done and not done
 // @route   PATCH /api/roadmap/phase
@@ -174,7 +169,7 @@ const togglePhase = async (req, res) => {
 
     res.status(200).json({ completedPhases: roadmap.completedPhases });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -191,7 +186,7 @@ const deleteRoadmap = async (req, res) => {
     await roadmap.deleteOne();
     res.status(200).json({ message: 'Roadmap deleted successfully.' });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
