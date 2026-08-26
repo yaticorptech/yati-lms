@@ -56,6 +56,26 @@ const taskSchema = new mongoose.Schema(
       type: [String],
       default: undefined
     },
+    /**
+     * The tracked skill this task moves forward, named exactly as the row in
+     * SkillProgress.
+     *
+     * Completing a task used to advance EVERY skill the student had by the same
+     * amount, so twenty tasks promoted the whole tracker at once and the Skills
+     * page became a re-skinned task counter — every row showing an identical
+     * percentage. Worse, that number is what decides which skills get sent to
+     * the job matcher, so work never done was being advertised as experience.
+     *
+     * Chosen by the model at generation time, from the student's own tracked
+     * skills, because that is the only point at which the reasoning is about
+     * what the task actually teaches. Optional: tasks written before this field
+     * existed carry nothing, and a task that genuinely advances no tracked
+     * skill (attend a lecture, email a professor) should carry nothing either.
+     */
+    skill: {
+      type: String,
+      trim: true
+    },
     duration: {
       type: String, // e.g., '45 mins', '2 hours'
       default: '30 mins'

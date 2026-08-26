@@ -5,6 +5,8 @@ const Roadmap = require('../models/Roadmap');
 const User = require('../models/User');
 const PlannerContext = require('../models/PlannerContext');
 const CalendarEvent = require('../models/CalendarEvent');
+const TaskStudy = require('../models/TaskStudy');
+const SkillProgress = require('../models/SkillProgress');
 const { generateDailyTasksFromAI } = require('./geminiService');
 
 // How much history the day's prompt carries. Enough for the model to see the
@@ -167,6 +169,69 @@ const examsTomorrow = async (userId, today = startOfDay()) =>
     .lean();
 
 /**
+ * The names of the skills this student is actually tracking.
+ *
+ * Handed to the generator so it tags each task with one of them rather than a
+ * skill of its own invention — the tag is only useful if it matches a row that
+ * exists.
+ */
+const trackedSkillNames = async (userId) => {
+  const rows = await SkillProgress.find({ userId }).select('skillName').lean();
+  return rows.map((r) => r.skillName);
+};
+
+/**
+ * Keep a generated skill tag only when it names a real tracked skill.
+ *
+ * The same guard the roadmap applies to course ids: a model asked to copy from
+ * a list will occasionally paraphrase, and a tag that matches nothing would
+ * quietly credit no skill while looking like it credited one. Matched without
+ * case sensitivity, then normalised to the stored spelling so completion can
+ * compare names directly.
+ */
+const validSkillTag = (tag, tracked) => {
+  if (!tag || typeof tag !== 'string') return undefined;
+  const wanted = tag.trim().toLowerCase();
+  return tracked.find((name) => name.toLowerCase() === wanted);
+};
+
+/**
+ * Withdraw work already handed out for a day that has since become an exam eve.
+ *
+ * Refusing to *generate* is only half of it. An exam added at four in the
+ * afternoon finds today's task already written and sitting in the planner, and
+ * two things then go wrong: the student is still shown work on a day the app
+ * says is clear, and tomorrow's sweep marks that untouched task Skipped —
+ * costing them the streak for an evening they spent revising, which is exactly
+ * what the clear day was for.
+ *
+ * Only Pending tasks are withdrawn. Anything already Completed stays: the
+ * student did it, and the XP and streak credit are theirs. Lessons belonging to
+ * a withdrawn task go with it rather than being left pointing at a task that no
+ * longer exists.
+ *
+ * @returns {Promise<number>} how many tasks were withdrawn
+ */
+const clearTodaysPendingWork = async (userId, today = startOfDay()) => {
+  const tomorrow = addDays(today, 1);
+  const pending = await Task.find({
+    userId,
+    assignedDate: { $gte: today, $lt: tomorrow },
+    status: 'Pending'
+  }).select('_id').lean();
+
+  if (!pending.length) return 0;
+
+  const ids = pending.map((t) => t._id);
+  await Promise.all([
+    Task.deleteMany({ _id: { $in: ids } }),
+    TaskStudy.deleteMany({ userId, taskId: { $in: ids } })
+  ]);
+
+  return ids.length;
+};
+
+/**
  * Ensure today's tasks exist, generating them once if they do not.
  *
  * Claim-first: the DailyPlan insert is attempted before any AI call, so a
@@ -183,9 +248,11 @@ const ensureTodaysPlan = async (userId, budgetOverride) => {
   // Gemini call, so an exam eve costs nothing to generate.
   const exams = await examsTomorrow(userId, today);
   if (exams.length > 0) {
+    const cleared = await clearTodaysPendingWork(userId, today);
     return {
       status: 'exam-eve',
       generated: 0,
+      cleared,
       timeBudgetMinutes: (await User.findById(userId).select('dailyTimeBudget'))?.dailyTimeBudget || 60,
       exams: exams.map((e) => e.title)
     };
@@ -237,7 +304,8 @@ const ensureTodaysPlan = async (userId, budgetOverride) => {
 
   try {
     const history = await buildHistory(userId);
-    const aiData = await generateDailyTasksFromAI(goal, roadmap, history, minutes);
+    const tracked = await trackedSkillNames(userId);
+    const aiData = await generateDailyTasksFromAI(goal, roadmap, history, minutes, tracked);
 
     const returned = (aiData.tasks || []).filter((t) => t.title);
     if (!returned.length) {
@@ -264,6 +332,7 @@ const ensureTodaysPlan = async (userId, budgetOverride) => {
         // Falls back to 'video' when the model omits it, matching the schema
         // default — a missing field must not silently become "no lesson".
         learning: task.learning || 'video',
+        skill: validSkillTag(task.skill, tracked),
         // Only meaningful without a lesson; stored only when actually supplied
         // so a task with a lesson does not carry an empty array around.
         guidance: task.learning === 'none' && task.guidance?.length ? task.guidance : undefined,
@@ -367,7 +436,8 @@ const addAnotherTask = async (userId) => {
   // still-pending task is invisible to it.
   history.completed = [...todays.map((t) => t.title), ...history.completed];
 
-  const aiData = await generateDailyTasksFromAI(goal, roadmap, history, window);
+  const tracked = await trackedSkillNames(userId);
+  const aiData = await generateDailyTasksFromAI(goal, roadmap, history, window, tracked);
   const returned = (aiData.tasks || []).filter((t) => t.title);
   if (!returned.length) {
     return { status: 'failed', message: 'The AI returned no task.' };
@@ -389,6 +459,7 @@ const addAnotherTask = async (userId) => {
     category: pick.category || 'Daily',
     duration: `${cost} mins`,
     learning: pick.learning || 'video',
+    skill: validSkillTag(pick.skill, tracked),
     guidance: pick.learning === 'none' && pick.guidance?.length ? pick.guidance : undefined,
     assignedDate: today,
     dueDate: tomorrow,
@@ -428,6 +499,22 @@ const setTodaysTimeBudget = async (userId, minutes, remember = false) => {
     await User.findByIdAndUpdate(userId, { dailyTimeBudget: minutes });
   }
 
+  // Reshaping the day must not resurrect it. Below, an existing plan has its
+  // pending work cleared and regenerated at the new size — on an exam eve that
+  // would hand back the very task the clear day exists to withhold. The budget
+  // itself is still remembered above, ready for the day after the exam.
+  const exams = await examsTomorrow(userId, today);
+  if (exams.length > 0) {
+    const cleared = await clearTodaysPendingWork(userId, today);
+    return {
+      status: 'exam-eve',
+      generated: 0,
+      cleared,
+      timeBudgetMinutes: minutes,
+      exams: exams.map((e) => e.title)
+    };
+  }
+
   const plan = await DailyPlan.findOne({ userId, date: today });
   if (!plan) {
     // No plan yet today — generating one straight at the new budget is both
@@ -455,12 +542,10 @@ const setTodaysTimeBudget = async (userId, minutes, remember = false) => {
   const spent = doneToday.reduce((total, task) => total + parseMinutes(task.duration), 0);
   const remaining = minutes - spent;
 
-  // Clear only what has not been started. Completed work is untouched.
-  await Task.deleteMany({
-    userId,
-    assignedDate: { $gte: today, $lt: tomorrow },
-    status: 'Pending'
-  });
+  // Clear only what has not been started. Completed work is untouched, and the
+  // withdrawn tasks take their lessons with them rather than leaving TaskStudy
+  // rows pointing at tasks that no longer exist.
+  await clearTodaysPendingWork(userId, today);
 
   if (remaining < MIN_USEFUL_MINUTES) {
     plan.taskCount = doneToday.length;
@@ -480,7 +565,8 @@ const setTodaysTimeBudget = async (userId, minutes, remember = false) => {
     // continues from it rather than re-issuing it.
     history.completed = [...doneToday.map((t) => t.title), ...history.completed];
 
-    const aiData = await generateDailyTasksFromAI(goal, roadmap, history, remaining);
+    const tracked = await trackedSkillNames(userId);
+    const aiData = await generateDailyTasksFromAI(goal, roadmap, history, remaining, tracked);
     const returned = (aiData.tasks || []).filter((t) => t.title);
 
     // Fitted to what is LEFT of the budget, not the whole of it — time already
@@ -498,6 +584,7 @@ const setTodaysTimeBudget = async (userId, minutes, remember = false) => {
         // Falls back to 'video' when the model omits it, matching the schema
         // default — a missing field must not silently become "no lesson".
         learning: task.learning || 'video',
+        skill: validSkillTag(task.skill, tracked),
         // Only meaningful without a lesson; stored only when actually supplied
         // so a task with a lesson does not carry an empty array around.
         guidance: task.learning === 'none' && task.guidance?.length ? task.guidance : undefined,

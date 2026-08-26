@@ -1342,7 +1342,7 @@ Provide 3-5 sections, 4-6 key terms, 4 videos, and at least 5 quiz questions (5 
  * asks for it rather than being handed it. dailyPlanService enforces the same
  * single-task rule on whatever comes back, because a prompt is a request.
  */
-const generateDailyTasksFromAI = async (goal, roadmap, history = {}, minutes = 60) => {
+const generateDailyTasksFromAI = async (goal, roadmap, history = {}, minutes = 60, trackedSkills = []) => {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY is not configured.');
   }
@@ -1369,6 +1369,9 @@ Tasks they SKIPPED and never finished:
 ${list(history.skipped, 'none')}
 
 ${PROGRESSION_RULES}
+
+SKILLS BEING TRACKED for this student (choose "skill" from exactly this list):
+${list(trackedSkills, 'none tracked yet - omit the skill field entirely')}
 
 TIME AVAILABLE TODAY: ${minutes} minutes. This is the single most important constraint.
 
@@ -1413,7 +1416,15 @@ Rules for today's plan:
      steps. Do not teach the concept; they already know it. Just get them moving.
    - The LAST step must say how they know it is finished.
 
-13. Return raw JSON matching the structure below. No markdown code fences.
+13. "skill" names which tracked skill this task moves forward. Copy the name EXACTLY as it appears
+   in the tracked list above — not a paraphrase, not a shortened form, not a skill you thought of
+   yourself. A name that is not on that list is discarded, and the task then counts towards nothing.
+   OMIT the field entirely when the task genuinely advances none of them — attending a lecture,
+   emailing a professor, filling in an application. Do not reach for the closest-sounding skill to
+   avoid leaving it blank: crediting the wrong skill is worse than crediting none, because the
+   student's skill profile is what gets shown to employers through the job matcher.
+
+14. Return raw JSON matching the structure below. No markdown code fences.
 
 Required JSON Structure:
 {
@@ -1425,6 +1436,7 @@ Required JSON Structure:
       "category": "Daily|Weekly|Monthly",
       "duration": "e.g., 45 mins",
       "learning": "video|read|none",
+      "skill": "OPTIONAL. Exact name copied from the tracked skills list. Omit if none genuinely applies.",
       "guidance": ["OPTIONAL. Only when learning is none AND the steps are not obvious. Omit for self-explanatory tasks."]
     }
   ]
