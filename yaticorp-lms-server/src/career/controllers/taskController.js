@@ -9,7 +9,7 @@ const { generateTasksFromAI } = require('../services/geminiService');
 const { completeTask } = require('../services/taskCompletionService');
 const { lessonGates } = require('./taskStudyController');
 const { getLessonIndex, matchTasksToLessons } = require('../services/lmsContext');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 const {
   startOfDay,
   addDays,
@@ -43,7 +43,7 @@ const generateAnotherTask = async (req, res) => {
     res.status(201).json({ task: result.task, overBudget: result.overBudget });
   } catch (error) {
     console.error('Extra task generation failed:', error.message);
-    res.status(error.status || 500).json(aiAwareBody(error, 'Could not generate another task.'));
+    res.status(statusFor(error)).json(aiAwareBody(error, 'Could not generate another task.'));
   }
 };
 
@@ -120,7 +120,7 @@ const generateTasks = async (req, res) => {
 
     res.status(201).json({ message: 'Tasks and Skills generated', tasks: createdTasks });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -226,7 +226,7 @@ const getTasks = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -265,7 +265,7 @@ const setTimeBudget = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -279,7 +279,7 @@ const getTaskHistory = async (req, res) => {
       .limit(200);
     res.status(200).json(tasks);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -314,7 +314,7 @@ const updateTask = async (req, res) => {
 
     res.status(200).json(task);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

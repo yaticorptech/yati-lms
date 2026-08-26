@@ -31,4 +31,26 @@ const errorBody = (error, fallback) => {
   return { message: error.message || fallback };
 };
 
-module.exports = { errorBody };
+/**
+ * The HTTP status a thrown error deserves.
+ *
+ * Controllers all ended their catch blocks with `error.status || 500`, and a
+ * Mongoose ValidationError carries no `status` — so a student who typed 500
+ * into a progress field, or sent a value outside an enum, was told "Server
+ * Error". The input was correctly refused; only the reporting was wrong, which
+ * is the worst version of it: nothing looks broken in the data, and the logs
+ * fill with 500s that are nobody's fault.
+ *
+ * CastError is the same story one level down — an id that is not an ObjectId is
+ * a bad request, not a fault.
+ *
+ * @param {Error} error
+ * @returns {number}
+ */
+const statusFor = (error) => {
+  if (error?.status) return error.status;
+  if (error?.name === 'ValidationError' || error?.name === 'CastError') return 400;
+  return 500;
+};
+
+module.exports = { errorBody, statusFor };

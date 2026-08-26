@@ -22,7 +22,7 @@ const Chat = require('../models/Chat');
 const MilestoneBadge = require('../models/MilestoneBadge');
 const AiUsage = require('../models/AiUsage');
 const { dayKey, PER_STUDENT, PER_SERVICE } = require('../services/aiQuota');
-const { errorBody } = require('../services/aiErrors');
+const { errorBody, statusFor } = require('../services/aiErrors');
 
 const daysAgo = (n) => {
   const d = new Date();
@@ -61,7 +61,7 @@ const getOverview = async (req, res) => {
       milestoneBadges: badges
     });
   } catch (error) {
-    res.status(error.status || 500).json(errorBody(error));
+    res.status(statusFor(error)).json(errorBody(error));
   }
 };
 
@@ -106,7 +106,7 @@ const getGoalBreakdown = async (req, res) => {
       states: shape(states)
     });
   } catch (error) {
-    res.status(error.status || 500).json(errorBody(error));
+    res.status(statusFor(error)).json(errorBody(error));
   }
 };
 
@@ -162,7 +162,7 @@ const getAiUsage = async (req, res) => {
       limits: { perStudent: PER_STUDENT, perService: PER_SERVICE || null }
     });
   } catch (error) {
-    res.status(error.status || 500).json(errorBody(error));
+    res.status(statusFor(error)).json(errorBody(error));
   }
 };
 

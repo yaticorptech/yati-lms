@@ -1,5 +1,5 @@
 const Goal = require('../models/Goal');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // The Goal schema requires different fields depending on the education level —
 // a class for a school student, a degree for an undergraduate, a job title and
@@ -53,7 +53,7 @@ const sendGoalError = (res, error) => {
       fields: [error.path]
     });
   }
-  return res.status(error.status || 500).json(aiAwareBody(error));
+  return res.status(statusFor(error)).json(aiAwareBody(error));
 };
 
 // @desc    Create a new goal for the user

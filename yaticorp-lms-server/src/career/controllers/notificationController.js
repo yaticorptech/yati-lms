@@ -1,5 +1,5 @@
 const Notification = require('../models/Notification');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // @desc    Get user notifications
 // @route   GET /api/notifications
@@ -9,7 +9,7 @@ const getNotifications = async (req, res) => {
     const notifications = await Notification.find({ userId: req.user._id }).sort({ createdAt: -1 });
     res.status(200).json(notifications);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -23,9 +23,13 @@ const markAsRead = async (req, res) => {
       { isRead: true },
       { new: true }
     );
+    // Scoped to the owner above, so a miss means it is not theirs or not there.
+    // Either way it was not marked read, and answering 200 with a null body
+    // told the client otherwise — the same lie DELETE /events already avoids.
+    if (!notification) return res.status(404).json({ message: 'Notification not found.' });
     res.status(200).json(notification);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -34,10 +38,14 @@ const markAsRead = async (req, res) => {
 // @access  Private
 const deleteNotification = async (req, res) => {
   try {
-    await Notification.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+    const removed = await Notification.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user._id
+    });
+    if (!removed) return res.status(404).json({ message: 'Notification not found.' });
     res.status(200).json({ message: 'Notification deleted' });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -54,7 +62,7 @@ const clearNotifications = async (req, res) => {
     const { deletedCount } = await Notification.deleteMany({ userId: req.user._id });
     res.status(200).json({ cleared: deletedCount });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

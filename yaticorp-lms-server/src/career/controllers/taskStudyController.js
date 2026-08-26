@@ -10,7 +10,7 @@ const {
 const { addXP } = require('../services/gamificationService');
 const { ensureMinimumQuiz } = require('../services/quizService');
 const { completeTask, TASK_XP } = require('../services/taskCompletionService');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // Every question must be right. A task is completed by its lesson, so "passed"
 // has to mean the student actually understood the material — not that they got
@@ -137,7 +137,7 @@ const getTaskStudy = async (req, res) => {
 
     res.status(200).json(publicView(study));
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -236,7 +236,7 @@ const generateTaskStudy = async (req, res) => {
     res.status(201).json(publicView(study));
   } catch (error) {
     console.error('Task study generation error:', error);
-    res.status(error.status || 500).json(aiAwareBody(error, 'Failed to build the lesson.'));
+    res.status(statusFor(error)).json(aiAwareBody(error, 'Failed to build the lesson.'));
   }
 };
 
@@ -302,7 +302,7 @@ const submitTaskQuiz = async (req, res) => {
       autoCompleted
     });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -351,7 +351,7 @@ const updateStudyProgress = async (req, res) => {
       task: autoCompleted ? task : undefined
     });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

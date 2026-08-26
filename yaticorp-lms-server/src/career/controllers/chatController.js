@@ -7,7 +7,7 @@ const SkillProgress = require('../models/SkillProgress');
 const CalendarEvent = require('../models/CalendarEvent');
 const { generateMentorResponse } = require('../services/geminiService');
 const { getEnrolledCourses } = require('../services/lmsContext');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // Roughly ten exchanges. Enough that a student can refer back to something a
 // few questions ago, short enough that the mentor's own context stays the
@@ -82,7 +82,7 @@ const sendMessage = async (req, res) => {
     res.status(200).json({ userMessage: userChat, aiMessage: aiChat });
   } catch (error) {
     console.error('Chat Error:', error);
-    res.status(error.status || 500).json(aiAwareBody(error, 'Failed to communicate with mentor.'));
+    res.status(statusFor(error)).json(aiAwareBody(error, 'Failed to communicate with mentor.'));
   }
 };
 
@@ -94,7 +94,7 @@ const getChatHistory = async (req, res) => {
     const history = await Chat.find({ userId: req.user._id }).sort({ createdAt: 1 });
     res.status(200).json(history);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -106,7 +106,7 @@ const clearChatHistory = async (req, res) => {
     await Chat.deleteMany({ userId: req.user._id });
     res.status(200).json({ message: 'Chat history cleared.' });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
