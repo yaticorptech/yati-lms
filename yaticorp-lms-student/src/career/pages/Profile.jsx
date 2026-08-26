@@ -229,13 +229,20 @@ export default function Profile() {
               />
             </div>
 
+            {/* Label beside the text, not above it. Stacked, the paragraph kept
+                its readable measure and left a third of the card empty to its
+                right — and widening the text instead would have run lines past
+                a hundred characters, which is worse to read than the gap was to
+                look at. Side by side, the row fills and the measure holds. */}
             {summary?.currentStage && (
               <div className="border-t border-line-100 bg-surface-50/60 p-5 sm:px-6">
-                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold tracking-wider text-ink-400 uppercase">
-                  <Compass className="h-3.5 w-3.5" />
-                  Where you are now
-                </p>
-                <p className="max-w-3xl leading-relaxed text-ink-700">{summary.currentStage}</p>
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:gap-8">
+                  <p className="flex shrink-0 items-center gap-1.5 text-xs font-bold tracking-wider text-ink-400 uppercase lg:w-44 lg:pt-0.5">
+                    <Compass className="h-3.5 w-3.5" />
+                    Where you are now
+                  </p>
+                  <p className="max-w-3xl leading-relaxed text-ink-700">{summary.currentStage}</p>
+                </div>
               </div>
             )}
           </>
