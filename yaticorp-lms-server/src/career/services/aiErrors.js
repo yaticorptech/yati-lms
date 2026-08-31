@@ -28,6 +28,16 @@ const errorBody = (error, fallback) => {
       resetsAt: error.resetsAt
     };
   }
+  // A duplicate-key error is a database implementation detail. Left alone it
+  // reached the student as
+  //   "E11000 duplicate key error collection: yati_lms_test.career_milestone_badges
+  //    index: userId_1_phaseIndex_1 dup key: { userId: ObjectId('…') }"
+  // — the database name, the collection, the index definition and a raw id, in
+  // a 500, on a page where the honest answer is "you already have this one".
+  if (error?.code === 11000) {
+    return { message: fallback || 'That already exists.' };
+  }
+
   return { message: error.message || fallback };
 };
 
@@ -50,6 +60,9 @@ const errorBody = (error, fallback) => {
 const statusFor = (error) => {
   if (error?.status) return error.status;
   if (error?.name === 'ValidationError' || error?.name === 'CastError') return 400;
+  // Writing something that already exists is the caller asking for a state the
+  // data will not hold — a conflict, not a fault in the server.
+  if (error?.code === 11000) return 409;
   return 500;
 };
 

@@ -17,6 +17,7 @@ import { SkeletonPage } from '../../components/ui/Skeleton';
 import Button from '../../components/ui/Button';
 import StreakTile from '../../components/dashboard/StreakTile';
 import LevelTile from '../../components/dashboard/LevelTile';
+import JobMatchesTile from '../../components/dashboard/JobMatchesTile';
 import {
   levelProgress,
   currentStreak,
@@ -206,7 +207,13 @@ export default function Overview() {
           again on the planner. Three places telling the student about the same
           single task. */}
 
-      {/* ---- Row 3: the long view, full bleed across the grid. ---- */}
+      {/* ---- Row 3: where this roadmap leads. Carries its own grid cell and
+              renders itself out of the bento entirely when Jobs is locked,
+              there is no goal yet, or the index has nothing — absence, never
+              an apology. ---- */}
+      <JobMatchesTile />
+
+      {/* ---- Row 4: the long view, full bleed across the grid. ---- */}
       <div className="sm:col-span-2 lg:col-span-12">
         <Card hover>
           <CardHeader

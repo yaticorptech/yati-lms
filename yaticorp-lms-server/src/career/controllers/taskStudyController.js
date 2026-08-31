@@ -122,13 +122,24 @@ const getTaskStudy = async (req, res) => {
     // and quiz, reset their score, and spend a Gemini call for nothing).
     // Never for a reading lesson: the absence of a video there is the point,
     // not a gap to fill in.
-    if (study.mode !== 'read' && !study.video?.videoId && study.video?.searchQuery) {
+    //
+    // Attempted whether or not a search phrase was stored. A video lesson with
+    // no videoId has no video gate — `lessonGates` cannot require watching
+    // something that is not there — so the student completes a lesson meant to
+    // teach by video without ever seeing one. That used to be unrecoverable
+    // when the phrase was missing too, which is exactly the case where the
+    // lookup had failed hardest. The task's own title is a good enough query;
+    // it is what the search would have been built from anyway.
+    if (study.mode !== 'read' && !study.video?.videoId) {
       try {
         const task = await Task.findOne({ _id: req.params.id, userId: req.user._id }).select('title');
-        const video = await findVideoForTopic(study.video.searchQuery, task?.title || '');
-        if (video) {
-          study.video = { ...study.video.toObject?.() ?? study.video, ...video };
-          await study.save();
+        const query = study.video?.searchQuery || task?.title;
+        if (query) {
+          const video = await findVideoForTopic(query, task?.title || '');
+          if (video) {
+            study.video = { ...study.video?.toObject?.() ?? study.video, ...video };
+            await study.save();
+          }
         }
       } catch (error) {
         console.warn('Could not backfill video for lesson:', error.message);

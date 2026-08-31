@@ -24,7 +24,8 @@ const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
  * duplicates: an existing row for the same name is left exactly as it is, so a
  * student who has built progress does not lose it.
  */
-const MAX_TRACKED_SKILLS = 8;
+// One definition, on the model, so the other writer cannot disagree with it.
+const MAX_TRACKED_SKILLS = SkillProgress.MAX_TRACKED;
 
 const seedSkillTracker = async (userId, roadmapData) => {
   const named = roadmapData?.skills?.technical;

@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UploadCloud, Link as LinkIcon, Cloud, FileText, Upload, Plus, ToggleLeft, ToggleRight, Eye, MonitorPlay, HelpCircle, Trash2, CheckCircle, Download as DownloadIcon, FileSpreadsheet, PlayCircle } from 'lucide-react';
+import { ArrowLeft, UploadCloud, Link as LinkIcon, Cloud, FileText, Upload, Plus, ToggleLeft, ToggleRight, Eye, MonitorPlay, HelpCircle, Trash2, CheckCircle, Download as DownloadIcon, FileSpreadsheet, PlayCircle, Paperclip } from 'lucide-react';
 import api from '../utils/api';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
@@ -30,6 +30,9 @@ const LessonEditor = () => {
 
     // Attachments state
     const [attachments, setAttachments] = useState([]); // [{ name, url }]
+    const [attachmentUploading, setAttachmentUploading] = useState(false);
+    const [attachmentProgress, setAttachmentProgress] = useState(0);
+    const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
 
     // Security / Player / Thumbnail settings
     const [securitySettings, setSecuritySettings] = useState({ enableDRM: false, disableScreenCapture: false, watermarkText: '' });
@@ -195,7 +198,7 @@ const LessonEditor = () => {
             setSaved(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [lesson, isFree, allowDownload, quizData]);
+    }, [lesson, isFree, allowDownload, quizData, attachments]);
 
     const handleBunnyUpload = async (e) => {
         const file = e.target.files?.[0];
@@ -218,6 +221,42 @@ const LessonEditor = () => {
             setUploading(false);
             setUploadProgress(0);
         }
+    };
+
+    const handleAttachmentUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setAttachmentUploading(true);
+        setAttachmentProgress(0);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const { data } = await api.post('/admin/lessons/attachments', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                onUploadProgress: (evt) => { if (evt.total) setAttachmentProgress(Math.round((evt.loaded * 100) / evt.total)); }
+            });
+            setAttachments(prev => [...prev, { name: data.name || file.name, url: data.url }]);
+        } catch (err) {
+            console.error('Attachment upload error:', err);
+            alert(err.response?.data?.message || 'Failed to upload attachment.');
+        } finally {
+            setAttachmentUploading(false);
+            setAttachmentProgress(0);
+            e.target.value = '';
+        }
+    };
+
+    const handleAddAttachmentByUrl = () => {
+        const url = newAttachment.url.trim();
+        if (!url) return alert('Attachment URL is required.');
+        // Fall back to the URL's filename when no display name was typed
+        const name = newAttachment.name.trim() || decodeURIComponent(url.split('/').pop().split('?')[0]) || 'Attachment';
+        setAttachments(prev => [...prev, { name, url }]);
+        setNewAttachment({ name: '', url: '' });
+    };
+
+    const handleRemoveAttachment = (idx) => {
+        setAttachments(prev => prev.filter((_, i) => i !== idx));
     };
 
     const handleSave = async () => {
@@ -784,6 +823,91 @@ const LessonEditor = () => {
                                             </p>
                                         </>
                                     )}
+                                </div>
+                            </div>
+
+                            {/* Lesson Attachments */}
+                            <div className="mt-10 pt-8 border-t border-slate-100">
+                                <h3 className="text-xl font-black text-slate-800 mb-1 flex items-center">
+                                    <Paperclip className="mr-3 text-indigo-600" size={22} /> Attachments
+                                </h3>
+                                <p className="text-xs text-slate-500 font-medium mb-6">
+                                    Downloadable resources for this lesson — slides, worksheets, source files, etc. Students see them below the video.
+                                </p>
+
+                                {attachments.length > 0 && (
+                                    <div className="space-y-2 mb-4">
+                                        {attachments.map((att, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                                <div className="flex items-center min-w-0">
+                                                    <FileText size={16} className="text-indigo-500 mr-3 flex-shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-bold text-slate-700 truncate">{att.name || 'Attachment'}</p>
+                                                        <a href={att.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline truncate block">
+                                                            {att.url}
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleRemoveAttachment(idx)}
+                                                    className="p-1.5 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 border border-slate-200 rounded-lg ml-3 flex-shrink-0 transition-colors"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Upload dropzone */}
+                                {!attachmentUploading ? (
+                                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50">
+                                        <input
+                                            type="file"
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                            onChange={handleAttachmentUpload}
+                                        />
+                                        <Paperclip className="text-indigo-400 mb-2" size={26} />
+                                        <p className="font-bold text-slate-700 text-sm">Click or drag a file here to attach</p>
+                                        <p className="text-xs text-slate-500 mt-1">PDF, Word, Excel, PowerPoint, images, ZIP and more.</p>
+                                    </div>
+                                ) : (
+                                    <div className="w-full">
+                                        <div className="flex justify-between text-xs font-bold text-slate-600 mb-2">
+                                            <span>Uploading Attachment...</span>
+                                            <span>{attachmentProgress}%</span>
+                                        </div>
+                                        <div className="w-full bg-slate-200 rounded-full h-2.5">
+                                            <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${attachmentProgress}%` }}></div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Add by URL */}
+                                <div className="mt-4 border-t border-slate-100 pt-4">
+                                    <label className="text-xs font-bold text-slate-500 mb-2 block">Or add an attachment by URL:</label>
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <input
+                                            type="text"
+                                            className="sm:w-1/3 p-3 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium text-slate-700 transition-all"
+                                            placeholder="Display name (optional)"
+                                            value={newAttachment.name}
+                                            onChange={(e) => setNewAttachment({ ...newAttachment, name: e.target.value })}
+                                        />
+                                        <input
+                                            type="url"
+                                            className="flex-1 p-3 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium text-slate-700 transition-all"
+                                            placeholder="e.g. https://cdn.example.com/worksheet.pdf"
+                                            value={newAttachment.url}
+                                            onChange={(e) => setNewAttachment({ ...newAttachment, url: e.target.value })}
+                                        />
+                                        <button
+                                            onClick={handleAddAttachmentByUrl}
+                                            className="px-5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg transition-colors text-sm flex items-center justify-center flex-shrink-0"
+                                        >
+                                            <Plus size={16} className="mr-1" /> Add
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

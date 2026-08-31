@@ -5,7 +5,7 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase } from 'lucide-react';
 import api from '../utils/api';
 
 // Contact Support Modal
@@ -71,7 +71,7 @@ const careerHitCount = (career) =>
     (career?.phases?.length || 0) + (career?.tasks?.length || 0) + (career?.skills?.length || 0);
 
 const StudentLayout = () => {
-    const { user, logout, isCreditSystemEnabled, isCareerPathEnabled } = useContext(AuthContext);
+    const { user, logout, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled } = useContext(AuthContext);
     const location = useLocation();
     const navigate = useNavigate();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -92,6 +92,7 @@ const StudentLayout = () => {
     // where each item came from.
     const [announcements, setAnnouncements] = useState([]);
     const [careerNotifs, setCareerNotifs] = useState([]);
+    const [jobNotifs, setJobNotifs] = useState([]);
     const [showNotif, setShowNotif] = useState(false);
     const [notifSeen, setNotifSeen] = useState(() => parseInt(localStorage.getItem('notif_seen') || '0'));
     const notifRef = useRef(null);
@@ -106,14 +107,21 @@ const StudentLayout = () => {
         api.get('/user/announcements').then(r => setAnnouncements(r.data)).catch(() => {});
         // Best-effort: a student with no career goal yet simply has none of these.
         api.get('/career/notifications').then(r => setCareerNotifs(r.data || [])).catch(() => {});
-    }, [location.pathname]);
+        // Job alerts. Not fetched while the section is locked — the endpoint
+        // would only answer 403, and the bell should not mention a tab the
+        // student cannot see.
+        if (isJobsEnabled) {
+            api.get('/jobs/notifications').then(r => setJobNotifs(r.data || [])).catch(() => {});
+        }
+    }, [location.pathname, isJobsEnabled]);
 
     // Announcements have no per-user read state on the server, so they are
     // counted against a high-water mark in localStorage the way they always
     // were. Career Path notifications carry their own isRead, so they are
     // counted honestly and stay unread until the student actually opens them.
     const careerUnread = careerNotifs.filter(n => !n.isRead).length;
-    const unreadCount = Math.max(0, announcements.length - notifSeen) + careerUnread;
+    const jobsUnread = jobNotifs.filter(n => !n.isRead).length;
+    const unreadCount = Math.max(0, announcements.length - notifSeen) + careerUnread + jobsUnread;
 
     // Merged newest-first. `kind` is what lets one panel render two shapes.
     const feed = [
@@ -124,6 +132,12 @@ const StudentLayout = () => {
         ...careerNotifs.map(n => ({
             kind: 'career', id: n._id, title: n.title,
             body: n.message, at: n.createdAt, read: Boolean(n.isRead)
+        })),
+        ...jobNotifs.map(n => ({
+            kind: 'jobs', id: n._id, title: n.title,
+            body: n.message, at: n.createdAt, read: Boolean(n.isRead),
+            // Carries the student back to the exact search the alert is about.
+            link: n.link || '/jobs'
         }))
     ].sort((a, b) => new Date(b.at) - new Date(a.at));
 
@@ -145,6 +159,15 @@ const StudentLayout = () => {
                 unread.map(n => api.put(`/career/notifications/${n._id}/read`).catch(() => {}))
             );
         }
+
+        // Job alerts follow the same rule: read means read on every device.
+        const unreadJobs = jobNotifs.filter(n => !n.isRead);
+        if (unreadJobs.length) {
+            setJobNotifs(list => list.map(n => ({ ...n, isRead: true })));
+            Promise.all(
+                unreadJobs.map(n => api.put(`/jobs/notifications/${n._id}/read`).catch(() => {}))
+            );
+        }
     };
 
     const clearNotifications = async () => {
@@ -153,11 +176,13 @@ const StudentLayout = () => {
         // call failing must not stop announcements being cleared.
         await Promise.allSettled([
             api.post('/user/announcements/clear'),
-            api.delete('/career/notifications')
+            api.delete('/career/notifications'),
+            api.delete('/jobs/notifications')
         ]);
 
         setAnnouncements([]);
         setCareerNotifs([]);
+        setJobNotifs([]);
         setNotifSeen(0);
         localStorage.setItem('notif_seen', '0');
     };
@@ -230,9 +255,14 @@ const StudentLayout = () => {
             <Link to="/community" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isActive('/community') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                 <MessageSquare size={20} /> <span>Community</span>
             </Link>
-            {/* Withdrawn entirely when an admin locks the section, rather than
-                shown disabled: a tab that cannot be opened only invites the
-                question of when it will be. */}
+            {/* Both sections are withdrawn entirely when an admin locks them,
+                rather than shown disabled: a tab that cannot be opened only
+                invites the question of when it will be. */}
+            {isJobsEnabled && (
+                <Link to="/jobs" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isActive('/jobs') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    <Briefcase size={20} /> <span>Jobs</span>
+                </Link>
+            )}
             {isCareerPathEnabled && (
                 <Link to="/career" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isSectionActive('/career') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                     <Compass size={20} /> <span>Career Path</span>
@@ -294,21 +324,28 @@ const StudentLayout = () => {
                     <div className="divide-y divide-slate-50">
                         {feed.map(item => {
                             const career = item.kind === 'career';
+                            const jobs = item.kind === 'jobs';
+                            const clickable = career || jobs;
                             return (
                                 <div
                                     key={`${item.kind}-${item.id}`}
-                                    className={`px-4 py-4 transition-colors ${career ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default hover:bg-slate-50'}`}
-                                    onClick={career ? () => { setShowNotif(false); navigate('/career'); } : undefined}
+                                    className={`px-4 py-4 transition-colors ${clickable ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default hover:bg-slate-50'}`}
+                                    onClick={clickable ? () => {
+                                        setShowNotif(false);
+                                        navigate(jobs ? (item.link || '/jobs') : '/career');
+                                    } : undefined}
                                 >
                                     <div className="flex items-start gap-2">
                                         <span
                                             className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
                                                 career
                                                     ? 'bg-indigo-100 text-indigo-700'
-                                                    : 'bg-slate-100 text-slate-600'
+                                                    : jobs
+                                                        ? 'bg-emerald-100 text-emerald-700'
+                                                        : 'bg-slate-100 text-slate-600'
                                             }`}
                                         >
-                                            {career ? 'Career' : 'Notice'}
+                                            {career ? 'Career' : jobs ? 'Jobs' : 'Notice'}
                                         </span>
                                         <div className="min-w-0 flex-1">
                                             <p className="font-bold text-slate-800 text-sm leading-tight">

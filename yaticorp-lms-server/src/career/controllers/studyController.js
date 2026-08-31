@@ -45,7 +45,11 @@ const getStudyMaterials = async (req, res) => {
 // @access  Private
 const generateStudyMaterial = async (req, res) => {
   try {
-    const skillName = (req.body.skillName || '').trim();
+    // Type-checked before trimming. A JSON body can carry an object where a
+    // string is expected — `{"skillName": {"$ne": null}}` — and calling .trim()
+    // on it threw a TypeError that surfaced as a 500, reporting a server fault
+    // for what is simply a malformed request.
+    const skillName = typeof req.body.skillName === 'string' ? req.body.skillName.trim() : '';
     if (!skillName) {
       return res.status(400).json({ message: 'A skillName is required.' });
     }

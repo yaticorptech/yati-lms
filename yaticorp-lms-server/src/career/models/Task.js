@@ -106,6 +106,21 @@ const taskSchema = new mongoose.Schema(
     // user's streak history.
     completedAt: {
       type: Date
+    },
+
+    /**
+     * When this task's completion was paid out — XP, achievements, skill
+     * progress — and it is paid out exactly once, ever.
+     *
+     * Distinct from completedAt, which reopening deliberately clears so the
+     * streak stops counting a day it no longer earned. That made completedAt
+     * useless as a record of payment: ticking a task, reopening it and ticking
+     * it again ran the awards a second time, and a student could sit on one
+     * task cycling it for unlimited XP and skill percentage. This never
+     * clears, so re-completing a task marks it done and pays nothing further.
+     */
+    creditedAt: {
+      type: Date
     }
   },
   {

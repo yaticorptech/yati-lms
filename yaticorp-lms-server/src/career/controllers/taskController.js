@@ -61,19 +61,34 @@ const generateTasks = async (req, res) => {
 
     const aiData = await generateTasksFromAI(goal, roadmap);
 
-    // Save Skills
-    if (aiData.skillsToDevelop && aiData.skillsToDevelop.length > 0) {
-      for (const skill of aiData.skillsToDevelop) {
-        await SkillProgress.findOneAndUpdate(
-          { userId: req.user._id, skillName: skill.skillName },
-          { 
-            $set: { level: skill.level },
-            $setOnInsert: { progress: 0 }
-          },
-          { upsert: true, new: true }
-        );
-      }
+    // Save Skills.
+    //
+    // Capped like the roadmap's own seeding is. This path used to upsert every
+    // skill the model returned, so an account seeded at the ceiling of eight
+    // quietly grew past it — the tracker is meant to be a focus, not a list.
+    const offeredSkills = (aiData.skillsToDevelop || []).slice(0, SkillProgress.MAX_TRACKED);
+    for (const skill of offeredSkills) {
+      await SkillProgress.findOneAndUpdate(
+        { userId: req.user._id, skillName: skill.skillName },
+        {
+          $set: { level: skill.level },
+          $setOnInsert: { progress: 0 }
+        },
+        { upsert: true, new: true }
+      );
     }
+
+    // What a task may claim to advance: the skills this student actually
+    // tracks, including any this response just added. A tag matching none of
+    // them is dropped rather than stored, so it can never credit a row that
+    // does not exist — the same guard the daily planner applies.
+    const trackedNames = (await SkillProgress.find({ userId: req.user._id }).select('skillName').lean())
+      .map((row) => row.skillName);
+    const validSkillTag = (tag) => {
+      if (!tag || typeof tag !== 'string') return undefined;
+      const wanted = tag.trim().toLowerCase();
+      return trackedNames.find((name) => name.toLowerCase() === wanted);
+    };
 
     // Save PlannerContext
     await PlannerContext.findOneAndUpdate(
@@ -108,6 +123,7 @@ const generateTasks = async (req, res) => {
           category: task.category,
           duration: task.duration,
           learning: task.learning || 'video',
+          skill: validSkillTag(task.skill),
           guidance: task.learning === 'none' && task.guidance?.length ? task.guidance : undefined,
           // These join today's plan, so they appear alongside the generated
           // ones and fall under the same end-of-day sweep.

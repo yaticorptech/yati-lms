@@ -125,11 +125,17 @@ const completeTask = async (userId, task) => {
   // Finishing a missed task clears the skip: the profile should credit the
   // catch-up rather than keep listing it as missed.
   task.skippedAt = undefined;
+
+  // Pay out once per task, ever. The status guard above stops a repeated
+  // completion, but not a reopen followed by another tick — and that loop was
+  // worth 10 XP and five points of skill progress every time round it.
+  const alreadyCredited = !!task.creditedAt;
+  if (!alreadyCredited) task.creditedAt = new Date();
   await task.save();
 
-  await runCompletionSideEffects(userId, task);
+  if (!alreadyCredited) await runCompletionSideEffects(userId, task);
 
-  return { completed: true, task };
+  return { completed: true, task, credited: !alreadyCredited };
 };
 
 module.exports = {

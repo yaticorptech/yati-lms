@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Key, Plus, Trash2, Smartphone, Bell, ChevronRight, ArrowLeft, CheckCircle2, Eye, EyeOff, Compass, Lock, Unlock } from 'lucide-react';
+import { Shield, Key, Plus, Trash2, Smartphone, Bell, ChevronRight, ArrowLeft, CheckCircle2, Eye, EyeOff, Compass, Lock, Unlock, Briefcase } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 
 /**
@@ -224,14 +224,28 @@ const Settings = () => {
                     {features === null ? (
                         <div className="text-slate-500 text-sm">Loading settings…</div>
                     ) : (
-                        <FeatureRow
-                            icon={Compass}
-                            title="Career Path"
-                            description="The AI roadmap section: goals, planner, skills, badges and the mentor chat."
-                            enabled={features.isCareerPathEnabled !== false}
-                            saving={savingFeature === 'isCareerPathEnabled'}
-                            onToggle={(next) => toggleFeature('isCareerPathEnabled', next)}
-                        />
+                        <div className="divide-y divide-slate-100">
+                            <div className="pb-6">
+                                <FeatureRow
+                                    icon={Compass}
+                                    title="Career Path"
+                                    description="The AI roadmap section: goals, planner, skills, badges and the mentor chat."
+                                    enabled={features.isCareerPathEnabled !== false}
+                                    saving={savingFeature === 'isCareerPathEnabled'}
+                                    onToggle={(next) => toggleFeature('isCareerPathEnabled', next)}
+                                />
+                            </div>
+                            <div className="pt-6">
+                                <FeatureRow
+                                    icon={Briefcase}
+                                    title="Jobs"
+                                    description="The job board: search and recommendations, skill-gap analysis and location matching."
+                                    enabled={features.isJobsEnabled !== false}
+                                    saving={savingFeature === 'isJobsEnabled'}
+                                    onToggle={(next) => toggleFeature('isJobsEnabled', next)}
+                                />
+                            </div>
+                        </div>
                     )}
                 </div>
             </div>

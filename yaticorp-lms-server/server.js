@@ -90,6 +90,9 @@ app.use('/api/community', require('./src/routes/communityRoutes'));
 // Career Path (FuturePath) — student-only AI roadmap section. One mount; the
 // module's own router fans out to /goals, /roadmap, /tasks, /chat and the rest.
 app.use('/api/career', require('./src/career'));
+// Jobs (CareerCompass) — the student job board. One mount; the module's own
+// router fans out to /recommend, /roles, /meta and the admin half.
+app.use('/api/jobs', require('./src/jobboard'));
 // Public share links for Career Path milestone badges: /b/<code> renders the
 // page a student's followers open, /b/<code>/image.png is what LinkedIn, X and
 // WhatsApp embed. Deliberately outside /api and deliberately unauthenticated —
@@ -115,3 +118,21 @@ setInterval(cleanupResolvedTickets, 60 * 60 * 1000);
 
 // Also run once on startup
 cleanupResolvedTickets();
+
+// Job index maintenance — nightly ingest, retire 45-day-stale listings, and a
+// bounded geocode top-up, so the index stays alive without anyone remembering
+// to run npm scripts. Opt out with JOBS_AUTO_INGEST=false.
+//
+// Job alerts — "N new jobs match your last search", into the student bell.
+// Scheduled after maintenance so a first boot announces jobs it just fetched.
+//
+// Both intervals fire far more often than the runs happen: a database-backed
+// claim inside each service enforces once-a-day, so redeploys and second
+// instances cannot double-run. The first calls wait out boot so the database
+// connection is settled and crash loops don't hammer the boards.
+const { runScheduledMaintenance } = require('./src/jobboard/services/maintenanceService');
+const { runJobAlerts } = require('./src/jobboard/services/alertService');
+setTimeout(runScheduledMaintenance, 5 * 60 * 1000);
+setInterval(runScheduledMaintenance, 6 * 60 * 60 * 1000);
+setTimeout(runJobAlerts, 15 * 60 * 1000);
+setInterval(runJobAlerts, 6 * 60 * 60 * 1000);

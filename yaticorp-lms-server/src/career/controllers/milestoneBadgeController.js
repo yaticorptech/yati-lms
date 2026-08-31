@@ -99,14 +99,42 @@ const issuePhaseBadge = async (req, res) => {
     // student is no longer working towards.
     let badge = await MilestoneBadge.findOne({ userId, roadmapId: roadmap._id, phaseIndex: index });
     if (!badge) {
-      badge = await MilestoneBadge.create({
-        userId,
-        roadmapId: roadmap._id,
-        phaseIndex: index,
-        phaseTitle: phaseTitleOf(phases[index], index),
-        studentName: user.name,
-        careerGoal: goal?.careerGoal || ''
-      });
+      try {
+        badge = await MilestoneBadge.create({
+          userId,
+          roadmapId: roadmap._id,
+          phaseIndex: index,
+          phaseTitle: phaseTitleOf(phases[index], index),
+          studentName: user.name,
+          careerGoal: goal?.careerGoal || ''
+        });
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+
+        // Two very different things collide here and only one is recoverable.
+        //
+        // A concurrent share of the SAME phase of the SAME roadmap is a race
+        // this request simply lost — the row now exists, so read it back.
+        badge = await MilestoneBadge.findOne({ userId, roadmapId: roadmap._id, phaseIndex: index });
+
+        // Anything else means the legacy { userId, phaseIndex } unique index is
+        // still on the collection, and it is refusing this badge because a
+        // DIFFERENT roadmap once used the same position. Falling back to that
+        // row would hand the student a badge for a milestone they earned on a
+        // path they have abandoned — which is the exact bug scoping badges to a
+        // roadmap was meant to end. Refuse loudly instead.
+        if (!badge) {
+          console.error(
+            '[career] milestone badge blocked by a stale unique index. ' +
+            'Run `npm run career:migrate-badges` against this database.'
+          );
+          const stale = new Error(
+            'This milestone cannot be shared yet. Please tell your administrator to finish the badge migration.'
+          );
+          stale.status = 503;
+          throw stale;
+        }
+      }
     }
 
     res.status(200).json(publicShape(req, badge));

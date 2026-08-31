@@ -864,7 +864,14 @@ Follow these STRICT rules:
 3. If High School: subject practice, exam prep.
 4. If College: coding, projects, certifications, internships.
 5. If Working Professional: career growth, certifications, leadership, networking.
-6. Return raw JSON matching the structure below. Do NOT use markdown code blocks.
+6. "skill" on each task names which of your own "skillsToDevelop" entries that task moves
+   forward. Copy the skillName EXACTLY as you wrote it below — the two lists are checked against
+   each other, and a name that matches nothing is discarded, leaving the task counting towards
+   nothing. Omit "skill" when a task genuinely advances none of them. Do not reach for the
+   closest-sounding one: crediting the wrong skill is worse than crediting none, because the
+   student's skill profile is what gets shown to employers.
+7. Return AT MOST 8 entries in "skillsToDevelop". More than that is a list, not a focus.
+8. Return raw JSON matching the structure below. Do NOT use markdown code blocks.
 
 Required JSON Structure:
 {
@@ -874,7 +881,8 @@ Required JSON Structure:
       "title": "Task title",
       "description": "Task description",
       "category": "Daily|Weekly|Monthly",
-      "duration": "e.g., 30 mins"
+      "duration": "e.g., 30 mins",
+      "skill": "OPTIONAL. Exact skillName copied from skillsToDevelop below. Omit if none applies."
     }
   ],
   "skillsToDevelop": [
