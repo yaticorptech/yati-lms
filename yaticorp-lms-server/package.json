@@ -10,7 +10,15 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "echo 'No build step required'",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "jobs:seed": "node src/jobboard/scripts/seed.js",
+    "jobs:ingest": "node src/jobboard/scripts/ingest.js",
+    "jobs:geocode": "node src/jobboard/scripts/geocode.js",
+    "jobs:embed": "node src/jobboard/scripts/embed.js",
+    "jobs:dedupe": "node src/jobboard/scripts/dedupe.js",
+    "jobs:warm": "node src/jobboard/scripts/warm.js",
+    "jobs:setup": "npm run jobs:seed && npm run jobs:ingest && npm run jobs:geocode",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "career:migrate-badges": "node src/career/scripts/migrateMilestoneBadges.js"
   },
   "keywords": [],
   "author": "",

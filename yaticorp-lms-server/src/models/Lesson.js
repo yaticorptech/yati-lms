@@ -56,6 +56,10 @@ const lessonSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    attachments: [new mongoose.Schema({
+        name: { type: String },
+        url: { type: String, required: true }
+    }, { _id: false })],
     allowDownload: {
         type: Boolean,
         default: false

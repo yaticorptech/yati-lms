@@ -22,6 +22,26 @@ const milestoneBadgeSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    /**
+     * The roadmap this phase belonged to.
+     *
+     * Without it a badge is keyed by position alone, and position is not
+     * stable: regenerating the roadmap for a new goal leaves phase 0 meaning
+     * something entirely different. A student who earned phase 0 as
+     * "High School: Class 9" and later regenerated into an MCA roadmap was
+     * handed the old badge back for the new phase, because the lookup matched
+     * on index and found it.
+     *
+     * Optional, because badges issued before this field existed have no
+     * roadmap recorded. Those keep their permanent links and are simply never
+     * reused — see scripts/migrateMilestoneBadges.js, which adopts the ones
+     * that still match the student's current roadmap.
+     */
+    roadmapId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CareerRoadmap',
+      index: true
+    },
     // Position in roadmapData.educationRoadmap. Phases live inside the roadmap's
     // JSON blob and have no id of their own.
     phaseIndex: {
@@ -62,9 +82,15 @@ const milestoneBadgeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// One badge per phase per student. Re-opening the share sheet reuses it rather
-// than minting a second link to the same achievement.
-milestoneBadgeSchema.index({ userId: 1, phaseIndex: 1 }, { unique: true });
+// One badge per phase OF ONE ROADMAP per student. Re-opening the share sheet
+// reuses it rather than minting a second link to the same achievement — but a
+// regenerated roadmap is a different achievement at the same index, so the
+// roadmap is part of the key.
+//
+// Replaces a unique index on { userId, phaseIndex }. Mongoose creates indexes
+// but never drops the ones it no longer declares, so the old one has to be
+// dropped explicitly or it keeps enforcing the very rule this fixes.
+milestoneBadgeSchema.index({ userId: 1, roadmapId: 1, phaseIndex: 1 }, { unique: true });
 
 module.exports = mongoose.model(
   'CareerMilestoneBadge',

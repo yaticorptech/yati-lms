@@ -35,6 +35,34 @@ const STATUS_DOT = {
   Pending: 'bg-brand-400'
 };
 
+/**
+ * A colour per kind of event, rather than one violet for all five.
+ *
+ * An exam and a holiday are the two most different things a student can put on
+ * this page, and they used to render identically — so the square that decides
+ * whether next week is frightening or free looked the same either way. Exams
+ * take the loudest colour because they are what the page is opened to check.
+ */
+// Kept as whole, literal class names. Tailwind scans source text for the
+// classes it generates, so a name assembled at runtime is a name it never
+// emits — the style would simply be missing in the build.
+const EVENT_STYLE = {
+  Exam: { bg: 'bg-rose-100', tint: 'bg-rose-50/60', text: 'text-rose-700', ring: 'ring-rose-200' },
+  Assignment: { bg: 'bg-amber-100', tint: 'bg-amber-50/60', text: 'text-amber-800', ring: 'ring-amber-200' },
+  Class: { bg: 'bg-sky-100', tint: 'bg-sky-50/60', text: 'text-sky-700', ring: 'ring-sky-200' },
+  Holiday: { bg: 'bg-emerald-100', tint: 'bg-emerald-50/60', text: 'text-emerald-700', ring: 'ring-emerald-200' },
+  Other: { bg: 'bg-violet-100', tint: 'bg-violet-50/60', text: 'text-violet-700', ring: 'ring-violet-200' }
+};
+
+const styleFor = (type) => EVENT_STYLE[type] || EVENT_STYLE.Other;
+
+/** The day before `key`, in the same YYYY-MM-DD form. */
+const previousDayKey = (key) => {
+  const d = new Date(`${key}T00:00:00`);
+  d.setDate(d.getDate() - 1);
+  return dayKey(d);
+};
+
 export default function CalendarView() {
   const [tasks, setTasks] = useState([]);
   // The student's own exams and events, kept apart from tasks: these are typed
@@ -99,6 +127,23 @@ export default function CalendarView() {
     }
     return map;
   }, [events]);
+
+  /**
+   * The days the planner will deliberately leave clear: the eve of every exam.
+   *
+   * Mirrors the rule in the server's dailyPlanService — an exam tomorrow means
+   * no new task today. Marking it here is what makes that behaviour legible in
+   * advance: a student looking at next week can see which evening is already
+   * spoken for, instead of finding an empty planner on the day and reading it
+   * as a fault.
+   */
+  const examEveDays = useMemo(() => {
+    const days = new Set();
+    for (const [date, dayEvents] of eventsByDay) {
+      if (dayEvents.some((e) => e.type === 'Exam')) days.add(previousDayKey(date));
+    }
+    return days;
+  }, [eventsByDay]);
 
   // Only `min` is used for navigation — see canGoBack below. Events count
   // towards it as well as tasks, so an event saved in an earlier month keeps
@@ -194,8 +239,50 @@ export default function CalendarView() {
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1)
   ];
 
+  /**
+   * What the month on screen actually amounts to.
+   *
+   * A grid of dots shows the shape of a month but not its size, and "how am I
+   * doing" is the question the page is really opened with. Counted over the
+   * visible month only, so paging back answers it for that month too.
+   */
+  const monthSummary = useMemo(() => {
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+    let completed = 0;
+    let pending = 0;
+    let missed = 0;
+    let events = 0;
+
+    for (const [key, dayTasks] of byDay) {
+      if (!key.startsWith(prefix)) continue;
+      for (const task of dayTasks) {
+        if (task.status === 'Completed') completed += 1;
+        else if (task.status === 'Skipped') missed += 1;
+        else pending += 1;
+      }
+    }
+    for (const [key, dayEvents] of eventsByDay) {
+      if (key.startsWith(prefix)) events += dayEvents.length;
+    }
+
+    return { completed, pending, missed, events, total: completed + pending + missed };
+  }, [byDay, eventsByDay, year, month]);
+
   const selectedTasks = byDay.get(selectedKey) || [];
   const selectedEvents = eventsByDay.get(selectedKey) || [];
+  const selectedDone = selectedTasks.filter((t) => t.status === 'Completed').length;
+  const selectedMissed = selectedTasks.filter((t) => t.status === 'Skipped').length;
+  const selectedIsExamEve = examEveDays.has(selectedKey);
+
+  // Only the three days a student thinks of by name get one.
+  const relativeDayLabel =
+    selectedKey === todayKey
+      ? 'Today'
+      : selectedKey === dayKey(new Date(Date.now() + 86400000))
+        ? 'Tomorrow'
+        : selectedKey === dayKey(new Date(Date.now() - 86400000))
+          ? 'Yesterday'
+          : null;
 
   // "since August 2026" — the month the first plan landed in.
   const startedLabel = monthLabel(bounds.firstKey);
@@ -249,6 +336,32 @@ export default function CalendarView() {
             </div>
           </div>
 
+          {/* What this month came to, before the grid shows its shape. */}
+          {(monthSummary.total > 0 || monthSummary.events > 0) && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+              {monthSummary.completed > 0 && (
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700 ring-1 ring-emerald-100 ring-inset">
+                  {monthSummary.completed} completed
+                </span>
+              )}
+              {monthSummary.pending > 0 && (
+                <span className="rounded-full bg-brand-50 px-2.5 py-1 font-semibold text-brand-700 ring-1 ring-brand-100 ring-inset">
+                  {monthSummary.pending} pending
+                </span>
+              )}
+              {monthSummary.missed > 0 && (
+                <span className="rounded-full bg-rose-50 px-2.5 py-1 font-semibold text-rose-700 ring-1 ring-rose-100 ring-inset">
+                  {monthSummary.missed} missed
+                </span>
+              )}
+              {monthSummary.events > 0 && (
+                <span className="rounded-full bg-surface-50 px-2.5 py-1 font-semibold text-ink-600 ring-1 ring-line-200 ring-inset">
+                  {monthSummary.events} {monthSummary.events === 1 ? 'event' : 'events'}
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="mb-2 grid grid-cols-7 gap-1 sm:gap-2">
             {WEEKDAYS.map((d) => (
               <div key={d} className="py-2 text-center text-xs font-semibold text-ink-500 sm:text-sm">
@@ -268,6 +381,13 @@ export default function CalendarView() {
               const dayEvents = eventsByDay.get(key) || [];
               const isToday = key === todayKey;
               const isSelected = key === selectedKey;
+              // A day with nothing on it reads very differently depending on
+              // which side of today it sits: behind, it is a day that went
+              // unused; ahead, it is simply not written yet. Dimming the future
+              // stops empty upcoming squares looking like missed ones.
+              const isPast = key < todayKey;
+              const isFuture = key > todayKey;
+              const isExamEve = examEveDays.has(key);
 
               return (
                 <button
@@ -280,23 +400,40 @@ export default function CalendarView() {
                   }}
                   aria-label={`${day} ${MONTHS[month]}, ${dayTasks.length} ${
                     dayTasks.length === 1 ? 'task' : 'tasks'
-                  }${dayEvents.length ? `, ${dayEvents.length} of your own events` : ''}`}
+                  }${dayEvents.length ? `, ${dayEvents.length} of your own events` : ''}${
+                    isExamEve ? ', kept clear before an exam' : ''
+                  }`}
                   aria-pressed={isSelected}
-                  className={`min-h-[52px] rounded-md border p-1 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 sm:min-h-[80px] sm:rounded-lg sm:p-2 ${
+                  aria-current={isToday ? 'date' : undefined}
+                  className={`relative min-h-[52px] rounded-md border p-1 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 sm:min-h-[80px] sm:rounded-lg sm:p-2 ${
                     isSelected
                       ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-200'
-                      : 'border-line-200/80 bg-surface hover:border-brand-300 hover:bg-brand-50/30'
-                  }`}
+                      : isToday
+                        ? 'border-brand-300 bg-surface ring-1 ring-brand-100 hover:border-brand-400'
+                        : isExamEve
+                          ? 'border-rose-200 bg-rose-50/40 hover:border-rose-300'
+                          : 'border-line-200/80 bg-surface hover:border-brand-300 hover:bg-brand-50/30'
+                  } ${isFuture && !dayEvents.length && !isExamEve ? 'opacity-60' : ''}`}
                 >
                   <span
                     className={`text-xs font-medium sm:text-sm ${
                       isToday
                         ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-white sm:h-6 sm:w-6'
-                        : 'text-ink-700'
+                        : isPast
+                          ? 'text-ink-500'
+                          : 'text-ink-700'
                     }`}
                   >
                     {day}
                   </span>
+
+                  {/* The evening the planner will hand out no work, shown before
+                      the student arrives on it rather than after. */}
+                  {isExamEve && !dayEvents.length && (
+                    <span className="mt-1 block truncate rounded bg-rose-100 px-1 py-px text-[10px] leading-tight font-bold text-rose-700">
+                      Revision
+                    </span>
+                  )}
 
                   {/* Real workload: one dot per task, capped so a heavy day does
                       not overflow its square. */}
@@ -321,11 +458,15 @@ export default function CalendarView() {
                       a fifth colour of dot would not tell them which day. */}
                   {dayEvents.length > 0 && (
                     <span className="mt-1 flex flex-col gap-0.5">
-                      <span className="truncate rounded bg-violet-100 px-1 py-px text-[10px] leading-tight font-bold text-violet-700">
+                      <span
+                        className={`truncate rounded px-1 py-px text-[10px] leading-tight font-bold ${
+                          styleFor(dayEvents[0].type).bg
+                        } ${styleFor(dayEvents[0].type).text}`}
+                      >
                         {dayEvents[0].title}
                       </span>
                       {dayEvents.length > 1 && (
-                        <span className="text-[10px] leading-none font-bold text-violet-500">
+                        <span className="text-[10px] leading-none font-bold text-ink-400">
                           +{dayEvents.length - 1} more
                         </span>
                       )}
@@ -336,6 +477,9 @@ export default function CalendarView() {
             })}
           </div>
 
+          {/* Tasks only. The event chips carry their own titles on the grid,
+              so a colour key for them was a row of labels explaining something
+              the squares already say in words. */}
           <div className="mt-5 flex flex-wrap gap-4 border-t border-line-100 pt-4 text-xs text-ink-500">
             {[
               ['bg-emerald-500', 'Completed'],
@@ -351,13 +495,44 @@ export default function CalendarView() {
         </Card>
 
         <Card className="animate-fade-in-up">
-          <h3 className="mb-4 font-bold text-ink-900">
-            {new Date(selectedKey + 'T00:00:00').toLocaleDateString(undefined, {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long'
-            })}
-          </h3>
+          <div className="mb-4">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <h3 className="font-bold text-ink-900">
+                {new Date(selectedKey + 'T00:00:00').toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long'
+                })}
+              </h3>
+              {/* "Wednesday 26 August" is precise but makes the reader work out
+                  where they are. The relative word does that for them. */}
+              {relativeDayLabel && (
+                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[0.7rem] font-bold text-brand-700">
+                  {relativeDayLabel}
+                </span>
+              )}
+            </div>
+            {selectedTasks.length > 0 && (
+              <p className="mt-1 text-xs text-ink-500">
+                {selectedDone} of {selectedTasks.length}{' '}
+                {selectedTasks.length === 1 ? 'task' : 'tasks'} done
+                {selectedMissed > 0 && ` · ${selectedMissed} missed`}
+              </p>
+            )}
+          </div>
+
+          {/* Says why an empty day is empty. Without it the clear evening
+              before an exam is indistinguishable from a day the planner
+              failed on. */}
+          {selectedIsExamEve && (
+            <div className="mb-4 rounded-lg border border-rose-100 bg-rose-50/60 p-3">
+              <p className="text-sm font-bold text-rose-800">Kept clear for your exam</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-rose-700/90">
+                You sit an exam the next day, so no new task is assigned. Revise what you
+                already know rather than starting something new.
+              </p>
+            </div>
+          )}
 
           {selectedTasks.length === 0 && selectedEvents.length === 0 && !formOpen ? (
             <EmptyState
@@ -414,12 +589,18 @@ export default function CalendarView() {
                 {selectedEvents.map((event) => (
                   <li
                     key={event._id}
-                    className="rounded-lg border border-violet-100 bg-violet-50/50 p-3"
+                    className={`rounded-lg p-3 ring-1 ring-inset ${styleFor(event.type).tint} ${
+                      styleFor(event.type).ring
+                    }`}
                   >
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold break-words text-ink-900">{event.title}</p>
-                        <span className="mt-1 inline-block rounded bg-surface px-1.5 py-0.5 text-[0.65rem] font-bold text-violet-700 ring-1 ring-violet-100 ring-inset">
+                        <span
+                          className={`mt-1 inline-block rounded bg-surface px-1.5 py-0.5 text-[0.65rem] font-bold ring-1 ring-inset ${
+                            styleFor(event.type).text
+                          } ${styleFor(event.type).ring}`}
+                        >
                           {event.type}
                         </span>
                         {event.notes && (

@@ -10,7 +10,7 @@ const {
 const { addXP } = require('../services/gamificationService');
 const { ensureMinimumQuiz } = require('../services/quizService');
 const { completeTask, TASK_XP } = require('../services/taskCompletionService');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // Every question must be right. A task is completed by its lesson, so "passed"
 // has to mean the student actually understood the material — not that they got
@@ -122,13 +122,24 @@ const getTaskStudy = async (req, res) => {
     // and quiz, reset their score, and spend a Gemini call for nothing).
     // Never for a reading lesson: the absence of a video there is the point,
     // not a gap to fill in.
-    if (study.mode !== 'read' && !study.video?.videoId && study.video?.searchQuery) {
+    //
+    // Attempted whether or not a search phrase was stored. A video lesson with
+    // no videoId has no video gate — `lessonGates` cannot require watching
+    // something that is not there — so the student completes a lesson meant to
+    // teach by video without ever seeing one. That used to be unrecoverable
+    // when the phrase was missing too, which is exactly the case where the
+    // lookup had failed hardest. The task's own title is a good enough query;
+    // it is what the search would have been built from anyway.
+    if (study.mode !== 'read' && !study.video?.videoId) {
       try {
         const task = await Task.findOne({ _id: req.params.id, userId: req.user._id }).select('title');
-        const video = await findVideoForTopic(study.video.searchQuery, task?.title || '');
-        if (video) {
-          study.video = { ...study.video.toObject?.() ?? study.video, ...video };
-          await study.save();
+        const query = study.video?.searchQuery || task?.title;
+        if (query) {
+          const video = await findVideoForTopic(query, task?.title || '');
+          if (video) {
+            study.video = { ...study.video?.toObject?.() ?? study.video, ...video };
+            await study.save();
+          }
         }
       } catch (error) {
         console.warn('Could not backfill video for lesson:', error.message);
@@ -137,7 +148,7 @@ const getTaskStudy = async (req, res) => {
 
     res.status(200).json(publicView(study));
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -236,7 +247,7 @@ const generateTaskStudy = async (req, res) => {
     res.status(201).json(publicView(study));
   } catch (error) {
     console.error('Task study generation error:', error);
-    res.status(error.status || 500).json(aiAwareBody(error, 'Failed to build the lesson.'));
+    res.status(statusFor(error)).json(aiAwareBody(error, 'Failed to build the lesson.'));
   }
 };
 
@@ -302,7 +313,7 @@ const submitTaskQuiz = async (req, res) => {
       autoCompleted
     });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -351,7 +362,7 @@ const updateStudyProgress = async (req, res) => {
       task: autoCompleted ? task : undefined
     });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

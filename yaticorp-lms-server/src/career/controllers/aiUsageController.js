@@ -6,7 +6,7 @@
  * the same fact as a red error after clicking Regenerate does not.
  */
 const { remainingForStudent } = require('../services/aiQuota');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // @desc    Today's AI allowance for this student
 // @route   GET /api/career/ai-usage
@@ -15,7 +15,7 @@ const getMyAiUsage = async (req, res) => {
   try {
     res.status(200).json(await remainingForStudent(req.user._id));
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

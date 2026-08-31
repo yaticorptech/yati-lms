@@ -10,6 +10,7 @@ import StudentLayout from './layouts/StudentLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import EnrolledCourses from './pages/EnrolledCourses';
+const Jobs = React.lazy(() => import('./pages/Jobs'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -56,6 +57,16 @@ const CareerOnboarding = React.lazy(() => import('./career/pages/Onboarding'));
  * setting arrives with it, and redirecting before it does would bounce every
  * student off a section that is open.
  */
+/**
+ * The lock an administrator can put on the Jobs section, same shape as the
+ * career one below: the sidebar tab is not the only way in.
+ */
+const JobsGate = () => {
+  const { loading, isJobsEnabled } = useContext(AuthContext);
+  if (loading) return <CareerFallback />;
+  return isJobsEnabled ? <Outlet /> : <Navigate to="/" replace />;
+};
+
 const CareerGate = () => {
   const { loading, isCareerPathEnabled } = useContext(AuthContext);
   if (loading) return <CareerFallback />;
@@ -86,6 +97,13 @@ function App() {
         {/* Career Path. The onboarding wizard sits outside the shell because it
             is a focused five-step flow — the section's tab strip has nothing to
             offer until it has been through once. */}
+        <Route element={<JobsGate />}>
+          <Route
+            path="jobs"
+            element={<React.Suspense fallback={<CareerFallback />}><Jobs /></React.Suspense>}
+          />
+        </Route>
+
         <Route element={<CareerGate />}>
         <Route
           path="career/onboarding"
