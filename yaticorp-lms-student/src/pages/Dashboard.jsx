@@ -4,9 +4,12 @@
  */
 import React, { useState, useContext } from 'react';
 import api from '../utils/api';
+import useCountUp from '../hooks/useCountUp';
+import ContinueLearningCard from '../components/course/ContinueLearningCard';
+import CourseCard from '../components/course/CourseCard';
 import { AuthContext } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { BookOpen, Award, PlayCircle, BarChart3, Clock, X } from 'lucide-react';
+import { BookOpen, Award, PlayCircle, BarChart3, Clock, X, Compass } from 'lucide-react';
 
 import { useDashboard } from '../shared/hooks/useDashboard';
 
@@ -58,6 +61,17 @@ const Dashboard = () => {
     });
     const inProgressCount = inProgressCourses.length;
 
+    // What "Continue learning" points at: the in-progress course the student has
+    // taken furthest. Undefined when nothing is in progress, and the hero simply
+    // does not render — the dashboard already has an empty state for that.
+    const resumeCourse = [...inProgressCourses].sort(
+        (a, b) => getProgressVal(b._id) - getProgressVal(a._id)
+    )[0];
+
+    const totalShown = useCountUp(courses.length);
+    const inProgressShown = useCountUp(inProgressCount);
+    const completedShown = useCountUp(completedCount);
+
     const handleRetry = refresh;
 
     const handleEnrollClick = (course) => {
@@ -81,64 +95,74 @@ const Dashboard = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-12">
             {/* Welcome Header */}
-            <div className="bg-indigo-600 rounded-3xl p-8 md:p-10 shadow-lg shadow-indigo-600/20 text-white relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+            <div className="animate-fade-in-up sheen bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-700 rounded-3xl p-6 sm:p-8 md:p-10 shadow-xl shadow-indigo-600/25 text-white relative overflow-hidden">
+                <div className="drift absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                <div className="drift absolute bottom-0 left-1/3 w-48 h-48 bg-fuchsia-400/20 rounded-full blur-3xl -mb-20 pointer-events-none" style={{ animationDelay: '1.5s' }}></div>
                 <div className="relative z-10">
                     <h1 className="text-3xl md:text-4xl font-bold mb-2">{getGreeting()}, {user?.name.split(' ')[0]}! 👋</h1>
-                    <p className="text-indigo-100 text-lg max-w-xl">Pick up right where you left off and keep moving towards your learning goals.</p>
+                    <p className="text-indigo-100 text-base sm:text-lg max-w-xl">Pick up right where you left off and keep moving towards your learning goals.</p>
                 </div>
             </div>
 
+            {/* The next step, before anything else on the page. Renders nothing
+                when no course is part-finished. */}
+            <ContinueLearningCard course={resumeCourse} progress={getProgressVal(resumeCourse?._id)} />
+
             {/* Stats Summary */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex items-center space-x-4">
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+            <div className="stagger grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="lift bg-white rounded-2xl p-4 sm:p-6 border border-slate-100 shadow-sm flex items-center space-x-4">
+                    <div className="animate-pop-in p-3 bg-blue-50 text-blue-600 rounded-xl">
                         <BookOpen size={24} />
                     </div>
                     <div>
-                        <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Courses</p>
-                        <p className="text-2xl font-bold text-slate-800">{courses.length}</p>
+                        <p className="text-xs sm:text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Courses</p>
+                        <p className="text-2xl font-bold text-slate-800 tabular-nums">{totalShown}</p>
                     </div>
                 </div>
-                <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex items-center space-x-4">
-                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                <div className="lift bg-white rounded-2xl p-4 sm:p-6 border border-slate-100 shadow-sm flex items-center space-x-4">
+                    <div className="animate-pop-in p-3 bg-indigo-50 text-indigo-600 rounded-xl">
                         <BarChart3 size={24} />
                     </div>
                     <div>
-                        <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">In Progress</p>
-                        <p className="text-2xl font-bold text-slate-800">{inProgressCount}</p>
+                        <p className="text-xs sm:text-sm font-semibold text-slate-500 uppercase tracking-wider">In Progress</p>
+                        <p className="text-2xl font-bold text-slate-800 tabular-nums">{inProgressShown}</p>
                     </div>
                 </div>
-                <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex items-center space-x-4">
-                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <div className="lift bg-white rounded-2xl p-4 sm:p-6 border border-slate-100 shadow-sm flex items-center space-x-4">
+                    <div className="animate-pop-in p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                         <Award size={24} />
                     </div>
                     <div>
-                        <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Completed</p>
-                        <p className="text-2xl font-bold text-slate-800">{completedCount}</p>
+                        <p className="text-xs sm:text-sm font-semibold text-slate-500 uppercase tracking-wider">Completed</p>
+                        <p className="text-2xl font-bold text-slate-800 tabular-nums">{completedShown}</p>
                     </div>
                 </div>
             </div>
 
             {/* My Learning Tabs */}
-            <div className="flex border-b border-slate-200">
+            {/* Four tabs at text-lg do not fit a phone. Left as a plain flex
+                they widened the page itself, which is what pushed every other
+                section off the left edge. The strip now scrolls on its own —
+                the negative margin lets it bleed to the screen edges so the
+                scroll reads as more-to-see rather than as a clipped box. */}
+            <div className="-mx-4 flex overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <button
                     onClick={() => setActiveTab('courses')}
-                    className={`pb-4 px-2 mr-6 font-bold text-lg transition-colors relative ${activeTab === 'courses' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`shrink-0 whitespace-nowrap pb-4 px-2 mr-5 sm:mr-6 font-bold text-base sm:text-lg transition-colors relative ${activeTab === 'courses' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     My Courses
                     {activeTab === 'courses' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-t-full"></div>}
                 </button>
                 <button
                     onClick={() => setActiveTab('bundles')}
-                    className={`pb-4 px-2 mr-6 font-bold text-lg transition-colors relative ${activeTab === 'bundles' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`shrink-0 whitespace-nowrap pb-4 px-2 mr-5 sm:mr-6 font-bold text-base sm:text-lg transition-colors relative ${activeTab === 'bundles' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     Bundles
                     {activeTab === 'bundles' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-t-full"></div>}
                 </button>
                 <button
                     onClick={() => setActiveTab('completed')}
-                    className={`pb-4 px-2 mr-6 font-bold text-lg transition-colors relative ${activeTab === 'completed' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`shrink-0 whitespace-nowrap pb-4 px-2 mr-5 sm:mr-6 font-bold text-base sm:text-lg transition-colors relative ${activeTab === 'completed' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     Completed
                     {completedCount > 0 && (
@@ -148,7 +172,7 @@ const Dashboard = () => {
                 </button>
                 <button
                     onClick={() => setActiveTab('available')}
-                    className={`pb-4 px-2 font-bold text-lg transition-colors relative ${activeTab === 'available' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`shrink-0 whitespace-nowrap pb-4 px-2 font-bold text-base sm:text-lg transition-colors relative ${activeTab === 'available' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     Available Courses
                     {activeTab === 'available' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-t-full"></div>}
@@ -184,84 +208,53 @@ const Dashboard = () => {
                     </div>
                 ) : activeTab === 'courses' ? (
                     courses.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {courses.map(course => {
-                                const progress = getProgressVal(course._id);
-                                return (
-                                    <div key={course._id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300 group flex flex-col">
-                                        {/* Thumbnail Area */}
-                                        <div className="h-48 bg-slate-100 relative overflow-hidden">
-                                            {course.thumbnail ? (
-                                                <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                            ) : (
-                                                <div className="w-full h-full flex justify-center items-center bg-indigo-50 text-indigo-200">
-                                                    <BookOpen size={48} />
-                                                </div>
-                                            )}
-                                            {/* Floating Play Button overlay on hover */}
-                                            <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                <div className="w-14 h-14 bg-white/90 backdrop-blur rounded-full flex items-center justify-center text-indigo-600 shadow-lg translate-y-4 group-hover:translate-y-0 transition-all duration-300">
-                                                    <PlayCircle size={32} className="ml-1" />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Card Content */}
-                                        <div className="p-6 flex-1 flex flex-col">
-                                            <h3 className="font-bold text-lg text-slate-800 line-clamp-2 min-h-[56px] mb-2 group-hover:text-indigo-600 transition-colors">
-                                                {course.title}
-                                            </h3>
-
-                                            <div className="mt-auto pt-4">
-                                                <div className="flex justify-between items-end mb-2">
-                                                    <span className="text-sm font-semibold text-slate-500 flex items-center">
-                                                        <Clock size={14} className="mr-1.5" /> Progress
-                                                    </span>
-                                                    <span className="text-sm font-bold text-indigo-600">{progress}%</span>
-                                                </div>
-                                                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                                                    <div
-                                                        className="bg-indigo-600 h-2.5 rounded-full transition-all duration-1000 ease-out relative"
-                                                        style={{ width: `${progress}%` }}
-                                                    >
-                                                        <div className="absolute top-0 right-0 bottom-0 left-0 bg-white/20"></div>
-                                                    </div>
-                                                </div>
-
-                                                <Link
-                                                    to={`/learn/${course._id}`}
-                                                    className="mt-6 w-full flex justify-center items-center space-x-2 py-3 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold rounded-xl transition-colors border border-slate-200 hover:border-indigo-200"
-                                                >
-                                                    {progress > 0 ? (
-                                                        <><span>Resume Course</span> <PlayCircle size={18} /></>
-                                                    ) : (
-                                                        <><span>Start Course</span> <PlayCircle size={18} /></>
-                                                    )}
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                        <div className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {courses.map(course => (
+                                <CourseCard
+                                    key={course._id}
+                                    course={course}
+                                    progress={getProgressVal(course._id)}
+                                    to={`/learn/${course._id}`}
+                                />
+                            ))}
                         </div>
                     ) : (
-                        <div className="bg-white rounded-3xl border border-slate-200 border-dashed p-12 text-center flex flex-col items-center">
-                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                                <BookOpen size={32} className="text-slate-400" />
+                        <div className="animate-fade-in-up relative overflow-hidden bg-gradient-to-br from-white to-indigo-50/60 rounded-3xl border border-indigo-100 p-8 sm:p-12 text-center flex flex-col items-center">
+                            <div className="drift absolute -top-10 -right-10 w-48 h-48 bg-indigo-200/30 rounded-full blur-3xl pointer-events-none"></div>
+                            <div className="drift absolute -bottom-12 -left-8 w-40 h-40 bg-violet-200/30 rounded-full blur-3xl pointer-events-none" style={{ animationDelay: '2s' }}></div>
+                            <div className="animate-pop-in relative w-20 h-20 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-indigo-500/30">
+                                <BookOpen size={34} className="text-white" />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-800 mb-2">No active course enrollments</h3>
-                            <p className="text-slate-500 max-w-sm mb-6">
-                                You are currently not enrolled in any individual courses.
+                            <h3 className="relative text-xl sm:text-2xl font-bold text-slate-800 mb-2">Your first course is waiting</h3>
+                            <p className="relative text-slate-600 max-w-md mb-6">
+                                Nothing here yet. Browse what's available and start something today — every course
+                                you finish adds XP and moves your Career Path forward.
                             </p>
+                            <div className="relative flex flex-wrap items-center justify-center gap-3">
+                                <button
+                                    onClick={() => setActiveTab('available')}
+                                    className="lift inline-flex items-center gap-2 px-6 py-3 min-h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/25 transition-colors"
+                                >
+                                    <BookOpen size={18} />
+                                    Browse courses
+                                </button>
+                                <Link
+                                    to="/career"
+                                    className="inline-flex items-center gap-2 px-6 py-3 min-h-12 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors"
+                                >
+                                    <Compass size={18} />
+                                    See my path
+                                </Link>
+                            </div>
                         </div>
                     )
                 ) : activeTab === 'bundles' ? (
                     bundles.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {bundles.map(bundle => {
                                 const progress = getProgressVal(bundle._id, true);
                                 return (
-                                    <div key={bundle._id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300 group flex flex-col">
+                                    <div key={bundle._id} className="lift bg-white rounded-2xl border border-slate-200 overflow-hidden transition-shadow duration-300 group flex flex-col">
                                         {/* Thumbnail Area */}
                                         <div className="h-48 bg-gradient-to-br from-indigo-900 to-purple-900 relative overflow-hidden flex items-center justify-center">
                                             {bundle.thumbnail ? (
@@ -326,7 +319,7 @@ const Dashboard = () => {
                     )
                 ) : activeTab === 'completed' ? (
                     completedCourses.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {completedCourses.map(course => (
                                 <div key={course._id} className="bg-white rounded-2xl border border-emerald-200 overflow-hidden hover:shadow-lg transition-all duration-300 group flex flex-col">
                                     <div className="h-48 bg-slate-100 relative overflow-hidden">
@@ -371,9 +364,9 @@ const Dashboard = () => {
                     )
                 ) : activeTab === 'available' ? (
                     availableCourses.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {availableCourses.map(course => (
-                                <div key={course._id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300 group flex flex-col">
+                                <div key={course._id} className="lift bg-white rounded-2xl border border-slate-200 overflow-hidden transition-shadow duration-300 group flex flex-col">
                                     <div className="h-48 bg-slate-100 relative overflow-hidden">
                                         {course.thumbnail ? (
                                             <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -487,14 +480,14 @@ const Dashboard = () => {
                                 </button>
                             </div>
                             <div className="p-8">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {selectedBundle.courses && selectedBundle.courses.length > 0 ? (
                                         selectedBundle.courses.map(bc => {
                                             // Attempt to match bundle sub-course with full course object from primary courses array
                                             const fullCourse = courses.find(c => c._id === bc._id) || bc;
                                             const progress = getProgressVal(bc._id);
                                             return (
-                                                <div key={bc._id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300 group flex flex-col">
+                                                <div key={bc._id} className="lift bg-white rounded-2xl border border-slate-200 overflow-hidden transition-shadow duration-300 group flex flex-col">
                                                     <div className="h-40 bg-slate-100 relative overflow-hidden">
                                                         {fullCourse.thumbnail || bc.thumbnail ? (
                                                             <img src={fullCourse.thumbnail || bc.thumbnail} alt={bc.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />

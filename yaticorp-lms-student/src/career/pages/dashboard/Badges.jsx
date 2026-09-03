@@ -3,12 +3,14 @@ import api from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import ShareBadgeDialog from '../../components/roadmap/ShareBadgeDialog';
 import {
-  Award, Flame, CheckCircle, TrendingUp, Lock, Trophy, Zap, Target, Rocket, Crown, Info, Share2
+  Award, Flame, CheckCircle, TrendingUp, Trophy, Zap, Target, Rocket, Crown, Info, Share2,
+  Medal, Sparkles, Flag
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
-import PageHeader from '../../components/ui/PageHeader';
 import { SkeletonPage } from '../../components/ui/Skeleton';
-import useCountUp from '../../hooks/useCountUp';
+import RewardsArt from '../../components/rewards/RewardsArt';
+import BadgeMedallion from '../../components/rewards/BadgeMedallion';
+import useCountUp from '../../../hooks/useCountUp';
 
 const iconMap = { Award, Flame, CheckCircle, TrendingUp, Target, Zap, Rocket, Crown };
 
@@ -31,7 +33,11 @@ const TIERS = [
     icon: 'text-emerald-600',
     ring: 'ring-emerald-200',
     bar: 'bg-emerald-500',
-    chip: 'bg-emerald-50 text-emerald-700'
+    chip: 'bg-emerald-50 text-emerald-700',
+    outer: 'bg-gradient-to-br from-emerald-300 to-teal-500',
+    inner: 'bg-gradient-to-br from-emerald-400 to-teal-600',
+    halo: 'bg-emerald-400/50',
+    card: 'bg-emerald-50/60 ring-emerald-200'
   },
   {
     upTo: 500,
@@ -39,7 +45,11 @@ const TIERS = [
     icon: 'text-sky-600',
     ring: 'ring-sky-200',
     bar: 'bg-sky-500',
-    chip: 'bg-sky-50 text-sky-700'
+    chip: 'bg-sky-50 text-sky-700',
+    outer: 'bg-gradient-to-br from-sky-300 to-indigo-500',
+    inner: 'bg-gradient-to-br from-sky-400 to-indigo-600',
+    halo: 'bg-sky-400/50',
+    card: 'bg-sky-50/60 ring-sky-200'
   },
   {
     upTo: 2000,
@@ -47,7 +57,11 @@ const TIERS = [
     icon: 'text-amber-600',
     ring: 'ring-amber-300',
     bar: 'bg-amber-500',
-    chip: 'bg-amber-50 text-amber-700'
+    chip: 'bg-amber-50 text-amber-700',
+    outer: 'bg-gradient-to-br from-amber-300 to-orange-500',
+    inner: 'bg-gradient-to-br from-amber-400 to-orange-600',
+    halo: 'bg-amber-400/60',
+    card: 'bg-amber-50/60 ring-amber-200'
   },
   {
     // Everything past Skill Master. A fourth colour so six top-tier badges do
@@ -57,7 +71,11 @@ const TIERS = [
     icon: 'text-rose-600',
     ring: 'ring-rose-300',
     bar: 'bg-rose-500',
-    chip: 'bg-rose-50 text-rose-700'
+    chip: 'bg-rose-50 text-rose-700',
+    outer: 'bg-gradient-to-br from-rose-300 to-fuchsia-500',
+    inner: 'bg-gradient-to-br from-rose-400 to-fuchsia-600',
+    halo: 'bg-rose-400/60',
+    card: 'bg-rose-50/60 ring-rose-200'
   }
 ];
 
@@ -103,19 +121,28 @@ const levelBounds = (xp) => {
   return { floor: floorOf(level), ceiling: floorOf(level + 1) };
 };
 
+/** One figure in the rail beside the badges. */
+const RewardStat = ({ icon: Icon, label, value, detail, tone }) => (
+  <section className="rounded-2xl border border-line-200 bg-surface p-4 shadow-card">
+    <p className={`flex items-center gap-1.5 text-xs font-black tracking-wide ${tone}`}>
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </p>
+    <p className="mt-2 text-4xl leading-none font-black text-ink-900 tabular-nums">{value}</p>
+    {detail && <p className="mt-1 text-xs font-semibold text-ink-500">{detail}</p>}
+  </section>
+);
+
 export default function Badges() {
   const { user, isCreditSystemEnabled } = useContext(AuthContext);
   const [achievements, setAchievements] = useState([]);
   const [badges, setBadges] = useState([]);
-  // Milestone badges are a different animal from the XP badges below: they mark
-  // roadmap phases rather than XP thresholds, and they are meant to leave the
-  // app. Grouped separately so the two are never mistaken for each other.
   const [milestones, setMilestones] = useState([]);
   const [sharingBadge, setSharingBadge] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const xp = user?.xp || 0;
-  const level = user?.level || 1;
+  const level = calculateLevel(xp);
   const animatedXp = useCountUp(xp);
 
   useEffect(() => {
@@ -142,9 +169,7 @@ export default function Badges() {
   if (loading) return <SkeletonPage cards={4} columns={3} />;
 
   const { floor, ceiling } = levelBounds(xp);
-  const xpIntoLevel = xp - floor;
-  const xpNeeded = ceiling - floor;
-  const percent = Math.round((xpIntoLevel / xpNeeded) * 100);
+  const percent = Math.round(((xp - floor) / Math.max(1, ceiling - floor)) * 100);
   const unlockedCount = badges.filter((b) => b.unlocked).length;
 
   // Earned badges first, then whichever locked one is closest. A student who is
@@ -154,244 +179,289 @@ export default function Badges() {
     if (a.unlocked !== b.unlocked) return a.unlocked ? -1 : 1;
     return (a.xpRequired || 0) - (b.xpRequired || 0);
   });
+  const nextBadge = ordered.find((b) => !b.unlocked);
 
   return (
-    <div className="space-y-8">
-      {/* "Gamification" named the machinery, not the thing — and the sidebar
-          calls this Rewards, so the page called itself something else. */}
-      <PageHeader
-        title="Rewards"
-        subtitle="Every task you finish earns XP. XP raises your level and unlocks badges."
-      />
+    <div className="fp-enter grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_16rem]">
+      <div className="min-w-0 space-y-5">
+        {/* ---- Level and the medal shelf -------------------------------- */}
+        <section className="fp-journey-gradient relative overflow-hidden rounded-3xl p-5 text-white shadow-float sm:p-6">
+          <div aria-hidden className="fp-stars pointer-events-none absolute inset-0" />
+          <div
+            aria-hidden
+            className="fp-float pointer-events-none absolute -top-20 -right-16 h-64 w-64 rounded-full bg-fuchsia-500/20 blur-3xl"
+          />
 
-      {/* Said out loud because two numbers that both go up look like the same
-          number. They are not: credits come from course quizzes and belong to
-          the LMS, XP comes from Career Path tasks. Neither converts into the
-          other — a student who assumed it did would keep grinding tasks
-          expecting a course to unlock. */}
-      {isCreditSystemEnabled && (
-        <div className="flex items-start gap-3 rounded-xl border border-line-200 bg-surface-50 px-4 py-3">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
-          <p className="text-sm leading-relaxed text-ink-600">
-            <strong className="font-semibold text-ink-900">XP is not credits.</strong>{' '}
-            XP is your Career Path progress and unlocks the badges below. Your{' '}
-            <strong className="font-semibold text-ink-900">{user?.credits || 0} credits</strong>{' '}
-            are separate — you earn those from quizzes inside your courses. One
-            does not convert into the other.
-          </p>
-        </div>
-      )}
-
-      {milestones.length > 0 && (
-        <section className="space-y-3">
-          <div>
-            <h2 className="text-lg font-bold text-ink-900">Milestones</h2>
-            <p className="text-sm text-ink-500">
-              Roadmap phases you have finished. These are yours to share.
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {milestones.map((m) => (
-              <button
-                key={m._id}
-                type="button"
-                onClick={() => setSharingBadge(m)}
-                className="group overflow-hidden rounded-xl border border-line-200 bg-surface text-left transition-all hover:border-brand-300 hover:shadow-card-hover"
-              >
-                <img
-                  src={m.imageUrl}
-                  alt={`${m.phaseTitle} milestone badge`}
-                  width={1200}
-                  height={630}
-                  loading="lazy"
-                  className="w-full"
-                />
-                <span className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-bold text-ink-900">{m.phaseTitle}</span>
-                    <span className="block text-xs text-ink-500">
-                      {new Date(m.issuedAt).toLocaleDateString(undefined, {
-                        day: 'numeric', month: 'short', year: 'numeric'
-                      })}
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-bold text-link transition-colors group-hover:bg-brand-100">
-                    <Share2 className="h-3.5 w-3.5" />
-                    Share
-                  </span>
+          <div className="relative flex flex-wrap items-center gap-5">
+            <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-white/15 text-3xl font-black ring-4 ring-white/25 ring-inset tabular-nums">
+              {level}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[0.7rem] font-black tracking-[0.11em] text-journey-200 uppercase">
+                Rewards
+              </p>
+              <h1 className="mt-1 text-2xl leading-tight font-black sm:text-3xl">
+                Level {level} Learner
+              </h1>
+              <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-journey-100">
+                <span className="inline-flex items-center gap-1.5">
+                  <Zap className="h-4 w-4 text-amber-300" />
+                  <span className="tabular-nums">{animatedXp}</span> total XP
                 </span>
-              </button>
-            ))}
+                <span aria-hidden className="text-journey-300">·</span>
+                {/* Not "X of Y": the catalogue is revealed one badge at a time,
+                    so Y is only what happens to be visible today. */}
+                <span className="tabular-nums">
+                  {unlockedCount} {unlockedCount === 1 ? 'badge' : 'badges'} earned
+                </span>
+              </p>
+
+              <div className="mt-3 max-w-md">
+                <div className="mb-1.5 flex flex-wrap justify-between gap-x-3 text-xs font-bold text-journey-100">
+                  <span className="whitespace-nowrap">Progress to Level {level + 1}</span>
+                  <span className="whitespace-nowrap tabular-nums">
+                    {xp} / {ceiling} XP
+                  </span>
+                </div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-white/20">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-300 to-orange-400 transition-[width] duration-1000 ease-out"
+                    style={{ width: `${percent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <RewardsArt className="hidden h-36 w-48 shrink-0 lg:block" />
           </div>
         </section>
-      )}
 
-      {/* Level hero. The same gradient and dot field as the roadmap, profile and
-          mentor banners — this was the last flat slab of brand-700 left. */}
-      <div className="animate-fade-in-up relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-800 via-brand-900 to-slate-900 p-6 text-white shadow-float sm:p-8">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.16]"
-          style={{
-            backgroundImage: 'radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)',
-            backgroundSize: '20px 20px'
-          }}
-        />
-        <div className="pointer-events-none absolute -top-20 -right-16 h-64 w-64 rounded-full bg-brand-500/20 blur-3xl" />
-        <div className="relative flex flex-col items-center justify-between gap-8 md:flex-row">
-          <div className="flex items-center gap-6">
-            <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-4 border-white/30 bg-white/15">
-              <span className="text-4xl font-bold tabular-nums">{level}</span>
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">Level {level} Learner</h2>
-              <p className="mt-1 flex items-center gap-1.5 text-indigo-100">
-                <Zap className="h-4 w-4 text-amber-300" />
-                <span className="font-semibold tabular-nums">{animatedXp}</span> total XP
-              </p>
-              {/* Not "X of Y": the catalogue is revealed one badge at a time,
-                  so Y is only what happens to be visible today. Printing it as
-                  a total would tell a student they had finished the set. */}
-              <p className="mt-2 text-sm text-indigo-200">
-                {unlockedCount} {unlockedCount === 1 ? 'badge' : 'badges'} earned
-              </p>
-            </div>
-          </div>
-
-          <div className="w-full md:w-1/3">
-            <div className="mb-2 flex justify-between text-sm font-medium text-indigo-100">
-              <span>Progress to Level {level + 1}</span>
-              <span className="tabular-nums">
-                {xpIntoLevel} / {xpNeeded} XP
-              </span>
-            </div>
-            <div className="h-3 w-full overflow-hidden rounded-full bg-indigo-900/40">
-              <div
-                className="h-3 rounded-full bg-surface shadow-[0_0_12px_rgba(255,255,255,0.6)] transition-[width] duration-1000 ease-out"
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Badge catalogue */}
-      <section>
-        {/* Says why the list is short, so a one-card page reads as a ladder
-            rather than as everything there is. */}
-        <h3 className="text-xl font-bold text-ink-900">Badges</h3>
-        <p className="mt-1 mb-5 text-sm text-ink-500">
-          One at a time — earn the badge you can see and the next one appears.
-        </p>
-        <div className="stagger grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {ordered.map((badge) => {
-            const Icon = iconMap[badge.icon] || Award;
-            const tier = tierFor(badge.xpRequired);
-            const toGo = Math.max(0, (badge.xpRequired || 0) - xp);
-            const percent = badge.xpRequired > 0
-              ? Math.min(100, Math.round((xp / badge.xpRequired) * 100))
-              : 0;
-            const on = earnedOn(badge.unlockedAt);
-
-            return (
-              <Card
-                key={badge._id}
-                hover={badge.unlocked}
-                className={`flex flex-col items-center text-center ${
-                  badge.unlocked ? `ring-1 ring-inset ${tier.ring}` : 'bg-surface-50/60'
-                }`}
-              >
-                {/* Locked badges stay grey — the colour is the reward. The bar
-                    below still carries the tier hue, so you can see what you
-                    are working toward. */}
-                <div
-                  className={`mb-4 flex h-16 w-16 items-center justify-center rounded-xl ${
-                    badge.unlocked ? `${tier.tile} shadow-inner` : 'bg-surface-100'
-                  }`}
-                >
-                  {badge.unlocked ? (
-                    <Icon className={`h-8 w-8 ${tier.icon}`} />
-                  ) : (
-                    <Lock className="h-7 w-7 text-ink-300" />
-                  )}
-                </div>
-                {!badge.unlocked && (
-                  <span className="mb-1.5 text-[0.65rem] font-bold tracking-wider text-ink-400 uppercase">
-                    Next badge
-                  </span>
-                )}
-                <h4 className={`font-bold ${badge.unlocked ? 'text-ink-900' : 'text-ink-500'}`}>
-                  {badge.title}
-                </h4>
-                <p className="mt-1.5 mb-4 flex-1 text-sm leading-relaxed text-ink-500">
-                  {badge.description}
-                </p>
-
-                {badge.unlocked ? (
-                  <span className={`rounded-full px-3 py-1 text-xs font-bold ${tier.chip}`}>
-                    {on ? `Earned ${on}` : 'Unlocked'}
-                  </span>
-                ) : (
-                  /* How close they are, not what the threshold is.
-                     This used to read "100 XP to unlock", which is the total
-                     required — so a student sitting on 80 XP was told they
-                     needed 100 more when they needed 20. The bar makes the
-                     near-misses visible, which is the only part of a locked
-                     badge worth looking at. */
-                  <div className="w-full">
-                    <div
-                      role="progressbar"
-                      aria-valuenow={percent}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label={`${badge.title} progress`}
-                      className="h-1.5 w-full overflow-hidden rounded-full bg-surface-200"
-                    >
-                      <div
-                        className={`h-1.5 rounded-full transition-[width] duration-1000 ease-out ${tier.bar}`}
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                    <p className="mt-2 text-xs font-bold text-ink-400 tabular-nums">
-                      {toGo} XP to go
-                    </p>
-                  </div>
-                )}
-              </Card>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Achievements */}
-      <section>
-        <h3 className="mb-5 text-xl font-bold text-ink-900">Achievements</h3>
-        {achievements.length === 0 ? (
-          <Card className="text-center text-ink-500">
-            <Trophy className="mx-auto mb-3 h-8 w-8 text-ink-300" />
-            <p className="text-sm">Complete tasks to start unlocking achievements.</p>
-          </Card>
-        ) : (
-          <div className="stagger grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {achievements.map((ach) => (
-              <Card
-                key={ach._id}
-                hover
-                className="flex flex-col items-center text-center ring-1 ring-violet-200 ring-inset"
-              >
-                {/* Violet, so achievements are not mistaken for a fourth tier of
-                    badge. They are a different kind of thing: a moment that
-                    happened, not a threshold that was crossed. */}
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-violet-100 to-fuchsia-100 shadow-inner">
-                  <Trophy className="h-7 w-7 text-violet-600" />
-                </div>
-                <h4 className="font-bold text-ink-900">{ach.title}</h4>
-                <p className="mt-1.5 text-sm text-ink-500">{ach.description}</p>
-              </Card>
-            ))}
+        {/* Said out loud because two numbers that both go up look like the same
+            number. They are not: credits come from course quizzes and belong to
+            the LMS, XP comes from Career Path tasks. Neither converts into the
+            other. */}
+        {isCreditSystemEnabled && (
+          <div className="flex items-start gap-3 rounded-2xl border border-line-200 bg-surface-50 px-4 py-3">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
+            <p className="text-sm leading-relaxed text-ink-600">
+              <strong className="font-semibold text-ink-900">XP is not credits.</strong> XP is your
+              Career Path progress and unlocks the badges below. Your{' '}
+              <strong className="font-semibold text-ink-900">{user?.credits || 0} credits</strong> are
+              separate — you earn those from quizzes inside your courses. One does not convert into
+              the other.
+            </p>
           </div>
         )}
-      </section>
+
+        {/* ---- Badges --------------------------------------------------- */}
+        <Card>
+          <div className="mb-5">
+            <h2 className="flex items-center gap-2 text-lg font-black text-ink-900">
+              <span aria-hidden>🏅</span> Badges
+            </h2>
+            {/* Says why the list is short, so a one-card page reads as a ladder
+                rather than as everything there is. */}
+            <p className="mt-0.5 text-sm text-ink-500">
+              One at a time — earn the badge you can see and the next one appears.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {ordered.map((badge, index) => {
+              const Icon = iconMap[badge.icon] || Award;
+              const tier = tierFor(badge.xpRequired);
+              const toGo = Math.max(0, (badge.xpRequired || 0) - xp);
+              const pct =
+                badge.xpRequired > 0 ? Math.min(100, Math.round((xp / badge.xpRequired) * 100)) : 0;
+              const on = earnedOn(badge.unlockedAt);
+
+              return (
+                <div
+                  key={badge._id}
+                  className={`fp-lift group flex flex-col items-center rounded-2xl p-5 text-center ring-1 transition-all ring-inset ${
+                    badge.unlocked ? tier.card : 'bg-surface-50/70 ring-line-200'
+                  }`}
+                >
+                  <BadgeMedallion
+                    icon={Icon}
+                    tier={tier}
+                    unlocked={badge.unlocked}
+                    size={76}
+                    delay={0.06 * index}
+                  />
+
+                  {!badge.unlocked && (
+                    <span className="mt-3 text-[0.62rem] font-black tracking-[0.11em] text-ink-400 uppercase">
+                      Next badge
+                    </span>
+                  )}
+                  <h3
+                    className={`mt-3 text-sm font-black ${badge.unlocked ? 'text-ink-900' : 'text-ink-500'}`}
+                  >
+                    {badge.title}
+                  </h3>
+                  <p className="mt-1.5 mb-4 flex-1 text-xs leading-relaxed text-ink-500">
+                    {badge.description}
+                  </p>
+
+                  {badge.unlocked ? (
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${tier.chip}`}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      {on ? `Earned ${on}` : 'Unlocked'}
+                    </span>
+                  ) : (
+                    /* How close they are, not what the threshold is. This used
+                       to read "100 XP to unlock", which is the total required —
+                       so a student sitting on 80 XP was told they needed 100
+                       more when they needed 20. */
+                    <div className="w-full">
+                      <div
+                        role="progressbar"
+                        aria-valuenow={pct}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label={`${badge.title} progress`}
+                        className="h-1.5 w-full overflow-hidden rounded-full bg-surface-200"
+                      >
+                        <div
+                          className={`h-full rounded-full transition-[width] duration-1000 ease-out ${tier.bar}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="mt-2 text-xs font-black text-ink-400 tabular-nums">
+                        {toGo} XP to go
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* ---- Achievements --------------------------------------------- */}
+        <Card>
+          <h2 className="mb-5 flex items-center gap-2 text-lg font-black text-ink-900">
+            <span aria-hidden>🏆</span> Achievements
+          </h2>
+          {achievements.length === 0 ? (
+            <div className="rounded-2xl border border-line-200 bg-surface-50/70 p-6 text-center">
+              <Trophy className="mx-auto mb-3 h-8 w-8 text-ink-300" />
+              <p className="text-sm text-ink-500">
+                Complete tasks to start unlocking achievements.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {achievements.map((ach) => (
+                <div
+                  key={ach._id}
+                  className="fp-lift flex items-start gap-3.5 rounded-2xl bg-gradient-to-br from-fuchsia-50 to-pink-50 p-4 ring-1 ring-pink-200 ring-inset"
+                >
+                  {/* Pink, so achievements are not mistaken for a fifth tier of
+                      badge. They are a different kind of thing: a moment that
+                      happened, not a threshold that was crossed. */}
+                  <span className="fp-reward-gradient flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-md shadow-pink-500/30">
+                    <Trophy className="h-6 w-6" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-black text-ink-900">{ach.title}</h3>
+                    <p className="mt-0.5 text-xs leading-relaxed text-ink-500">{ach.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* ---- Milestones ----------------------------------------------- */}
+        {milestones.length > 0 && (
+          <Card>
+            <div className="mb-5">
+              <h2 className="flex items-center gap-2 text-lg font-black text-ink-900">
+                <span aria-hidden>🚩</span> Milestones
+              </h2>
+              <p className="mt-0.5 text-sm text-ink-500">
+                Roadmap phases you have finished. These are yours to share.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {milestones.map((m) => (
+                <button
+                  key={m._id}
+                  type="button"
+                  onClick={() => setSharingBadge(m)}
+                  className="fp-lift group overflow-hidden rounded-2xl border border-line-200 bg-surface text-left transition-all hover:border-journey-300"
+                >
+                  <img
+                    src={m.imageUrl}
+                    alt={`${m.phaseTitle} milestone badge`}
+                    width={1200}
+                    height={630}
+                    loading="lazy"
+                    className="w-full"
+                  />
+                  <span className="flex items-center justify-between gap-3 px-4 py-3">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-black text-ink-900">
+                        {m.phaseTitle}
+                      </span>
+                      <span className="block text-xs text-ink-500">
+                        {new Date(m.issuedAt).toLocaleDateString(undefined, {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5 rounded-lg bg-journey-50 px-3 py-1.5 text-xs font-black text-journey-700 transition-colors group-hover:bg-journey-100">
+                      <Share2 className="h-3.5 w-3.5" />
+                      Share
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* ---- The rail ---------------------------------------------------- */}
+      <aside className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+        <RewardStat
+          icon={Medal}
+          label="Badges earned"
+          value={unlockedCount}
+          detail={nextBadge ? `Next: ${nextBadge.title}` : 'Every badge so far is yours'}
+          tone="text-amber-600"
+        />
+        <RewardStat
+          icon={Trophy}
+          label="Achievements"
+          value={achievements.length}
+          detail={achievements.length ? 'Moments worth keeping' : 'Finish a task to start'}
+          tone="text-pink-600"
+        />
+        <RewardStat
+          icon={Zap}
+          label="Total XP"
+          value={animatedXp}
+          detail={`${Math.max(0, ceiling - xp)} XP to Level ${level + 1}`}
+          tone="text-journey-600"
+        />
+        {milestones.length > 0 && (
+          <RewardStat
+            icon={Flag}
+            label="Milestones"
+            value={milestones.length}
+            detail="Phases finished"
+            tone="text-emerald-600"
+          />
+        )}
+      </aside>
+
       {sharingBadge && (
         <ShareBadgeDialog badge={sharingBadge} onClose={() => setSharingBadge(null)} />
       )}

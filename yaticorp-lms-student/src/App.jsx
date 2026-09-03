@@ -7,13 +7,15 @@ import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useContext } from 'react';
 import { AuthContext } from './context/AuthContext';
 import StudentLayout from './layouts/StudentLayout';
+import AstronautLoader from './components/AstronautLoader';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import EnrolledCourses from './pages/EnrolledCourses';
+const Jobs = React.lazy(() => import('./pages/Jobs'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <AstronautLoader fullScreen label="Loading your account…" />;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 };
@@ -43,7 +45,8 @@ const CareerSkills = React.lazy(() => import('./career/pages/dashboard/Skills'))
 const CareerRecommendations = React.lazy(() => import('./career/pages/dashboard/Recommendations'));
 const CareerProfile = React.lazy(() => import('./career/pages/Profile'));
 const CareerBadges = React.lazy(() => import('./career/pages/dashboard/Badges'));
-const CareerMentor = React.lazy(() => import('./career/pages/dashboard/MentorChat'));
+const CareerGames = React.lazy(() => import('./career/pages/dashboard/Games'));
+const Mentor = React.lazy(() => import('./career/pages/dashboard/MentorChat'));
 const CareerSettings = React.lazy(() => import('./career/pages/dashboard/SettingsPage'));
 const CareerOnboarding = React.lazy(() => import('./career/pages/Onboarding'));
 
@@ -56,17 +59,25 @@ const CareerOnboarding = React.lazy(() => import('./career/pages/Onboarding'));
  * setting arrives with it, and redirecting before it does would bounce every
  * student off a section that is open.
  */
+/**
+ * The lock an administrator can put on the Jobs section, same shape as the
+ * career one below: the sidebar tab is not the only way in.
+ */
+const JobsGate = () => {
+  const { loading, isJobsEnabled } = useContext(AuthContext);
+  if (loading) return <CareerFallback />;
+  return isJobsEnabled ? <Outlet /> : <Navigate to="/" replace />;
+};
+
 const CareerGate = () => {
   const { loading, isCareerPathEnabled } = useContext(AuthContext);
   if (loading) return <CareerFallback />;
   return isCareerPathEnabled ? <Outlet /> : <Navigate to="/" replace />;
 };
 
-const CareerFallback = () => (
-  <div className="flex h-64 items-center justify-center">
-    <div className="h-9 w-9 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
-  </div>
-);
+// Every lazily-loaded route waits behind this, so it is the thing a student
+// actually sees while a page is downloading.
+const CareerFallback = () => <AstronautLoader label="Loading this page…" />;
 
 function App() {
   return (
@@ -86,7 +97,37 @@ function App() {
         {/* Career Path. The onboarding wizard sits outside the shell because it
             is a focused five-step flow — the section's tab strip has nothing to
             offer until it has been through once. */}
+        <Route element={<JobsGate />}>
+          <Route
+            path="jobs"
+            element={<React.Suspense fallback={<CareerFallback />}><Jobs /></React.Suspense>}
+          />
+        </Route>
+
         <Route element={<CareerGate />}>
+        {/* The mentor is its own section, not a Career Path tab.
+            
+            It still lives under CareerGate and CareerProviders: every request
+            it makes goes to /api/career/chat, which the server keeps behind the
+            same admin switch as the rest of the section — so a mentor that
+            outlived a disabled Career Path would be a page of 403s. Separate in
+            the navigation, same feature flag underneath. */}
+        <Route
+          path="mentor"
+          element={
+            <CareerProviders>
+              <div className="futurepath -m-4 flex min-h-full flex-col p-4 md:-m-8 md:p-8">
+                <React.Suspense fallback={<CareerFallback />}>
+                  <Mentor />
+                </React.Suspense>
+              </div>
+            </CareerProviders>
+          }
+        />
+        {/* Anyone holding the old link — a bookmark, a notification, a tab left
+            open — lands on the new one rather than a 404. */}
+        <Route path="career/mentor" element={<Navigate to="/mentor" replace />} />
+
         <Route
           path="career/onboarding"
           element={
@@ -106,7 +147,7 @@ function App() {
           <Route path="recommendations" element={<React.Suspense fallback={<CareerFallback />}><CareerRecommendations /></React.Suspense>} />
           <Route path="profile" element={<React.Suspense fallback={<CareerFallback />}><CareerProfile /></React.Suspense>} />
           <Route path="badges" element={<React.Suspense fallback={<CareerFallback />}><CareerBadges /></React.Suspense>} />
-          <Route path="mentor" element={<React.Suspense fallback={<CareerFallback />}><CareerMentor /></React.Suspense>} />
+          <Route path="games" element={<React.Suspense fallback={<CareerFallback />}><CareerGames /></React.Suspense>} />
           <Route path="settings" element={<React.Suspense fallback={<CareerFallback />}><CareerSettings /></React.Suspense>} />
         </Route>
         </Route>

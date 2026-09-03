@@ -21,6 +21,12 @@ const loginUser = async (req, res) => {
                 return res.status(401).json({ message: 'User account is not active' });
             }
 
+            // Counted before the response is shaped, so `loginCount` below is
+            // this sign-in's number rather than the previous one — the client
+            // uses it to tell a returning student from a brand new one.
+            user.loginCount = (user.loginCount || 0) + 1;
+            await user.save();
+
             res.json({
                 _id: user._id,
                 name: user.name,
@@ -29,6 +35,7 @@ const loginUser = async (req, res) => {
                 cardNumber: user.cardNumber,
                 profilePicture: user.profilePicture || '',
                 credits: user.credits || 0,
+                loginCount: user.loginCount,
                 role: 'student',
                 token: generateToken(user._id, 'student')
             });

@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UploadCloud, Link as LinkIcon, Cloud, FileText, Upload, Plus, ToggleLeft, ToggleRight, Eye, MonitorPlay, HelpCircle, Trash2, CheckCircle, Download as DownloadIcon, FileSpreadsheet, PlayCircle } from 'lucide-react';
+import { ArrowLeft, UploadCloud, Link as LinkIcon, Cloud, FileText, Upload, Plus, ToggleLeft, ToggleRight, Eye, MonitorPlay, HelpCircle, Trash2, CheckCircle, Download as DownloadIcon, FileSpreadsheet, PlayCircle, Paperclip } from 'lucide-react';
 import api from '../utils/api';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
@@ -30,6 +30,8 @@ const LessonEditor = () => {
 
     // Attachments state
     const [attachments, setAttachments] = useState([]); // [{ name, url }]
+    const [attachUploading, setAttachUploading] = useState(false);
+    const [attachProgress, setAttachProgress] = useState(0);
 
     // Security / Player / Thumbnail settings
     const [securitySettings, setSecuritySettings] = useState({ enableDRM: false, disableScreenCapture: false, watermarkText: '' });
@@ -195,7 +197,7 @@ const LessonEditor = () => {
             setSaved(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [lesson, isFree, allowDownload, quizData]);
+    }, [lesson, isFree, allowDownload, quizData, attachments]);
 
     const handleBunnyUpload = async (e) => {
         const file = e.target.files?.[0];
@@ -218,6 +220,35 @@ const LessonEditor = () => {
             setUploading(false);
             setUploadProgress(0);
         }
+    };
+
+    const handleAttachmentUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setAttachUploading(true);
+        setAttachProgress(0);
+        try {
+            const formData = new FormData();
+            // 'kind' must be appended before the file so multer parses it first
+            formData.append('kind', 'attachment');
+            formData.append('file', file);
+            const { data } = await api.post('/admin/lessons/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                onUploadProgress: (evt) => { if (evt.total) setAttachProgress(Math.round((evt.loaded * 100) / evt.total)); }
+            });
+            setAttachments(prev => [...prev, { name: file.name, url: data.url }]);
+        } catch (err) {
+            console.error('Attachment upload error:', err);
+            alert(err.response?.data?.message || 'Failed to upload attachment.');
+        } finally {
+            setAttachUploading(false);
+            setAttachProgress(0);
+            e.target.value = '';
+        }
+    };
+
+    const handleRemoveAttachment = (idx) => {
+        setAttachments(prev => prev.filter((_, i) => i !== idx));
     };
 
     const handleSave = async () => {
@@ -539,6 +570,7 @@ const LessonEditor = () => {
 
                     {/* Video Source Configuration Section */}
                     {activeTab === 'video' && (
+                        <>
                         <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-8 sm:p-12 animate-in fade-in slide-in-from-bottom-2 duration-300">
 
                             <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center">
@@ -787,6 +819,59 @@ const LessonEditor = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Attachments / Downloadable Resources */}
+                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-8 sm:p-12 mt-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <h3 className="text-xl font-black text-slate-800 mb-2 flex items-center">
+                                <Paperclip className="mr-3 text-indigo-600" size={22} /> Attachments
+                            </h3>
+                            <p className="text-sm text-slate-500 font-medium mb-6">Downloadable resources shown alongside this video (slides, source code, worksheets, etc.).</p>
+
+                            {attachments.length > 0 && (
+                                <div className="space-y-3 mb-6">
+                                    {attachments.map((att, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                            <div className="flex items-center min-w-0">
+                                                <FileText size={18} className="text-indigo-500 mr-3 flex-shrink-0" />
+                                                <a href={att.url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-slate-700 hover:text-indigo-600 truncate">
+                                                    {att.name}
+                                                </a>
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemoveAttachment(idx)}
+                                                className="p-1.5 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 ml-3"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {attachUploading ? (
+                                <div className="w-full">
+                                    <div className="flex justify-between text-xs font-bold text-slate-600 mb-2">
+                                        <span>Uploading Attachment...</span>
+                                        <span>{attachProgress}%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-200 rounded-full h-2.5">
+                                        <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${attachProgress}%` }}></div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50">
+                                    <input
+                                        type="file"
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        onChange={handleAttachmentUpload}
+                                    />
+                                    <Paperclip className="text-indigo-400 mb-2" size={26} />
+                                    <p className="font-bold text-slate-700 text-sm">Click or drag a file here to attach</p>
+                                    <p className="text-xs text-slate-500 mt-1">PDF, ZIP, slides, source code — any file type.</p>
+                                </div>
+                            )}
+                        </div>
+                        </>
                     )}
 
                     {/* PDF Configuration Section */}
@@ -926,7 +1011,7 @@ const LessonEditor = () => {
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="pl-8 grid grid-cols-2 gap-2 mt-3">
+                                                    <div className="pl-4 sm:pl-8 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                                                         {q.options.map((opt, oIdx) => (
                                                             <div key={oIdx} className={`text-sm py-1.5 px-3 rounded-lg border flex items-center ${q.correctAnswerIndex === oIdx ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
                                                                 {q.correctAnswerIndex === oIdx && <CheckCircle size={14} className="mr-2 text-emerald-500" />}

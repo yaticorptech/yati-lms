@@ -40,6 +40,13 @@ const lessonUpload = multer({
     storage: multer.diskStorage({ destination: os.tmpdir() }),
     limits: { fileSize: LESSON_UPLOAD_MAX_MB * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
+        // Lesson attachments (slides, zips, worksheets…) may be any file type.
+        // The client must append the 'kind' field before the file so multer
+        // has parsed it by the time this filter runs.
+        if (req.body?.kind === 'attachment') {
+            return cb(null, true);
+        }
+
         const mime = (file.mimetype || '').trim().toLowerCase();
         const ext = path.extname(file.originalname || '').toLowerCase();
         const unknownMime = UNKNOWN_MIMES.has(mime);

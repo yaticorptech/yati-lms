@@ -56,6 +56,26 @@ const taskSchema = new mongoose.Schema(
       type: [String],
       default: undefined
     },
+    /**
+     * The tracked skill this task moves forward, named exactly as the row in
+     * SkillProgress.
+     *
+     * Completing a task used to advance EVERY skill the student had by the same
+     * amount, so twenty tasks promoted the whole tracker at once and the Skills
+     * page became a re-skinned task counter — every row showing an identical
+     * percentage. Worse, that number is what decides which skills get sent to
+     * the job matcher, so work never done was being advertised as experience.
+     *
+     * Chosen by the model at generation time, from the student's own tracked
+     * skills, because that is the only point at which the reasoning is about
+     * what the task actually teaches. Optional: tasks written before this field
+     * existed carry nothing, and a task that genuinely advances no tracked
+     * skill (attend a lecture, email a professor) should carry nothing either.
+     */
+    skill: {
+      type: String,
+      trim: true
+    },
     duration: {
       type: String, // e.g., '45 mins', '2 hours'
       default: '30 mins'
@@ -85,6 +105,21 @@ const taskSchema = new mongoose.Schema(
     // stand in for this: any later edit would move it and silently rewrite the
     // user's streak history.
     completedAt: {
+      type: Date
+    },
+
+    /**
+     * When this task's completion was paid out — XP, achievements, skill
+     * progress — and it is paid out exactly once, ever.
+     *
+     * Distinct from completedAt, which reopening deliberately clears so the
+     * streak stops counting a day it no longer earned. That made completedAt
+     * useless as a record of payment: ticking a task, reopening it and ticking
+     * it again ran the awards a second time, and a student could sit on one
+     * task cycling it for unlimited XP and skill percentage. This never
+     * clears, so re-completing a task marks it done and pays nothing further.
+     */
+    creditedAt: {
       type: Date
     }
   },

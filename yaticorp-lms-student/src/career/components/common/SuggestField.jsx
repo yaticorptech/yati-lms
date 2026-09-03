@@ -38,6 +38,7 @@ export default function SuggestField({
   hint,
   error,
   required = false,
+  disabled = false,
   type = 'text',
   maxVisible = 8,
   className = ''
@@ -77,7 +78,8 @@ export default function SuggestField({
   // precisely the inconsistency these lists exist to prevent. Differing only in
   // case now still offers the canonical form to snap to.
   const settled = options.some((o) => o === String(value).trim());
-  const visible = open && matches.length > 0 && !(settled && matches.length === 1);
+  // A disabled field never shows its list, whatever tries to open it.
+  const visible = !disabled && (open && matches.length > 0 && !(settled && matches.length === 1));
 
   /**
    * Where to draw the list, in viewport coordinates.
@@ -216,10 +218,12 @@ export default function SuggestField({
             setOpen(true);
             setActive(-1);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => !disabled && setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={disabled ? '' : placeholder}
           required={required}
+          disabled={disabled}
+          readOnly={disabled}
           autoComplete="off"
           role="combobox"
           aria-expanded={visible}
@@ -228,14 +232,16 @@ export default function SuggestField({
           aria-activedescendant={visible && active >= 0 ? `${listId}-${active}` : undefined}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
-          className={`w-full rounded-lg border bg-surface py-2.5 pr-10 pl-4 text-ink-900 transition-all placeholder:text-ink-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
-            error
-              ? 'border-rose-300 focus-visible:border-rose-400 focus-visible:ring-rose-500/40'
-              : 'border-line-300 hover:border-ink-400 focus-visible:border-brand-500 focus-visible:ring-brand-500/40'
+          className={`w-full rounded-lg border py-2.5 pr-10 pl-4 transition-all placeholder:text-ink-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
+            disabled
+              ? 'cursor-default border-line-200 bg-surface-50 text-ink-700'
+              : error
+                ? 'border-rose-300 bg-surface text-ink-900 focus-visible:border-rose-400 focus-visible:ring-rose-500/40'
+                : 'border-line-300 bg-surface text-ink-900 hover:border-ink-400 focus-visible:border-brand-500 focus-visible:ring-brand-500/40'
           }`}
         />
 
-        {options.length > 0 && (
+        {options.length > 0 && !disabled && (
           <button
             type="button"
             tabIndex={-1}

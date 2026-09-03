@@ -491,7 +491,7 @@ const uploadThumbnail = async (req, res) => {
     }
 };
 
-// @desc    Upload a lesson video or PDF → Bunny Storage → return CDN URL
+// @desc    Upload a lesson video, PDF or attachment → Bunny Storage → return CDN URL
 // @route   POST /api/admin/lessons/upload
 // @access  Private/Admin
 const uploadLessonFile = async (req, res) => {
@@ -503,10 +503,11 @@ const uploadLessonFile = async (req, res) => {
         // doesn't know, so fall back to the extension to classify the file.
         const isPdf = req.file.mimetype === 'application/pdf'
             || path.extname(req.file.originalname || '').toLowerCase() === '.pdf';
-        const folder = isPdf ? 'lesson-pdfs' : 'lesson-videos';
+        const isAttachment = req.body?.kind === 'attachment';
+        const folder = isAttachment ? 'lesson-attachments' : (isPdf ? 'lesson-pdfs' : 'lesson-videos');
         const stream = fs.createReadStream(req.file.path);
         const url = await uploadStreamToBunny(stream, req.file.originalname, folder, req.file.size);
-        res.json({ url, kind: isPdf ? 'pdf' : 'video' });
+        res.json({ url, kind: isAttachment ? 'attachment' : (isPdf ? 'pdf' : 'video') });
     } catch (error) {
         console.error('Lesson file upload error:', error);
         res.status(500).json({ message: 'File upload failed', error: error.message });

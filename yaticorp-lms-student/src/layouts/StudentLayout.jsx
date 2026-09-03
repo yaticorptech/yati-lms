@@ -5,7 +5,11 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass } from 'lucide-react';
+import ContinuePanel from '../components/ContinuePanel';
+import SidebarProgressCard from '../components/SidebarProgressCard';
+import MentorFab from '../components/MentorFab';
+import MobileBottomNav from '../components/MobileBottomNav';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, Bot } from 'lucide-react';
 import api from '../utils/api';
 
 // Contact Support Modal
@@ -71,7 +75,7 @@ const careerHitCount = (career) =>
     (career?.phases?.length || 0) + (career?.tasks?.length || 0) + (career?.skills?.length || 0);
 
 const StudentLayout = () => {
-    const { user, logout, isCreditSystemEnabled, isCareerPathEnabled } = useContext(AuthContext);
+    const { user, logout, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled } = useContext(AuthContext);
     const location = useLocation();
     const navigate = useNavigate();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -90,8 +94,19 @@ const StudentLayout = () => {
     // Path again, and never find out — while the header bell three centimetres
     // away sat empty. Both feeds land here now, tagged so the panel can say
     // where each item came from.
+    // XP and level for the sidebar card. The cached `studentData` blob is the
+    // login response, and the server rewrites XP every time a task is completed
+    // — so a card driven from the cache would sit on the number the student had
+    // when they signed in. Refetched on navigation, which is the same thing
+    // CareerShell already does for the level chip inside the section.
+    const [progressUser, setProgressUser] = useState(null);
+    // The streak for the header pill. Server-computed and already returned by
+    // the career profile summary, so this is one small request rather than
+    // pulling the student's whole task history down to count days here.
+    const [streak, setStreak] = useState(0);
     const [announcements, setAnnouncements] = useState([]);
     const [careerNotifs, setCareerNotifs] = useState([]);
+    const [jobNotifs, setJobNotifs] = useState([]);
     const [showNotif, setShowNotif] = useState(false);
     const [notifSeen, setNotifSeen] = useState(() => parseInt(localStorage.getItem('notif_seen') || '0'));
     const notifRef = useRef(null);
@@ -106,14 +121,55 @@ const StudentLayout = () => {
         api.get('/user/announcements').then(r => setAnnouncements(r.data)).catch(() => {});
         // Best-effort: a student with no career goal yet simply has none of these.
         api.get('/career/notifications').then(r => setCareerNotifs(r.data || [])).catch(() => {});
-    }, [location.pathname]);
+        // Job alerts. Not fetched while the section is locked — the endpoint
+        // would only answer 403, and the bell should not mention a tab the
+        // student cannot see.
+        if (isJobsEnabled) {
+            api.get('/jobs/notifications').then(r => setJobNotifs(r.data || [])).catch(() => {});
+        }
+        // Fresh XP and level for the sidebar card. Falls back to the cached
+        // session on failure rather than blanking the card — a stale number is
+        // better than an empty panel where progress used to be.
+        if (isCareerPathEnabled) {
+            api.get('/user/profile')
+                .then(r => setProgressUser(r.data?.user ?? r.data))
+                .catch(() => {});
+        }
+        // Only inside Career Path. The pills belong to that section, and asking
+        // for a career summary on Dashboard, Courses, Community and Jobs would
+        // be four requests a page that never shows the answer.
+        if (isCareerPathEnabled && location.pathname.startsWith('/career')) {
+            api.get('/career/profile/summary')
+                .then(r => setStreak(r.data?.stats?.streak || 0))
+                .catch(() => {});
+        }
+    }, [location.pathname, isJobsEnabled, isCareerPathEnabled]);
+
+    // Career Path awards XP without a navigation, so the sidebar card and the
+    // header pills have to be told rather than wait for the next page change.
+    useEffect(() => {
+        if (!isCareerPathEnabled) return undefined;
+        const refetch = () => {
+            api.get('/user/profile')
+                .then(r => setProgressUser(r.data?.user ?? r.data))
+                .catch(() => {});
+            if (location.pathname.startsWith('/career')) {
+                api.get('/career/profile/summary')
+                    .then(r => setStreak(r.data?.stats?.streak || 0))
+                    .catch(() => {});
+            }
+        };
+        window.addEventListener('yati:progress-changed', refetch);
+        return () => window.removeEventListener('yati:progress-changed', refetch);
+    }, [isCareerPathEnabled, location.pathname]);
 
     // Announcements have no per-user read state on the server, so they are
     // counted against a high-water mark in localStorage the way they always
     // were. Career Path notifications carry their own isRead, so they are
     // counted honestly and stay unread until the student actually opens them.
     const careerUnread = careerNotifs.filter(n => !n.isRead).length;
-    const unreadCount = Math.max(0, announcements.length - notifSeen) + careerUnread;
+    const jobsUnread = jobNotifs.filter(n => !n.isRead).length;
+    const unreadCount = Math.max(0, announcements.length - notifSeen) + careerUnread + jobsUnread;
 
     // Merged newest-first. `kind` is what lets one panel render two shapes.
     const feed = [
@@ -124,6 +180,12 @@ const StudentLayout = () => {
         ...careerNotifs.map(n => ({
             kind: 'career', id: n._id, title: n.title,
             body: n.message, at: n.createdAt, read: Boolean(n.isRead)
+        })),
+        ...jobNotifs.map(n => ({
+            kind: 'jobs', id: n._id, title: n.title,
+            body: n.message, at: n.createdAt, read: Boolean(n.isRead),
+            // Carries the student back to the exact search the alert is about.
+            link: n.link || '/jobs'
         }))
     ].sort((a, b) => new Date(b.at) - new Date(a.at));
 
@@ -145,6 +207,15 @@ const StudentLayout = () => {
                 unread.map(n => api.put(`/career/notifications/${n._id}/read`).catch(() => {}))
             );
         }
+
+        // Job alerts follow the same rule: read means read on every device.
+        const unreadJobs = jobNotifs.filter(n => !n.isRead);
+        if (unreadJobs.length) {
+            setJobNotifs(list => list.map(n => ({ ...n, isRead: true })));
+            Promise.all(
+                unreadJobs.map(n => api.put(`/jobs/notifications/${n._id}/read`).catch(() => {}))
+            );
+        }
     };
 
     const clearNotifications = async () => {
@@ -153,11 +224,13 @@ const StudentLayout = () => {
         // call failing must not stop announcements being cleared.
         await Promise.allSettled([
             api.post('/user/announcements/clear'),
-            api.delete('/career/notifications')
+            api.delete('/career/notifications'),
+            api.delete('/jobs/notifications')
         ]);
 
         setAnnouncements([]);
         setCareerNotifs([]);
+        setJobNotifs([]);
         setNotifSeen(0);
         localStorage.setItem('notif_seen', '0');
     };
@@ -221,24 +294,37 @@ const StudentLayout = () => {
     // remounting on every parent render.
     const renderNavLinks = (onClick) => (
         <>
-            <Link to="/" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isActive('/') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+            <Link to="/" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                 <LayoutDashboard size={20} /> <span>Dashboard</span>
             </Link>
-            <Link to="/enrolled-courses" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isActive('/enrolled-courses') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+            <Link to="/enrolled-courses" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/enrolled-courses') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                 <BookOpen size={20} /> <span>Enrolled Courses</span>
             </Link>
-            <Link to="/community" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isActive('/community') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+            <Link to="/community" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/community') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                 <MessageSquare size={20} /> <span>Community</span>
             </Link>
-            {/* Withdrawn entirely when an admin locks the section, rather than
-                shown disabled: a tab that cannot be opened only invites the
-                question of when it will be. */}
+            {/* Both sections are withdrawn entirely when an admin locks them,
+                rather than shown disabled: a tab that cannot be opened only
+                invites the question of when it will be. */}
+            {isJobsEnabled && (
+                <Link to="/jobs" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/jobs') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    <Briefcase size={20} /> <span>Jobs</span>
+                </Link>
+            )}
             {isCareerPathEnabled && (
-                <Link to="/career" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isSectionActive('/career') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                <Link to="/career" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/career') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                     <Compass size={20} /> <span>Career Path</span>
                 </Link>
             )}
-            <Link to="/profile" onClick={onClick} className={`flex items-center space-x-3 p-3 rounded-lg transition-colors duration-200 font-medium ${isActive('/profile') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+            {/* Its own section rather than a Career Path tab. It still rides on
+                the same admin switch, because every request it makes goes to
+                /api/career/chat and the server keeps that behind the flag. */}
+            {isCareerPathEnabled && (
+                <Link to="/mentor" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/mentor') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    <Bot size={20} /> <span>AI Mentor</span>
+                </Link>
+            )}
+            <Link to="/profile" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/profile') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                 <User size={20} /> <span>My Profile</span>
             </Link>
         </>
@@ -294,21 +380,28 @@ const StudentLayout = () => {
                     <div className="divide-y divide-slate-50">
                         {feed.map(item => {
                             const career = item.kind === 'career';
+                            const jobs = item.kind === 'jobs';
+                            const clickable = career || jobs;
                             return (
                                 <div
                                     key={`${item.kind}-${item.id}`}
-                                    className={`px-4 py-4 transition-colors ${career ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default hover:bg-slate-50'}`}
-                                    onClick={career ? () => { setShowNotif(false); navigate('/career'); } : undefined}
+                                    className={`px-4 py-4 transition-colors ${clickable ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default hover:bg-slate-50'}`}
+                                    onClick={clickable ? () => {
+                                        setShowNotif(false);
+                                        navigate(jobs ? (item.link || '/jobs') : '/career');
+                                    } : undefined}
                                 >
                                     <div className="flex items-start gap-2">
                                         <span
                                             className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
                                                 career
                                                     ? 'bg-indigo-100 text-indigo-700'
-                                                    : 'bg-slate-100 text-slate-600'
+                                                    : jobs
+                                                        ? 'bg-emerald-100 text-emerald-700'
+                                                        : 'bg-slate-100 text-slate-600'
                                             }`}
                                         >
-                                            {career ? 'Career' : 'Notice'}
+                                            {career ? 'Career' : jobs ? 'Jobs' : 'Notice'}
                                         </span>
                                         <div className="min-w-0 flex-1">
                                             <p className="font-bold text-slate-800 text-sm leading-tight">
@@ -340,6 +433,14 @@ const StudentLayout = () => {
 );
     return (
         <div className="flex h-screen bg-slate-50 text-slate-900 font-sans">
+            {isCareerPathEnabled && <MentorFab />}
+
+            {/* The seven sections under the thumb, mirroring the sidebar. */}
+            <MobileBottomNav
+                isJobsEnabled={isJobsEnabled}
+                isCareerPathEnabled={isCareerPathEnabled}
+            />
+
             {showContact && <ContactModal onClose={() => setShowContact(false)} user={user} />}
 
             {/* Logout Confirmation Modal */}
@@ -450,9 +551,24 @@ const StudentLayout = () => {
                     )}
                 </div>
 
-                <nav className="flex-1 p-4 space-y-2 overflow-y-auto mt-2">
+                {/* `min-h-0` is what makes the scroll actually work. A flex
+                    child will not shrink below its content without it, so the
+                    nav kept its full height and pushed the progress card up
+                    over the last link instead of scrolling — adding a seventh
+                    section left "My Profile" half-hidden behind the astronaut. */}
+                <nav className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
                     {renderNavLinks()}
                 </nav>
+
+                {/* Career Path progress, above the footer. Only when the
+                    section is switched on for this student: XP and levels are
+                    its currency, and advertising a locked feature from the
+                    sidebar of every page is worse than showing nothing. */}
+                {isCareerPathEnabled && (
+                    <div className="hidden shrink-0 px-4 pb-2 [@media(min-height:820px)]:block">
+                        <SidebarProgressCard user={progressUser || user} />
+                    </div>
+                )}
 
                 {/* Sidebar footer — contact support only */}
                 <div className="p-4 border-t border-slate-800 bg-slate-950/50">
@@ -479,6 +595,10 @@ const StudentLayout = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Greets a returning student with the one thing to do today.
+                Renders nothing on a first sign-in, or without a Career Path goal. */}
+            <ContinuePanel />
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
@@ -509,6 +629,16 @@ const StudentLayout = () => {
                                 <p className="font-bold text-white truncate">{user?.name}</p>
                                 <p className="text-xs text-slate-400 font-mono mt-1">{user?.cardNumber}</p>
                             </div>
+
+                            {isCareerPathEnabled && (
+                                <div className="mb-4">
+                                    <SidebarProgressCard
+                                        user={progressUser || user}
+                                        onNavigate={() => setMobileMenuOpen(false)}
+                                    />
+                                </div>
+                            )}
+
                             <button
                                 onClick={() => { setMobileMenuOpen(false); setShowContact(true); }}
                                 className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
@@ -536,13 +666,39 @@ const StudentLayout = () => {
                              isActive('/enrolled-courses') ? 'Enrolled Courses' :
                              isActive('/community') ? 'Student Community' :
                              isActive('/profile') ? 'My Profile' :
-                             isSectionActive('/career') ? 'Career Path' : ''}
+                             isSectionActive('/mentor') ? '🤖 AI Mentor' :
+                             isSectionActive('/career') ? '🚀 Career Path' : ''}
                         </h1>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        {/* Career Path's two headline numbers, in the section
+                            that owns them. The streak only appears once there
+                            is one — "0 day streak" in a celebratory pill
+                            congratulates a student for nothing. */}
+                        {isCareerPathEnabled && isSectionActive('/career') && (
+                            <>
+                                {streak > 0 && (
+                                    <Link
+                                        to="/career"
+                                        className="hidden lg:inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3.5 py-2 text-sm font-bold text-orange-700 transition-colors hover:bg-orange-100"
+                                    >
+                                        <span aria-hidden>🔥</span>
+                                        {streak} day streak
+                                    </Link>
+                                )}
+                                <Link
+                                    to="/career/badges"
+                                    className="hidden lg:inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                                >
+                                    <span aria-hidden>⭐</span>
+                                    {(progressUser || user)?.xp || 0} XP
+                                </Link>
+                            </>
+                        )}
+
                         {renderNotificationBell()}
-                        <div className="h-6 w-[1px] bg-slate-200 mx-2"></div>
+                        <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
 
                         {/* Profile avatar dropdown — top-right header */}
                         <div ref={profileDropdownRef} className="relative">
@@ -603,7 +759,10 @@ const StudentLayout = () => {
                     </div>
                 </header>
 
-                <div className="p-4 md:p-8 max-w-7xl mx-auto h-full min-h-[calc(100vh-4rem)]">
+                {/* `pb-28` on phones so the fixed bottom bar never sits on top
+                    of whatever the page ends with — a Save button under an
+                    opaque nav is a button that does not exist. */}
+                <div className="mx-auto h-full min-h-[calc(100vh-4rem)] max-w-7xl p-4 pb-28 md:p-8 md:pb-8">
                     <Outlet />
                 </div>
             </main>

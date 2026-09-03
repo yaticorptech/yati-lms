@@ -234,7 +234,7 @@ const Community = () => {
             {/* Delete Modal */}
             {showDeleteModal && (
                 <div className="fixed inset-0 backdrop-blur-md bg-white/20 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-2xl shadow-xl p-6 w-[350px]">
+                    <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[350px] mx-4">
                         <h2 className="text-lg font-bold text-slate-800 mb-2">Delete Post?</h2>
                         <p className="text-sm text-slate-500 mb-6">This will permanently delete the post and all its replies.</p>
                         <div className="flex justify-end gap-3">

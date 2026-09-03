@@ -15,7 +15,7 @@ const Goal = require('../models/Goal');
 const Roadmap = require('../models/Roadmap');
 const Task = require('../models/Task');
 const SkillProgress = require('../models/SkillProgress');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // Enough to be useful in a dropdown, few enough that the panel stays scannable.
 const PER_GROUP = 5;
@@ -80,7 +80,7 @@ const searchCareer = async (req, res) => {
       careerGoal: goal?.careerGoal || null
     });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

@@ -2,7 +2,7 @@ const Badge = require('../models/Badge');
 const UserBadge = require('../models/UserBadge');
 const User = require('../models/User');
 const { seedBadges } = require('../services/gamificationService');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // @desc    Get the badges this user can see: everything earned, plus the next one
 // @route   GET /api/badges
@@ -66,7 +66,7 @@ const getBadges = async (req, res) => {
 
     res.status(200).json(revealed);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

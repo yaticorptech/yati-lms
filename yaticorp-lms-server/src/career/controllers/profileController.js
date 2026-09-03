@@ -5,7 +5,7 @@ const SkillProgress = require('../models/SkillProgress');
 const DailyPlan = require('../models/DailyPlan');
 const Achievement = require('../models/Achievement');
 const { startOfDay, addDays, sweepMissedTasks } = require('../services/dailyPlanService');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // A skipped task the student keeps missing is the signal worth surfacing, so
 // the profile groups repeats rather than listing the same title over and over.
@@ -119,7 +119,7 @@ const getProfileSummary = async (req, res) => {
       skippedTasks
     });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -147,7 +147,7 @@ const redoSkippedTask = async (req, res) => {
 
     res.status(200).json(task);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

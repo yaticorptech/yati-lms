@@ -41,6 +41,11 @@ const lessonSchema = new mongoose.Schema({
     pdfUrl: {
         type: String
     },
+    attachments: [{
+        _id: false,
+        name: { type: String, required: true },
+        url: { type: String, required: true }
+    }],
     quizId: {
         type: String
     },

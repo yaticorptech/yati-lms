@@ -24,7 +24,7 @@ const getSettings = async (req, res) => {
 // @access  Private/Admin
 const updateSettings = async (req, res) => {
     try {
-        const { isCreditSystemEnabled, isCareerPathEnabled } = req.body;
+        const { isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled } = req.body;
 
         let settings = await Setting.findOne();
         if (!settings) {
@@ -39,10 +39,15 @@ const updateSettings = async (req, res) => {
             settings.isCareerPathEnabled = isCareerPathEnabled;
         }
 
+        if (isJobsEnabled !== undefined) {
+            settings.isJobsEnabled = isJobsEnabled;
+        }
+
         await settings.save();
-        // The career gate caches this to keep a database read off every career
-        // request, so a lock has to reach it immediately rather than 30s later.
+        // Both gates cache this to keep a database read off every request, so a
+        // lock has to reach them immediately rather than 30s later.
         require('../career/middleware/featureGate').invalidateCareerSetting();
+        require('../jobboard/middleware/featureGate').invalidateJobsSetting();
         res.json(settings);
     } catch (error) {
         res.status(500).json({ message: 'Server error updating settings', error: error.message });

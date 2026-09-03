@@ -3,7 +3,7 @@ const Goal = require('../models/Goal');
 const Roadmap = require('../models/Roadmap');
 const { generateRecommendationsFromAI } = require('../services/geminiService');
 const { getStudentCourseContext } = require('../services/lmsContext');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // @desc    Generate recommendations using AI based on goal & roadmap
 // @route   POST /api/recommendations/generate
@@ -68,7 +68,7 @@ const generateRecommendations = async (req, res) => {
 
     res.status(201).json(recommendation);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -83,7 +83,7 @@ const getRecommendations = async (req, res) => {
     }
     res.status(200).json(recs);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -99,7 +99,7 @@ const deleteRecommendations = async (req, res) => {
     await recs.deleteOne();
     res.status(200).json({ message: 'Recommendations deleted successfully.' });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

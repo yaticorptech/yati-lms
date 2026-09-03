@@ -156,6 +156,22 @@ const CoursePreview = () => {
                                 </div>
                             )}
 
+                            {/* Attachments */}
+                            {activeLesson.attachments?.length > 0 && (
+                                <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                                    <p className="font-semibold text-slate-800 mb-3">Lesson Resources</p>
+                                    <div className="space-y-2">
+                                        {activeLesson.attachments.map((att, idx) => (
+                                            <a key={idx} href={att.url} target="_blank" rel="noreferrer"
+                                                className="flex items-center gap-3 text-sm text-indigo-600 hover:underline">
+                                                <FileText size={16} className="text-slate-400 flex-shrink-0" />
+                                                {att.name || 'Attachment'}
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Quiz placeholder */}
                             {activeLesson.quizId && !activeLesson.videoUrl && !activeLesson.pdfUrl && (
                                 <div className="bg-purple-50 border border-purple-200 rounded-2xl p-8 text-center">

@@ -34,4 +34,19 @@ const roadmapSchema = new mongoose.Schema(
   }
 );
 
+/**
+ * Education phases run in sequence, so "completed" is always a prefix of the
+ * roadmap: you cannot have finished Class 12 while Class 11 is outstanding.
+ *
+ * Lives on the model because more than one place needs the rule — the roadmap
+ * itself normalises progress with it, and the milestone list uses it to decide
+ * which badges are still earned. Two copies would drift, and the drift would
+ * show up as a badge for a phase the student had reopened.
+ */
+roadmapSchema.statics.completedPrefix = (completed = []) => {
+  if (!completed || !completed.length) return [];
+  const highest = Math.max(...completed);
+  return Array.from({ length: highest + 1 }, (_, i) => i);
+};
+
 module.exports = mongoose.model('CareerRoadmap', roadmapSchema, 'career_roadmaps');

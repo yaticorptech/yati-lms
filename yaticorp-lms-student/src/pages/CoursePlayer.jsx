@@ -261,6 +261,32 @@ const CoursePlayer = () => {
                     )}
                 </div>
 
+                {/* Lesson Attachments / Resources */}
+                {activeLesson?.attachments?.length > 0 && (
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center">
+                            <FileText size={18} className="mr-2 text-indigo-600" /> Lesson Resources
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {activeLesson.attachments.map((att, idx) => (
+                                <a
+                                    key={idx}
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center justify-between p-3 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-xl transition-colors group"
+                                >
+                                    <div className="flex items-center min-w-0">
+                                        <FileText size={18} className="text-slate-400 group-hover:text-indigo-500 mr-3 flex-shrink-0" />
+                                        <span className="text-sm font-medium text-slate-700 truncate">{att.name || 'Attachment'}</span>
+                                    </div>
+                                    <Download size={16} className="text-slate-400 group-hover:text-indigo-600 flex-shrink-0 ml-3" />
+                                </a>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Certificate Generation Action */}
                 {courseFullyCompleted && (
                     <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between shadow-sm">

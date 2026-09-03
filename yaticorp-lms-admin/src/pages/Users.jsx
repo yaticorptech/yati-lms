@@ -443,7 +443,8 @@ const Users = () => {
                 {loading ? (
                     <div className="p-8 text-center text-slate-500">Loading users...</div>
                 ) : (
-                    <table className="w-full text-left border-collapse">
+                    <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[720px]">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase">
                                 <th className="px-6 py-4 font-semibold">User Details</th>
@@ -495,6 +496,7 @@ const Users = () => {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 )}
             </div>
 

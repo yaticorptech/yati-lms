@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import { AuthContext } from '../../context/AuthContext';
 import {
   Check, Sparkles, Target, Lightbulb, CalendarCheck, PartyPopper,
-  ListTodo, ChevronDown, GraduationCap, Clock3, Map, Play, Trophy, Plus,
+  ListTodo, ChevronDown, GraduationCap, Clock3, Map, Play, Trophy, Plus, Zap,
   BookOpen, MonitorPlay, ArrowRight
 } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
@@ -11,11 +12,17 @@ import AiBudgetNotice from '../../components/AiBudgetNotice';
 import { useCelebrate } from '../../components/ui/Celebration';
 import Button from '../../components/ui/Button';
 import Card, { CardHeader } from '../../components/ui/Card';
-import PageHeader from '../../components/ui/PageHeader';
+import MissionArt from '../../components/plan/MissionArt';
 import EmptyState from '../../components/ui/EmptyState';
 import { SkeletonList } from '../../components/ui/Skeleton';
 import TaskStudyPanel from '../../components/study/TaskStudyPanel';
 import LessonProgress from '../../components/study/LessonProgress';
+
+// What the server pays for a finished task, matching TASK_XP in
+// taskCompletionService. Verified end to end: completing one moves the profile
+// by exactly this much, so the figures in the header are a promise, not a
+// guess.
+const TASK_XP = 10;
 
 const TODAY_LABEL = new Date().toLocaleDateString(undefined, {
   weekday: 'long',
@@ -24,6 +31,7 @@ const TODAY_LABEL = new Date().toLocaleDateString(undefined, {
 });
 
 export default function Planner() {
+  const { user, refresh } = useContext(AuthContext);
   const [tasks, setTasks] = useState([]);
   const [plannerContext, setPlannerContext] = useState(null);
   const [day, setDay] = useState(null);
@@ -35,6 +43,17 @@ export default function Planner() {
   // Only one task's lesson is open at a time — two embedded players competing
   // for attention defeats the point of a focused daily plan.
   const [openTaskId, setOpenTaskId] = useState(null);
+  // Finished tasks whose steps the student has asked to see again. Empty by
+  // default: once a task is done its steps are a record, not an instruction.
+  const [openSteps, setOpenSteps] = useState(() => new Set());
+
+  const toggleSteps = (id) =>
+    setOpenSteps((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const toast = useToast();
   const celebrate = useCelebrate();
 
@@ -105,10 +124,7 @@ export default function Planner() {
     try {
       const { data } = await api.put(`/tasks/${task._id}`, { status: nextStatus });
       if (nextStatus === 'Completed') {
-        // Reuses the lesson completion path so the day-cleared celebration
-        // fires here too. XP is not passed: the server awards it, and this
-        // response does not report how much.
-        handleAutoCompleted(data, { byHand: true });
+        await handleAutoCompleted(data, { byHand: true });
       } else {
         setTasks((prev) =>
           prev.map((t) => (t._id === task._id ? { ...t, status: 'Pending', completedAt: null } : t))
@@ -169,7 +185,18 @@ export default function Planner() {
    * the new status; it must not fire another update or the task would be
    * written twice.
    */
-  const handleAutoCompleted = (completedTask, { xp = 0, byHand = false } = {}) => {
+  const handleAutoCompleted = async (completedTask, { xp = 0, byHand = false } = {}) => {
+    // What the server actually gave, read back rather than assumed. Both the
+    // lesson path and the manual tick come through here, so the reward — and
+    // the level-up behind it — is worked out once and cannot drift between
+    // the two ways a task can be finished.
+    const xpBefore = Number(user?.xp) || 0;
+    const levelBefore = Number(user?.level) || 1;
+    const fresh = await refresh?.();
+    const gained = xp || Math.max(0, (Number(fresh?.xp) || xpBefore) - xpBefore);
+    const newLevel = Number(fresh?.level) || levelBefore;
+    const leveledUp = newLevel > levelBefore;
+
     const after = tasks.map((t) =>
       t._id === completedTask._id
         ? { ...t, status: 'Completed', completedAt: completedTask.completedAt }
@@ -180,6 +207,26 @@ export default function Planner() {
     const remaining = after.filter((t) => t.status !== 'Completed').length;
     const clearedTheDay = remaining === 0 && after.length > 0;
 
+    // ⚡ The rarest thing that can happen here, so it takes precedence over
+    // both the day-cleared and the single-task celebration. Crossing a level
+    // used to pass in complete silence: the ring on the Overview simply read a
+    // higher number the next time the student happened to look at it.
+    if (leveledUp) {
+      dayCelebratedRef.current = clearedTheDay || dayCelebratedRef.current;
+      celebrate({
+        kind: 'day',
+        icon: Trophy,
+        title: `Level ${newLevel}`,
+        message:
+          clearedTheDay
+            ? `That task cleared today's plan and took you up a level.`
+            : `That task took you over the line. You are Level ${newLevel}.`,
+        xp: gained,
+        progress: `Level ${levelBefore} → ${newLevel}`
+      });
+      return;
+    }
+
     if (clearedTheDay && !dayCelebratedRef.current) {
       dayCelebratedRef.current = true;
       celebrate({
@@ -187,7 +234,7 @@ export default function Planner() {
         icon: Trophy,
         title: "That's the whole day",
         message: `Every task on today's plan is done. Come back tomorrow and the streak grows.`,
-        xp,
+        xp: gained,
         progress: `${after.length} / ${after.length} done`
       });
     } else {
@@ -199,7 +246,7 @@ export default function Planner() {
         message: byHand
           ? 'Ticked off. That is one less thing on today.'
           : 'Lesson finished and every answer right — ticked off for you.',
-        xp,
+        xp: gained,
         progress: `${after.length - remaining} / ${after.length} done today`
       });
     }
@@ -229,6 +276,21 @@ export default function Planner() {
   // The one task to pick up now. Marking it removes the smallest possible
   // decision between arriving on this page and starting work.
   const nextTaskId = tasks.find((t) => t.status !== 'Completed')?._id;
+  const donePercent = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
+  const dayCleared = tasks.length > 0 && remaining === 0;
+
+  /* One honest line about where the day stands. It never claims progress that
+     has not happened, and it never nags: the "not started" case offers the
+     first task rather than pointing out that nothing is done. */
+  const missionLine = examEve
+    ? 'Revise, rest, and go in ready.'
+    : tasks.length === 0
+      ? "Your plan for today will appear here."
+      : dayCleared
+        ? "Every task done. That's the day cleared — enjoy the evening."
+        : completed === 0
+          ? `${tasks.length === 1 ? 'One task' : `${tasks.length} tasks`} today. Start at the top and the rest follows.`
+          : `${completed} down, ${remaining} to go — you're ${donePercent}% through today.`;
 
   return (
     <div className="space-y-6">
@@ -238,7 +300,69 @@ export default function Planner() {
       {/* No subtitle. The date and the task are the page; explaining the
           one-task rule in a sentence above them only described what was
           already visible underneath. */}
-      <PageHeader eyebrow={TODAY_LABEL} title="Today's Plan" />
+      {/* The day, said as a state rather than a title. A student opening this
+          page wants to know three things — what day it is, how much is left,
+          and whether it is worth starting now. The ring answers the second and
+          the line answers the third; both are read from the real task list, so
+          neither can flatter a day that has not happened. */}
+      <section className="fp-journey-gradient relative overflow-hidden rounded-3xl p-5 text-white shadow-float sm:p-6">
+        <div aria-hidden className="fp-stars pointer-events-none absolute inset-0" />
+        <div
+          aria-hidden
+          className="fp-float pointer-events-none absolute -top-16 -left-12 h-40 w-40 rounded-full bg-fuchsia-500/20 blur-3xl"
+        />
+
+        <div className="relative flex flex-wrap items-center gap-5">
+          {tasks.length > 0 && (
+            <div className="relative flex h-20 w-20 shrink-0 items-center justify-center">
+              <svg viewBox="0 0 72 72" className="h-20 w-20 -rotate-90" aria-hidden>
+                <circle cx="36" cy="36" r="31" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="8" />
+                <circle
+                  cx="36"
+                  cy="36"
+                  r="31"
+                  fill="none"
+                  stroke={dayCleared ? '#34d399' : '#fbbf24'}
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(donePercent / 100) * 2 * Math.PI * 31} ${2 * Math.PI * 31}`}
+                  className="transition-[stroke-dasharray] duration-700 ease-out"
+                />
+              </svg>
+              <span className="absolute text-lg font-black tabular-nums">
+                {completed}/{tasks.length}
+              </span>
+            </div>
+          )}
+
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.7rem] font-black tracking-[0.11em] text-journey-200 uppercase">
+              {TODAY_LABEL}
+            </p>
+            <h1 className="mt-1 text-2xl leading-tight font-black sm:text-3xl">
+              {dayCleared ? "Today's mission complete" : "Today's mission"}
+            </h1>
+            <p className="mt-1.5 text-sm font-semibold text-journey-100">{missionLine}</p>
+
+            {tasks.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-2.5 py-1 text-xs font-black ring-1 ring-white/20 ring-inset">
+                  <Zap className="h-3.5 w-3.5 text-amber-300" />
+                  <span className="tabular-nums">{completed * TASK_XP}</span> XP earned today
+                </span>
+                {remaining > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-2.5 py-1 text-xs font-black ring-1 ring-white/20 ring-inset">
+                    <Trophy className="h-3.5 w-3.5 text-amber-300" />
+                    <span className="tabular-nums">{remaining * TASK_XP}</span> XP still on the table
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <MissionArt cleared={dayCleared} className="hidden h-32 w-40 shrink-0 sm:block" />
+        </div>
+      </section>
 
       {/* Informational, not a reprimand. Amber and plainly worded: the point is
           to offer the work back, not to open the day by telling someone off. */}
@@ -350,6 +474,27 @@ export default function Planner() {
           )}
         </div>
 
+        {/* The day as a bar. The fraction beside the heading is the same fact,
+            but a count has to be read and compared; a bar that is nearly full
+            is the reason someone finishes the last one. Emerald the whole way,
+            so clearing the day and the tick on each task speak the same
+            colour. */}
+        {tasks.length > 0 && (
+          <div
+            role="progressbar"
+            aria-valuenow={Math.round((completed / tasks.length) * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Today's progress"
+            className="h-1 w-full bg-surface-100"
+          >
+            <div
+              className="fp-done-gradient h-full transition-[width] duration-700 ease-out"
+              style={{ width: `${(completed / tasks.length) * 100}%` }}
+            />
+          </div>
+        )}
+
         {tasks.length === 0 ? (
           <div className="p-6">
             {examEve ? (
@@ -400,13 +545,16 @@ export default function Planner() {
               // the case where one was somehow built anyway — the lesson wins,
               // because a half-finished lesson must stay finishable.
               const needsNothing = task.learning === 'none' && !task.hasLesson;
+              // Open while there is still work in them; collapsed once ticked,
+              // unless this student has reopened this one.
+              const stepsShown = !done || openSteps.has(task._id);
 
               return (
                 <li key={task._id} className={open ? 'bg-surface-50/40' : ''}>
                   <div
                     className={`group relative flex items-start gap-3.5 px-6 py-4 transition-colors ${
                       isNext
-                        ? 'bg-brand-50/40'
+                        ? 'bg-journey-50/50'
                         : done
                           ? // Finished work steps back rather than competing with
                             // what is still to do. It stays legible — it is proof
@@ -425,7 +573,7 @@ export default function Planner() {
                       <>
                         <span
                           aria-hidden
-                          className="absolute inset-y-0 left-0 w-1 bg-brand-500"
+                          className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-journey-500 to-indigo-600"
                         />
                         <span
                           aria-hidden
@@ -452,9 +600,9 @@ export default function Planner() {
                         done
                           ? 'bg-emerald-50 text-emerald-600 ring-emerald-200'
                           : started
-                            ? 'bg-brand-50 text-link ring-brand-200'
+                            ? 'bg-blue-50 text-blue-600 ring-blue-200'
                             : isNext
-                              ? 'bg-brand-600 text-white ring-brand-600'
+                              ? 'bg-gradient-to-br from-journey-500 to-indigo-600 text-white ring-journey-300 shadow-sm shadow-journey-600/30'
                               : 'bg-surface-100 text-ink-400 ring-line-200'
                       }`}
                     >
@@ -469,7 +617,8 @@ export default function Planner() {
 
                     <div className="relative min-w-0 flex-1">
                       {isNext && (
-                        <span className="mb-1.5 inline-flex items-center gap-1 text-[0.62rem] font-bold tracking-[0.14em] text-link uppercase">
+                        <span className="mb-1.5 inline-flex items-center gap-1.5 text-[0.68rem] font-black tracking-[0.14em] text-journey-700 uppercase">
+                          <span aria-hidden>🎯</span>
                           {started ? 'Pick up where you left off' : 'Up next'}
                         </span>
                       )}
@@ -487,9 +636,19 @@ export default function Planner() {
                           {task.title}
                         </h3>
 
-                        {done && (
+                        {done ? (
                           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[0.68rem] font-bold text-emerald-700 ring-1 ring-emerald-100 ring-inset">
-                            Done
+                            <Check className="h-3 w-3" strokeWidth={3} />
+                            Done · +{TASK_XP} XP
+                          </span>
+                        ) : (
+                          /* What finishing it is worth, on the row where the
+                             work is. The same TASK_XP the header totals and the
+                             server actually awards — so it is a promise rather
+                             than an incentive made up for the page. */
+                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[0.68rem] font-black text-amber-700 ring-1 ring-amber-100 ring-inset">
+                            <Zap className="h-3 w-3" />
+                            +{TASK_XP} XP
                           </span>
                         )}
 
@@ -526,16 +685,41 @@ export default function Planner() {
                           Dimmed once done, because then it is a record rather
                           than an instruction. */}
                       {needsNothing && task.guidance?.length > 0 && (
-                        <ol className={`mt-2.5 space-y-1.5 ${done ? 'opacity-60' : ''}`}>
-                          {task.guidance.map((step, i) => (
-                            <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-ink-600">
-                              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-surface-100 text-[0.6rem] font-bold text-ink-500 tabular-nums">
-                                {i + 1}
-                              </span>
-                              <span className="min-w-0">{step}</span>
-                            </li>
-                          ))}
-                        </ol>
+                        <>
+                          {/* Once the task is ticked the steps fold away, so a
+                              finished day is a short list of what was done
+                              rather than five open recipes for work that is
+                              already over. They stay one click away, because
+                              the steps are also the record of how it was done. */}
+                          {done && (
+                            <button
+                              type="button"
+                              onClick={() => toggleSteps(task._id)}
+                              aria-expanded={stepsShown}
+                              className="mt-2 inline-flex items-center gap-1 rounded-lg text-xs font-bold text-ink-400 transition-colors hover:text-ink-700"
+                            >
+                              {stepsShown
+                                ? 'Hide steps'
+                                : `Show ${task.guidance.length} ${task.guidance.length === 1 ? 'step' : 'steps'}`}
+                              <ChevronDown
+                                className={`h-3.5 w-3.5 transition-transform ${stepsShown ? 'rotate-180' : ''}`}
+                              />
+                            </button>
+                          )}
+
+                          {stepsShown && (
+                            <ol className={`mt-2.5 space-y-1.5 ${done ? 'opacity-60' : ''}`}>
+                              {task.guidance.map((step, i) => (
+                                <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-ink-600">
+                                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-surface-100 text-[0.68rem] font-bold text-ink-500 tabular-nums">
+                                    {i + 1}
+                                  </span>
+                                  <span className="min-w-0">{step}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          )}
+                        </>
                       )}
 
                       {/* Where this task actually stands. No duration: an

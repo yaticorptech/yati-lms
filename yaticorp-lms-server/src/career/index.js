@@ -69,6 +69,10 @@ router.use(require('./middleware/featureGate').requireCareerPathEnabled);
 router.use('/goals', require('./routes/goalRoutes'));
 router.use('/roadmap', require('./routes/roadmapRoutes'));
 router.use('/tasks', require('./routes/taskRoutes'));
+// Read-only summary for the LMS dashboard's welcome panel. Mounted at the top
+// level rather than under /tasks so it cannot collide with /tasks/:id.
+router.use('/today', require('./routes/todayRoutes'));
+router.use('/activity', require('./routes/activityRoutes'));
 router.use('/skills', require('./routes/skillRoutes'));
 router.use('/achievements', require('./routes/achievementRoutes'));
 router.use('/badges', require('./routes/badgeRoutes'));

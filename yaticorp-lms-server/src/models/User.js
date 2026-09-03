@@ -73,6 +73,22 @@ const userSchema = new mongoose.Schema({
         default: 1
     },
     // Last day the student completed a Career Path task. Drives the streak.
+    /**
+     * How many times this account has signed in.
+     *
+     * The "welcome back" panel is for people coming back, not for someone
+     * seeing the site for the first time — and nothing recorded that. A count
+     * rather than a boolean so "second visit" can be told from "fiftieth" later
+     * if the panel ever wants to say something different to a new returner.
+     *
+     * Accounts that existed before this field was added start at 0 and reach 1
+     * on their next sign-in, so they are treated as first-time once. That is a
+     * single missed panel, which is preferable to guessing from other data.
+     */
+    loginCount: {
+        type: Number,
+        default: 0
+    },
     lastActiveDate: {
         type: Date
     },

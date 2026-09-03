@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  GraduationCap, Compass, MapPin, Save, RefreshCw, Undo2, AlertTriangle
+  GraduationCap, Compass, MapPin, Save, RefreshCw, Undo2, AlertTriangle, Pencil, Lock
 } from 'lucide-react';
 import SuggestField from '../../components/common/SuggestField';
 import {
@@ -103,6 +103,17 @@ export default function SettingsPage() {
   // empty box is a box the student has not reached yet, not a mistake worth
   // announcing to them in red.
   const [attempted, setAttempted] = useState(false);
+  /**
+   * The page opens read-only.
+   *
+   * These fields are what the roadmap, the daily plan and the mentor are all
+   * built from, and the form used to sit permanently open — so a stray click on
+   * an education-level card, or a suggestion picked by accident while scrolling,
+   * silently changed the basis of everything downstream. Reading your own
+   * profile is the common case; changing it is the rare one, and it should take
+   * a deliberate press.
+   */
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,6 +139,13 @@ export default function SettingsPage() {
   }, []);
 
   const set = (field) => (value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  /** Leave edit mode, putting back whatever the server last confirmed. */
+  const stopEditing = () => {
+    setForm(saved);
+    setAttempted(false);
+    setEditing(false);
+  };
 
   /**
    * Changing the education level also clears anything that level cannot hold.
@@ -226,6 +244,8 @@ export default function SettingsPage() {
     setBusy('save');
     try {
       await persist();
+      setEditing(false);
+      setAttempted(false);
       toast.success('Your profile has been updated.', 'Saved');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not save your profile.');
@@ -288,8 +308,49 @@ export default function SettingsPage() {
         <PageHeader
           eyebrow="Your profile"
           title="Settings & Profile"
-          subtitle="These details are what your roadmap, your daily tasks and your mentor are built from."
+          subtitle={
+            editing
+              ? 'Change what you need, then save. Nothing is sent until you do.'
+              : 'These details are what your roadmap, your daily tasks and your mentor are built from.'
+          }
+          action={
+            editing ? (
+              <Button
+                type="button"
+                variant="ghost"
+                icon={Undo2}
+                disabled={busy !== null}
+                onClick={stopEditing}
+              >
+                Cancel
+              </Button>
+            ) : (
+              <Button type="button" icon={Pencil} onClick={() => setEditing(true)}>
+                Edit profile
+              </Button>
+            )
+          }
         />
+
+        {/* Says why the form is inert, so a locked field reads as deliberate
+            rather than as something that has failed to load.
+
+            The sentence sits in one span rather than loose beside the icon.
+            `flex` turns every child into a flex item — including each bare
+            text node — so on a narrow screen this wrapped as three separate
+            boxes with gaps between them: "Locked while you read. Press" on one
+            line, "Edit profile" on the next and "to change anything." on a
+            third. Wrapped in a span it wraps like the sentence it is. */}
+        {!editing && (
+          <p className="flex items-start gap-2 text-sm text-ink-500">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              Locked while you read. Press{' '}
+              <span className="font-semibold whitespace-nowrap text-ink-700">Edit profile</span> to
+              change anything.
+            </span>
+          </p>
+        )}
 
         {/* ---------------------------------------------------------------
             Education
@@ -313,16 +374,23 @@ export default function SettingsPage() {
             <legend className="mb-2.5 text-sm font-semibold text-ink-700">Education level</legend>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
               {EDUCATION_LEVELS.map((option) => (
-                <label key={option.value} className="cursor-pointer">
+                <label key={option.value} className={editing ? 'cursor-pointer' : 'cursor-default'}>
                   <input
                     type="radio"
                     name="educationLevel"
                     value={option.value}
                     checked={level === option.value}
                     onChange={() => chooseLevel(option.value)}
+                    disabled={!editing}
                     className="peer sr-only"
                   />
-                  <span className="flex h-full flex-col justify-center rounded-xl border border-line-200 bg-surface p-3 text-center transition-all hover:border-line-300 hover:bg-surface-50 peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:ring-1 peer-checked:ring-brand-500 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/50 peer-focus-visible:ring-offset-1">
+                  <span
+                    className={`flex h-full flex-col justify-center rounded-xl border p-3 text-center transition-all peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:ring-1 peer-checked:ring-brand-500 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/50 peer-focus-visible:ring-offset-1 ${
+                      editing
+                        ? 'border-line-200 bg-surface hover:border-line-300 hover:bg-surface-50'
+                        : 'border-line-200 bg-surface-50 opacity-95'
+                    }`}
+                  >
                     <span className="text-sm leading-tight font-bold text-ink-900">
                       {option.label}
                     </span>
@@ -346,6 +414,7 @@ export default function SettingsPage() {
                     label="Current class"
                     value={form.currentClass || ''}
                     onChange={set('currentClass')}
+                    disabled={!editing}
                     // Only the classes this level contains — a Middle School
                     // student was previously offered Class 12.
                     options={classesFor(level)}
@@ -366,6 +435,7 @@ export default function SettingsPage() {
                       label="Stream"
                       value={form.stream || ''}
                       onChange={set('stream')}
+                      disabled={!editing}
                       options={STREAMS}
                       placeholder="e.g. Science — PCMB"
                     />
@@ -374,6 +444,7 @@ export default function SettingsPage() {
                       label="Board"
                       value={form.board || ''}
                       onChange={set('board')}
+                      disabled={!editing}
                       options={BOARDS}
                       placeholder="e.g. CBSE"
                     />
@@ -387,6 +458,7 @@ export default function SettingsPage() {
                     label="Degree / diploma"
                     value={form.degree || ''}
                     onChange={set('degree')}
+                    disabled={!editing}
                     // The list follows the chosen level, so a postgraduate is
                     // not offered B.Tech as their current course.
                     options={coursesFor(level)}
@@ -398,6 +470,7 @@ export default function SettingsPage() {
                     label="Branch / specialisation"
                     value={form.specialization || ''}
                     onChange={set('specialization')}
+                    disabled={!editing}
                     options={SPECIALISATIONS}
                     placeholder="e.g. Computer Science"
                     required
@@ -407,6 +480,7 @@ export default function SettingsPage() {
                     label="Current year"
                     value={form.currentYear || ''}
                     onChange={set('currentYear')}
+                    disabled={!editing}
                     options={YEARS}
                     placeholder="e.g. 2nd Year"
                     required
@@ -416,6 +490,7 @@ export default function SettingsPage() {
                     label="Semester"
                     value={form.semester || ''}
                     onChange={set('semester')}
+                    disabled={!editing}
                     options={SEMESTERS}
                     placeholder="Optional"
                   />
@@ -428,6 +503,7 @@ export default function SettingsPage() {
                     label="Current job title"
                     value={form.currentJob || ''}
                     onChange={set('currentJob')}
+                    disabled={!editing}
                     options={JOB_TITLES}
                     placeholder="e.g. QA Engineer"
                     required
@@ -441,6 +517,7 @@ export default function SettingsPage() {
                     type="number"
                     value={form.experience === null || form.experience === undefined ? '' : String(form.experience)}
                     onChange={set('experience')}
+                    disabled={!editing}
                     options={EXPERIENCE_YEARS}
                     placeholder="e.g. 3"
                     required
@@ -467,6 +544,7 @@ export default function SettingsPage() {
               label="Desired career goal"
               value={form.careerGoal || ''}
               onChange={set('careerGoal')}
+              disabled={!editing}
               options={CAREER_GOALS}
               placeholder="e.g. Software Engineer"
               required
@@ -476,6 +554,7 @@ export default function SettingsPage() {
               label="Dream company"
               value={form.dreamCompany || ''}
               onChange={set('dreamCompany')}
+              disabled={!editing}
               options={COMPANIES}
               placeholder="Optional"
             />
@@ -496,6 +575,7 @@ export default function SettingsPage() {
               label="Country"
               value={form.country || ''}
               onChange={set('country')}
+              disabled={!editing}
               options={COUNTRIES}
               placeholder="e.g. India"
             />
@@ -503,6 +583,7 @@ export default function SettingsPage() {
               label="State"
               value={form.state || ''}
               onChange={set('state')}
+              disabled={!editing}
               // Only India has a list here. Elsewhere this falls back to a
               // dropdown holding nothing but "Other", which is honest: it says
               // "type yours" rather than implying there are no valid answers.
@@ -543,7 +624,7 @@ export default function SettingsPage() {
                 icon={RefreshCw}
                 loading={busy === 'rebuild'}
                 loadingText="Building your roadmap…"
-                disabled={busy !== null}
+                disabled={busy !== null || !editing}
                 onClick={handleRebuild}
                 className="mt-3.5"
               >
@@ -560,7 +641,7 @@ export default function SettingsPage() {
           Outside the form so it is not re-rendered by every keystroke's layout
           pass, and fixed rather than sticky so it stays put on a long form.
       --------------------------------------------------------------- */}
-      {isDirty && (
+      {editing && isDirty && (
         <div className="animate-fade-in-up fixed inset-x-0 bottom-0 z-40 border-t border-line-200 bg-surface/95 px-4 py-3 shadow-[0_-4px_16px_-6px_rgb(16_24_40/0.12)] backdrop-blur md:left-64">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold text-ink-700">

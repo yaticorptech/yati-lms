@@ -101,15 +101,17 @@
   --color-solid-emerald: #059669;
   --color-solid-rose:    #e11d48;
 
-  --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.06);
-  --shadow-card-hover: 0 8px 24px -6px rgb(16 24 40 / 0.12), 0 2px 6px -2px rgb(16 24 40 / 0.06);
+  --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.04), 0 4px 14px -6px rgb(37 71 235 / 0.10);
+  --shadow-card-hover: 0 14px 32px -10px rgb(37 71 235 / 0.22), 0 2px 6px -2px rgb(16 24 40 / 0.06);
   --shadow-float: 0 20px 40px -12px rgb(16 24 40 / 0.22);
 }
 
 /* Page background and the few colours only CSS uses. Kept out of @theme so
    they do not generate utility classes nobody writes. */
 :root {
-  --canvas: #f6f7f9;
+  --canvas: #f7f8fc;
+  --canvas-wash-a: rgb(59 102 246 / 0.16);
+  --canvas-wash-b: rgb(167 139 250 / 0.14);
   --skeleton: #e8eaee;
   --sheen: rgb(255 255 255 / 0.6);
   --scroll-thumb: #d4d8e0;
@@ -133,6 +135,8 @@
   color-scheme: dark;
 
   --canvas: #0b0f15;
+  --canvas-wash-a: rgb(59 102 246 / 0.10);
+  --canvas-wash-b: rgb(167 139 250 / 0.07);
   --skeleton: #212a37;
   --sheen: rgb(255 255 255 / 0.06);
   --scroll-thumb: #333f4f;
@@ -232,6 +236,21 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--canvas);
+  /* The canvas was a flat neutral grey, and flat grey is what made ten
+     well-built screens read as a form to fill in rather than somewhere to
+     spend an hour. Two very soft washes — brand at the top, a warmer note
+     bottom-right — give the page somewhere to sit without competing with a
+     single card on it.
+
+     `fixed` so the washes stay put while the page scrolls: repeating them
+     down a long roadmap would turn a background into a pattern. Painted with
+     gradients rather than blurred elements, so there is nothing to
+     rasterise. */
+  background-image:
+    radial-gradient(1200px 520px at 12% -8%, var(--canvas-wash-a), transparent 70%),
+    radial-gradient(900px 480px at 108% 8%, var(--canvas-wash-b), transparent 72%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--color-ink-900);
   /* Nothing should ever scroll the page sideways on a phone. Decorative blurs
      and wide tables are contained by their own overflow rules. */
@@ -259,25 +278,40 @@
 }
 
 /* One typeface, headings included. Weight, size and tight tracking carry the
-   hierarchy rather than a second font family. */
-.futurepath h1,
-.futurepath h2,
-.futurepath h3,
-.futurepath h4,
-.futurepath h5,
-.futurepath h6 {
-  font-family: inherit;
-  letter-spacing: -0.021em;
-  font-weight: 700;
+   hierarchy rather than a second font family.
+   
+   Inside `@layer base`, and that is the whole point of the block.
+   
+   Written as plain unlayered rules, these beat every Tailwind utility — a
+   layered rule always loses to an unlayered one, whatever the specificity says.
+   So `font-weight: 700` here was quietly overriding `font-black` on every
+   heading in the section: the roadmap destination, the mission title, each
+   empty state and both onboarding headings were all asking for 900 and all
+   rendering at 700. Nothing looked broken, which is why it lasted — the
+   display type was simply never as heavy as it was written to be.
+   
+   In the base layer they do what they were meant to do: set the default, and
+   step aside for any component that names its own weight or tracking. */
+@layer base {
+  .futurepath h1,
+  .futurepath h2,
+  .futurepath h3,
+  .futurepath h4,
+  .futurepath h5,
+  .futurepath h6 {
+    font-family: inherit;
+    letter-spacing: -0.021em;
+    font-weight: 700;
+  }
+
+  /* Large display text needs tighter tracking than small text to look even —
+     optical sizing, which a single global value cannot provide. */
+  .futurepath h1 { letter-spacing: -0.035em; }
+  .futurepath h2 { letter-spacing: -0.03em; }
 }
 
-/* Large display text needs tighter tracking than small text to look even —
-   optical sizing, which a single global value cannot provide. */
-.futurepath h1 { letter-spacing: -0.035em; }
-.futurepath h2 { letter-spacing: -0.03em; }
-
 /* Tabular numerals keep animated counters from jittering as digits change. */
-.futurepath .tabular-nums { font-variant-numeric: tabular-nums; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
 
 /* ---------------------------------------------------------------
    Scrollbars
@@ -320,11 +354,13 @@
 /* ===========================================================================
    Motion
 
-   The @keyframes stay global — a keyframe name generates no styling on its own,
-   and nothing outside this section references these. The classes that USE them
-   are scoped, because `.animate-fade-in` is a plausible name for the existing
-   panel to reach for (StudentLayout's mobile drawer already does), and this
-   port must not change how that behaves.
+   Both the keyframes and the classes that use them are global now.
+   
+   They were scoped to `.futurepath` during the port so that bringing the
+   section in could not alter how the rest of the student app behaved — correct
+   then, wrong now. Ten LMS files reach for `.animate-fade-in` and have been
+   getting nothing at all, because the only rule for it lived behind a selector
+   they are not inside. One vocabulary, one definition, available everywhere.
    =========================================================================== */
 
 @keyframes fade-in-up {
@@ -347,10 +383,10 @@
   100% { transform: translateX(100%); }
 }
 
-.futurepath .animate-fade-in-up { animation: fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.futurepath .animate-fade-in    { animation: fade-in 0.3s ease-out both; }
-.futurepath .animate-scale-in   { animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.futurepath .animate-slide-in   { animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-fade-in-up { animation: fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-fade-in    { animation: fade-in 0.3s ease-out both; }
+.animate-scale-in   { animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-slide-in   { animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 /* ---------------------------------------------------------------
    Reward motion
@@ -383,7 +419,7 @@
   60%  { opacity: 1; transform: scale(1.03) translateY(0); }
   100% { opacity: 1; transform: scale(1); }
 }
-.futurepath .animate-pop-in,
+.animate-pop-in,
 .futurepath-portal .animate-pop-in { animation: pop-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 
 /* A checkmark badge drawing attention to itself once, on arrival. */
@@ -392,7 +428,7 @@
   55%  { transform: scale(1.18); }
   100% { transform: scale(1); }
 }
-.futurepath .animate-badge-burst,
+.animate-badge-burst,
 .futurepath-portal .animate-badge-burst { animation: badge-burst 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both; }
 
 /* XP flying up and away from where it was earned. */
@@ -402,7 +438,7 @@
   75%  { opacity: 1; transform: translateY(-4px) scale(1); }
   100% { opacity: 0; transform: translateY(-16px) scale(0.96); }
 }
-.futurepath .animate-xp-rise,
+.animate-xp-rise,
 .futurepath-portal .animate-xp-rise { animation: xp-rise 2.2s ease-out both; }
 
 /* Marks the one task to start next. Three pulses, then it stops — enough to
@@ -411,7 +447,7 @@
   0%, 100% { box-shadow: 0 0 0 0 rgb(59 102 246 / 0); }
   50%      { box-shadow: 0 0 0 5px rgb(59 102 246 / 0.16); }
 }
-.futurepath .animate-attention { animation: attention-ring 2s ease-in-out 3; }
+.animate-attention { animation: attention-ring 2s ease-in-out 3; }
 
 /* A light sweeping across a surface — used once on the "up next" row so the eye
    is drawn to it before anything else on the page. */
@@ -419,7 +455,7 @@
   0%   { transform: translateX(-120%); }
   100% { transform: translateX(220%); }
 }
-.futurepath .animate-sheen { animation: sheen 1.5s ease-in-out 0.4s 2 both; }
+.animate-sheen { animation: sheen 1.5s ease-in-out 0.4s 2 both; }
 
 /* A step completing in the lesson stepper. */
 @keyframes step-land {
@@ -427,27 +463,27 @@
   60%  { transform: scale(1.12); }
   100% { transform: scale(1); }
 }
-.futurepath .animate-step-land { animation: step-land 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.animate-step-land { animation: step-land 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 
 /* Stagger helpers: let a list of cards cascade in rather than pop at once. */
-.futurepath .stagger > * { animation: fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.futurepath .stagger > *:nth-child(1) { animation-delay: 0.02s; }
-.futurepath .stagger > *:nth-child(2) { animation-delay: 0.06s; }
-.futurepath .stagger > *:nth-child(3) { animation-delay: 0.10s; }
-.futurepath .stagger > *:nth-child(4) { animation-delay: 0.14s; }
-.futurepath .stagger > *:nth-child(5) { animation-delay: 0.18s; }
-.futurepath .stagger > *:nth-child(6) { animation-delay: 0.22s; }
-.futurepath .stagger > *:nth-child(7) { animation-delay: 0.26s; }
-.futurepath .stagger > *:nth-child(8) { animation-delay: 0.30s; }
-.futurepath .stagger > *:nth-child(n+9) { animation-delay: 0.34s; }
+.stagger > * { animation: fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.stagger > *:nth-child(8) { animation-delay: 0.30s; }
+.stagger > *:nth-child(n+9) { animation-delay: 0.34s; }
 
 /* Skeleton shimmer */
-.futurepath .skeleton {
+.skeleton {
   position: relative;
   overflow: hidden;
   background-color: var(--skeleton);
 }
-.futurepath .skeleton::after {
+.skeleton::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -468,3 +504,301 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ===========================================================================
+   Ambient motion
+
+   The section already had a motion vocabulary, but almost all of it fires on a
+   single moment — a badge landing, XP rising, a step completing — and `.stagger`
+   above already handles entrances. What was missing is the quieter, always-on
+   layer: a streak that glows and a flame that flickers. Entrances are already
+   handled by `.stagger` above, and cards already lift on hover in StatCard, so
+   nothing here repeats what the section can do.
+
+   Transform, opacity and box-shadow only, so none of it leaves the compositor.
+   =========================================================================== */
+
+@keyframes fp-orb-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(-12px, 14px, 0) scale(1.08); }
+}
+@keyframes fp-flame {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  35%      { transform: scale(1.12) rotate(-6deg); }
+  70%      { transform: scale(1.05) rotate(5deg); }
+}
+@keyframes fp-streak-glow {
+  0%, 100% { text-shadow: 0 0 18px rgb(251 191 36 / 0.25); }
+  50%      { text-shadow: 0 0 34px rgb(251 191 36 / 0.55); }
+}
+
+/* All finite.
+   
+   These drifted, flickered and glowed forever. Ambient motion that never stops
+   is motion the eye learns to ignore — and once it is ignored it is only a
+   compositor job running for the rest of the session. Each plays a few times
+   on arrival and then rests, which is when it is actually noticed. `both`
+   holds the final keyframe, and every one of these ends where it started, so
+   they settle rather than snap. */
+.futurepath .futurepath-orb    { animation: fp-orb-drift 9s ease-in-out 2 both; }
+.futurepath .futurepath-flame  { animation: fp-flame 2.6s ease-in-out 3 both; transform-origin: 50% 80%; }
+.futurepath .futurepath-streak { animation: fp-streak-glow 3.2s ease-in-out 3 both; }
+
+
+@media (prefers-reduced-motion: reduce) {
+  .futurepath .futurepath-orb,
+  .futurepath .futurepath-flame,
+  .futurepath .futurepath-streak {
+    animation: none !important;
+  }
+}
+
+/* ===========================================================================
+   Journey — the colour and motion layer
+   ===========================================================================
+
+   Career Path was built in one hue. Blue headings, blue chips, blue rails, a
+   blue hero, grey everywhere between — correct, restrained, and completely
+   silent about which parts of the page mean different things. A student
+   scanning it had to read every label to work out what was finished, what was
+   live and what was still locked.
+
+   Colour does that job here, and it is assigned by MEANING rather than by
+   decoration. One family per idea, used consistently across every screen:
+
+     journey / identity ..... violet → indigo
+     learning / progress .... blue → cyan
+     done / mastered ........ emerald → teal
+     XP / streak / effort ... amber → orange
+     achievement / reward ... pink → fuchsia
+
+   That is the whole system. A card is not coloured because colour is nice; it
+   is coloured because its colour is the fastest way to say what it is.
+   =========================================================================== */
+
+@theme {
+  /* The journey's own hue. Distinct from `brand`, which stays the LMS's blue
+     and still owns buttons, links and focus rings across the whole panel —
+     Career Path is a section inside a product, not a second product. */
+  /* Tuned so 600 is exactly the product's primary, #6C3BFF, with the rest of
+     the ramp built around it. Components ask for `journey-600` and get the
+     brand colour; the pale steps carry chips, the deep steps carry panels. */
+  --color-journey-50:  #f4f1ff;
+  --color-journey-100: #e9e3ff;
+  --color-journey-200: #d5cbff;
+  --color-journey-300: #b8a6ff;
+  --color-journey-400: #9575ff;
+  --color-journey-500: #7d4fff;
+  --color-journey-600: #6c3bff;
+  --color-journey-700: #5a2ae0;
+  --color-journey-800: #4720b0;
+  --color-journey-900: #331880;
+
+  /* ---------------------------------------------------------------
+     What each reward colour MEANS, named once.
+
+     Components were reaching for whichever Tailwind hue looked right —
+     amber-500 here, orange-400 there, emerald-600 somewhere else — so the same
+     idea arrived in three shades depending on which file drew it. XP is one
+     colour in this product, and now there is one place that says which.
+  --------------------------------------------------------------- */
+  --color-xp:      #ffb800;   /* XP, levels, anything earned by effort   */
+  --color-streak:  #ff6b22;   /* momentum, the flame                     */
+  --color-win:     #19b96b;   /* completed, mastered, correct            */
+  --color-reward:  #ff4fa3;   /* badges, achievements, milestones        */
+  --color-learn:   #1677ff;   /* lessons, quizzes, anything being taught */
+}
+
+.dark {
+  /* Same pairing rule the rest of the palette follows: the pale steps go deep
+     and the deep steps go light, because they are always used together as a
+     tinted chip carrying coloured text. */
+  --color-journey-50:  #1d1638;
+  --color-journey-100: #271d4d;
+  --color-journey-200: #362a68;
+  --color-journey-600: #9575ff;
+  --color-journey-700: #b8a6ff;
+  --color-journey-800: #d5cbff;
+}
+
+/* ---------------------------------------------------------------
+   Surfaces
+
+   Gradients are a budget, not a default. The hero spends most of it; a
+   milestone or a destination spends a little. Everything else stays on a
+   flat surface, because a page where every card has a gradient has no
+   hierarchy left to give the hero.
+--------------------------------------------------------------- */
+
+/* The one big statement. Deep enough to carry white text at AA. */
+.fp-journey-gradient {
+  background-image:
+    linear-gradient(135deg, #331880 0%, #4720b0 26%, #5a2ae0 58%, #1677ff 100%);
+}
+
+/* Reward moments — badges, achievements, milestone cards. */
+.fp-reward-gradient {
+  background-image: linear-gradient(135deg, #ff4fa3 0%, #c026d3 48%, #6c3bff 100%);
+}
+
+/* Effort — XP, streaks, anything the student earned by turning up. */
+.fp-effort-gradient {
+  background-image: linear-gradient(135deg, #ffb800 0%, #ff6b22 60%, #f43f5e 100%);
+}
+
+/* Completion. */
+.fp-done-gradient {
+  background-image: linear-gradient(135deg, #19b96b 0%, #0d9488 55%, #1677ff 100%);
+}
+
+/* A fine starfield for dark panels. Painted, not elements — nothing to lay
+   out, nothing to composite. */
+.fp-stars {
+  background-image:
+    radial-gradient(rgb(255 255 255 / 0.75) 1px, transparent 1px),
+    radial-gradient(rgb(255 255 255 / 0.4) 1px, transparent 1px);
+  background-size: 46px 46px, 29px 29px;
+  background-position: 0 0, 14px 21px;
+  opacity: 0.22;
+}
+
+/* ---------------------------------------------------------------
+   Interaction
+
+   Consumer apps feel alive because every control answers the moment it is
+   touched. These are the three answers this section gives, and they are all
+   transform/opacity/shadow, so none of them leaves the compositor.
+--------------------------------------------------------------- */
+
+/* Hover only where hovering is possible. On a touch screen `:hover` sticks
+   after a tap, which leaves a card lifted until something else is pressed. */
+@media (hover: hover) and (pointer: fine) {
+  .fp-lift {
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .fp-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  /* For the one card on a page that is asking to be pressed. */
+  .fp-lift-strong {
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .fp-lift-strong:hover {
+    transform: translateY(-4px) scale(1.006);
+    box-shadow: 0 22px 44px -16px rgb(124 58 237 / 0.42);
+  }
+}
+
+/* Pressed state, on every pointer type. A control that does not move when
+   pressed reads as broken on a phone. */
+.fp-press { transition: transform 0.12s ease-out; }
+.fp-press:active { transform: scale(0.97); }
+
+/* ---------------------------------------------------------------
+   Ambient motion
+
+   All of it finite or slow. Nothing blinks, nothing demands attention twice.
+--------------------------------------------------------------- */
+
+/* Decorative blobs behind a hero. Long and slow enough to read as depth
+   rather than as something moving. */
+@keyframes fp-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(14px, -18px, 0) scale(1.06); }
+}
+.fp-float      { animation: fp-float 11s ease-in-out 2 both; }
+.fp-float-slow { animation: fp-float 16s ease-in-out 2 reverse both; }
+
+/* The same drift, but it stops.
+   
+   For anything that lives OUTSIDE Career Path. The sidebar astronaut carried
+   the infinite version, which meant a permanently animating element in the
+   corner of Dashboard, Enrolled Courses, Community, Jobs and Profile — pages
+   this section has no business animating, and a compositor job that never
+   ends. Two passes on arrival, then it settles. */
+.fp-float-settle { animation: fp-float 7s ease-in-out 2 both; }
+
+/* The halo on the phase the student is standing on. Opacity and scale only,
+   so it never fights a ring drawn with box-shadow. */
+@keyframes fp-halo {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%      { opacity: 0.9;  transform: scale(1.18); }
+}
+/* Three pulses on the phase the student is standing on, then still. Long
+   enough to find the node on arrival, short enough that it is not still
+   flashing while they read the chapter it points at. */
+.fp-halo { animation: fp-halo 2.6s ease-in-out 3 both; }
+
+/* A light crossing a surface once, on arrival. Used on the single most
+   important CTA on a screen — never on more than one. */
+@keyframes fp-sweep {
+  0%   { transform: translateX(-140%) skewX(-18deg); }
+  100% { transform: translateX(260%)  skewX(-18deg); }
+}
+.fp-sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28), transparent);
+  animation: fp-sweep 2.6s ease-in-out 0.8s 2 both;
+  pointer-events: none;
+}
+
+/* A bar filling from empty when its section arrives. */
+@keyframes fp-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.fp-fill {
+  transform-origin: left center;
+  animation: fp-fill 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Entrances, in sequence. `.stagger` above does this for a grid of equals;
+   this is for a page whose sections should arrive top to bottom. */
+.fp-enter > * { animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.fp-enter > *:nth-child(1) { animation-delay: 0.04s; }
+.fp-enter > *:nth-child(2) { animation-delay: 0.11s; }
+.fp-enter > *:nth-child(3) { animation-delay: 0.18s; }
+.fp-enter > *:nth-child(4) { animation-delay: 0.25s; }
+.fp-enter > *:nth-child(5) { animation-delay: 0.32s; }
+.fp-enter > *:nth-child(n+6) { animation-delay: 0.38s; }
+
+/* The OS setting wins over all of it. The reduce-motion block earlier in this
+   file already collapses every animation and transition inside `.futurepath`;
+   these opt out of the decorative ones entirely rather than running them
+   fast, because a blob that teleports is worse than one that never moved. */
+@media (prefers-reduced-motion: reduce) {
+  /* The entrance and reward utilities are global — ten LMS files outside this
+     section use `.animate-fade-in` — but the block that honoured the OS
+     setting for them was scoped to `.futurepath`. Anywhere else they ran at
+     full speed no matter what the student had asked their system for. */
+  .animate-fade-in-up,
+  .animate-fade-in,
+  .animate-scale-in,
+  .animate-slide-in,
+  .animate-pop-in,
+  .animate-badge-burst,
+  .animate-xp-rise,
+  .animate-attention,
+  .animate-sheen,
+  .animate-step-land,
+  .stagger > * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .fp-float,
+  .fp-float-slow,
+  .fp-float-settle,
+  .fp-halo,
+  .fp-fill { animation: none !important; }
+  .fp-sweep::after { display: none; }
+  .fp-lift:hover,
+  .fp-lift-strong:hover { transform: none; }
+}
+

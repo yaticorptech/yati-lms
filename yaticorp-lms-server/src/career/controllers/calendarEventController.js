@@ -1,7 +1,7 @@
 const CalendarEvent = require('../models/CalendarEvent');
 const Task = require('../models/Task');
 const { toISODate, startOfDay, addDays } = require('../services/dailyPlanService');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -45,7 +45,15 @@ const readEventBody = (body, { requireDate = true } = {}) => {
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
   if (notes.length > 500) return { error: 'Keep the notes under 500 characters.' };
 
-  const type = TYPES.includes(body.type) ? body.type : 'Exam';
+  // An omitted type is an Exam — that is what most students come here to add,
+  // and the form opens on it. A type that was *sent* and is not one of ours is
+  // a different matter: silently rewriting it to 'Exam' is the one fallback
+  // with a side effect, because an exam clears the previous day's work. Every
+  // other bad field here is refused with a message, so this one is too.
+  if (body.type !== undefined && !TYPES.includes(body.type)) {
+    return { error: `Pick one of: ${TYPES.join(', ')}.` };
+  }
+  const type = body.type ?? 'Exam';
 
   const fields = { title, type, notes };
 
@@ -67,7 +75,7 @@ const getEvents = async (req, res) => {
     const events = await CalendarEvent.find({ userId: req.user._id }).sort({ date: 1, createdAt: 1 });
     res.status(200).json(events);
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -83,7 +91,7 @@ const createEvent = async (req, res) => {
     const cleared = await clearEveOfExam(req.user._id, event.date, event.type);
     res.status(201).json({ ...event.toObject(), clearedToday: cleared });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -109,7 +117,7 @@ const updateEvent = async (req, res) => {
     const cleared = await clearEveOfExam(req.user._id, event.date, event.type);
     res.status(200).json({ ...event.toObject(), clearedToday: cleared });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
@@ -126,7 +134,7 @@ const deleteEvent = async (req, res) => {
     if (!event) return res.status(404).json({ message: 'Event not found.' });
     res.status(200).json({ message: 'Event deleted', _id: event._id });
   } catch (error) {
-    res.status(error.status || 500).json(aiAwareBody(error));
+    res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 

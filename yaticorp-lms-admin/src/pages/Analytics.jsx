@@ -57,7 +57,7 @@ const StudentPanel = ({ course, onClose }) => {
                 </div>
 
                 {/* Stats row */}
-                <div className="grid grid-cols-3 gap-3 p-4 border-b border-slate-100 flex-shrink-0">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3 p-3 sm:p-4 border-b border-slate-100 flex-shrink-0">
                     <div className="bg-indigo-50 rounded-xl p-3 text-center">
                         <p className="text-2xl font-black text-indigo-700">{course.enrolledCount}</p>
                         <p className="text-xs text-indigo-500 font-semibold mt-0.5">Enrolled</p>

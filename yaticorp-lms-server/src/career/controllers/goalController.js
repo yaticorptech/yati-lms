@@ -1,5 +1,5 @@
 const Goal = require('../models/Goal');
-const { errorBody: aiAwareBody } = require('../services/aiErrors');
+const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // The Goal schema requires different fields depending on the education level —
 // a class for a school student, a degree for an undergraduate, a job title and
@@ -53,12 +53,41 @@ const sendGoalError = (res, error) => {
       fields: [error.path]
     });
   }
-  return res.status(error.status || 500).json(aiAwareBody(error));
+  return res.status(statusFor(error)).json(aiAwareBody(error));
 };
 
 // @desc    Create a new goal for the user
 // @route   POST /api/goals
 // @access  Private
+/**
+ * The fields a student may change on their own goal.
+ *
+ * Everything createGoal accepts, and nothing else. updateGoal used to be
+ * `Object.assign(goal, req.body)`, which writes whatever the request contains —
+ * including `userId`. Sending one was enough to reassign the goal to another
+ * account: the document detached from its owner, whose planner and roadmap
+ * then had no goal to read, and landed on whoever the id named.
+ *
+ * A whitelist rather than a blacklist, so a field added to the schema later is
+ * not silently editable the day it appears.
+ */
+const EDITABLE_GOAL_FIELDS = [
+  'educationLevel',
+  'currentClass',
+  'board',
+  'stream',
+  'degree',
+  'specialization',
+  'currentYear',
+  'semester',
+  'currentJob',
+  'experience',
+  'careerGoal',
+  'dreamCompany',
+  'country',
+  'state'
+];
+
 const createGoal = async (req, res) => {
   try {
     // Check if user already has an active goal
@@ -133,7 +162,9 @@ const updateGoal = async (req, res) => {
       return res.status(404).json({ message: 'No career goal found to update.' });
     }
 
-    Object.assign(goal, req.body);
+    for (const field of EDITABLE_GOAL_FIELDS) {
+      if (req.body[field] !== undefined) goal[field] = req.body[field];
+    }
     await goal.save();
 
     res.status(200).json(goal);

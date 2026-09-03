@@ -1,4 +1,4 @@
-import useCountUp from '../../hooks/useCountUp';
+import useCountUp from '../../../hooks/useCountUp';
 
 /**
  * A single headline number.

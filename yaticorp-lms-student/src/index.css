@@ -8,3 +8,79 @@
    there that is not a token is scoped to `.futurepath`, so it cannot reach
    the rest of the student panel. */
 @import "./career/career.css";
+
+/* ---------------------------------------------------------------------------
+   Dashboard welcome panel
+
+   Named for this panel rather than reusing `.animate-slide-in`, which
+   career.css scopes to `.futurepath` — this sits on the LMS dashboard, outside
+   that section, so it needs classes of its own.
+
+   Opens in the centre of the dashboard, scaling up rather than sliding — the
+   panel is anchored to the middle at every size, so there is no edge to come
+   in from.
+   --------------------------------------------------------------------------- */
+
+@keyframes panel-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes panel-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: scale(0.98); }
+}
+
+.animate-panel-in  { animation: panel-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-panel-out { animation: panel-out 0.22s ease-in both; }
+
+/* A greeting is not worth making anyone motion-sick. It still arrives and
+   still leaves — it just stops sliding. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-panel-in,
+  .animate-panel-out { animation-duration: 0.01ms; }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion — LMS-specific
+
+   The shared vocabulary lives in career.css and is unscoped: `animate-fade-in`,
+   `animate-fade-in-up`, `animate-pop-in`, `stagger`, `skeleton` and the rest are
+   available to the whole student app. Only what does not exist there is defined
+   here — a duplicate `.stagger` in this file was quietly overriding Career
+   Path's own, because this stylesheet is loaded after it.
+   --------------------------------------------------------------------------- */
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -10px, 0); }
+}
+@keyframes sheen-sweep {
+  from { transform: translateX(-120%); }
+  to   { transform: translateX(220%); }
+}
+
+.drift { animation: drift 7s ease-in-out infinite; }
+
+/* A card lifts toward a real cursor. Gated behind a fine pointer so a tap never
+   leaves a card stuck in its hover state. */
+@media (hover: hover) and (pointer: fine) {
+  .lift { transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease; }
+  .lift:hover { transform: translateY(-6px); box-shadow: var(--shadow-card-hover); }
+}
+
+/* One light sweep, used once on a greeting. */
+.sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.18) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: sheen-sweep 2.6s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drift, .sheen::after { animation: none !important; }
+  .lift:hover { transform: none; }
+}
+
