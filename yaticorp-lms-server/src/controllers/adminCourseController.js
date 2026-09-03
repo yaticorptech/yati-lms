@@ -491,7 +491,7 @@ const uploadThumbnail = async (req, res) => {
     }
 };
 
-// @desc    Upload a lesson video, PDF or attachment → Bunny Storage → return CDN URL
+// @desc    Upload a lesson video or PDF → Bunny Storage → return CDN URL
 // @route   POST /api/admin/lessons/upload
 // @access  Private/Admin
 const uploadLessonFile = async (req, res) => {
@@ -503,14 +503,32 @@ const uploadLessonFile = async (req, res) => {
         // doesn't know, so fall back to the extension to classify the file.
         const isPdf = req.file.mimetype === 'application/pdf'
             || path.extname(req.file.originalname || '').toLowerCase() === '.pdf';
-        const isAttachment = req.body?.kind === 'attachment';
-        const folder = isAttachment ? 'lesson-attachments' : (isPdf ? 'lesson-pdfs' : 'lesson-videos');
+        const folder = isPdf ? 'lesson-pdfs' : 'lesson-videos';
         const stream = fs.createReadStream(req.file.path);
         const url = await uploadStreamToBunny(stream, req.file.originalname, folder, req.file.size);
-        res.json({ url, kind: isAttachment ? 'attachment' : (isPdf ? 'pdf' : 'video') });
+        res.json({ url, kind: isPdf ? 'pdf' : 'video' });
     } catch (error) {
         console.error('Lesson file upload error:', error);
         res.status(500).json({ message: 'File upload failed', error: error.message });
+    } finally {
+        if (req.file?.path) fs.unlink(req.file.path, () => {});
+    }
+};
+
+// @desc    Upload a lesson attachment (worksheet, slides, archive…) → Bunny Storage → return CDN URL
+// @route   POST /api/admin/lessons/attachments
+// @access  Private/Admin
+const uploadLessonAttachment = async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No file provided' });
+    }
+    try {
+        const stream = fs.createReadStream(req.file.path);
+        const url = await uploadStreamToBunny(stream, req.file.originalname, 'lesson-attachments', req.file.size);
+        res.json({ url, name: req.file.originalname });
+    } catch (error) {
+        console.error('Lesson attachment upload error:', error);
+        res.status(500).json({ message: 'Attachment upload failed', error: error.message });
     } finally {
         if (req.file?.path) fs.unlink(req.file.path, () => {});
     }
@@ -520,5 +538,6 @@ module.exports = {
     getCourses, getCourseById, createCourse, updateCourse, deleteCourse,
     addModule, updateModule, deleteModule, reorderModules,
     addLesson, updateLesson, deleteLesson, reorderLessons,
-    getCourseStudents, previewCourse, uploadThumbnail, uploadLessonFile
+    getCourseStudents, previewCourse, uploadThumbnail, uploadLessonFile,
+    uploadLessonAttachment
 };

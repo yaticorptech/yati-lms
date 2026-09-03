@@ -40,13 +40,6 @@ const lessonUpload = multer({
     storage: multer.diskStorage({ destination: os.tmpdir() }),
     limits: { fileSize: LESSON_UPLOAD_MAX_MB * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        // Lesson attachments (slides, zips, worksheets…) may be any file type.
-        // The client must append the 'kind' field before the file so multer
-        // has parsed it by the time this filter runs.
-        if (req.body?.kind === 'attachment') {
-            return cb(null, true);
-        }
-
         const mime = (file.mimetype || '').trim().toLowerCase();
         const ext = path.extname(file.originalname || '').toLowerCase();
         const unknownMime = UNKNOWN_MIMES.has(mime);
@@ -60,6 +53,40 @@ const lessonUpload = multer({
 
         const error = new Error(
             `Only video or PDF files are allowed (received "${file.originalname}", type "${mime || 'unknown'}")`
+        );
+        error.status = 400;
+        cb(error, false);
+    },
+});
+
+// Lesson attachment upload — downloadable resources (worksheets, slides,
+// source archives) shown alongside a lesson. Same disk-backed streaming, but
+// a document allowlist by extension (MIME is unreliable for office/archive
+// types) and a much tighter size cap than full lesson videos.
+const ATTACHMENT_EXTENSIONS = new Set([
+    '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.csv',
+    '.txt', '.md', '.rtf', '.zip', '.rar', '.7z',
+    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg',
+    '.mp3', '.wav', '.json', '.ipynb',
+]);
+
+const ATTACHMENT_UPLOAD_MAX_MB = Number(process.env.MAX_ATTACHMENT_UPLOAD_MB) || 200;
+
+const tagAttachmentLimit = (req, res, next) => {
+    req.uploadLimitMb = ATTACHMENT_UPLOAD_MAX_MB;
+    next();
+};
+
+const attachmentUpload = multer({
+    storage: multer.diskStorage({ destination: os.tmpdir() }),
+    limits: { fileSize: ATTACHMENT_UPLOAD_MAX_MB * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const ext = path.extname(file.originalname || '').toLowerCase();
+        if (ATTACHMENT_EXTENSIONS.has(ext)) {
+            return cb(null, true);
+        }
+        const error = new Error(
+            `File type "${ext || 'unknown'}" is not allowed as an attachment (received "${file.originalname}")`
         );
         error.status = 400;
         cb(error, false);
@@ -95,6 +122,7 @@ router.route('/enrollments/:id').delete(protectAdmin, enrollmentCtrl.deleteEnrol
 router.route('/courses').get(protectAdmin, courseCtrl.getCourses).post(protectAdmin, courseCtrl.createCourse);
 router.post('/courses/thumbnail', protectAdmin, imageUpload.single('image'), courseCtrl.uploadThumbnail);
 router.post('/lessons/upload', protectAdmin, tagUploadLimit, lessonUpload.single('file'), courseCtrl.uploadLessonFile);
+router.post('/lessons/attachments', protectAdmin, tagAttachmentLimit, attachmentUpload.single('file'), courseCtrl.uploadLessonAttachment);
 router.route('/courses/:id').get(protectAdmin, courseCtrl.getCourseById).put(protectAdmin, courseCtrl.updateCourse).delete(protectAdmin, courseCtrl.deleteCourse);
 router.get('/courses/:id/students', protectAdmin, courseCtrl.getCourseStudents);
 

@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
-import { PlayCircle, FileText, CheckCircle2, ChevronDown, ChevronRight, CheckSquare, Briefcase, Award, Download, HelpCircle, Lock } from 'lucide-react';
+import { PlayCircle, FileText, CheckCircle2, ChevronDown, ChevronRight, CheckSquare, Briefcase, Award, Download, HelpCircle, Lock, Paperclip } from 'lucide-react';
 import VideoPlayer from '../components/VideoPlayer';
 import QuizTaker from '../components/QuizTaker';
 import { useCoursePlayer } from '../shared/hooks/useCoursePlayer';
@@ -261,27 +261,25 @@ const CoursePlayer = () => {
                     )}
                 </div>
 
-                {/* Lesson Attachments / Resources */}
+                {/* Lesson Attachments */}
                 {activeLesson?.attachments?.length > 0 && (
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
                         <h3 className="font-bold text-slate-800 mb-4 flex items-center">
-                            <FileText size={18} className="mr-2 text-indigo-600" /> Lesson Resources
+                            <Paperclip size={18} className="mr-2 text-indigo-500" /> Lesson Resources
                         </h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {activeLesson.attachments.map((att, idx) => (
-                                <a
+                                <button
                                     key={idx}
-                                    href={att.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center justify-between p-3 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-xl transition-colors group"
+                                    onClick={() => handleDownloadPdf(att.url, att.name)}
+                                    className="flex items-center justify-between p-3 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-xl transition-colors text-left group"
                                 >
                                     <div className="flex items-center min-w-0">
-                                        <FileText size={18} className="text-slate-400 group-hover:text-indigo-500 mr-3 flex-shrink-0" />
-                                        <span className="text-sm font-medium text-slate-700 truncate">{att.name || 'Attachment'}</span>
+                                        <FileText size={16} className="text-indigo-500 mr-3 flex-shrink-0" />
+                                        <span className="text-sm font-semibold text-slate-700 truncate">{att.name || 'Attachment'}</span>
                                     </div>
                                     <Download size={16} className="text-slate-400 group-hover:text-indigo-600 flex-shrink-0 ml-3" />
-                                </a>
+                                </button>
                             ))}
                         </div>
                     </div>

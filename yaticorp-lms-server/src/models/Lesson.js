@@ -41,11 +41,6 @@ const lessonSchema = new mongoose.Schema({
     pdfUrl: {
         type: String
     },
-    attachments: [{
-        _id: false,
-        name: { type: String, required: true },
-        url: { type: String, required: true }
-    }],
     quizId: {
         type: String
     },
@@ -61,6 +56,10 @@ const lessonSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    attachments: [new mongoose.Schema({
+        name: { type: String },
+        url: { type: String, required: true }
+    }, { _id: false })],
     allowDownload: {
         type: Boolean,
         default: false
