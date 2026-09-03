@@ -89,12 +89,13 @@ const recordParse = async () => {
 };
 
 /**
- * Parse one PDF resume into the profile shape.
+ * Parse one resume — a PDF, or an image of the page — into the profile shape.
+ * The model reads both the same way; only the declared MIME type differs.
  *
  * Throws with a student-readable message on every failure — the route hands
  * these straight through, so they are written for the person who uploaded.
  */
-const parseResume = async (buffer, filename = 'resume.pdf') => {
+const parseResume = async (buffer, filename = 'resume.pdf', mimeType = 'application/pdf') => {
     const keys = geminiKeys();
     if (!keys.length) {
         const err = new Error('Resume parsing is not configured on this server.');
@@ -110,7 +111,7 @@ const parseResume = async (buffer, filename = 'resume.pdf') => {
     const body = {
         contents: [{
             parts: [
-                { inline_data: { mime_type: 'application/pdf', data: buffer.toString('base64') } },
+                { inline_data: { mime_type: mimeType, data: buffer.toString('base64') } },
                 { text: PROMPT }
             ]
         }],
@@ -183,7 +184,7 @@ const parseResume = async (buffer, filename = 'resume.pdf') => {
         }
     }
 
-    const err = new Error('Could not read that resume — try re-exporting it as a text-based PDF.');
+    const err = new Error('Could not read that resume — try a text-based PDF, or a sharper image of the page.');
     err.status = 422;
     err.cause = lastError;
     throw err;

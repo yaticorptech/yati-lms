@@ -49,6 +49,21 @@ router.get('/tickets', protectUser, getMyTickets);
 // Certificate Routes
 router.get('/certificates', protectUser, getMyCertificates);
 
+// Achievements — certificates the student uploads themselves (profile frame)
+const { listAchievements, createAchievement, updateAchievement, deleteAchievement } = require('../controllers/achievementController');
+router.get('/achievements', protectUser, listAchievements);
+router.post('/achievements', protectUser, createAchievement);
+router.put('/achievements/:id', protectUser, updateAchievement);
+router.delete('/achievements/:id', protectUser, deleteAchievement);
+
+// Resume — the student's own file, and the ATS resume built from their courses
+const { getResume, uploadResume, deleteResume, getAtsData, downloadAts } = require('../controllers/resumeController');
+router.get('/resume', protectUser, getResume);
+router.post('/resume', protectUser, uploadResume);
+router.delete('/resume', protectUser, deleteResume);
+router.get('/resume/ats/data', protectUser, getAtsData);
+router.get('/resume/ats', protectUser, downloadAts);
+
 // Announcements Route (read-only for students)
 router.get('/announcements', protectUser, getAnnouncementsForUser);
 router.post('/announcements/clear', protectUser, clearUserNotifications);

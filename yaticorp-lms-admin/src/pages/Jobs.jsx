@@ -14,6 +14,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
+import LocalJobsPanel from '../components/LocalJobsPanel';
 import {
     Briefcase, Database, MapPin, Search, Sparkles, RefreshCw, Lock, Unlock
 } from 'lucide-react';
@@ -151,7 +152,7 @@ const Jobs = () => {
                         Jobs
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        Index health, what students are searching for, and provider spend.
+                        Local jobs you post, index health, what students are searching for, and provider spend.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -176,6 +177,9 @@ const Jobs = () => {
                     </button>
                 </div>
             </div>
+
+            {/* ── Local jobs the admin posts (the students' Opportunities tab) ── */}
+            <LocalJobsPanel />
 
             {/* ── Index health ─────────────────────────────────────────── */}
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

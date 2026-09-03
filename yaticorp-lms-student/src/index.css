@@ -84,3 +84,28 @@
   .lift:hover { transform: none; }
 }
 
+
+/* ---------------------------------------------------------------------------
+   Profile hero — a conic ring that turns slowly behind the avatar.
+   --------------------------------------------------------------------------- */
+@keyframes profile-ring-spin { to { transform: rotate(360deg); } }
+.profile-ring {
+  position: relative;
+  background: conic-gradient(from 0deg, #fbbf24, #f472b6, #a78bfa, #34d399, #fbbf24);
+  animation: profile-ring-spin 8s linear infinite;
+}
+.profile-ring > * { animation: profile-ring-spin 8s linear infinite reverse; }
+@media (prefers-reduced-motion: reduce) {
+  .profile-ring, .profile-ring > * { animation: none; }
+}
+
+/* Profile hero illustration — leaves sway, sparkles twinkle, slowly. */
+@keyframes pha-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2.5deg); } }
+@keyframes pha-twinkle { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+.pha-plant { animation: pha-sway 6s ease-in-out infinite; }
+.pha-plant-2 { animation: pha-sway 7.5s ease-in-out infinite reverse; }
+.pha-spark { animation: pha-twinkle 3s ease-in-out infinite; transform-origin: 300px 214px; transform-box: view-box; }
+.pha-spark-2 { animation: pha-twinkle 4s ease-in-out 1s infinite; transform-origin: 110px 130px; transform-box: view-box; }
+@media (prefers-reduced-motion: reduce) {
+  .pha-plant, .pha-plant-2, .pha-spark, .pha-spark-2 { animation: none; }
+}
