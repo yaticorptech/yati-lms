@@ -1,8 +1,9 @@
 /**
  * The signed-in student's resume profile: upload-and-parse, read, delete.
  *
- * PDF only, and the file never touches disk or database — multer keeps it in
- * memory, the parser reads it, and it is gone when the request ends. What
+ * A PDF or a photo/scan of the page — the parser reads both. The file never
+ * touches disk or database: multer keeps it in memory, the parser reads it,
+ * and it is gone when the request ends. What
  * persists is the structured extraction, one document per student, shown back
  * to them for review before anything uses it and deletable at will.
  */
@@ -19,14 +20,32 @@ const { isConnected } = require('../config/db');
 // the shared allowance for sport; five a day is generous for both.
 const PARSES_PER_DAY = 5;
 
+// What the parser can read, keyed by the MIME type the browser reports. The
+// extension is the fallback: some browsers send a bare octet-stream for a
+// file they don't recognise, and a phone camera export is still a JPEG.
+const ACCEPTED = {
+    'application/pdf': 'application/pdf',
+    'image/png': 'image/png',
+    'image/jpeg': 'image/jpeg',
+    'image/webp': 'image/webp'
+};
+const BY_EXTENSION = {
+    pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp'
+};
+
+/** The MIME type to hand the parser, or null when the file is neither kind. */
+const mimeFor = (file) => {
+    if (ACCEPTED[file.mimetype]) return ACCEPTED[file.mimetype];
+    const ext = String(file.originalname || '').toLowerCase().split('.').pop();
+    return BY_EXTENSION[ext] || null;
+};
+
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-        const isPdf = file.mimetype === 'application/pdf'
-            || file.originalname?.toLowerCase().endsWith('.pdf');
-        if (isPdf) return cb(null, true);
-        cb(new Error('Resumes must be a PDF — export your document as PDF and try again.'));
+        if (mimeFor(file)) return cb(null, true);
+        cb(new Error('Resumes must be a PDF or an image (PNG, JPG, WebP) — export your document and try again.'));
     }
 });
 
@@ -49,11 +68,11 @@ router.post('/', (req, res, next) => {
         try {
             if (uploadErr) {
                 const message = uploadErr.code === 'LIMIT_FILE_SIZE'
-                    ? 'That file is over 5 MB — export a lighter PDF and try again.'
+                    ? 'That file is over 5 MB — export a lighter file and try again.'
                     : uploadErr.message;
                 return res.status(400).json({ error: message });
             }
-            if (!req.file) return res.status(400).json({ error: 'Attach a PDF resume.' });
+            if (!req.file) return res.status(400).json({ error: 'Attach a resume — a PDF or an image of it.' });
             if (!isConnected()) return res.status(503).json({ error: 'Database unavailable.' });
 
             const key = dayKey(req.user._id);
@@ -69,7 +88,7 @@ router.post('/', (req, res, next) => {
                 { upsert: true }
             );
 
-            const extracted = await parseResume(req.file.buffer, req.file.originalname);
+            const extracted = await parseResume(req.file.buffer, req.file.originalname, mimeFor(req.file));
 
             const profile = await ResumeProfile.findOneAndUpdate(
                 { userId: req.user._id },

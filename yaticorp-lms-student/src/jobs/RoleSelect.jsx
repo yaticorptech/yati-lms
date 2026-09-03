@@ -8,6 +8,7 @@
  */
 import { useMemo, useRef, useState } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
+import { FIELD_LABEL, FIELD_INPUT, FIELD_OK, FIELD_BAD } from './ui';
 
 export default function RoleSelect({ value = '', roles = [], onChange, error }) {
     const [open, setOpen] = useState(false);
@@ -39,7 +40,7 @@ export default function RoleSelect({ value = '', roles = [], onChange, error }) 
 
     return (
         <div ref={boxRef}>
-            <label htmlFor="job-role" className="block text-sm font-semibold text-slate-700 mb-1.5">
+            <label htmlFor="job-role" className={FIELD_LABEL}>
                 Target role <span className="text-rose-500">*</span>
             </label>
 
@@ -52,9 +53,7 @@ export default function RoleSelect({ value = '', roles = [], onChange, error }) 
                     onBlur={() => setTimeout(() => setOpen(false), 150)}
                     placeholder="e.g. Data Scientist — or type your own"
                     autoComplete="off"
-                    className={`w-full px-4 py-2.5 pr-10 rounded-xl border bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors ${
-                        error ? 'border-rose-300 focus:ring-rose-500/40' : 'border-slate-300 focus:ring-indigo-500/40 focus:border-indigo-500'
-                    }`}
+                    className={`${FIELD_INPUT} pr-10 ${error ? FIELD_BAD : FIELD_OK}`}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                     {open ? <Search size={15} /> : <ChevronDown size={16} />}

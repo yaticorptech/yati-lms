@@ -74,6 +74,9 @@ router.use('/meta', require('./routes/meta'));
 router.use('/notifications', require('./routes/notifications'));
 router.use('/saved', require('./routes/saved'));
 router.use('/resume', require('./routes/resume'));
+// Age-aware local opportunities — the part of the section a school student
+// may use. Own profile, own index, own rules; see routes/opportunities.js.
+router.use('/opportunities', require('./routes/opportunities'));
 // Last: this one owns "/" and "/:id", so it would otherwise swallow the two
 // above as job ids.
 router.use('/', require('./routes/jobs'));
