@@ -65,11 +65,16 @@ function Ring({ percent }) {
   );
 }
 
-function StatShell({ icon: Icon, label, tone, children }) {
+function StatShell({ icon: Icon, label, tone, children, index = 0 }) {
   return (
-    <section className="rounded-2xl border border-line-200 bg-surface p-4 shadow-card">
-      <p className={`flex items-center gap-1.5 text-xs font-black tracking-wide ${tone}`}>
-        <Icon className="h-3.5 w-3.5" />
+    <section
+      className="animate-fade-in-up rounded-2xl border border-line-200/80 bg-surface p-4 shadow-card"
+      style={{ animationDelay: `${0.1 + index * 0.07}s` }}
+    >
+      <p className="flex items-center gap-2 text-sm font-bold text-ink-900">
+        <span className={`flex h-7 w-7 items-center justify-center rounded-lg ring-1 ring-inset ${tone}`}>
+          <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
+        </span>
         {label}
       </p>
       {children}
@@ -93,8 +98,8 @@ export default function ProgressStats({ stats, series = [], activeDays = 0 }) {
 
 
   return (
-    <aside className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-      <StatShell icon={Flame} label="Day streak" tone="text-orange-600">
+    <aside className="grid gap-4 sm:grid-cols-2 xl:sticky xl:top-4 xl:grid-cols-1">
+      <StatShell icon={Flame} label="Day streak" tone="bg-orange-50 text-orange-500 ring-orange-100" index={0}>
         <p className="mt-2 text-4xl leading-none font-black text-ink-900 tabular-nums">
           {stats?.streak ?? 0}
         </p>
@@ -106,7 +111,7 @@ export default function ProgressStats({ stats, series = [], activeDays = 0 }) {
         </div>
       </StatShell>
 
-      <StatShell icon={CheckCircle2} label="Tasks done" tone="text-emerald-600">
+      <StatShell icon={CheckCircle2} label="Tasks done" tone="bg-emerald-50 text-emerald-600 ring-emerald-100" index={1}>
         <p className="mt-2 text-4xl leading-none font-black text-ink-900 tabular-nums">{completed}</p>
         <p className="mt-1 text-xs font-semibold text-ink-500 tabular-nums">
           Across {activeDays} {activeDays === 1 ? 'day' : 'days'}
@@ -116,7 +121,7 @@ export default function ProgressStats({ stats, series = [], activeDays = 0 }) {
         </div>
       </StatShell>
 
-      <StatShell icon={TrendingUp} label="Completion rate" tone="text-journey-600">
+      <StatShell icon={TrendingUp} label="Completion rate" tone="bg-journey-50 text-journey-600 ring-journey-100" index={2}>
         <div className="mt-2 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-4xl leading-none font-black text-ink-900 tabular-nums">
@@ -131,7 +136,7 @@ export default function ProgressStats({ stats, series = [], activeDays = 0 }) {
         </div>
       </StatShell>
 
-      <StatShell icon={ClipboardList} label="Still to do" tone="text-sky-600">
+      <StatShell icon={ClipboardList} label="Still to do" tone="bg-sky-50 text-sky-600 ring-sky-100" index={3}>
         <p className="mt-2 text-4xl leading-none font-black text-ink-900 tabular-nums">{skipped}</p>
         <p className="mt-1 text-xs font-semibold text-ink-500">
           {skipped ? 'Pick any back up below' : 'Nothing left behind'}

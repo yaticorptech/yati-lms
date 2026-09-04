@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Building2, Compass } from 'lucide-react';
+import { ArrowRight, Building2, Compass, Flame } from 'lucide-react';
 import CurrentMission from './CurrentMission';
 import YatiMascot from '../game/YatiMascot';
 import { phaseStates, journeyPercent } from '../../utils/roadmap';
+import { dailyBoost, DAY_DONE_LINE } from '../../utils/motivation';
 
 /**
  * A greeting, where they are headed, and the one button to press.
@@ -19,12 +20,12 @@ import { phaseStates, journeyPercent } from '../../utils/roadmap';
  *   the way to the roadmap         → the strip's own "View roadmap"
  *
  * So this keeps only what nothing else says — who is looking, where they are
- * going, and what to do about it today.
+ * going, and what to do about it today — plus the two things that make a
+ * student press the button: a line of encouragement and what the streak
+ * stands to gain.
  *
- * Text left, action right, YATI beside the action. The mascot used to be
- * absolutely positioned in the corner, which left a wide dead gap between the
- * goal and the edge; laying it in the same row closes that gap and puts the
- * character next to the thing it is pointing at.
+ * Pale rather than dark, to match the Skills and Today's Plan banners; the
+ * three pages a student sees most now open the same way.
  */
 export default function JourneyHero({
   goal,
@@ -34,7 +35,9 @@ export default function JourneyHero({
   greeting,
   task,
   completedToday = 0,
-  totalToday = 0
+  totalToday = 0,
+  streak = 0,
+  countedToday = false
 }) {
   const phases = roadmapData?.educationRoadmap || [];
   const states = phaseStates(phases.length, completedPhases);
@@ -42,36 +45,49 @@ export default function JourneyHero({
   const percent = journeyPercent(phases.length, completedPhases);
   const firstName = name?.split(' ')[0];
   const hasRoadmap = phases.length > 0;
+  const dayCleared = totalToday > 0 && completedToday >= totalToday;
+
+  // The streak, phrased as what today can do for it — never as a warning.
+  const streakLine = countedToday
+    ? streak > 1
+      ? `${streak}-day streak, safe for today`
+      : 'Streak started today'
+    : streak > 0
+      ? `Finish today's quest → ${streak + 1}-day streak`
+      : "Finish today's quest → start a streak";
 
   return (
-    <section className="fp-journey-gradient relative overflow-hidden rounded-3xl p-5 text-white shadow-float sm:p-6">
-      <div aria-hidden className="fp-stars pointer-events-none absolute inset-0" />
+    <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset">
       <div
         aria-hidden
-        className="fp-float pointer-events-none absolute -top-16 -left-12 h-40 w-40 rounded-full bg-fuchsia-500/20 blur-3xl"
+        className="fp-float pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-journey-200/40 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="fp-float-slow pointer-events-none absolute right-1/4 -bottom-24 h-56 w-56 rounded-full bg-pink-200/40 blur-3xl"
       />
 
-      <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between xl:gap-10">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-journey-200">
+      <div className="relative flex items-center gap-6 p-5 sm:px-6 sm:py-5">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink-500">
             {greeting}
             {firstName ? (
               <>
-                , <span className="font-black text-white">{firstName}</span> 👋
+                , <span className="font-black text-ink-900">{firstName}</span> 👋
               </>
             ) : (
               ' 👋'
             )}
           </p>
 
-          <h1 className="mt-1 text-2xl leading-tight font-black sm:text-3xl">
+          <h1 className="mt-1 text-2xl leading-tight font-black text-ink-900 sm:text-3xl">
             {goal?.careerGoal || 'Your career goal'}
           </h1>
 
           {/* One meta line instead of a track, a percentage and a phase panel.
               The strip below draws all three properly. */}
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-journey-100">
-            <Compass className="h-3.5 w-3.5 shrink-0" />
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-ink-500">
+            <Compass className="h-3.5 w-3.5 shrink-0 text-journey-500" />
             {hasRoadmap ? (
               <>
                 <span className="tabular-nums">
@@ -79,23 +95,37 @@ export default function JourneyHero({
                     ? `Phase ${currentIndex + 1} of ${phases.length}`
                     : 'Every phase complete 🎉'}
                 </span>
-                <span aria-hidden className="text-journey-300">·</span>
-                <span className="tabular-nums">{percent}% complete</span>
+                <span aria-hidden className="text-ink-300">·</span>
+                <span className="tabular-nums text-journey-700">{percent}% complete</span>
               </>
             ) : (
               <span>Your path hasn&apos;t been mapped yet</span>
             )}
             {goal?.dreamCompany && (
               <span className="ml-1 inline-flex items-center gap-1">
-                <Building2 className="h-3.5 w-3.5 text-fuchsia-300" />
+                <Building2 className="h-3.5 w-3.5 text-pink-500" />
                 {goal.dreamCompany}
               </span>
             )}
           </p>
-        </div>
 
-        <div className="flex shrink-0 items-center gap-3 sm:gap-5">
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-journey-100/60 px-2.5 py-1 text-xs font-bold text-journey-700">
+              <span aria-hidden>{dayCleared ? '🏆' : '💪'}</span>
+              {dayCleared ? DAY_DONE_LINE : dailyBoost()}
+            </span>
+            {totalToday > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-700 ring-1 ring-orange-100 ring-inset">
+                <Flame className="h-3.5 w-3.5 fill-orange-300 text-orange-500" />
+                {streakLine}
+              </span>
+            )}
+          </div>
+
+          {/* The action sits with the words that explain it, not alone across
+              the panel: a button in the middle of empty space reads as lost
+              rather than as important. */}
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
             <CurrentMission task={task} completedToday={completedToday} totalToday={totalToday} />
 
             {/* Only when there is nothing to view yet. Once a roadmap exists
@@ -104,16 +134,52 @@ export default function JourneyHero({
             {!hasRoadmap && (
               <Link
                 to="/career/roadmap"
-                className="fp-press group inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-white/15 px-4 py-3 text-sm font-black text-white ring-1 ring-white/25 ring-inset transition-colors hover:bg-white/25"
+                className="fp-press group inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-surface px-4 py-3 text-sm font-black text-journey-700 ring-1 ring-journey-200 ring-inset transition-colors hover:bg-journey-50"
               >
                 Build my roadmap
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
             )}
           </div>
+        </div>
 
-          <div aria-hidden className="hidden w-28 shrink-0 lg:block">
-            <YatiMascot mood={task ? 'pointing' : 'happy'} float />
+        {/* Today at a glance, beside the mascot: how much of the day is done,
+            drawn from the same task list the button reads. */}
+        <div className="hidden shrink-0 items-center gap-5 md:flex">
+          {totalToday > 0 && (
+            <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-surface/80 px-4 py-3 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur">
+              <div className="relative flex h-16 w-16 items-center justify-center">
+                <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90" aria-hidden>
+                  <circle cx="32" cy="32" r="27" fill="none" strokeWidth="6" className="stroke-journey-100" />
+                  <circle
+                    cx="32"
+                    cy="32"
+                    r="27"
+                    fill="none"
+                    stroke={dayCleared ? '#19b96b' : '#6c3bff'}
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(completedToday / totalToday) * 2 * Math.PI * 27} ${2 * Math.PI * 27}`}
+                    className="transition-[stroke-dasharray] duration-700 ease-out"
+                  />
+                </svg>
+                <span className="absolute text-sm font-black tabular-nums text-ink-900">
+                  {completedToday}/{totalToday}
+                </span>
+              </div>
+              <span className="text-[0.62rem] font-black tracking-[0.12em] text-ink-400 uppercase">
+                Today
+              </span>
+            </div>
+          )}
+
+          <div className="relative hidden w-36 lg:block" aria-hidden>
+            <span className="absolute inset-4 rounded-full bg-journey-300/40 blur-2xl" />
+            <YatiMascot
+              mood={dayCleared ? 'celebrating' : task ? 'pointing' : 'happy'}
+              float
+              className="relative drop-shadow-[0_14px_24px_rgba(108,59,255,0.25)]"
+            />
           </div>
         </div>
       </div>

@@ -60,3 +60,12 @@ export function monthLabel(dayKey) {
   if (index === null) return null;
   return `${MONTH_NAMES[index % 12]} ${Math.floor(index / 12)}`;
 }
+
+/** "09:00" → "9:00 am", so a timetable column reads like a printed one. */
+export const clockLabel = (hhmm = '') => {
+  const [h, m] = String(hhmm).split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return hhmm;
+  const suffix = h >= 12 ? 'pm' : 'am';
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, '0')} ${suffix}`;
+};

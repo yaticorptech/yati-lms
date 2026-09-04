@@ -2,8 +2,7 @@ import { useState, useEffect, useMemo, useContext } from 'react';
 import api from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import {
-  ChevronLeft, ChevronRight, CheckCircle2, Circle, SkipForward, CalendarDays,
-  Plus, Pencil, Trash2, Check
+  ChevronLeft, ChevronRight, CheckCircle2, Circle, SkipForward, CalendarDays, Plus, Pencil, Trash2, Check, CalendarClock
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
@@ -14,6 +13,7 @@ import { currentStreak, greeting, levelProgress } from '../../utils/progress';
 import JourneyBanner from '../../components/journey/JourneyBanner';
 import MonthStats from '../../components/dashboard/MonthStats';
 import ComingUpNext from '../../components/dashboard/ComingUpNext';
+import TimetableCard from '../../components/dashboard/TimetableCard';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 
@@ -74,6 +74,12 @@ export default function CalendarView() {
   // The student's own exams and events, kept apart from tasks: these are typed
   // in by hand and nothing but this page ever writes them.
   const [events, setEvents] = useState([]);
+  // The weekly timetable: college or school classes, typed in once and shown
+  // on whichever day of the week they fall.
+  const [timetable, setTimetable] = useState([]);
+  // What the big card shows: the month of learning, or the week of classes.
+  // Same card, same place — the student flips it rather than scrolling for it.
+  const [panel, setPanel] = useState('calendar');
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState(new Date());
   const [selectedKey, setSelectedKey] = useState(dayKey(new Date()));
@@ -98,7 +104,10 @@ export default function CalendarView() {
       api
         .get('/tasks/history')
         .then(({ data }) => setTasks(Array.isArray(data) ? data : data.tasks || [])),
-      api.get('/events').then(({ data }) => setEvents(Array.isArray(data) ? data : []))
+      api.get('/events').then(({ data }) => setEvents(Array.isArray(data) ? data : [])),
+      api
+        .get('/timetable')
+        .then(({ data }) => setTimetable(Array.isArray(data?.slots) ? data.slots : []))
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -386,30 +395,63 @@ export default function CalendarView() {
                 aria-hidden
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-journey-50 text-lg ring-1 ring-journey-100 ring-inset"
               >
-                📅
+                {panel === 'calendar' ? '📅' : '🏫'}
               </span>
               <h2 className="min-w-0 text-lg font-black text-ink-900 sm:text-xl">
-                Learning calendar
+                {panel === 'calendar' ? 'Learning calendar' : 'Class timetable'}
               </h2>
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <div className="flex items-center gap-3 text-xs font-semibold text-ink-500">
+              {panel === 'calendar' && (
+                <div className="flex items-center gap-3 text-xs font-semibold text-ink-500">
+                  {[
+                    ['bg-emerald-500', 'Completed'],
+                    ['bg-indigo-500', 'Pending'],
+                    ['bg-rose-400', 'Missed']
+                  ].map(([dot, label]) => (
+                    <span key={label} className="flex items-center gap-1.5">
+                      <span className={`h-2 w-2 rounded-full ${dot}`} />
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* The flip. One card, two faces: the month the planner filled,
+                  or the week the college fills. */}
+              <div
+                role="group"
+                aria-label="Calendar view"
+                className="flex shrink-0 items-center gap-1 rounded-xl border border-line-200 bg-surface-50 p-1"
+              >
                 {[
-                  ['bg-emerald-500', 'Completed'],
-                  ['bg-indigo-500', 'Pending'],
-                  ['bg-rose-400', 'Missed']
-                ].map(([dot, label]) => (
-                  <span key={label} className="flex items-center gap-1.5">
-                    <span className={`h-2 w-2 rounded-full ${dot}`} />
+                  ['calendar', 'Calendar', CalendarDays],
+                  ['timetable', 'Timetable', CalendarClock]
+                ].map(([key, label, Icon]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPanel(key)}
+                    aria-pressed={panel === key}
+                    className={`fp-press inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition-all ${
+                      panel === key
+                        ? 'bg-surface text-journey-700 shadow-sm ring-1 ring-journey-200'
+                        : 'text-ink-500 hover:text-journey-700'
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
                     {label}
-                  </span>
+                  </button>
                 ))}
               </div>
-
             </div>
           </div>
 
+          {panel === 'timetable' ? (
+            <TimetableCard embedded slots={timetable} onChange={setTimetable} />
+          ) : (
+            <>
           {/* ---- Where in time we are, with the arrows beside it rather than
                   stranded at the far edge of the card. ---- */}
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -639,6 +681,8 @@ export default function CalendarView() {
               );
             })}
           </div>
+            </>
+          )}
         </Card>
 
         <div className="space-y-4">

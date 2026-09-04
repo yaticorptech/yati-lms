@@ -240,11 +240,12 @@ export default function Games() {
               Brain games
             </p>
             <h1 className="mt-1 text-2xl leading-tight font-black text-ink-900 sm:text-3xl">
-              Sharpen the tools you <span className="text-journey-600">think</span> with
+              Your brain&apos;s next <span className="text-journey-600">boss battle</span> starts here
             </h1>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-ink-600">
-              {totalGames} games across memory, logic, words and numbers. Start at level one — every
-              level you clear makes the next a little harder. No XP, no streak, nothing to lose.
+              <span className="font-bold text-ink-800">Where every challenge makes you sharper.</span>{' '}
+              {totalGames} quick games for memory, logic, words and numbers — start at level one and
+              see how far you can climb.
             </p>
           </div>
 

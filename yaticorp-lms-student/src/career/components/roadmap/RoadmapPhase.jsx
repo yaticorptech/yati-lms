@@ -156,7 +156,10 @@ export default function RoadmapPhase({
   const connectorTop = isCurrent ? 'top-14' : 'top-9';
 
   return (
-    <li className="relative pl-14">
+    <li
+      className="animate-fade-in-up relative pl-14"
+      style={{ animationDelay: `${0.06 + index * 0.05}s` }}
+    >
       {/* The road below this checkpoint. `-bottom-4` bridges the gap the list
           leaves between cards, so the line is continuous rather than dashed by
           the layout. */}

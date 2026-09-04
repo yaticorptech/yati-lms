@@ -1,8 +1,7 @@
 import { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Flame, CheckCircle2, TrendingUp, Award, RotateCcw, GraduationCap,
-  Compass, CalendarDays, MapPin, ArrowRight, Zap, Check, Lock, Flag
+  Flame, CheckCircle2, TrendingUp, Award, RotateCcw, GraduationCap, Compass, CalendarDays, MapPin, ArrowRight, Zap, Check, Lock, Flag, Sparkles, Trophy
 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../services/api';
@@ -14,6 +13,9 @@ import SkillsArt from '../components/progress/SkillsArt';
 import ProgressStats from '../components/progress/ProgressStats';
 import { levelProgress, dayKey } from '../utils/progress';
 import { phaseStates, journeyPercent, phaseTitle, parseChoices } from '../utils/roadmap';
+import { initialsOf, tilesFor } from '../utils/skills';
+import { dailyBoost } from '../utils/motivation';
+import useCountUp from '../../hooks/useCountUp';
 
 // Title-casing these would produce "Mca" or "Qa Engineer", which reads worse
 // than the lowercase original. Degrees and tech terms stay uppercase.
@@ -87,6 +89,38 @@ const describeStart = (goal) => {
 };
 
 /** One labelled fact in the band under the header. */
+/** The level as a ring filled towards the next one, with the number inside. */
+function LevelRing({ level, percent }) {
+  const size = 92;
+  const stroke = 7;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (Math.max(0, Math.min(100, percent)) / 100) * c;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90" aria-hidden>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-journey-100" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          stroke="#ffb800"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1)' }}
+        />
+      </svg>
+      <span className="absolute inset-[12px] flex flex-col items-center justify-center rounded-full bg-gradient-to-br from-journey-500 to-indigo-600 text-white shadow-lg shadow-journey-500/30">
+        <span className="text-[0.52rem] font-black tracking-[0.14em] opacity-80 uppercase">Level</span>
+        <span className="text-xl leading-none font-black tabular-nums">{level}</span>
+      </span>
+    </div>
+  );
+}
+
 const Fact = ({ icon: Icon, label, value, detail }) => (
   <div className="min-w-0">
     <p className="flex items-center gap-1.5 text-[0.68rem] font-black tracking-[0.11em] text-ink-400 uppercase">
@@ -177,13 +211,6 @@ function RoadmapTrack({ phases, completedPhases, percent }) {
   );
 }
 
-const SKILL_CHIPS = [
-  'bg-violet-100 text-violet-700',
-  'bg-emerald-100 text-emerald-700',
-  'bg-amber-100 text-amber-700',
-  'bg-sky-100 text-sky-700'
-];
-
 /**
  * Skills, split the way the mockup splits them: the few being moved right now,
  * and the rest waiting. Both counts are real — a student with nothing started
@@ -194,6 +221,7 @@ function SkillsPanel({ skills }) {
   const started = ordered.filter((s) => (s.progress || 0) > 0);
   const untouched = ordered.filter((s) => !(s.progress || 0));
   const shownUntouched = untouched.slice(0, 4);
+  const tiles = tilesFor(skills);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)_auto]">
@@ -212,9 +240,11 @@ function SkillsPanel({ skills }) {
                 {/* A tinted initial rather than an invented icon: a wrong
                     glyph beside "SQL" would say something untrue about it. */}
                 <span
-                  className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black ${SKILL_CHIPS[i % SKILL_CHIPS.length]}`}
+                  className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-xs font-black text-white shadow-sm ${tiles.get(
+                    skill.skillName
+                  )}`}
                 >
-                  {skill.skillName?.charAt(0)?.toUpperCase()}
+                  {initialsOf(skill.skillName)}
                 </span>
                 <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -230,8 +260,8 @@ function SkillsPanel({ skills }) {
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-100">
                   <div
-                    className="fp-journey-gradient h-full rounded-full"
-                    style={{ width: `${Math.min(100, skill.progress || 0)}%` }}
+                    className="fp-fill h-full rounded-full bg-gradient-to-r from-journey-400 to-indigo-600"
+                    style={{ width: `${Math.min(100, skill.progress || 0)}%`, animationDelay: `${i * 0.08}s` }}
                   />
                 </div>
                 </div>
@@ -285,6 +315,8 @@ export default function Profile() {
   const [history, setHistory] = useState([]);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [redoingId, setRedoingId] = useState(null);
+  // Above the early return below: hooks must run on every render.
+  const shownXp = useCountUp(Number(user?.xp) || 0, 1000);
 
   // No signed-out redirect here. This page renders inside ProtectedRoute, which
   // already holds it back until there is a session.
@@ -371,46 +403,69 @@ export default function Profile() {
       <div className="min-w-0 space-y-5">
         {/* ---- Identity, level, and what it is all pointed at ----------- */}
         <Card padded={false} className="overflow-hidden">
-          <div className="fp-journey-gradient relative p-5 text-white sm:p-6">
-            <div aria-hidden className="fp-stars pointer-events-none absolute inset-0" />
+          <div className="relative overflow-hidden bg-gradient-to-r from-journey-50 via-surface to-amber-50/70 p-5 sm:p-6">
+            <div
+              aria-hidden
+              className="fp-float pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-journey-200/40 blur-3xl"
+            />
+            <div
+              aria-hidden
+              className="fp-float-slow pointer-events-none absolute right-1/4 -bottom-24 h-56 w-56 rounded-full bg-pink-200/40 blur-3xl"
+            />
+            <ProgressArt
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 right-4 hidden h-40 w-56 -translate-y-1/2 xl:block"
+            />
 
-            <div className="relative flex flex-wrap items-center gap-4">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl font-black ring-1 ring-white/25 ring-inset">
+            <div className="relative flex flex-wrap items-center gap-5 xl:pr-60">
+              <span className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-journey-500 to-indigo-600 text-2xl font-black text-white shadow-lg shadow-journey-500/30">
                 {user.name?.charAt(0)?.toUpperCase() || '?'}
+                <span className="absolute -right-1.5 -bottom-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-[0.6rem] font-black text-amber-950 ring-2 ring-surface">
+                  {level}
+                </span>
               </span>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-2xl leading-tight font-black break-words sm:text-3xl">
+              <div className="min-w-0 flex-1 basis-56">
+                <p className="text-[0.68rem] font-black tracking-[0.16em] text-journey-600 uppercase">
+                  My progress
+                </p>
+                <h1 className="mt-0.5 text-2xl leading-tight font-black break-words text-ink-900 sm:text-3xl">
                   {user.name}
                 </h1>
-                <p className="mt-0.5 text-sm break-all text-journey-200">{user.email}</p>
+                <p className="mt-0.5 text-sm break-all text-ink-500">{user.email}</p>
+                <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-journey-100/60 px-2.5 py-1 text-xs font-bold text-journey-700">
+                  <span aria-hidden>💪</span>
+                  {dailyBoost()}
+                </p>
               </div>
 
               {/* Level, stated once, from the same helper every other surface
                   on the site reads. */}
-              <div className="w-full shrink-0 rounded-2xl bg-white/12 p-3.5 ring-1 ring-white/20 ring-inset sm:w-56">
-                <p className="flex items-center gap-1.5 text-xs font-black text-amber-200">
-                  <Zap className="h-3.5 w-3.5" />
-                  Level {level}
-                </p>
-                <p className="mt-1 text-sm font-black tabular-nums">
-                  {levelInfo.xp} / {levelInfo.ceiling} XP
-                </p>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-300 to-orange-400"
-                    style={{ width: `${levelInfo.percent}%` }}
-                  />
+              <div className="flex w-full shrink-0 items-center gap-4 rounded-2xl bg-surface/90 p-3.5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur sm:w-auto">
+                <LevelRing level={level} percent={levelInfo.percent} />
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1.5 text-xs font-black text-amber-600">
+                    <Zap className="h-3.5 w-3.5 fill-amber-200" />
+                    {shownXp} XP
+                  </p>
+                  <p className="mt-0.5 text-sm font-black text-ink-900 tabular-nums">
+                    {levelInfo.remaining} XP to Level {levelInfo.nextLevel}
+                  </p>
+                  <div className="mt-2 h-1.5 w-40 overflow-hidden rounded-full bg-surface-100">
+                    <div
+                      className="fp-effort-gradient h-full rounded-full transition-[width] duration-1000 ease-out"
+                      style={{ width: `${levelInfo.percent}%` }}
+                    />
+                  </div>
+                  <Link
+                    to="/career/planner"
+                    className="group mt-2.5 inline-flex items-center gap-1 text-xs font-black text-journey-700 hover:underline"
+                  >
+                    Earn 10 XP now
+                    <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
                 </div>
-                <p className="mt-1.5 text-[0.68rem] font-semibold text-journey-100 tabular-nums">
-                  {levelInfo.remaining} XP to Level {levelInfo.nextLevel}
-                </p>
               </div>
             </div>
-
-            <ProgressArt
-              aria-hidden
-              className="pointer-events-none absolute -top-1 right-[16.5rem] hidden h-40 w-56 xl:block"
-            />
           </div>
 
           {/* Where they started, where they are going, how long they have been
@@ -474,15 +529,25 @@ export default function Profile() {
 
             {summary.achievements?.length > 0 && (
               <Card>
-                <CardHeader icon={Award} title="Achievements" accent="amber" />
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <CardHeader icon={Trophy} title="Achievements" subtitle="Moments that happened along the way" accent="pink" />
+                  <Link
+                    to="/career/badges"
+                    className="group inline-flex shrink-0 items-center gap-1 text-xs font-black text-journey-700 hover:underline"
+                  >
+                    See all rewards
+                    <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </div>
                 <ul className="grid gap-3 sm:grid-cols-2">
-                  {summary.achievements.map((item) => (
+                  {summary.achievements.map((item, i) => (
                     <li
                       key={item._id}
-                      className="flex items-start gap-3 rounded-xl border border-line-200/80 bg-surface-50/60 p-3.5"
+                      className="fp-lift animate-fade-in-up flex items-start gap-3 rounded-2xl bg-gradient-to-br from-fuchsia-50 to-pink-50 p-3.5 ring-1 ring-pink-200 ring-inset"
+                      style={{ animationDelay: `${i * 0.05}s` }}
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-300 to-orange-500 text-white">
-                        <Award className="h-4 w-4" />
+                      <span className="fp-reward-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-md shadow-pink-500/30">
+                        <Trophy className="h-5 w-5" />
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm font-black text-ink-900">{item.title}</p>

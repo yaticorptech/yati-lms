@@ -39,32 +39,77 @@ export default function BadgeMedallion({ icon: Icon, tier, unlocked, size = 72, 
         />
       )}
 
-      {/* Outer hex in the tier colour, then an inner hex so the medallion has
-          a rim rather than reading as one flat shape. */}
+      {/* Ribbon tails behind the medal, so it hangs like a medal rather than
+          sitting like a sticker. Locked badges get none: nothing to hang. */}
+      {unlocked && (
+        <>
+          <span
+            aria-hidden
+            className={`absolute left-[26%] top-[54%] h-[46%] w-[22%] origin-top -rotate-[18deg] ${tier.inner}`}
+            style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%)' }}
+          />
+          <span
+            aria-hidden
+            className={`absolute right-[26%] top-[54%] h-[46%] w-[22%] origin-top rotate-[18deg] ${tier.inner}`}
+            style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%)' }}
+          />
+        </>
+      )}
+
+      {/* Outer hex in the tier colour, a pale rim, then the inner hex — three
+          layers so the medallion reads as bevelled metal rather than one flat
+          shape. */}
       <span
-        className={`yatiBadge-tilt relative flex h-full w-full items-center justify-center ${
+        className={`yatiBadge-tilt relative flex h-full w-full items-center justify-center drop-shadow-md ${
           unlocked ? tier.outer : 'bg-line-200'
         }`}
         style={{ clipPath: HEX }}
       >
         <span
-          className={`relative flex items-center justify-center overflow-hidden ${
-            unlocked ? tier.inner : 'bg-surface-100'
-          }`}
-          style={{ clipPath: HEX, width: '82%', height: '82%' }}
+          className={`flex items-center justify-center ${unlocked ? 'bg-white/45' : 'bg-surface-50'}`}
+          style={{ clipPath: HEX, width: '88%', height: '88%' }}
         >
-          {unlocked && <span aria-hidden className="yatiBadge-shine" style={offset} />}
+          <span
+            className={`relative flex items-center justify-center overflow-hidden ${
+              unlocked ? tier.inner : 'bg-surface-100'
+            }`}
+            style={{ clipPath: HEX, width: '90%', height: '90%' }}
+          >
+            {/* A soft highlight in the top-left, the way light lands on a curved face. */}
+            {unlocked && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background:
+                    'radial-gradient(circle at 30% 22%, rgba(255,255,255,0.55), rgba(255,255,255,0) 55%)'
+                }}
+              />
+            )}
+            {unlocked && <span aria-hidden className="yatiBadge-shine" style={offset} />}
 
-          {unlocked ? (
-            <Icon
-              className="animate-badge-burst relative text-white"
-              style={{ width: size * 0.38, height: size * 0.38, animationDelay: `${delay}s` }}
-            />
-          ) : (
-            <Lock className="text-ink-300" style={{ width: size * 0.32, height: size * 0.32 }} />
-          )}
+            {unlocked ? (
+              <Icon
+                className="animate-badge-burst relative text-white drop-shadow-sm"
+                style={{ width: size * 0.36, height: size * 0.36, animationDelay: `${delay}s` }}
+                strokeWidth={2.4}
+              />
+            ) : (
+              <Lock className="text-ink-300" style={{ width: size * 0.3, height: size * 0.3 }} />
+            )}
+          </span>
         </span>
       </span>
+
+      {/* Three sparks, offset like everything else, so a row of medals
+          glints in turn. */}
+      {unlocked && (
+        <>
+          <span aria-hidden className="yatiBadge-spark absolute -top-1 right-[14%] text-amber-300" style={offset}>✦</span>
+          <span aria-hidden className="yatiBadge-spark absolute top-[38%] -left-1.5 text-[0.55rem] text-white" style={{ animationDelay: `${-delay * 3 - 1.2}s` }}>✦</span>
+          <span aria-hidden className="yatiBadge-spark absolute -right-1 bottom-[30%] text-[0.5rem] text-amber-200" style={{ animationDelay: `${-delay * 3 - 2.1}s` }}>✦</span>
+        </>
+      )}
     </span>
   );
 }

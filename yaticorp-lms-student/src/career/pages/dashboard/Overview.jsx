@@ -19,7 +19,9 @@ import {
   recentActivity,
   todaysFocus,
   greeting,
-  weeklyMomentum
+  weeklyMomentum,
+  activeDays,
+  dayKey
 } from '../../utils/progress';
 
 
@@ -94,6 +96,7 @@ export default function Overview() {
   // Momentum signals are multi-day by definition, so they read from history
   // (which already includes today's tasks) rather than today's plan.
   const streak = currentStreak(history);
+  const countedToday = activeDays(history).has(dayKey(new Date()));
   const activity = recentActivity(history);
   const weekly = weeklyMomentum(history);
   const focus = todaysFocus(tasks);
@@ -142,7 +145,7 @@ export default function Overview() {
   }
 
   return (
-    <div className="fp-enter space-y-4">
+    <div className="fp-enter space-y-5">
       {/* ---- JOURNEY: where this is all going. The one loud panel. ---- */}
       {goal && (
         <JourneyHero
@@ -154,6 +157,8 @@ export default function Overview() {
           task={focus[0]}
           completedToday={completedTasks}
           totalToday={tasks.length}
+          streak={streak}
+          countedToday={countedToday}
         />
       )}
 
@@ -170,7 +175,7 @@ export default function Overview() {
               The quest button moved into the hero above, so this row is what
               the student has built up beside what it unlocks — rather than a
               large mission card competing with the panel directly over it. ---- */}
-      <div className="grid items-start gap-4 lg:grid-cols-3">
+      <div className="grid items-stretch gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <MomentumCard
             streak={streak}

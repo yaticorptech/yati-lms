@@ -179,7 +179,9 @@ const StudentLayout = () => {
         })),
         ...careerNotifs.map(n => ({
             kind: 'career', id: n._id, title: n.title,
-            body: n.message, at: n.createdAt, read: Boolean(n.isRead)
+            body: n.message, at: n.createdAt, read: Boolean(n.isRead),
+            // A feature announcement names the page it is about.
+            link: n.link || '/career'
         })),
         ...jobNotifs.map(n => ({
             kind: 'jobs', id: n._id, title: n.title,
@@ -388,7 +390,7 @@ const StudentLayout = () => {
                                     className={`px-4 py-4 transition-colors ${clickable ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default hover:bg-slate-50'}`}
                                     onClick={clickable ? () => {
                                         setShowNotif(false);
-                                        navigate(jobs ? (item.link || '/jobs') : '/career');
+                                        navigate(jobs ? (item.link || '/jobs') : (item.link || '/career'));
                                     } : undefined}
                                 >
                                     <div className="flex items-start gap-2">
