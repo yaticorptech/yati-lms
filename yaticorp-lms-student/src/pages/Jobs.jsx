@@ -17,15 +17,15 @@
  * opportunity profile says they are under 18, it is the ONLY view — the
  * scraped global board carries no age data and is never shown to a minor.
  */
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
     Briefcase, MapPin, Loader2, RotateCcw, Search, AlertCircle, Crosshair,
     Bookmark, History, Sparkles, Compass, Globe, Clock, Check, X, ChevronDown, Info
-} from 'lucide-react';
+, GraduationCap } from 'lucide-react';
 
 import { AuthContext } from '../context/AuthContext';
-import { jobsApi, detectLocation, autoDetectLocation, careerPrefill } from '../jobs/api';
+import { jobsApi, detectLocation, autoDetectLocation, careerPrefill, learnerSkills } from '../jobs/api';
 import { comparePay } from '../jobs/pay';
 import { FIELD_LABEL, FIELD_INPUT, FIELD_OK, FIELD_BAD } from '../jobs/ui';
 import SkillInput from '../jobs/SkillInput';
@@ -36,6 +36,8 @@ import SkillGapCard from '../jobs/SkillGapCard';
 import JobsHero from '../jobs/JobsHero';
 import JobsTabs from '../jobs/JobsTabs';
 import OpportunitiesTab from '../opportunities/OpportunitiesTab';
+import CareerMatchTab from '../jobs/CareerMatchTab';
+import HiddenOpportunitiesTab from '../jobs/HiddenOpportunitiesTab';
 import { opportunitiesApi } from '../opportunities/api';
 
 const JOB_TYPES = ['Any', 'Full-time', 'Part-time', 'Internship', 'Contract'];
@@ -67,6 +69,19 @@ const MINOR_BANDS = ['explore', 'teen'];
    Opportunities asks for remote roles only: listings a search for the
    student's own city never surfaces. The AI match tab sends the same query
    as Jobs and narrows what comes back, below. */
+// Which resume this browser has already folded into the job search. Keyed on
+// the upload time, so a re-upload counts as new and a page reload does not.
+const RESUME_SEEN_KEY = 'jobs:resumeSeenAt';
+const isNewerResume = (resume) => {
+    try {
+        const seen = Number(localStorage.getItem(RESUME_SEEN_KEY) || 0);
+        return new Date(resume.parsedAt || 0).getTime() > seen;
+    } catch { return true; }
+};
+const markResumeSeen = (resume) => {
+    try { localStorage.setItem(RESUME_SEEN_KEY, String(new Date(resume.parsedAt || Date.now()).getTime())); } catch { /* private mode */ }
+};
+
 const TAB_QUERY = {
     jobs: {},
     match: {},
@@ -116,8 +131,7 @@ const formFromParams = (params) => {
  */
 const validate = (f) => {
     const problems = {};
-    if (!f.skills.length) problems.skills = 'Add at least one skill — results are ranked on your skills.';
-    if (!f.role.trim()) problems.role = 'Name the role you are aiming for.';
+    if (!f.skills.length && !f.role.trim()) problems.skills = 'Add at least one skill — results are ranked on your skills.';
     if (f.salary.trim() && !/\d/.test(f.salary)) problems.salary = 'Expected salary should be an amount, like 600000.';
     return problems;
 };
@@ -244,6 +258,34 @@ export default function Jobs() {
        card hides rather than inviting an upload that may already exist);
        null = fetched, none stored. */
     const [resumeProfile, setResumeProfile] = useState(undefined);
+
+    /* Resume, course and Career Path skills, and which came from where. The
+       skill box says so underneath, and the match tabs search on all three. */
+    const [learned, setLearned] = useState(null);
+
+    // The profile page answers an upload before the AI reader has finished;
+    // while the profile still says "parsing", look again every few seconds
+    // and fold any new skills into the search when the reading lands.
+    useEffect(() => {
+        if (resumeProfile?.parseStatus !== 'parsing') return undefined;
+        let tries = 0;
+        const timer = setInterval(async () => {
+            tries += 1;
+            try {
+                const r = await jobsApi.resumeGet();
+                const next = r.profile ?? null;
+                if (!next || next.parseStatus === 'parsing') { if (tries >= 12) clearInterval(timer); return; }
+                clearInterval(timer);
+                setResumeProfile(next);
+                if (next.skills?.length) {
+                    markResumeSeen(next);
+                    setForm((f) => ({ ...f, skills: [...new Set([...f.skills, ...next.skills])].slice(0, 20) }));
+                    setStatus({ message: `Added ${next.skills.length} skills from your resume.`, error: false });
+                }
+            } catch { if (tries >= 12) clearInterval(timer); }
+        }, 5000);
+        return () => clearInterval(timer);
+    }, [resumeProfile?.parseStatus]);
 
     // Bookmarks. savedIds drives the icon on every card; savedJobs is the
     // saved view's own list, fetched once and edited optimistically.
@@ -451,12 +493,16 @@ export default function Jobs() {
     const switchTab = (id) => {
         setTab(id);
         setTabParam(id);
-        if (id === 'saved' || id === 'opportunities') return;
+        // Match and Hidden work from the resume, not the form.
+        if (id === 'saved' || id === 'opportunities' || id === 'match' || id === 'hidden') return;
         if (data && fetchedFor === id) return;
-        if (!Object.keys(validate(form)).length) search({}, id);
-        // The form can't be searched and what's showing was for another
-        // tab: better an honest blank than part-time listings under "Jobs".
-        else if (data) setData(null);
+        const problems = validate(form);
+        if (!Object.keys(problems).length) return search({}, id);
+        // The form can't be searched: say so, and don't leave another tab's
+        // listings sitting under this tab's name.
+        setErrors(problems);
+        setStatus({ message: problems.skills, error: true });
+        if (data) setData(null);
     };
 
     /* Mount: fill in what the LMS already knows, then search on it.
@@ -481,16 +527,42 @@ export default function Jobs() {
             // someone's deliberate search, not a blank slate. Resume skills
             // come first in the merge: they are evidence the student put in
             // writing, where roadmap progress is the LMS's own bookkeeping.
-            const [fromCareer, resumeRes] = await Promise.all([
+            const [fromCareer, resumeRes, learnedNow] = await Promise.all([
                 careerPrefill().catch(() => null),
-                jobsApi.resumeGet().catch(() => ({ profile: null }))
+                jobsApi.resumeGet().catch(() => ({ profile: null })),
+                learnerSkills()
             ]);
+            setLearned(learnedNow);
             setCareerGoal(fromCareer?.role ?? null);
             const resume = resumeRes.profile ?? null;
             setResumeProfile(resume);
 
+            // A resume uploaded since the last visit brings its skills into
+            // the search once, even when the URL already names a search —
+            // that is the whole point of uploading it. Marked as seen so a
+            // student who then removes a chip is not handed it back.
+            const newResume = resume?.skills?.length && isNewerResume(resume);
+            if (newResume) {
+                markResumeSeen(resume);
+                if (inbound.skills.length || inbound.role.trim()) {
+                    const skills = [...new Set([...inbound.skills, ...resume.skills])].slice(0, 20);
+                    extra = { ...extra, skills };
+                    setForm((f) => ({ ...f, skills }));
+                    setStatus({ message: `Added ${resume.skills.length} skills from your resume.`, error: false });
+                }
+            }
+
             if (!inbound.skills.length && !inbound.role.trim()) {
-                const skills = [...new Set([...(resume?.skills ?? []), ...(fromCareer?.skills ?? [])])].slice(0, 15);
+                // Resume first — it is what the student wrote about themselves —
+                // then what this LMS actually taught them, then Career Path
+                // practice. A course finished here is evidence too.
+                const skills = [...new Set([
+                    ...(learnedNow.bySource.resume ?? []),
+                    ...(resume?.skills ?? []),
+                    ...(learnedNow.bySource.course ?? []),
+                    ...(fromCareer?.skills ?? []),
+                    ...(learnedNow.bySource.career ?? [])
+                ])].slice(0, 15);
                 const prefill = {
                     ...(skills.length ? { skills } : {}),
                     ...(fromCareer?.role ? { role: fromCareer.role } : {})
@@ -498,12 +570,13 @@ export default function Jobs() {
                 if (Object.keys(prefill).length) {
                     extra = { ...extra, ...prefill };
                     setForm((f) => ({ ...f, ...prefill }));
+                    const from = [
+                        resume || learnedNow.bySource.resume.length ? 'your resume' : null,
+                        learnedNow.bySource.course.length ? 'the courses you have taken' : null,
+                        fromCareer || learnedNow.bySource.career.length ? 'your Career Path profile' : null
+                    ].filter(Boolean);
                     setStatus({
-                        message: resume && fromCareer
-                            ? 'Filled in from your resume and Career Path profile.'
-                            : resume
-                                ? 'Filled in from your resume.'
-                                : 'Filled in from your Career Path profile.',
+                        message: `Filled in from ${from.length > 1 ? `${from.slice(0, -1).join(', ')} and ${from.at(-1)}` : from[0] || 'your profile'}.`,
                         error: false
                     });
                 }
@@ -592,6 +665,13 @@ export default function Jobs() {
        computed against the captured expectation, so the gate reuses exactly
        the comparison the pay flags show — the list and its labels can never
        disagree about who is below the bar. */
+    /* Skills the LMS knows the student has earned that are not in the box —
+       offered as one tap rather than added behind their back. */
+    const missingLearned = useMemo(
+        () => (learned ? learned.skills.filter((s) => !form.skills.some((f) => f.toLowerCase() === s.toLowerCase())).slice(0, 12) : []),
+        [learned, form.skills]
+    );
+
     const allResults = data?.results ?? [];
     const gatedResults = payGate && expectation.amount
         ? allResults.filter((j) => {
@@ -600,11 +680,13 @@ export default function Jobs() {
         })
         : allResults;
     const hiddenByPay = allResults.length - gatedResults.length;
-    const shown = tab === 'match'
-        ? gatedResults.filter((j) => (j.match?.total ?? 0) >= STRONG_MATCH)
-        : gatedResults;
-    // Matches exist, none strong: a different empty state from "nothing".
-    const weakOnly = tab === 'match' && gatedResults.length > 0 && shown.length === 0;
+    const strong = tab === 'match' ? gatedResults.filter((j) => (j.match?.total ?? 0) >= STRONG_MATCH) : gatedResults;
+    // Matches exist, none strong: show the closest ten rather than nothing —
+    // a student who just uploaded a resume should see the board move.
+    const weakOnly = tab === 'match' && gatedResults.length > 0 && strong.length === 0;
+    const shown = weakOnly
+        ? [...gatedResults].sort((a, b) => (b.match?.total ?? 0) - (a.match?.total ?? 0)).slice(0, 10)
+        : strong;
 
     const q = data?.query;
     const remoteLocked = tab === 'hidden';
@@ -650,7 +732,12 @@ export default function Jobs() {
             {!minor && <JobsTabs tabs={TABS} active={tab} onChange={switchTab} counts={{ saved: savedJobs.length }} />}
 
             {showOpportunities ? (
-                <OpportunitiesTab data={oppData} onData={setOppData} careerPathEnabled={isCareerPathEnabled} />
+                <OpportunitiesTab data={oppData} onData={setOppData} careerPathEnabled={isCareerPathEnabled}
+                    location={form.location} onLocation={(location) => update({ location })} />
+            ) : tab === 'match' ? (
+                <CareerMatchTab profile={resumeProfile} onProfile={setResumeProfile} onSwitchTab={switchTab} location={form.location} />
+            ) : tab === 'hidden' ? (
+                <HiddenOpportunitiesTab profile={resumeProfile} onSwitchTab={switchTab} location={form.location} />
             ) : (
             <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
                 {/* ── Filters ─────────────────────────────────────────────── */}
@@ -664,13 +751,33 @@ export default function Jobs() {
                         onApply={applyResume}
                     />
 
-                    <SkillInput
-                        value={form.skills}
-                        options={skillOptions}
-                        popular={popularSkills}
-                        onChange={(skills) => update({ skills })}
-                        error={errors.skills}
-                    />
+                    <div>
+                        <SkillInput
+                            value={form.skills}
+                            options={skillOptions}
+                            popular={popularSkills}
+                            onChange={(skills) => update({ skills })}
+                            error={errors.skills}
+                        />
+                        {learned && learned.skills.length > 0 && (
+                            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-500">
+                                <GraduationCap size={12} className="shrink-0 text-indigo-500" aria-hidden="true" />
+                                <span>
+                                    {[
+                                        learned.bySource.course.length && `${learned.bySource.course.length} from your courses`,
+                                        learned.bySource.career.length && `${learned.bySource.career.length} from your skill progress`,
+                                        learned.bySource.resume.length && `${learned.bySource.resume.length} from your resume`
+                                    ].filter(Boolean).join(' · ')}
+                                </span>
+                                {missingLearned.length > 0 && (
+                                    <button type="button" onClick={() => update({ skills: [...new Set([...form.skills, ...missingLearned])].slice(0, 20) })}
+                                        className="font-bold text-indigo-600 hover:underline">
+                                        Add {missingLearned.length} more you have earned
+                                    </button>
+                                )}
+                            </p>
+                        )}
+                    </div>
 
                     <RoleSelect
                         value={form.role}
@@ -977,6 +1084,11 @@ export default function Jobs() {
                             {shown.length ? (
                                 <>
                                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                        {weakOnly && (
+                                            <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+                                                No listing reaches {STRONG_MATCH}% yet — these are your closest matches. Adding the missing skills shown on each card moves them up.
+                                            </p>
+                                        )}
                                         {shown.slice(0, visibleCount).map((job) => (
                                             <JobCard
                                                 key={job.id}

@@ -12,16 +12,16 @@ export const Tile = ({ to, onClick, icon: Icon, title, sub, tone, disabled = fal
         rose: 'border-rose-100 bg-rose-50/60 text-rose-700 hover:border-rose-300',
         cta: 'border-transparent bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-200 hover:from-indigo-700 hover:to-violet-700'
     };
-    const cls = `group flex items-center gap-3 rounded-xl border p-3 text-left transition-all hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 ${tones[tone]}`;
+    const cls = `group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 ${tones[tone]}`;
     const inner = (
         <>
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tone === 'cta' ? 'bg-white text-indigo-600' : 'bg-white shadow-sm'}`}><Icon size={18} /></span>
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${tone === 'cta' ? 'bg-white text-indigo-600' : 'bg-white shadow-sm'}`}><Icon size={17} /></span>
             <span className="min-w-0 flex-1">
                 <span className="block text-sm font-bold">{title}</span>
                 <span className={`block truncate text-xs ${tone === 'cta' ? 'text-indigo-100' : 'text-slate-500'}`}>{sub}</span>
             </span>
             {tone === 'cta'
-                ? <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-indigo-600 transition-transform group-hover:translate-x-0.5"><ArrowRight size={17} /></span>
+                ? <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-indigo-600 transition-transform group-hover:translate-x-0.5"><ArrowRight size={16} /></span>
                 : <ChevronRight size={18} className="shrink-0 opacity-70 transition-transform group-hover:translate-x-0.5" />}
         </>
     );
@@ -30,7 +30,7 @@ export const Tile = ({ to, onClick, icon: Icon, title, sub, tone, disabled = fal
 
 export const Feature = ({ icon: Icon, tone, title, children }) => (
     <div className="flex gap-2.5">
-        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white shadow-md ${tone}`}><Icon size={17} /></span>
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white shadow-md ${tone}`}><Icon size={15} /></span>
         <div>
             <p className="text-sm font-bold text-slate-800">{title}</p>
             <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{children}</p>

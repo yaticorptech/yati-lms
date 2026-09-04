@@ -77,6 +77,12 @@ const runCompletionSideEffects = async (userId, task) => {
 
     await addXP(userId, TASK_XP, `completing "${task.title}"`);
 
+    // A finished task is a meaningful learning activity: it advances the
+    // daily streak and counts toward badges. XP was paid just above, so the
+    // activity is recorded without paying it again.
+    const { safeRecordActivity } = require('../../rewards/services/activityService');
+    await safeRecordActivity({ userId, type: 'career_task', refId: task._id, skipXp: true });
+
     // ONE skill, the one this task was about. This loop used to run over every
     // skill the student had, so a task on SQL joins advanced their public
     // speaking by the same five points and the whole tracker read as a single

@@ -28,5 +28,9 @@ export const opportunitiesApi = {
     details: (id) => get(`/${id}`),
     preference: (id, verdict) => post(`/${id}/preference`, { verdict }),
     report: (id, body) => post(`/${id}/report`, body),
-    requestGuardian: (guardianName) => post('/guardian/request', { guardianName })
+    requestGuardian: (guardianName) => post('/guardian/request', { guardianName }),
+    // Part-time listings from Google Jobs (via JSearch) near a place.
+    web: (params) => get('/web', { params }),
+    // A rough place from the connection, to prefill the Google search box.
+    ipLocation: () => client.get('/jobs/meta/ip-location').then((r) => r.data).catch(() => ({ label: '' }))
 };

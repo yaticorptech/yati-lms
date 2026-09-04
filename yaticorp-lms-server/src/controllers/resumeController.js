@@ -12,10 +12,17 @@ const axios = require('axios');
 const ResumeProfile = require('../jobboard/models/ResumeProfile');
 const ApiUsage = require('../jobboard/models/ApiUsage');
 const { parseResume } = require('../jobboard/services/resumeService');
+const { localParse } = require('../jobboard/services/localResumeParse');
+const { normalizeSkillList } = require('../jobboard/services/matchService');
 const { uploadToBunny } = require('../utils/bunnyStorage');
 const { buildResumeData, renderAtsPdf } = require('../services/atsResumeService');
 
 const PARSES_PER_DAY = 5;
+// How long the upload request waits for the skill reader before answering
+// with the file stored and the reading still in progress. The reader keeps
+// going in the background and fills the profile in when it finishes; the
+// student app polls for it. Nobody should watch a spinner for a minute.
+const PARSE_WAIT_MS = 8_000;
 const MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 
 const upload = multer({
@@ -77,31 +84,60 @@ const uploadResume = (req, res) => {
                 objectPath = fileUrl.split('/').slice(3).join('/');
             }
 
-            // 2. Read it — best effort. The parser is Gemini-backed and
-            //    metered; when it is unavailable the file is still kept and
-            //    the ATS resume leans on the courses instead.
-            let extracted = null;
-            const key = `resume:${req.user._id}:${new Date().toISOString().slice(0, 10)}`;
-            const day = await ApiUsage.findOne({ key }).lean();
-            if ((day?.calls ?? 0) < PARSES_PER_DAY) {
-                try {
-                    await ApiUsage.updateOne({ key }, { $inc: { calls: 1 }, $setOnInsert: { provider: 'resume-user', month: new Date().toISOString().slice(0, 10) } }, { upsert: true });
-                    extracted = await parseResume(req.file.buffer, filename, mime);
-                } catch (e) {
-                    console.warn('[resume] parse skipped:', e.message);
-                }
-            }
-
+            // 2. Save the file first, so nothing downstream can lose it. The
+            //    previous resume's reading is cleared with it: skills from a
+            //    file the student has just replaced must not linger in the
+            //    Jobs section. A local reader (no network) fills in whatever
+            //    it can find straight away, so a PDF upload reaches the job
+            //    search with skills even when the AI reader is unreachable.
+            const userId = req.user._id;
+            const uploadedAt = new Date();
+            const local = localParse(req.file.buffer, mime);
             const set = {
-                userId: req.user._id, filename, fileUrl, objectPath, parsedAt: new Date(),
-                parseStatus: extracted ? 'parsed' : 'stored',
-                ...(extracted || {})
+                userId, filename, fileUrl, objectPath, parsedAt: uploadedAt, parseStatus: 'stored',
+                skills: local?.skills || [], skillsRaw: local?.skillsRaw || [], experienceYears: local?.experienceYears || 0,
+                seniority: 'Fresher', education: { level: '', degree: '', specialization: '' }, pastRoles: [], headline: ''
             };
-            const row = await ResumeProfile.findOneAndUpdate({ userId: req.user._id }, { $set: set }, { upsert: true, returnDocument: 'after' }).lean();
+            let row = await ResumeProfile.findOneAndUpdate({ userId }, { $set: set }, { upsert: true, returnDocument: 'after' }).lean();
             if (existing?.objectPath && existing.objectPath !== objectPath) deleteFromBunny(existing.objectPath);
 
-            const data = await buildResumeData(req.user._id);
-            res.status(201).json({ resume: view(row), ats: data.stats, parsed: !!extracted });
+            // 3. Read it — best effort, and never something the student waits
+            //    on for long. The reader is Gemini-backed and metered; it gets
+            //    a few seconds inline, then keeps working in the background
+            //    and fills the profile in when it finishes. If it fails, the
+            //    file stays and the ATS resume leans on the courses instead.
+            let parsing = false;
+            const key = `resume:${userId}:${new Date().toISOString().slice(0, 10)}`;
+            const day = await ApiUsage.findOne({ key }).lean();
+            if ((day?.calls ?? 0) < PARSES_PER_DAY) {
+                await ApiUsage.updateOne({ key }, { $inc: { calls: 1 }, $setOnInsert: { provider: 'resume-user', month: new Date().toISOString().slice(0, 10) } }, { upsert: true });
+                await ResumeProfile.updateOne({ userId }, { $set: { parseStatus: 'parsing' } });
+                const job = parseResume(req.file.buffer, filename, mime)
+                    .then(async (extracted) => {
+                        // Only the upload that started this read may finish it.
+                        // The AI reading wins on roles and education; skills
+                        // are the union of both readers.
+                        const skills = normalizeSkillList([...(extracted.skills || []), ...(local?.skills || [])]);
+                        const r = await ResumeProfile.findOneAndUpdate(
+                            { userId, parsedAt: uploadedAt },
+                            { $set: { ...extracted, skills, parseStatus: 'parsed' } },
+                            { returnDocument: 'after' }
+                        ).lean();
+                        return r;
+                    })
+                    .catch(async (e) => {
+                        console.warn('[resume] parse skipped:', e.message);
+                        await ResumeProfile.updateOne({ userId, parsedAt: uploadedAt }, { $set: { parseStatus: 'stored' } }).catch(() => {});
+                        return null;
+                    });
+                const done = await Promise.race([job, new Promise((r) => setTimeout(() => r('timeout'), PARSE_WAIT_MS))]);
+                if (done === 'timeout') { parsing = true; row = { ...row, parseStatus: 'parsing' }; }
+                else if (done) row = done;
+                else row = await ResumeProfile.findOne({ userId }).lean();
+            }
+
+            const data = await buildResumeData(userId);
+            res.status(201).json({ resume: view(row), ats: data.stats, parsed: row?.parseStatus === 'parsed' || (row?.skills?.length || 0) > 0, parsing });
         } catch (error) {
             console.error('Resume upload error:', error);
             res.status(500).json({ message: 'Upload failed. Please try again.', error: error.message });

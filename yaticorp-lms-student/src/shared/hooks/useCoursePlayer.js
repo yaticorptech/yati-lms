@@ -60,6 +60,11 @@ export const useCoursePlayer = (apiClient, courseId) => {
                 ...prev,
                 progress: data.progress
             }));
+            // XP, streak and badge events from this completion. The rewards
+            // provider listens and shows the toast / celebration.
+            if (data.rewards?.events?.length) {
+                window.dispatchEvent(new CustomEvent('yati:rewards', { detail: data.rewards.events }));
+            }
             return data;
         } catch (err) {
             console.error('Failed to update progress:', err);

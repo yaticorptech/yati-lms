@@ -26,6 +26,7 @@ const ResumeProfile = require('../jobboard/models/ResumeProfile');
 const CareerGoal = require('../career/models/Goal');
 const SkillProgress = require('../career/models/SkillProgress');
 const { ALL_SKILLS } = require('../jobboard/data/roles');
+const { expandSkillPhrase } = require('../jobboard/services/matchService');
 
 const COURSE_SKILL_THRESHOLD = 50;   // % complete before a course's headline skills count
 
@@ -108,9 +109,17 @@ const buildResumeData = async (userId) => {
         skillMap.get(key).sources.add(source);
     };
     (resume?.skills || []).forEach((s) => add(s, 'resume'));
+    // Every skill the student is actually working on, not only the ones past
+    // an arbitrary bar. A roadmap skill at 25% is a skill they are learning,
+    // and a job search that ignores it ignores what the LMS is teaching them.
+    // Only a skill nobody has started yet is left out.
+    //
+    // The names are written the way a syllabus writes them — "HTML5 / CSS3 /
+    // Tailwind CSS" — so each one is opened out into the individual skills a
+    // job listing is matched on.
     (skillRows || [])
-        .filter((s) => (s.progress ?? 0) >= 40 || (['Intermediate', 'Advanced', 'Expert'].includes(s.level) && s.progress > 0))
-        .forEach((s) => add(s.skillName, 'career'));
+        .filter((s) => (s.progress ?? 0) > 0 || ['Intermediate', 'Advanced', 'Expert'].includes(s.level))
+        .forEach((s) => expandSkillPhrase(s.skillName).forEach((one) => add(one, 'career')));
     courses.forEach((c) => c.skills.forEach((s) => add(s, 'course')));
     const skills = [...skillMap.values()].map((s) => ({ name: s.name, sources: [...s.sources] }));
 

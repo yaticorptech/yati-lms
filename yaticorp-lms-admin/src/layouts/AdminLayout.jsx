@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Layers, LogOut,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase } from 'lucide-react';
+    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 
@@ -171,6 +171,9 @@ const AdminLayout = () => {
                     </Link>
                     <Link to="/jobs" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/jobs') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                         <Briefcase size={20} /> <span className="font-medium">Jobs</span>
+                    </Link>
+                    <Link to="/rewards" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/rewards') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                        <Gift size={20} /> <span className="font-medium">Rewards</span>
                     </Link>
                     <Link to="/announcements" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/announcements') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                         <Megaphone size={20} /> <span className="font-medium">Announcements</span>

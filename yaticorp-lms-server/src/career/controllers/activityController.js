@@ -127,6 +127,9 @@ const answerTodaysActivity = async (req, res) => {
         awarded = ACTIVITY_XP;
         try {
           await addXP(req.user._id, ACTIVITY_XP, `solving today's ${activity.kind.toLowerCase()}`);
+          // Counts toward the daily streak; XP was paid just above.
+          const { safeRecordActivity } = require('../../rewards/services/activityService');
+          await safeRecordActivity({ userId: req.user._id, type: 'daily_activity', refId: `${activity.id || activity.kind}:${req.body.day || ''}`, skipXp: true });
         } catch (error) {
           // The student answered correctly; that is the part that matters. A
           // gamification failure must not turn their right answer into an error.

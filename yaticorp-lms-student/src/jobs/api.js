@@ -66,6 +66,40 @@ export const jobsApi = {
  * Null when there is nothing usable — no goal yet, Career Path locked (403),
  * or the requests failing. The caller treats that as a non-event.
  */
+/**
+ * Everything the LMS knows the student can do, in one list.
+ *
+ * Three sources, and the reason all three belong here: the resume is what
+ * they say about themselves, Career Path is what they have been practising,
+ * and the courses are what this LMS actually taught them — a student who
+ * finished the React course has React whether or not their resume mentions
+ * it, and a job search that ignores that is ignoring the point of the LMS.
+ *
+ * The ATS resume builder already merges the three and remembers where each
+ * skill came from, so this reads its answer rather than inventing a second
+ * one that could disagree with the resume the student downloads.
+ *
+ * @returns {{ skills: string[], bySource: { resume: string[], course: string[], career: string[] }, courses: number }}
+ */
+export async function learnerSkills() {
+    const empty = { skills: [], bySource: { resume: [], course: [], career: [] }, courses: 0 };
+    try {
+        const { data } = await client.get('/user/resume/ats/data');
+        const rows = Array.isArray(data?.skills) ? data.skills : [];
+        const bySource = { resume: [], course: [], career: [] };
+        for (const row of rows) {
+            for (const src of row.sources || []) if (bySource[src]) bySource[src].push(row.name);
+        }
+        return {
+            skills: rows.map((r) => r.name).filter(Boolean),
+            bySource,
+            courses: Number(data?.stats?.courses) || 0
+        };
+    } catch {
+        return empty;
+    }
+}
+
 export async function careerPrefill() {
     const [goalRes, skillsRes] = await Promise.allSettled([
         client.get('/career/goals'),
@@ -76,14 +110,12 @@ export async function careerPrefill() {
     const rows = skillsRes.status === 'fulfilled' && Array.isArray(skillsRes.value.data)
         ? skillsRes.value.data : [];
 
+    // Career Path skills reach the search through learnerSkills() instead:
+    // the server opens compound names like "HTML5 / CSS3 / Tailwind CSS" into
+    // the individual skills a listing can be matched on, which this cannot do.
+    // Kept here only as a fallback for a student with nothing else.
     const skills = rows
-        .filter((s) => {
-            const progress = s.progress ?? 0;
-            const assessedAbove = ['Intermediate', 'Advanced', 'Expert'].includes(s.level);
-            // Either a solid run of work on its own, or a head start the
-            // student has actually begun to act on.
-            return progress >= 40 || (assessedAbove && progress > 0);
-        })
+        .filter((s) => (s.progress ?? 0) > 0 || ['Intermediate', 'Advanced', 'Expert'].includes(s.level))
         .map((s) => s.skillName)
         .filter(Boolean)
         .slice(0, 12);

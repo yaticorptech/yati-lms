@@ -18,6 +18,7 @@ export const AuthProvider = ({ children }) => {
     // section that is actually available. The server is the real gate.
     const [isCareerPathEnabled, setIsCareerPathEnabled] = useState(true);
     const [isJobsEnabled, setIsJobsEnabled] = useState(true);
+    const [isRewardsEnabled, setIsRewardsEnabled] = useState(true);
     const navigate = useNavigate();
 
     const authService = getAuthServices(api);
@@ -40,11 +41,13 @@ export const AuthProvider = ({ children }) => {
                 setIsCreditSystemEnabled(res.data?.isCreditSystemEnabled ?? true);
                 setIsCareerPathEnabled(res.data?.isCareerPathEnabled ?? true);
                 setIsJobsEnabled(res.data?.isJobsEnabled ?? true);
+                setIsRewardsEnabled(res.data?.isRewardsEnabled ?? true);
             } catch (err) {
                 console.error('Failed to load settings in AuthContext:', err);
                 setIsCreditSystemEnabled(true);
                 setIsCareerPathEnabled(true);
                 setIsJobsEnabled(true);
+                setIsRewardsEnabled(true);
             }
 
             setLoading(false);
@@ -73,7 +76,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, setUser, loading, login, logout, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled }}>
+        <AuthContext.Provider value={{ user, setUser, loading, login, logout, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isRewardsEnabled }}>
             {children}
         </AuthContext.Provider>
     );

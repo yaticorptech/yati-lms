@@ -52,6 +52,63 @@ function normalizeSkill(raw) {
   return String(raw).trim().replace(/\s+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * Split a written-out skill line into the individual skills a job board can
+ * rank on.
+ *
+ * Career Path names skills the way a syllabus does — "HTML5 / CSS3 / Tailwind
+ * CSS", "SQL (PostgreSQL / MySQL) & NoSQL (MongoDB)" — which is right for a
+ * learning roadmap and useless to a matcher looking for "HTML". This pulls
+ * the parts out: it splits on the separators, drops a trailing version digit
+ * when what is left is a real skill ("HTML5" → HTML), and keeps whole phrases
+ * that are skills in their own right ("Tailwind CSS").
+ *
+ * Anything it cannot place is kept as written rather than dropped — an
+ * unrecognised skill is still the student's skill.
+ */
+function expandSkillPhrase(phrase) {
+  const raw = String(phrase || "").trim();
+  if (!raw) return [];
+
+  const out = [];
+  const push = (s) => {
+    const canon = normalizeSkill(s);
+    if (canon && !out.some((x) => norm(x) === norm(canon))) out.push(canon);
+  };
+
+  // The whole line first: "Tailwind CSS" and "REST APIs" are single skills.
+  const lower = raw.toLowerCase();
+  for (const known of CANON_BY_NORM.values()) {
+    const n = norm(known);
+    if (n.length < 4) continue;                       // "Git" would match "digit"
+    if (n.includes(" ") && lower.includes(n)) push(known);
+  }
+
+  // Then the parts, brackets included — the contents of "(PostgreSQL / MySQL)"
+  // are skills, not a footnote on one.
+  for (const part of raw.split(/[/,&|()+]|\bor\b|\band\b/i)) {
+    const piece = part.replace(/\s+/g, " ").trim();
+    if (!piece || piece.length < 2) continue;
+    const direct = normalizeSkill(piece);
+    if (direct && CANON_BY_NORM.has(norm(direct))) { push(piece); continue; }
+    // "HTML5" and "CSS3" are the same skill as HTML and CSS.
+    const unversioned = piece.replace(/\s*\d+$/, "").trim();
+    if (unversioned !== piece && CANON_BY_NORM.has(norm(normalizeSkill(unversioned) || ""))) { push(unversioned); continue; }
+  }
+
+  // Finally, any known skill sitting inside a longer phrase — "Docker" in
+  // "Basic Docker & Cloud Deployment". Whole words only, and nothing under
+  // three letters, so "Git" cannot be found inside "digit".
+  for (const known of CANON_BY_NORM.values()) {
+    const n = norm(known);
+    if (n.length < 3 || n.includes(" ")) continue;
+    const re = new RegExp(`(?<![a-z0-9+#.])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z0-9+#])`, "i");
+    if (re.test(lower)) push(known);
+  }
+
+  return out.length ? out : [raw];
+}
+
 /** Normalize + dedupe a list of raw skill strings. */
 function normalizeSkillList(list) {
   const out = [];
@@ -853,4 +910,5 @@ function analyzeGap(roleName, userSkills, demand = new Map()) {
   };
 }
 
-module.exports = { WEIGHTS, norm, normalizeSkill, normalizeSkillList, extractSkills, resolveRole, getRole, roleTitlePatterns, roleEligible, roleRelated, locTokens, placeTokens, haversineKm, locationTier, locationEligible, scoreLocation, scoreType, scoreSkills, scoreRole, scoreJob, applySemantic, rankJobs, analyzeGap };
+module.exports = {
+  expandSkillPhrase, WEIGHTS, norm, normalizeSkill, normalizeSkillList, extractSkills, resolveRole, getRole, roleTitlePatterns, roleEligible, roleRelated, locTokens, placeTokens, haversineKm, locationTier, locationEligible, scoreLocation, scoreType, scoreSkills, scoreRole, scoreJob, applySemantic, rankJobs, analyzeGap };

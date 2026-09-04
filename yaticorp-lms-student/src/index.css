@@ -109,3 +109,58 @@
 @media (prefers-reduced-motion: reduce) {
   .pha-plant, .pha-plant-2, .pha-spark, .pha-spark-2 { animation: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   Rewards — celebrations, confetti, streak flame, rank-up
+
+   Prefixed `rw-` and unscoped on purpose: these fire in the course player,
+   on the profile and on the leaderboard, all outside `.futurepath`, where the
+   Career Path confetti classes cannot reach.
+   --------------------------------------------------------------------------- */
+@keyframes rw-fall {
+  0%   { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--rw-drift, 0px), 110vh, 0) rotate(var(--rw-spin, 360deg)); opacity: 0.9; }
+}
+.rw-confetti-piece { position: absolute; top: -12px; animation: rw-fall 3s linear forwards; will-change: transform; }
+
+@keyframes rw-pop {
+  from { opacity: 0; transform: scale(0.85) translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.rw-pop { animation: rw-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes rw-burst {
+  0%   { transform: scale(0.3) rotate(-20deg); }
+  60%  { transform: scale(1.15) rotate(6deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+.rw-burst { animation: rw-burst 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes rw-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.rw-rise { animation: rw-rise 0.4s ease-out both; }
+
+@keyframes rw-fade-out { to { opacity: 0; } }
+.rw-fade-out { animation: rw-fade-out 0.18s ease-in both; }
+
+@keyframes rw-flame {
+  0%, 100% { transform: scale(1) rotate(-3deg); }
+  50%      { transform: scale(1.12) rotate(3deg); }
+}
+.rw-flame { display: inline-block; animation: rw-flame 1.4s ease-in-out infinite; transform-origin: 50% 90%; }
+
+@keyframes rw-rank-up {
+  0%   { transform: translateY(0); }
+  30%  { transform: translateY(-6px); }
+  60%  { transform: translateY(0); }
+  80%  { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+.rw-rank-up { animation: rw-rank-up 0.9s ease-out 2; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rw-confetti-piece { display: none; }
+  .rw-pop, .rw-burst, .rw-rise, .rw-fade-out, .rw-flame, .rw-rank-up { animation-duration: 0.01ms; animation-iteration-count: 1; }
+}
