@@ -47,6 +47,12 @@ const generateCertificate = async (req, res) => {
                 certificateNumber: certNumber,
                 issuedAt: issuedDate
             });
+
+            // Rewards for the first issue. The PDF streams regardless.
+            try {
+                const { safeRecordActivity } = require('../rewards/services/activityService');
+                await safeRecordActivity({ userId, type: 'certificate_earned', refId: courseId, courseId });
+            } catch (e) { console.error('[rewards] certificate hook failed:', e.message); }
         }
 
 

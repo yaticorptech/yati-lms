@@ -74,7 +74,7 @@ export default function JobMatchesTile() {
     // The grid cell lives here, not in Overview: when this tile has nothing
     // to say it returns null, and an empty wrapper cell left behind in the
     // bento would still cost a phantom row of gap.
-    <div className="sm:col-span-2 lg:col-span-12">
+    <div>
     <Card hover>
       <CardHeader
         icon={Briefcase}
@@ -91,7 +91,11 @@ export default function JobMatchesTile() {
           </Link>
         }
       />
-      <div className="grid gap-3 sm:grid-cols-3">
+      {/* Three across only once there is room for three. At `sm` the LMS
+          sidebar is still taking 16rem, so three job cards were sharing about
+          570px and every company name truncated mid-word — "Staff Data
+          Scientist,…" three times over, which tells the student nothing. */}
+      <div className="grid gap-3 lg:grid-cols-3">
         {jobs.map((job) => (
           <a
             key={job.id}
@@ -106,12 +110,12 @@ export default function JobMatchesTile() {
                   {job.match.total}% match
                 </span>
               ) : (
-                <span className="rounded-md bg-surface-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-500">
+                <span className="rounded-md bg-surface-100 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-ink-500">
                   Hiring now
                 </span>
               )}
               {job.remote && (
-                <span className="text-[10px] font-bold uppercase tracking-wider text-ink-400">Remote</span>
+                <span className="text-[0.68rem] font-bold uppercase tracking-wider text-ink-400">Remote</span>
               )}
             </div>
             <p className="line-clamp-2 text-sm font-bold leading-snug text-ink-900 group-hover:text-link">

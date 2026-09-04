@@ -73,6 +73,22 @@ const userSchema = new mongoose.Schema({
         default: 1
     },
     // Last day the student completed a Career Path task. Drives the streak.
+    /**
+     * How many times this account has signed in.
+     *
+     * The "welcome back" panel is for people coming back, not for someone
+     * seeing the site for the first time — and nothing recorded that. A count
+     * rather than a boolean so "second visit" can be told from "fiftieth" later
+     * if the panel ever wants to say something different to a new returner.
+     *
+     * Accounts that existed before this field was added start at 0 and reach 1
+     * on their next sign-in, so they are treated as first-time once. That is a
+     * single missed panel, which is preferable to guessing from other data.
+     */
+    loginCount: {
+        type: Number,
+        default: 0
+    },
     lastActiveDate: {
         type: Date
     },
@@ -84,7 +100,28 @@ const userSchema = new mongoose.Schema({
         default: 60,
         min: 15,
         max: 480
-    }
+    },
+
+    // ─── Rewards & wallet ────────────────────────────────────────────────────
+    // Who this student is, for the purpose of money. School and college
+    // accounts earn XP, badges and reward points; whether a type may turn
+    // points into cash is decided in the rewards rulebook, and an admin can
+    // override one account with walletAccess. Existing accounts default to the
+    // most conservative type and need no migration.
+    accountType: {
+        type: String,
+        enum: ['school_student', 'college_student', 'adult', 'professional', 'instructor'],
+        default: 'school_student'
+    },
+    walletAccess: {
+        type: String,
+        enum: ['default', 'enabled', 'disabled'],
+        default: 'default'
+    },
+    // Free-text cohort labels for the "My institution" / "My class"
+    // leaderboards. Students in the same institution and class see each other.
+    institution: { type: String, default: '', trim: true },
+    className: { type: String, default: '', trim: true }
 }, { timestamps: true });
 
 // Match user entered password to database password (which is plain text Verification_value)

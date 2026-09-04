@@ -234,7 +234,7 @@ export default function MentorChat() {
           Header. The same gradient and dot field as the roadmap hero and
           the profile banner — this was the one flat brand-700 slab left.
       --------------------------------------------------------------- */}
-      <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-brand-800 via-brand-900 to-slate-900 px-6 py-4 text-white">
+      <div className="relative shrink-0 overflow-hidden fp-journey-gradient px-6 py-4 text-white">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-[0.16]"
@@ -247,11 +247,11 @@ export default function MentorChat() {
           <div className="flex min-w-0 items-center gap-3">
             <div className="relative shrink-0 rounded-xl bg-white/15 p-2 ring-1 ring-white/20 ring-inset">
               <Bot className="h-6 w-6" />
-              <span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-brand-900 bg-emerald-400" />
+              <span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-journey-800 bg-emerald-400" />
             </div>
             <div className="min-w-0">
-              <h2 className="truncate text-lg font-bold">AI Career Mentor</h2>
-              <p className="truncate text-sm text-brand-200">
+              <h2 className="truncate text-lg font-black">🤖 Your career copilot</h2>
+              <p className="truncate text-sm text-journey-200">
                 Knows your roadmap, today&apos;s plan and what you have finished
               </p>
             </div>

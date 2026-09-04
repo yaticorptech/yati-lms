@@ -30,6 +30,7 @@ import Analytics from './pages/Analytics';
 import Announcements from './pages/Announcements';
 import CareerPath from './pages/CareerPath';
 import Jobs from './pages/Jobs';
+import Rewards from './pages/Rewards';
 
 function App() {
   return (
@@ -49,6 +50,7 @@ function App() {
         <Route path="analytics" element={<Analytics />} />
         <Route path="career-path" element={<CareerPath />} />
         <Route path="jobs" element={<Jobs />} />
+        <Route path="rewards" element={<Rewards />} />
         <Route path="announcements" element={<Announcements />} />
       </Route>
       <Route path="*" element={<NotFound />} />

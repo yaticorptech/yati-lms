@@ -8,3 +8,159 @@
    there that is not a token is scoped to `.futurepath`, so it cannot reach
    the rest of the student panel. */
 @import "./career/career.css";
+
+/* ---------------------------------------------------------------------------
+   Dashboard welcome panel
+
+   Named for this panel rather than reusing `.animate-slide-in`, which
+   career.css scopes to `.futurepath` — this sits on the LMS dashboard, outside
+   that section, so it needs classes of its own.
+
+   Opens in the centre of the dashboard, scaling up rather than sliding — the
+   panel is anchored to the middle at every size, so there is no edge to come
+   in from.
+   --------------------------------------------------------------------------- */
+
+@keyframes panel-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes panel-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: scale(0.98); }
+}
+
+.animate-panel-in  { animation: panel-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-panel-out { animation: panel-out 0.22s ease-in both; }
+
+/* A greeting is not worth making anyone motion-sick. It still arrives and
+   still leaves — it just stops sliding. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-panel-in,
+  .animate-panel-out { animation-duration: 0.01ms; }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion — LMS-specific
+
+   The shared vocabulary lives in career.css and is unscoped: `animate-fade-in`,
+   `animate-fade-in-up`, `animate-pop-in`, `stagger`, `skeleton` and the rest are
+   available to the whole student app. Only what does not exist there is defined
+   here — a duplicate `.stagger` in this file was quietly overriding Career
+   Path's own, because this stylesheet is loaded after it.
+   --------------------------------------------------------------------------- */
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -10px, 0); }
+}
+@keyframes sheen-sweep {
+  from { transform: translateX(-120%); }
+  to   { transform: translateX(220%); }
+}
+
+.drift { animation: drift 7s ease-in-out infinite; }
+
+/* A card lifts toward a real cursor. Gated behind a fine pointer so a tap never
+   leaves a card stuck in its hover state. */
+@media (hover: hover) and (pointer: fine) {
+  .lift { transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease; }
+  .lift:hover { transform: translateY(-6px); box-shadow: var(--shadow-card-hover); }
+}
+
+/* One light sweep, used once on a greeting. */
+.sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.18) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: sheen-sweep 2.6s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drift, .sheen::after { animation: none !important; }
+  .lift:hover { transform: none; }
+}
+
+
+/* ---------------------------------------------------------------------------
+   Profile hero — a conic ring that turns slowly behind the avatar.
+   --------------------------------------------------------------------------- */
+@keyframes profile-ring-spin { to { transform: rotate(360deg); } }
+.profile-ring {
+  position: relative;
+  background: conic-gradient(from 0deg, #fbbf24, #f472b6, #a78bfa, #34d399, #fbbf24);
+  animation: profile-ring-spin 8s linear infinite;
+}
+.profile-ring > * { animation: profile-ring-spin 8s linear infinite reverse; }
+@media (prefers-reduced-motion: reduce) {
+  .profile-ring, .profile-ring > * { animation: none; }
+}
+
+/* Profile hero illustration — leaves sway, sparkles twinkle, slowly. */
+@keyframes pha-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2.5deg); } }
+@keyframes pha-twinkle { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+.pha-plant { animation: pha-sway 6s ease-in-out infinite; }
+.pha-plant-2 { animation: pha-sway 7.5s ease-in-out infinite reverse; }
+.pha-spark { animation: pha-twinkle 3s ease-in-out infinite; transform-origin: 300px 214px; transform-box: view-box; }
+.pha-spark-2 { animation: pha-twinkle 4s ease-in-out 1s infinite; transform-origin: 110px 130px; transform-box: view-box; }
+@media (prefers-reduced-motion: reduce) {
+  .pha-plant, .pha-plant-2, .pha-spark, .pha-spark-2 { animation: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   Rewards — celebrations, confetti, streak flame, rank-up
+
+   Prefixed `rw-` and unscoped on purpose: these fire in the course player,
+   on the profile and on the leaderboard, all outside `.futurepath`, where the
+   Career Path confetti classes cannot reach.
+   --------------------------------------------------------------------------- */
+@keyframes rw-fall {
+  0%   { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--rw-drift, 0px), 110vh, 0) rotate(var(--rw-spin, 360deg)); opacity: 0.9; }
+}
+.rw-confetti-piece { position: absolute; top: -12px; animation: rw-fall 3s linear forwards; will-change: transform; }
+
+@keyframes rw-pop {
+  from { opacity: 0; transform: scale(0.85) translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.rw-pop { animation: rw-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes rw-burst {
+  0%   { transform: scale(0.3) rotate(-20deg); }
+  60%  { transform: scale(1.15) rotate(6deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+.rw-burst { animation: rw-burst 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes rw-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.rw-rise { animation: rw-rise 0.4s ease-out both; }
+
+@keyframes rw-fade-out { to { opacity: 0; } }
+.rw-fade-out { animation: rw-fade-out 0.18s ease-in both; }
+
+@keyframes rw-flame {
+  0%, 100% { transform: scale(1) rotate(-3deg); }
+  50%      { transform: scale(1.12) rotate(3deg); }
+}
+.rw-flame { display: inline-block; animation: rw-flame 1.4s ease-in-out infinite; transform-origin: 50% 90%; }
+
+@keyframes rw-rank-up {
+  0%   { transform: translateY(0); }
+  30%  { transform: translateY(-6px); }
+  60%  { transform: translateY(0); }
+  80%  { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+.rw-rank-up { animation: rw-rank-up 0.9s ease-out 2; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rw-confetti-piece { display: none; }
+  .rw-pop, .rw-burst, .rw-rise, .rw-fade-out, .rw-flame, .rw-rank-up { animation-duration: 0.01ms; animation-iteration-count: 1; }
+}

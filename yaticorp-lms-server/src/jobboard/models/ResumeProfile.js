@@ -36,7 +36,16 @@ const resumeProfileSchema = new mongoose.Schema(
     headline: { type: String, default: "" },
 
     filename: { type: String, default: "" },
-    parsedAt: { type: Date, default: Date.now }
+    parsedAt: { type: Date, default: Date.now },
+
+    // Set only by the profile page's upload, which keeps the file itself on
+    // Bunny so the student can open it again. The Jobs tab's upload never
+    // stores the file and leaves these empty.
+    fileUrl: { type: String, default: "" },
+    objectPath: { type: String, default: "" },
+    // parsed: skills etc. came from this file. stored: the file was kept but
+    // the parser was unavailable, so the extraction (if any) is older.
+    parseStatus: { type: String, enum: ["parsed", "stored", "parsing"], default: "parsed" }
   },
   { versionKey: false }
 );

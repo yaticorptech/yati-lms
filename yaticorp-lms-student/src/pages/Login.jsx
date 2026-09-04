@@ -55,7 +55,7 @@ const ContactAdminModal = ({ onClose, page = 'login' }) => {
                 ) : (
                     <form onSubmit={handleSubmit} className="p-6 space-y-4">
                         {error && <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Name *</label>
                                 <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}

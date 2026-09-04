@@ -179,7 +179,7 @@ export default function JobCard({ job, expected, saved = false, onToggleSave }) 
                 </div>
                 <a href={job.url} target="_blank" rel="noopener noreferrer"
                     className="shrink-0 inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
-                    View <ExternalLink size={14} />
+                    Apply <ExternalLink size={14} />
                 </a>
             </div>
         </article>

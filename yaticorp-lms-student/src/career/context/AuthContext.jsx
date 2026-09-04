@@ -30,16 +30,30 @@ export const AuthProvider = ({ children }) => {
     if (!lmsUser) {
       setUser(null);
       setLoading(false);
-      return;
+      return null;
     }
     try {
       const { data } = await lmsApi.get('/user/profile');
-      setUser(data?.user ?? data);
+      const fresh = data?.user ?? data;
+      setUser(fresh);
+
+      // Tell the rest of the app. The sidebar card and the header pills live in
+      // StudentLayout, outside this provider, and only refetched on navigation
+      // — so finishing a task that crossed a level left the nav chip reading
+      // "Level 3" while the sidebar beside it still said "Level 2 · 295 XP".
+      // A plain DOM event rather than lifted state: nothing else about these
+      // two trees needs to know about each other.
+      window.dispatchEvent(new CustomEvent('yati:progress-changed'));
+      // Handed back as well as stored. A caller that has just completed
+      // something needs the new XP total in the same tick to work out what the
+      // server actually awarded, and `setUser` will not have landed by then.
+      return fresh;
     } catch (error) {
       // A failed refresh must not empty the page. The cached session still has
       // the name and id everything else is keyed on; only XP may be stale.
       console.error('Could not refresh the student for Career Path:', error);
       setUser((current) => current ?? lmsUser);
+      return null;
     } finally {
       setLoading(false);
     }

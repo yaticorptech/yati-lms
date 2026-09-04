@@ -1,0 +1,88 @@
+/*
+ * Motion for the Career Path illustrations.
+ *
+ * Scoped under .yatiArt-* so nothing here can reach any other element, and
+ * every loop is slow and small — a few pixels over several seconds. These are
+ * decorative drawings rather than anything a student is asked to act on, so
+ * they must never pull the eye away from the numbers beside them.
+ *
+ * Under prefers-reduced-motion every one of them stops dead.
+ */
+
+.yatiArt-float {
+  animation: yatiArt-float 4.5s ease-in-out infinite;
+}
+.yatiArt-float-slow {
+  animation: yatiArt-float 7s ease-in-out infinite;
+}
+.yatiArt-float-delay {
+  animation: yatiArt-float 5.5s ease-in-out infinite;
+  animation-delay: -1.8s;
+}
+.yatiArt-bob {
+  animation: yatiArt-bob 3.2s ease-in-out infinite;
+}
+.yatiArt-sway {
+  animation: yatiArt-sway 5s ease-in-out infinite;
+}
+.yatiArt-twinkle {
+  animation: yatiArt-twinkle 3s ease-in-out infinite;
+}
+.yatiArt-twinkle:nth-of-type(2) { animation-delay: 0.7s; }
+.yatiArt-twinkle:nth-of-type(3) { animation-delay: 1.4s; }
+.yatiArt-twinkle:nth-of-type(4) { animation-delay: 2.1s; }
+.yatiArt-twinkle:nth-of-type(5) { animation-delay: 1s; }
+
+/* Typing: the forearm dips a few degrees, over and over. */
+.yatiArt-type {
+  transform-box: view-box;
+  animation: yatiArt-type 0.9s ease-in-out infinite;
+}
+
+/* Bars that rise once when the drawing appears, then hold. */
+.yatiArt-grow {
+  transform-box: view-box;
+  transform-origin: bottom;
+  animation: yatiArt-grow 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.yatiArt-grow:nth-of-type(2) { animation-delay: 0.1s; }
+.yatiArt-grow:nth-of-type(3) { animation-delay: 0.2s; }
+.yatiArt-grow:nth-of-type(4) { animation-delay: 0.3s; }
+
+@keyframes yatiArt-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+@keyframes yatiArt-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+@keyframes yatiArt-sway {
+  0%, 100% { transform: rotate(-2.5deg); }
+  50%      { transform: rotate(2.5deg); }
+}
+@keyframes yatiArt-twinkle {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
+}
+@keyframes yatiArt-type {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(-6deg); }
+}
+@keyframes yatiArt-grow {
+  from { transform: scaleY(0.15); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yatiArt-float,
+  .yatiArt-float-slow,
+  .yatiArt-float-delay,
+  .yatiArt-bob,
+  .yatiArt-sway,
+  .yatiArt-twinkle,
+  .yatiArt-type,
+  .yatiArt-grow {
+    animation: none !important;
+  }
+}

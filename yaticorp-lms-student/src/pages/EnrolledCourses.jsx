@@ -4,7 +4,7 @@
  */
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlayCircle, Clock, BookOpen, Award, X } from 'lucide-react';
+import { PlayCircle, Clock, BookOpen, Award, X, Compass } from 'lucide-react';
 import api from '../utils/api';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 
@@ -48,17 +48,17 @@ const EnrolledCourses = () => {
                     Enrolled Courses
                 </h2>
 
-                <div className="flex border-b border-slate-200 mb-6">
+                <div className="-mx-4 mb-6 flex overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <button
                         onClick={() => setActiveTab('courses')}
-                        className={`pb-4 px-2 mr-6 font-bold text-lg transition-colors relative ${activeTab === 'courses' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`shrink-0 whitespace-nowrap pb-4 px-2 mr-5 sm:mr-6 font-bold text-base sm:text-lg transition-colors relative ${activeTab === 'courses' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         My Courses
                         {activeTab === 'courses' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-t-full"></div>}
                     </button>
                     <button
                         onClick={() => setActiveTab('bundles')}
-                        className={`pb-4 px-2 font-bold text-lg transition-colors relative ${activeTab === 'bundles' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`shrink-0 whitespace-nowrap pb-4 px-2 font-bold text-base sm:text-lg transition-colors relative ${activeTab === 'bundles' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         Bundles
                         {activeTab === 'bundles' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-t-full"></div>}
@@ -132,14 +132,32 @@ const EnrolledCourses = () => {
                             })}
                         </div>
                     ) : (
-                        <div className="bg-white rounded-3xl border border-slate-200 border-dashed p-12 text-center flex flex-col items-center">
-                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                                <BookOpen size={32} className="text-slate-400" />
+                        <div className="animate-fade-in-up relative overflow-hidden bg-gradient-to-br from-white to-indigo-50/60 rounded-3xl border border-indigo-100 p-8 sm:p-12 text-center flex flex-col items-center">
+                            <div className="drift absolute -top-10 -right-10 w-48 h-48 bg-indigo-200/30 rounded-full blur-3xl pointer-events-none"></div>
+                            <div className="animate-pop-in relative w-20 h-20 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-indigo-500/30">
+                                <BookOpen size={34} className="text-white" />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-800 mb-2">No active enrollments</h3>
-                            <p className="text-slate-500 max-w-sm mb-6">
-                                You are currently not enrolled in any courses. Please contact your administrator if you believe this is a mistake.
+                            <h3 className="relative text-xl sm:text-2xl font-bold text-slate-800 mb-2">Nothing enrolled yet</h3>
+                            <p className="relative text-slate-600 max-w-md mb-6">
+                                Once you're enrolled, your courses live here with your progress on each one. Have a
+                                look at what's available, or pick up your Career Path in the meantime.
                             </p>
+                            <div className="relative flex flex-wrap items-center justify-center gap-3">
+                                <Link
+                                    to="/"
+                                    className="lift inline-flex items-center gap-2 px-6 py-3 min-h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/25 transition-colors"
+                                >
+                                    <BookOpen size={18} />
+                                    Browse courses
+                                </Link>
+                                <Link
+                                    to="/career"
+                                    className="inline-flex items-center gap-2 px-6 py-3 min-h-12 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors"
+                                >
+                                    <Compass size={18} />
+                                    See my path
+                                </Link>
+                            </div>
                         </div>
                     )
                 ) : (

@@ -16,6 +16,8 @@ export function CardHeader({ icon: Icon, title, subtitle, action, accent = 'bran
   // stat tiles, so a card header and a stat tile read as one system. Gradients
   // with coloured shadows were dropped: they cost a blur rasterisation each.
   const accents = {
+    journey: 'bg-journey-50 text-journey-600 ring-journey-100',
+    pink: 'bg-pink-50 text-pink-600 ring-pink-100',
     brand: 'bg-brand-50 text-link ring-brand-100',
     emerald: 'bg-emerald-50 text-emerald-600 ring-emerald-100',
     amber: 'bg-amber-50 text-amber-600 ring-amber-100',

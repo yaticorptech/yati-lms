@@ -18,6 +18,16 @@ const { lastRun, claimRun, markRun } = require("../services/stateService.js");
 
 const router = express.Router();
 
+const OpportunityProfile = require("../models/OpportunityProfile");
+const { ageFrom, bandFor } = require("../services/eligibilityRules");
+
+/** True when the student's opportunity profile puts them under 18. */
+const isMinor = async (userId) => {
+  const profile = await OpportunityProfile.findOne({ userId }).select("dateOfBirth").lean();
+  const band = bandFor(ageFrom(profile?.dateOfBirth));
+  return !!band && band.id !== "adult";
+};
+
 /** Candidate pool size pulled from Mongo before in-memory scoring. */
 const POOL_LIMIT = 600;
 
@@ -568,6 +578,16 @@ router.post("/recommend", async (req, res, next) => {
     if (!isConnected()) {
       return res.status(503).json({
         error: "Database unavailable. Start MongoDB or set MONGODB_URI, then retry.",
+      });
+    }
+
+    // The scraped board carries no age data, so it is closed to anyone whose
+    // opportunity profile says they are under 18 — at the API, not only in
+    // the UI that hides the tab. See services/eligibilityRules.js.
+    if (await isMinor(req.user._id)) {
+      return res.status(403).json({
+        code: "JOBS_MINOR",
+        error: "The global job board is for students aged 18 and over. Your Opportunities tab has what's open to you.",
       });
     }
 

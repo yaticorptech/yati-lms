@@ -583,7 +583,7 @@ const CourseEditor = () => {
                                 </label>
                                 {thumbError && <p className="text-xs text-red-500 mt-1">{thumbError}</p>}
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Price (₹) <span className="text-slate-400 font-normal text-xs">— 0 = Free</span></label>
                                     <input type="number" min="0" value={courseModal.data.price ?? 0} onChange={e => setCourseModal(prev => ({ ...prev, data: { ...prev.data, price: e.target.value === '' ? 0 : Number(e.target.value) } }))} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium text-slate-800" placeholder="0" />

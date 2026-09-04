@@ -36,6 +36,17 @@ export function levelProgress(xp = 0, level = 1) {
   return {
     into,
     span,
+    // The same progress said the other way: the student's running total, and
+    // the total the next level begins at.
+    //
+    // Both framings are correct and the app used to mix them — the calendar
+    // hero said "90 / 200 XP" while the sidebar beside it said "190 / 300 XP"
+    // for the same student at the same moment, which reads as a bug whichever
+    // one you trust. Every "X / Y XP" in the app now uses this pair; `into`
+    // and `span` stay for the bars, which need a proportion rather than a
+    // label.
+    xp: safeXp,
+    ceiling,
     remaining: Math.max(0, ceiling - safeXp),
     nextLevel: safeLevel + 1,
     percent: Math.max(0, Math.min(100, Math.round((into / span) * 100)))
@@ -138,4 +149,45 @@ export function greeting(date = new Date()) {
   if (hour < 12) return 'Good morning';
   if (hour < 17) return 'Good afternoon';
   return 'Good evening';
+}
+
+/**
+ * Quests finished in the last seven days, against the seven before that.
+ *
+ * A weekly goal needs a number to aim at, and this product has none to give:
+ * the plan is one task a day, nobody sets a weekly target, and the server
+ * stores no such thing. Inventing "5 this week" would be a target the student
+ * never agreed to and the data cannot justify.
+ *
+ * So the comparison is against their own previous week. It is a real figure,
+ * it moves for reasons they control, and beating it is a goal they set by
+ * turning up — which is the only honest weekly loop available here.
+ *
+ * Rolling windows rather than calendar weeks, so it lines up with the "last 7
+ * days" strip beside it and needs no decision about which day a week starts on.
+ */
+export function weeklyMomentum(tasks = []) {
+  const today = new Date();
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+  const todayStart = startOfDay(today);
+  const dayMs = 86400000;
+  const recentFrom = todayStart - 6 * dayMs;
+  const priorFrom = todayStart - 13 * dayMs;
+
+  let recent = 0;
+  let prior = 0;
+
+  for (const task of tasks) {
+    if (task.status !== 'Completed') continue;
+    const when = task.completedAt || task.updatedAt || task.createdAt;
+    if (!when) continue;
+    const at = startOfDay(new Date(when));
+    if (Number.isNaN(at)) continue;
+
+    if (at >= recentFrom && at <= todayStart) recent += 1;
+    else if (at >= priorFrom && at < recentFrom) prior += 1;
+  }
+
+  return { recent, prior, ahead: recent - prior };
 }

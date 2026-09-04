@@ -72,7 +72,7 @@ export default function LevelRing({ level = 1, percent = 0, size = 108, light = 
 
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span
-          className={`text-[0.58rem] font-bold tracking-[0.16em] uppercase ${
+          className={`text-[0.68rem] font-bold tracking-[0.16em] uppercase ${
             light ? 'text-white/50' : 'text-ink-400'
           }`}
         >

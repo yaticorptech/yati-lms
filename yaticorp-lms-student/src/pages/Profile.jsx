@@ -1,9 +1,21 @@
-import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
+import CertificatesFrame from '../components/CertificatesFrame';
+import ResumeSection from '../components/ResumeSection';
 import Cropper from 'react-easy-crop';
-import { User, CreditCard, Mail, Phone, Award, Download, Loader2, Edit2, Check, X, Camera, ZoomIn, ZoomOut, Compass, Zap, ArrowRight } from 'lucide-react';
+import {
+    CreditCard, Mail, Phone, Award, Loader2, Edit2, Check, X, Camera, ZoomIn, ZoomOut, Compass, ArrowRight,
+    Flame, Gem, Coins, BookOpen, PlayCircle, CalendarDays, Upload, Trash2, Sparkles
+} from 'lucide-react';
+import { levelProgress, currentStreak, recentActivity } from '../career/utils/progress';
+import { StatTile, ProgressRing, ActivityStrip, SpeechBubble } from '../components/ProfileWidgets';
+import ProfileHeroArt from '../components/ProfileHeroArt';
+import { useRewards } from '../context/useRewards';
+import ProgressCard from '../components/rewards/ProgressCard';
+import LeaderboardCard from '../components/rewards/LeaderboardCard';
+import WalletCard from '../components/rewards/WalletCard';
 
 // Helper: convert crop area to a cropped blob
 const getCroppedBlob = (imageSrc, pixelCrop) =>
@@ -20,13 +32,44 @@ const getCroppedBlob = (imageSrc, pixelCrop) =>
         };
     });
 
+// Ready-made avatars for students who would rather not upload a photo,
+// grouped the way people look for them: boys, girls, kids, and elders.
+// The tiles are flat vector illustrations in pastel circles, shipped with
+// the app under public/avatars/<group>/<n>.png. Elders are middle-aged
+// uncles and aunties rather than grandparents. The server turns the
+// relative path into an absolute URL on save so the same picture also
+// shows in the admin panel.
+const AVATAR_GROUPS = [
+    { id: 'boys', label: 'Boys', count: 6 },
+    { id: 'girls', label: 'Girls', count: 6 },
+    { id: 'kids', label: 'Kids', count: 6 },
+    { id: 'elders', label: 'Elders', count: 9 },
+].map(g => ({ ...g, tiles: Array.from({ length: g.count }, (_, i) => `/avatars/${g.id}/${i + 1}.jpg`) }));
+
 const Profile = () => {
     const { user, setUser, isCareerPathEnabled } = useContext(AuthContext);
+    // Streak, XP, rank, badges and wallet from the rewards system. Null while
+    // loading or when an admin has locked the section; the page then falls
+    // back to the Career Path numbers it always showed.
+    const rewards = useRewards();
+    const rw = rewards.enabled ? rewards.summary : null;
+    // The stat cards link to #leaderboard / #wallet on this page; client-side
+    // routing does not scroll to a hash on its own.
+    const { hash } = useLocation();
+    useEffect(() => {
+        if (!hash) return;
+        const el = document.getElementById(hash.slice(1));
+        if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    }, [hash, rw]);
     const [certificates, setCertificates] = useState([]);
     // Career Path standing. Fetched here so the profile shows one student rather
     // than two: credits are earned in courses, XP and levels in Career Path, and
     // until now neither page mentioned the other's existence.
     const [career, setCareer] = useState(null);
+    // Courses with progress, for "continue where you left off"; Career Path
+    // task history, for the streak and the week's activity dots.
+    const [courses, setCourses] = useState([]);
+    const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [downloadingId, setDownloadingId] = useState(null);
     const [certError, setCertError] = useState(null);
@@ -41,6 +84,15 @@ const Profile = () => {
     // Profile picture
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const photoInputRef = useRef(null);
+
+    // Photo chooser: upload a photo, or pick a ready-made avatar instead
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [avatarGroup, setAvatarGroup] = useState(AVATAR_GROUPS[0].id);
+    const [selectedAvatar, setSelectedAvatar] = useState(null);
+    // Avatar pictures that failed to load, so their tiles drop out instead of
+    // showing a broken image.
+    const [brokenAvatars, setBrokenAvatars] = useState([]);
+    const [savingAvatar, setSavingAvatar] = useState(false);
 
     // Photo viewer
     const [viewingPhoto, setViewingPhoto] = useState(false);
@@ -58,6 +110,14 @@ const Profile = () => {
                 api.get('/user/profile')
                     .then(r => setCareer(r.data?.user || null))
                     .catch(() => setCareer(null));
+                api.get('/user/courses')
+                    .then(r => setCourses(Array.isArray(r.data?.courses) ? r.data.courses : []))
+                    .catch(() => setCourses([]));
+                if (isCareerPathEnabled) {
+                    api.get('/career/tasks/history')
+                        .then(r => setHistory(Array.isArray(r.data) ? r.data : []))
+                        .catch(() => setHistory([]));
+                }
                 const res = await api.get('/certificates');
                 setCertificates(res.data);
             } catch (err) {
@@ -67,6 +127,7 @@ const Profile = () => {
             }
         };
         fetchCertificates();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const openEdit = () => {
@@ -118,6 +179,29 @@ const Profile = () => {
         }
     };
 
+    // Save a picture URL straight to the profile: a chosen avatar, or '' to
+    // go back to initials. No upload involved, so it goes through PUT /profile.
+    const savePictureUrl = async (profilePicture) => {
+        setSavingAvatar(true);
+        try {
+            const res = await api.put('/user/profile', { profilePicture });
+            const updated = { ...user, ...res.data };
+            setUser(updated);
+            localStorage.setItem('studentData', JSON.stringify(updated));
+            setPickerOpen(false);
+            setSelectedAvatar(null);
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to update photo. Please try again.');
+        } finally {
+            setSavingAvatar(false);
+        }
+    };
+
+    const openPicker = () => {
+        setSelectedAvatar(null);
+        setPickerOpen(true);
+    };
+
     // Step 1: user picks a file → open crop modal
     const handlePhotoSelect = (e) => {
         const file = e.target.files?.[0];
@@ -125,7 +209,7 @@ const Profile = () => {
         if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
         if (file.size > 10 * 1024 * 1024) { alert('Image must be under 10MB.'); return; }
         const reader = new FileReader();
-        reader.onload = () => { setCropSrc(reader.result); setCrop({ x: 0, y: 0 }); setZoom(1); };
+        reader.onload = () => { setPickerOpen(false); setCropSrc(reader.result); setCrop({ x: 0, y: 0 }); setZoom(1); };
         reader.readAsDataURL(file);
         e.target.value = '';
     };
@@ -182,155 +266,148 @@ const Profile = () => {
     const getInitials = (name = '') =>
         name.trim().split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
+    const firstName = (user?.name || 'there').trim().split(' ')[0];
+    const level = Math.max(1, Number(career?.level) || 1);
+    const xp = Number(career?.xp) || 0;
+    const ring = levelProgress(xp, level);
+    const careerStreak = useMemo(() => currentStreak(history), [history]);
+    const streak = rw ? rw.streak.current : careerStreak;
+    const week = useMemo(() => recentActivity(history, 7).map((d) => ({ ...d, dayNum: Number(d.key.slice(-2)) })), [history]);
+    const activeThisWeek = week.filter((d) => d.active).length;
+    const inProgress = useMemo(() => courses
+        .filter((c) => c.progress > 0 && c.progress < 100)
+        .sort((a, b) => b.progress - a.progress)
+        .slice(0, 3), [courses]);
+    const completedCourses = courses.filter((c) => c.progress >= 100).length;
+    const hour = new Date().getHours();
+    const dayGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+    /* What the mascot says: the streak when there is one, the next level
+       when there isn't, a nudge when nothing has started. */
+    const bubble = streak >= 2
+        ? <>You&apos;re on fire! 🔥 Keep the <strong>{streak}-day</strong> streak going!</>
+        : inProgress[0]
+            ? <>Pick up <strong>{inProgress[0].title}</strong> — you&apos;re {inProgress[0].progress}% of the way there.</>
+            : xp > 0
+                ? <><strong>{ring.remaining} XP</strong> to level {ring.nextLevel}. One task today does it.</>
+                : <>Welcome! Start a course today and your first certificate is on its way. ✨</>;
+
     return (
-        <div className="space-y-8 animate-fade-in relative z-0 max-w-4xl mx-auto">
+        <div className="space-y-6 animate-fade-in relative z-0 w-full">
             {/* Floating success toast */}
             {saveSuccess && (
                 <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[200] bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl font-bold text-sm flex items-center gap-2">
                     <Check size={16} /> Profile updated successfully!
                 </div>
             )}
-            {/* Profile Card */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm relative overflow-hidden">
-                <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-50 rounded-full blur-3xl pointer-events-none" />
+            {/* ── Hero: greeting, avatar, mascot line, contact ─────────── */}
+            <div className="sheen relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-500 p-6 text-white shadow-xl shadow-indigo-200 sm:p-8">
+                <div aria-hidden="true" className="drift pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/15 blur-2xl" />
+                <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-fuchsia-300/30 blur-3xl" />
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.12)_1px,transparent_1px)] bg-[size:20px_20px] [mask-image:radial-gradient(ellipse_at_top_left,black,transparent_70%)]" />
+                <span aria-hidden="true" className="absolute right-10 top-6 text-xl text-amber-200">✦</span>
+                <span aria-hidden="true" className="absolute right-24 top-16 text-sm text-white/70">✦</span>
 
-                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 relative z-10">
-                    {/* Avatar with upload */}
-                    <div className="relative flex-shrink-0">
-                        <div
-                            className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-white shadow-lg overflow-hidden bg-indigo-100 flex items-center justify-center cursor-pointer"
-                            onClick={() => user?.profilePicture && setViewingPhoto(true)}
-                            title={user?.profilePicture ? 'Click to view photo' : ''}
-                        >
-                            {user?.profilePicture ? (
-                                <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover hover:opacity-90 transition-opacity" />
-                            ) : (
-                                <span className="text-3xl font-bold text-indigo-600">{getInitials(user?.name)}</span>
-                            )}
+                {/* The illustration bleeds to the card's right edge; the text keeps clear of it on wide screens. */}
+                <ProfileHeroArt className="pointer-events-none absolute -bottom-2 right-0 hidden h-[calc(100%+8px)] w-auto lg:block animate-fade-in" />
+
+                {/* The card's own corner, clear of the illustration. */}
+                {!editing && (
+                    <button
+                        onClick={openEdit}
+                        className="absolute right-5 top-5 z-20 inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/30 backdrop-blur transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    >
+                        <Edit2 size={14} /> Edit Profile
+                    </button>
+                )}
+
+                <div className="relative flex flex-col gap-6 md:flex-row md:items-start lg:pr-[300px] xl:pr-[340px]">
+                    {/* Avatar with a slowly turning ring */}
+                    <div className="relative mx-auto shrink-0 md:mx-0">
+                        <div className="profile-ring rounded-full p-1">
+                            <div
+                                className="h-28 w-28 cursor-pointer overflow-hidden rounded-full border-4 border-white bg-indigo-100 shadow-lg sm:h-32 sm:w-32"
+                                onClick={() => user?.profilePicture && setViewingPhoto(true)}
+                                title={user?.profilePicture ? 'Click to view photo' : ''}
+                            >
+                                {user?.profilePicture ? (
+                                    <img src={user.profilePicture} alt={user.name} className="h-full w-full object-cover transition-opacity hover:opacity-90" />
+                                ) : (
+                                    <span className="flex h-full w-full items-center justify-center text-3xl font-black text-indigo-600">{getInitials(user?.name)}</span>
+                                )}
+                            </div>
                         </div>
-                        {/* Camera button */}
                         <button
-                            onClick={() => photoInputRef.current?.click()}
+                            onClick={openPicker}
                             disabled={uploadingPhoto}
-                            className="absolute bottom-0 right-0 w-8 h-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-md transition-colors disabled:opacity-60"
-                            title="Change photo"
+                            className="absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-full bg-white text-indigo-600 shadow-md transition-transform hover:scale-110 disabled:opacity-60"
+                            title="Change photo or avatar" aria-label="Change photo or avatar"
                         >
-                            {uploadingPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                            {uploadingPhoto ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
                         </button>
                         <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
+                        <span className="absolute -left-2 top-2 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-950 shadow">Lv {level}</span>
                     </div>
 
-                    {/* Info / Edit form */}
-                    <div className="flex-1 w-full text-center sm:text-left">
+                    <div className="min-w-0 flex-1">
                         {!editing ? (
                             <>
-                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-                                    <div>
-                                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">{user?.name}</h1>
-                                        <div className="flex items-center justify-center sm:justify-start gap-1.5 mt-1 text-slate-500 text-sm">
-                                            <CreditCard size={14} />
-                                            <span>Student Card ID:</span>
-                                            <span className="font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-xs">{user?.cardNumber}</span>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={openEdit}
-                                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-sm transition-colors self-center sm:self-start"
-                                    >
-                                        <Edit2 size={14} /> Edit Profile
-                                    </button>
-                                </div>
-
-                                {saveSuccess && null}
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                    <div className="flex items-center gap-3 text-slate-600 text-sm">
-                                        <Mail size={15} className="text-slate-400 flex-shrink-0" />
-                                        <span className="truncate">{user?.email || 'No email provided'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-slate-600 text-sm">
-                                        <Phone size={15} className="text-slate-400 flex-shrink-0" />
-                                        <span>{user?.phone || 'No phone provided'}</span>
-                                    </div>
+                                <p className="text-sm font-semibold text-indigo-100">{dayGreeting} 👋</p>
+                                <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">Hello, {firstName}!</h1>
+                                <div className="mt-4 text-slate-900"><SpeechBubble>{bubble}</SpeechBubble></div>
+                                <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 ring-1 ring-white/25"><CreditCard size={13} /> <span className="font-mono">{user?.cardNumber}</span></span>
+                                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 ring-1 ring-white/25"><Mail size={13} /> <span className="truncate">{user?.email || 'No email yet'}</span></span>
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 ring-1 ring-white/25"><Phone size={13} /> {user?.phone || 'No phone yet'}</span>
                                 </div>
                             </>
                         ) : (
-                            <div className="space-y-4 w-full">
-                                <div className="flex items-center justify-between mb-1">
+                            <div className="w-full space-y-4 rounded-2xl bg-white p-5 text-slate-800 shadow-lg animate-pop-in">
+                                <div className="mb-1 flex items-center justify-between">
                                     <h2 className="font-bold text-slate-800">Edit Profile</h2>
-                                    <button onClick={() => setEditing(false)} className="text-slate-400 hover:text-slate-600 p-1">
-                                        <X size={18} />
-                                    </button>
+                                    <button onClick={() => setEditing(false)} className="p-1 text-slate-400 hover:text-slate-600" aria-label="Close"><X size={18} /></button>
                                 </div>
 
                                 {formErrors.api && (
-                                    <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">{formErrors.api}</div>
+                                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{formErrors.api}</div>
                                 )}
 
-                                {/* Name */}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-1">Full Name <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="text"
-                                        maxLength={60}
-                                        value={form.name}
-                                        onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setFormErrors(p => ({ ...p, name: '' })); }}
-                                        className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.name ? 'border-red-400' : 'border-slate-300'}`}
-                                        placeholder="Your full name"
-                                    />
-                                    {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
-                                </div>
-
-                                {/* Email */}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-1">Email Address <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="email"
-                                        value={form.email}
-                                        onChange={e => { setForm(p => ({ ...p, email: e.target.value })); setFormErrors(p => ({ ...p, email: '' })); }}
-                                        className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.email ? 'border-red-400' : 'border-slate-300'}`}
-                                        placeholder="you@example.com"
-                                    />
-                                    {formErrors.email && <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>}
-                                </div>
-
-                                {/* Phone */}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-1">Phone Number <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="tel"
-                                        value={form.phone}
-                                        maxLength={16}
-                                        onChange={e => { setForm(p => ({ ...p, phone: e.target.value })); setFormErrors(p => ({ ...p, phone: '' })); }}
-                                        className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.phone ? 'border-red-400' : 'border-slate-300'}`}
-                                        placeholder="+91 98765 43210"
-                                    />
-                                    {formErrors.phone && <p className="text-xs text-red-500 mt-1">{formErrors.phone}</p>}
-                                </div>
-
-                                {/* Card ID — read only */}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-1">Student Card ID <span className="text-slate-400 font-normal">(not editable)</span></label>
-                                    <input
-                                        type="text"
-                                        value={user?.cardNumber || ''}
-                                        readOnly
-                                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-500 font-mono cursor-not-allowed"
-                                    />
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <div>
+                                        <label className="mb-1 block text-xs font-bold text-slate-600">Full Name <span className="text-red-500">*</span></label>
+                                        <input type="text" maxLength={60} value={form.name}
+                                            onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setFormErrors(p => ({ ...p, name: '' })); }}
+                                            className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.name ? 'border-red-400' : 'border-slate-300'}`}
+                                            placeholder="Your full name" />
+                                        {formErrors.name && <p className="mt-1 text-xs text-red-500">{formErrors.name}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-bold text-slate-600">Email Address <span className="text-red-500">*</span></label>
+                                        <input type="email" value={form.email}
+                                            onChange={e => { setForm(p => ({ ...p, email: e.target.value })); setFormErrors(p => ({ ...p, email: '' })); }}
+                                            className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.email ? 'border-red-400' : 'border-slate-300'}`}
+                                            placeholder="you@example.com" />
+                                        {formErrors.email && <p className="mt-1 text-xs text-red-500">{formErrors.email}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-bold text-slate-600">Phone Number <span className="text-red-500">*</span></label>
+                                        <input type="tel" value={form.phone} maxLength={16}
+                                            onChange={e => { setForm(p => ({ ...p, phone: e.target.value })); setFormErrors(p => ({ ...p, phone: '' })); }}
+                                            className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${formErrors.phone ? 'border-red-400' : 'border-slate-300'}`}
+                                            placeholder="+91 98765 43210" />
+                                        {formErrors.phone && <p className="mt-1 text-xs text-red-500">{formErrors.phone}</p>}
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-bold text-slate-600">Student Card ID <span className="font-normal text-slate-400">(not editable)</span></label>
+                                        <input type="text" value={user?.cardNumber || ''} readOnly
+                                            className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-500" />
+                                    </div>
                                 </div>
 
                                 <div className="flex gap-3 pt-1">
-                                    <button
-                                        onClick={() => setEditing(false)}
-                                        className="flex-1 py-2 border border-slate-200 text-slate-600 font-bold rounded-xl text-sm hover:bg-slate-50 transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleSave}
-                                        disabled={saving}
-                                        className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                                    >
+                                    <button onClick={() => setEditing(false)} className="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50">Cancel</button>
+                                    <button onClick={handleSave} disabled={saving}
+                                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60">
                                         {saving ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : <><Check size={14} /> Save Changes</>}
                                     </button>
                                 </div>
@@ -340,101 +417,102 @@ const Profile = () => {
                 </div>
             </div>
 
-            {/* Two scores, one student.
-                Credits come from course quizzes and are the LMS's own measure;
-                XP and levels come from Career Path. Showing them side by side —
-                and saying plainly what each is for — was the alternative to
-                fusing them into one number, which would have let an unbounded
-                source (a student can ask Career Path for more tasks whenever
-                they like) inflate a figure the LMS treats as earned. */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                <h2 className="text-lg font-bold text-slate-800 mb-4">Your progress</h2>
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
-                        <div className="flex items-center gap-2 mb-1.5">
-                            <span className="bg-amber-100 text-amber-600 p-1.5 rounded-lg"><Award size={15} /></span>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Credits</p>
-                        </div>
-                        <p className="text-3xl font-bold text-slate-800 tabular-nums">{user?.credits || 0}</p>
-                        <p className="text-xs text-slate-500 mt-1">Earned from course quizzes, once per quiz.</p>
-                    </div>
+            {/* ── Stat tiles (Career Path numbers, shown only when rewards are locked;
+                   otherwise the progress + leaderboard block below carries them) ── */}
+            {!rw && (
+            <div className="stagger grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+                <StatTile tone="amber" icon={Coins} value={xp} label="Current XP" sub={`${ring.remaining} XP to level ${ring.nextLevel}`} emoji="🪙" to={isCareerPathEnabled ? '/career' : undefined} />
+                <StatTile tone="sky" icon={Gem} value={level} label="Your level" sub={isCareerPathEnabled ? 'From Career Path tasks' : 'Levels come from Career Path'} percent={ring.percent} to={isCareerPathEnabled ? '/career' : undefined} />
+                <StatTile tone="orange" icon={Flame} value={streak} suffix={streak === 1 ? ' day' : ' days'} label="Streak" sub={streak ? 'Keep it alive today' : 'Finish a task to start one'} emoji="🔥" to={isCareerPathEnabled ? '/career/planner' : undefined} />
+                <StatTile tone="rose" icon={Award} value={user?.credits || 0} label="Credits" sub="Earned from course quizzes" emoji="🏅" />
+            </div>
+            )}
 
-                    {/* Goes with the sidebar tab when an admin locks the
-                        section — a card that links somewhere the student is
-                        bounced straight back from is worse than no card. */}
-                    {isCareerPathEnabled && (
-                    <Link
-                        to="/career"
-                        className="group rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 transition-colors hover:border-indigo-300"
-                    >
-                        <div className="flex items-center gap-2 mb-1.5">
-                            <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg"><Compass size={15} /></span>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Career Path</p>
-                            <ArrowRight size={14} className="ml-auto text-indigo-400 transition-transform group-hover:translate-x-0.5" />
+            {/* ── Your progress, then leaderboard beside wallet ─────────── */}
+            {rw && (
+                <>
+                    <ProgressCard summary={rw} courses={courses} />
+                    <div className="grid gap-4 xl:grid-cols-2">
+                        <LeaderboardCard courses={courses} />
+                        <WalletCard />
+                    </div>
+                </>
+            )}
+
+            {/* ── Continue learning + this week ────────────────────────── */}
+            <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="mb-4">
+                        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><BookOpen size={18} className="text-indigo-500" /> Course progress</h2>
+                        <p className="text-sm text-slate-500">Continue where you left off</p>
+                    </div>
+                    {inProgress.length ? (
+                        <ul className="stagger space-y-3">
+                            {inProgress.map((c, i) => (
+                                <li key={c._id} className="group flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-white hover:shadow-md">
+                                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-black text-white shadow-md ${['bg-indigo-500', 'bg-fuchsia-500', 'bg-sky-500'][i % 3]}`}>
+                                        {getInitials(c.title)}
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate font-bold text-slate-800">{c.title}</p>
+                                        <p className="text-xs text-slate-500">{c.completedLessons || 0} lesson{c.completedLessons === 1 ? '' : 's'} done · {c.progress}% complete</p>
+                                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                                            <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 transition-[width] duration-1000 ease-out" style={{ width: `${c.progress}%` }} />
+                                        </div>
+                                    </div>
+                                    <ProgressRing percent={c.progress} size={48} stroke={5} label={`${c.progress}% complete`}>
+                                        <span className="text-[11px] font-black tabular-nums text-slate-700">{c.progress}%</span>
+                                    </ProgressRing>
+                                    <Link to={`/learn/${c._id}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 group-hover:translate-x-0.5">
+                                        <PlayCircle size={14} /> Continue
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 p-6 text-center sm:flex-row sm:text-left">
+                            <span className="text-4xl drift" aria-hidden="true">🚀</span>
+                            <div className="flex-1">
+                                <p className="font-bold text-slate-800">{completedCourses ? 'Everything you started is finished!' : 'Nothing in progress yet'}</p>
+                                <p className="text-sm text-slate-500">{completedCourses ? `${completedCourses} course${completedCourses === 1 ? '' : 's'} completed — start the next one.` : 'Pick a course and your progress shows up here.'}</p>
+                            </div>
+                            <Link to="/enrolled-courses" className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700">Browse courses <ArrowRight size={14} /></Link>
                         </div>
-                        <p className="text-3xl font-bold text-slate-800 tabular-nums">
-                            Level {career?.level || 1}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                            <Zap size={11} className="text-amber-500" />
-                            {career?.xp || 0} XP from finishing your daily tasks.
-                        </p>
-                    </Link>
                     )}
+                </div>
+
+                <div className="relative overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-5 shadow-sm">
+                    <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-amber-200/50 blur-2xl" />
+                    <div className="relative">
+                        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><CalendarDays size={18} className="text-amber-500" /> Weekly activity</h2>
+                        <p className="mb-4 text-sm text-slate-500">{isCareerPathEnabled ? `${activeThisWeek} active day${activeThisWeek === 1 ? '' : 's'} this week` : 'Turn on Career Path to track daily activity'}</p>
+                        <ActivityStrip days={week} />
+                        <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+                            <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{streak}</p><p className="text-[11px] font-semibold text-slate-500">🔥 Streak</p></div>
+                            <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{completedCourses}</p><p className="text-[11px] font-semibold text-slate-500">🎓 Completed</p></div>
+                            <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{certificates.length}</p><p className="text-[11px] font-semibold text-slate-500">🏆 Certificates</p></div>
+                        </div>
+                        {isCareerPathEnabled && (
+                            <Link to="/career" className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-2.5 text-sm font-bold text-white transition-colors hover:bg-slate-800">
+                                <Compass size={15} /> Open Career Path <ArrowRight size={14} />
+                            </Link>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* Certificates */}
-            <div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
-                    <span className="bg-emerald-100 text-emerald-600 p-2 rounded-lg mr-3">
-                        <Award size={20} />
-                    </span>
-                    My Certificates
-                </h2>
 
-                {loading ? (
-                    <div className="flex justify-center p-8 text-slate-500">Loading records...</div>
-                ) : certificates.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {certError && (
-                            <div className="col-span-full bg-red-50 text-red-600 border border-red-100 rounded-xl p-4 text-sm font-medium">
-                                {certError}
-                            </div>
-                        )}
-                        {certificates.map(cert => (
-                            <div key={cert._id} className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col items-center text-center shadow-sm hover:shadow-md transition-all group">
-                                <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-600 rounded-full flex items-center justify-center mb-4 ring-8 ring-emerald-50 group-hover:scale-110 transition-transform">
-                                    <Award size={32} />
-                                </div>
-                                <h3 className="font-bold text-lg text-slate-800 mb-1">{cert.courseId?.title}</h3>
-                                <p className="text-xs text-slate-500 mb-6">Issued on {new Date(cert.createdAt).toLocaleDateString()}</p>
-                                <button
-                                    onClick={() => handleDownloadCertificate(cert)}
-                                    disabled={downloadingId === cert._id}
-                                    className="w-full mt-auto flex items-center justify-center py-2.5 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 text-slate-700 hover:text-emerald-700 font-bold rounded-lg transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {downloadingId === cert._id ? (
-                                        <><Loader2 size={16} className="mr-2 animate-spin" /> Downloading...</>
-                                    ) : (
-                                        <><Download size={16} className="mr-2" /> Download PDF</>
-                                    )}
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="bg-white rounded-3xl border border-slate-200 border-dashed p-12 text-center flex flex-col items-center">
-                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                            <Award size={24} className="text-slate-400" />
-                        </div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-2">No certificates yet</h3>
-                        <p className="text-slate-500 max-w-sm text-sm">
-                            Complete your courses to earn certificates. They will appear here for you to download.
-                        </p>
-                    </div>
-                )}
-            </div>
+            {/* Certificates — course-issued and uploaded, in one frame */}
+            <CertificatesFrame
+                certificates={certificates}
+                loading={loading}
+                certError={certError}
+                downloadingId={downloadingId}
+                onDownload={handleDownloadCertificate}
+            />
+
+            {/* Resume — the uploaded file, and the ATS resume built from courses */}
+            <ResumeSection />
 
             {/* ── Photo Viewer Modal ── */}
             {viewingPhoto && user?.profilePicture && (
@@ -455,6 +533,113 @@ const Profile = () => {
                             <X size={16} />
                         </button>
                         <p className="text-center text-white/70 text-sm mt-3 font-medium">{user.name}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Photo / Avatar Picker Modal ── */}
+            {pickerOpen && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+                    onClick={() => !savingAvatar && setPickerOpen(false)}
+                >
+                    <div
+                        className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                        onClick={e => e.stopPropagation()}
+                        role="dialog" aria-modal="true" aria-labelledby="picker-title"
+                    >
+                        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                            <h3 id="picker-title" className="font-bold text-slate-800">Change photo</h3>
+                            <button onClick={() => setPickerOpen(false)} disabled={savingAvatar} className="text-slate-400 hover:text-slate-600" aria-label="Close"><X size={18} /></button>
+                        </div>
+
+                        <div className="overflow-y-auto px-5 py-4">
+                            {/* Upload your own, or drop back to initials */}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => photoInputRef.current?.click()}
+                                    disabled={savingAvatar}
+                                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
+                                >
+                                    <Upload size={15} /> Upload a photo
+                                </button>
+                                {user?.profilePicture && (
+                                    <button
+                                        onClick={() => savePictureUrl('')}
+                                        disabled={savingAvatar}
+                                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                                        title="Remove photo and show initials"
+                                    >
+                                        <Trash2 size={15} /> Remove
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="my-4 flex items-center gap-3 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                                <span className="h-px flex-1 bg-slate-200" />
+                                <span className="flex items-center gap-1"><Sparkles size={12} /> or pick an avatar</span>
+                                <span className="h-px flex-1 bg-slate-200" />
+                            </div>
+
+                            {/* Group chips: boys, girls, kids, elders */}
+                            <div className="flex flex-wrap gap-1.5">
+                                {AVATAR_GROUPS.map(g => (
+                                    <button
+                                        key={g.id}
+                                        onClick={() => { setAvatarGroup(g.id); setSelectedAvatar(null); }}
+                                        className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${avatarGroup === g.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                    >
+                                        {g.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Avatar grid */}
+                            {(AVATAR_GROUPS.find(g => g.id === avatarGroup) || AVATAR_GROUPS[0]).tiles.every((u) => brokenAvatars.includes(u)) && (
+                                <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                    The ready-made avatars are not available on this server. Upload a photo instead.
+                                </p>
+                            )}
+                            <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
+                                {(AVATAR_GROUPS.find(g => g.id === avatarGroup) || AVATAR_GROUPS[0]).tiles.filter((u) => !brokenAvatars.includes(u)).map((url, i) => {
+                                    // The saved picture may be the absolute form of this path.
+                                    const active = selectedAvatar === url || (!selectedAvatar && !!user?.profilePicture && user.profilePicture.endsWith(url));
+                                    return (
+                                        <button
+                                            key={url}
+                                            onClick={() => setSelectedAvatar(url)}
+                                            disabled={savingAvatar}
+                                            className={`relative aspect-square overflow-hidden rounded-full border-4 bg-white transition-transform hover:scale-105 ${active ? 'border-indigo-600 ring-2 ring-indigo-200' : 'border-transparent'}`}
+                                            aria-label={`Avatar ${i + 1}`}
+                                            aria-pressed={active}
+                                        >
+                                            <img src={url} alt="" loading="lazy" className="h-full w-full object-cover"
+                                                onError={() => setBrokenAvatars((b) => (b.includes(url) ? b : [...b, url]))} />
+                                            {active && (
+                                                <span className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"><Check size={12} /></span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
+                            <button
+                                onClick={() => setPickerOpen(false)}
+                                disabled={savingAvatar}
+                                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => selectedAvatar && savePictureUrl(selectedAvatar)}
+                                disabled={!selectedAvatar || savingAvatar}
+                                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {savingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Use this avatar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -333,12 +333,22 @@ export default function SettingsPage() {
         />
 
         {/* Says why the form is inert, so a locked field reads as deliberate
-            rather than as something that has failed to load. */}
+            rather than as something that has failed to load.
+
+            The sentence sits in one span rather than loose beside the icon.
+            `flex` turns every child into a flex item — including each bare
+            text node — so on a narrow screen this wrapped as three separate
+            boxes with gaps between them: "Locked while you read. Press" on one
+            line, "Edit profile" on the next and "to change anything." on a
+            third. Wrapped in a span it wraps like the sentence it is. */}
         {!editing && (
-          <p className="flex items-center gap-2 text-sm text-ink-500">
-            <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            Locked while you read. Press <span className="font-semibold text-ink-700">Edit
-            profile</span> to change anything.
+          <p className="flex items-start gap-2 text-sm text-ink-500">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              Locked while you read. Press{' '}
+              <span className="font-semibold whitespace-nowrap text-ink-700">Edit profile</span> to
+              change anything.
+            </span>
           </p>
         )}
 

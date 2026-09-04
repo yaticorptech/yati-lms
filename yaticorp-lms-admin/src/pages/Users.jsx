@@ -301,7 +301,12 @@ const Users = () => {
             name: user.name || '',
             email: user.email || '',
             phone: user.phone || '',
-            password: '' // Keep empty, only send if they want to change it
+            password: '', // Keep empty, only send if they want to change it
+            // Rewards: money eligibility and leaderboard cohorts
+            accountType: user.accountType || 'school_student',
+            walletAccess: user.walletAccess || 'default',
+            institution: user.institution || '',
+            className: user.className || ''
         });
         setShowEditModal(true);
     };
@@ -443,7 +448,8 @@ const Users = () => {
                 {loading ? (
                     <div className="p-8 text-center text-slate-500">Loading users...</div>
                 ) : (
-                    <table className="w-full text-left border-collapse">
+                    <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[720px]">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase">
                                 <th className="px-6 py-4 font-semibold">User Details</th>
@@ -495,6 +501,7 @@ const Users = () => {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 )}
             </div>
 
@@ -1005,6 +1012,35 @@ const Users = () => {
                                             }}
                                             className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                         />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                                    <div className="col-span-2 text-[11px] font-black uppercase tracking-wider text-slate-400 pt-2">Rewards &amp; wallet</div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1">Account type</label>
+                                        <select value={editUserForm.accountType || 'school_student'} onChange={e => setEditUserForm({ ...editUserForm, accountType: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+                                            <option value="school_student">School student</option>
+                                            <option value="college_student">College student</option>
+                                            <option value="adult">Adult</option>
+                                            <option value="professional">Professional</option>
+                                            <option value="instructor">Instructor</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1">Cash rewards</label>
+                                        <select value={editUserForm.walletAccess || 'default'} onChange={e => setEditUserForm({ ...editUserForm, walletAccess: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+                                            <option value="default">By account type (default)</option>
+                                            <option value="enabled">Always enabled</option>
+                                            <option value="disabled">Always disabled</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1">Institution</label>
+                                        <input type="text" placeholder="e.g. ABC College" value={editUserForm.institution || ''} onChange={e => setEditUserForm({ ...editUserForm, institution: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1">Class / batch</label>
+                                        <input type="text" placeholder="e.g. BCA 2nd year" value={editUserForm.className || ''} onChange={e => setEditUserForm({ ...editUserForm, className: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm" />
                                     </div>
                                 </div>
                                 <div>

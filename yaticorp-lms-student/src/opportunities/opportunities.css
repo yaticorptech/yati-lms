@@ -1,0 +1,60 @@
+/* Opportunities — the three motions the section owns. Everything else
+   (card entrance, skeletons, fades) comes from the shared vocabulary in
+   career.css: `.stagger`, `.skeleton`, `.animate-fade-in-up`. */
+
+/* ♡ pressed: the heart jumps once and settles. */
+@keyframes opp-heart {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.55); }
+  60%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+.opp-heart-pop { animation: opp-heart 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* A ring that grows out from behind the heart and fades. */
+@keyframes opp-burst {
+  from { transform: scale(0.4); opacity: 0.7; }
+  to   { transform: scale(2.2); opacity: 0; }
+}
+.opp-burst::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  animation: opp-burst 0.55s ease-out both;
+  pointer-events: none;
+}
+
+/* ✕ pressed: the card slides out to the right and lets go of its space. */
+@keyframes opp-leave {
+  to { opacity: 0; transform: translateX(48px) scale(0.96); }
+}
+.opp-card-leave {
+  animation: opp-leave 0.32s ease-in both;
+  pointer-events: none;
+}
+
+/* Undo bar rising from the bottom edge. */
+@keyframes opp-rise {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+.opp-rise { animation: opp-rise 0.28s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* The filter drawer: a sheet from the bottom on a phone, a panel from the
+   right once there is room. */
+@keyframes opp-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes opp-panel-in { from { transform: translateX(100%); } to { transform: none; } }
+.opp-sheet { animation: opp-sheet-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@media (min-width: 768px) {
+  .opp-sheet { animation-name: opp-panel-in; }
+}
+
+.opp-scroll { scrollbar-width: thin; }
+
+@media (prefers-reduced-motion: reduce) {
+  .opp-heart-pop, .opp-burst::before, .opp-card-leave, .opp-rise, .opp-sheet {
+    animation-duration: 0.01ms;
+  }
+}

@@ -7,6 +7,7 @@
  */
 import { useMemo, useRef, useState } from 'react';
 import { X, Plus } from 'lucide-react';
+import { FIELD_LABEL, FIELD_INPUT, FIELD_OK, FIELD_BAD } from './ui';
 
 export default function SkillInput({ value = [], options = [], popular = [], onChange, error }) {
     const [text, setText] = useState('');
@@ -54,14 +55,14 @@ export default function SkillInput({ value = [], options = [], popular = [], onC
 
     return (
         <div>
-            <label htmlFor="job-skills" className="block text-sm font-semibold text-slate-700 mb-1.5">
+            <label htmlFor="job-skills" className={FIELD_LABEL}>
                 Your skills <span className="text-rose-500">*</span>
             </label>
 
             {value.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
                     {value.map((skill) => (
-                        <span key={skill} className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg pl-3 pr-1.5 py-1 text-sm font-medium">
+                        <span key={skill} className="inline-flex min-h-10 items-center gap-1.5 bg-indigo-50/70 text-indigo-800 border border-indigo-200 rounded-xl pl-3.5 pr-1.5 py-2 text-sm font-semibold">
                             {skill}
                             <button type="button" onClick={() => remove(skill)} aria-label={`Remove ${skill}`}
                                 className="p-0.5 rounded hover:bg-indigo-100 text-indigo-400 hover:text-indigo-700 transition-colors">
@@ -83,9 +84,7 @@ export default function SkillInput({ value = [], options = [], popular = [], onC
                     onBlur={() => setTimeout(() => setOpen(false), 120)}
                     placeholder="Type a skill and press Enter"
                     autoComplete="off"
-                    className={`w-full px-4 py-2.5 rounded-xl border bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-colors ${
-                        error ? 'border-rose-300 focus:ring-rose-500/40' : 'border-slate-300 focus:ring-indigo-500/40 focus:border-indigo-500'
-                    }`}
+                    className={`${FIELD_INPUT} ${error ? FIELD_BAD : FIELD_OK}`}
                 />
                 {open && matches.length > 0 && (
                     <ul className="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg py-1">
@@ -109,7 +108,7 @@ export default function SkillInput({ value = [], options = [], popular = [], onC
                     <div className="flex flex-wrap gap-1.5">
                         {suggestions.map((s) => (
                             <button key={s} type="button" onClick={() => add(s)}
-                                className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-colors">
+                                className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg px-3 py-2 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 active:scale-[0.97] transition-all sm:min-h-9 sm:text-xs sm:px-2.5 sm:py-1">
                                 <Plus size={11} /> {s}
                             </button>
                         ))}

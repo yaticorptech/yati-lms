@@ -69,6 +69,10 @@ router.use(require('./middleware/featureGate').requireCareerPathEnabled);
 router.use('/goals', require('./routes/goalRoutes'));
 router.use('/roadmap', require('./routes/roadmapRoutes'));
 router.use('/tasks', require('./routes/taskRoutes'));
+// Read-only summary for the LMS dashboard's welcome panel. Mounted at the top
+// level rather than under /tasks so it cannot collide with /tasks/:id.
+router.use('/today', require('./routes/todayRoutes'));
+router.use('/activity', require('./routes/activityRoutes'));
 router.use('/skills', require('./routes/skillRoutes'));
 router.use('/achievements', require('./routes/achievementRoutes'));
 router.use('/badges', require('./routes/badgeRoutes'));
@@ -79,6 +83,8 @@ router.use('/study', require('./routes/studyRoutes'));
 router.use('/profile', require('./routes/profileRoutes'));
 // The student's own exams and events, typed in by hand.
 router.use('/events', require('./routes/calendarEventRoutes'));
+// The student's weekly college or school timetable, also typed in by hand.
+router.use('/timetable', require('./routes/timetableRoutes'));
 // Searched alongside the LMS's own course/lesson search by the sidebar, which
 // merges the two. Kept separate so the LMS never has to read career_* data.
 router.use('/search', require('./routes/searchRoutes'));

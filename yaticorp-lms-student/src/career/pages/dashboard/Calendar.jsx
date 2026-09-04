@@ -1,15 +1,19 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useContext } from 'react';
 import api from '../../services/api';
+import { AuthContext } from '../../context/AuthContext';
 import {
-  ChevronLeft, ChevronRight, CheckCircle2, Circle, SkipForward, CalendarDays,
-  Plus, Pencil, Trash2, Check
+  ChevronLeft, ChevronRight, CheckCircle2, Circle, SkipForward, CalendarDays, Plus, Pencil, Trash2, Check, CalendarClock
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
-import PageHeader from '../../components/ui/PageHeader';
 import EmptyState from '../../components/ui/EmptyState';
 import Button from '../../components/ui/Button';
 import { SkeletonPage } from '../../components/ui/Skeleton';
-import { monthBounds, monthLabel, monthIndexOfDate } from '../../utils/calendar';
+import { monthBounds, monthIndexOfDate } from '../../utils/calendar';
+import { currentStreak, greeting, levelProgress } from '../../utils/progress';
+import JourneyBanner from '../../components/journey/JourneyBanner';
+import MonthStats from '../../components/dashboard/MonthStats';
+import ComingUpNext from '../../components/dashboard/ComingUpNext';
+import TimetableCard from '../../components/dashboard/TimetableCard';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 
@@ -29,10 +33,11 @@ const dayKey = (date) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const STATUS_DOT = {
-  Completed: 'bg-emerald-500',
-  Skipped: 'bg-rose-400',
-  Pending: 'bg-brand-400'
+/** The day before `key`, in the same YYYY-MM-DD form. */
+const previousDayKey = (key) => {
+  const [year, month, day] = String(key).split('-').map(Number);
+  const d = new Date(year, month - 1, day - 1);
+  return dayKey(d);
 };
 
 /**
@@ -42,10 +47,11 @@ const STATUS_DOT = {
  * this page, and they used to render identically — so the square that decides
  * whether next week is frightening or free looked the same either way. Exams
  * take the loudest colour because they are what the page is opened to check.
+ *
+ * Kept as whole, literal class names: Tailwind scans source text for the
+ * classes it generates, so a name assembled at runtime is a name it never
+ * emits and the style would simply be missing in the build.
  */
-// Kept as whole, literal class names. Tailwind scans source text for the
-// classes it generates, so a name assembled at runtime is a name it never
-// emits — the style would simply be missing in the build.
 const EVENT_STYLE = {
   Exam: { bg: 'bg-rose-100', tint: 'bg-rose-50/60', text: 'text-rose-700', ring: 'ring-rose-200' },
   Assignment: { bg: 'bg-amber-100', tint: 'bg-amber-50/60', text: 'text-amber-800', ring: 'ring-amber-200' },
@@ -56,21 +62,30 @@ const EVENT_STYLE = {
 
 const styleFor = (type) => EVENT_STYLE[type] || EVENT_STYLE.Other;
 
-/** The day before `key`, in the same YYYY-MM-DD form. */
-const previousDayKey = (key) => {
-  const d = new Date(`${key}T00:00:00`);
-  d.setDate(d.getDate() - 1);
-  return dayKey(d);
+const STATUS_DOT = {
+  Completed: 'bg-emerald-500',
+  Skipped: 'bg-rose-400',
+  Pending: 'bg-indigo-500'
 };
 
 export default function CalendarView() {
+  const { user } = useContext(AuthContext);
   const [tasks, setTasks] = useState([]);
   // The student's own exams and events, kept apart from tasks: these are typed
   // in by hand and nothing but this page ever writes them.
   const [events, setEvents] = useState([]);
+  // The weekly timetable: college or school classes, typed in once and shown
+  // on whichever day of the week they fall.
+  const [timetable, setTimetable] = useState([]);
+  // What the big card shows: the month of learning, or the week of classes.
+  // Same card, same place — the student flips it rather than scrolling for it.
+  const [panel, setPanel] = useState('calendar');
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState(new Date());
   const [selectedKey, setSelectedKey] = useState(dayKey(new Date()));
+  // 'month' or 'week'. A week is the same data over seven days instead of
+  // thirty-something — the same tasks, the same events, the same map lookups —
+  // so it costs one state value and no new request.
 
   // The editor. `editingId` null means the form would create; an id means it
   // would replace that event.
@@ -89,7 +104,10 @@ export default function CalendarView() {
       api
         .get('/tasks/history')
         .then(({ data }) => setTasks(Array.isArray(data) ? data : data.tasks || [])),
-      api.get('/events').then(({ data }) => setEvents(Array.isArray(data) ? data : []))
+      api.get('/events').then(({ data }) => setEvents(Array.isArray(data) ? data : [])),
+      api
+        .get('/timetable')
+        .then(({ data }) => setTimetable(Array.isArray(data?.slots) ? data.slots : []))
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -234,10 +252,46 @@ export default function CalendarView() {
   const firstWeekday = new Date(year, month, 1).getDay();
   const todayKey = dayKey(new Date());
 
-  const squares = [
-    ...Array.from({ length: firstWeekday }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1)
-  ];
+  /**
+   * The cells to draw for the month.
+   *
+   * The month grid used to start with blank divs where the previous month's
+   * last days belong, which left a ragged hole in the top-left corner of every
+   * calendar. Those days are drawn now — greyed and not clickable, because they
+   * are context rather than content — and the grid is padded to whole weeks so
+   * the bottom edge is straight too.
+   */
+  const cells = useMemo(() => {
+    const previousMonthDays = new Date(year, month, 0).getDate();
+    const out = [];
+
+    for (let i = firstWeekday - 1; i >= 0; i--) {
+      const day = previousMonthDays - i;
+      out.push({ date: new Date(year, month - 1, day), day, outside: true });
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      out.push({ date: new Date(year, month, day), day, outside: false });
+    }
+    // Pad to whole weeks with the start of the following month.
+    for (let day = 1; out.length % 7 !== 0; day++) {
+      out.push({ date: new Date(year, month + 1, day), day, outside: true });
+    }
+    return out;
+  }, [year, month, firstWeekday, daysInMonth]);
+
+  /** The label over the grid. */
+  const rangeLabel = `${MONTHS[month]} ${year}`;
+
+  const cellHeight = 'min-h-[58px] sm:min-h-[88px]';
+
+  /** One month back or forward. */
+  const step = (direction) => {
+    setCursor((current) => {
+      const next = new Date(current);
+      next.setMonth(next.getMonth() + direction, 1);
+      return next;
+    });
+  };
 
   /**
    * What the month on screen actually amounts to.
@@ -268,13 +322,40 @@ export default function CalendarView() {
     return { completed, pending, missed, events, total: completed + pending + missed };
   }, [byDay, eventsByDay, year, month]);
 
+  /**
+   * One value per day of the month on screen, for the sparklines above.
+   *
+   * Built from the same maps the grid reads, so the line and the squares can
+   * never disagree — and rebuilt only when the month or the data changes.
+   */
+  const monthSeries = useMemo(() => {
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+    const days = new Date(year, month + 1, 0).getDate();
+    const completed = [];
+    const pending = [];
+    const events = [];
+
+    for (let day = 1; day <= days; day++) {
+      const key = `${prefix}${String(day).padStart(2, '0')}`;
+      const dayTasks = byDay.get(key) || [];
+      completed.push(dayTasks.filter((t) => t.status === 'Completed').length);
+      pending.push(dayTasks.filter((t) => t.status === 'Pending').length);
+      events.push((eventsByDay.get(key) || []).length);
+    }
+    return { completed, pending, events };
+  }, [byDay, eventsByDay, year, month]);
+
+  const streak = useMemo(() => currentStreak(tasks), [tasks]);
+  const progress = levelProgress(user?.xp, user?.level);
+
   const selectedTasks = byDay.get(selectedKey) || [];
   const selectedEvents = eventsByDay.get(selectedKey) || [];
   const selectedDone = selectedTasks.filter((t) => t.status === 'Completed').length;
   const selectedMissed = selectedTasks.filter((t) => t.status === 'Skipped').length;
   const selectedIsExamEve = examEveDays.has(selectedKey);
 
-  // Only the three days a student thinks of by name get one.
+  // "Wednesday 26 August" is precise but makes the reader work out where they
+  // are. The relative word does that for them.
   const relativeDayLabel =
     selectedKey === todayKey
       ? 'Today'
@@ -285,86 +366,157 @@ export default function CalendarView() {
           : null;
 
   // "since August 2026" — the month the first plan landed in.
-  const startedLabel = monthLabel(bounds.firstKey);
-
   if (loading) return <SkeletonPage cards={2} />;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Calendar"
-        title="Learning Calendar"
-        subtitle={
-          bounds.firstKey
-            ? `Your plans since ${startedLabel} — and any month ahead, to note down exams and events.`
-            : 'Your plans day by day, and any month ahead to note down exams and events.'
-        }
+    // No page header. It printed "🗓️ Learning calendar" directly above a card
+    // whose own header says the same words — and the subtitle under it
+    // explained a bound the back arrow already enforces and explains in its
+    // own tooltip. The calendar titles itself.
+    <div className="fp-enter space-y-4">
+      <JourneyBanner
+        name={user?.name}
+        greeting={greeting()}
+        level={user?.level || 1}
+        progress={progress}
+        streak={streak}
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <MonthStats summary={monthSummary} series={monthSeries} monthName={MONTHS[month]} />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="animate-fade-in-up lg:col-span-2">
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <h2 className="min-w-0 text-lg font-bold text-ink-900 sm:text-xl">
-              {MONTHS[month]} {year}
-            </h2>
-            <div className="flex shrink-0 items-center gap-2">
-              {/* Once you can page forward indefinitely you need a way back —
-                  eleven clicks to return from next August is not a way back. */}
-              {!isThisMonth && (
-                <Button variant="ghost" size="sm" onClick={() => setCursor(new Date())}>
-                  Today
-                </Button>
+          {/* ---- Card header: what this is, what the colours mean, and how
+                  much of it to show at once. The status key used to sit under
+                  the grid, a full scroll away from the dots it explains. ---- */}
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span
+                aria-hidden
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-journey-50 text-lg ring-1 ring-journey-100 ring-inset"
+              >
+                {panel === 'calendar' ? '📅' : '🏫'}
+              </span>
+              <h2 className="min-w-0 text-lg font-black text-ink-900 sm:text-xl">
+                {panel === 'calendar' ? 'Learning calendar' : 'Class timetable'}
+              </h2>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {panel === 'calendar' && (
+                <div className="flex items-center gap-3 text-xs font-semibold text-ink-500">
+                  {[
+                    ['bg-emerald-500', 'Completed'],
+                    ['bg-indigo-500', 'Pending'],
+                    ['bg-rose-400', 'Missed']
+                  ].map(([dot, label]) => (
+                    <span key={label} className="flex items-center gap-1.5">
+                      <span className={`h-2 w-2 rounded-full ${dot}`} />
+                      {label}
+                    </span>
+                  ))}
+                </div>
               )}
-              <Button
-                variant="secondary"
-                size="sm"
+
+              {/* The flip. One card, two faces: the month the planner filled,
+                  or the week the college fills. */}
+              <div
+                role="group"
+                aria-label="Calendar view"
+                className="flex shrink-0 items-center gap-1 rounded-xl border border-line-200 bg-surface-50 p-1"
+              >
+                {[
+                  ['calendar', 'Calendar', CalendarDays],
+                  ['timetable', 'Timetable', CalendarClock]
+                ].map(([key, label, Icon]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPanel(key)}
+                    aria-pressed={panel === key}
+                    className={`fp-press inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition-all ${
+                      panel === key
+                        ? 'bg-surface text-journey-700 shadow-sm ring-1 ring-journey-200'
+                        : 'text-ink-500 hover:text-journey-700'
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {panel === 'timetable' ? (
+            <TimetableCard embedded slots={timetable} onChange={setTimetable} />
+          ) : (
+            <>
+          {/* ---- Where in time we are, with the arrows beside it rather than
+                  stranded at the far edge of the card. ---- */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
                 aria-label="Previous month"
                 disabled={!canGoBack}
                 title={canGoBack ? undefined : 'Nothing on your calendar before this month'}
-                onClick={() => setCursor(new Date(year, month - 1, 1))}
+                onClick={() => step(-1)}
+                className="fp-press flex h-9 w-9 items-center justify-center rounded-xl border border-line-200 bg-surface text-ink-600 transition-colors hover:border-journey-300 hover:bg-journey-50 hover:text-journey-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line-200 disabled:hover:bg-surface"
               >
                 <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
+              </button>
+              <button
+                type="button"
                 aria-label="Next month"
-                onClick={() => setCursor(new Date(year, month + 1, 1))}
+                onClick={() => step(1)}
+                className="fp-press flex h-9 w-9 items-center justify-center rounded-xl border border-line-200 bg-surface text-ink-600 transition-colors hover:border-journey-300 hover:bg-journey-50 hover:text-journey-700"
               >
                 <ChevronRight className="h-4 w-4" />
-              </Button>
+              </button>
+              <h3 className="ml-1 min-w-0 text-base font-black text-ink-900 sm:text-lg">
+                {rangeLabel}
+              </h3>
             </div>
+
+            {/* Once you can page forward indefinitely you need a way back —
+                eleven clicks to return from next August is not a way back. */}
+            {!isThisMonth && (
+              <Button variant="ghost" size="sm" onClick={() => setCursor(new Date())}>
+                Today
+              </Button>
+            )}
           </div>
 
           {/* What this month came to, before the grid shows its shape. */}
           {(monthSummary.total > 0 || monthSummary.events > 0) && (
             <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
               {monthSummary.completed > 0 && (
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700 ring-1 ring-emerald-100 ring-inset">
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-bold text-emerald-700 ring-1 ring-emerald-100 ring-inset">
                   {monthSummary.completed} completed
                 </span>
               )}
               {monthSummary.pending > 0 && (
-                <span className="rounded-full bg-brand-50 px-2.5 py-1 font-semibold text-brand-700 ring-1 ring-brand-100 ring-inset">
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 font-bold text-blue-700 ring-1 ring-blue-100 ring-inset">
                   {monthSummary.pending} pending
                 </span>
               )}
               {monthSummary.missed > 0 && (
-                <span className="rounded-full bg-rose-50 px-2.5 py-1 font-semibold text-rose-700 ring-1 ring-rose-100 ring-inset">
+                <span className="rounded-full bg-rose-50 px-2.5 py-1 font-bold text-rose-700 ring-1 ring-rose-100 ring-inset">
                   {monthSummary.missed} missed
                 </span>
               )}
               {monthSummary.events > 0 && (
-                <span className="rounded-full bg-surface-50 px-2.5 py-1 font-semibold text-ink-600 ring-1 ring-line-200 ring-inset">
+                <span className="rounded-full bg-surface-50 px-2.5 py-1 font-bold text-ink-600 ring-1 ring-line-200 ring-inset">
                   {monthSummary.events} {monthSummary.events === 1 ? 'event' : 'events'}
                 </span>
               )}
             </div>
           )}
 
-          <div className="mb-2 grid grid-cols-7 gap-1 sm:gap-2">
+          <div className="mb-2 grid grid-cols-7 gap-1.5 sm:gap-2">
             {WEEKDAYS.map((d) => (
-              <div key={d} className="py-2 text-center text-xs font-semibold text-ink-500 sm:text-sm">
+              <div key={d} className="py-1.5 text-center text-xs font-bold text-ink-400 sm:text-sm">
                 {/* One letter on phones, where 7 columns leave ~40px each. */}
                 <span className="sm:hidden">{d.charAt(0)}</span>
                 <span className="hidden sm:inline">{d}</span>
@@ -372,11 +524,9 @@ export default function CalendarView() {
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1 sm:gap-2">
-            {squares.map((day, idx) => {
-              if (!day) return <div key={idx} className="min-h-[52px] rounded-md sm:min-h-[80px]" />;
-
-              const key = dayKey(new Date(year, month, day));
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+            {cells.map(({ date, day, outside }, idx) => {
+              const key = dayKey(date);
               const dayTasks = byDay.get(key) || [];
               const dayEvents = eventsByDay.get(key) || [];
               const isToday = key === todayKey;
@@ -388,6 +538,23 @@ export default function CalendarView() {
               const isPast = key < todayKey;
               const isFuture = key > todayKey;
               const isExamEve = examEveDays.has(key);
+              const eventStyle = dayEvents.length ? styleFor(dayEvents[0].type) : null;
+
+              // Days belonging to the neighbouring month are drawn for the
+              // grid's sake and nothing else — they carry no dots, no chips
+              // and no click, because acting on them would silently move the
+              // student to a month they are not looking at.
+              if (outside) {
+                return (
+                  <div
+                    key={idx}
+                    aria-hidden
+                    className={`rounded-xl border border-line-100 bg-surface-50/50 p-1.5 sm:p-2 ${cellHeight}`}
+                  >
+                    <span className="text-xs font-semibold text-ink-300 sm:text-sm">{day}</span>
+                  </div>
+                );
+              }
 
               return (
                 <button
@@ -398,30 +565,26 @@ export default function CalendarView() {
                     // A half-typed event belongs to the day it was started on.
                     resetForm();
                   }}
-                  aria-label={`${day} ${MONTHS[month]}, ${dayTasks.length} ${
+                  aria-label={`${day} ${MONTHS[date.getMonth()]}, ${dayTasks.length} ${
                     dayTasks.length === 1 ? 'task' : 'tasks'
-                  }${dayEvents.length ? `, ${dayEvents.length} of your own events` : ''}${
-                    isExamEve ? ', kept clear before an exam' : ''
-                  }`}
+                  }${dayEvents.length ? `, ${dayEvents.length} of your own events` : ''}`}
                   aria-pressed={isSelected}
                   aria-current={isToday ? 'date' : undefined}
-                  className={`relative min-h-[52px] rounded-md border p-1 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 sm:min-h-[80px] sm:rounded-lg sm:p-2 ${
-                    isSelected
-                      ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-200'
-                      : isToday
-                        ? 'border-brand-300 bg-surface ring-1 ring-brand-100 hover:border-brand-400'
+                  className={`fp-press relative flex flex-col rounded-xl border p-1.5 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-journey-500/40 sm:p-2 ${cellHeight} ${
+                    isToday
+                      ? 'border-transparent bg-gradient-to-br from-journey-600 to-indigo-600 text-white shadow-md shadow-journey-600/30'
+                      : isSelected
+                        ? 'border-journey-400 bg-journey-50 ring-1 ring-journey-200'
                         : isExamEve
-                          ? 'border-rose-200 bg-rose-50/40 hover:border-rose-300'
-                          : 'border-line-200/80 bg-surface hover:border-brand-300 hover:bg-brand-50/30'
-                  } ${isFuture && !dayEvents.length && !isExamEve ? 'opacity-60' : ''}`}
+                          ? 'border-rose-200 bg-rose-50/60 hover:border-rose-300'
+                          : eventStyle
+                            ? `border-line-200/80 ${eventStyle.tint} hover:border-journey-300`
+                            : 'border-line-200/80 bg-surface hover:border-journey-300 hover:bg-journey-50/40'
+                  } ${isFuture && !dayEvents.length && !isExamEve && !isToday ? 'opacity-70' : ''}`}
                 >
                   <span
-                    className={`text-xs font-medium sm:text-sm ${
-                      isToday
-                        ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-white sm:h-6 sm:w-6'
-                        : isPast
-                          ? 'text-ink-500'
-                          : 'text-ink-700'
+                    className={`text-xs font-bold sm:text-sm ${
+                      isToday ? 'text-white' : isPast ? 'text-ink-500' : 'text-ink-800'
                     }`}
                   >
                     {day}
@@ -430,27 +593,26 @@ export default function CalendarView() {
                   {/* The evening the planner will hand out no work, shown before
                       the student arrives on it rather than after. */}
                   {isExamEve && !dayEvents.length && (
-                    <span className="mt-1 block truncate rounded bg-rose-100 px-1 py-px text-[10px] leading-tight font-bold text-rose-700">
-                      Revision
-                    </span>
-                  )}
-
-                  {/* Real workload: one dot per task, capped so a heavy day does
-                      not overflow its square. */}
-                  {dayTasks.length > 0 && (
-                    <span className="mt-1.5 flex flex-wrap gap-1">
-                      {dayTasks.slice(0, 4).map((t) => (
-                        <span
-                          key={t._id}
-                          className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[t.status] || STATUS_DOT.Pending}`}
-                        />
-                      ))}
-                      {dayTasks.length > 4 && (
-                        <span className="text-[10px] leading-none font-bold text-ink-400">
-                          +{dayTasks.length - 4}
-                        </span>
-                      )}
-                    </span>
+                    <>
+                      {/* A 44px-wide cell cannot hold a word. Below sm the chip
+                          becomes a coloured bar — still says "something is on
+                          this day, and it is exam-related", which a title
+                          clipped to "R…" does not. The day panel names it in
+                          full the moment the cell is tapped. */}
+                      <span
+                        aria-hidden
+                        className={`mt-1 block h-1.5 rounded-full sm:hidden ${
+                          isToday ? 'bg-white/70' : 'bg-rose-400'
+                        }`}
+                      />
+                      <span
+                        className={`mt-1 hidden truncate rounded-md px-1.5 py-px text-[0.68rem] leading-tight font-black sm:block ${
+                          isToday ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        Revision
+                      </span>
+                    </>
                   )}
 
                   {/* The student's own entries. A named chip rather than a dot:
@@ -458,16 +620,59 @@ export default function CalendarView() {
                       a fifth colour of dot would not tell them which day. */}
                   {dayEvents.length > 0 && (
                     <span className="mt-1 flex flex-col gap-0.5">
+                      {/* One bar per event on a phone, the title from sm up. */}
+                      <span aria-hidden className="flex gap-0.5 sm:hidden">
+                        {dayEvents.slice(0, 3).map((e) => (
+                          <span
+                            key={e._id}
+                            className={`h-1.5 flex-1 rounded-full ${
+                              isToday ? 'bg-white/70' : styleFor(e.type).bg
+                            }`}
+                          />
+                        ))}
+                      </span>
                       <span
-                        className={`truncate rounded px-1 py-px text-[10px] leading-tight font-bold ${
-                          styleFor(dayEvents[0].type).bg
-                        } ${styleFor(dayEvents[0].type).text}`}
+                        className={`hidden truncate rounded-md px-1.5 py-px text-[0.68rem] leading-tight font-black sm:block ${
+                          isToday
+                            ? 'bg-white/20 text-white'
+                            : `${eventStyle.bg} ${eventStyle.text}`
+                        }`}
                       >
                         {dayEvents[0].title}
                       </span>
                       {dayEvents.length > 1 && (
-                        <span className="text-[10px] leading-none font-bold text-ink-400">
+                        <span
+                          className={`hidden text-[0.68rem] leading-none font-bold sm:block ${
+                            isToday ? 'text-white/70' : 'text-ink-400'
+                          }`}
+                        >
                           +{dayEvents.length - 1} more
+                        </span>
+                      )}
+                    </span>
+                  )}
+
+                  {/* Real workload: one dot per task, capped so a heavy day does
+                      not overflow its square. Pinned to the bottom of the cell
+                      so the dots line up across a row instead of floating at
+                      whatever height that day's chips left them at. */}
+                  {dayTasks.length > 0 && (
+                    <span className="mt-auto flex flex-wrap items-center gap-1 pt-1.5">
+                      {dayTasks.slice(0, 4).map((t) => (
+                        <span
+                          key={t._id}
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            isToday ? 'bg-white/90' : STATUS_DOT[t.status] || STATUS_DOT.Pending
+                          }`}
+                        />
+                      ))}
+                      {dayTasks.length > 4 && (
+                        <span
+                          className={`text-[0.68rem] leading-none font-bold ${
+                            isToday ? 'text-white/80' : 'text-ink-400'
+                          }`}
+                        >
+                          +{dayTasks.length - 4}
                         </span>
                       )}
                     </span>
@@ -476,27 +681,14 @@ export default function CalendarView() {
               );
             })}
           </div>
-
-          {/* Tasks only. The event chips carry their own titles on the grid,
-              so a colour key for them was a row of labels explaining something
-              the squares already say in words. */}
-          <div className="mt-5 flex flex-wrap gap-4 border-t border-line-100 pt-4 text-xs text-ink-500">
-            {[
-              ['bg-emerald-500', 'Completed'],
-              ['bg-brand-400', 'Pending'],
-              ['bg-rose-400', 'Missed']
-            ].map(([dot, label]) => (
-              <span key={label} className="flex items-center gap-1.5">
-                <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-                {label}
-              </span>
-            ))}
-          </div>
+            </>
+          )}
         </Card>
 
+        <div className="space-y-4">
         <Card className="animate-fade-in-up">
           <div className="mb-4">
-            <div className="flex flex-wrap items-baseline gap-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-bold text-ink-900">
                 {new Date(selectedKey + 'T00:00:00').toLocaleDateString(undefined, {
                   weekday: 'long',
@@ -504,35 +696,30 @@ export default function CalendarView() {
                   month: 'long'
                 })}
               </h3>
-              {/* "Wednesday 26 August" is precise but makes the reader work out
-                  where they are. The relative word does that for them. */}
               {relativeDayLabel && (
-                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[0.7rem] font-bold text-brand-700">
+                <span className="rounded-full bg-journey-50 px-2.5 py-0.5 text-[0.7rem] font-black text-journey-700 ring-1 ring-journey-100 ring-inset">
                   {relativeDayLabel}
                 </span>
               )}
             </div>
+
             {selectedTasks.length > 0 && (
-              <p className="mt-1 text-xs text-ink-500">
+              <p className="mt-1 text-xs font-medium text-ink-500">
                 {selectedDone} of {selectedTasks.length}{' '}
                 {selectedTasks.length === 1 ? 'task' : 'tasks'} done
                 {selectedMissed > 0 && ` · ${selectedMissed} missed`}
               </p>
             )}
-          </div>
 
-          {/* Says why an empty day is empty. Without it the clear evening
-              before an exam is indistinguishable from a day the planner
-              failed on. */}
-          {selectedIsExamEve && (
-            <div className="mb-4 rounded-lg border border-rose-100 bg-rose-50/60 p-3">
-              <p className="text-sm font-bold text-rose-800">Kept clear for your exam</p>
-              <p className="mt-0.5 text-xs leading-relaxed text-rose-700/90">
-                You sit an exam the next day, so no new task is assigned. Revise what you
-                already know rather than starting something new.
+            {/* Says why an empty day is empty. Without it the clear evening
+                before an exam is indistinguishable from a day the planner
+                simply never filled. */}
+            {selectedIsExamEve && selectedTasks.length === 0 && (
+              <p className="mt-1.5 text-xs font-semibold text-rose-700">
+                Kept clear — you have an exam tomorrow.
               </p>
-            </div>
-          )}
+            )}
+          </div>
 
           {selectedTasks.length === 0 && selectedEvents.length === 0 && !formOpen ? (
             <EmptyState
@@ -554,7 +741,13 @@ export default function CalendarView() {
                 return (
                   <li
                     key={task._id}
-                    className="flex items-start gap-3 rounded-lg border border-line-200/80 bg-surface-50/70 p-3"
+                    className={`flex items-start gap-3 rounded-xl border p-3 transition-colors ${
+                      done
+                        ? 'border-emerald-100 bg-emerald-50/50'
+                        : missed
+                          ? 'border-rose-100 bg-rose-50/40'
+                          : 'border-line-200/80 bg-surface'
+                    }`}
                   >
                     {done ? (
                       <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
@@ -563,15 +756,33 @@ export default function CalendarView() {
                     ) : (
                       <Circle className="mt-0.5 h-5 w-5 shrink-0 text-ink-300" />
                     )}
-                    <div className="min-w-0">
+
+                    <div className="min-w-0 flex-1">
                       <p
                         className={`text-sm font-medium ${
-                          done ? 'text-ink-400 line-through' : 'text-ink-700'
+                          done ? 'text-ink-400 line-through' : 'text-ink-800'
                         }`}
                       >
                         {task.title}
                       </p>
+
+                      {/* The skill this task credits, when the plan recorded
+                          one. Plans generated before the field existed simply
+                          show no tag rather than an empty chip. */}
+                      {task.skill && (
+                        <span className="mt-1.5 inline-block rounded-md bg-journey-50 px-2 py-0.5 text-[0.68rem] font-bold text-journey-700 ring-1 ring-journey-100 ring-inset">
+                          {task.skill}
+                        </span>
+                      )}
                     </div>
+
+                    {/* One small cheer per finished task. Finishing should feel
+                        like something on the page that records it. */}
+                    {done && (
+                      <span aria-hidden className="animate-badge-burst shrink-0 text-lg">
+                        🎉
+                      </span>
+                    )}
                   </li>
                 );
               })}
@@ -589,15 +800,13 @@ export default function CalendarView() {
                 {selectedEvents.map((event) => (
                   <li
                     key={event._id}
-                    className={`rounded-lg p-3 ring-1 ring-inset ${styleFor(event.type).tint} ${
-                      styleFor(event.type).ring
-                    }`}
+                    className="rounded-lg border border-violet-100 bg-violet-50/50 p-3"
                   >
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold break-words text-ink-900">{event.title}</p>
                         <span
-                          className={`mt-1 inline-block rounded bg-surface px-1.5 py-0.5 text-[0.65rem] font-bold ring-1 ring-inset ${
+                          className={`mt-1 inline-block rounded bg-surface px-1.5 py-0.5 text-[0.68rem] font-bold ring-1 ring-inset ${
                             styleFor(event.type).text
                           } ${styleFor(event.type).ring}`}
                         >
@@ -732,6 +941,46 @@ export default function CalendarView() {
             </Button>
           )}
         </Card>
+
+        <ComingUpNext
+          events={events}
+          todayKey={todayKey}
+          styleFor={styleFor}
+          onSelect={(key) => {
+            setSelectedKey(key);
+            // Bring the grid to the month that day lives in, or the click
+            // selects something the student cannot see.
+            const [y, m, d] = key.split('-').map(Number);
+            setCursor(new Date(y, m - 1, d));
+            resetForm();
+          }}
+        />
+
+        {/* The streak, said out loud. Wording follows the number: telling a
+            student on zero to "keep the streak alive" is congratulating them
+            for something that has not happened. */}
+        <section className="fp-reward-gradient relative overflow-hidden rounded-2xl p-5 text-white shadow-card">
+          <div
+            aria-hidden
+            className="fp-float pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-white/20 blur-2xl"
+          />
+          <div className="relative flex items-center gap-4">
+            <span className="animate-badge-burst text-4xl" aria-hidden>
+              {streak > 0 ? '🏆' : '🔥'}
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm leading-snug font-black">
+                {streak > 0 ? 'Consistency is your superpower!' : 'Start your streak today'}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-pink-100">
+                {streak > 0
+                  ? `${streak} day${streak === 1 ? '' : 's'} and counting — keep it alive 🔥`
+                  : 'Finish one task and the counter begins.'}
+              </p>
+            </div>
+          </div>
+        </section>
+        </div>
       </div>
     </div>
   );

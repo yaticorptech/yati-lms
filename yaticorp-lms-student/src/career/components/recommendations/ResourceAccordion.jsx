@@ -35,7 +35,7 @@ export function ResourceRow({ tag, title, subtitle, badges, description, link, d
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-2">
               {tag && (
-                <span className="rounded-md bg-brand-50 px-2 py-0.5 text-[0.65rem] font-bold text-link-strong">
+                <span className="rounded-md bg-brand-50 px-2 py-0.5 text-[0.68rem] font-bold text-link-strong">
                   {tag}
                 </span>
               )}

@@ -76,6 +76,7 @@ function Disclosure({ icon: Icon, iconClass, title, count, open, onToggle, child
 export default function RoadmapPhase({
   stage,
   index,
+  isLast = false,
   state,
   expanded,
   onToggleExpand,
@@ -120,28 +121,95 @@ export default function RoadmapPhase({
     choices && { icon: GitBranch, label: `${choices.options.length} paths` }
   ].filter(Boolean);
 
+  /**
+   * The three states are drawn deliberately unequal.
+   *
+   * A timeline where every checkpoint is the same size forces the student to
+   * read all of it to work out where they are. The current node is larger and
+   * carries a halo; a finished one is a solid tick; one still ahead is a hollow
+   * ring holding its number. Which is which is answerable from across the room.
+   */
   const marker = {
-    done: 'bg-emerald-500 text-white ring-4 ring-emerald-50',
-    current: 'bg-brand-600 text-white ring-4 ring-brand-100',
-    upcoming: 'bg-surface text-ink-400 ring-4 ring-white border-2 border-line-200'
+    done: 'left-2 h-8 w-8 fp-done-gradient text-white ring-4 ring-emerald-50 shadow-sm shadow-emerald-500/30',
+    current:
+      'left-1 h-10 w-10 bg-gradient-to-br from-journey-500 to-indigo-600 text-sm text-white ring-4 ring-journey-100 shadow-lg shadow-journey-600/40',
+    upcoming: 'left-2 h-8 w-8 bg-surface-100 text-ink-400 ring-4 ring-white border-2 border-line-300'
   }[state];
 
   const shell = {
-    done: 'border-line-200/80 bg-surface',
-    current: 'border-brand-200 bg-surface shadow-card-hover ring-1 ring-brand-100',
-    upcoming: 'border-line-200/80 bg-surface/60'
+    done: 'fp-lift border-emerald-100 bg-surface',
+    current: 'border-journey-300 bg-surface shadow-card-hover ring-2 ring-journey-200',
+    upcoming: 'fp-lift border-line-200/80 bg-surface/50 saturate-[0.85] hover:border-journey-200 hover:saturate-100'
   }[state];
 
+  /**
+   * Each phase draws the length of road below itself rather than the list
+   * drawing one flat rail behind everything.
+   *
+   * The rail used to be a single grey line from the first checkpoint to the
+   * last, which meant the one page devoted to a journey showed no distance
+   * travelled anywhere on it. Owned per phase, the segment can be green where
+   * the road is behind the student and grey where it is still ahead — so the
+   * progress reads down the whole page, not just off the bar in the header.
+   */
+  const connector = isDone ? 'bg-gradient-to-b from-emerald-400 to-teal-400' : 'bg-surface-200';
+  const connectorTop = isCurrent ? 'top-14' : 'top-9';
+
   return (
-    <li className="relative pl-14">
+    <li
+      className="animate-fade-in-up relative pl-14"
+      style={{ animationDelay: `${0.06 + index * 0.05}s` }}
+    >
+      {/* The road below this checkpoint. `-bottom-4` bridges the gap the list
+          leaves between cards, so the line is continuous rather than dashed by
+          the layout. */}
+      {!isLast && (
+        <span
+          aria-hidden="true"
+          className={`absolute -bottom-4 left-6 w-0.5 -translate-x-1/2 rounded-full ${connectorTop} ${connector}`}
+        />
+      )}
+
+      {/* The halo is its own element, not a class on the node.
+          Tailwind draws `ring-*` with box-shadow and the pulse animates
+          box-shadow, so putting both on one span made the ring blink out for
+          the duration of the animation. Separated, the ring holds and the
+          pulse plays behind it. Three pulses, then it stops — enough to catch
+          the eye on arrival without nagging for the rest of the session. */}
+      {isCurrent && (
+        <span
+          aria-hidden="true"
+          className="fp-halo pointer-events-none absolute top-4 left-1 h-10 w-10 rounded-full bg-journey-400/50 blur-md"
+        />
+      )}
+
       {/* Timeline node */}
       <span
-        className={`absolute left-2 top-4 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${marker}`}
+        className={`absolute top-4 flex items-center justify-center rounded-full text-xs font-bold ${marker}`}
       >
-        {isDone ? <Check className="h-4 w-4" /> : index + 1}
+        {isDone ? (
+          <Check className="h-4 w-4" strokeWidth={3} />
+        ) : isCurrent ? (
+          index + 1
+        ) : (
+          /* A chapter still ahead reads as locked, because that is what the
+             sequential completion rule actually makes it: phases complete in
+             order, so this one cannot be ticked until the ones before it are.
+             Eighteen phases carried eighteen identical numbered dots and no
+             indication anywhere that any of them were out of reach. */
+          <Lock className="h-3.5 w-3.5" strokeWidth={2.6} />
+        )}
       </span>
 
-      <div className={`rounded-xl border transition-all ${shell}`}>
+      <div className={`relative overflow-hidden rounded-xl border transition-all duration-200 ${shell}`}>
+        {/* The one gradient in the timeline. Reserved for the phase the student
+            is actually on — put on every card it would say nothing. */}
+        {isCurrent && (
+          <span
+            aria-hidden
+            className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-journey-500 via-fuchsia-500 to-indigo-500"
+          />
+        )}
         <button
           type="button"
           onClick={onToggleExpand}
@@ -150,20 +218,27 @@ export default function RoadmapPhase({
         >
           <span className="min-w-0">
             {isCurrent && (
-              <span className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-[0.65rem] font-bold tracking-wider text-link-strong uppercase">
+              <span className="mb-2.5 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-journey-600 to-indigo-600 px-3 py-1 text-[0.68rem] font-black tracking-wider text-white uppercase shadow-sm shadow-journey-600/30">
                 <Sparkles className="h-3 w-3" />
                 You are here
               </span>
             )}
+            {!isCurrent && !isDone && (
+              <span className="mb-2.5 inline-flex items-center gap-1.5 rounded-full bg-surface-100 px-3 py-1 text-[0.68rem] font-black tracking-wider text-ink-500 uppercase ring-1 ring-line-200 ring-inset">
+                <Lock className="h-3 w-3" />
+                Locked
+              </span>
+            )}
             {isDone && (
-              <span className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[0.65rem] font-bold tracking-wider text-emerald-700 uppercase">
+              <span className="mb-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[0.68rem] font-black tracking-wider text-emerald-700 uppercase ring-1 ring-emerald-100 ring-inset">
+                <Check className="h-3 w-3" strokeWidth={3.5} />
                 Completed
               </span>
             )}
 
             <span
               className={`block font-bold ${
-                isCurrent ? 'text-lg text-ink-900' : 'text-base'
+                isCurrent ? 'text-lg leading-snug text-ink-900 sm:text-xl' : 'text-base'
               } ${isDone ? 'text-ink-500' : 'text-ink-800'}`}
             >
               {choices ? choices.lead : title}
@@ -207,6 +282,68 @@ export default function RoadmapPhase({
           />
         </button>
 
+        {/* ---- The action on the phase you are actually standing on ----
+            Closed, the only thing offering to open this card was a chevron in
+            the corner — the single most important card in Career Path had no
+            visible call to action on it at all. This is the same toggle the
+            header already runs, given a label that says what it does. ---- */}
+        {isCurrent && !expanded && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-journey-100 bg-journey-50/60 px-4 py-3 sm:px-5">
+            <span className="text-xs font-semibold text-ink-600">
+              {stepCount > 0
+                ? `${stepCount} ${stepCount === 1 ? 'step' : 'steps'} to work through`
+                : 'What this phase asks of you'}
+            </span>
+            <button
+              type="button"
+              onClick={onToggleExpand}
+              className="fp-press group/cta inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-journey-600/25 transition-all hover:from-journey-700 hover:to-indigo-700"
+            >
+              See what to do
+              <ChevronDown className="h-3.5 w-3.5 transition-transform group-hover/cta:translate-y-0.5" />
+            </button>
+          </div>
+        )}
+
+        {/* What opens this one. Without it a locked chapter is a dead card:
+            the student can see it is out of reach but not what reaches it. */}
+        {!isCurrent && !isDone && !expanded && (
+          <div className="flex items-center gap-2 border-t border-line-100 bg-surface-50/60 px-4 py-2.5 text-xs font-semibold text-ink-500 sm:px-5">
+            <Lock className="h-3.5 w-3.5 shrink-0 text-ink-400" />
+            Finish the chapters before this one to unlock it
+          </div>
+        )}
+
+        {/* ---- Milestone earned ----
+            Finishing a phase mints a badge with a public link and an image
+            built for a feed, and until now the only way to reach it was to
+            expand the phase, scroll past the steps and the milestones, and
+            find a button in the footer. A student who has just ticked off a
+            year of their life should not have to go looking. Offered on the
+            closed card, where the completion actually shows.
+
+            Deliberately quiet. Filled amber, three completed phases put three
+            saturated bands down the page and between them pulled the eye clean
+            past the one phase the student is actually on — the opposite of what
+            a timeline is for. Findable without expanding the card, without
+            competing with the live phase. ---- */}
+        {isDone && !expanded && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-pink-100 bg-pink-50/50 px-4 py-2.5 sm:px-5">
+            <span className="flex items-center gap-2 text-xs font-black text-pink-700">
+              <Award className="h-3.5 w-3.5 shrink-0 text-pink-500" />
+              🏆 Milestone earned
+            </span>
+            <button
+              type="button"
+              onClick={onShareBadge}
+              disabled={badgeBusy}
+              className="fp-press inline-flex min-h-8 shrink-0 items-center gap-2 rounded-xl border border-pink-200 bg-surface px-3.5 py-1.5 text-xs font-black text-pink-700 transition-colors hover:bg-pink-100 disabled:opacity-60"
+            >
+              {badgeBusy ? 'Preparing…' : 'Share badge'}
+            </button>
+          </div>
+        )}
+
         {expanded && isObject && (
           <div className="animate-fade-in space-y-6 px-4 pb-5 sm:px-5">
             {/* Decision point: the title offered several routes, so present them
@@ -215,7 +352,7 @@ export default function RoadmapPhase({
               <section className="overflow-hidden rounded-xl border border-line-200 bg-surface-50/70">
                 <header className="flex items-baseline gap-2 border-b border-line-200/70 px-4 py-3">
                   <GitBranch className="h-4 w-4 shrink-0 translate-y-0.5 text-amber-600" />
-                  <h4 className="text-sm font-bold text-ink-900">Choose your path</h4>
+                  <h4 className="text-sm font-black text-ink-900">🧭 Choose your path</h4>
                   <span className="ml-auto text-xs font-semibold text-ink-500">
                     {choices.options.length} routes, same destination
                   </span>
@@ -262,7 +399,7 @@ export default function RoadmapPhase({
             )}
 
             {paragraphs.length > 0 && (
-              <Section title="Why this phase matters">
+              <Section title="🎯 Why this matters">
                 <div className="space-y-3">
                   {paragraphs.map((paragraph, idx) => (
                     <p key={idx} className="text-sm leading-relaxed text-ink-600">
@@ -285,7 +422,7 @@ export default function RoadmapPhase({
               <Disclosure
                 icon={ListChecks}
                 iconClass="text-link"
-                title="Your steps"
+                title="🚀 Your actions"
                 count={stage.actionItems.length}
                 open={showSteps}
                 onToggle={() => setShowSteps((isOpen) => !isOpen)}
@@ -296,7 +433,7 @@ export default function RoadmapPhase({
                       key={idx}
                       className="flex items-start gap-3 text-sm leading-relaxed text-ink-700"
                     >
-                      <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-brand-50 text-[0.68rem] font-bold text-link-strong tabular-nums">
+                      <span className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-journey-500 to-indigo-600 text-[0.68rem] font-black text-white tabular-nums">
                         {idx + 1}
                       </span>
                       <span>{item}</span>
@@ -314,7 +451,7 @@ export default function RoadmapPhase({
               <Disclosure
                 icon={Trophy}
                 iconClass="text-emerald-600"
-                title="You'll know you're done when"
+                title="🏆 Your milestones"
                 count={stage.milestones.length}
                 open={showMilestones}
                 onToggle={() => setShowMilestones((isOpen) => !isOpen)}
@@ -351,7 +488,7 @@ export default function RoadmapPhase({
                 className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all active:scale-[0.97] disabled:opacity-60 ${
                   isDone
                     ? 'border border-line-200 bg-surface text-ink-600 hover:bg-surface-50'
-                    : 'bg-brand-600 text-white shadow-sm hover:bg-brand-700'
+                    : 'fp-done-gradient text-white shadow-md shadow-emerald-600/25 hover:brightness-110'
                 }`}
               >
                 {isDone ? (
