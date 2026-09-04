@@ -22,6 +22,13 @@ const settingSchema = new mongoose.Schema({
     isJobsEnabled: {
         type: Boolean,
         default: true
+    },
+    // Gamification, rewards and the wallet. Locking it hides the cards, the
+    // leaderboard and the wallet from students and closes /api/rewards; hooks
+    // stop awarding while it is locked. Admin reporting keeps working.
+    isRewardsEnabled: {
+        type: Boolean,
+        default: true
     }
 }, { timestamps: true });
 

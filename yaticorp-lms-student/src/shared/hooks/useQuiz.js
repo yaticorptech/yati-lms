@@ -71,6 +71,9 @@ export const useQuiz = (apiClient, lessonId, options = {}) => {
         try {
             const resData = await quizService.submitQuiz(lessonId, answers);
             setResults(resData);
+            if (resData.rewards?.events?.length) {
+                window.dispatchEvent(new CustomEvent('yati:rewards', { detail: resData.rewards.events }));
+            }
 
             if ((resData.passed && !isAlreadyCompleted) || resData.creditsEarned > 0) {
                 if (onQuizPassed) onQuizPassed(lessonId, resData.creditsEarned);

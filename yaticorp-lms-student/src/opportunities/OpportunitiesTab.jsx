@@ -4,15 +4,14 @@
  * One profile (date of birth, the dates wanted, interests), one list, a few
  * views of it. The server decides what the student may see and which jobs
  * fall on their dates; this file decides how to lay it out: the jobs on
- * their dates first, the categories, then the student's own ♡ list and what
- * they opened recently. A search or a filter narrows the main grid and
- * leaves the personal sections where they are.
+ * their dates first, the categories, then the student's own ♡ list. A search
+ * or a filter narrows the main grid and leaves the ♡ list where it is.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    Search, SlidersHorizontal, Sparkles, CalendarDays, LayoutGrid, Heart, History, Plus, Pencil,
-    RotateCcw, AlertCircle, ShieldCheck, Compass, Undo2, X, CalendarRange
+    Search, SlidersHorizontal, Sparkles, CalendarDays, LayoutGrid, Heart, Plus, Pencil,
+    RotateCcw, AlertCircle, ShieldCheck, Compass, Undo2, X, CalendarRange, MapPin, Globe
 } from 'lucide-react';
 import { opportunitiesApi } from './api';
 import { BAND_COPY, EMPTY_FILTERS, countActive, shortDate, longDate } from './helpers';
@@ -22,6 +21,7 @@ import ProfileOnboarding from './ProfileOnboarding';
 import FiltersDrawer from './FiltersDrawer';
 import ReportDialog from './ReportDialog';
 import GuardianBanner from './GuardianBanner';
+import WebJobCard from './WebJobCard';
 import './opportunities.css';
 
 const useDebounced = (value, ms) => {
@@ -102,7 +102,7 @@ const GhostButton = ({ onClick, children, to, primary = false }) => {
     return to ? <Link to={to} className={cls}>{children}</Link> : <button type="button" onClick={onClick} className={cls}>{children}</button>;
 };
 
-export default function OpportunitiesTab({ data, onData, careerPathEnabled = true }) {
+export default function OpportunitiesTab({ data, onData, careerPathEnabled = true, location = '', onLocation }) {
     const [editing, setEditing] = useState(false);
     const [listing, setListing] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -112,12 +112,23 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
     const [filters, setFilters] = useState(EMPTY_FILTERS);
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [interested, setInterested] = useState([]);
-    const [recent, setRecent] = useState([]);
     const [leaving, setLeaving] = useState(() => new Set());
     const [undo, setUndo] = useState(null);
     const [detailsId, setDetailsId] = useState(null);
     const [reporting, setReporting] = useState(null);
     const reqId = useRef(0);
+    // The place is the Jobs section's own — the one typed into the search
+    // form and carried in the URL. Part-time work is looked for in the same
+    // town as everything else, and changing it here changes it everywhere.
+    const webLocation = location.trim();
+    const [townEdit, setTownEdit] = useState(null);   // null while not being edited
+    const townDraft = townEdit ?? webLocation;
+    const setTownDraft = setTownEdit;
+    const commitTown = () => {
+        const next = (townEdit ?? '').trim();
+        setTownEdit(null);
+        if (next && next !== webLocation && onLocation) onLocation(next);
+    };
 
     const vocab = data?.vocab;
     const hasProfile = !!data?.profile;
@@ -134,6 +145,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
         setError('');
         try {
             const res = await opportunitiesApi.list({
+                location: webLocation || undefined,
                 q: debouncedQ || undefined,
                 category: filters.category || undefined,
                 type: filters.type || undefined,
@@ -149,14 +161,13 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
         } finally {
             if (id === reqId.current) setLoading(false);
         }
-    }, [hasProfile, debouncedQ, filters, onData]);
+    }, [hasProfile, debouncedQ, filters, onData, webLocation]);
 
     useEffect(() => { load(); }, [load]);
 
     const loadPersonal = useCallback(() => {
         if (!hasProfile) return;
         opportunitiesApi.interested().then((r) => setInterested(r.results ?? [])).catch(() => {});
-        opportunitiesApi.recent().then((r) => setRecent(r.results ?? [])).catch(() => {});
     }, [hasProfile]);
     useEffect(() => { loadPersonal(); }, [loadPersonal]);
 
@@ -166,12 +177,10 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
     const patchEverywhere = (id, patch) => {
         const map = (o) => (o.id === id ? { ...o, ...patch } : o);
         setListing((l) => (l ? { ...l, results: l.results.map(map) } : l));
-        setRecent((r) => r.map(map));
         setInterested((r) => r.map(map));
     };
     const dropEverywhere = (id) => {
         setListing((l) => (l ? { ...l, results: l.results.filter((o) => o.id !== id), total: Math.max(0, l.total - 1) } : l));
-        setRecent((r) => r.filter((o) => o.id !== id));
         setInterested((r) => r.filter((o) => o.id !== id));
     };
 
@@ -229,13 +238,30 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
 
     const results = useMemo(() => listing?.results ?? [], [listing]);
     const otherDates = listing?.otherDates ?? 0;
+
+    /* One continuous run of cards in date order: the jobs on the student's own
+       free time first, then the rest of the month, earliest day first. Every
+       card carries its own dates, so the list needs no headings cutting it
+       into blocks — and the grid keeps filling its rows instead of starting a
+       new one for a day with a single job.
+
+       Open vacancies from Google have no working date; they sit after the
+       jobs on the student's own days, which is the answer they came for. */
+    const ordered = useMemo(() => {
+        const rank = (r) => (r.onYourDates ? 0 : r.kind === 'web' ? 1 : 2);
+        const when = (r) => (r.startsAt ? new Date(r.startsAt).getTime() : Infinity);
+        return [...results].sort((a, b) => rank(a) - rank(b) || when(a) - when(b) || (b.matchScore ?? 0) - (a.matchScore ?? 0));
+    }, [results]);
     const hiddenByRules = listing?.excluded ? listing.excluded.age + listing.excluded.safety + listing.excluded.verification : 0;
     const activeInterest = filters.interest;
 
+    const categoryLabel = (id) => (vocab?.categories || []).find((c) => c.id === id)?.label || '';
+
     const grid = (items) => (
         <div className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {items.map((o) => (
-                <OpportunityCard key={o.id} opp={o} vocab={vocab} guardian={guardian} leaving={leaving.has(o.id)}
+            {items.map((o) => (o.kind === 'web'
+                ? <WebJobCard key={o.id} job={o} categoryLabel={categoryLabel(o.category)} />
+                : <OpportunityCard key={o.id} opp={o} vocab={vocab} guardian={guardian} leaving={leaving.has(o.id)}
                     onInterested={onInterested} onNotInterested={onNotInterested} onOpen={openDetails} />
             ))}
         </div>
@@ -254,7 +280,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
 
     const mainTitle = filtersActive
         ? `${results.length} result${results.length === 1 ? '' : 's'}${debouncedQ ? ` for “${debouncedQ}”` : ''}`
-        : anyDate ? 'All upcoming part-time jobs' : 'Part-time jobs on your dates';
+        : anyDate ? 'All upcoming part-time jobs' : 'Your dates first, then the rest of this month';
 
     return (
         <div className="space-y-6">
@@ -277,6 +303,15 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                             <SlidersHorizontal size={16} aria-hidden="true" /> Filters
                             {countActive(filters) > 0 && <span className="rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{countActive(filters)}</span>}
                         </button>
+                        <label className="relative">
+                            <span className="sr-only">Your town or city</span>
+                            <MapPin size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                            <input value={townDraft} onChange={(e) => setTownDraft(e.target.value)}
+                                onBlur={commitTown}
+                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitTown(); } }}
+                                placeholder="Your town" aria-label="Your town or city"
+                                className="min-h-12 w-36 rounded-2xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-slate-800 shadow-sm placeholder:font-normal placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                        </label>
                         <button type="button" onClick={() => setEditing(true)}
                             className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-indigo-300 hover:text-indigo-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
                             <Pencil size={15} aria-hidden="true" /> <span className="hidden sm:inline">Change dates &amp; interests</span><span className="sm:hidden">Edit</span>
@@ -289,8 +324,8 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm">
                             <CalendarDays size={16} className="shrink-0 text-indigo-600" aria-hidden="true" />
                             <span className="text-slate-700">
-                                {anyDate ? 'Showing every upcoming job. ' : 'Showing jobs on '}
-                                {!anyDate && <strong className="text-indigo-800">{windowLabel({ from: data.profile.wantFrom, to: data.profile.wantTo })}</strong>}
+                                {anyDate ? 'Showing every upcoming job. ' : 'Your free time is '}
+                                {!anyDate && <><strong className="text-indigo-800">{windowLabel({ from: data.profile.wantFrom, to: data.profile.wantTo })}</strong> — those jobs come first, then the rest of the month.</>}
                             </span>
                             <button type="button" onClick={() => setFilters((f) => ({ ...f, anyDate: !f.anyDate }))}
                                 className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold text-indigo-700 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
@@ -329,6 +364,18 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         </p>
                     )}
 
+                    {listing?.web?.allowed && (listing.web.notice || listing.web.count > 0) && (
+                        <p className="flex items-center gap-2 text-xs text-slate-500">
+                            <Globe size={14} className="shrink-0 text-sky-500" aria-hidden="true" />
+                            {listing.web.notice
+                                ? listing.web.notice
+                                : <>
+                                    Including {listing.web.count} open part-time vacanc{listing.web.count === 1 ? 'y' : 'ies'} near {listing.web.place?.label || webLocation} from Google Jobs.
+                                    {listing.web.widened && <> Few were posted in {listing.web.place?.city || webLocation}, so some come from {listing.web.widened}.</>}
+                                </>}
+                        </p>
+                    )}
+
                     {rules && hiddenByRules > 0 && rules.band !== 'adult' && (
                         <p className="flex items-center gap-2 text-xs text-slate-500">
                             <ShieldCheck size={14} className="text-emerald-600" aria-hidden="true" />
@@ -350,21 +397,21 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         <section aria-labelledby="opp-main-title">
                             <SectionTitle icon={filtersActive ? Search : Sparkles} title={<span id="opp-main-title">{mainTitle}</span>}
                                 hint={filtersActive ? (countActive(filters) ? `${countActive(filters)} filter${countActive(filters) === 1 ? '' : 's'} applied` : undefined)
-                                    : 'Ranked on your interests, your dates and what you\'ve marked ♡.'}
+                                    : 'In date order — your free time first, then the rest of the month. Local jobs and open vacancies near you, together.'}
                                 action={filtersActive && <GhostButton onClick={clearAll}><RotateCcw size={14} aria-hidden="true" /> Clear</GhostButton>} />
-                            {results.length ? grid(results) : filtersActive ? (
+                            {results.length ? grid(ordered) : filtersActive ? (
                                 <Empty icon={Search} title="Nothing matches that search" actions={<GhostButton onClick={clearAll}>Clear search &amp; filters</GhostButton>}>
                                     Try a shorter word, or clear a filter or two.
                                 </Empty>
                             ) : otherDates > 0 ? (
-                                <Empty icon={CalendarDays} title="No local jobs on your dates yet"
+                                <Empty icon={CalendarDays} title="Nothing on your dates or the rest of this month"
                                     actions={<>
-                                        <GhostButton primary onClick={() => setFilters((f) => ({ ...f, anyDate: true }))}>See {otherDates} job{otherDates === 1 ? '' : 's'} on other dates</GhostButton>
+                                        <GhostButton primary onClick={() => setFilters((f) => ({ ...f, anyDate: true }))}>See {otherDates} job{otherDates === 1 ? '' : 's'} after this month</GhostButton>
                                         <GhostButton onClick={() => setEditing(true)}>Change dates</GhostButton>
                                         <GhostButton onClick={() => setEditing(true)}>Update interests</GhostButton>
                                     </>}>
-                                    Nothing is scheduled on {windowLabel({ from: data.profile.wantFrom, to: data.profile.wantTo })} that you can take up.
-                                    New jobs are added by the LMS team as they come in — check back, or widen your dates.
+                                    Nothing is scheduled around {windowLabel({ from: data.profile.wantFrom, to: data.profile.wantTo })} that you can take up.
+                                    New jobs are added by the LMS team as they come in, and open vacancies near you appear here too — set your town above.
                                 </Empty>
                             ) : (
                                 <Empty title="No local jobs match your current preferences."
@@ -410,21 +457,6 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                                     Tap ♡ Interested on any job that suits you. It's kept here, and similar jobs move up your list.
                                 </Empty>
                             )}
-                        </section>
-                    )}
-
-                    {/* ── Recently viewed ──────────────────────────────── */}
-                    {recent.length > 0 && (
-                        <section aria-labelledby="opp-recent-title">
-                            <SectionTitle icon={History} title={<span id="opp-recent-title">Recently viewed</span>} />
-                            <div className="opp-scroll -mx-1 flex snap-x gap-4 overflow-x-auto px-1 pb-2">
-                                {recent.map((o) => (
-                                    <div key={o.id} className="w-[min(88vw,340px)] shrink-0 snap-start">
-                                        <OpportunityCard opp={o} vocab={vocab} guardian={guardian} leaving={leaving.has(o.id)}
-                                            onInterested={onInterested} onNotInterested={onNotInterested} onOpen={openDetails} />
-                                    </div>
-                                ))}
-                            </div>
                         </section>
                     )}
 

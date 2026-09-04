@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
 import CertificatesFrame from '../components/CertificatesFrame';
@@ -7,11 +7,15 @@ import ResumeSection from '../components/ResumeSection';
 import Cropper from 'react-easy-crop';
 import {
     CreditCard, Mail, Phone, Award, Loader2, Edit2, Check, X, Camera, ZoomIn, ZoomOut, Compass, ArrowRight,
-    Flame, Gem, Coins, BookOpen, PlayCircle, CalendarDays
+    Flame, Gem, Coins, BookOpen, PlayCircle, CalendarDays, Upload, Trash2, Sparkles
 } from 'lucide-react';
 import { levelProgress, currentStreak, recentActivity } from '../career/utils/progress';
 import { StatTile, ProgressRing, ActivityStrip, SpeechBubble } from '../components/ProfileWidgets';
 import ProfileHeroArt from '../components/ProfileHeroArt';
+import { useRewards } from '../context/useRewards';
+import ProgressCard from '../components/rewards/ProgressCard';
+import LeaderboardCard from '../components/rewards/LeaderboardCard';
+import WalletCard from '../components/rewards/WalletCard';
 
 // Helper: convert crop area to a cropped blob
 const getCroppedBlob = (imageSrc, pixelCrop) =>
@@ -28,8 +32,35 @@ const getCroppedBlob = (imageSrc, pixelCrop) =>
         };
     });
 
+// Ready-made avatars for students who would rather not upload a photo,
+// grouped the way people look for them: boys, girls, kids, and elders.
+// The tiles are flat vector illustrations in pastel circles, shipped with
+// the app under public/avatars/<group>/<n>.png. Elders are middle-aged
+// uncles and aunties rather than grandparents. The server turns the
+// relative path into an absolute URL on save so the same picture also
+// shows in the admin panel.
+const AVATAR_GROUPS = [
+    { id: 'boys', label: 'Boys', count: 6 },
+    { id: 'girls', label: 'Girls', count: 6 },
+    { id: 'kids', label: 'Kids', count: 6 },
+    { id: 'elders', label: 'Elders', count: 9 },
+].map(g => ({ ...g, tiles: Array.from({ length: g.count }, (_, i) => `/avatars/${g.id}/${i + 1}.jpg`) }));
+
 const Profile = () => {
     const { user, setUser, isCareerPathEnabled } = useContext(AuthContext);
+    // Streak, XP, rank, badges and wallet from the rewards system. Null while
+    // loading or when an admin has locked the section; the page then falls
+    // back to the Career Path numbers it always showed.
+    const rewards = useRewards();
+    const rw = rewards.enabled ? rewards.summary : null;
+    // The stat cards link to #leaderboard / #wallet on this page; client-side
+    // routing does not scroll to a hash on its own.
+    const { hash } = useLocation();
+    useEffect(() => {
+        if (!hash) return;
+        const el = document.getElementById(hash.slice(1));
+        if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    }, [hash, rw]);
     const [certificates, setCertificates] = useState([]);
     // Career Path standing. Fetched here so the profile shows one student rather
     // than two: credits are earned in courses, XP and levels in Career Path, and
@@ -53,6 +84,15 @@ const Profile = () => {
     // Profile picture
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const photoInputRef = useRef(null);
+
+    // Photo chooser: upload a photo, or pick a ready-made avatar instead
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [avatarGroup, setAvatarGroup] = useState(AVATAR_GROUPS[0].id);
+    const [selectedAvatar, setSelectedAvatar] = useState(null);
+    // Avatar pictures that failed to load, so their tiles drop out instead of
+    // showing a broken image.
+    const [brokenAvatars, setBrokenAvatars] = useState([]);
+    const [savingAvatar, setSavingAvatar] = useState(false);
 
     // Photo viewer
     const [viewingPhoto, setViewingPhoto] = useState(false);
@@ -139,6 +179,29 @@ const Profile = () => {
         }
     };
 
+    // Save a picture URL straight to the profile: a chosen avatar, or '' to
+    // go back to initials. No upload involved, so it goes through PUT /profile.
+    const savePictureUrl = async (profilePicture) => {
+        setSavingAvatar(true);
+        try {
+            const res = await api.put('/user/profile', { profilePicture });
+            const updated = { ...user, ...res.data };
+            setUser(updated);
+            localStorage.setItem('studentData', JSON.stringify(updated));
+            setPickerOpen(false);
+            setSelectedAvatar(null);
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to update photo. Please try again.');
+        } finally {
+            setSavingAvatar(false);
+        }
+    };
+
+    const openPicker = () => {
+        setSelectedAvatar(null);
+        setPickerOpen(true);
+    };
+
     // Step 1: user picks a file → open crop modal
     const handlePhotoSelect = (e) => {
         const file = e.target.files?.[0];
@@ -146,7 +209,7 @@ const Profile = () => {
         if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
         if (file.size > 10 * 1024 * 1024) { alert('Image must be under 10MB.'); return; }
         const reader = new FileReader();
-        reader.onload = () => { setCropSrc(reader.result); setCrop({ x: 0, y: 0 }); setZoom(1); };
+        reader.onload = () => { setPickerOpen(false); setCropSrc(reader.result); setCrop({ x: 0, y: 0 }); setZoom(1); };
         reader.readAsDataURL(file);
         e.target.value = '';
     };
@@ -207,7 +270,8 @@ const Profile = () => {
     const level = Math.max(1, Number(career?.level) || 1);
     const xp = Number(career?.xp) || 0;
     const ring = levelProgress(xp, level);
-    const streak = useMemo(() => currentStreak(history), [history]);
+    const careerStreak = useMemo(() => currentStreak(history), [history]);
+    const streak = rw ? rw.streak.current : careerStreak;
     const week = useMemo(() => recentActivity(history, 7).map((d) => ({ ...d, dayNum: Number(d.key.slice(-2)) })), [history]);
     const activeThisWeek = week.filter((d) => d.active).length;
     const inProgress = useMemo(() => courses
@@ -247,6 +311,16 @@ const Profile = () => {
                 {/* The illustration bleeds to the card's right edge; the text keeps clear of it on wide screens. */}
                 <ProfileHeroArt className="pointer-events-none absolute -bottom-2 right-0 hidden h-[calc(100%+8px)] w-auto lg:block animate-fade-in" />
 
+                {/* The card's own corner, clear of the illustration. */}
+                {!editing && (
+                    <button
+                        onClick={openEdit}
+                        className="absolute right-5 top-5 z-20 inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/30 backdrop-blur transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    >
+                        <Edit2 size={14} /> Edit Profile
+                    </button>
+                )}
+
                 <div className="relative flex flex-col gap-6 md:flex-row md:items-start lg:pr-[300px] xl:pr-[340px]">
                     {/* Avatar with a slowly turning ring */}
                     <div className="relative mx-auto shrink-0 md:mx-0">
@@ -264,10 +338,10 @@ const Profile = () => {
                             </div>
                         </div>
                         <button
-                            onClick={() => photoInputRef.current?.click()}
+                            onClick={openPicker}
                             disabled={uploadingPhoto}
                             className="absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-full bg-white text-indigo-600 shadow-md transition-transform hover:scale-110 disabled:opacity-60"
-                            title="Change photo" aria-label="Change photo"
+                            title="Change photo or avatar" aria-label="Change photo or avatar"
                         >
                             {uploadingPhoto ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
                         </button>
@@ -279,15 +353,7 @@ const Profile = () => {
                         {!editing ? (
                             <>
                                 <p className="text-sm font-semibold text-indigo-100">{dayGreeting} 👋</p>
-                                <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-                                    <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Hello, {firstName}!</h1>
-                                    <button
-                                        onClick={openEdit}
-                                        className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/30 backdrop-blur transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                                    >
-                                        <Edit2 size={14} /> Edit Profile
-                                    </button>
-                                </div>
+                                <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">Hello, {firstName}!</h1>
                                 <div className="mt-4 text-slate-900"><SpeechBubble>{bubble}</SpeechBubble></div>
                                 <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
                                     <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 ring-1 ring-white/25"><CreditCard size={13} /> <span className="font-mono">{user?.cardNumber}</span></span>
@@ -351,25 +417,34 @@ const Profile = () => {
                 </div>
             </div>
 
-            {/* ── Stat tiles ───────────────────────────────────────────── */}
+            {/* ── Stat tiles (Career Path numbers, shown only when rewards are locked;
+                   otherwise the progress + leaderboard block below carries them) ── */}
+            {!rw && (
             <div className="stagger grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                 <StatTile tone="amber" icon={Coins} value={xp} label="Current XP" sub={`${ring.remaining} XP to level ${ring.nextLevel}`} emoji="🪙" to={isCareerPathEnabled ? '/career' : undefined} />
                 <StatTile tone="sky" icon={Gem} value={level} label="Your level" sub={isCareerPathEnabled ? 'From Career Path tasks' : 'Levels come from Career Path'} percent={ring.percent} to={isCareerPathEnabled ? '/career' : undefined} />
                 <StatTile tone="orange" icon={Flame} value={streak} suffix={streak === 1 ? ' day' : ' days'} label="Streak" sub={streak ? 'Keep it alive today' : 'Finish a task to start one'} emoji="🔥" to={isCareerPathEnabled ? '/career/planner' : undefined} />
                 <StatTile tone="rose" icon={Award} value={user?.credits || 0} label="Credits" sub="Earned from course quizzes" emoji="🏅" />
             </div>
+            )}
+
+            {/* ── Your progress, then leaderboard beside wallet ─────────── */}
+            {rw && (
+                <>
+                    <ProgressCard summary={rw} courses={courses} />
+                    <div className="grid gap-4 xl:grid-cols-2">
+                        <LeaderboardCard courses={courses} />
+                        <WalletCard />
+                    </div>
+                </>
+            )}
 
             {/* ── Continue learning + this week ────────────────────────── */}
             <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                        <div>
-                            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><BookOpen size={18} className="text-indigo-500" /> Course progress</h2>
-                            <p className="text-sm text-slate-500">Continue where you left off</p>
-                        </div>
-                        <Link to="/enrolled-courses" className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition-colors hover:border-indigo-300 hover:text-indigo-600">
-                            All courses <ArrowRight size={13} />
-                        </Link>
+                    <div className="mb-4">
+                        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><BookOpen size={18} className="text-indigo-500" /> Course progress</h2>
+                        <p className="text-sm text-slate-500">Continue where you left off</p>
                     </div>
                     {inProgress.length ? (
                         <ul className="stagger space-y-3">
@@ -426,6 +501,7 @@ const Profile = () => {
                 </div>
             </div>
 
+
             {/* Certificates — course-issued and uploaded, in one frame */}
             <CertificatesFrame
                 certificates={certificates}
@@ -457,6 +533,113 @@ const Profile = () => {
                             <X size={16} />
                         </button>
                         <p className="text-center text-white/70 text-sm mt-3 font-medium">{user.name}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Photo / Avatar Picker Modal ── */}
+            {pickerOpen && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+                    onClick={() => !savingAvatar && setPickerOpen(false)}
+                >
+                    <div
+                        className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                        onClick={e => e.stopPropagation()}
+                        role="dialog" aria-modal="true" aria-labelledby="picker-title"
+                    >
+                        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                            <h3 id="picker-title" className="font-bold text-slate-800">Change photo</h3>
+                            <button onClick={() => setPickerOpen(false)} disabled={savingAvatar} className="text-slate-400 hover:text-slate-600" aria-label="Close"><X size={18} /></button>
+                        </div>
+
+                        <div className="overflow-y-auto px-5 py-4">
+                            {/* Upload your own, or drop back to initials */}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => photoInputRef.current?.click()}
+                                    disabled={savingAvatar}
+                                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
+                                >
+                                    <Upload size={15} /> Upload a photo
+                                </button>
+                                {user?.profilePicture && (
+                                    <button
+                                        onClick={() => savePictureUrl('')}
+                                        disabled={savingAvatar}
+                                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                                        title="Remove photo and show initials"
+                                    >
+                                        <Trash2 size={15} /> Remove
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="my-4 flex items-center gap-3 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                                <span className="h-px flex-1 bg-slate-200" />
+                                <span className="flex items-center gap-1"><Sparkles size={12} /> or pick an avatar</span>
+                                <span className="h-px flex-1 bg-slate-200" />
+                            </div>
+
+                            {/* Group chips: boys, girls, kids, elders */}
+                            <div className="flex flex-wrap gap-1.5">
+                                {AVATAR_GROUPS.map(g => (
+                                    <button
+                                        key={g.id}
+                                        onClick={() => { setAvatarGroup(g.id); setSelectedAvatar(null); }}
+                                        className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${avatarGroup === g.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                    >
+                                        {g.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Avatar grid */}
+                            {(AVATAR_GROUPS.find(g => g.id === avatarGroup) || AVATAR_GROUPS[0]).tiles.every((u) => brokenAvatars.includes(u)) && (
+                                <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                    The ready-made avatars are not available on this server. Upload a photo instead.
+                                </p>
+                            )}
+                            <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
+                                {(AVATAR_GROUPS.find(g => g.id === avatarGroup) || AVATAR_GROUPS[0]).tiles.filter((u) => !brokenAvatars.includes(u)).map((url, i) => {
+                                    // The saved picture may be the absolute form of this path.
+                                    const active = selectedAvatar === url || (!selectedAvatar && !!user?.profilePicture && user.profilePicture.endsWith(url));
+                                    return (
+                                        <button
+                                            key={url}
+                                            onClick={() => setSelectedAvatar(url)}
+                                            disabled={savingAvatar}
+                                            className={`relative aspect-square overflow-hidden rounded-full border-4 bg-white transition-transform hover:scale-105 ${active ? 'border-indigo-600 ring-2 ring-indigo-200' : 'border-transparent'}`}
+                                            aria-label={`Avatar ${i + 1}`}
+                                            aria-pressed={active}
+                                        >
+                                            <img src={url} alt="" loading="lazy" className="h-full w-full object-cover"
+                                                onError={() => setBrokenAvatars((b) => (b.includes(url) ? b : [...b, url]))} />
+                                            {active && (
+                                                <span className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"><Check size={12} /></span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
+                            <button
+                                onClick={() => setPickerOpen(false)}
+                                disabled={savingAvatar}
+                                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => selectedAvatar && savePictureUrl(selectedAvatar)}
+                                disabled={!selectedAvatar || savingAvatar}
+                                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {savingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Use this avatar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

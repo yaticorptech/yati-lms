@@ -3,15 +3,11 @@ const Badge = require('../models/Badge');
 const UserBadge = require('../models/UserBadge');
 const Notification = require('../models/Notification');
 
-// Example Level threshold calculation: Level 2 = 100XP, Level 3 = 300XP, Level 4 = 600XP
-const calculateLevel = (xp) => {
-  if (xp < 100) return 1;
-  if (xp < 300) return 2;
-  if (xp < 600) return 3;
-  if (xp < 1000) return 4;
-  if (xp < 1500) return 5;
-  return Math.floor(Math.sqrt(xp / 100)) + 2; // general scaling
-};
+// Level thresholds now live in the admin-edited rewards rulebook; this keeps
+// the old name for callers and answers from the defaults, which match the
+// ladder the badge catalogue below was written against.
+const { levelFor } = require('../../rewards/services/configService');
+const calculateLevel = (xp) => levelFor(xp);
 
 /**
  * Every badge in the game, in the order they are earned.
@@ -60,32 +56,16 @@ const seedBadges = async () => {
 const addXP = async (userId, amount, reason) => {
   await seedBadges();
 
+  // The write itself goes through the rewards XP service, so Career Path XP
+  // lands in the same ledger the leaderboard sums and levels come from the
+  // same admin thresholds as course XP. It also posts the "XP earned" and
+  // "Level up" notifications, which used to be created here.
+  const { addXp } = require('../../rewards/services/xpService');
+  const result = await addXp({ userId, amount, source: 'career', description: `for ${reason}` });
+  if (!result || result.duplicate || result.missingUser) return;
+
   const user = await User.findById(userId);
   if (!user) return;
-
-  const oldLevel = user.level;
-  user.xp += amount;
-  user.level = calculateLevel(user.xp);
-
-  await user.save();
-
-  // Create XP Notification
-  await Notification.create({
-    userId,
-    title: 'XP Earned!',
-    message: `You earned ${amount} XP for ${reason}.`,
-    type: 'achievement'
-  });
-
-  // Check Level Up
-  if (user.level > oldLevel) {
-    await Notification.create({
-      userId,
-      title: 'Level Up!',
-      message: `Congratulations! You have reached Level ${user.level}!`,
-      type: 'achievement'
-    });
-  }
 
   // Check Badges based on XP / Level
   const allBadges = await Badge.find();

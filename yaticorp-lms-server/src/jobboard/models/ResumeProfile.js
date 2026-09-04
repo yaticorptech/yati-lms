@@ -45,7 +45,7 @@ const resumeProfileSchema = new mongoose.Schema(
     objectPath: { type: String, default: "" },
     // parsed: skills etc. came from this file. stored: the file was kept but
     // the parser was unavailable, so the extraction (if any) is older.
-    parseStatus: { type: String, enum: ["parsed", "stored"], default: "parsed" }
+    parseStatus: { type: String, enum: ["parsed", "stored", "parsing"], default: "parsed" }
   },
   { versionKey: false }
 );

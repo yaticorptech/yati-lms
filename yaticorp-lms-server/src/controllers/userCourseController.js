@@ -206,7 +206,9 @@ const updateProgress = async (req, res) => {
 
         progress.lastAccessedLesson = lessonId;
 
-        if (!progress.completedLessons.includes(lessonId)) {
+        const wasComplete = progress.percentage >= 100;
+        const newLesson = !progress.completedLessons.includes(lessonId);
+        if (newLesson) {
             progress.completedLessons.push(lessonId);
         }
 
@@ -226,9 +228,27 @@ const updateProgress = async (req, res) => {
             // In production, we could trigger the certificate generation API or webhook here automatically
         }
 
+        // Rewards: XP, streak and badges for the lesson, and for the course the
+        // first time it reaches 100%. Both are exactly-once on the server side
+        // (the activity ledger refuses a repeat), so a re-sent request or a
+        // second tab cannot pay twice. Never fails the progress update.
+        const rewards = { events: [] };
+        try {
+            const { safeRecordActivity } = require('../rewards/services/activityService');
+            if (newLesson) {
+                const r = await safeRecordActivity({ userId: req.user._id, type: 'lesson_complete', refId: lessonId, courseId });
+                rewards.events.push(...r.events);
+            }
+            if (progress.percentage === 100 && !wasComplete) {
+                const r = await safeRecordActivity({ userId: req.user._id, type: 'course_complete', refId: courseId, courseId });
+                rewards.events.push(...r.events);
+            }
+        } catch (e) { console.error('[rewards] progress hook failed:', e.message); }
+
         res.json({
             progress,
-            certificateEarned
+            certificateEarned,
+            rewards
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });

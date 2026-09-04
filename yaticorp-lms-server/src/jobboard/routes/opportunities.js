@@ -206,7 +206,49 @@ const filtersFrom = (query, band) => {
     return f;
 };
 
-/** GET / — jobs on the student's dates (or all upcoming with ?dates=any). */
+/* ── The merged list ──────────────────────────────────────────────────────
+
+   One list, two sources. The LMS's own local jobs (put in by the admin, with
+   real dates) and open part-time roles near the student from Google Jobs.
+   Both are filed under the same categories, and both come back in one array
+   so the tab can lay them out by date: the student's own free time first,
+   then the rest of that month, day by day.
+
+   A web listing has no working date — it is a vacancy, open until it is
+   filled — so it carries `anyDay` and sits with the student's own dates,
+   which is the first thing they are looking at.
+------------------------------------------------------------------------- */
+
+/** End of the calendar month that contains `d`, at the last millisecond. */
+const endOfMonth = (d) => {
+    const x = new Date(d);
+    return new Date(x.getFullYear(), x.getMonth() + 1, 0, 23, 59, 59, 999);
+};
+
+const webShape = (job, category) => ({
+    kind: 'web',
+    id: job.id,
+    title: job.title,
+    organization: { name: job.company || 'Employer', verified: false, logo: job.logo || '' },
+    description: job.description || '',
+    highlights: job.highlights || [],
+    category,
+    icon: (vocab.CATEGORIES.find((c) => c.id === category) || {}).icon || '🌐',
+    opportunityType: 'part-time',
+    typeLabel: job.typeLabel || 'Part-time',
+    location: { area: '', city: job.location || '', landmark: '' },
+    timeLabel: '',
+    compensation: job.salary ? { kind: 'paid', label: job.salary } : null,
+    remote: !!job.remote,
+    wider: !!job.wider,
+    daysAgo: job.daysAgo,
+    publisher: job.publisher || '',
+    url: job.url,
+    source: 'Google Jobs',
+    anyDay: true
+});
+
+/** GET / — the student's month, both sources, ready to group by date. */
 router.get('/', async (req, res, next) => {
     try {
         if (!isConnected()) return res.status(503).json({ error: 'Database unavailable.' });
@@ -218,9 +260,58 @@ router.get('/', async (req, res, next) => {
 
         const filters = filtersFrom(req.query, ctx.band);
         const pool = await Opportunity.find({ status: 'open' }).lean();
-        const { results, excluded } = recommend(pool, ctx, filters);
 
-        // Category counts over what the band may see on ANY date, before the
+        // Everything the student may see on any date, filters applied. The
+        // date is then a matter of grouping rather than of exclusion — the
+        // list runs from their own dates into the rest of the month.
+        const all = recommend(pool, ctx, { ...filters, anyDate: true });
+        const windowFrom = new Date(ctx.profile.wantFrom);
+        const windowTo = new Date(ctx.profile.wantTo);
+        const monthEnd = endOfMonth(windowTo);
+        const inWindow = (o) => new Date(o.startsAt) <= windowTo && new Date(o.endsAt) >= windowFrom;
+
+        const local = [];
+        let laterThanMonth = 0;
+        for (const row of all.results) {
+            const onYourDates = inWindow(row.opp);
+            // Beyond this month is a different question — counted, not listed,
+            // unless the student asks to see every upcoming date.
+            if (!onYourDates && !filters.anyDate && new Date(row.opp.startsAt) > monthEnd) { laterThanMonth += 1; continue; }
+            local.push({ ...shape(row, ctx), kind: 'local', onYourDates });
+        }
+
+        // Google Jobs, for the bands allowed on the open web and only once a
+        // place is known. Never fatal: the local list is the section's spine.
+        let web = [];
+        let webPlace = null;
+        let webNotice = '';
+        let webWidened = '';
+        const webAllowed = ctx.band.id !== 'explore' && ctx.band.id !== 'teen';
+        const location = String(req.query.location || '').trim();
+        if (webAllowed && location) {
+            try {
+                const { partTimeNear, categoryFor } = require('../services/partTimeWebService');
+                const out = await partTimeNear(location, { refresh: req.query.refresh === '1' });
+                webPlace = out.place;
+                webNotice = out.unavailable || '';
+                webWidened = out.widened || '';
+                web = (out.results || []).map((j) => webShape(j, categoryFor(j)));
+            } catch (err) {
+                webNotice = err.message || 'Could not reach Google Jobs right now.';
+            }
+        }
+        // The same filters the local rows went through, so a category chip or
+        // a search word means one thing across both sources.
+        const q = String(req.query.q || '').trim().toLowerCase();
+        if (filters.category) web = web.filter((w) => w.category === filters.category);
+        if (filters.type && filters.type !== 'part-time') web = [];
+        if (q) web = web.filter((w) => `${w.title} ${w.organization.name} ${w.location.city} ${w.description}`.toLowerCase().includes(q));
+        if (filters.verifiedOnly) web = [];
+
+        const results = [...local, ...web];
+        const onDates = results.filter((r) => r.kind === 'web' || r.onYourDates).length;
+
+        // Category counts over everything the band may see, before the
         // student's own filters — so a chip's number is what tapping it shows.
         const eligible = recommend(pool, ctx, { anyDate: true }).results;
         const counts = new Map();
@@ -235,13 +326,15 @@ router.get('/', async (req, res, next) => {
             rules: clientRules(ctx.band),
             guardian: guardianFor(ctx.profile, ctx.band),
             window: { from: ctx.profile.wantFrom, to: ctx.profile.wantTo },
-            total: results.length,
-            results: results.map((r) => shape(r, ctx)),
-            // Eligible jobs the dates alone are hiding — so the empty state
-            // can say "12 jobs on other dates" instead of "nothing".
-            otherDates: filters.anyDate ? 0 : excluded.dates,
+            monthEnd,
+            total: onDates,
+            monthTotal: results.length,
+            results,
+            web: { allowed: webAllowed, place: webPlace, notice: webNotice, widened: webWidened, count: web.length },
+            // Eligible jobs beyond this month, so the empty state can offer them.
+            otherDates: laterThanMonth,
             categories,
-            excluded,
+            excluded: all.excluded,
             poolSize: pool.length
         });
     } catch (err) {
@@ -288,6 +381,28 @@ router.get('/recent', async (req, res, next) => {
 });
 
 /** GET /:id — details. Refused, not hidden, when the band may not see it. */
+/** GET /web?location=&refresh= — part-time listings from Google Jobs near a
+ *  place, for students the band allows onto the open web. */
+router.get('/web', async (req, res, next) => {
+    try {
+        if (!isConnected()) return res.status(503).json({ error: 'Database unavailable.' });
+        const ctx = await loadContext(req.user._id);
+        if (!ctx.profile || !ctx.band) return res.json({ needsProfile: true, minor: false, results: [] });
+        // The open web is not age-checked; the local index is the minor's board.
+        if (ctx.band.id === 'explore' || ctx.band.id === 'teen') {
+            return res.json({ minor: true, results: [], window: { from: ctx.profile.wantFrom, to: ctx.profile.wantTo } });
+        }
+        const location = String(req.query.location || '').trim();
+        if (!location) return res.status(400).json({ error: 'Tell us your town or city first.' });
+        const { partTimeNear } = require('../services/partTimeWebService');
+        const out = await partTimeNear(location, { refresh: req.query.refresh === '1' });
+        res.json({ minor: false, window: { from: ctx.profile.wantFrom, to: ctx.profile.wantTo }, ...out });
+    } catch (err) {
+        if (err.status) return res.status(err.status).json({ error: err.message });
+        next(err);
+    }
+});
+
 router.get('/:id', async (req, res, next) => {
     try {
         if (!isConnected()) return res.status(503).json({ error: 'Database unavailable.' });

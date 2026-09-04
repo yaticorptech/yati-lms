@@ -71,6 +71,38 @@ const getUserProfile = async (req, res) => {
     }
 };
 
+// Pictures set through the plain profile update must be an empty string
+// (back to initials), one of the avatar illustrations bundled with the
+// student app, a DiceBear avatar, or a Cloudinary upload we already hold.
+// Anything else could turn the avatar into a link to any image online.
+// Bundled avatars arrive as a relative path; when FRONTEND_URL is set they
+// are stored absolute so the admin panel, on its own origin, can show them.
+const ALLOWED_PICTURE_HOSTS = ['api.dicebear.com', 'res.cloudinary.com'];
+// The avatar files shipped with the student app. The extension is open
+// because the artwork has been re-encoded before (PNG → JPEG) and a picture
+// a student already saved must keep working across that change.
+const BUNDLED_AVATAR = /^\/avatars\/(boys|girls|kids|elders)\/([1-9]|1\d)\.(png|jpe?g|webp)$/i;
+const frontendHost = () => {
+    try { return new URL(process.env.FRONTEND_URL).hostname; } catch { return null; }
+};
+const normalizePictureUrl = (value) => {
+    if (value === '') return '';
+    if (BUNDLED_AVATAR.test(value)) {
+        const base = (process.env.FRONTEND_URL || '').replace(/\/+$/, '');
+        return base ? `${base}${value}` : value;
+    }
+    try {
+        const url = new URL(value);
+        const hosts = [...ALLOWED_PICTURE_HOSTS, frontendHost()].filter(Boolean);
+        if (url.protocol !== 'https:' && url.hostname !== frontendHost()) return null;
+        if (!hosts.includes(url.hostname)) return null;
+        if (url.hostname === frontendHost() && !BUNDLED_AVATAR.test(url.pathname)) return null;
+        return value;
+    } catch {
+        return null;
+    }
+};
+
 // @desc    Update user profile
 // @route   PUT /api/user/profile
 // @access  Private/User
@@ -82,7 +114,13 @@ const updateUserProfile = async (req, res) => {
             user.name = req.body.name || user.name;
             user.email = req.body.email || user.email;
             user.phone = req.body.phone || user.phone;
-            if (req.body.profilePicture !== undefined) user.profilePicture = req.body.profilePicture;
+            if (req.body.profilePicture !== undefined) {
+                const pic = normalizePictureUrl(String(req.body.profilePicture || '').trim());
+                if (pic === null) {
+                    return res.status(400).json({ message: 'Profile picture must be an uploaded photo or a chosen avatar' });
+                }
+                user.profilePicture = pic;
+            }
 
             if (req.body.password) {
                 user.password = req.body.password;

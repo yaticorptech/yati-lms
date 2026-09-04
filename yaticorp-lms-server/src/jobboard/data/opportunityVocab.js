@@ -20,6 +20,9 @@ const CATEGORIES = [
   { id: 'shop', label: 'Shop & counter help', icon: '🛍️' },
   { id: 'setup', label: 'Setup & cleanup', icon: '🧹' },
   { id: 'delivery', label: 'Delivery & driving', icon: '🛵' },
+  // Most real part-time listings for students are tutoring or coaching;
+  // without a heading of their own they all file under "Other".
+  { id: 'tutoring', label: 'Tutoring & coaching', icon: '📚' },
   { id: 'other', label: 'Other', icon: '🌱' }
 ];
 

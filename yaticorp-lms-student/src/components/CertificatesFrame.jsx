@@ -36,14 +36,14 @@ const merge = (certificates, achievements) => [
    the LMS issued. Images and PDF thumbnails render inside; anything else
    gets the seal. */
 const Framed = ({ item, large = false }) => (
-    <div className={`relative rounded-2xl bg-gradient-to-br from-amber-100 via-amber-50 to-amber-200 p-2 shadow-md ${large ? 'sm:p-3' : ''}`}>
+    <div className={`relative rounded-2xl bg-gradient-to-br from-amber-100 via-amber-50 to-amber-200 p-1.5 shadow-md ${large ? 'sm:p-3' : ''}`}>
         <div className="rounded-xl border-4 border-white bg-white p-1.5 shadow-inner">
             <div className={`flex items-center justify-center overflow-hidden rounded-lg bg-slate-100 ${large ? 'aspect-[4/3]' : 'aspect-[4/3]'}`}>
                 {item.thumbnailUrl ? (
                     <img src={item.thumbnailUrl} alt={item.title} loading="lazy" className="h-full w-full object-cover" />
                 ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-emerald-50 via-white to-teal-50 text-emerald-600">
-                        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 ring-8 ring-emerald-50"><Award size={large ? 34 : 28} /></span>
+                        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 ring-4 ring-emerald-50"><Award size={large ? 30 : 22} /></span>
                         {large && <span className="px-4 text-center text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">Certificate of completion</span>}
                     </div>
                 )}
@@ -222,16 +222,16 @@ export default function CertificatesFrame({ certificates, loading, certError, do
     return (
         <section aria-labelledby="my-certificates-title" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
             {/* ── Header ───────────────────────────────────────────────── */}
-            <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-200"><Award size={22} /></span>
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-200"><Award size={20} /></span>
                     <div>
-                        <h2 id="my-certificates-title" className="text-lg font-black tracking-tight text-slate-900 sm:text-xl">My Certificates <span className="text-amber-400">✨</span></h2>
+                        <h2 id="my-certificates-title" className="text-base font-black tracking-tight text-slate-900 sm:text-lg">My Certificates <span className="text-amber-400">✨</span></h2>
                         <p className="text-xs text-slate-500 sm:text-sm">Your achievements, in one frame — earned here or uploaded from anywhere.</p>
                     </div>
                 </div>
                 <button type="button" onClick={() => setUploading(true)}
-                    className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:from-indigo-700 hover:to-violet-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2">
+                    className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:from-indigo-700 hover:to-violet-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2">
                     <Upload size={16} /> Upload Certificate
                 </button>
             </div>
@@ -242,14 +242,14 @@ export default function CertificatesFrame({ certificates, loading, certError, do
 
             {/* ── Empty frame ──────────────────────────────────────────── */}
             {busy ? (
-                <div className="p-4 sm:px-5"><div className="skeleton h-36 rounded-2xl" /></div>
+                <div className="px-4 py-3 sm:px-5"><div className="skeleton h-24 rounded-2xl" /></div>
             ) : items.length === 0 && (
-                <div className="relative overflow-hidden p-4 sm:px-5">
+                <div className="relative overflow-hidden px-4 py-3 sm:px-5">
                     <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet-100/60 blur-3xl" />
                     <div className="relative flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
                         <div className="w-28 shrink-0"><Framed item={{ title: 'Your first certificate', source: 'empty' }} /></div>
                         <div className="min-w-0 flex-1">
-                            <h3 className="text-base font-bold text-slate-800 sm:text-lg">Your frame is empty — for now</h3>
+                            <h3 className="text-base font-bold text-slate-800">Your frame is empty — for now</h3>
                             <p className="mt-1 text-sm leading-relaxed text-slate-500">
                                 Finish a course to earn a verified certificate, or use <strong>Upload Certificate</strong> above to add one you already have — it goes straight into this frame.
                             </p>
@@ -257,25 +257,29 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                                 <Link to="/enrolled-courses" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-600"><BookOpen size={14} /> Continue a course</Link>
                             </div>
                         </div>
-                        <div className="hidden scale-75 lg:block"><Artwork /></div>
+                        <div className="hidden scale-[0.6] lg:block"><Artwork /></div>
                     </div>
                 </div>
             )}
 
             {/* ── Gallery ──────────────────────────────────────────────── */}
             {!busy && items.length > 0 && (
-                <div className="p-4 sm:px-5">
+                <div className="px-4 py-3 sm:px-5">
                     <h3 className="mb-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
                         <Frame size={13} className="text-indigo-500" /> Your frame
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 normal-case tracking-normal text-emerald-700"><ShieldCheck size={12} /> {items.length} {items.length === 1 ? 'achievement' : 'achievements'} on your profile</span>
                         {justAdded && <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 normal-case tracking-normal text-indigo-700"><Check size={12} strokeWidth={3} /> Uploaded successfully</span>}
                     </h3>
-                    <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+                    <div className="stagger grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
                         {items.map((item) => (
-                            <article key={item.id} className="group flex flex-col rounded-xl border border-slate-200 bg-white p-2 transition-all hover:-translate-y-0.5 hover:shadow-md">
+                            <article key={item.id} title={`${item.title}${item.issuer ? ` · ${item.issuer}` : ''}${item.date ? ` · ${fmtDate(item.date)}` : ''}`}
+                                className="group flex flex-col rounded-xl border border-slate-200 bg-white p-2 transition-all hover:-translate-y-0.5 hover:shadow-md">
+                                {/* The picture is the certificate. An uploaded one is
+                                    titled after whatever the file was called —
+                                    "Screenshot 2026 09 04 at 11.28.05 AM" — which
+                                    tells nobody anything, so the frame speaks for
+                                    itself and the name stays in the tooltip. */}
                                 <Framed item={item} />
-                                <h4 className="mt-2 line-clamp-2 text-xs font-bold leading-snug text-slate-800" title={item.title}>{item.title}</h4>
-                                <p className="mt-0.5 truncate text-[11px] text-slate-500">{item.issuer} · {fmtDate(item.date)}</p>
                                 <div className="mt-auto flex items-center gap-1 pt-2">
                                     {item.source === 'course' ? (
                                         <button type="button" onClick={() => onDownload(item.raw)} disabled={downloadingId === item.raw._id}
@@ -302,13 +306,13 @@ export default function CertificatesFrame({ certificates, loading, certError, do
             )}
 
             {/* ── Action tiles ─────────────────────────────────────────── */}
-            <div className="grid gap-2.5 p-4 sm:px-5 md:grid-cols-[1fr_1.5fr]">
+            <div className="grid gap-2.5 px-4 py-3 sm:px-5 md:grid-cols-[1fr_1.5fr]">
                 <Tile to="/enrolled-courses" icon={RefreshCw} title="Earn More" sub="Finish a course to get a verified one" tone="rose" />
                 <Tile to="/jobs" icon={Briefcase} title={<>Find Matching Jobs <span aria-hidden="true">🚀</span></>} sub="Discover jobs that match your skills" tone="cta" />
             </div>
 
             {/* ── Tip ──────────────────────────────────────────────────── */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3.5 sm:px-5">
+            <div className="relative overflow-hidden bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3 sm:px-5">
                 <div className="relative flex items-center gap-3 pr-16">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-md"><Lightbulb size={20} /></span>
                     <div>
