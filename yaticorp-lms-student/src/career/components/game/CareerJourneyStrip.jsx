@@ -10,7 +10,7 @@ import { phaseStates, phaseTitle, parseChoices } from '../../utils/roadmap';
 const Track = ({ walked }) => (
   <span
     aria-hidden
-    className={`mt-[2.6rem] h-1 w-7 shrink-0 self-start rounded-full sm:w-9 ${
+    className={`mt-[2.6rem] h-1 min-w-6 flex-1 self-start rounded-full ${
       walked ? 'bg-emerald-400' : 'bg-line-300'
     }`}
   />
@@ -102,7 +102,7 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
           ref={railRef}
           className="-mx-5 overflow-x-auto px-5 pb-1 [scroll-padding-inline:1.25rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6"
         >
-          <ol className="flex w-max min-w-full items-stretch justify-center">
+          <ol className="flex w-max min-w-full items-stretch">
             {phases.map((phase, index) => {
               const state = states[index];
               const done = state === 'done';
@@ -111,13 +111,13 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
               return (
                 <li
                   key={index}
-                  className="flex items-stretch"
+                  className="flex flex-1 items-stretch"
                   data-current={current || undefined}
                 >
                   {index > 0 && <Track walked={states[index - 1] === 'done'} />}
 
                   <div
-                    className={`flex w-32 shrink-0 flex-col items-center rounded-2xl px-2.5 pt-4 pb-3 text-center transition-transform sm:w-36 ${
+                    className={`flex w-32 min-w-32 flex-1 flex-col items-center rounded-2xl px-2.5 pt-4 pb-3 text-center transition-transform sm:w-36 sm:min-w-36 lg:max-w-52 ${
                       done
                         ? 'bg-emerald-50/70 ring-1 ring-emerald-100 ring-inset'
                         : current
@@ -184,9 +184,9 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
             })}
 
             {/* The destination closes the road rather than letting it run out. */}
-            <li className="flex items-stretch">
+            <li className="flex flex-1 items-stretch">
               <Track walked={doneCount === phases.length} />
-              <div className="flex w-32 shrink-0 flex-col items-center rounded-2xl bg-amber-50 px-2.5 pt-4 pb-3 text-center ring-1 ring-amber-200 ring-inset sm:w-36">
+              <div className="flex w-32 min-w-32 flex-1 flex-col items-center rounded-2xl bg-amber-50 px-2.5 pt-4 pb-3 text-center ring-1 ring-amber-200 ring-inset sm:w-36 sm:min-w-36 lg:max-w-52">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-orange-600/30">
                   <Flag className="h-5 w-5" strokeWidth={2.6} />
                 </span>

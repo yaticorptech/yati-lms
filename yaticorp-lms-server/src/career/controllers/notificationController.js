@@ -1,11 +1,15 @@
 const Notification = require('../models/Notification');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
+const { syncFeatureNotifications, listFeatureReleases } = require('../services/featureReleaseService');
 
 // @desc    Get user notifications
 // @route   GET /api/notifications
 // @access  Private
 const getNotifications = async (req, res) => {
   try {
+    // Any feature release this student has not been told about becomes a
+    // notification first, so the bell they are about to read includes it.
+    await syncFeatureNotifications(req.user);
     const notifications = await Notification.find({ userId: req.user._id }).sort({ createdAt: -1 });
     res.status(200).json(notifications);
   } catch (error) {
@@ -66,7 +70,15 @@ const clearNotifications = async (req, res) => {
   }
 };
 
+// @desc    The feature releases Career Path announces, newest first
+// @route   GET /api/career/notifications/features
+// @access  Private
+const getFeatureReleases = (req, res) => {
+  res.status(200).json(listFeatureReleases());
+};
+
 module.exports = {
+  getFeatureReleases,
   clearNotifications,
   getNotifications,
   markAsRead,

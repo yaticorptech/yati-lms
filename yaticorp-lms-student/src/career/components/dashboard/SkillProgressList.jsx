@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown } from 'lucide-react';
 import useCountUp from '../../../hooks/useCountUp';
+import { initialsOf, tilesFor } from '../../utils/skills';
 
 /**
  * Where every tracked skill stands.
@@ -23,7 +24,7 @@ const LEVELS = {
   Expert: 'bg-emerald-50 text-emerald-700'
 };
 
-function SkillRow({ skill, index }) {
+function SkillRow({ skill, index, tile }) {
   const value = Math.max(0, Math.min(100, skill.progress || 0));
   // Both driven by the same rAF hook, so the bar and the number land together.
   // A CSS width transition cannot work here: React paints the final width on
@@ -33,9 +34,15 @@ function SkillRow({ skill, index }) {
 
   return (
     <li
-      className="animate-fade-in-up flex items-center gap-4 py-3"
+      className="animate-fade-in-up flex items-center gap-3.5 py-3"
       style={{ animationDelay: `${0.05 + index * 0.06}s` }}
     >
+      <span
+        aria-hidden
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-xs font-black text-white shadow-sm ${tile}`}
+      >
+        {initialsOf(skill.skillName)}
+      </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="truncate text-sm font-bold text-ink-900">{skill.skillName}</span>
@@ -65,6 +72,7 @@ export default function SkillProgressList({ skills = [] }) {
   const [showAll, setShowAll] = useState(false);
 
   const ordered = [...skills].sort((a, b) => (b.progress || 0) - (a.progress || 0));
+  const tiles = tilesFor(skills);
   const started = ordered.filter((s) => (s.progress || 0) > 0);
   const untouched = ordered.filter((s) => !(s.progress || 0));
 
@@ -77,7 +85,12 @@ export default function SkillProgressList({ skills = [] }) {
           </p>
           <ul className="divide-y divide-line-100">
             {started.map((skill, i) => (
-              <SkillRow key={skill._id || skill.skillName} skill={skill} index={i} />
+              <SkillRow
+                key={skill._id || skill.skillName}
+                skill={skill}
+                index={i}
+                tile={tiles.get(skill.skillName)}
+              />
             ))}
           </ul>
         </>

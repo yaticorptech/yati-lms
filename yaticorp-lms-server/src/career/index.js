@@ -83,6 +83,8 @@ router.use('/study', require('./routes/studyRoutes'));
 router.use('/profile', require('./routes/profileRoutes'));
 // The student's own exams and events, typed in by hand.
 router.use('/events', require('./routes/calendarEventRoutes'));
+// The student's weekly college or school timetable, also typed in by hand.
+router.use('/timetable', require('./routes/timetableRoutes'));
 // Searched alongside the LMS's own course/lesson search by the sidebar, which
 // merges the two. Kept separate so the LMS never has to read career_* data.
 router.use('/search', require('./routes/searchRoutes'));

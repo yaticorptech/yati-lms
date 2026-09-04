@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 
-const { getNotifications, markAsRead, deleteNotification, clearNotifications } = require('../controllers/notificationController');
+const {
+  getNotifications, markAsRead, deleteNotification, clearNotifications, getFeatureReleases
+} = require('../controllers/notificationController');
 const { protect } = require('../middleware/authMiddleware');
 const { validateObjectId } = require('../middleware/validateObjectId');
 
@@ -11,6 +13,8 @@ router.param('id', validateObjectId);
 router.route('/')
   .get(protect, getNotifications)
   .delete(protect, clearNotifications);
+// Declared ahead of '/:id' so "features" is never read as an id.
+router.get('/features', protect, getFeatureReleases);
 router.route('/:id/read')
   .put(protect, markAsRead);
 router.route('/:id')

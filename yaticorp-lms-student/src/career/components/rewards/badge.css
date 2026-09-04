@@ -36,6 +36,17 @@
   pointer-events: none;
 }
 
+/* Tiny stars that blink around an earned medal. Small and slow, like the
+   rest: a glint, not a flash. */
+.yatiBadge-spark {
+  font-size: 0.7rem;
+  line-height: 1;
+  opacity: 0;
+  animation: yatiBadge-spark 3.6s ease-in-out infinite;
+  pointer-events: none;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+}
+
 /* Leaning in on hover, so a badge feels like an object you can pick up. */
 .yatiBadge-tilt {
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
@@ -54,6 +65,11 @@
   50%      { opacity: 0.9; transform: scale(0.98); }
 }
 
+@keyframes yatiBadge-spark {
+  0%, 100% { opacity: 0; transform: scale(0.5) rotate(0deg); }
+  50%      { opacity: 1; transform: scale(1.15) rotate(25deg); }
+}
+
 @keyframes yatiBadge-shine {
   0%        { transform: translateX(-120%); }
   55%, 100% { transform: translateX(120%); }
@@ -62,9 +78,11 @@
 @media (prefers-reduced-motion: reduce) {
   .yatiBadge-float,
   .yatiBadge-halo,
-  .yatiBadge-shine {
+  .yatiBadge-shine,
+  .yatiBadge-spark {
     animation: none !important;
   }
+  .yatiBadge-spark { opacity: 0.8; }
   .yatiBadge-shine { opacity: 0; }
   .yatiBadge-tilt { transition: none; }
   .group:hover .yatiBadge-tilt { transform: none; }

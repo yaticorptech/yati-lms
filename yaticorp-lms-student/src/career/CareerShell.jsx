@@ -23,6 +23,7 @@ import {
 import api from './services/api';
 import { AuthContext } from './context/AuthContext';
 import CareerProviders from './CareerProviders';
+import WhatsNew from './components/WhatsNew';
 
 /**
  * The section's ten screens, in the order the standalone app grouped them:
@@ -158,18 +159,17 @@ function CareerFrame() {
             ten tabs still arrived as ten peers competing as equals — the exact
             problem the grouping was written to solve.
 
-            It WRAPS on desktop instead of scrolling. StudentLayout caps its
-            content at max-w-7xl, and a scrolling strip hid Settings at every
-            desktop width behind a horizontal scrollbar nobody thinks to look
-            for. Below lg it still scrolls, where a sideways swipe is the
-            expected gesture and three wrapped rows would eat the screen. The
-            fade at the right edge is the scroll affordance: a tab sliced
-            through by the viewport edge reads as a broken layout rather than
-            as "there is more this way". */}
+            One line, at every width. It used to wrap on desktop, and at the
+            widths a laptop actually has that meant Settings alone on a second
+            row — a strip of nine and an orphan. The pills are compact enough
+            that all ten fit inside the layout's max width; below that the
+            strip scrolls sideways with the scrollbar hidden, and the active
+            tab is scrolled into view on every route change so the current
+            section is never off-screen. */}
         <nav
           ref={railRef}
           aria-label="Career Path sections"
-          className="-ml-4 min-w-0 flex-1 overflow-x-auto pb-1 pl-4 [scrollbar-width:none] [scroll-padding-inline:1rem] [&::-webkit-scrollbar]:hidden lg:ml-0 lg:overflow-x-visible lg:pl-0"
+          className="-ml-4 min-w-0 flex-1 overflow-x-auto pb-1 pl-4 [scrollbar-width:none] [scroll-padding-inline:1rem] [&::-webkit-scrollbar]:hidden lg:ml-0 lg:pl-0"
         >
           {/* No card, no border, no shadow.
 
@@ -178,7 +178,7 @@ function CareerFrame() {
               section tabs reading as chrome when they are content. Bare pills
               on the page background put them at the level they belong to, and
               leave "solid dark" meaning one thing only: app chrome. */}
-          <div className="flex w-max items-center gap-1 py-0.5 lg:w-full lg:flex-wrap">
+          <div className="flex w-max items-center gap-1 py-0.5 lg:w-full">
             {NAV_GROUPS.map((group, groupIndex) => (
               <div key={group.label} className="flex items-center gap-1">
                 {group.items.map((item) => (
@@ -188,7 +188,7 @@ function CareerFrame() {
                     end={item.exact}
                     title={`${group.label} · ${item.name}`}
                     className={({ isActive }) =>
-                      `fp-press group flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold whitespace-nowrap transition-all ${
+                      `fp-press group flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[0.8rem] font-bold whitespace-nowrap transition-all ${
                         isActive
                           ? 'bg-gradient-to-r from-journey-600 to-indigo-600 text-white shadow-md shadow-journey-600/25'
                           : 'bg-surface/70 text-ink-600 ring-1 ring-line-200 ring-inset hover:bg-surface hover:text-journey-700'
@@ -198,7 +198,7 @@ function CareerFrame() {
                     {({ isActive }) => (
                       <>
                         <item.icon
-                          className={`h-[18px] w-[18px] shrink-0 ${
+                          className={`h-4 w-4 shrink-0 ${
                             isActive ? 'text-white' : 'text-ink-400 group-hover:text-journey-500'
                           }`}
                         />
@@ -215,7 +215,7 @@ function CareerFrame() {
                 {groupIndex < NAV_GROUPS.length - 1 && (
                   <span
                     aria-hidden="true"
-                    className="mx-1 h-6 w-px shrink-0 self-center bg-line-200"
+                    className="mx-0.5 h-5 w-px shrink-0 self-center bg-line-200"
                   />
                 )}
               </div>
@@ -239,6 +239,10 @@ function CareerFrame() {
 
         {aiNotice && <div className="flex shrink-0 items-center lg:hidden">{aiNotice}</div>}
       </div>
+
+      {/* Feature releases this browser has not seen. The bell carries the
+          same list per student; this is where the features actually are. */}
+      <WhatsNew />
 
       <Outlet />
     </>

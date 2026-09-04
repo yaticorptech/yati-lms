@@ -54,7 +54,8 @@ export default function JourneyTrack({ states = [], tone = 'dark' }) {
           <li key={index} className={`flex items-center ${isLast ? 'shrink-0' : 'min-w-0 flex-1'}`}>
             {isGoalPost ? (
               <span
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                style={{ animationDelay: `${0.15 + index * 0.07}s` }}
+                className={`animate-pop-in flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
                   state === 'done'
                     ? isLight
                       ? 'bg-emerald-500 text-white'
@@ -67,7 +68,21 @@ export default function JourneyTrack({ states = [], tone = 'dark' }) {
                 <Flag className="h-3 w-3" strokeWidth={2.6} />
               </span>
             ) : (
-              <span className={`shrink-0 rounded-full transition-all duration-500 ${dot[state]}`} />
+              <span className="relative flex shrink-0 items-center justify-center">
+                {/* A few pulses on the checkpoint being stood on, then still. */}
+                {state === 'current' && (
+                  <span
+                    aria-hidden
+                    className={`fp-halo absolute h-7 w-7 rounded-full blur-sm ${
+                      isLight ? 'bg-brand-400/50' : 'bg-white/40'
+                    }`}
+                  />
+                )}
+                <span
+                  style={{ animationDelay: `${0.15 + index * 0.07}s` }}
+                  className={`animate-pop-in relative shrink-0 rounded-full transition-all duration-500 ${dot[state]}`}
+                />
+              </span>
             )}
 
             {/* The connector carries the progress, not the dots: a segment is
@@ -75,8 +90,9 @@ export default function JourneyTrack({ states = [], tone = 'dark' }) {
                 run reads as distance covered rather than as items ticked. */}
             {!isLast && (
               <span
-                className={`h-0.5 min-w-1.5 flex-1 rounded-full transition-colors duration-500 ${
-                  state === 'done' ? railDone : railTodo
+                style={{ animationDelay: `${0.2 + index * 0.07}s` }}
+                className={`h-0.5 min-w-1.5 flex-1 origin-left rounded-full transition-colors duration-500 ${
+                  state === 'done' ? `fp-fill ${railDone}` : railTodo
                 }`}
               />
             )}
