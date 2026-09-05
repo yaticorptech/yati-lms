@@ -54,6 +54,16 @@ const isPreview = () =>
     window.location.hash === '#warmup');
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+// One colour per letter, so the four choices read as four things rather than
+// four grey circles. Written out in full for Tailwind's scanner.
+const LETTER_TONES = [
+  'bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-violet-500/30',
+  'bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-sky-500/30',
+  'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-amber-500/30',
+  'bg-gradient-to-br from-pink-400 to-rose-500 text-white shadow-pink-500/30',
+  'bg-gradient-to-br from-emerald-400 to-teal-600 text-white shadow-emerald-500/30',
+  'bg-gradient-to-br from-fuchsia-400 to-purple-600 text-white shadow-fuchsia-500/30'
+];
 
 /**
  * 🧠 A cheerful brain with a lightbulb — the warm-up's mascot.
@@ -91,7 +101,7 @@ function BrainArt({ happy = false, className = '' }) {
       </g>
 
       {/* lightbulb */}
-      <g className="yatiArt-float">
+      <g className="cp-flicker">
         <circle cx="130" cy="34" r="30" fill={`url(#${id('glow')})`} />
         <path d="M130 8 a20 20 0 0 1 10 37 v5 h-20 v-5 a20 20 0 0 1 10 -37z" fill={`url(#${id('bulb')})`} />
         <rect x="122" y="50" width="16" height="5" rx="2" fill="#cbd5e1" />
@@ -273,15 +283,20 @@ export default function ContinuePanel() {
         leaving ? 'animate-panel-out' : 'animate-panel-in'
       }`}
     >
-      {/* Stops a click inside the card reaching the backdrop's close handler. */}
+      {/* Stops a click inside the card reaching the backdrop's close handler.
+          The outer div is the rotating gradient frame; the inner one is the
+          card itself, inset by the frame's width. */}
       <div
         onMouseDown={(e) => e.stopPropagation()}
-        className="relative my-auto w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5"
+        className="relative my-auto w-full max-w-3xl overflow-hidden rounded-[26px] p-[3px] shadow-2xl"
       >
+        <span aria-hidden className="cp-frame-spin" />
+        <div className="relative overflow-hidden rounded-3xl bg-white">
         {/* ---- Header: pastel wash, the greeting, and the brain ---- */}
         <div className="relative overflow-hidden bg-gradient-to-r from-violet-50 via-white to-pink-50 px-6 pt-6 pb-5 sm:px-8 sm:pt-8">
-          <div aria-hidden className="pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-violet-200/50 blur-3xl" />
-          <div aria-hidden className="pointer-events-none absolute -right-10 -bottom-16 h-48 w-48 rounded-full bg-pink-200/50 blur-3xl" />
+          <div aria-hidden className="cp-drift pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-violet-200/60 blur-3xl" />
+          <div aria-hidden className="cp-drift-late pointer-events-none absolute -right-10 -bottom-16 h-48 w-48 rounded-full bg-pink-200/60 blur-3xl" />
+          <div aria-hidden className="cp-drift pointer-events-none absolute top-1/2 left-1/3 h-40 w-40 rounded-full bg-amber-100/60 blur-3xl" />
 
           <button
             type="button"
@@ -378,7 +393,9 @@ export default function ContinuePanel() {
                     ? 'bg-rose-500 text-white'
                     : isPicked
                       ? 'bg-violet-600 text-white'
-                      : 'bg-slate-100 text-slate-600';
+                      : result
+                        ? 'bg-slate-100 text-slate-400'
+                        : `${LETTER_TONES[i % LETTER_TONES.length]} shadow-md`;
                 return (
                   <button
                     key={option}
@@ -389,7 +406,7 @@ export default function ContinuePanel() {
                     style={{ animationDelay: `${0.1 + i * 0.06}s` }}
                     className={`animate-fade-in-up flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 disabled:cursor-default ${tone}`}
                   >
-                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${badge}`}>
+                    <span className={`cp-letter flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${badge}`}>
                       {isAnswer ? <Check size={14} strokeWidth={3.5} /> : isWrongPick ? <X size={14} strokeWidth={3.5} /> : LETTERS[i]}
                     </span>
                     <span className="min-w-0 flex-1">{option}</span>
@@ -466,13 +483,14 @@ export default function ContinuePanel() {
                 </>
               ) : (
                 <>
-                  <Sparkles size={22} className="text-violet-400" />
+                  <Sparkles size={22} className="cp-nudge text-violet-500" />
                   <p className="mt-1.5 text-sm font-black text-slate-800">Pick an answer</p>
                   <p className="mt-0.5 text-xs text-slate-500">A new one arrives tomorrow.</p>
                 </>
               )}
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>

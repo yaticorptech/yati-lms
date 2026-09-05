@@ -108,7 +108,7 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
     .slice(0, 3);
 
   return (
-    <div className="flex flex-col gap-4 lg:sticky lg:top-4">
+    <div data-guide="skill-rail" className="flex flex-col gap-4 lg:sticky lg:top-4">
       {/* ---- OVERALL ---- */}
       <RailCard icon={Flag} label="Overall Progress" tone="bg-journey-50 text-journey-600 ring-journey-100">
         <div className="mt-4 flex items-center gap-4">
@@ -150,7 +150,7 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
           className="mt-3 block h-2 overflow-hidden rounded-full bg-surface-100"
         >
           <span
-            className="block h-full rounded-full bg-gradient-to-r from-journey-400 to-indigo-600"
+            className="fp-stripes block h-full rounded-full bg-gradient-to-r from-journey-400 to-indigo-600"
             style={{ width: `${xpWidth}%` }}
           />
         </span>

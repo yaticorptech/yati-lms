@@ -1,0 +1,91 @@
+
+/* ---- Motion that keeps going while the card is open ---- */
+
+/* A gradient frame that turns slowly around the card. The spinning square
+   is far larger than the card and clipped by it, so only the edge shows. */
+.cp-frame-spin {
+  position: absolute;
+  inset: -60%;
+  background: conic-gradient(
+    from 0deg,
+    #7c3aed, #ec4899, #f59e0b, #34d399, #60a5fa, #7c3aed
+  );
+  animation: cp-spin 7s linear infinite;
+  opacity: 0.9;
+}
+@keyframes cp-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* The header's colour blobs wander. */
+.cp-drift {
+  animation: cp-drift 9s ease-in-out infinite alternate;
+}
+.cp-drift-late {
+  animation: cp-drift 11s ease-in-out infinite alternate-reverse;
+}
+@keyframes cp-drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(40px, 18px) scale(1.15); }
+}
+
+/* The lightbulb flickers on, the way an idea does. */
+.cp-flicker {
+  animation: cp-flicker 3.6s ease-in-out infinite;
+  transform-origin: 130px 40px;
+}
+@keyframes cp-flicker {
+  0%, 100% { opacity: 0.75; transform: scale(0.96); }
+  8%       { opacity: 1;    transform: scale(1.04); }
+  12%      { opacity: 0.8; }
+  16%, 60% { opacity: 1;    transform: scale(1.02); }
+  70%      { opacity: 0.85; }
+}
+
+/* A dot that pulses beside the XP promise. */
+.cp-pulse-dot {
+  position: relative;
+}
+.cp-pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  opacity: 0;
+  animation: cp-pulse-dot 1.8s ease-out infinite;
+}
+@keyframes cp-pulse-dot {
+  0%   { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* The nudge on "pick an answer": a small, patient bounce. */
+.cp-nudge {
+  animation: cp-nudge 1.6s ease-in-out infinite;
+}
+@keyframes cp-nudge {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* Option letters get a sheen on hover. */
+.cp-letter {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+button:hover .cp-letter {
+  transform: scale(1.1) rotate(-6deg);
+  box-shadow: 0 6px 14px -6px rgb(124 58 237 / 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-frame-spin,
+  .cp-drift,
+  .cp-drift-late,
+  .cp-flicker,
+  .cp-pulse-dot::after,
+  .cp-nudge {
+    animation: none !important;
+  }
+  .cp-flicker { opacity: 1; }
+}

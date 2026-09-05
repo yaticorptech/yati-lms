@@ -7,11 +7,12 @@ import PageHeader from '../../components/ui/PageHeader';
 import Button from '../../components/ui/Button';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
-import { SkeletonRoadmap } from '../../components/ui/Skeleton';
 import ShareBadgeDialog from '../../components/roadmap/ShareBadgeDialog';
 import AiBudgetNotice from '../../components/AiBudgetNotice';
 import { readAiBudgetError } from '../../utils/aiBudget';
 import GeneratingRoadmap from '../../components/journey/GeneratingRoadmap';
+import YatiLoader from '../../../components/YatiLoader';
+import useMinimumLoading from '../../../hooks/useMinimumLoading';
 
 export default function RoadmapPage() {
   const [roadmap, setRoadmap] = useState(null);
@@ -137,7 +138,8 @@ export default function RoadmapPage() {
     }
   };
 
-  if (loading) return <SkeletonRoadmap />;
+  const showLoader = useMinimumLoading(loading);
+  if (showLoader) return <YatiLoader label="Loading your roadmap" />;
 
   return (
     <div className="space-y-6">
