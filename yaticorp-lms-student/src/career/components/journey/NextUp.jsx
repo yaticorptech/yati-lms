@@ -1,4 +1,5 @@
-import { Lock, Trophy, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Lock, Trophy, Zap } from 'lucide-react';
 import { phaseTitle, parseChoices } from '../../utils/roadmap';
 
 /**
@@ -62,8 +63,17 @@ export default function NextUp({ nextPhase, levelProgress }) {
             </p>
           </div>
         )}
-      </div>
 
+        {/* The way to unlock either of them, at the foot so the card has a
+            floor: it used to stop short of the streak card beside it. */}
+        <Link
+          to="/career/planner"
+          className="fp-press group mt-auto inline-flex items-center justify-center gap-2 rounded-xl bg-journey-50 px-4 py-2.5 text-sm font-black text-journey-700 ring-1 ring-journey-100 ring-inset transition-colors hover:bg-journey-100"
+        >
+          Unlock with today&apos;s task
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      </div>
     </section>
   );
 }

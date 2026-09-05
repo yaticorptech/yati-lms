@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
+import useCountUp from '../../hooks/useCountUp';
 import { Link } from 'react-router-dom';
-import { Route, Clock, ArrowRight, Sparkles, Flag } from 'lucide-react';
+import { Route, Clock, ArrowRight, Sparkles, Flag, Zap, Map as MapIcon, CheckCircle2 } from 'lucide-react';
 import JourneyTrack from './journey/JourneyTrack';
 import Card, { CardHeader } from './ui/Card';
 import RoadmapPhase from './roadmap/RoadmapPhase';
@@ -13,6 +14,7 @@ export default function RoadmapDisplay({ data, goal, headerAction, completedPhas
   const states = useMemo(() => phaseStates(phases.length, completedPhases), [phases, completedPhases]);
   const currentIndex = states.indexOf('current');
   const percent = journeyPercent(phases.length, completedPhases);
+  const shownPercent = useCountUp(percent, 900);
 
   // Every phase starts closed.
   //
@@ -58,99 +60,133 @@ export default function RoadmapDisplay({ data, goal, headerAction, completedPhas
           drawn under it, and the current phase sits inside that context
           instead of standing in for it.
       --------------------------------------------------------------- */}
-      <section className="fp-journey-gradient animate-fade-in-up relative overflow-hidden rounded-3xl p-6 text-white shadow-float sm:p-8 lg:p-10">
-        <div aria-hidden className="fp-stars pointer-events-none absolute inset-0" />
+      <section className="animate-fade-in-up relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset">
         <div
           aria-hidden
-          className="fp-float pointer-events-none absolute -top-24 -right-20 h-72 w-72 rounded-full bg-fuchsia-500/25 blur-3xl"
+          className="fp-float pointer-events-none absolute -top-24 -left-20 h-64 w-64 rounded-full bg-journey-200/40 blur-3xl"
         />
         <div
           aria-hidden
-          className="fp-float-slow pointer-events-none absolute -bottom-24 -left-16 h-60 w-60 rounded-full bg-cyan-400/20 blur-3xl"
+          className="fp-float-slow pointer-events-none absolute -right-16 -bottom-24 h-64 w-64 rounded-full bg-pink-200/40 blur-3xl"
         />
 
-        <div className="relative">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <p className="flex items-center gap-2 text-[0.68rem] font-black tracking-[0.18em] text-journey-300 uppercase">
-                <Flag className="h-3.5 w-3.5" />
-                Your road to
-              </p>
-              <h2 className="mt-1.5 text-3xl leading-[1.05] font-black sm:text-5xl">
-                {goal?.careerGoal || 'your career goal'}
-              </h2>
-              <p className="mt-3 text-sm font-bold text-journey-200 tabular-nums">
-                {phases.length} phases · {doneCount} complete · {percent}% of the way
-              </p>
+        <div className="relative grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-stretch">
+          {/* ---- Where this road goes, and how far along it is ---- */}
+          <div className="min-w-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="animate-fade-in-up flex items-center gap-2 text-[0.68rem] font-black tracking-[0.18em] text-journey-600 uppercase">
+                  <Flag className="h-3.5 w-3.5" />
+                  Your road to
+                </p>
+                <h2
+                  className="animate-fade-in-up mt-1.5 text-2xl leading-tight font-black sm:text-3xl xl:text-4xl"
+                  style={{ animationDelay: '0.06s' }}
+                >
+                  <span className="bg-gradient-to-r from-journey-600 to-indigo-600 bg-clip-text text-transparent">
+                    {goal?.careerGoal || 'your career goal'}
+                  </span>
+                </h2>
+              </div>
+              {/* Regenerate lives here rather than above the panel. The page used
+                  to open with "Your path, one step at a time" and a subtitle, and
+                  then immediately say the same thing again in the header below —
+                  two competing titles, neither of which named the destination. */}
+              {headerAction && <div className="shrink-0">{headerAction}</div>}
             </div>
 
-            {/* Regenerate lives here rather than above the panel. The page used
-                to open with "Your path, one step at a time" and a subtitle, and
-                then immediately say the same thing again in the header below —
-                two competing titles, neither of which named the destination. */}
-            {headerAction && <div className="shrink-0">{headerAction}</div>}
+            <div className="animate-fade-in-up mt-3 flex flex-wrap items-center gap-2" style={{ animationDelay: '0.12s' }}>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-black text-ink-700 shadow-card ring-1 ring-line-200/80 ring-inset">
+                <MapIcon className="h-3.5 w-3.5 text-journey-500" />
+                <span className="tabular-nums">{phases.length}</span> phases
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-black text-ink-700 shadow-card ring-1 ring-line-200/80 ring-inset">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                <span className="tabular-nums">{doneCount}</span> complete
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-journey-600 px-3 py-1.5 text-xs font-black text-white shadow-md shadow-journey-500/25">
+                <span className="tabular-nums">{shownPercent}%</span> of the way
+              </span>
+            </div>
+
+            {/* The timeline is a sentence, not a tag. It used to be a chip that
+                truncated at every width, turning the answer to "how long will
+                this take me" into a tooltip nobody opens. */}
+            {data.timeline && (
+              <p className="animate-fade-in-up mt-3 flex items-start gap-2 text-sm leading-relaxed text-ink-600" style={{ animationDelay: '0.18s' }}>
+                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-cyan-600" />
+                <span>
+                  <span className="font-black text-ink-900">Estimated journey</span> — {data.timeline}
+                </span>
+              </p>
+            )}
+
+            {/* ---- The whole journey, at a glance. One progress device, not
+                    three: this replaced a percentage, a bar and a track all
+                    stacked in the same panel saying the same number. ---- */}
+            <div
+              className="animate-fade-in-up mt-5 rounded-2xl bg-surface/70 px-4 py-3.5 ring-1 ring-line-200/70 ring-inset"
+              style={{ animationDelay: '0.24s' }}
+              role="progressbar"
+              aria-valuenow={percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Journey progress"
+            >
+              <JourneyTrack states={states} tone="light" />
+              <div className="mt-2.5 flex items-center justify-between gap-4 text-xs font-bold text-ink-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-sm" aria-hidden>🚀</span> Start
+                </span>
+                <span className="flex items-center gap-1.5">
+                  Goal <span className="text-sm" aria-hidden>🎯</span>
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* ---- The whole journey, at a glance. One progress device, not
-                  three: this replaced a percentage, a bar and a track all
-                  stacked in the same panel saying the same number. ---- */}
+          {/* ---- The step being stood on, as its own panel beside the road ---- */}
           <div
-            className="mt-8"
-            role="progressbar"
-            aria-valuenow={percent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Journey progress"
+            className="animate-fade-in-up relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface/90 p-5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur"
+            style={{ animationDelay: '0.3s' }}
           >
-            <JourneyTrack states={states} tone="dark" />
-            <div className="mt-3 flex items-center justify-between gap-4 text-xs font-bold text-journey-300">
-              <span className="flex items-center gap-1.5">
-                <span className="text-sm" aria-hidden>🚀</span> Start
-              </span>
-              <span className="flex items-center gap-1.5">
-                Goal <span className="text-sm" aria-hidden>🎯</span>
-              </span>
-            </div>
-          </div>
-
-          {/* ---- The step being stood on ---- */}
-          <div className="mt-6 rounded-2xl bg-white/[0.09] p-4 ring-1 ring-white/12 ring-inset sm:p-5">
+            <span
+              aria-hidden
+              className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-journey-500 via-fuchsia-500 to-indigo-500"
+            />
             {currentPhase ? (
               <>
-                <p className="flex items-center gap-1.5 text-[0.68rem] font-black tracking-[0.16em] text-journey-200 uppercase">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                <p className="flex items-center gap-1.5 text-[0.68rem] font-black tracking-[0.16em] text-journey-600 uppercase">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                   You are here · phase {currentIndex + 1} of {phases.length}
                 </p>
-                <h3 className="mt-2 text-xl leading-snug font-black sm:text-2xl">
+                <h3 className="mt-2 text-lg leading-snug font-black text-ink-900 sm:text-xl">
                   {currentChoices ? currentChoices.lead : currentTitle}
                 </h3>
 
-                {/* One line on what this phase is for. The description used to
-                    sit here clamped to three lines, which explained the phase
-                    to a student who had asked what to DO — so the banner
-                    promising "your next move" answered with background
-                    reading. */}
+                {/* One line on what this phase is for. */}
                 {currentBrief && (
-                  <p className="mt-2 max-w-2xl leading-relaxed text-journey-100">{currentBrief}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-ink-600">{currentBrief}</p>
                 )}
+
+                <div className="mt-auto pt-4">
+                  <Link
+                    to="/career/planner"
+                    className="fp-sweep fp-press group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
+                  >
+                    <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
+                    Work on it today
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </Link>
+                  <p className="mt-2 text-center text-xs font-semibold text-ink-500">
+                    Every finished task moves this phase along.
+                  </p>
+                </div>
               </>
             ) : (
-              <h3 className="text-xl font-black sm:text-2xl">
+              <h3 className="text-lg font-black text-ink-900 sm:text-xl">
                 Every phase complete 🎉 — time to regenerate your roadmap
               </h3>
-            )}
-
-            {/* The timeline is a sentence, not a tag. It used to be a chip that
-                truncated at "…+ 1 year transi…" at every width, turning the
-                answer to "how long will this take me" into a tooltip nobody
-                opens. */}
-            {data.timeline && (
-              <p className="mt-4 flex items-start gap-2 border-t border-white/10 pt-4 text-sm leading-relaxed text-journey-100">
-                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" />
-                <span>
-                  <span className="font-black text-white">Estimated journey</span> — {data.timeline}
-                </span>
-              </p>
             )}
           </div>
         </div>

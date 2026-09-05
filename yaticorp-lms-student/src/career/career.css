@@ -733,6 +733,15 @@
    flashing while they read the chapter it points at. */
 .fp-halo { animation: fp-halo 2.6s ease-in-out 3 both; }
 
+/* The class that is on right now, breathing slowly for as long as it lasts —
+   a glow that stays alive, unlike the halo's three pulses, because "now"
+   keeps being true. */
+@keyframes fp-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(108 59 255 / 0.35); }
+  50%      { box-shadow: 0 0 0 8px rgb(108 59 255 / 0); }
+}
+.fp-breathe { animation: fp-breathe 2.4s ease-in-out infinite; }
+
 /* A light crossing a surface once, on arrival. Used on the single most
    important CTA on a screen — never on more than one. */
 @keyframes fp-sweep {
@@ -796,6 +805,7 @@
   .fp-float-slow,
   .fp-float-settle,
   .fp-halo,
+  .fp-breathe,
   .fp-fill { animation: none !important; }
   .fp-sweep::after { display: none; }
   .fp-lift:hover,

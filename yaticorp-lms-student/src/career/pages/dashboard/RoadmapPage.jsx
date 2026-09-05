@@ -176,7 +176,6 @@ export default function RoadmapPage() {
               size="sm"
               icon={RefreshCw}
               onClick={handleGenerateRoadmap}
-              className="border-white/25 bg-white/10 text-white hover:border-white/40 hover:bg-white/20"
             >
               Regenerate
             </Button>
