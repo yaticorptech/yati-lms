@@ -7,10 +7,12 @@ const router = express.Router();
 const { authLimiter } = require('../middleware/rateLimiter');
 
 // ── Registration & Card Validation ──────────────────────────────────────────
-const { validateQR, verifyCard, registerStudent, getPublishedContent } = require('../controllers/registrationController');
+const { validateQR, verifyCard, registerStudent, getPublishedContent, scanCard } = require('../controllers/registrationController');
 
 router.get('/published-content', getPublishedContent);
 router.post('/validate-qr', authLimiter, validateQR);
+// Scanning the card at sign-in: the QR resolves to the card number to log in with.
+router.post('/card-scan', authLimiter, scanCard);
 router.post('/verify-card', authLimiter, verifyCard);
 router.post('/register', authLimiter, registerStudent);
 

@@ -164,3 +164,67 @@
   .rw-confetti-piece { display: none; }
   .rw-pop, .rw-burst, .rw-rise, .rw-fade-out, .rw-flame, .rw-rank-up { animation-duration: 0.01ms; animation-iteration-count: 1; }
 }
+
+/* ---------------------------------------------------------------------------
+   Sign-in page
+
+   Floating illustrations, twinkling sparkles and a breathing scan target —
+   the page is the first thing a student sees, and a still one reads as an
+   admin form. Prefixed `lg-`. All decorative; off under reduced motion.
+   --------------------------------------------------------------------------- */
+@keyframes lg-float {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-2deg); }
+  50%      { transform: translate3d(0, -14px, 0) rotate(2deg); }
+}
+.lg-float { animation: lg-float 5.5s ease-in-out infinite; will-change: transform; }
+
+@keyframes lg-rocket {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-6deg); }
+  50%      { transform: translate3d(6px, -22px, 0) rotate(-2deg); }
+}
+.lg-rocket { animation: lg-rocket 4.5s ease-in-out infinite; will-change: transform; }
+
+@keyframes lg-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.7) rotate(0deg); }
+  50%      { opacity: 1;    transform: scale(1.15) rotate(20deg); }
+}
+.lg-twinkle { display: inline-block; animation: lg-twinkle 2.8s ease-in-out infinite; }
+
+/* The scan target breathes so the eye lands on it. */
+@keyframes lg-scan-ring {
+  0%   { box-shadow: 0 0 0 0 rgb(124 58 237 / 0.35); }
+  70%  { box-shadow: 0 0 0 18px rgb(124 58 237 / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(124 58 237 / 0); }
+}
+.lg-scan-ring { animation: lg-scan-ring 2.4s ease-out infinite; }
+
+/* The page's pieces settle in from below, one after another. */
+@keyframes lg-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+.lg-rise { animation: lg-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* The gradient behind the whole page drifts slowly. */
+@keyframes lg-blob {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(24px, 18px, 0) scale(1.06); }
+}
+.lg-blob { animation: lg-blob 12s ease-in-out infinite; will-change: transform; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-float, .lg-rocket, .lg-twinkle, .lg-scan-ring, .lg-blob { animation: none; }
+  .lg-rise { animation-duration: 0.01ms; }
+}
+
+/* ── Mascot (login) ── */
+.mascot, .mascot-img { overflow: visible; user-select: none; }
+.mascot-img { height: 100%; width: 100%; object-fit: contain; object-position: center bottom; }
+.mascot-eyes { transform-origin: 160px 128px; animation: mascot-blink 4.6s ease-in-out infinite; }
+.mascot-arm { transform-origin: 84px 168px; animation: mascot-wave 2.4s ease-in-out infinite; }
+.mascot-enter { animation: mascot-enter 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: 0.25s; }
+.mascot-tag { animation: mascot-tag 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; animation-delay: 1s; transform-origin: 0 100%; }
+@keyframes mascot-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.08); } }
+@keyframes mascot-wave { 0%, 100% { transform: rotate(0deg); } 30% { transform: rotate(-14deg); } 60% { transform: rotate(6deg); } }
+/* Centring is Tailwind's `translate` property; the pop-in must not add its own
+   horizontal shift or the two stack and push the character off the panel. */
+@keyframes mascot-enter { from { opacity: 0; transform: translateY(40px) scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes mascot-tag { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .mascot-eyes, .mascot-arm, .mascot-enter, .mascot-tag { animation: none; } }

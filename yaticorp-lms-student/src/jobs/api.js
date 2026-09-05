@@ -16,6 +16,7 @@ const unwrap = (err) => {
     const body = err.response?.data;
     const message = body?.error || body?.message || err.message || 'Something went wrong.';
     const wrapped = new Error(message);
+    wrapped.problems = body?.problems || null;
     wrapped.status = err.response?.status;
     wrapped.code = body?.code;
     throw wrapped;
@@ -34,6 +35,8 @@ export const jobsApi = {
     ipLocation: () => get('/meta/ip-location'),
     history: () => get('/meta/history'),
     savedList: () => get('/saved'),
+    verificationGet: () => get('/verification'),
+    verificationSubmit: (body) => post('/verification', body),
     resumeGet: () => get('/resume'),
     resumeUpload: (file) => {
         const fd = new FormData();

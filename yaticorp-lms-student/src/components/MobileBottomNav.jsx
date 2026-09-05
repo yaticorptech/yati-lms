@@ -27,6 +27,12 @@ import './mobileBottomNav.css';
 // `label` is the sidebar's own name and goes on the accessible label; `short`
 // is what fits under an icon in one line when seven of them share a phone.
 const ITEMS = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { to: '/enrolled-courses', label: 'Enrolled Courses', icon: BookOpen },
+  { to: '/community', label: 'Community', icon: MessageSquare },
+  { to: '/jobs', label: 'Jobs', icon: Briefcase, flag: 'jobs' },
+  { to: '/career', label: 'Career Path', icon: Compass, flag: 'career' },
+  { to: '/mentor', label: 'AI Mentor', icon: Bot, flag: 'career' }
   { to: '/', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
   { to: '/enrolled-courses', label: 'Enrolled Courses', short: 'Courses', icon: BookOpen },
   { to: '/community', label: 'Community', short: 'Community', icon: MessageSquare },

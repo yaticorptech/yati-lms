@@ -12,14 +12,14 @@ import Sparkline from './Sparkline';
 const Tile = ({ icon: Icon, label, value, suffix = '', sub, tone, series }) => {
     const n = useCountUp(value);
     return (
-        <div className={`lift relative flex items-center gap-4 overflow-hidden rounded-2xl border p-4 ${tone.card}`}>
+        <div className={`lift relative flex items-center gap-3.5 overflow-hidden rounded-2xl border p-4 ${tone.card}`}>
             <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-sm ${tone.icon}`}><Icon size={26} /></span>
             <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-slate-600">{label}</p>
-                <p className="text-3xl font-black tabular-nums leading-tight text-slate-900">{n.toLocaleString('en-IN')}{suffix}</p>
-                {sub && <p className={`truncate text-sm font-semibold ${tone.sub}`}>{sub}</p>}
+                <p className="truncate text-3xl font-black tabular-nums leading-tight text-slate-900">{n.toLocaleString('en-IN')}{suffix}</p>
+                {sub && <p className={`truncate text-sm font-semibold ${series ? 'pr-14' : ''} ${tone.sub}`}>{sub}</p>}
             </div>
-            {series && <span className="pointer-events-none absolute bottom-2 right-3 opacity-90"><Sparkline values={series} color={tone.line} /></span>}
+            {series && <span className="pointer-events-none absolute bottom-2.5 right-3 opacity-90"><Sparkline values={series} color={tone.line} width={64} height={28} /></span>}
         </div>
     );
 };
@@ -47,22 +47,20 @@ export default function ProgressCard({ summary, courses = [] }) {
                 <h2 className="flex items-center gap-2.5 text-xl font-black text-slate-900"><TrendingUp size={22} className="text-indigo-600" /> Your Progress</h2>
                 <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600"><CalendarDays size={15} /> This week <ChevronDown size={14} className="text-slate-400" /></span>
             </div>
-            <div className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 <Tile icon={BookOpen} label="Courses Enrolled" value={enrolled} sub={`${inProgress} in progress`} tone={TONES.indigo} series={t.courses} />
                 <Tile icon={CheckCircle2} label="Lessons Completed" value={s.lessons.total || 0} sub={`+${num(s.lessons.thisWeek || 0)} this week`} tone={TONES.emerald} series={t.lessons} />
                 <Tile icon={Star} label="Quizzes Passed" value={s.quizzes.passed || 0} sub={s.quizzes.avgScore != null ? `${s.quizzes.avgScore}% success rate` : 'No quizzes yet'} tone={TONES.amber} series={t.quizzes} />
                 <Tile icon={Sparkles} label="XP Earned" value={summary.xp} sub={`+${num(s.xpThisWeek || 0)} this week · Level ${summary.level.level}`} tone={TONES.sky} series={t.xp} />
                 <Tile icon={Flame} label="Current Streak" value={summary.streak.current} suffix={summary.streak.current === 1 ? ' day' : ' days'} sub={`Best: ${num(summary.streak.longest)} days`} tone={TONES.rose} series={t.streak} />
             </div>
-            <div className="mt-5">
-                <p className="mb-2 text-sm font-semibold text-slate-600">Overall Progress</p>
-                <div className="flex items-center gap-4">
-                    <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-violet-500 transition-[width] duration-1000 ease-out" style={{ width: `${overall}%` }} />
-                    </div>
-                    <span className="w-14 text-right text-lg font-black tabular-nums text-indigo-600">{pct}%</span>
-                    <span className="hidden text-sm font-semibold text-slate-600 md:block">{cheer}</span>
+            <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <p className="shrink-0 text-sm font-semibold text-slate-600">Overall Progress</p>
+                <div className="h-3 min-w-[140px] flex-1 overflow-hidden rounded-full bg-slate-200">
+                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-violet-500 transition-[width] duration-1000 ease-out" style={{ width: `${overall}%` }} />
                 </div>
+                <span className="shrink-0 text-lg font-black tabular-nums text-indigo-600">{pct}%</span>
+                <span className="hidden shrink-0 text-sm font-semibold text-slate-600 lg:block">{cheer}</span>
             </div>
         </section>
     );
