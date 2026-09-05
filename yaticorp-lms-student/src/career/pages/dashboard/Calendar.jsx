@@ -7,7 +7,6 @@ import {
 import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
 import Button from '../../components/ui/Button';
-import { SkeletonPage } from '../../components/ui/Skeleton';
 import { monthBounds, monthIndexOfDate } from '../../utils/calendar';
 import { currentStreak, greeting, levelProgress } from '../../utils/progress';
 import JourneyBanner from '../../components/journey/JourneyBanner';
@@ -16,6 +15,8 @@ import ComingUpNext from '../../components/dashboard/ComingUpNext';
 import TimetableCard from '../../components/dashboard/TimetableCard';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import YatiLoader from '../../../components/YatiLoader';
+import useMinimumLoading from '../../../hooks/useMinimumLoading';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -366,7 +367,8 @@ export default function CalendarView() {
           : null;
 
   // "since August 2026" — the month the first plan landed in.
-  if (loading) return <SkeletonPage cards={2} />;
+  const showLoader = useMinimumLoading(loading);
+  if (showLoader) return <YatiLoader label="Loading your calendar" />;
 
   return (
     // No page header. It printed "🗓️ Learning calendar" directly above a card
@@ -423,6 +425,7 @@ export default function CalendarView() {
               <div
                 role="group"
                 aria-label="Calendar view"
+                data-guide="cal-toggle"
                 className="flex shrink-0 items-center gap-1 rounded-xl border border-line-200 bg-surface-50 p-1"
               >
                 {[
@@ -686,7 +689,7 @@ export default function CalendarView() {
         </Card>
 
         <div className="space-y-4">
-        <Card className="animate-fade-in-up">
+        <Card data-guide="day-panel" className="animate-fade-in-up">
           <div className="mb-4">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-bold text-ink-900">

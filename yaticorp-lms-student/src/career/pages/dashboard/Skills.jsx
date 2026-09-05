@@ -9,11 +9,12 @@ import useCountUp from '../../../hooks/useCountUp';
 import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
 import Button from '../../components/ui/Button';
-import { SkeletonPage } from '../../components/ui/Skeleton';
 import {
   LEVELS, PER_TASK, TASK_XP, initialsOf, nextLevel, progressOf, statusOf, tasksToNextLevel, tileFor, tilesFor
 } from '../../utils/skills';
 import { currentStreak } from '../../utils/progress';
+import YatiLoader from '../../../components/YatiLoader';
+import useMinimumLoading from '../../../hooks/useMinimumLoading';
 
 /**
  * The Skills page.
@@ -282,7 +283,8 @@ export default function Skills() {
     );
   }, [skills]);
 
-  if (loading) return <SkeletonPage cards={4} />;
+  const showLoader = useMinimumLoading(loading);
+  if (showLoader) return <YatiLoader label="Loading your skills" />;
 
   return (
     <div className="fp-enter grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_296px]">
@@ -317,7 +319,7 @@ export default function Skills() {
                 </span>
               </p>
 
-              <div role="tablist" aria-label="Filter skills by level" className="flex flex-wrap gap-1.5">
+              <div role="tablist" aria-label="Filter skills by level" data-guide="skill-filters" className="flex flex-wrap gap-1.5">
                 {pills.map((p) => {
                   const on = filter === p.key;
                   return (

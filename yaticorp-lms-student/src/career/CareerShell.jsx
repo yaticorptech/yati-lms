@@ -24,6 +24,7 @@ import api from './services/api';
 import { AuthContext } from './context/AuthContext';
 import CareerProviders from './CareerProviders';
 import WhatsNew from './components/WhatsNew';
+import MascotGuide from './components/mascot/MascotGuide';
 
 /**
  * The section's ten screens, in the order the standalone app grouped them:
@@ -35,25 +36,25 @@ const NAV_GROUPS = [
   {
     label: 'Today',
     items: [
-      { name: 'Overview', path: '/career', icon: LayoutDashboard, exact: true },
-      { name: "Today's Plan", path: '/career/planner', icon: CalendarCheck },
-      { name: 'Calendar', path: '/career/calendar', icon: Calendar }
+      { name: 'Overview', path: '/career', icon: LayoutDashboard, exact: true, tone: 'from-violet-500 to-indigo-600 shadow-violet-500/40' },
+      { name: "Today's Plan", path: '/career/planner', icon: CalendarCheck, tone: 'from-amber-400 to-orange-500 shadow-orange-500/40' },
+      { name: 'Calendar', path: '/career/calendar', icon: Calendar, tone: 'from-sky-400 to-blue-600 shadow-sky-500/40' }
     ]
   },
   {
     label: 'Your path',
     items: [
-      { name: 'Roadmap', path: '/career/roadmap', icon: Map },
-      { name: 'Skills', path: '/career/skills', icon: Target },
-      { name: 'Ideas & Resources', path: '/career/recommendations', icon: Lightbulb }
+      { name: 'Roadmap', path: '/career/roadmap', icon: Map, tone: 'from-emerald-400 to-teal-600 shadow-emerald-500/40' },
+      { name: 'Skills', path: '/career/skills', icon: Target, tone: 'from-pink-400 to-rose-600 shadow-pink-500/40' },
+      { name: 'Ideas & Resources', short: 'Ideas', path: '/career/recommendations', icon: Lightbulb, tone: 'from-yellow-400 to-amber-500 shadow-amber-500/40' }
     ]
   },
   {
     label: 'Progress',
     items: [
-      { name: 'My Progress', path: '/career/profile', icon: UserCircle },
-      { name: 'Rewards', path: '/career/badges', icon: Award },
-      { name: 'Games', path: '/career/games', icon: Gamepad2 }
+      { name: 'My Progress', path: '/career/profile', icon: UserCircle, tone: 'from-indigo-400 to-violet-600 shadow-indigo-500/40' },
+      { name: 'Rewards', path: '/career/badges', icon: Award, tone: 'from-orange-400 to-red-500 shadow-orange-500/40' },
+      { name: 'Games', path: '/career/games', icon: Gamepad2, tone: 'from-fuchsia-400 to-purple-600 shadow-fuchsia-500/40' }
     ]
   },
   {
@@ -62,7 +63,7 @@ const NAV_GROUPS = [
     // ninth tab of a sub-navigation made it something a student had to already
     // know about to find.
     label: 'Support',
-    items: [{ name: 'Settings', path: '/career/settings', icon: Settings }]
+    items: [{ name: 'Settings', path: '/career/settings', icon: Settings, tone: 'from-slate-400 to-slate-600 shadow-slate-500/40' }]
   }
 ];
 
@@ -85,6 +86,36 @@ function CareerFrame() {
    * the strip. Instant rather than smooth when the OS asks for reduced motion.
    */
   const railRef = useRef(null);
+
+  // Where the white folder sits: measured from the open tab, re-measured
+  // when the route or the window width changes. The CSS springs it there.
+  const [slider, setSlider] = useState(null);
+  useEffect(() => {
+    const measure = () => {
+      const rail = railRef.current;
+      const active = rail?.querySelector('[aria-current="page"]');
+      if (!rail || !active) return;
+      setSlider({ left: active.offsetLeft, width: active.offsetWidth });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [pathname]);
+
+  // Which way the student moved along the band, so the page can arrive
+  // from that side.
+  const items = NAV_GROUPS.flatMap((g) => g.items);
+  const indexOf = (path) =>
+    items.findIndex((i) => (i.exact ? path === i.path : path.startsWith(i.path)));
+  const currentIndex = indexOf(pathname);
+  // Previous and current index, kept in state and rolled forward the render
+  // the route changes — so the direction is known before the page mounts.
+  const [track, setTrack] = useState({ prev: currentIndex, current: currentIndex });
+  if (track.current !== currentIndex) {
+    setTrack({ prev: track.current, current: currentIndex });
+  }
+  const direction = currentIndex >= track.prev ? 'right' : 'left';
+
   useEffect(() => {
     const rail = railRef.current;
     const active = rail?.querySelector('[aria-current="page"]');
@@ -149,102 +180,95 @@ function CareerFrame() {
           fighting at the same breakpoint — and the pair left 1024px showing
           neither the rail nor the bar: a width with no Career Path navigation
           on it at all. One condition, one display. */}
-      <div className="mb-6 flex items-start gap-2">
-        {/* Segmented rail rather than the standalone app's second sidebar: the
-            LMS already spends 16rem on its own, and a nested rail inside it
-            left the content squeezed on a laptop and unusable on a phone.
+      {/* Folder tabs, the way a delivery app does it: every screen is its own
+          tab on a dark band, an icon on top and its name beneath, and the one
+          that is open turns white and joins the page below. All ten are on
+          the band — nothing is folded away behind a group. */}
+      <div className="mb-6">
+        <div className="fp-band-sheen relative overflow-hidden rounded-t-3xl bg-gradient-to-b from-journey-200/70 via-journey-100 to-journey-100 px-2 pt-1 sm:px-3">
+          <div
+            aria-hidden
+            className="fp-float pointer-events-none absolute -top-16 right-1/4 h-40 w-40 rounded-full bg-pink-200/50 blur-3xl"
+          />
+          <div
+            aria-hidden
+            className="fp-float-slow pointer-events-none absolute -top-10 left-10 h-32 w-32 rounded-full bg-journey-200/50 blur-3xl"
+          />
 
-            The four groups are visible as groups. They were always declared in
-            NAV_GROUPS but rendered as adjacent divs with identical spacing, so
-            ten tabs still arrived as ten peers competing as equals — the exact
-            problem the grouping was written to solve.
+          {/* Scrolls sideways below the width all ten fit in, with the active
+              tab brought into view on every route change. */}
+          {/* The row scrolls sideways, and a scrolling box clips whatever
+              pokes out of it — so the headroom the icons rise into is inside
+              the box, as top padding, not outside it on the band. */}
+          <nav
+            ref={railRef}
+            aria-label="Career Path sections"
+            className="relative overflow-x-auto pt-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pt-6"
+          >
+            <div className="relative flex w-max min-w-full items-end gap-1 sm:gap-1.5">
+              {slider && (
+                <span
+                  aria-hidden
+                  className="fp-tab-slider"
+                  style={{ left: slider.left, width: slider.width }}
+                />
+              )}
+              {items.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  end={item.exact}
+                  title={item.name}
+                  data-guide={`tab-${item.path.split('/').pop() || 'overview'}`}
+                  className={({ isActive }) =>
+                    `fp-press group relative z-10 flex min-w-[5.4rem] flex-1 flex-col items-center rounded-t-[1.1rem] px-1.5 pt-1 pb-2.5 text-center transition-all duration-300 sm:min-w-[6.2rem] ${
+                      isActive
+                        ? '-mb-px text-ink-900'
+                        : 'mb-1 bg-surface/55 text-journey-700 ring-1 ring-journey-200/70 ring-inset hover:-translate-y-1 hover:bg-surface/90'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      {/* The icon sits half above the tab's top edge on its own
+                          colour tile — bigger, and bobbing, on the open one. */}
+                      <span
+                        aria-hidden
+                        className={`fp-wiggle -mt-4 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md ring-2 ring-surface transition-transform duration-300 sm:-mt-5 sm:h-10 sm:w-10 ${item.tone} ${
+                          isActive ? 'fp-bob-soft scale-110' : 'scale-95 group-hover:scale-105'
+                        }`}
+                      >
+                        <item.icon className="h-[18px] w-[18px] sm:h-5 sm:w-5" strokeWidth={2.4} />
+                      </span>
+                      <span className="mt-1.5 max-w-full text-[0.66rem] leading-tight font-black sm:text-xs">
+                        {item.short || item.name}
+                      </span>
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          </nav>
+        </div>
 
-            One line, at every width. It used to wrap on desktop, and at the
-            widths a laptop actually has that meant Settings alone on a second
-            row — a strip of nine and an orphan. The pills are compact enough
-            that all ten fit inside the layout's max width; below that the
-            strip scrolls sideways with the scrollbar hidden, and the active
-            tab is scrolled into view on every route change so the current
-            section is never off-screen. */}
-        <nav
-          ref={railRef}
-          aria-label="Career Path sections"
-          className="-ml-4 min-w-0 flex-1 overflow-x-auto pb-1 pl-4 [scrollbar-width:none] [scroll-padding-inline:1rem] [&::-webkit-scrollbar]:hidden lg:ml-0 lg:pl-0"
-        >
-          {/* No card, no border, no shadow.
-
-              A white panel here sat between a dark header and a dark bottom bar
-              — three heavy stripes with the page squeezed between them, and the
-              section tabs reading as chrome when they are content. Bare pills
-              on the page background put them at the level they belong to, and
-              leave "solid dark" meaning one thing only: app chrome. */}
-          <div className="flex w-max items-center gap-1 py-0.5 lg:w-full">
-            {NAV_GROUPS.map((group, groupIndex) => (
-              <div key={group.label} className="flex items-center gap-1">
-                {group.items.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    end={item.exact}
-                    title={`${group.label} · ${item.name}`}
-                    className={({ isActive }) =>
-                      `fp-press group flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[0.8rem] font-bold whitespace-nowrap transition-all ${
-                        isActive
-                          ? 'bg-gradient-to-r from-journey-600 to-indigo-600 text-white shadow-md shadow-journey-600/25'
-                          : 'bg-surface/70 text-ink-600 ring-1 ring-line-200 ring-inset hover:bg-surface hover:text-journey-700'
-                      }`
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <item.icon
-                          className={`h-4 w-4 shrink-0 ${
-                            isActive ? 'text-white' : 'text-ink-400 group-hover:text-journey-500'
-                          }`}
-                        />
-                        <span>{item.name}</span>
-                      </>
-                    )}
-                  </NavLink>
-                ))}
-
-                {/* The rule closes a group rather than opening the next one.
-                    Rendered ahead of the following group it became the first
-                    thing on a wrapped line — a stray mark hanging in the left
-                    margin with nothing before it to divide. */}
-                {groupIndex < NAV_GROUPS.length - 1 && (
-                  <span
-                    aria-hidden="true"
-                    className="mx-0.5 h-5 w-px shrink-0 self-center bg-line-200"
-                  />
-                )}
-              </div>
-            ))}
-
-            {/* Level sits inside the rail on desktop, pushed to the end of the
-                last row. Outside it, it hung in the gutter to the right of the
-                card looking like something that had come loose. Below lg the
-                rail scrolls, so it moves to its own row instead of sliding
-                away with the tabs. */}
-            {/* Level lived here as an amber chip. It is already on the hero
-                ("Level 2 · 110 XP to go"), in the header pill and on the
-                sidebar card, so a fourth copy above the tabs was the same
-                number competing with the navigation for attention. Only the AI
-                allowance stays, and only when it is nearly spent. */}
-            {aiNotice && (
-              <div className="hidden lg:ml-auto lg:flex lg:items-center lg:pl-2">{aiNotice}</div>
-            )}
-          </div>
-        </nav>
-
-        {aiNotice && <div className="flex shrink-0 items-center lg:hidden">{aiNotice}</div>}
+        {/* The white base the lit tab stands on. */}
+        <div className="flex min-h-3.5 items-center justify-end rounded-b-3xl border border-t-0 border-journey-200/70 bg-surface px-4 shadow-card">
+          {aiNotice && <div className="py-1.5">{aiNotice}</div>}
+        </div>
       </div>
 
       {/* Feature releases this browser has not seen. The bell carries the
           same list per student; this is where the features actually are. */}
       <WhatsNew />
 
-      <Outlet />
+      {/* The CareerPath mascot: tours each page once, then rests with tips
+          and a help menu. Uses the official image at /mascot.png. */}
+      <MascotGuide />
+
+      {/* Keyed on the route so the slide-up replays on every tab switch. */}
+      <div key={pathname} className={direction === 'right' ? 'fp-page-in-right' : 'fp-page-in-left'}>
+        <Outlet />
+      </div>
     </>
   );
 }

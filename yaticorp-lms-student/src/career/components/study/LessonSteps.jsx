@@ -1,4 +1,4 @@
-import { Check, MonitorPlay, FileText, HelpCircle, PartyPopper } from 'lucide-react';
+import { Check, MonitorPlay, FileText, HelpCircle, PartyPopper, ArrowRight, Zap } from 'lucide-react';
 
 /**
  * The three gates, made visible — as a journey rather than a status readout.
@@ -68,20 +68,27 @@ export default function LessonSteps({ gates, completed }) {
 
   return (
     <div
-      className={`rounded-xl border p-5 transition-colors ${
-        finished ? 'border-emerald-200 bg-emerald-50/70' : 'border-line-200 bg-surface-50/70'
+      className={`relative overflow-hidden rounded-2xl p-5 ring-1 ring-inset transition-colors ${
+        finished
+          ? 'bg-gradient-to-r from-emerald-50 via-surface to-teal-50 ring-emerald-200'
+          : 'bg-gradient-to-r from-journey-50 via-surface to-brand-50 ring-journey-100'
       }`}
     >
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <p className="text-[0.68rem] font-bold tracking-[0.12em] text-ink-500 uppercase">
+      <div
+        aria-hidden
+        className="fp-float pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-journey-200/40 blur-3xl"
+      />
+      <div className="relative mb-5 flex items-center justify-between gap-3">
+        <p className="flex items-center gap-2 text-[0.68rem] font-black tracking-[0.14em] text-journey-600 uppercase">
+          <Zap className="h-3.5 w-3.5 fill-amber-200 text-amber-500" />
           {finished ? 'Lesson complete' : 'Your progress'}
         </p>
         <span
-          className={`rounded-md px-2 py-0.5 text-xs font-bold tabular-nums ${
-            finished ? 'bg-solid-emerald text-white' : 'bg-surface text-ink-600 ring-1 ring-line-200 ring-inset'
+          className={`rounded-full px-2.5 py-0.5 text-xs font-black tabular-nums ${
+            finished ? 'bg-solid-emerald text-white' : 'bg-surface text-journey-700 ring-1 ring-journey-200 ring-inset'
           }`}
         >
-          {doneCount} / {steps.length}
+          {doneCount} / {steps.length} steps
         </span>
       </div>
 
@@ -92,11 +99,11 @@ export default function LessonSteps({ gates, completed }) {
         {steps.length > 1 && (
           <div
             aria-hidden
-            className="absolute top-5 right-0 left-0 mx-auto h-[3px] rounded-full bg-surface-200"
+            className="absolute top-6 right-0 left-0 mx-auto h-1 rounded-full bg-surface-200"
             style={{ width: `calc(100% - ${100 / steps.length}%)` }}
           >
             <div
-              className="h-full rounded-full bg-emerald-500 transition-[width] duration-700 ease-out"
+              className="fp-stripes h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-[width] duration-700 ease-out"
               style={{ width: `${Math.min(100, railPercent)}%` }}
             />
           </div>
@@ -110,11 +117,11 @@ export default function LessonSteps({ gates, completed }) {
             return (
               <li key={key} className="flex flex-1 flex-col items-center gap-2 text-center">
                 <span
-                  className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
+                  className={`flex h-12 w-12 items-center justify-center rounded-full transition-all ${
                     done
-                      ? 'animate-step-land bg-emerald-500 text-white'
+                      ? 'animate-step-land bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-md shadow-emerald-500/30'
                       : isCurrent
-                        ? 'animate-attention bg-surface text-link ring-2 ring-brand-500'
+                        ? 'fp-glow-violet scale-110 bg-gradient-to-br from-journey-500 to-indigo-600 text-white shadow-lg shadow-journey-500/40'
                         : 'bg-surface text-ink-400 ring-2 ring-line-200'
                   }`}
                 >
@@ -126,11 +133,16 @@ export default function LessonSteps({ gates, completed }) {
                 </span>
 
                 <span
-                  className={`text-xs font-bold ${
-                    done ? 'text-emerald-700' : isCurrent ? 'text-link-strong' : 'text-ink-400'
+                  className={`text-xs font-black ${
+                    done ? 'text-emerald-700' : isCurrent ? 'text-journey-700' : 'text-ink-400'
                   }`}
                 >
                   {label}
+                  {isCurrent && (
+                    <span className="mt-0.5 block text-[0.6rem] font-bold tracking-[0.12em] text-journey-500 uppercase">
+                      Now
+                    </span>
+                  )}
                 </span>
               </li>
             );
@@ -139,15 +151,17 @@ export default function LessonSteps({ gates, completed }) {
       </div>
 
       {/* ---- What to do about it ---- */}
-      <div className="mt-5 border-t border-line-200/80 pt-4">
+      <div className="relative mt-5">
         {finished ? (
-          <p className="flex items-center justify-center gap-2 text-sm font-bold text-emerald-700">
+          <p className="flex items-center justify-center gap-2 rounded-xl bg-surface/90 px-4 py-3 text-sm font-black text-emerald-700 ring-1 ring-emerald-200 ring-inset">
             <PartyPopper className="h-4 w-4" />
             Done and ticked off — nothing left to submit.
           </p>
         ) : (
-          <p className="text-sm leading-relaxed text-ink-600">
-            <span className="font-bold text-ink-900">
+          <p className="flex items-start gap-2.5 rounded-xl bg-surface/90 px-4 py-3 text-sm leading-relaxed text-ink-600 ring-1 ring-journey-100 ring-inset">
+            <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-journey-600" />
+            <span>
+            <span className="font-black text-ink-900">
               Next: {STEP_META[steps[currentIndex].key].action}.
             </span>{' '}
             {remaining.length > 1 ? (
@@ -158,6 +172,7 @@ export default function LessonSteps({ gates, completed }) {
             ) : (
               <>That&apos;s the last step — the task completes itself the moment you do.</>
             )}
+            </span>
           </p>
         )}
       </div>

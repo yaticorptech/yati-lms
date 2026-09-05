@@ -766,10 +766,16 @@ const StudentLayout = () => {
                     </div>
                 </header>
 
-                {/* `pb-28` on phones so the fixed bottom bar never sits on top
-                    of whatever the page ends with — a Save button under an
-                    opaque nav is a button that does not exist. */}
-                <div className="mx-auto h-full min-h-[calc(100vh-4rem)] max-w-7xl p-4 pb-28 md:p-8 md:pb-8">
+                {/* Bottom padding on phones so the floating bar never sits on
+                    top of whatever the page ends with — a Save button under an
+                    opaque nav is a button that does not exist.
+
+                    No `h-full` here. It pinned this box to the viewport's
+                    height, so any page taller than the screen overflowed past
+                    it and the padding landed mid-page instead of after the
+                    last card — which is why the end of long pages sat under
+                    the bar. `min-h` keeps short pages filling the screen. */}
+                <div className="mx-auto min-h-[calc(100vh-4rem)] max-w-7xl p-4 pb-[7.5rem] md:p-8 md:pb-8">
                     <Outlet />
                 </div>
             </main>

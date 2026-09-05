@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Building2, Compass, Flame } from 'lucide-react';
 import CurrentMission from './CurrentMission';
-import YatiMascot from '../game/YatiMascot';
+import Mascot from '../mascot/Mascot';
+import useMascotCycle, { LIVE_POSES, DONE_POSES } from '../mascot/useMascotCycle';
 import { phaseStates, journeyPercent } from '../../utils/roadmap';
 import { dailyBoost, DAY_DONE_LINE } from '../../utils/motivation';
 
@@ -47,6 +48,8 @@ export default function JourneyHero({
   const hasRoadmap = phases.length > 0;
   const dayCleared = totalToday > 0 && completedToday >= totalToday;
 
+  const look = useMascotCycle(dayCleared ? DONE_POSES : LIVE_POSES);
+
   // The streak, phrased as what today can do for it — never as a warning.
   const streakLine = countedToday
     ? streak > 1
@@ -69,7 +72,7 @@ export default function JourneyHero({
 
       <div className="relative flex items-center gap-6 p-5 sm:px-6 sm:py-5">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-ink-500">
+          <p className="animate-fade-in-up text-sm font-semibold text-ink-500">
             {greeting}
             {firstName ? (
               <>
@@ -80,13 +83,13 @@ export default function JourneyHero({
             )}
           </p>
 
-          <h1 className="mt-1 text-2xl leading-tight font-black text-ink-900 sm:text-3xl">
+          <h1 className="animate-fade-in-up mt-1 text-2xl leading-tight font-black text-ink-900 sm:text-3xl" style={{ animationDelay: '0.08s' }}>
             {goal?.careerGoal || 'Your career goal'}
           </h1>
 
           {/* One meta line instead of a track, a percentage and a phase panel.
               The strip below draws all three properly. */}
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-ink-500">
+          <p className="animate-fade-in-up mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-ink-500" style={{ animationDelay: '0.14s' }}>
             <Compass className="h-3.5 w-3.5 shrink-0 text-journey-500" />
             {hasRoadmap ? (
               <>
@@ -109,7 +112,7 @@ export default function JourneyHero({
             )}
           </p>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="animate-fade-in-up mt-3 flex flex-wrap items-center gap-2" style={{ animationDelay: '0.2s' }}>
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-journey-100/60 px-2.5 py-1 text-xs font-bold text-journey-700">
               <span aria-hidden>{dayCleared ? '🏆' : '💪'}</span>
               {dayCleared ? DAY_DONE_LINE : dailyBoost()}
@@ -125,7 +128,7 @@ export default function JourneyHero({
           {/* The action sits with the words that explain it, not alone across
               the panel: a button in the middle of empty space reads as lost
               rather than as important. */}
-          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+          <div className="animate-fade-in-up mt-4 flex flex-wrap items-center gap-2.5" style={{ animationDelay: '0.28s' }}>
             <CurrentMission task={task} completedToday={completedToday} totalToday={totalToday} />
 
             {/* Only when there is nothing to view yet. Once a roadmap exists
@@ -134,10 +137,11 @@ export default function JourneyHero({
             {!hasRoadmap && (
               <Link
                 to="/career/roadmap"
-                className="fp-press group inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-surface px-4 py-3 text-sm font-black text-journey-700 ring-1 ring-journey-200 ring-inset transition-colors hover:bg-journey-50"
+                data-guide="build-roadmap"
+                className="fp-btn fp-btn-soft group inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-surface px-4 py-3 text-sm font-black text-journey-700 ring-1 ring-journey-200 ring-inset"
               >
                 Build my roadmap
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="fp-btn-arrow h-4 w-4" />
               </Link>
             )}
           </div>
@@ -173,13 +177,14 @@ export default function JourneyHero({
             </div>
           )}
 
-          <div className="relative hidden w-36 lg:block" aria-hidden>
-            <span className="absolute inset-4 rounded-full bg-journey-300/40 blur-2xl" />
-            <YatiMascot
-              mood={dayCleared ? 'celebrating' : task ? 'pointing' : 'happy'}
-              float
-              className="relative drop-shadow-[0_14px_24px_rgba(108,59,255,0.25)]"
-            />
+          {/* The CareerPath mascot, changing pose every few seconds: lively
+              while the day is in play, celebrating once it is cleared. */}
+          <div className="relative hidden lg:block" aria-hidden>
+            <span className="absolute inset-x-4 bottom-2 top-8 rounded-full bg-blue-300/40 blur-2xl" />
+            <span className="fp-drift-icon absolute -top-3 -left-4 text-xl" style={{ animationDelay: '0s' }}>🚀</span>
+            <span className="fp-drift-icon absolute top-6 -right-5 text-lg" style={{ animationDelay: '-1.7s' }}>⭐</span>
+            <span className="fp-drift-icon absolute -bottom-1 -left-6 text-lg" style={{ animationDelay: '-3.2s' }}>💡</span>
+            <Mascot key={look.pose} pose={look.pose} height={168} motion={look.motion} className="mc-pop relative" />
           </div>
         </div>
       </div>

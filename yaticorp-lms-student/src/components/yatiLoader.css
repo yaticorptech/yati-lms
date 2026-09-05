@@ -1,0 +1,61 @@
+/*
+ * Motion for the YATI loader. Scoped under .yl-* so it reaches nothing else.
+ * Loops are slow and smooth: this plays while the student waits, so it must
+ * feel calm rather than busy.
+ */
+
+/* The outer ring turns one way, the inner the other. */
+.yl-ring { animation: yl-spin 6s linear infinite; }
+.yl-ring-inner { animation: yl-spin 4s linear infinite reverse; }
+@keyframes yl-spin { to { transform: rotate(360deg); } }
+
+/* A rocket and a star orbit the mascot at different speeds. Each sits on
+   an arm that rotates about the centre; the counter-rotation keeps the
+   icon itself upright. */
+.yl-orbit { animation: yl-spin 5s linear infinite; }
+.yl-orbit-slow { animation: yl-spin 8s linear infinite reverse; }
+.yl-upright { animation: yl-spin 5s linear infinite reverse; }
+.yl-upright-slow { animation: yl-spin 8s linear infinite; }
+
+/* The glow behind the mascot breathes. */
+.yl-glow { animation: yl-glow 2.6s ease-in-out infinite; }
+@keyframes yl-glow {
+  0%, 100% { opacity: 0.55; transform: scale(0.9); }
+  50%      { opacity: 0.95; transform: scale(1.08); }
+}
+
+/* Three dots that rise in turn. */
+.yl-dot { animation: yl-dot 1.2s ease-in-out infinite; }
+@keyframes yl-dot {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50%      { transform: translateY(-6px); opacity: 1; }
+}
+
+/* The bar underneath: a gradient that travels, never a fake percentage. */
+.yl-bar { animation: yl-bar 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+@keyframes yl-bar {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(240%); }
+}
+
+/* Lines of encouragement swap with a small rise. */
+.yl-line { animation: yl-line 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes yl-line {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.yl-in { animation: yl-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes yl-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yl-ring, .yl-ring-inner, .yl-orbit, .yl-orbit-slow, .yl-upright, .yl-upright-slow,
+  .yl-glow, .yl-dot, .yl-bar, .yl-line, .yl-in {
+    animation: none !important;
+  }
+  .yl-dot { opacity: 0.8; }
+  .yl-bar { transform: translateX(50%); }
+}

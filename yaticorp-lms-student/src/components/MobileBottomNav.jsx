@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, Bot, User } from 'lucide-react';
+import './mobileBottomNav.css';
 
 /**
  * The student's main navigation on a phone.
@@ -9,26 +11,35 @@ import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, Bot, User
  * destinations sit under the thumb here, and the drawer keeps what does not
  * belong in a nav bar — support and sign-out.
  *
- * Labels are the sidebar's own words, wrapped rather than shortened. Renaming
- * "Enrolled Courses" to "Courses" for the sake of one line is how a product
- * ends up calling the same page two things depending on the device.
+ * Labels are shortened to one word each so seven of them sit on one line
+ * under their icons; the sidebar's full name stays on the accessible label,
+ * so a screen reader still hears "Enrolled Courses".
  *
  * Jobs, Career Path and the mentor come and go with the admin switches, exactly
  * as they do in the sidebar, so the bar never offers a section the student
  * cannot open.
+ *
+ * The active signal is a gradient bubble that slides along the bar to
+ * whichever icon is on, the way a delivery app's bottom bar does it. It is
+ * measured from the active link and springs into place, so switching tabs
+ * is something the thumb can watch rather than a colour that changes.
  */
+// `label` is the sidebar's own name and goes on the accessible label; `short`
+// is what fits under an icon in one line when seven of them share a phone.
 const ITEMS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { to: '/enrolled-courses', label: 'Enrolled Courses', icon: BookOpen },
-  { to: '/community', label: 'Community', icon: MessageSquare },
-  { to: '/jobs', label: 'Jobs', icon: Briefcase, flag: 'jobs' },
-  { to: '/career', label: 'Career Path', icon: Compass, flag: 'career' },
-  { to: '/mentor', label: 'AI Mentor', icon: Bot, flag: 'career' },
-  { to: '/profile', label: 'My Profile', icon: User }
+  { to: '/', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
+  { to: '/enrolled-courses', label: 'Enrolled Courses', short: 'Courses', icon: BookOpen },
+  { to: '/community', label: 'Community', short: 'Community', icon: MessageSquare },
+  { to: '/jobs', label: 'Jobs', short: 'Jobs', icon: Briefcase, flag: 'jobs' },
+  { to: '/career', label: 'Career Path', short: 'Career', icon: Compass, flag: 'career' },
+  { to: '/mentor', label: 'AI Mentor', short: 'Mentor', icon: Bot, flag: 'career' },
+  { to: '/profile', label: 'My Profile', short: 'Profile', icon: User }
 ];
 
 export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) {
   const { pathname } = useLocation();
+  const rowRef = useRef(null);
+  const [bubble, setBubble] = useState(null);
 
   const visible = ITEMS.filter((item) => {
     if (item.flag === 'jobs') return isJobsEnabled;
@@ -39,60 +50,70 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
   const isActive = (item) =>
     item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
 
+  // Where the bubble sits: under the active icon, re-measured when the route
+  // or the screen width changes. The CSS springs it there.
+  useEffect(() => {
+    const measure = () => {
+      const row = rowRef.current;
+      const icon = row?.querySelector('[data-active-icon="true"]');
+      if (!row || !icon) {
+        setBubble(null);
+        return;
+      }
+      const rowBox = row.getBoundingClientRect();
+      const box = icon.getBoundingClientRect();
+      setBubble({ left: box.left - rowBox.left, width: box.width });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [pathname, visible.length]);
+
   return (
     <nav
       aria-label="Main sections"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-900/95 px-0.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] backdrop-blur md:hidden"
+      className="mbn-in fixed inset-x-1.5 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 md:hidden"
     >
-      <div className="flex items-stretch">
-        {visible.map((item) => {
-          const active = isActive(item);
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              aria-current={active ? 'page' : undefined}
-              className={`flex min-h-14 flex-1 flex-col items-center justify-start gap-1 px-0 pt-1 pb-1.5 text-[0.58rem] font-bold transition-colors ${
-                active ? 'text-white' : 'text-slate-400'
-              }`}
-            >
-              {/* A rail above the icon, not a filled pill around it.
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/90 shadow-[0_18px_40px_-16px_rgba(15,23,42,0.8)] backdrop-blur-xl">
+        {/* A faint sheen across the top edge, so the bar reads as glass. */}
+        <span aria-hidden className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
-                  The Career Path tabs upstairs already use a filled gradient
-                  pill for "active". Repeating that shape down here made two
-                  different navigations speak with one voice, so at a glance it
-                  was unclear which level of the app a highlight belonged to —
-                  and stacked a second heavy chip under a screen that already
-                  had one. A top indicator is the bottom bar's own signal. */}
-              <span
-                aria-hidden
-                className={`h-0.5 w-7 rounded-full transition-colors ${
-                  active ? 'bg-indigo-400' : 'bg-transparent'
-                }`}
-              />
-              <span
-                className={`flex h-6 w-10 shrink-0 items-center justify-center transition-colors ${
-                  active ? 'text-indigo-300' : 'text-slate-500'
+        <div ref={rowRef} className="relative flex items-stretch px-0.5 pt-1.5 pb-1.5">
+          {bubble && (
+            <span aria-hidden className="mbn-bubble" style={{ left: bubble.left, width: bubble.width }} />
+          )}
+
+          {visible.map((item) => {
+            const active = isActive(item);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                aria-label={item.label}
+                aria-current={active ? 'page' : undefined}
+                className={`mbn-press relative z-10 flex min-w-0 flex-1 flex-col items-center justify-start gap-0.5 px-0 pt-0.5 pb-1.5 text-[0.56rem] font-bold tracking-tight transition-colors duration-300 ${
+                  active ? 'text-white' : 'text-slate-400'
                 }`}
               >
-                <item.icon size={19} strokeWidth={active ? 2.4 : 2} />
-              </span>
-              {/* A fixed two-line box, whether the name needs one line or two.
-                  "Dashboard" sat on one line next to "Enrolled Courses" on two,
-                  so the icons above them lined up but the labels below did not
-                  — seven cells of different heights reading as a ragged edge
-                  rather than a row of buttons. */}
-              {/* Wraps at spaces only. `overflow-wrap: anywhere` let it break
-                  mid-word, so a 360px screen read "Dashboar / d" and
-                  "Communit / y" — worse than any truncation. The type drops a
-                  notch instead, which is enough for the longest single word
-                  ("Dashboard", "Community") to sit on one line in a 51px cell. */}
-              <span className="flex min-h-[1.8rem] w-full items-start justify-center px-px text-center leading-[1.15] break-words hyphens-none">
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
+                {/* The icon's box is what the bubble is measured from, so the
+                    bubble always fits the icon rather than the whole cell. */}
+                <span
+                  data-active-icon={active || undefined}
+                  key={active ? `${item.to}-on` : `${item.to}-off`}
+                  className={`flex h-10 w-11 shrink-0 items-center justify-center rounded-full transition-colors duration-300 ${
+                    active ? 'mbn-icon-active text-white' : 'text-slate-400'
+                  }`}
+                >
+                  <item.icon size={20} strokeWidth={active ? 2.5 : 2} />
+                </span>
+
+                <span className="w-full truncate px-px text-center leading-none">{item.short}</span>
+
+                {active && <span aria-hidden className="mbn-dot absolute bottom-0 h-1 w-1 rounded-full bg-indigo-300" />}
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );
