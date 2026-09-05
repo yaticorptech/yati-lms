@@ -27,7 +27,11 @@ const MODEL = process.env.JOBS_RESUME_MODEL || 'gemini-flash-latest';
 // Tried when the primary answers 503 — "high demand" on one model is routinely
 // quiet on its sibling, and a student mid-upload should not eat that lottery.
 const FALLBACK_MODEL = process.env.JOBS_RESUME_FALLBACK_MODEL || 'gemini-flash-lite-latest';
-const TIMEOUT_MS = 60_000;
+// Per attempt. The whole parse is also capped by DEADLINE_MS below — four
+// attempts at a full minute each was how an upload could spin for four
+// minutes with the file already safely stored.
+const TIMEOUT_MS = 25_000;
+const DEADLINE_MS = 60_000;
 const MONTHLY_LIMIT = Number(process.env.JOBS_RESUME_MONTHLY_LIMIT || 300);
 
 const SENIORITY = ['Student', 'Fresher', 'Junior', 'Mid-level', 'Senior', 'Lead'];
@@ -132,9 +136,12 @@ const parseResume = async (buffer, filename = 'resume.pdf', mimeType = 'applicat
         for (const key of keys.slice(0, 2)) attempts.push({ model, key });
     }
 
+    const startedAt = Date.now();
     for (const [i, { model, key }] of attempts.slice(0, 4).entries()) {
+        const left = DEADLINE_MS - (Date.now() - startedAt);
+        if (left < 3000) break;
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+        const timer = setTimeout(() => ctrl.abort(), Math.min(TIMEOUT_MS, left));
         try {
             const res = await fetch(`${ENDPOINT}/${model}:generateContent`, {
                 method: 'POST',

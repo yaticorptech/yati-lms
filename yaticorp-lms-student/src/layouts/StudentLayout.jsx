@@ -9,8 +9,9 @@ import ContinuePanel from '../components/ContinuePanel';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MentorFab from '../components/MentorFab';
 import MobileBottomNav from '../components/MobileBottomNav';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, Bot } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, Bot, ChevronDown } from 'lucide-react';
 import api from '../utils/api';
+import { useRewards } from '../context/useRewards';
 
 // Contact Support Modal
 const ContactModal = ({ onClose, user }) => {
@@ -76,6 +77,10 @@ const careerHitCount = (career) =>
 
 const StudentLayout = () => {
     const { user, logout, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled } = useContext(AuthContext);
+    // Streak, points and level for the header pills. Null until loaded or
+    // when an admin has locked rewards; the pills simply stay away then.
+    const rewards = useRewards();
+    const rw = rewards.enabled ? rewards.summary : null;
     const location = useLocation();
     const navigate = useNavigate();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -480,84 +485,6 @@ const StudentLayout = () => {
                     <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
                 </div>
 
-                {/* Search bar in sidebar */}
-                <div ref={searchRef} className="px-4 pt-4 relative">
-                    <div className="relative">
-                        <input
-                            type="text"
-                            placeholder="Search lessons, courses..."
-                            value={searchQ}
-                            onChange={e => handleSearch(e.target.value)}
-                            className="w-full pl-9 pr-3 py-2 bg-slate-800 text-slate-200 placeholder-slate-500 text-sm rounded-xl border border-slate-700 focus:border-indigo-500 focus:outline-none"
-                        />
-                        <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
-                    </div>
-                    {searchResults && (
-                        <div className="absolute left-4 right-4 top-full mt-1 bg-white rounded-xl shadow-2xl border border-slate-100 z-50 max-h-72 overflow-y-auto">
-                            {searchResults.courses?.length === 0 &&
-                             searchResults.lessons?.length === 0 &&
-                             !careerHitCount(searchResults.career) ? (
-                                <p className="text-slate-400 text-sm px-4 py-3">No results found.</p>
-                            ) : (
-                                <>
-                                    {searchResults.courses?.length > 0 && (
-                                        <div className="px-3 pt-2">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Courses</p>
-                                            {searchResults.courses.map(c => (
-                                                <button key={c._id} onClick={() => goToCourse(c)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
-                                                    <BookOpen size={14} className="text-indigo-500 flex-shrink-0" />
-                                                    <span className="text-slate-800 font-medium truncate">{c.title}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {searchResults.lessons?.length > 0 && (
-                                        <div className="px-3 pb-2 pt-1">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Lessons</p>
-                                            {searchResults.lessons.map(l => (
-                                                <button key={l._id} onClick={() => goToLesson(l)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
-                                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">{l.type}</span>
-                                                    <span className="text-slate-700 truncate">{l.title}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {careerHitCount(searchResults.career) > 0 && (
-                                        <div className="px-3 pb-2 pt-1 border-t border-slate-100">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 mt-1">Career Path</p>
-                                            {searchResults.career.phases?.map(p => (
-                                                <button key={`p${p.index}`} onClick={() => goToCareer('/career/roadmap')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
-                                                    <Compass size={14} className="text-indigo-500 flex-shrink-0" />
-                                                    <span className="text-slate-700 truncate">{p.title}</span>
-                                                    {p.completed && <span className="ml-auto text-[9px] font-bold text-emerald-600 uppercase flex-shrink-0">Done</span>}
-                                                </button>
-                                            ))}
-                                            {searchResults.career.tasks?.map(t => (
-                                                <button key={t._id} onClick={() => goToCareer('/career/planner')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
-                                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">task</span>
-                                                    <span className="text-slate-700 truncate">{t.title}</span>
-                                                </button>
-                                            ))}
-                                            {searchResults.career.skills?.map(sk => (
-                                                <button key={sk._id} onClick={() => goToCareer('/career/skills')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
-                                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">skill</span>
-                                                    <span className="text-slate-700 truncate">{sk.skillName}</span>
-                                                    <span className="ml-auto text-[10px] text-slate-400 flex-shrink-0">{sk.progress}%</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* `min-h-0` is what makes the scroll actually work. A flex
-                    child will not shrink below its content without it, so the
-                    nav kept its full height and pushed the progress card up
-                    over the last link instead of scrolling — adding a seventh
-                    section left "My Profile" half-hidden behind the astronaut. */}
                 <nav className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
                     {renderNavLinks()}
                 </nav>
@@ -662,15 +589,86 @@ const StudentLayout = () => {
             <main className="flex-1 overflow-auto bg-slate-50 md:pt-0 pt-16 relative">
                 {/* Desktop Header */}
                 <header className="hidden md:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-8 sticky top-0 z-30">
-                    <div className="flex-1">
-                        <h1 className="text-lg font-bold text-slate-800">
-                            {isActive('/') ? 'My Learning Dashboard' :
-                             isActive('/enrolled-courses') ? 'Enrolled Courses' :
-                             isActive('/community') ? 'Student Community' :
-                             isActive('/profile') ? 'My Profile' :
-                             isSectionActive('/mentor') ? '🤖 AI Mentor' :
-                             isSectionActive('/career') ? '🚀 Career Path' : ''}
-                        </h1>
+                    <div className="flex flex-1 items-center">
+                    {/* Search — the design puts it at the head of the page, not in the rail. */}
+                    <div ref={searchRef} className="relative w-full max-w-md">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Search for courses, lessons, quizzes..."
+                                value={searchQ}
+                                onChange={e => handleSearch(e.target.value)}
+                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-10 text-sm text-slate-800 placeholder-slate-400 transition-colors focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                            />
+                            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <span className="pointer-events-none absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-slate-200/70 text-slate-500"><Search size={14} /></span>
+                        </div>
+                        {searchResults && (
+                            <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl shadow-2xl border border-slate-100 z-50 max-h-72 overflow-y-auto">
+                                {searchResults.courses?.length === 0 &&
+                                 searchResults.lessons?.length === 0 &&
+                                 !careerHitCount(searchResults.career) ? (
+                                    <p className="text-slate-400 text-sm px-4 py-3">No results found.</p>
+                                ) : (
+                                    <>
+                                        {searchResults.courses?.length > 0 && (
+                                            <div className="px-3 pt-2">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Courses</p>
+                                                {searchResults.courses.map(c => (
+                                                    <button key={c._id} onClick={() => goToCourse(c)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
+                                                        <BookOpen size={14} className="text-indigo-500 flex-shrink-0" />
+                                                        <span className="text-slate-800 font-medium truncate">{c.title}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {searchResults.lessons?.length > 0 && (
+                                            <div className="px-3 pb-2 pt-1">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Lessons</p>
+                                                {searchResults.lessons.map(l => (
+                                                    <button key={l._id} onClick={() => goToLesson(l)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
+                                                        <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">{l.type}</span>
+                                                        <span className="text-slate-700 truncate">{l.title}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {careerHitCount(searchResults.career) > 0 && (
+                                            <div className="px-3 pb-2 pt-1 border-t border-slate-100">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 mt-1">Career Path</p>
+                                                {searchResults.career.phases?.map(p => (
+                                                    <button key={`p${p.index}`} onClick={() => goToCareer('/career/roadmap')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
+                                                        <Compass size={14} className="text-indigo-500 flex-shrink-0" />
+                                                        <span className="text-slate-700 truncate">{p.title}</span>
+                                                        {p.completed && <span className="ml-auto text-[9px] font-bold text-emerald-600 uppercase flex-shrink-0">Done</span>}
+                                                    </button>
+                                                ))}
+                                                {searchResults.career.tasks?.map(t => (
+                                                    <button key={t._id} onClick={() => goToCareer('/career/planner')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
+                                                        <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">task</span>
+                                                        <span className="text-slate-700 truncate">{t.title}</span>
+                                                    </button>
+                                                ))}
+                                                {searchResults.career.skills?.map(sk => (
+                                                    <button key={sk._id} onClick={() => goToCareer('/career/skills')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
+                                                        <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">skill</span>
+                                                        <span className="text-slate-700 truncate">{sk.skillName}</span>
+                                                        <span className="ml-auto text-[10px] text-slate-400 flex-shrink-0">{sk.progress}%</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* `min-h-0` is what makes the scroll actually work. A flex
+                        child will not shrink below its content without it, so the
+                        nav kept its full height and pushed the progress card up
+                        over the last link instead of scrolling — adding a seventh
+                        section left "My Profile" half-hidden behind the astronaut. */}
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -706,13 +704,20 @@ const StudentLayout = () => {
                         <div ref={profileDropdownRef} className="relative">
                             <button
                                 onClick={() => setProfileDropdownOpen(v => !v)}
-                                className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm ring-2 ring-indigo-100 hover:ring-indigo-300 transition-all duration-200 overflow-hidden"
+                                className="flex items-center gap-2.5 rounded-full py-0.5 pr-1 transition-colors hover:bg-slate-50"
                             >
-                                {user?.profilePicture ? (
-                                    <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    getInitials(user?.name)
-                                )}
+                                <span className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm ring-2 ring-indigo-100 hover:ring-indigo-300 transition-all duration-200 overflow-hidden">
+                                    {user?.profilePicture ? (
+                                        <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        getInitials(user?.name)
+                                    )}
+                                </span>
+                                <span className="hidden lg:block text-left leading-tight">
+                                    <span className="block max-w-[140px] truncate text-sm font-bold text-slate-800">{user?.name}</span>
+                                    {rw && <span className="block text-[11px] font-semibold text-slate-500">Level {rw.level.level}</span>}
+                                </span>
+                                <ChevronDown size={14} className="hidden lg:block text-slate-400" aria-hidden="true" />
                             </button>
 
                             {/* Dropdown panel */}

@@ -100,7 +100,28 @@ const userSchema = new mongoose.Schema({
         default: 60,
         min: 15,
         max: 480
-    }
+    },
+
+    // ─── Rewards & wallet ────────────────────────────────────────────────────
+    // Who this student is, for the purpose of money. School and college
+    // accounts earn XP, badges and reward points; whether a type may turn
+    // points into cash is decided in the rewards rulebook, and an admin can
+    // override one account with walletAccess. Existing accounts default to the
+    // most conservative type and need no migration.
+    accountType: {
+        type: String,
+        enum: ['school_student', 'college_student', 'adult', 'professional', 'instructor'],
+        default: 'school_student'
+    },
+    walletAccess: {
+        type: String,
+        enum: ['default', 'enabled', 'disabled'],
+        default: 'default'
+    },
+    // Free-text cohort labels for the "My institution" / "My class"
+    // leaderboards. Students in the same institution and class see each other.
+    institution: { type: String, default: '', trim: true },
+    className: { type: String, default: '', trim: true }
 }, { timestamps: true });
 
 // Match user entered password to database password (which is plain text Verification_value)

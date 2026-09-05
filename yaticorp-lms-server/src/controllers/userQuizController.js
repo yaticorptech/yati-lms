@@ -66,6 +66,7 @@ const submitQuizAnswers = async (req, res) => {
 
         let creditsEarned = 0;
         let totalCredits = 0;
+        const rewards = { events: [] };
 
         try {
             const Setting = require('../models/Setting');
@@ -113,6 +114,16 @@ const submitQuizAnswers = async (req, res) => {
                     }
 
                     await progress.save();
+
+                    // Rewards: completing a quiz pays once, passing it pays once
+                    // more; the activity ledger makes retakes free of both.
+                    const { safeRecordActivity } = require('../rewards/services/activityService');
+                    const done = await safeRecordActivity({ userId: req.user._id, type: 'quiz_complete', refId: quiz._id, courseId, meta: { score: scorePercentage, passed } });
+                    rewards.events.push(...done.events);
+                    if (passed) {
+                        const won = await safeRecordActivity({ userId: req.user._id, type: 'quiz_pass', refId: quiz._id, courseId, meta: { score: scorePercentage } });
+                        rewards.events.push(...won.events);
+                    }
                 }
             }
 
@@ -127,6 +138,7 @@ const submitQuizAnswers = async (req, res) => {
             passed,
             creditsEarned,
             totalCredits,
+            rewards,
             results // Send back the correct answers and explanations for review
         });
 

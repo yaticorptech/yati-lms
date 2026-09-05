@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Key, Plus, Trash2, Smartphone, Bell, ChevronRight, ArrowLeft, CheckCircle2, Eye, EyeOff, Compass, Lock, Unlock, Briefcase } from 'lucide-react';
+import { Shield, Key, Plus, Trash2, Smartphone, Bell, ChevronRight, ArrowLeft, CheckCircle2, Eye, EyeOff, Compass, Lock, Unlock, Briefcase, Gift } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 
 /**
@@ -235,7 +235,7 @@ const Settings = () => {
                                     onToggle={(next) => toggleFeature('isCareerPathEnabled', next)}
                                 />
                             </div>
-                            <div className="pt-6">
+                            <div className="py-6">
                                 <FeatureRow
                                     icon={Briefcase}
                                     title="Jobs"
@@ -243,6 +243,16 @@ const Settings = () => {
                                     enabled={features.isJobsEnabled !== false}
                                     saving={savingFeature === 'isJobsEnabled'}
                                     onToggle={(next) => toggleFeature('isJobsEnabled', next)}
+                                />
+                            </div>
+                            <div className="pt-6">
+                                <FeatureRow
+                                    icon={Gift}
+                                    title="Rewards"
+                                    description="Streaks, XP, leaderboard, badges, reward points and the wallet. Rules and payouts are managed on the Rewards page."
+                                    enabled={features.isRewardsEnabled !== false}
+                                    saving={savingFeature === 'isRewardsEnabled'}
+                                    onToggle={(next) => toggleFeature('isRewardsEnabled', next)}
                                 />
                             </div>
                         </div>

@@ -28,6 +28,7 @@ import ResetPassword from './pages/ResetPassword';
 import Community from './pages/Community';
 import PostDetail from './pages/PostDetail';
 import NotFound from './pages/NotFound';
+import { RewardsProvider } from './context/RewardsContext';
 
 // ─── Career Path (FuturePath) ────────────────────────────────────────────────
 // The AI career-roadmap section, ported from the standalone FuturePath app. It
@@ -86,7 +87,9 @@ function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/preview/:courseId" element={<CoursePreview />} />
-      <Route path="/" element={<ProtectedRoute><StudentLayout /></ProtectedRoute>}>
+      {/* RewardsProvider sits inside the auth guard so every page in the
+          shell can show XP toasts and milestone celebrations. */}
+      <Route path="/" element={<ProtectedRoute><RewardsProvider><StudentLayout /></RewardsProvider></ProtectedRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="enrolled-courses" element={<EnrolledCourses />} />
         <Route path="profile" element={<Profile />} />

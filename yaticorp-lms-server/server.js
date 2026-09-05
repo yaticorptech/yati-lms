@@ -93,6 +93,9 @@ app.use('/api/career', require('./src/career'));
 // Jobs (CareerCompass) — the student job board. One mount; the module's own
 // router fans out to /recommend, /roles, /meta and the admin half.
 app.use('/api/jobs', require('./src/jobboard'));
+// Rewards — streaks, XP, leaderboard, badges, reward points and the wallet.
+// One mount; the module's own router fans out and carries the admin half.
+app.use('/api/rewards', require('./src/rewards'));
 // Public share links for Career Path milestone badges: /b/<code> renders the
 // page a student's followers open, /b/<code>/image.png is what LinkedIn, X and
 // WhatsApp embed. Deliberately outside /api and deliberately unauthenticated —
@@ -136,3 +139,10 @@ setTimeout(runScheduledMaintenance, 5 * 60 * 1000);
 setInterval(runScheduledMaintenance, 6 * 60 * 60 * 1000);
 setTimeout(runJobAlerts, 15 * 60 * 1000);
 setInterval(runJobAlerts, 6 * 60 * 60 * 1000);
+
+// Rewards — pay out finished leaderboard weeks/months and refresh the
+// standings snapshot. Once-only per period via a database claim, so the
+// half-hourly interval and a second instance cannot double-pay.
+const { runScheduled: runRewardJobs } = require('./src/rewards/services/jobs');
+setTimeout(runRewardJobs, 2 * 60 * 1000);
+setInterval(runRewardJobs, 30 * 60 * 1000);

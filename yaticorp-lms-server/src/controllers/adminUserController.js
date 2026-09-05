@@ -295,7 +295,7 @@ const deleteUser = async (req, res) => {
 // @access  Private/Admin
 const updateUser = async (req, res) => {
     try {
-        const { name, email, phone, cardNumber, qrNumber, password } = req.body;
+        const { name, email, phone, cardNumber, qrNumber, password, accountType, walletAccess, institution, className } = req.body;
 
         const user = await User.findById(req.params.id);
 
@@ -325,6 +325,20 @@ const updateUser = async (req, res) => {
 
         // ✅ NEW: QR Number
         user.qrNumber = qrNumber || user.qrNumber;
+
+        // Rewards: account type decides money eligibility, cohort labels feed
+        // the institution/class leaderboards. Only known values are accepted.
+        const ACCOUNT_TYPES = ['school_student', 'college_student', 'adult', 'professional', 'instructor'];
+        if (accountType !== undefined) {
+            if (!ACCOUNT_TYPES.includes(accountType)) return res.status(400).json({ message: 'Unknown account type' });
+            user.accountType = accountType;
+        }
+        if (walletAccess !== undefined) {
+            if (!['default', 'enabled', 'disabled'].includes(walletAccess)) return res.status(400).json({ message: 'walletAccess must be default, enabled or disabled' });
+            user.walletAccess = walletAccess;
+        }
+        if (institution !== undefined) user.institution = String(institution).trim().slice(0, 120);
+        if (className !== undefined) user.className = String(className).trim().slice(0, 60);
 
         // ✅ Password update (hashed via pre-save hook)
         if (password) {
