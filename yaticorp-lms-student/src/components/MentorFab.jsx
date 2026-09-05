@@ -36,7 +36,7 @@ export default function MentorFab() {
       to="/mentor"
       aria-label="Ask your AI mentor"
       title="Ask your AI mentor"
-      className={`group fixed right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-journey-600 to-indigo-600 text-white shadow-lg shadow-journey-900/30 transition-transform duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-journey-500 focus-visible:ring-offset-2 active:scale-95 bottom-28 md:right-6 md:bottom-6`}
+      className={`group fixed right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-journey-600 to-indigo-600 text-white shadow-lg shadow-journey-900/30 transition-transform duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-journey-500 focus-visible:ring-offset-2 active:scale-95 bottom-[6.75rem] md:right-6 md:bottom-6`}
     >
       {/* A soft ring rather than a pulse. This sits on every page all day, and
           anything that animates forever in the corner of the eye stops being

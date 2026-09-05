@@ -10,8 +10,8 @@ import { phaseStates, phaseTitle, parseChoices } from '../../utils/roadmap';
 const Track = ({ walked }) => (
   <span
     aria-hidden
-    className={`mt-[2.6rem] h-1 min-w-6 flex-1 self-start rounded-full ${
-      walked ? 'bg-emerald-400' : 'bg-line-300'
+    className={`mt-[2.6rem] h-1 min-w-6 flex-1 origin-left self-start rounded-full ${
+      walked ? 'fp-fill bg-gradient-to-r from-emerald-400 to-teal-400' : 'bg-line-300'
     }`}
   />
 );
@@ -71,7 +71,7 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
   };
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-line-200 bg-surface p-5 shadow-card sm:p-6">
+    <section data-guide="journey" className="overflow-hidden rounded-3xl border border-line-200 bg-surface p-5 shadow-card sm:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-base font-black text-ink-900">
@@ -87,10 +87,10 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
         </div>
         <Link
           to="/career/roadmap"
-          className="group inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-journey-50 px-3 py-1.5 text-xs font-black text-journey-700 transition-colors hover:bg-journey-100"
+          className="fp-btn fp-btn-soft group inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-journey-50 px-3 py-1.5 text-xs font-black text-journey-700"
         >
           View roadmap
-          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight className="fp-btn-arrow h-3.5 w-3.5" />
         </Link>
       </div>
 
@@ -111,7 +111,8 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
               return (
                 <li
                   key={index}
-                  className="flex flex-1 items-stretch"
+                  className="animate-fade-in-up flex flex-1 items-stretch"
+                  style={{ animationDelay: `${0.15 + index * 0.08}s` }}
                   data-current={current || undefined}
                 >
                   {index > 0 && <Track walked={states[index - 1] === 'done'} />}
@@ -121,7 +122,7 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
                       done
                         ? 'bg-emerald-50/70 ring-1 ring-emerald-100 ring-inset'
                         : current
-                          ? '-translate-y-1 bg-journey-50 shadow-lg shadow-journey-600/20 ring-2 ring-journey-400 ring-inset'
+                          ? 'bg-journey-50 shadow-lg shadow-journey-600/25 ring-2 ring-journey-500 ring-inset'
                           : 'bg-surface-50 ring-1 ring-line-200 ring-inset'
                     }`}
                   >
@@ -140,7 +141,7 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
                           done
                             ? 'fp-done-gradient text-white shadow-md shadow-emerald-600/25'
                             : current
-                              ? 'bg-gradient-to-br from-journey-500 to-indigo-600 text-white shadow-lg shadow-journey-600/35'
+                              ? 'fp-breathe bg-gradient-to-br from-journey-500 to-indigo-600 text-white shadow-lg shadow-journey-600/35'
                               : 'bg-surface-100 text-ink-400 ring-1 ring-line-200 ring-inset'
                         }`}
                       >
@@ -184,7 +185,10 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
             })}
 
             {/* The destination closes the road rather than letting it run out. */}
-            <li className="flex flex-1 items-stretch">
+            <li
+              className="animate-fade-in-up flex flex-1 items-stretch"
+              style={{ animationDelay: `${0.15 + phases.length * 0.08}s` }}
+            >
               <Track walked={doneCount === phases.length} />
               <div className="flex w-32 min-w-32 flex-1 flex-col items-center rounded-2xl bg-amber-50 px-2.5 pt-4 pb-3 text-center ring-1 ring-amber-200 ring-inset sm:w-36 sm:min-w-36 lg:max-w-52">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-orange-600/30">

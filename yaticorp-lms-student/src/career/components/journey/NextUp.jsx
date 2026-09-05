@@ -34,7 +34,7 @@ export default function NextUp({ nextPhase, levelProgress }) {
 
       <div className="mt-5 flex flex-1 flex-col gap-3">
         {nextLead && (
-          <div className="rounded-2xl border border-journey-100 bg-journey-50/60 p-4">
+          <div className="fp-lift animate-fade-in-up rounded-2xl border border-journey-100 bg-journey-50/60 p-4" style={{ animationDelay: '0.3s' }}>
             <p className="flex items-center gap-1.5 text-[0.68rem] font-black tracking-wider text-journey-700 uppercase">
               <Lock className="h-3 w-3" />
               Next phase
@@ -46,7 +46,7 @@ export default function NextUp({ nextPhase, levelProgress }) {
         )}
 
         {hasLevel && (
-          <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+          <div className="fp-lift animate-fade-in-up rounded-2xl border border-amber-100 bg-amber-50/60 p-4" style={{ animationDelay: '0.4s' }}>
             <p className="flex items-center gap-1.5 text-[0.68rem] font-black tracking-wider text-amber-700 uppercase">
               <Trophy className="h-3 w-3" />
               Level {levelProgress.nextLevel}
@@ -68,10 +68,11 @@ export default function NextUp({ nextPhase, levelProgress }) {
             floor: it used to stop short of the streak card beside it. */}
         <Link
           to="/career/planner"
-          className="fp-press group mt-auto inline-flex items-center justify-center gap-2 rounded-xl bg-journey-50 px-4 py-2.5 text-sm font-black text-journey-700 ring-1 ring-journey-100 ring-inset transition-colors hover:bg-journey-100"
+          data-guide="unlock"
+          className="fp-btn fp-btn-primary group mt-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/25"
         >
           Unlock with today&apos;s task
-          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight className="fp-btn-arrow h-4 w-4" />
         </Link>
       </div>
     </section>

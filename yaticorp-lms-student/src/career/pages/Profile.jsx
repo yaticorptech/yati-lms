@@ -16,6 +16,8 @@ import { phaseStates, journeyPercent, phaseTitle, parseChoices } from '../utils/
 import { initialsOf, tilesFor } from '../utils/skills';
 import { dailyBoost } from '../utils/motivation';
 import useCountUp from '../../hooks/useCountUp';
+import YatiLoader from '../../components/YatiLoader';
+import useMinimumLoading from '../../hooks/useMinimumLoading';
 
 // Title-casing these would produce "Mca" or "Qa Engineer", which reads worse
 // than the lowercase original. Degrees and tech terms stay uppercase.
@@ -316,6 +318,7 @@ export default function Profile() {
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [redoingId, setRedoingId] = useState(null);
   // Above the early return below: hooks must run on every render.
+  const showLoader = useMinimumLoading(loading);
   const shownXp = useCountUp(Number(user?.xp) || 0, 1000);
 
   // No signed-out redirect here. This page renders inside ProtectedRoute, which
@@ -355,13 +358,7 @@ export default function Profile() {
     }
   };
 
-  if (loading || !user) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-journey-500 border-t-transparent" />
-      </div>
-    );
-  }
+  if (showLoader || !user) return <YatiLoader label="Loading your progress" />;
 
   const stats = summary?.stats;
   const goal = summary?.goal;
@@ -452,7 +449,7 @@ export default function Profile() {
                   </p>
                   <div className="mt-2 h-1.5 w-40 overflow-hidden rounded-full bg-surface-100">
                     <div
-                      className="fp-effort-gradient h-full rounded-full transition-[width] duration-1000 ease-out"
+                      className="fp-effort-gradient fp-stripes h-full rounded-full transition-[width] duration-1000 ease-out"
                       style={{ width: `${levelInfo.percent}%` }}
                     />
                   </div>

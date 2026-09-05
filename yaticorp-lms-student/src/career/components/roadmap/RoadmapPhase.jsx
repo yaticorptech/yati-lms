@@ -297,6 +297,7 @@ export default function RoadmapPhase({
             <button
               type="button"
               onClick={onToggleExpand}
+              data-guide="next-step"
               className="fp-press group/cta inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-journey-600/25 transition-all hover:from-journey-700 hover:to-indigo-700"
             >
               See what to do

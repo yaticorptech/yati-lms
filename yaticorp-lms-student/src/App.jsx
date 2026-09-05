@@ -7,7 +7,7 @@ import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useContext } from 'react';
 import { AuthContext } from './context/AuthContext';
 import StudentLayout from './layouts/StudentLayout';
-import AstronautLoader from './components/AstronautLoader';
+import YatiLoader from './components/YatiLoader';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import EnrolledCourses from './pages/EnrolledCourses';
@@ -15,7 +15,7 @@ const Jobs = React.lazy(() => import('./pages/Jobs'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
-  if (loading) return <AstronautLoader fullScreen label="Loading your account…" />;
+  if (loading) return <YatiLoader fullScreen label="Loading your account" />;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 };
@@ -78,7 +78,7 @@ const CareerGate = () => {
 
 // Every lazily-loaded route waits behind this, so it is the thing a student
 // actually sees while a page is downloading.
-const CareerFallback = () => <AstronautLoader label="Loading this page…" />;
+const CareerFallback = () => <YatiLoader label="Loading this page" />;
 
 function App() {
   return (

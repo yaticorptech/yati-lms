@@ -7,11 +7,12 @@ import {
   ArrowRight, Award, Trophy, Zap, Info, Share2, Medal, Sparkles, Flag, Lock, Gift
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
-import { SkeletonPage } from '../../components/ui/Skeleton';
 import RewardsArt from '../../components/rewards/RewardsArt';
 import BadgeMedallion from '../../components/rewards/BadgeMedallion';
 import useCountUp from '../../../hooks/useCountUp';
 import { BADGE_ICONS, tierFor } from '../../components/rewards/badgeTiers';
+import YatiLoader from '../../../components/YatiLoader';
+import useMinimumLoading from '../../../hooks/useMinimumLoading';
 
 const iconMap = BADGE_ICONS;
 
@@ -138,7 +139,8 @@ export default function Badges() {
     fetchData();
   }, []);
 
-  if (loading) return <SkeletonPage cards={4} columns={3} />;
+  const showLoader = useMinimumLoading(loading);
+  if (showLoader) return <YatiLoader label="Loading your rewards" />;
 
   const { floor, ceiling } = levelBounds(xp);
   const percent = Math.round(((xp - floor) / Math.max(1, ceiling - floor)) * 100);
@@ -222,7 +224,7 @@ export default function Badges() {
                   className="h-2.5 overflow-hidden rounded-full bg-surface-100 ring-1 ring-line-200/60 ring-inset"
                 >
                   <div
-                    className="fp-effort-gradient h-full rounded-full transition-[width] duration-1000 ease-out"
+                    className="fp-effort-gradient fp-stripes h-full rounded-full transition-[width] duration-1000 ease-out"
                     style={{ width: `${percent}%` }}
                   />
                 </div>
@@ -231,6 +233,7 @@ export default function Badges() {
               <div className="mt-4 flex flex-wrap items-center gap-2.5">
                 <Link
                   to="/career/planner"
+                  data-guide="earn"
                   className="fp-press group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
                 >
                   <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
@@ -328,7 +331,7 @@ export default function Badges() {
                 says how close, not what the threshold is: "100 XP to unlock"
                 once told a student on 80 XP they needed 100 more. */}
             {nextBadge && (
-              <div className="fp-lift relative flex flex-col items-center overflow-hidden rounded-2xl border-2 border-dashed border-journey-200 bg-journey-50/40 p-5 text-center">
+              <div data-guide="next-badge" className="fp-lift relative flex flex-col items-center overflow-hidden rounded-2xl border-2 border-dashed border-journey-200 bg-journey-50/40 p-5 text-center">
                 <div
                   aria-hidden
                   className={`pointer-events-none absolute -top-12 -right-10 h-32 w-32 rounded-full blur-2xl ${nextTier.halo}`}
@@ -365,6 +368,7 @@ export default function Badges() {
                   </div>
                   <Link
                     to="/career/planner"
+                    data-guide="badge-task"
                     className="fp-press group mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-3 py-2 text-xs font-black text-white shadow-md shadow-journey-500/25 transition-all hover:from-journey-700 hover:to-indigo-700"
                   >
                     <Zap className="h-3.5 w-3.5 fill-amber-300 text-amber-300" />

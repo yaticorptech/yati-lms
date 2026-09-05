@@ -2,13 +2,10 @@ import { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
-import { ArrowRight, BarChart3, Rocket, Target } from 'lucide-react';
-import Card, { CardHeader } from '../../components/ui/Card';
-import EmptyState from '../../components/ui/EmptyState';
-import { SkeletonOverview } from '../../components/ui/Skeleton';
+import { ArrowRight, Rocket } from 'lucide-react';
 import MomentumCard from '../../components/dashboard/MomentumCard';
+import SkillSnapshot from '../../components/dashboard/SkillSnapshot';
 import JobMatchesTile from '../../components/dashboard/JobMatchesTile';
-import SkillProgressList from '../../components/dashboard/SkillProgressList';
 import JourneyHero from '../../components/journey/JourneyHero';
 import NextUp from '../../components/journey/NextUp';
 import CareerJourneyStrip from '../../components/game/CareerJourneyStrip';
@@ -23,6 +20,8 @@ import {
   activeDays,
   dayKey
 } from '../../utils/progress';
+import YatiLoader from '../../../components/YatiLoader';
+import useMinimumLoading from '../../../hooks/useMinimumLoading';
 
 
 /**
@@ -34,8 +33,8 @@ import {
  *   JOURNEY   where am I going, and how far along am I  (the hero)
  *   TODAY     what do I do now, and what does it unlock (mission + next up)
  *   MOMENTUM  what have I built up                      (streak + level)
- *   SKILLS    what am I actually getting better at
  *   AHEAD     where this leads                          (job matches)
+ *   SKILLS    a three-skill snapshot; the Skills tab has the rest
  *
  * It used to open on a streak and then repeat itself: the streak appeared as a
  * dark hero AND a stat tile, the XP as a ring AND a stat tile, the completion
@@ -86,7 +85,8 @@ export default function Overview() {
 
   const completedTasks = tasks.filter((t) => t.status === 'Completed').length;
 
-  if (loading) return <SkeletonOverview />;
+  const showLoader = useMinimumLoading(loading);
+  if (showLoader) return <YatiLoader label="Loading your career path" />;
 
   // Past work still counts as "not new", so a returning student who hasn't had
   // a plan generated yet keeps their momentum tiles instead of the onboarding
@@ -101,9 +101,6 @@ export default function Overview() {
   const weekly = weeklyMomentum(history);
   const focus = todaysFocus(tasks);
   const progress = levelProgress(user?.xp, user?.level);
-  const avgSkill = skills.length
-    ? Math.round(skills.reduce((sum, s) => sum + (Number(s.progress) || 0), 0) / skills.length)
-    : 0;
 
   // The phase after the one being worked on — what finishing this one opens.
   const phases = roadmap?.roadmapData?.educationRoadmap || [];
@@ -188,32 +185,9 @@ export default function Overview() {
         <NextUp nextPhase={nextPhase} levelProgress={progress} />
       </div>
 
-      {/* ---- SKILLS ---- */}
-      <Card hover>
-        <CardHeader
-          icon={BarChart3}
-          title="Skill progress"
-          subtitle="What you're actually getting better at"
-          accent="brand"
-          action={
-            skills.length > 0 && (
-              <span className="rounded-full bg-journey-50 px-3 py-1 text-xs font-black text-journey-700 tabular-nums ring-1 ring-journey-100 ring-inset">
-                {avgSkill}% avg
-              </span>
-            )
-          }
-        />
-        {skills.length > 0 ? (
-          <SkillProgressList skills={skills} />
-        ) : (
-          <EmptyState
-            icon={Target}
-            title="No skills tracked yet"
-            description="Skills appear here as you finish tasks from your plan."
-            accent="violet"
-          />
-        )}
-      </Card>
+      {/* ---- SKILLS: a snapshot, not the list. Three bars say work is
+              turning into skill; the Skills tab shows the rest. ---- */}
+      {skills.length > 0 && <SkillSnapshot skills={skills} />}
 
       {/* ---- AHEAD: where this roadmap leads. Renders itself out entirely
               when Jobs is locked, there is no goal, or the index has nothing —

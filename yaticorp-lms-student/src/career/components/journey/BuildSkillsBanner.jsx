@@ -2,7 +2,7 @@ import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Award, CalendarDays, Star, Zap } from 'lucide-react';
 import useCountUp from '../../../hooks/useCountUp';
-import YatiMascot from '../game/YatiMascot';
+import Mascot from '../mascot/Mascot';
 
 /**
  * 🌟 The banner that opens the Skills page.
@@ -170,13 +170,13 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
         className="pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] max-w-[520px] [mask-image:linear-gradient(to_right,transparent,black_18%)] md:block"
       >
         <BuildSkillsArt />
-        {/* YATI, in the gap the scene leaves for it. The mascot is its own SVG
-            with its own moods, so it is laid over the scene rather than
-            redrawn inside it. */}
-        <YatiMascot
-          mood="pointing"
-          float
-          className="absolute bottom-1 left-1/2 h-[82%] w-auto -translate-x-[46%] drop-shadow-[0_12px_20px_rgba(108,59,255,0.22)]"
+        {/* The mascot, in the gap the scene leaves for it, pointing the
+            way to the skills. */}
+        <Mascot
+          pose="guide"
+          height={176}
+          motion="mc-float"
+          className="absolute bottom-1 left-1/2 -translate-x-[46%]"
         />
       </div>
 
@@ -222,6 +222,7 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
 
           <Link
             to="/career/planner"
+            data-guide="skills-start"
             className="fp-press group mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
           >
             <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />

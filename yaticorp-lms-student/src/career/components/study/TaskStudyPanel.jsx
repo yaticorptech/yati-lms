@@ -19,6 +19,11 @@ import LessonSteps from './LessonSteps';
  * fact that they belong together.
  */
 export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
+  // A task has been opened: the mascot gives a small confident gesture.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('mascot:task-start'));
+  }, []);
+
   const [study, setStudy] = useState(null);
   const [loading, setLoading] = useState(true);
   // Which mode is building, or null. Not a boolean: with two buttons, a shared
@@ -305,8 +310,10 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
       {video?.videoId && (
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h4 className="flex items-center gap-2 font-bold text-ink-900">
-              <MonitorPlay className="h-4 w-4 text-ink-400" />
+            <h4 className="flex items-center gap-3 text-lg font-black text-ink-900">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 ring-1 ring-rose-100 ring-inset">
+                <MonitorPlay className="h-5 w-5" strokeWidth={2.2} />
+              </span>
               Watch
             </h4>
             <Button
@@ -337,8 +344,10 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
       {study.notes?.summary && (
         <section className={isReading ? '' : 'border-t border-line-100 pt-6'}>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h4 className="flex items-center gap-2 font-bold text-ink-900">
-              <FileText className="h-4 w-4 text-brand-500" />
+            <h4 className="flex items-center gap-3 text-lg font-black text-ink-900">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-link ring-1 ring-brand-100 ring-inset">
+                <FileText className="h-5 w-5" strokeWidth={2.2} />
+              </span>
               {isReading ? 'Your lesson' : video?.videoId ? 'Notes from this video' : 'Notes'}
             </h4>
           </div>
@@ -354,12 +363,14 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
       {study.quiz?.length > 0 && (
         <section className="border-t border-line-100 pt-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h4 className="flex items-center gap-2 font-bold text-ink-900">
-              <HelpCircle className="h-4 w-4 text-ink-400" />
+            <h4 className="flex items-center gap-3 text-lg font-black text-ink-900">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-journey-50 text-journey-600 ring-1 ring-journey-100 ring-inset">
+                <HelpCircle className="h-5 w-5" strokeWidth={2.2} />
+              </span>
               Check you got it
             </h4>
             {study.attempts > 0 && (
-              <p className="flex items-center gap-1.5 text-sm text-ink-500">
+              <p className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700 ring-1 ring-amber-100 ring-inset">
                 <Trophy className="h-3.5 w-3.5 text-amber-500" />
                 Best: {study.bestScore}/{study.quiz.length} over {study.attempts}{' '}
                 {study.attempts === 1 ? 'attempt' : 'attempts'}

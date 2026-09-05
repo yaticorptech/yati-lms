@@ -69,3 +69,4 @@ export const clockLabel = (hhmm = '') => {
   const hour = h % 12 || 12;
   return `${hour}:${String(m).padStart(2, '0')} ${suffix}`;
 };
+
