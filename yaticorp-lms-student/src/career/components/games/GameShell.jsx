@@ -12,6 +12,8 @@ import { LevelIntro, LevelResult } from './LevelPanels';
  * Shared so twelve games cannot drift into twelve ideas of where the score
  * lives or what "back" does.
  */
+import { useEffect } from 'react';
+
 export default function GameShell({
   title,
   blurb,
@@ -28,8 +30,17 @@ export default function GameShell({
   children,
   footer
 }) {
+  // Tell the mascot: the rules are on screen (it explains them), and how the
+  // level went (a dance, or a droop then a word of encouragement).
+  useEffect(() => {
+    if (intro) window.dispatchEvent(new CustomEvent('mascot:game-start', { detail: { title, blurb } }));
+  }, [intro, title, blurb]);
+  useEffect(() => {
+    if (result) window.dispatchEvent(new CustomEvent('mascot:game-result', { detail: { passed: !!result.passed } }));
+  }, [result]);
+
   return (
-    <section className="overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card">
+    <section data-guide="game" className="overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card">
       <div className={`relative p-5 text-white sm:p-6 ${tone}`}>
         <div aria-hidden className="fp-stars pointer-events-none absolute inset-0" />
 
@@ -45,10 +56,12 @@ export default function GameShell({
 
           <div className="min-w-0 flex-1">
             <h2 className="text-lg leading-tight font-black">{title}</h2>
-            {blurb && <p className="mt-0.5 text-xs font-semibold text-white/80">{blurb}</p>}
+            {blurb && !intro && <p className="mt-0.5 text-xs font-semibold text-white/80">{blurb}</p>}
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {/* The live numbers belong to play. While the briefing or the
+              verdict is up they only repeat what those panels say. */}
+          <div className={`flex shrink-0 flex-wrap items-center gap-2 ${intro || result ? 'hidden' : ''}`}>
             {progress && (
               /* One number, no menu. The difficulty rises with the level
                  rather than being chosen, so there is nothing to pick. */

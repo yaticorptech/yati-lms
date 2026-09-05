@@ -9,12 +9,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    Award, Download, Loader2, Upload, Trash2, ExternalLink, Sparkles, BadgeCheck, CalendarDays,
-    ShieldCheck, Briefcase, ArrowRight, ChevronRight, BookOpen, Lightbulb, FileText, X, Image as ImageIcon,
-    Lock, RefreshCw, Frame, Check
+    Award, Download, Loader2, Upload, Trash2, ExternalLink, Sparkles, BadgeCheck, CalendarDays, ShieldCheck, Briefcase, ArrowRight, ChevronRight, BookOpen, Lightbulb, FileText, X, Image as ImageIcon, Lock, RefreshCw, Frame, Check, Info
 } from 'lucide-react';
 import api from '../utils/api';
-import { Tile, Artwork } from './profileBlocks';
+import { Tile, Feature, Artwork } from './profileBlocks';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
@@ -189,6 +187,16 @@ export default function CertificatesFrame({ certificates, loading, certError, do
     const [achievements, setAchievements] = useState([]);
     const [loadingUploads, setLoadingUploads] = useState(true);
     const [uploading, setUploading] = useState(false);
+    // What the frame is and how it fills, behind a button rather than in the
+    // card — the same treatment the resume's explainer gets.
+    const [showAbout, setShowAbout] = useState(false);
+
+    useEffect(() => {
+        if (!showAbout) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') setShowAbout(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [showAbout]);
     const [removingId, setRemovingId] = useState(null);
     const [error, setError] = useState('');
     const [justAdded, setJustAdded] = useState(null);
@@ -311,18 +319,42 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                 <Tile to="/jobs" icon={Briefcase} title={<>Find Matching Jobs <span aria-hidden="true">🚀</span></>} sub="Discover jobs that match your skills" tone="cta" />
             </div>
 
-            {/* ── Tip ──────────────────────────────────────────────────── */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3 sm:px-5">
-                <div className="relative flex items-center gap-3 pr-16">
+            {/* ── Tip, and the way into the explainer ──────────────────── */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3.5 sm:px-5">
+                <div className="relative flex flex-wrap items-center gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-md"><Lightbulb size={20} /></span>
-                    <div>
+                    <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold text-slate-900">Tip for Better Results <span className="text-amber-400">✨</span></p>
                         <p className="text-xs leading-relaxed text-slate-600">Complete more courses and add your certificates here to improve your job matches and stand out.</p>
                     </div>
+                    <button type="button" onClick={() => setShowAbout(true)}
+                        className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50">
+                        <Info size={14} /> How it works
+                    </button>
                 </div>
-                <span aria-hidden="true" className="absolute right-5 top-1/2 -translate-y-1/2 text-4xl drop-shadow-sm">🎯</span>
-                <span aria-hidden="true" className="absolute right-20 top-2 text-xs text-fuchsia-300">✦</span>
             </div>
+
+            {showAbout && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setShowAbout(false)}>
+                    <div role="dialog" aria-modal="true" aria-labelledby="certs-about-title" onClick={(e) => e.stopPropagation()}
+                        className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up">
+                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
+                            <h3 id="certs-about-title" className="flex items-center gap-2 font-bold text-slate-800"><Award size={17} className="text-indigo-600" /> About your certificate frame</h3>
+                            <button type="button" onClick={() => setShowAbout(false)} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
+                        </div>
+                        <div className="grid gap-4 p-5 sm:grid-cols-2">
+                            <Feature icon={BadgeCheck} tone="bg-gradient-to-br from-emerald-400 to-green-600" title="Verified by YATICORP">Certificates the LMS issues carry a verification ribbon and their own certificate number.</Feature>
+                            <Feature icon={Award} tone="bg-gradient-to-br from-violet-500 to-indigo-600" title="Earned Automatically">Finish every lesson in a course and its certificate appears here on its own.</Feature>
+                            <Feature icon={Upload} tone="bg-gradient-to-br from-sky-400 to-blue-600" title="Add Your Own">Certificates from school, competitions or other platforms can be uploaded so everything sits in one frame.</Feature>
+                            <Feature icon={Briefcase} tone="bg-gradient-to-br from-amber-400 to-orange-500" title="Counts Towards Jobs">What you have earned feeds your ATS resume and the jobs matched to your skills.</Feature>
+                        </div>
+                        <div className="border-t border-slate-100 px-5 py-4 text-right">
+                            <button type="button" onClick={() => setShowAbout(false)}
+                                className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700">Got it</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {uploading && (
                 <UploadDialog

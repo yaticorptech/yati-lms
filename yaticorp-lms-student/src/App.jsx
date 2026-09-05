@@ -4,18 +4,19 @@
  */
 import React from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import useCourseCompletion from './hooks/useCourseCompletion';
+import JobsLockedNotice from './jobs/JobsLockedNotice';
 import { useContext } from 'react';
 import { AuthContext } from './context/AuthContext';
 import StudentLayout from './layouts/StudentLayout';
-import AstronautLoader from './components/AstronautLoader';
+import YatiLoader from './components/YatiLoader';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
 import EnrolledCourses from './pages/EnrolledCourses';
 const Jobs = React.lazy(() => import('./pages/Jobs'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
-  if (loading) return <AstronautLoader fullScreen label="Loading your account…" />;
+  if (loading) return <YatiLoader fullScreen label="Loading your account" />;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 };
@@ -70,6 +71,26 @@ const JobsGate = () => {
   return isJobsEnabled ? <Outlet /> : <Navigate to="/" replace />;
 };
 
+/**
+ * The second lock on Jobs, and the student's own to open: the section stays
+ * shut until every enrolled course reads 100%.
+ *
+ * It shows a message rather than redirecting. A student who clicks Jobs has
+ * asked a question, and "finish these two courses first" answers it, where a
+ * silent bounce back to the home page would not.
+ */
+const CoursesCompleteGate = () => {
+  const { loading, allComplete, total } = useCourseCompletion();
+  // A developer working on the Jobs section can open the gate with
+  // VITE_JOBS_GATE_BYPASS=true in .env.local. It is honoured only in a dev
+  // build — a production bundle ignores the flag even if it is set.
+  const devBypass = import.meta.env.DEV && import.meta.env.VITE_JOBS_GATE_BYPASS === 'true';
+  if (devBypass) return <Outlet />;
+  if (loading) return <CareerFallback />;
+  if (allComplete) return <Outlet />;
+  return <JobsLockedNotice total={total} />;
+};
+
 const CareerGate = () => {
   const { loading, isCareerPathEnabled } = useContext(AuthContext);
   if (loading) return <CareerFallback />;
@@ -78,7 +99,7 @@ const CareerGate = () => {
 
 // Every lazily-loaded route waits behind this, so it is the thing a student
 // actually sees while a page is downloading.
-const CareerFallback = () => <AstronautLoader label="Loading this page…" />;
+const CareerFallback = () => <YatiLoader label="Loading this page" />;
 
 function App() {
   return (
@@ -90,9 +111,10 @@ function App() {
       {/* RewardsProvider sits inside the auth guard so every page in the
           shell can show XP toasts and milestone celebrations. */}
       <Route path="/" element={<ProtectedRoute><RewardsProvider><StudentLayout /></RewardsProvider></ProtectedRoute>}>
-        <Route index element={<Dashboard />} />
+        <Route index element={<Profile />} />
         <Route path="enrolled-courses" element={<EnrolledCourses />} />
-        <Route path="profile" element={<Profile />} />
+        {/* Dashboard and My Profile are one page now; the old address still lands there. */}
+        <Route path="profile" element={<Navigate to="/" replace />} />
         <Route path="learn/:courseId" element={<CoursePlayer />} />
         <Route path="community" element={<Community />} />
         <Route path="community/:postId" element={<PostDetail />} />
@@ -101,10 +123,12 @@ function App() {
             is a focused five-step flow — the section's tab strip has nothing to
             offer until it has been through once. */}
         <Route element={<JobsGate />}>
-          <Route
-            path="jobs"
-            element={<React.Suspense fallback={<CareerFallback />}><Jobs /></React.Suspense>}
-          />
+          <Route element={<CoursesCompleteGate />}>
+            <Route
+              path="jobs"
+              element={<React.Suspense fallback={<CareerFallback />}><Jobs /></React.Suspense>}
+            />
+          </Route>
         </Route>
 
         <Route element={<CareerGate />}>

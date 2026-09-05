@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
+import { YatiOrbit } from '../../../components/YatiLoader';
 
 /**
  * ✨ What the student watches while their roadmap is being written.
@@ -34,28 +35,26 @@ export default function GeneratingRoadmap() {
   }, [reached]);
 
   return (
-    <div className="fp-journey-gradient animate-fade-in-up relative overflow-hidden rounded-3xl p-6 text-white shadow-float sm:p-10">
-      <div aria-hidden className="fp-stars pointer-events-none absolute inset-0" />
+    <div className="animate-fade-in-up relative overflow-hidden rounded-3xl bg-gradient-to-br from-journey-50 via-surface to-pink-50 p-6 shadow-card ring-1 ring-journey-100 ring-inset sm:p-10">
       <div
         aria-hidden
-        className="fp-float pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full bg-fuchsia-500/30 blur-3xl"
+        className="fp-float pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full bg-journey-200/50 blur-3xl"
       />
       <div
         aria-hidden
-        className="fp-float-slow pointer-events-none absolute -bottom-20 -left-14 h-48 w-48 rounded-full bg-cyan-400/25 blur-3xl"
+        className="fp-float-slow pointer-events-none absolute -bottom-20 -left-14 h-48 w-48 rounded-full bg-pink-200/50 blur-3xl"
       />
 
       <div className="relative mx-auto max-w-md">
-        <div className="flex items-center gap-4">
-          <span className="animate-pop-in flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-3xl ring-1 ring-white/20 ring-inset">
-            ✨
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-xl leading-tight font-black sm:text-2xl">
-              Creating your career journey
-            </h2>
-            <p className="mt-1 text-sm text-journey-200">This usually takes about 10 seconds.</p>
-          </div>
+        <div className="flex flex-col items-center text-center">
+          <YatiOrbit size={150} mood="thinking" />
+          <p className="mt-4 text-[0.68rem] font-black tracking-[0.18em] text-journey-600 uppercase">
+            Building your roadmap
+          </p>
+          <h2 className="mt-1.5 text-xl leading-tight font-black text-ink-900 sm:text-2xl">
+            Creating your career journey
+          </h2>
+          <p className="mt-1 text-sm text-ink-500">This usually takes about 10 seconds.</p>
         </div>
 
         <ol className="mt-8 space-y-3">
@@ -68,19 +67,19 @@ export default function GeneratingRoadmap() {
                 key={stage.label}
                 className={`flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm transition-all duration-300 ${
                   active
-                    ? 'bg-white/15 font-black text-white ring-1 ring-white/20 ring-inset'
+                    ? 'animate-fade-in-up bg-surface font-black text-ink-900 shadow-card ring-1 ring-journey-200 ring-inset'
                     : done
-                      ? 'font-semibold text-journey-100'
-                      : 'text-journey-300/60'
+                      ? 'font-semibold text-emerald-700'
+                      : 'text-ink-400'
                 }`}
               >
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center">
                   {done ? (
-                    <Check className="animate-badge-burst h-4 w-4 text-emerald-300" strokeWidth={3} />
+                    <Check className="animate-badge-burst h-4 w-4 text-emerald-500" strokeWidth={3} />
                   ) : active ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-cyan-300" />
+                    <Loader2 className="h-4 w-4 animate-spin text-journey-600" />
                   ) : (
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/25" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-line-300" />
                   )}
                 </span>
                 <span aria-hidden className={done || active ? '' : 'opacity-50'}>
@@ -92,7 +91,7 @@ export default function GeneratingRoadmap() {
           })}
         </ol>
 
-        <p className="mt-7 border-t border-white/10 pt-4 text-xs leading-relaxed text-journey-200">
+        <p className="mt-7 border-t border-line-200 pt-4 text-center text-xs leading-relaxed text-ink-500">
           Every stage is written against the education level, goal and location you gave us —
           not a template.
         </p>

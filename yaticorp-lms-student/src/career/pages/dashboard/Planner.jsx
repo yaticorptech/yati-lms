@@ -12,15 +12,14 @@ import AiBudgetNotice from '../../components/AiBudgetNotice';
 import { useCelebrate } from '../../components/ui/Celebration';
 import Button from '../../components/ui/Button';
 import Card, { CardHeader } from '../../components/ui/Card';
-import MissionHeroArt from '../../components/plan/MissionHeroArt';
-import FocusArt from '../../components/plan/FocusArt';
-import MomentumStrip from '../../components/plan/MomentumStrip';
-import { activeDays, currentStreak, dayKey } from '../../utils/progress';
-import { dailyBoost, DAY_DONE_LINE } from '../../utils/motivation';
+import Mascot from '../../components/mascot/Mascot';
+import useMascotCycle, { MISSION_POSES, DONE_POSES } from '../../components/mascot/useMascotCycle';
+import { levelProgress } from '../../utils/progress';
 import EmptyState from '../../components/ui/EmptyState';
-import { SkeletonList } from '../../components/ui/Skeleton';
 import TaskStudyPanel from '../../components/study/TaskStudyPanel';
 import LessonProgress from '../../components/study/LessonProgress';
+import YatiLoader from '../../../components/YatiLoader';
+import useMinimumLoading from '../../../hooks/useMinimumLoading';
 
 // What the server pays for a finished task, matching TASK_XP in
 // taskCompletionService. Verified end to end: completing one moves the profile
@@ -34,14 +33,12 @@ const TODAY_LABEL = new Date().toLocaleDateString(undefined, {
   month: 'long'
 });
 
-const BOOST = dailyBoost();
 
 export default function Planner() {
   const { user, refresh } = useContext(AuthContext);
   const [tasks, setTasks] = useState([]);
   const [plannerContext, setPlannerContext] = useState(null);
   const [day, setDay] = useState(null);
-  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [addingTask, setAddingTask] = useState(false);
@@ -88,13 +85,6 @@ export default function Planner() {
 
   useEffect(() => {
     fetchTasks();
-    // The streak spans days, so it has to come from history — `/tasks` is
-    // today's plan only. Optional garnish: a failure here costs nothing but
-    // the streak tile.
-    api
-      .get('/tasks/history')
-      .then(({ data }) => setHistory(Array.isArray(data) ? data : []))
-      .catch(() => {});
   }, []);
 
   /**
@@ -268,14 +258,22 @@ export default function Planner() {
 
   // Today's plan is built on the first request of the day, so the initial load
   // can carry a Gemini call. Say so rather than showing a bare spinner.
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <p className="text-sm font-medium text-ink-500">Building today&apos;s plan…</p>
-        <SkeletonList rows={5} />
-      </div>
-    );
-  }
+  const showLoader = useMinimumLoading(loading);
+  // The whole day done: the mascot waves goodbye. Above the early return
+  // below, because hooks must run on every render.
+  const clearedNow = !loading && tasks.length > 0 && tasks.every((t) => t.status === 'Completed');
+  const clearedRef = useRef(false);
+  useEffect(() => {
+    if (clearedNow && !clearedRef.current) {
+      clearedRef.current = true;
+      window.dispatchEvent(new CustomEvent('mascot:section-complete'));
+    }
+    if (!clearedNow) clearedRef.current = false;
+  }, [clearedNow]);
+  // Hooks stay above the loader return; the day's state is read from the
+  // tasks directly since `dayCleared` is derived further down.
+  const look = useMascotCycle(clearedNow ? DONE_POSES : MISSION_POSES);
+  if (showLoader) return <YatiLoader label="Building today's plan" />;
 
   const completed = tasks.filter((t) => t.status === 'Completed').length;
   const remaining = tasks.length - completed;
@@ -289,13 +287,12 @@ export default function Planner() {
 
   // The one task to pick up now. Marking it removes the smallest possible
   // decision between arriving on this page and starting work.
-  const nextTask = tasks.find((t) => t.status !== 'Completed');
-  const nextTaskId = nextTask?._id;
-  // Today's completions land in `tasks` before history refetches, so both
-  // sources are read: the streak cannot lag behind the tick that extended it.
-  const activity = [...history, ...tasks];
-  const streak = currentStreak(activity);
-  const countedToday = activeDays(activity).has(dayKey(new Date()));
+  const nextTaskId = tasks.find((t) => t.status !== 'Completed')?._id;
+  // The one thing worth saying beside the button: whether today's plan alone
+  // would cross the next level. Everything else the hero used to carry —
+  // streak, skill, a line of encouragement — is already said on the Overview.
+  const level = levelProgress(user?.xp, user?.level);
+  const canLevelToday = remaining > 0 && level.remaining <= remaining * TASK_XP;
   const donePercent = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
   const dayCleared = tasks.length > 0 && remaining === 0;
 
@@ -334,11 +331,16 @@ export default function Planner() {
           aria-hidden
           className="fp-float-slow pointer-events-none absolute right-1/3 -bottom-24 h-56 w-56 rounded-full bg-pink-200/40 blur-3xl"
         />
+        {/* The mascot, changing pose every few seconds: on the move while
+            there is work left, celebrating once the day is cleared. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[42%] max-w-[420px] [mask-image:linear-gradient(to_right,transparent,black_22%)] sm:block"
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[42%] max-w-[420px] items-end justify-center pr-6 sm:flex"
         >
-          <MissionHeroArt cleared={dayCleared} className="h-full w-full" />
+          <span className="absolute bottom-3 left-1/2 h-10 w-44 -translate-x-1/2 rounded-full bg-blue-300/40 blur-xl" />
+          <span className="fp-drift-icon absolute top-5 right-10 text-lg" style={{ animationDelay: '-1.2s' }}>✨</span>
+          <span className="fp-drift-icon absolute top-12 left-8 text-base" style={{ animationDelay: '-2.6s' }}>⭐</span>
+          <Mascot key={look.pose} pose={look.pose} height={176} motion={look.motion} className="mc-pop relative" />
         </div>
 
         <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 sm:pr-[42%] md:min-h-[212px]">
@@ -373,56 +375,42 @@ export default function Planner() {
               <Sparkles className="h-5 w-5 text-journey-500" aria-hidden />
             </h1>
             <p className="mt-1.5 text-sm font-semibold text-ink-600 sm:text-[0.95rem]">{missionLine}</p>
-            {!examEve && (
-              <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-journey-100/60 px-2.5 py-1 text-xs font-bold text-journey-700">
-                <span aria-hidden>{dayCleared ? '🏆' : '💪'}</span>
-                {dayCleared ? DAY_DONE_LINE : BOOST}
-              </p>
-            )}
 
             {tasks.length > 0 && (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-xs font-black text-journey-700 shadow-card ring-1 ring-journey-200 ring-inset">
-                  <Zap className="h-3.5 w-3.5 fill-journey-200 text-journey-600" />
-                  <span className="tabular-nums">{`${completed * TASK_XP} XP earned today`}</span>
-                </span>
-                {remaining > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-700 shadow-card ring-1 ring-amber-200 ring-inset">
-                    <Trophy className="h-3.5 w-3.5 text-amber-500" />
-                    <span className="tabular-nums">{`${remaining * TASK_XP} XP still on the table`}</span>
-                  </span>
-                )}
+              <div className="mt-5 flex flex-wrap items-center gap-3">
                 {remaining > 0 && (
                   /* The shortest path from arriving to working: one button,
                      straight to the row that is up next. */
                   <a
                     href="#next-task"
-                    className="fp-press group inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-1.5 text-xs font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
+                    data-guide="mission"
+                    className="fp-sweep fp-btn fp-btn-warm fp-beacon group relative inline-flex min-h-11 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 px-5 py-2.5 text-sm font-black text-white"
                   >
-                    <Play className="h-3 w-3 fill-current" />
-                    {completed > 0 ? 'Continue' : 'Start now'}
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                    <Zap className="fp-bolt h-4 w-4 fill-white" />
+                    {completed > 0 ? 'Continue the mission' : 'Start the mission'}
+                    <ArrowRight className="fp-btn-arrow h-4 w-4" />
                   </a>
+                )}
+
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-black text-ink-700 shadow-card ring-1 ring-line-200/80 ring-inset">
+                  <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="tabular-nums">
+                    {completed * TASK_XP} XP earned
+                    {remaining > 0 && <span className="text-ink-400"> · {remaining * TASK_XP} to go</span>}
+                  </span>
+                </span>
+
+                {canLevelToday && (
+                  <span className="animate-pop-in inline-flex items-center gap-1.5 rounded-full bg-journey-600 px-3 py-1.5 text-xs font-black text-white shadow-md shadow-journey-500/30">
+                    <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                    Level {level.nextLevel} is within reach today
+                  </span>
                 )}
               </div>
             )}
           </div>
         </div>
       </section>
-
-      {/* Why today is worth doing: the streak it keeps, the level it brings
-          closer, the skill it moves. Only on a day with a plan — an empty
-          day has nothing to motivate towards. */}
-      {tasks.length > 0 && !examEve && (
-        <MomentumStrip
-          streak={streak}
-          countedToday={countedToday}
-          remaining={remaining}
-          user={user}
-          nextTask={nextTask}
-          taskXp={TASK_XP}
-        />
-      )}
 
       {/* Informational, not a reprimand. Amber and plainly worded: the point is
           to offer the work back, not to open the day by telling someone off. */}
@@ -494,29 +482,7 @@ export default function Planner() {
           took the top of the page to say what the task row says by itself. The
           cleared-day note at the foot of the list still marks the finish. */}
 
-      {plannerContext?.currentFocus?.length > 0 && (
-        <Card className="animate-fade-in-up relative overflow-hidden">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 hidden w-48 [mask-image:linear-gradient(to_right,transparent,black_30%)] md:block"
-          >
-            <FocusArt className="h-full w-full" />
-          </div>
-          <div className="relative md:pr-44">
-            <CardHeader icon={Target} title="Current Focus" subtitle="Where to put your energy right now" />
-            <ul className="space-y-2.5">
-              {plannerContext.currentFocus.map((focus, i) => (
-                <li key={i} className="flex gap-3 text-ink-700">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
-                  <span className="text-sm leading-relaxed">{focus}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Card>
-      )}
-
-      <Card padded={false} className="animate-fade-in-up overflow-hidden">
+      <Card padded={false} data-guide="tasks" className="animate-fade-in-up overflow-hidden">
         <div className="flex items-center gap-3 border-b border-line-100 px-6 py-4">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-journey-50 text-journey-600 ring-1 ring-journey-100 ring-inset">
             <CalendarCheck className="h-5 w-5" strokeWidth={2.2} />
@@ -534,7 +500,7 @@ export default function Planner() {
             <p className="mt-0.5 text-xs text-ink-500">
               {examEve && tasks.length === 0
                 ? 'Revise, rest, and go in ready.'
-                : 'Some need a lesson first. Others you just tick off.'}
+                : plannerContext?.currentFocus?.[0] || 'Some need a lesson first. Others you just tick off.'}
             </p>
           </div>
           {tasks.length > 0 && (
@@ -596,13 +562,17 @@ export default function Planner() {
               const needsNothing = task.learning === 'none' && !task.hasLesson;
               // Open while there is still work in them; collapsed once ticked,
               // unless this student has reopened this one.
-              const stepsShown = !done || openSteps.has(task._id);
+              // Open only on the task that is up next. Every pending task used
+              // to unroll its full recipe, which is how four tasks became a
+              // wall. The others keep their steps one click away.
+              const stepsShown = (isNext && !done) || openSteps.has(task._id);
 
               return (
                 <li
                   key={task._id}
                   id={isNext ? 'next-task' : undefined}
-                  className={`scroll-mt-28 ${open ? 'bg-surface-50/40' : ''}`}
+                  style={{ animationDelay: `${0.1 + index * 0.07}s` }}
+                  className={`animate-fade-in-up scroll-mt-28 ${open ? 'bg-surface-50/40' : ''}`}
                 >
                   <div
                     className={`group relative flex items-start gap-3.5 px-6 py-4 transition-colors ${
@@ -632,7 +602,7 @@ export default function Planner() {
                       <>
                         <span
                           aria-hidden
-                          className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-journey-500 to-indigo-600"
+                          className="fp-spine-pulse absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-journey-500 to-indigo-600"
                         />
                         <span
                           aria-hidden
@@ -677,6 +647,7 @@ export default function Planner() {
                     <div className="relative min-w-0 flex-1">
                       {isNext && (
                         <span className="mb-1.5 inline-flex items-center gap-1.5 text-[0.68rem] font-black tracking-[0.14em] text-journey-700 uppercase">
+                          <span aria-hidden className="fp-blink h-2 w-2 rounded-full bg-journey-500" />
                           <Target className="h-3 w-3" aria-hidden />
                           {started ? 'Pick up where you left off' : 'Up next'}
                         </span>
@@ -750,7 +721,7 @@ export default function Planner() {
                               rather than five open recipes for work that is
                               already over. They stay one click away, because
                               the steps are also the record of how it was done. */}
-                          {done && (
+                          {(done || !isNext) && (
                             <button
                               type="button"
                               onClick={() => toggleSteps(task._id)}
@@ -830,7 +801,7 @@ export default function Planner() {
                           done
                             ? 'h-8 w-8 bg-emerald-500 text-white ring-emerald-500 hover:bg-emerald-600'
                             : isNext
-                              ? 'h-9 bg-gradient-to-r from-journey-600 to-indigo-600 px-3.5 text-xs font-black text-white shadow-md shadow-journey-500/30 ring-transparent hover:from-journey-700 hover:to-indigo-700'
+                              ? 'fp-btn fp-btn-primary fp-glow-violet h-9 bg-gradient-to-r from-journey-600 to-indigo-600 px-3.5 text-xs font-black text-white ring-transparent'
                               : 'h-8 w-8 bg-surface text-ink-400 ring-line-300 hover:text-link hover:ring-brand-400'
                         }`}
                       >
@@ -852,7 +823,9 @@ export default function Planner() {
                             ? 'bg-brand-600 text-white shadow-sm'
                             : done
                               ? 'bg-surface-100 text-ink-500 hover:bg-surface-200'
-                              : 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 hover:shadow-md'
+                              : isNext
+                                ? 'fp-btn fp-btn-primary fp-glow-violet bg-gradient-to-r from-journey-600 to-indigo-600 text-white'
+                                : 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 hover:shadow-md'
                         }`}
                       >
                         <GraduationCap className="h-3.5 w-3.5" />

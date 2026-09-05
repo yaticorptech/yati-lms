@@ -20,6 +20,8 @@ const { isConnected } = require('../config/db');
 const vocab = require('../data/opportunityVocab');
 const { SEED_VERSION, rows: seedRows } = require('../data/seedOpportunities');
 const { ageFrom, bandFor, check, clientRules, publicView } = require('../services/eligibilityRules');
+const JobVerification = require('../models/JobVerification');
+const { normaliseIndianMobile } = require('../../services/smsService');
 const { recommend, scoreOne } = require('../services/opportunityRecommender');
 
 const CLIENT_VOCAB = {
@@ -85,6 +87,7 @@ const shape = (row, ctx) => ({
 
 const profileOut = (profile, age) => profile && ({
     dateOfBirth: profile.dateOfBirth,
+    guardianPhone: profile.guardian?.phone || '',
     wantFrom: profile.wantFrom,
     wantTo: profile.wantTo,
     interests: profile.interests,
@@ -122,28 +125,41 @@ router.put('/profile', async (req, res, next) => {
         if (!isConnected()) return res.status(503).json({ error: 'Database unavailable.' });
         const body = req.body ?? {};
 
-        const dob = parseDay(body.dateOfBirth);
+        // The date of birth is no longer asked for here. It comes from the
+        // Jobs verification the student completed on the way in, or from the
+        // profile they saved earlier; the form itself only sends the rest.
+        const existing = await OpportunityProfile.findOne({ userId: req.user._id }).select('guardian dateOfBirth').lean();
+        let dob = parseDay(body.dateOfBirth) || existing?.dateOfBirth || null;
+        if (!dob) {
+            const verified = await JobVerification.findOne({ userId: req.user._id }).select('dateOfBirth').lean();
+            dob = verified?.dateOfBirth || null;
+        }
         const age = ageFrom(dob);
         if (age == null || age < 5 || age > 100) {
-            return res.status(400).json({ error: 'Enter your date of birth — it decides which jobs are open to you.' });
+            return res.status(400).json({ error: 'Complete the Jobs verification first — your date of birth comes from there.' });
         }
+        const guardianPhone = body.guardianPhone ? normaliseIndianMobile(body.guardianPhone) : '';
+        if (body.guardianPhone && !guardianPhone) return res.status(400).json({ error: 'Enter a 10-digit Indian mobile number for your parent.' });
         const wantFrom = parseDay(body.wantFrom);
         const wantTo = parseDay(body.wantTo || body.wantFrom);
         if (!wantFrom || !wantTo) return res.status(400).json({ error: 'Pick the date, or dates, you want work on.' });
         if (wantTo < wantFrom) return res.status(400).json({ error: 'The end date is before the start date.' });
         const interests = [...new Set((Array.isArray(body.interests) ? body.interests : []).map(String))]
-            .filter((x) => vocab.INTEREST_IDS.includes(x)).slice(0, 10);
+            .filter((x) => vocab.INTEREST_IDS.includes(x)).slice(0, 40);
         if (!interests.length) return res.status(400).json({ error: 'Pick at least one interest.' });
 
         const band = bandFor(age);
-        const existing = await OpportunityProfile.findOne({ userId: req.user._id }).select('guardian').lean();
+        if (band.guardianApproval && !guardianPhone) return res.status(400).json({ error: "Add your parent's phone number — a guardian has to approve work for your age." });
         const update = {
             dateOfBirth: dob, wantFrom, wantTo, interests, completedAt: new Date(),
             // Guardian state follows the band: an adult has nothing to approve,
             // and a teen keeps whatever the request had reached.
-            guardian: band.guardianApproval
-                ? (existing?.guardian?.status && existing.guardian.status !== 'not-required' ? existing.guardian : { status: 'none' })
-                : { status: 'not-required' }
+            guardian: {
+                ...(band.guardianApproval
+                    ? (existing?.guardian?.status && existing.guardian.status !== 'not-required' ? existing.guardian : { status: 'none' })
+                    : { status: 'not-required' }),
+                phone: guardianPhone
+            }
         };
 
         const profile = await OpportunityProfile.findOneAndUpdate(

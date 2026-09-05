@@ -11,10 +11,11 @@ import {
 import Card, { CardHeader } from '../../components/ui/Card';
 import PageHeader from '../../components/ui/PageHeader';
 import Button from '../../components/ui/Button';
-import { SkeletonCard } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import api from '../../services/api';
+import YatiLoader from '../../../components/YatiLoader';
+import useMinimumLoading from '../../../hooks/useMinimumLoading';
 
 /**
  * `value` must stay byte-identical to the Goal schema's enum — it is what gets
@@ -291,15 +292,8 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div className="skeleton h-9 w-64 rounded" />
-        <SkeletonCard />
-        <SkeletonCard />
-      </div>
-    );
-  }
+  const showLoader = useMinimumLoading(loading);
+  if (showLoader) return <YatiLoader label="Loading your settings" />;
 
   return (
     <div className="mx-auto max-w-3xl">

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { Award } from 'lucide-react';
+import YatiLoader from '../../../components/YatiLoader';
+import useMinimumLoading from '../../../hooks/useMinimumLoading';
 
 export default function Achievements() {
   const [achievements, setAchievements] = useState([]);
@@ -20,7 +22,8 @@ export default function Achievements() {
     fetchAchievements();
   }, []);
 
-  if (loading) return <div className="animate-spin rounded-full h-12 w-12 border-4 border-brand-500 border-t-transparent mx-auto mt-20"></div>;
+  const showLoader = useMinimumLoading(loading);
+  if (showLoader) return <YatiLoader label="Loading your achievements" />;
 
   return (
     <div className="space-y-6">

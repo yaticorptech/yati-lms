@@ -21,7 +21,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { useSearchParams } from 'react-router-dom';
 import {
     Briefcase, MapPin, Loader2, RotateCcw, Search, AlertCircle, Crosshair,
-    Bookmark, History, Sparkles, Compass, Globe, Clock, Check, X, ChevronDown, Info
+    Bookmark, Sparkles, Compass, Globe, Clock, Check, X, ChevronDown, Info
 , GraduationCap } from 'lucide-react';
 
 import { AuthContext } from '../context/AuthContext';
@@ -38,6 +38,7 @@ import JobsTabs from '../jobs/JobsTabs';
 import OpportunitiesTab from '../opportunities/OpportunitiesTab';
 import CareerMatchTab from '../jobs/CareerMatchTab';
 import HiddenOpportunitiesTab from '../jobs/HiddenOpportunitiesTab';
+import JobsVerificationGate from '../jobs/JobsVerificationGate';
 import { opportunitiesApi } from '../opportunities/api';
 
 const JOB_TYPES = ['Any', 'Full-time', 'Part-time', 'Internship', 'Contract'];
@@ -55,11 +56,11 @@ const EMPTY_FORM = {
 };
 
 const TABS = [
-    { id: 'jobs', label: 'Jobs', icon: Briefcase },
-    { id: 'match', label: 'AI Career Match', icon: Sparkles },
-    { id: 'hidden', label: 'Hidden Opportunities', icon: Globe },
-    { id: 'opportunities', label: 'Part-Time Jobs', icon: Clock },
-    { id: 'saved', label: 'Saved Jobs', icon: Bookmark }
+    { id: 'jobs', label: 'Jobs', hint: 'Find Jobs', icon: Briefcase, tone: 'indigo' },
+    { id: 'match', label: 'Career Match', hint: 'Smart Suggestions', icon: Sparkles, tone: 'emerald' },
+    { id: 'hidden', label: 'Hidden Opportunities', hint: 'Unseen Jobs', icon: Globe, tone: 'orange' },
+    { id: 'opportunities', label: 'Part-Time Jobs', hint: 'Flexible Work', icon: Clock, tone: 'sky' },
+    { id: 'saved', label: 'Saved Jobs', hint: 'Your Collection', icon: Bookmark, tone: 'violet' }
 ];
 
 /* Bands whose opportunity profile says the global job board is off-limits. */
@@ -227,6 +228,11 @@ export default function Jobs() {
        until the first fetch answers; null when it failed. Loaded here rather
        than in the tab because the band decides what THIS page may show. */
     const [oppData, setOppData] = useState(undefined);
+    // The identity check before the board opens. undefined = not answered yet;
+    // a failed request opens the board rather than locking a student out.
+    const [verification, setVerification] = useState(undefined);
+    // The line shown above the tabs right after verifying: where the SMS went.
+    const [verifiedNotice, setVerifiedNotice] = useState(null);
     const [roles, setRoles] = useState([]);
     const [skillOptions, setSkillOptions] = useState([]);
     const [popularSkills, setPopularSkills] = useState([]);
@@ -292,8 +298,6 @@ export default function Jobs() {
     const [savedIds, setSavedIds] = useState(() => new Set());
     const [savedJobs, setSavedJobs] = useState([]);
 
-    // The student's recent searches, rendered as chips above the results.
-    const [history, setHistory] = useState([]);
 
     /* Client-side batching: sixty cards at once is a long first paint for a
        student who will read the top five. More arrives on request. */
@@ -327,8 +331,13 @@ export default function Jobs() {
             setSavedJobs(rows);
             setSavedIds(new Set(rows.map((j) => j.id)));
         }).catch(() => {});
-        jobsApi.history().then((r) => setHistory(r.items ?? [])).catch(() => {});
         opportunitiesApi.profile().then(setOppData).catch(() => setOppData(null));
+        // Every visit starts on the verification form, even for a student who
+        // has done it before: `complete` is what the server remembers, not a
+        // pass for this session. What it remembers is used to prefill.
+        jobsApi.verificationGet()
+            .then((r) => setVerification({ ...r, previous: r.verification, complete: false }))
+            .catch(() => setVerification({ complete: false, previous: null }));
     }, []);
 
     /* A minor never sees the global board: whatever tab the URL or a click
@@ -426,8 +435,6 @@ export default function Jobs() {
             setFetchedFor(target);
             setVisibleCount(PAGE);
             setTab(target);
-            // The search that just ran is now itself history.
-            jobsApi.history().then((r) => setHistory(r.items ?? [])).catch(() => {});
 
             // res.ingest is the per-source report array, present only when a
             // blocking cold-start fetch ran for this very search.
@@ -464,22 +471,6 @@ export default function Jobs() {
         setStatus({ message: 'Applied your resume profile.', error: false });
         const candidate = { ...form, ...patch };
         if (!Object.keys(validate(candidate)).length) search(patch);
-    };
-
-    /** Re-run one of the recent searches, chips-to-form-to-results. */
-    const applyHistory = (h) => {
-        const patch = {
-            skills: h.skills || [],
-            role: h.role || '',
-            jobType: h.jobType || 'Any',
-            location: h.location || '',
-            coords: null,
-            remoteOnly: !!h.remoteOnly
-        };
-        // History records what was asked, type and all — replaying it under
-        // a tab that pins the type would answer a different question.
-        update(patch);
-        search(patch, 'jobs');
     };
 
     const setTabParam = (id) => {
@@ -716,6 +707,35 @@ export default function Jobs() {
         );
     }
 
+    if (verification === undefined) {
+        return (
+            <div className="space-y-5 animate-fade-in pb-12" aria-busy="true">
+                <div className="skeleton h-56 rounded-3xl" />
+                <div className="skeleton h-14 rounded-2xl" />
+                <Skeletons />
+            </div>
+        );
+    }
+
+    if (!verification.complete) {
+        return (
+            <div className="animate-fade-in pb-12">
+                <JobsVerificationGate
+                    profilePhoto={verification.profilePhoto}
+                    profilePhone={verification.profilePhone}
+                    previous={verification.previous}
+                    onVerified={(r) => {
+                        setVerification({ ...r, complete: true });
+                        setVerifiedNotice(r.sms || { sent: false });
+                        // Land on the job bar itself, whatever tab the URL was pointing at.
+                        setTab('jobs');
+                        setTabParam('jobs');
+                    }}
+                />
+            </div>
+        );
+    }
+
     const showOpportunities = minor || tab === 'opportunities';
 
     return (
@@ -727,6 +747,19 @@ export default function Jobs() {
                     hasData={!!data}
                     topMatch={data?.results?.[0]?.match?.total ?? null}
                 />
+            )}
+
+            {verifiedNotice && (
+                <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 animate-fade-in" role="status">
+                    <Check size={18} className="mt-0.5 shrink-0" />
+                    <p className="flex-1">
+                        <span className="font-bold">You are verified.</span>{' '}
+                        {verifiedNotice.sent
+                            ? `A confirmation message was sent to ${verifiedNotice.to}.${verifiedNotice.simulated ? ' (Test mode: it was written to the server log.)' : ''}`
+                            : 'We could not send the confirmation SMS right now, but your verification is saved.'}
+                    </p>
+                    <button type="button" onClick={() => setVerifiedNotice(null)} aria-label="Dismiss" className="shrink-0 text-emerald-700 hover:text-emerald-900"><X size={16} /></button>
+                </div>
             )}
 
             {!minor && <JobsTabs tabs={TABS} active={tab} onChange={switchTab} counts={{ saved: savedJobs.length }} />}
@@ -1013,32 +1046,6 @@ export default function Jobs() {
                                 className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-800">
                                 <RotateCcw size={13} /> Reset filters
                             </button>
-                        </div>
-                    )}
-
-                    {/* Recent searches, one tap from re-running. Hidden while a
-                        search is in flight — the chips describe past intent and
-                        would compete with the answer arriving. */}
-                    {tab !== 'saved' && !loading && history.length > 0 && (
-                        <div className="flex items-center gap-2 flex-wrap mb-4">
-                            <History size={14} className="text-slate-400 shrink-0" />
-                            {history.slice(0, 5).map((h, i) => {
-                                const label = [
-                                    h.role || (h.skills?.length ? h.skills.slice(0, 2).join(', ') : null),
-                                    h.location
-                                ].filter(Boolean).join(' · ') || 'Search';
-                                return (
-                                    <button
-                                        key={`${label}-${i}`}
-                                        type="button"
-                                        onClick={() => applyHistory(h)}
-                                        title={`${h.skills?.length ?? 0} skill${(h.skills?.length ?? 0) === 1 ? '' : 's'} · ${h.resultCount ?? 0} results last time`}
-                                        className="text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-full px-3 py-1.5 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-colors"
-                                    >
-                                        {label}
-                                    </button>
-                                );
-                            })}
                         </div>
                     )}
 

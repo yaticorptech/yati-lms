@@ -1,0 +1,53 @@
+/*
+ * Motion for the phone's bottom bar. Scoped under .mbn-* so it reaches
+ * nothing else. Short and springy: the bar answers a thumb.
+ */
+
+/* The gradient bubble that slides under the active icon. Positioned by
+   measurement in the component; this gives it the spring. */
+.mbn-bubble {
+  position: absolute;
+  top: 6px;
+  height: 40px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  box-shadow: 0 8px 20px -8px rgb(124 58 237 / 0.7), inset 0 1px 0 rgb(255 255 255 / 0.25);
+  transition:
+    left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+
+/* The active icon lifts and pops. */
+@keyframes mbn-pop {
+  0%   { transform: translateY(0) scale(0.85); }
+  60%  { transform: translateY(-3px) scale(1.15); }
+  100% { transform: translateY(-2px) scale(1.05); }
+}
+.mbn-icon-active { animation: mbn-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* The bar itself slides up on first paint. */
+@keyframes mbn-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.mbn-in { animation: mbn-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Press feedback, on every pointer type. */
+.mbn-press { transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.mbn-press:active { transform: scale(0.9); transition-duration: 0.08s; }
+
+/* A dot under the active label, fading in after the bubble lands. */
+@keyframes mbn-dot {
+  from { opacity: 0; transform: scale(0); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.mbn-dot { animation: mbn-dot 0.3s ease-out 0.25s both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mbn-bubble { transition: none; }
+  .mbn-icon-active, .mbn-in, .mbn-dot { animation: none !important; }
+  .mbn-icon-active { transform: translateY(-2px) scale(1.05); }
+  .mbn-dot { opacity: 1; }
+  .mbn-press { transition: none; }
+}

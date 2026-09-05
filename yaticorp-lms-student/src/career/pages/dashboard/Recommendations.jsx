@@ -14,8 +14,9 @@ import {
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
-import { SkeletonList } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
+import YatiLoader from '../../../components/YatiLoader';
+import useMinimumLoading from '../../../hooks/useMinimumLoading';
 
 /*
  * Tile palettes. Written out in full because Tailwind scans source for literal
@@ -202,14 +203,8 @@ export default function Recommendations() {
       return next;
     });
 
-  if (loading) {
-    return (
-      <div className="fp-enter space-y-6">
-        <div className="h-56 animate-pulse rounded-3xl bg-surface-100" />
-        <SkeletonList rows={6} />
-      </div>
-    );
-  }
+  const showLoader = useMinimumLoading(loading);
+  if (showLoader) return <YatiLoader label="Gathering ideas for you" />;
 
   // ---- From the roadmap ------------------------------------------------
   const roadmapDefs = [

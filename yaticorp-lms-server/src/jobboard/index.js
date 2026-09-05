@@ -73,6 +73,7 @@ router.use('/roles', require('./routes/roles'));
 router.use('/meta', require('./routes/meta'));
 router.use('/notifications', require('./routes/notifications'));
 router.use('/saved', require('./routes/saved'));
+router.use('/verification', require('./routes/verification'));
 router.use('/resume', require('./routes/resume'));
 // Age-aware local opportunities — the part of the section a school student
 // may use. Own profile, own index, own rules; see routes/opportunities.js.

@@ -84,7 +84,7 @@ export default function JobMatchesTile() {
         action={
           <Link
             to="/jobs"
-            className="group inline-flex items-center gap-1 rounded-md bg-surface-100 px-2.5 py-1 text-xs font-bold text-link transition-colors hover:bg-brand-50"
+            className="fp-btn fp-btn-soft group inline-flex items-center gap-1 rounded-md bg-surface-100 px-2.5 py-1 text-xs font-bold text-link"
           >
             See all matches
             <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />

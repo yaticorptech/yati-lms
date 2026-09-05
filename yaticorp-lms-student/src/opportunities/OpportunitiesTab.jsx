@@ -286,9 +286,29 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
         <div className="space-y-6">
             <Hero band={band} hasProfile={hasProfile} total={listing?.total ?? 0} loading={loading && !listing} window={listing?.window} />
 
-            {(!hasProfile || editing) ? (
-                <ProfileOnboarding vocab={vocab} initial={data.profile} onSaved={onSaved} onCancel={hasProfile ? () => setEditing(false) : undefined} />
-            ) : (
+            {/* The details form is a popup over the board. A first visit cannot
+                dismiss it — there is nothing to show until it is answered. */}
+            {(!hasProfile || editing) && (
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="opp-onboarding-title">
+                  {/* Centred when the card is shorter than the screen; when it is
+                      taller, the overlay itself moves and nothing is cut off. */}
+                  <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
+                    {/* No inner scrolling: the card is sized to fit the screen, and
+                        the close button sits on the card's edge, never inside a box
+                        that could clip it. */}
+                    <div className="relative my-auto w-full max-w-5xl">
+                        {hasProfile && (
+                            <button type="button" onClick={() => setEditing(false)} aria-label="Close"
+                                className="absolute -right-3 -top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md hover:bg-slate-100">
+                                <X size={18} />
+                            </button>
+                        )}
+                        <ProfileOnboarding vocab={vocab} initial={data.profile} onSaved={onSaved} onCancel={hasProfile ? () => setEditing(false) : undefined} />
+                    </div>
+                  </div>
+                </div>
+            )}
+            {hasProfile && (
                 <>
                     {/* ── Search + filters ─────────────────────────────── */}
                     <div className="flex flex-wrap items-center gap-2">

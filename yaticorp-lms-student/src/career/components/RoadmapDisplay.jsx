@@ -147,6 +147,7 @@ export default function RoadmapDisplay({ data, goal, headerAction, completedPhas
 
           {/* ---- The step being stood on, as its own panel beside the road ---- */}
           <div
+            data-guide="here"
             className="animate-fade-in-up relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface/90 p-5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur"
             style={{ animationDelay: '0.3s' }}
           >
@@ -172,6 +173,7 @@ export default function RoadmapDisplay({ data, goal, headerAction, completedPhas
                 <div className="mt-auto pt-4">
                   <Link
                     to="/career/planner"
+                    data-guide="work-today"
                     className="fp-sweep fp-press group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
                   >
                     <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />

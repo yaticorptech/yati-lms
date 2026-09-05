@@ -6,12 +6,14 @@ import CertificatesFrame from '../components/CertificatesFrame';
 import ResumeSection from '../components/ResumeSection';
 import Cropper from 'react-easy-crop';
 import {
-    CreditCard, Mail, Phone, Award, Loader2, Edit2, Check, X, Camera, ZoomIn, ZoomOut, Compass, ArrowRight,
-    Flame, Gem, Coins, BookOpen, PlayCircle, CalendarDays, Upload, Trash2, Sparkles
+    CreditCard, Mail, Phone, Award, Loader2, Edit2, Check, X, Camera, ZoomIn, ZoomOut,
+    Flame, Gem, Coins, CalendarDays, Upload, Trash2, Sparkles
 } from 'lucide-react';
 import { levelProgress, currentStreak, recentActivity } from '../career/utils/progress';
 import { StatTile, ProgressRing, ActivityStrip, SpeechBubble } from '../components/ProfileWidgets';
 import ProfileHeroArt from '../components/ProfileHeroArt';
+import DashboardCourses from './Dashboard';
+import { useDashboard } from '../shared/hooks/useDashboard';
 import { useRewards } from '../context/useRewards';
 import ProgressCard from '../components/rewards/ProgressCard';
 import LeaderboardCard from '../components/rewards/LeaderboardCard';
@@ -68,7 +70,11 @@ const Profile = () => {
     const [career, setCareer] = useState(null);
     // Courses with progress, for "continue where you left off"; Career Path
     // task history, for the streak and the week's activity dots.
-    const [courses, setCourses] = useState([]);
+    // The course data the Dashboard used to own. The page is the two merged,
+    // so one hook feeds "Your Progress", the continue card, the leaderboard's
+    // course filter and the course tabs alike, refreshing every 30s as before.
+    const dashboard = useDashboard(api);
+    const courses = dashboard.courses;
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [downloadingId, setDownloadingId] = useState(null);
@@ -110,9 +116,6 @@ const Profile = () => {
                 api.get('/user/profile')
                     .then(r => setCareer(r.data?.user || null))
                     .catch(() => setCareer(null));
-                api.get('/user/courses')
-                    .then(r => setCourses(Array.isArray(r.data?.courses) ? r.data.courses : []))
-                    .catch(() => setCourses([]));
                 if (isCareerPathEnabled) {
                     api.get('/career/tasks/history')
                         .then(r => setHistory(Array.isArray(r.data) ? r.data : []))
@@ -292,8 +295,28 @@ const Profile = () => {
                 ? <><strong>{ring.remaining} XP</strong> to level {ring.nextLevel}. One task today does it.</>
                 : <>Welcome! Start a course today and your first certificate is on its way. ✨</>;
 
+    // The weekly activity card. It lives on the Weekly activity tab of My
+    // Learning now, so it is built here where its numbers are and passed down.
+    const weeklyActivity = (
+            <div className="relative overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-5 shadow-sm">
+                <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-amber-200/50 blur-2xl" />
+                <div className="relative grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+                    <div>
+                        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><CalendarDays size={18} className="text-amber-500" /> Weekly activity</h2>
+                        <p className="mb-4 text-sm text-slate-500 lg:mb-3">{isCareerPathEnabled ? `${activeThisWeek} active day${activeThisWeek === 1 ? '' : 's'} this week` : 'Turn on Career Path to track daily activity'}</p>
+                        <div className="max-w-md"><ActivityStrip days={week} /></div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center lg:w-72">
+                        <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{streak}</p><p className="text-[11px] font-semibold text-slate-500">🔥 Streak</p></div>
+                        <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{completedCourses}</p><p className="text-[11px] font-semibold text-slate-500">🎓 Completed</p></div>
+                        <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{certificates.length}</p><p className="text-[11px] font-semibold text-slate-500">🏆 Certificates</p></div>
+                    </div>
+                </div>
+            </div>
+    );
+
     return (
-        <div className="space-y-6 animate-fade-in relative z-0 w-full">
+        <div className="relative z-0 w-full space-y-6 pb-8 animate-fade-in">
             {/* Floating success toast */}
             {saveSuccess && (
                 <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[200] bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl font-bold text-sm flex items-center gap-2">
@@ -315,7 +338,7 @@ const Profile = () => {
                 {!editing && (
                     <button
                         onClick={openEdit}
-                        className="absolute right-5 top-5 z-20 inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/30 backdrop-blur transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                        className="absolute right-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-1.5 text-xs font-bold text-white ring-1 ring-white/30 backdrop-blur transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-5 sm:top-5 sm:px-4 sm:py-2 sm:text-sm"
                     >
                         <Edit2 size={14} /> Edit Profile
                     </button>
@@ -352,7 +375,7 @@ const Profile = () => {
                     <div className="min-w-0 flex-1">
                         {!editing ? (
                             <>
-                                <p className="text-sm font-semibold text-indigo-100">{dayGreeting} 👋</p>
+                                <p className="pr-24 text-sm font-semibold text-indigo-100 sm:pr-0">{dayGreeting} 👋</p>
                                 <h1 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">Hello, {firstName}!</h1>
                                 <div className="mt-4 text-slate-900"><SpeechBubble>{bubble}</SpeechBubble></div>
                                 <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
@@ -439,68 +462,18 @@ const Profile = () => {
                 </>
             )}
 
-            {/* ── Continue learning + this week ────────────────────────── */}
-            <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="mb-4">
-                        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><BookOpen size={18} className="text-indigo-500" /> Course progress</h2>
-                        <p className="text-sm text-slate-500">Continue where you left off</p>
-                    </div>
-                    {inProgress.length ? (
-                        <ul className="stagger space-y-3">
-                            {inProgress.map((c, i) => (
-                                <li key={c._id} className="group flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-white hover:shadow-md">
-                                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-black text-white shadow-md ${['bg-indigo-500', 'bg-fuchsia-500', 'bg-sky-500'][i % 3]}`}>
-                                        {getInitials(c.title)}
-                                    </span>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate font-bold text-slate-800">{c.title}</p>
-                                        <p className="text-xs text-slate-500">{c.completedLessons || 0} lesson{c.completedLessons === 1 ? '' : 's'} done · {c.progress}% complete</p>
-                                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                                            <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 transition-[width] duration-1000 ease-out" style={{ width: `${c.progress}%` }} />
-                                        </div>
-                                    </div>
-                                    <ProgressRing percent={c.progress} size={48} stroke={5} label={`${c.progress}% complete`}>
-                                        <span className="text-[11px] font-black tabular-nums text-slate-700">{c.progress}%</span>
-                                    </ProgressRing>
-                                    <Link to={`/learn/${c._id}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 group-hover:translate-x-0.5">
-                                        <PlayCircle size={14} /> Continue
-                                    </Link>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 p-6 text-center sm:flex-row sm:text-left">
-                            <span className="text-4xl drift" aria-hidden="true">🚀</span>
-                            <div className="flex-1">
-                                <p className="font-bold text-slate-800">{completedCourses ? 'Everything you started is finished!' : 'Nothing in progress yet'}</p>
-                                <p className="text-sm text-slate-500">{completedCourses ? `${completedCourses} course${completedCourses === 1 ? '' : 's'} completed — start the next one.` : 'Pick a course and your progress shows up here.'}</p>
-                            </div>
-                            <Link to="/enrolled-courses" className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700">Browse courses <ArrowRight size={14} /></Link>
-                        </div>
-                    )}
-                </div>
-
-                <div className="relative overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-5 shadow-sm">
-                    <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-amber-200/50 blur-2xl" />
-                    <div className="relative">
-                        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><CalendarDays size={18} className="text-amber-500" /> Weekly activity</h2>
-                        <p className="mb-4 text-sm text-slate-500">{isCareerPathEnabled ? `${activeThisWeek} active day${activeThisWeek === 1 ? '' : 's'} this week` : 'Turn on Career Path to track daily activity'}</p>
-                        <ActivityStrip days={week} />
-                        <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-                            <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{streak}</p><p className="text-[11px] font-semibold text-slate-500">🔥 Streak</p></div>
-                            <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{completedCourses}</p><p className="text-[11px] font-semibold text-slate-500">🎓 Completed</p></div>
-                            <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{certificates.length}</p><p className="text-[11px] font-semibold text-slate-500">🏆 Certificates</p></div>
-                        </div>
-                        {isCareerPathEnabled && (
-                            <Link to="/career" className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-2.5 text-sm font-bold text-white transition-colors hover:bg-slate-800">
-                                <Compass size={15} /> Open Career Path <ArrowRight size={14} />
-                            </Link>
-                        )}
-                    </div>
-                </div>
-            </div>
-
+            {/* ── My courses: the Dashboard's tabs, bundles and enrol flow ── */}
+            <DashboardCourses
+                courses={dashboard.courses}
+                bundles={dashboard.bundles}
+                availableCourses={dashboard.availableCourses}
+                loading={dashboard.loading}
+                error={dashboard.error}
+                buyingCourseId={dashboard.buyingCourseId}
+                enrollCourse={dashboard.enrollCourse}
+                refresh={dashboard.refresh}
+                weeklyActivity={weeklyActivity}
+            />
 
             {/* Certificates — course-issued and uploaded, in one frame */}
             <CertificatesFrame

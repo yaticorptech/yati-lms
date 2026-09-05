@@ -45,6 +45,52 @@ const validateQR = async (req, res) => {
     }
 };
 
+// @desc    Resolve a scanned card into the card number used to sign in
+// @route   POST /api/auth/card-scan
+// @access  Public
+//
+// Registration's validateQR refuses a card whose status is 'used', which is
+// exactly the state every registered student's card is in — so signing in
+// needs its own lookup. It answers with the card number and nothing else:
+// never the CVV, and never anything about the account beyond whether one
+// exists, because the reply is only as trustworthy as whoever is holding the
+// card up to the camera. The number is printed on that same card, so this
+// tells the scanner nothing it could not already read.
+const scanCard = async (req, res) => {
+    try {
+        const raw = String(req.body?.code || '').trim();
+        if (!raw) return res.status(400).json({ message: 'Nothing was scanned. Try again.' });
+
+        // A QR may carry the code alone, or a URL with it on the end. Take the
+        // last path segment or query value, then keep only card characters.
+        const tail = raw.split(/[?#/=]/).filter(Boolean).pop() || raw;
+        const code = tail.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (!code) return res.status(400).json({ message: "That code isn't readable. Try scanning again." });
+
+        // The QR normally holds the card's QR number; some cards encode the
+        // card number itself, so both are accepted.
+        const card = await Card.findOne({ $or: [{ qrCodeNumber: code }, { CardNumber: code }] }).lean();
+        if (!card) return res.status(404).json({ message: 'That card was not recognised. Check the card, or type the number instead.' });
+        if (card.status === 'inactive') return res.status(400).json({ message: 'This card is inactive. Contact your administrator.' });
+
+        const User = require('../models/User');
+        const user = await User.findOne({ cardNumber: card.CardNumber }).select('_id status').lean();
+        if (!user) {
+            return res.status(404).json({
+                code: 'NOT_REGISTERED',
+                message: 'This card has no account yet. Sign up first, then come back and scan to sign in.'
+            });
+        }
+        if (user.status !== 'active') {
+            return res.status(403).json({ message: 'This account is not active. Contact your administrator.' });
+        }
+
+        res.json({ cardNumber: card.CardNumber });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error while reading that card', error: error.message });
+    }
+};
+
 // @desc    Step 1: Verify Activation Card (legacy — kept for backward compat)
 // @route   POST /api/auth/verify-card
 // @access  Public
@@ -174,6 +220,7 @@ const registerStudent = async (req, res) => {
 };
 
 module.exports = {
+    scanCard,
     validateQR,
     verifyCard,
     registerStudent,

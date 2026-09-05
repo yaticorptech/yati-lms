@@ -1,26 +1,19 @@
 /**
- * @description Three answers and the board opens: when you were born, which
- *              dates you want work, what you're interested in.
- *
- * The date of birth comes first because everything else depends on it: the
- * server derives the age band from it on every request, and the form shows
- * the band as soon as it is typed so nobody is surprised by what the section
- * then does or does not show.
+ * @description The details behind the part-time board, asked in a popup:
+ *              which dates you want work, what you are interested in, and a
+ *              parent's phone number. The date of birth is not asked here —
+ *              it comes from the Jobs verification the student already did.
  */
 import { useState } from 'react';
-import { Check, Loader2, Sparkles, X, CalendarDays, Heart, User } from 'lucide-react';
+import { Check, Loader2, Sparkles, X, CalendarDays, Heart, Smartphone } from 'lucide-react';
 import { opportunitiesApi } from './api';
-import { ageFromDob, bandFromAge, toDateInput } from './helpers';
+import { toDateInput } from './helpers';
 
-const BAND_NOTE = {
-    explore: { tone: 'border-sky-200 bg-sky-50 text-sky-900', text: 'Under 14 · Local jobs aren\'t open yet — you\'ll see how to explore skills and career paths instead.' },
-    teen: { tone: 'border-amber-200 bg-amber-50 text-amber-900', text: '14–17 · Supervised, verified, daytime local jobs open to your age, with guardian approval before anything is arranged.' },
-    adult: { tone: 'border-emerald-200 bg-emerald-50 text-emerald-900', text: '18+ · All local jobs, including late shifts and delivery.' }
-};
+const phoneDigits = (raw) => String(raw || '').replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '').replace(/^0(?=\d{10}$)/, '').slice(0, 10);
 
 const Chip = ({ on, onClick, children, icon }) => (
     <button type="button" onClick={onClick} aria-pressed={on}
-        className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3.5 text-sm font-semibold transition-all active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 sm:min-h-10 ${
+        className={`inline-flex min-h-8 items-center gap-1 rounded-lg border px-2.5 text-xs font-semibold transition-all active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
             on ? 'border-indigo-300 bg-indigo-50 text-indigo-800 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-indigo-50/40'
         }`}>
         {icon && <span aria-hidden="true">{icon}</span>}
@@ -30,23 +23,23 @@ const Chip = ({ on, onClick, children, icon }) => (
 );
 
 const Section = ({ icon: Icon, n, title, hint, children }) => (
-    <section className="rounded-2xl border border-slate-200 p-4 sm:p-5">
-        <h3 className="flex items-center gap-2 font-bold text-slate-900">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-black text-white">{n}</span>
+    <section className="rounded-2xl border border-slate-200 p-3.5 sm:p-4">
+        <h3 className="flex items-center gap-2 text-[15px] font-bold text-slate-900">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-black text-white">{n}</span>
             <Icon size={17} className="text-indigo-500" aria-hidden="true" /> {title}
         </h3>
-        {hint && <p className="mt-1 text-sm text-slate-500">{hint}</p>}
-        <div className="mt-3">{children}</div>
+        {hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
+        <div className="mt-2.5">{children}</div>
     </section>
 );
 
-const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500';
+const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500';
 const LABEL = 'mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500';
 
 export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel }) {
     const today = toDateInput(new Date());
     const [form, setForm] = useState(() => ({
-        dateOfBirth: toDateInput(initial?.dateOfBirth),
+        guardianPhone: phoneDigits(initial?.guardianPhone),
         wantFrom: toDateInput(initial?.wantFrom) || today,
         wantTo: toDateInput(initial?.wantTo) || toDateInput(initial?.wantFrom) || today,
         interests: initial?.interests || []
@@ -55,19 +48,17 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
 
-    const age = ageFromDob(form.dateOfBirth);
-    const band = bandFromAge(age);
+    const phoneOk = /^[6-9]\d{9}$/.test(form.guardianPhone);
     const update = (patch) => { setError(''); setForm((f) => ({ ...f, ...patch })); };
     const toggle = (id) => update({ interests: form.interests.includes(id) ? form.interests.filter((x) => x !== id) : [...form.interests, id] });
 
     const save = async (e) => {
         e.preventDefault();
-        if (age == null) return setError('Enter your date of birth — it decides which jobs you can see.');
-        if (age < 5 || age > 100) return setError('That date of birth doesn\'t look right.');
         if (!form.wantFrom) return setError('Pick the date you want work on.');
         const wantTo = oneDay ? form.wantFrom : form.wantTo;
         if (wantTo < form.wantFrom) return setError('The end date is before the start date.');
         if (!form.interests.length) return setError('Pick at least one interest.');
+        if (form.guardianPhone && !phoneOk) return setError('Enter a 10-digit Indian mobile number for your parent.');
         setBusy(true);
         try {
             const res = await opportunitiesApi.saveProfile({ ...form, wantTo });
@@ -80,35 +71,21 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
     };
 
     return (
-        <form onSubmit={save} aria-labelledby="opp-onboarding-title" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8 animate-fade-in-up">
-            <div className="mb-5">
+        <form onSubmit={save} aria-labelledby="opp-onboarding-title" className="relative rounded-3xl bg-white p-5 sm:p-6">
+            <div className="mb-4 pr-10">
                 <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-indigo-600">
                     <Sparkles size={13} aria-hidden="true" /> {initial ? 'Your details' : 'Three quick answers'}
                 </p>
-                <h2 id="opp-onboarding-title" className="mt-1 text-xl font-bold text-slate-900 sm:text-2xl">
+                <h2 id="opp-onboarding-title" className="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">
                     {initial ? 'Update your dates and interests' : 'Tell us when you want work, and what kind'}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">No resume, no CV — jobs on your dates that match your interests.</p>
+                <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">No resume, no CV — jobs on your dates that match your interests.</p>
             </div>
 
-            <div className="space-y-4">
-                <Section icon={User} n={1} title="Your date of birth" hint="Used only to decide which jobs are open to you. Never shown to organisations.">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                            <label htmlFor="opp-dob" className={LABEL}>Date of birth</label>
-                            <input id="opp-dob" type="date" value={form.dateOfBirth} max={today} required
-                                onChange={(e) => update({ dateOfBirth: e.target.value })} className={INPUT} />
-                        </div>
-                        {band && (
-                            <p className={`self-end rounded-xl border px-4 py-2.5 text-sm font-medium ${BAND_NOTE[band].tone}`} role="status">
-                                {BAND_NOTE[band].text}
-                            </p>
-                        )}
-                    </div>
-                </Section>
-
-                <Section icon={CalendarDays} n={2} title="When do you want work?" hint="Only jobs running on these dates are shown. You can change them any time.">
-                    <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.75fr)]">
+              <div className="space-y-3">
+                <Section icon={CalendarDays} n={1} title="When do you want work?" hint="Only jobs running on these dates are shown. You can change them any time.">
+                    <div className="grid gap-3">
                         <div>
                             <label htmlFor="opp-from" className={LABEL}>{oneDay ? 'Date' : 'From'}</label>
                             <input id="opp-from" type="date" value={form.wantFrom} min={today} required
@@ -122,14 +99,27 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
                             </div>
                         )}
                     </div>
-                    <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
+                    <label className="mt-2.5 flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
                         <input type="checkbox" checked={oneDay} onChange={(e) => setOneDay(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                         Just one day
                     </label>
                 </Section>
-
+                <Section icon={Smartphone} n={2} title="Parent's phone number" hint="A parent or guardian we can reach about the work. Needed for students under 18.">
+                    <div className="grid gap-3">
+                        <div>
+                            <label htmlFor="opp-guardian-phone" className={LABEL}>Mobile number</label>
+                            <div className={`${INPUT} flex items-center gap-2 p-0 ${form.guardianPhone.length === 10 && !phoneOk ? 'border-rose-300' : ''}`}>
+                                <span className="pl-4 text-sm font-bold text-slate-500">+91</span>
+                                <input id="opp-guardian-phone" inputMode="numeric" autoComplete="off" placeholder="98765 43210"
+                                    value={form.guardianPhone} onChange={(e) => update({ guardianPhone: phoneDigits(e.target.value) })}
+                                    className="w-full bg-transparent py-2 pr-4 tracking-wider text-slate-800 outline-none" />
+                            </div>
+                        </div>
+                    </div>
+                </Section>
+              </div>
                 <Section icon={Heart} n={3} title="What are you interested in?" hint="Pick as many as you like — jobs in these lines come first.">
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                         {vocab.interests.map((i) => (
                             <Chip key={i.id} on={form.interests.includes(i.id)} onClick={() => toggle(i.id)} icon={i.icon}>{i.label}</Chip>
                         ))}
@@ -137,9 +127,9 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
                 </Section>
             </div>
 
-            {error && <p role="alert" className="mt-4 flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700"><X size={14} aria-hidden="true" /> {error}</p>}
+            {error && <p role="alert" className="mt-3 flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700"><X size={14} aria-hidden="true" /> {error}</p>}
 
-            <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-5">
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
                 {onCancel && (
                     <button type="button" onClick={onCancel} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:min-h-10">Cancel</button>
                 )}
