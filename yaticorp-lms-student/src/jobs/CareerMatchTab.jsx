@@ -1,5 +1,5 @@
 /**
- * AI Career Match.
+ * Career Match.
  *
  * Step one asks which resume to match against: upload a new one, or carry on
  * with the resume already on the profile. Step two lists the jobs that fit
@@ -111,7 +111,7 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
                 <div className="mx-auto max-w-2xl text-center">
                     <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-200"><Sparkles size={26} /></span>
-                    <h2 className="mt-4 text-2xl font-black text-slate-900">AI Career Match</h2>
+                    <h2 className="mt-4 text-2xl font-black text-slate-900">Career Match</h2>
                     <p className="mt-1 text-slate-500">Choose the resume to match against, and we'll find the jobs that fit it best.</p>
                 </div>
                 <div className="mx-auto mt-6 grid max-w-2xl gap-4 sm:grid-cols-2">
