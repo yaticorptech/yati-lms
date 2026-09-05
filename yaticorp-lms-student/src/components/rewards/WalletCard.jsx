@@ -34,16 +34,19 @@ const ago = (d) => {
 
 const Sheet = ({ title, onClose, children, wide }) => {
     useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+    // Centred, and never taller than the screen: the panel scrolls inside
+    // itself so its own header stays put instead of being pushed off the top
+    // of the page.
     return (
-        <div className="fixed inset-0 z-[150] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 pt-10 backdrop-blur-sm" onClick={onClose}>
-            <div className={`w-full ${wide ? 'max-w-4xl' : 'max-w-md'} rw-pop`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
+            <div className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-3xl ${wide ? 'max-w-4xl' : 'max-w-md'} rw-pop`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
                 {title && (
                     <div className="flex items-center justify-between rounded-t-3xl border-b border-slate-100 bg-white px-5 py-4">
                         <p className="text-lg font-black text-slate-900">{title}</p>
                         <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X size={16} /></button>
                     </div>
                 )}
-                {children}
+                <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
             </div>
         </div>
     );
@@ -124,7 +127,7 @@ export default function WalletCard() {
             {sheet && (
                 <Sheet onClose={() => setSheet(false)} wide>
                     <div className="relative">
-                        <button onClick={() => setSheet(false)} className="absolute right-3 top-3 z-10 rounded-full bg-white p-1.5 text-slate-400 shadow hover:text-slate-600" aria-label="Close"><X size={16} /></button>
+                        <button onClick={() => setSheet(false)} className="absolute right-3 top-3 z-20 rounded-full bg-white p-1.5 text-slate-400 shadow-md ring-1 ring-slate-200 hover:text-slate-600" aria-label="Close"><X size={16} /></button>
                         <WalletSection />
                     </div>
                 </Sheet>

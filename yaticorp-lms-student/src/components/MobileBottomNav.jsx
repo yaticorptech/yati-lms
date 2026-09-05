@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, Bot, User } from 'lucide-react';
+import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, Bot } from 'lucide-react';
 
 /**
  * The student's main navigation on a phone.
@@ -23,8 +23,7 @@ const ITEMS = [
   { to: '/community', label: 'Community', icon: MessageSquare },
   { to: '/jobs', label: 'Jobs', icon: Briefcase, flag: 'jobs' },
   { to: '/career', label: 'Career Path', icon: Compass, flag: 'career' },
-  { to: '/mentor', label: 'AI Mentor', icon: Bot, flag: 'career' },
-  { to: '/profile', label: 'My Profile', icon: User }
+  { to: '/mentor', label: 'AI Mentor', icon: Bot, flag: 'career' }
 ];
 
 export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) {

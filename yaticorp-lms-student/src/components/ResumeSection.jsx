@@ -10,8 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    FileText, Download, Upload, Trash2, Briefcase, ShieldCheck, Zap, RefreshCw, Lock, Lightbulb,
-    CalendarDays, Check, Loader2, ExternalLink, Sparkles, AlertCircle
+    FileText, Download, Upload, Trash2, Briefcase, ShieldCheck, Zap, RefreshCw, Lock, Lightbulb, CalendarDays, Check, Loader2, ExternalLink, Sparkles, AlertCircle, Info, X
 } from 'lucide-react';
 import api from '../utils/api';
 import { Tile, Feature, Artwork } from './profileBlocks';
@@ -20,6 +19,8 @@ const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: 'nume
 
 export default function ResumeSection() {
     const [resume, setResume] = useState(null);
+    // The four explainer points live behind this rather than in the card.
+    const [showAbout, setShowAbout] = useState(false);
     const [ats, setAts] = useState(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -31,6 +32,13 @@ export default function ResumeSection() {
 
     // A failed load is not the student's problem to read about: the card
     // simply shows the "nothing uploaded" state and the actions still work.
+    useEffect(() => {
+        if (!showAbout) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') setShowAbout(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [showAbout]);
+
     const load = useCallback(() => api.get('/user/resume')
         .then((r) => { setResume(r.data.resume); setAts(r.data.ats); })
         .catch((err) => console.warn('[resume] load failed:', err.response?.data?.message || err.message))
@@ -202,26 +210,42 @@ export default function ResumeSection() {
             </div>
             <input ref={inputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
 
-            {/* ── Feature strip ────────────────────────────────────────── */}
-            <div className="grid gap-3 px-4 py-3 sm:grid-cols-2 sm:px-5 xl:grid-cols-4">
-                <Feature icon={ShieldCheck} tone="bg-gradient-to-br from-violet-500 to-indigo-600" title="ATS Friendly">Built in a single-column format that works with all ATS systems.</Feature>
-                <Feature icon={Zap} tone="bg-gradient-to-br from-emerald-400 to-green-600" title="Auto Skills">Skills from your courses are added automatically — even ones you've only half finished.</Feature>
-                <Feature icon={RefreshCw} tone="bg-gradient-to-br from-sky-400 to-blue-600" title="Stay Updated">Every download is rebuilt from your latest progress, so it is never out of date.</Feature>
-                <Feature icon={Lock} tone="bg-gradient-to-br from-amber-400 to-orange-500" title="Secure &amp; Private">We keep your data secure and private at all times.</Feature>
-            </div>
-
-            {/* ── Tip ──────────────────────────────────────────────────── */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3 sm:px-5">
-                <div className="relative flex items-center gap-3 pr-16">
+            {/* ── Tip, and the way into the explainer ──────────────────── */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3.5 sm:px-5">
+                <div className="relative flex flex-wrap items-center gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-md"><Lightbulb size={20} /></span>
-                    <div>
+                    <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold text-slate-900">Tip for Better Results <span className="text-amber-400">✨</span></p>
                         <p className="text-xs leading-relaxed text-slate-600">Keep your resume updated and complete more courses to improve your job matches and stand out!</p>
                     </div>
+                    <button type="button" onClick={() => setShowAbout(true)}
+                        className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50">
+                        <Info size={14} /> How it works
+                    </button>
                 </div>
-                <span aria-hidden="true" className="absolute right-5 top-1/2 -translate-y-1/2 text-4xl drop-shadow-sm">🎯</span>
-                <span aria-hidden="true" className="absolute right-20 top-2 text-xs text-fuchsia-300">✦</span>
             </div>
+
+            {showAbout && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setShowAbout(false)}>
+                    <div role="dialog" aria-modal="true" aria-labelledby="resume-about-title" onClick={(e) => e.stopPropagation()}
+                        className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up">
+                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
+                            <h3 id="resume-about-title" className="flex items-center gap-2 font-bold text-slate-800"><FileText size={17} className="text-indigo-600" /> About your ATS resume</h3>
+                            <button type="button" onClick={() => setShowAbout(false)} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
+                        </div>
+                        <div className="grid gap-4 p-5 sm:grid-cols-2">
+                            <Feature icon={ShieldCheck} tone="bg-gradient-to-br from-violet-500 to-indigo-600" title="ATS Friendly">Built in a single-column format that works with all ATS systems.</Feature>
+                            <Feature icon={Zap} tone="bg-gradient-to-br from-emerald-400 to-green-600" title="Auto Skills">Skills from your courses are added automatically — even ones you&apos;ve only half finished.</Feature>
+                            <Feature icon={RefreshCw} tone="bg-gradient-to-br from-sky-400 to-blue-600" title="Stay Updated">Every download is rebuilt from your latest progress, so it is never out of date.</Feature>
+                            <Feature icon={Lock} tone="bg-gradient-to-br from-amber-400 to-orange-500" title="Secure &amp; Private">We keep your data secure and private at all times.</Feature>
+                        </div>
+                        <div className="border-t border-slate-100 px-5 py-4 text-right">
+                            <button type="button" onClick={() => setShowAbout(false)}
+                                className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700">Got it</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </section>
     );
 }

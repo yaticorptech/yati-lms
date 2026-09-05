@@ -90,7 +90,13 @@ const placeLabel = (p) => p.label || [p.city, p.state, p.country].filter(Boolean
 ------------------------------------------------------------------------- */
 const LOCAL_TRADES = [
   'packing helper', 'catering', 'event', 'delivery', 'shop assistant',
-  'housekeeping cleaning', 'promoter', 'kitchen helper', 'data entry', 'receptionist'
+  'housekeeping cleaning', 'promoter', 'kitchen helper', 'data entry', 'receptionist',
+  // The local trades a neighbourhood actually posts, rotated the same way.
+  'house help', 'cook', 'babysitter', 'caretaker', 'dog walker', 'gardener',
+  'farm worker', 'car wash', 'laundry ironing', 'tailor', 'salon helper', 'bakery helper',
+  'canteen helper', 'tea stall', 'vegetable shop', 'newspaper delivery', 'milk delivery',
+  'xerox shop', 'mobile repair shop', 'painter helper', 'construction helper', 'loading unloading',
+  'tent house', 'security guard', 'parking attendant', 'survey field', 'typist', 'gym helper'
 ];
 
 // Below this, a town is not carrying the section on its own and the search
@@ -256,6 +262,10 @@ module.exports = { partTimeNear };
  */
 const CATEGORY_RULES = [
   ['tutoring', /\b(tutor|tuition|teacher|teaching|trainer|coach|faculty|instructor|lecturer|mentor|academy|classes)\b/i],
+  // Rounds and tent work are named before delivery and events, or the broad
+  // rules claim them and the student who ticked the specific line never matches.
+  ['newspaper', /\b(newspaper|paper delivery|milk|milkman|morning round)\b/i],
+  ['tenthouse', /\b(tent|mandap|pandal|shamiana|light ?and ?sound|dj|sound system|stage)\b/i],
   ['delivery', /\b(deliver|delivery|driver|rider|courier|logistic|dispatch|swiggy|zomato|zepto|blinkit)\b/i],
   ['catering', /\b(cater|waiter|waitress|steward|server|kitchen|chef|cook|barista|food|restaurant|hotel)\b/i],
   ['events', /\b(event|wedding|function|usher|anchor|host|hostess|banquet|exhibition)\b/i],
@@ -264,6 +274,33 @@ const CATEGORY_RULES = [
   ['shop', /\b(shop|store|retail|counter|cashier|billing|showroom|salesman|sales associate)\b/i],
   ['promotion', /\b(promot|marketing|flyer|brand|sales|telecall|tele-?caller|bpo|customer (support|service)|business development|field executive)\b/i],
   ['decoration', /\b(decor|decoration|balloon|florist|flower)\b/i],
+  // Local trades, before the broad rules so "kitchen helper" is not swept
+  // into "setup" by the word helper.
+  ['babysitting', /\b(babysit|babysitter|nanny|child ?care|creche|day ?care|playschool|play school)\b/i],
+  ['eldercare', /\b(elder|elderly|senior citizen|old age|caretaker|care ?giver|attendant for|patient care|nursing aide)\b/i],
+  ['petcare', /\b(pet|dog|cat|kennel|dog walk|pet sitter|groomer)\b/i],
+  ['gardening', /\b(garden|gardener|gardening|nursery|plant|lawn|landscap)\b/i],
+  ['farm', /\b(farm|harvest|dairy|poultry|agri|crop|orchard|plantation|estate work)\b/i],
+  ['carwash', /\b(car wash|bike wash|vehicle wash|washing boy|detailing|car clean)\b/i],
+  ['laundry', /\b(laundry|ironing|press ?wala|dhobi|dry ?clean|washing)\b/i],
+  ['tailoring', /\b(tailor|tailoring|stitch|stitching|sewing|embroider|boutique|garment)\b/i],
+  ['salon', /\b(salon|saloon|parlour|parlor|beautician|mehendi|mehndi|makeup|hair|barber|spa)\b/i],
+  ['bakery', /\b(bakery|baker|cake|sweet shop|sweets|mithai|confection|pastry)\b/i],
+  ['canteen', /\b(canteen|tea stall|chai|coffee shop|mess|snack|juice|dhaba)\b/i],
+  ['market', /\b(vegetable|fruit|market|stall|vendor|kirana|grocery|supermarket|mandi)\b/i],
+  ['xerox', /\b(xerox|photocopy|print shop|printing|dtp|cyber cafe|stationery)\b/i],
+  ['mobilerepair', /\b(mobile repair|phone repair|cycle shop|bicycle|puncture|mechanic|garage|electrician helper|plumber helper)\b/i],
+  ['painting', /\b(paint|painter|painting|whitewash|putty|polish)\b/i],
+  ['construction', /\b(construction|mason|site helper|building work|civil helper|carpenter|welder)\b/i],
+  ['loading', /\b(loading|unloading|loader|hamali|porter|lifting|godown)\b/i],
+  ['festival', /\b(temple|festival|pooja|puja|prasad|jatra|fair|mela|church|mosque)\b/i],
+  ['security', /\b(security|guard|watchman|bouncer|gatekeeper)\b/i],
+  ['parking', /\b(parking|valet|gate attendant|ticket collector|toll)\b/i],
+  ['survey', /\b(survey|door[\s-]?to[\s-]?door|census|field survey|enumerator|canvass)\b/i],
+  ['dataentry', /\b(data entry|typing|typist|computer operator|back office|excel)\b/i],
+  ['sports', /\b(sport|fitness|gym|swimming|cricket|football|yoga|zumba|ground staff|ball boy)\b/i],
+  ['househelp', /\b(house ?help|house ?maid|maid|domestic|home help|servant|housekeeping|sweeper|cleaner)\b/i],
+  ['cooking', /\b(cook|cooking|tiffin|home food|kitchen help|kitchen helper|meal prep)\b/i],
   ['setup', /\b(setup|set-?up|clean|cleaning|housekeep|maintenance|helper|labour|labor)\b/i]
 ];
 

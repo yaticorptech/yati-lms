@@ -331,9 +331,6 @@ const StudentLayout = () => {
                     <Bot size={20} /> <span>AI Mentor</span>
                 </Link>
             )}
-            <Link to="/profile" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/profile') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                <User size={20} /> <span>My Profile</span>
-            </Link>
         </>
     );
 
@@ -746,7 +743,7 @@ const StudentLayout = () => {
                                     {/* Menu items */}
                                     <div className="p-2">
                                         <Link
-                                            to="/profile"
+                                            to="/"
                                             onClick={() => setProfileDropdownOpen(false)}
                                             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
                                         >
