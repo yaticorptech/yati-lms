@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, Bot, User } from 'lucide-react';
+import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, Bot } from 'lucide-react';
 import './mobileBottomNav.css';
 
 /**
@@ -11,7 +11,7 @@ import './mobileBottomNav.css';
  * destinations sit under the thumb here, and the drawer keeps what does not
  * belong in a nav bar — support and sign-out.
  *
- * Labels are shortened to one word each so seven of them sit on one line
+ * Labels are shortened to one word each so six of them sit on one line
  * under their icons; the sidebar's full name stays on the accessible label,
  * so a screen reader still hears "Enrolled Courses".
  *
@@ -25,21 +25,14 @@ import './mobileBottomNav.css';
  * is something the thumb can watch rather than a colour that changes.
  */
 // `label` is the sidebar's own name and goes on the accessible label; `short`
-// is what fits under an icon in one line when seven of them share a phone.
+// is what fits under an icon in one line when six of them share a phone.
 const ITEMS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { to: '/enrolled-courses', label: 'Enrolled Courses', icon: BookOpen },
-  { to: '/community', label: 'Community', icon: MessageSquare },
-  { to: '/jobs', label: 'Jobs', icon: Briefcase, flag: 'jobs' },
-  { to: '/career', label: 'Career Path', icon: Compass, flag: 'career' },
-  { to: '/mentor', label: 'AI Mentor', icon: Bot, flag: 'career' }
   { to: '/', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
   { to: '/enrolled-courses', label: 'Enrolled Courses', short: 'Courses', icon: BookOpen },
   { to: '/community', label: 'Community', short: 'Community', icon: MessageSquare },
   { to: '/jobs', label: 'Jobs', short: 'Jobs', icon: Briefcase, flag: 'jobs' },
   { to: '/career', label: 'Career Path', short: 'Career', icon: Compass, flag: 'career' },
-  { to: '/mentor', label: 'AI Mentor', short: 'Mentor', icon: Bot, flag: 'career' },
-  { to: '/profile', label: 'My Profile', short: 'Profile', icon: User }
+  { to: '/mentor', label: 'AI Mentor', short: 'Mentor', icon: Bot, flag: 'career' }
 ];
 
 export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) {
