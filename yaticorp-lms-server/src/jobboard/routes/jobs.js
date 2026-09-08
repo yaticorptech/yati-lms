@@ -51,7 +51,8 @@ const MIN_LOCAL_JOBS = 40;
  * to call while someone waits. Everything else reads whole job boards and
  * takes ten seconds or more.
  */
-const CITY_PROVIDERS = ["JSearch", "Adzuna"];
+// Gemini discovery is a no-op unless JOBS_GEMINI_DISCOVERY=true.
+const CITY_PROVIDERS = ["JSearch", "Adzuna", "Gemini discovery"];
 
 /**
  * Longest a search may wait on a fetch before answering with what it has.
@@ -87,6 +88,16 @@ const MIN_CITY_JOBS = 12;
 
 /** Below this many listings for a specific role in a city, fetch that role. */
 const MIN_ROLE_JOBS = 4;
+/** Below this many listings of one TYPE (internships, part-time) in a city, fetch that type. */
+const MIN_TYPE_JOBS = 20;
+
+/**
+ * Job types the boards have to be asked for by name. "Developer in
+ * Mangaluru" returns full-time roles; the internships only come back when
+ * the query says "internship". Every other type is a filter on what a
+ * plain query returns, so it needs no word of its own.
+ */
+const TYPE_SEARCH_WORD = { Internship: "internship", "Part-time": "part time" };
 const CITY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 /**
@@ -105,17 +116,20 @@ const CITY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
  * per city and long, because these are metered and a city does not fill up
  * again within the hour.
  */
-async function ensureCityCovered(search, place, titlePatterns = []) {
+async function ensureCityCovered(search, place, titlePatterns = [], jobType = "") {
   if (!place?.city || !isConnected()) return null;
 
-  // Keyed by city *and* role. A city is not covered in general, only for
-  // the kinds of work we happen to have fetched: every city was warmed with
-  // the query "developer", so Mangaluru held 57 listings and not one that a
-  // search for Executive Assistant could match. Measuring coverage without
-  // the role made the city look full and the fetch never ran, which is how
-  // a configured key still produced "no listings here".
+  // Keyed by city *and* role *and* type. A city is not covered in general,
+  // only for the kinds of work we happen to have fetched: every city was
+  // warmed with the query "developer", so Mangaluru held 57 listings and
+  // not one that a search for Executive Assistant could match — and not one
+  // internship, because nobody had asked the boards for internships there.
+  // Measuring coverage without the role or the type made the city look full
+  // and the fetch never ran, which is how a configured key still produced
+  // "no listings here".
   const roleKey = titlePatterns.length ? String(titlePatterns[0]) : "*";
-  const key = `city-ingest:${place.city}|${place.countryCode}|${roleKey}`.toLowerCase();
+  const typeKey = TYPE_SEARCH_WORD[jobType] ? jobType : "*";
+  const key = `city-ingest:${place.city}|${place.countryCode}|${roleKey}|${typeKey}`.toLowerCase();
   const last = await lastRun(key);
   if (last && Date.now() - last.getTime() < CITY_COOLDOWN_MS) return null;
 
@@ -124,10 +138,13 @@ async function ensureCityCovered(search, place, titlePatterns = []) {
 
   const scope = { active: true, remote: false, ...here };
   if (titlePatterns.length) scope.title = { $in: titlePatterns };
+  if (typeKey !== "*") scope.type = jobType;
 
   // A city-wide gap needs a dozen listings to close; a single role in one
-  // city is a much narrower question, and a handful is a real answer.
-  const threshold = titlePatterns.length ? MIN_ROLE_JOBS : MIN_CITY_JOBS;
+  // city is a much narrower question, and a handful is a real answer. A
+  // type on its own — "internships in Bengaluru" — sits in between: the
+  // student is browsing, and a short list reads as a thin city.
+  const threshold = titlePatterns.length ? MIN_ROLE_JOBS : typeKey !== "*" ? MIN_TYPE_JOBS : MIN_CITY_JOBS;
   const count = await Job.countDocuments(scope);
   if (count >= threshold) return null;
 
@@ -626,7 +643,13 @@ router.post("/recommend", async (req, res, next) => {
       }
     }
 
-    const searchTerm = roleName || roleText || skills.slice(0, 2).join(" ");
+    // What the boards are asked for. An internship or part-time search
+    // names the type in the query — "developer internship in Mangaluru" —
+    // because the boards answer a bare role with full-time listings and the
+    // type filter below would then throw every one of them away.
+    const typeWord = TYPE_SEARCH_WORD[jobType] || "";
+    const baseTerm = roleName || roleText || skills.slice(0, 2).join(" ");
+    const searchTerm = typeWord ? `${baseTerm} ${typeWord}`.trim() : baseTerm;
     const ingest = await ensurePopulated(searchTerm, place);
 
     // Then top up this specific city, which the country-wide check above
@@ -635,7 +658,8 @@ router.post("/recommend", async (req, res, next) => {
     const cityFetch = await ensureCityCovered(
       searchTerm,
       place,
-      roleTitlePatterns(roleName, roleText)
+      roleTitlePatterns(roleName, roleText),
+      typeWord ? jobType : ""
     );
 
     const pool = (

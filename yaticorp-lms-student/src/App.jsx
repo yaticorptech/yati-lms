@@ -14,6 +14,9 @@ import Login from './pages/Login';
 import EnrolledCourses from './pages/EnrolledCourses';
 const Jobs = React.lazy(() => import('./pages/Jobs'));
 const Scholarships = React.lazy(() => import('./pages/Scholarships'));
+// My Learning Bio — the AI-written, data-backed profile behind the dashboard card.
+const LearningBioPage = React.lazy(() => import('./learningbio/LearningBioPage'));
+const SharedBioPage = React.lazy(() => import('./learningbio/SharedBioPage'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -108,11 +111,13 @@ function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/preview/:courseId" element={<CoursePreview />} />
+      <Route path="/learning-bio/shared/:code" element={<React.Suspense fallback={<YatiLoader fullScreen label="Loading Learning Bio" />}><SharedBioPage /></React.Suspense>} />
       {/* RewardsProvider sits inside the auth guard so every page in the
           shell can show XP toasts and milestone celebrations. */}
       <Route path="/" element={<ProtectedRoute><RewardsProvider><StudentLayout /></RewardsProvider></ProtectedRoute>}>
         <Route index element={<Profile />} />
         <Route path="enrolled-courses" element={<EnrolledCourses />} />
+        <Route path="learning-bio" element={<React.Suspense fallback={<CareerFallback />}><LearningBioPage /></React.Suspense>} />
         {/* Dashboard and My Profile are one page now; the old address still lands there. */}
         <Route path="profile" element={<Navigate to="/" replace />} />
         <Route path="learn/:courseId" element={<CoursePlayer />} />

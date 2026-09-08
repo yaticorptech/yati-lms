@@ -8,7 +8,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Wallet, Gift, ReceiptText, Loader2, Info, Lock, Check, X } from 'lucide-react';
 import api from '../../utils/api';
 import { useRewards } from '../../context/useRewards';
-import { money, num, when, SOURCE_LABEL, STATUS_CLS } from './format';
+import { money, num, balance, when, SOURCE_LABEL, STATUS_CLS } from './format';
 
 const TABS = [
     { id: 'overview', label: 'Overview', icon: Wallet },
@@ -57,7 +57,7 @@ export default function WalletSection({ initialTab = 'overview' }) {
                     <div className="flex items-center gap-4">
                         <div className="text-right">
                             <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Balance</p>
-                            <p className="text-2xl font-black tabular-nums text-slate-900">{money(data.wallet.available, currency)}</p>
+                            <p className="text-2xl font-black tabular-nums text-slate-900">{money(balance(data.wallet.available), currency)}</p>
                         </div>
                         <div className="text-right">
                             <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Reward points</p>
@@ -117,7 +117,7 @@ function Overview({ data, currency, reload, celebrate }) {
         <div className="space-y-5">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {[
-                    { label: 'Balance', value: money(wallet.available, currency), cls: 'from-emerald-50 to-teal-50 border-emerald-200', tone: 'text-emerald-700', sub: 'Earned inside the LMS' },
+                    { label: 'Balance', value: money(balance(wallet.available), currency), cls: 'from-emerald-50 to-teal-50 border-emerald-200', tone: 'text-emerald-700' },
                     { label: 'Total earned', value: money(wallet.totalEarned, currency), cls: 'from-sky-50 to-indigo-50 border-sky-200', tone: 'text-sky-700' },
                     { label: 'Total spent', value: money(wallet.totalSpent, currency), cls: 'from-slate-50 to-slate-100 border-slate-200', tone: 'text-slate-700', sub: 'On courses and rewards' },
                     { label: 'Points value', value: money(rewardPointsValue, currency), cls: 'from-pink-50 to-rose-50 border-pink-200', tone: 'text-pink-700', sub: `${num(wallet.rewardPoints)} reward points` }

@@ -109,6 +109,20 @@ optional — see `.env.example`.
 
 ---
 
+**Gemini discovery.** With `JOBS_GEMINI_DISCOVERY=true` and a Gemini key,
+`services/geminiDiscoveryService.js` is a seventh provider: it asks
+`JOBS_GEMINI_DISCOVERY_MODEL` (default `gemini-2.5-flash`) with Google
+Search grounding for open positions matching the search in the city, and
+turns the JSON it answers with into listings labelled "Gemini
+(AI-discovered)". They are leads, not verified postings — the model reports
+what it read in search results, so every row keeps the link it was found at,
+rows with placeholder or root-only links are dropped, and the source label
+says what it is. It runs in the same city fetch as JSearch and Adzuna, which
+is how "internship in Mangaluru" reaches a college town's company pages and
+Internshala listings that no board API carries. Spend is metered per month
+(`JOBS_GEMINI_DISCOVERY_MONTHLY_LIMIT`, default 300 calls) on the shared
+`ApiUsage` ledger, and the key rotation is geminiService's.
+
 ## Matching
 
 Five weighted signals in `services/matchService.js`:
@@ -178,6 +192,16 @@ per-city metered fetches (`city-ingest:<city|cc|role>`) moved there from
 in-memory Maps, which reset on deploy and multiplied per instance.
 
 Set `JOBS_AUTO_INGEST=false` to hand this to a real cron instead.
+
+**Internships and part-time work are fetched by name.** The boards answer a
+bare role with full-time listings, so a search with the Internship (or
+Part-time) type puts the word into the query the city fetch sends —
+"developer internship in Mangaluru" — and JSearch's broader retry becomes
+"internships in Mangaluru" rather than "jobs in Mangaluru". City coverage is
+measured per city, role *and* type (`city-ingest:<city>|<cc>|<role>|<type>`),
+so a city full of full-time work still triggers a fetch the first time
+someone asks it for internships; a type on its own needs 20 listings before
+the city counts as covered.
 
 A search never waits on freshness it doesn't need: a populated-but-stale index
 answers immediately from the store and refreshes behind the response, with
@@ -281,7 +305,8 @@ skills second — written evidence beats bookkeeping).
 Spend is bounded three ways: the job board's own Gemini keys (`JOBS_GEMINI_*`
 when set), a monthly parse meter (`JOBS_RESUME_MONTHLY_LIMIT`, default 300),
 and 5 parses per student per day. The parser retries an overloaded model once
-and falls back to `JOBS_RESUME_FALLBACK_MODEL` before giving up. DOC/DOCX are
-refused with instructions to export as PDF. The stored `seniority` and
+and falls back to `JOBS_RESUME_FALLBACK_MODEL` before giving up. The profile
+page's upload also keeps DOC/DOCX as stored files (not parsed); the Jobs tab's
+parse-only upload still wants a PDF or an image. The stored `seniority` and
 `experienceYears` are the designed input for seniority-aware ranking when
 that lands.

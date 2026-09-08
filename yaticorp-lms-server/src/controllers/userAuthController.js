@@ -3,6 +3,7 @@
  * @description Student login with auto org detection from card number
  */
 const User = require('../models/User');
+const { findUserByCardNumber } = require('../utils/cardNumber');
 const Enrollment = require('../models/Enrollment');
 const generateToken = require('../utils/generateToken');
 const { uploadToCloudinary } = require('../middleware/uploadMiddleware');
@@ -14,7 +15,7 @@ const loginUser = async (req, res) => {
     const { cardNumber, password } = req.body;
 
     try {
-        const user = await User.findOne({ cardNumber });
+        const user = await findUserByCardNumber(cardNumber);
 
         if (user && (await user.matchPassword(password))) {
             if (user.status !== 'active') {
