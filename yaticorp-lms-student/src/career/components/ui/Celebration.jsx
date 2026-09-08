@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Check, Flame, PartyPopper, Trophy, Zap } from 'lucide-react';
+import Mascot from '../mascot/Mascot';
 
 /**
  * The reward moment.
@@ -30,8 +31,9 @@ export const useCelebrate = () => {
 const PALETTE = ['#3b66f6', '#f59e0b', '#10b981', '#8b5cf6', '#f97316', '#ec4899'];
 
 const PRESETS = {
-  task: { pieces: 34, icon: Check, tone: 'emerald', duration: 4200 },
-  day: { pieces: 70, icon: Trophy, tone: 'amber', duration: 6000 }
+  task: { pieces: 34, icon: Check, tone: 'emerald', duration: 4200, pose: 'taskdone', motion: 'mc-nod' },
+  day: { pieces: 70, icon: Trophy, tone: 'amber', duration: 6000, pose: 'win', motion: 'mc-dance' },
+  level: { pieces: 90, icon: Zap, tone: 'brand', duration: 6000, pose: 'levelup', motion: 'mc-jump' }
 };
 
 const TONES = {
@@ -135,11 +137,16 @@ function CelebrationOverlay({ event, onDismiss }) {
         onClick={onDismiss}
         className="animate-pop-in relative w-full max-w-sm cursor-pointer rounded-2xl bg-surface p-7 text-center shadow-float"
       >
-        <span
-          className={`animate-badge-burst mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl text-white ring-8 ring-inset ${tone.badge} ${tone.glow}`}
-        >
-          <Icon className="h-8 w-8" strokeWidth={2.6} />
-        </span>
+        {/* The mascot for the moment, with the badge tucked at its foot. */}
+        <div className="relative mx-auto mb-3 flex h-36 w-36 items-end justify-center" aria-hidden>
+          <span className="absolute bottom-3 left-1/2 h-6 w-28 -translate-x-1/2 rounded-full bg-journey-400/30 blur-lg" />
+          <Mascot pose={event.pose || preset.pose} height={136} motion={event.motion || preset.motion} className="mc-pop relative" />
+          <span
+            className={`animate-badge-burst absolute right-0 bottom-0 flex h-11 w-11 items-center justify-center rounded-xl text-white ring-4 ring-inset ${tone.badge} ${tone.glow}`}
+          >
+            <Icon className="h-5 w-5" strokeWidth={2.6} />
+          </span>
+        </div>
 
         <h2 className="text-xl font-black text-ink-900">{event.title}</h2>
         {event.message && (

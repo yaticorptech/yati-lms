@@ -22,6 +22,12 @@ import SpellingFix from '../../components/games/SpellingFix';
 import WordRoots from '../../components/games/WordRoots';
 import PercentSnap from '../../components/games/PercentSnap';
 import RunningTotal from '../../components/games/RunningTotal';
+import GridRecall from '../../components/games/GridRecall';
+import TicTacToe from '../../components/games/TicTacToe';
+import MiniSudoku from '../../components/games/MiniSudoku';
+import TypingSprint from '../../components/games/TypingSprint';
+import BinaryBlitz from '../../components/games/BinaryBlitz';
+import SpeedSort from '../../components/games/SpeedSort';
 import { levelsCleared, totalStars } from '../../components/games/levels';
 
 /*
@@ -46,7 +52,8 @@ const CATEGORIES = [
       { id: 'sequence-recall', name: 'Sequence Recall', blurb: 'Watch a growing pattern and play it back.', Component: SequenceRecall },
       { id: 'number-recall', name: 'Number Recall', blurb: 'Memorise a number, then type it back.', Component: NumberRecall },
       { id: 'colour-match', name: 'Colour Match', blurb: 'Tap the ink colour, not the word.', Component: ColourMatch },
-      { id: 'spot-the-change', name: 'Spot the Change', blurb: 'One tile changes. Which one was it?', Component: SpotTheChange }
+      { id: 'spot-the-change', name: 'Spot the Change', blurb: 'One tile changes. Which one was it?', Component: SpotTheChange },
+      { id: 'grid-recall', name: 'Grid Recall', blurb: 'Tiles light up, then go dark. Tap the ones that lit.', Component: GridRecall }
     ]
   },
   {
@@ -66,7 +73,9 @@ const CATEGORIES = [
       { id: 'next-in-sequence', name: 'Next in Sequence', blurb: 'Spot the rule, then continue the run.', Component: NextInSequence },
       { id: 'odd-one-out', name: 'Odd One Out', blurb: 'Three belong together. One does not.', Component: OddOneOut },
       { id: 'deduction', name: 'Deduction', blurb: 'Does the conclusion actually follow?', Component: Deduction },
-      { id: 'lights-out', name: 'Lights Out', blurb: 'Turn every light off. Taps flip neighbours.', Component: LightsOut }
+      { id: 'lights-out', name: 'Lights Out', blurb: 'Turn every light off. Taps flip neighbours.', Component: LightsOut },
+      { id: 'tic-tac-toe', name: 'Tic-Tac-Toe', blurb: 'Beat a computer that gets sharper every level.', Component: TicTacToe },
+      { id: 'mini-sudoku', name: 'Mini Sudoku', blurb: 'A four-by-four grid, solved against the clock.', Component: MiniSudoku }
     ]
   },
   {
@@ -86,7 +95,8 @@ const CATEGORIES = [
       { id: 'synonym-match', name: 'Synonym Match', blurb: 'Pick the option that means the same.', Component: SynonymMatch },
       { id: 'sentence-gap', name: 'Sentence Gap', blurb: 'Choose the word that fits the sentence.', Component: SentenceGap },
       { id: 'spelling-fix', name: 'Spelling Fix', blurb: 'One of these four is spelled correctly.', Component: SpellingFix },
-      { id: 'word-roots', name: 'Word Roots', blurb: 'What does this prefix or root mean?', Component: WordRoots }
+      { id: 'word-roots', name: 'Word Roots', blurb: 'What does this prefix or root mean?', Component: WordRoots },
+      { id: 'typing-sprint', name: 'Typing Sprint', blurb: 'Type the word exactly, fast, and learn it on the way.', Component: TypingSprint }
     ]
   },
   {
@@ -106,7 +116,9 @@ const CATEGORIES = [
       { id: 'quick-compare', name: 'Quick Compare', blurb: 'Tap the side with the larger value.', Component: QuickCompare },
       { id: 'missing-operator', name: 'Missing Operator', blurb: 'Which sign makes the equation true?', Component: MissingOperator },
       { id: 'percent-snap', name: 'Percent Snap', blurb: 'Percentages, in your head, against the clock.', Component: PercentSnap },
-      { id: 'running-total', name: 'Running Total', blurb: 'Numbers arrive one at a time. Keep the total.', Component: RunningTotal }
+      { id: 'running-total', name: 'Running Total', blurb: 'Numbers arrive one at a time. Keep the total.', Component: RunningTotal },
+      { id: 'binary-blitz', name: 'Binary Blitz', blurb: 'Read binary as fast as you read decimal.', Component: BinaryBlitz },
+      { id: 'speed-sort', name: 'Speed Sort', blurb: 'Tap the numbers from smallest to largest.', Component: SpeedSort }
     ]
   }
 ];
@@ -287,19 +299,23 @@ export default function Games() {
 
         return (
           <section key={category.key}>
-            <div className="mb-3 flex flex-wrap items-center gap-3">
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <span
                 className={`inline-flex items-center gap-2 rounded-xl bg-gradient-to-r px-3 py-1.5 text-xs font-black text-white ${category.band}`}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {category.name}
               </span>
-              <p className="min-w-0 flex-1 text-sm text-ink-500">{category.blurb}</p>
+              {/* The blurb takes the whole next line on a phone. Beside the
+                  label it was squeezed to one word a line. */}
+              <p className="order-last min-w-0 basis-full text-sm text-ink-500 sm:order-none sm:flex-1 sm:basis-0">
+                {category.blurb}
+              </p>
               {category.games.length > HOW_MANY_SHOWN && (
                 <button
                   type="button"
                   onClick={() => toggle(category.key)}
-                  className="group inline-flex shrink-0 items-center gap-1 text-xs font-black text-journey-700 hover:underline"
+                  className="group ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-black text-journey-700 hover:underline sm:ml-0"
                 >
                   {open ? 'Show less' : `See all ${category.games.length}`}
                   <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />

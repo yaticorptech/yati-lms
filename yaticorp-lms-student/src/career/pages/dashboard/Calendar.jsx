@@ -406,7 +406,7 @@ export default function CalendarView() {
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               {panel === 'calendar' && (
-                <div className="flex items-center gap-3 text-xs font-semibold text-ink-500">
+                <div className="hidden items-center gap-3 text-xs font-semibold text-ink-500 sm:flex">
                   {[
                     ['bg-emerald-500', 'Completed'],
                     ['bg-indigo-500', 'Pending'],
@@ -517,7 +517,7 @@ export default function CalendarView() {
             </div>
           )}
 
-          <div className="mb-2 grid grid-cols-7 gap-1.5 sm:gap-2">
+          <div className="-mx-3 mb-2 grid grid-cols-7 gap-1 sm:mx-0 sm:gap-2">
             {WEEKDAYS.map((d) => (
               <div key={d} className="py-1.5 text-center text-xs font-bold text-ink-400 sm:text-sm">
                 {/* One letter on phones, where 7 columns leave ~40px each. */}
@@ -527,7 +527,7 @@ export default function CalendarView() {
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+          <div className="-mx-3 grid grid-cols-7 gap-1 sm:mx-0 sm:gap-2">
             {cells.map(({ date, day, outside }, idx) => {
               const key = dayKey(date);
               const dayTasks = byDay.get(key) || [];

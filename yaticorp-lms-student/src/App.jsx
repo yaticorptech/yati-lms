@@ -13,6 +13,7 @@ import YatiLoader from './components/YatiLoader';
 import Login from './pages/Login';
 import EnrolledCourses from './pages/EnrolledCourses';
 const Jobs = React.lazy(() => import('./pages/Jobs'));
+const Scholarships = React.lazy(() => import('./pages/Scholarships'));
 // My Learning Bio — the AI-written, data-backed profile behind the dashboard card.
 const LearningBioPage = React.lazy(() => import('./learningbio/LearningBioPage'));
 const SharedBioPage = React.lazy(() => import('./learningbio/SharedBioPage'));
@@ -51,7 +52,6 @@ const CareerRecommendations = React.lazy(() => import('./career/pages/dashboard/
 const CareerProfile = React.lazy(() => import('./career/pages/Profile'));
 const CareerBadges = React.lazy(() => import('./career/pages/dashboard/Badges'));
 const CareerGames = React.lazy(() => import('./career/pages/dashboard/Games'));
-const Mentor = React.lazy(() => import('./career/pages/dashboard/MentorChat'));
 const CareerSettings = React.lazy(() => import('./career/pages/dashboard/SettingsPage'));
 const CareerOnboarding = React.lazy(() => import('./career/pages/Onboarding'));
 
@@ -137,29 +137,17 @@ function App() {
         </Route>
 
         <Route element={<CareerGate />}>
-        {/* The mentor is its own section, not a Career Path tab.
-            
-            It still lives under CareerGate and CareerProviders: every request
-            it makes goes to /api/career/chat, which the server keeps behind the
-            same admin switch as the rest of the section — so a mentor that
-            outlived a disabled Career Path would be a page of 403s. Separate in
-            the navigation, same feature flag underneath. */}
+        {/* Scholarships is its own section in the navigation, but the list
+            it shows is built with the student's Career Path resources, so it
+            rides on the same switch. */}
         <Route
-          path="mentor"
+          path="scholarships"
           element={
-            <CareerProviders>
-              <div className="futurepath -m-4 flex min-h-full flex-col p-4 md:-m-8 md:p-8">
-                <React.Suspense fallback={<CareerFallback />}>
-                  <Mentor />
-                </React.Suspense>
-              </div>
-            </CareerProviders>
+            <React.Suspense fallback={<CareerFallback />}>
+              <Scholarships />
+            </React.Suspense>
           }
         />
-        {/* Anyone holding the old link — a bookmark, a notification, a tab left
-            open — lands on the new one rather than a 404. */}
-        <Route path="career/mentor" element={<Navigate to="/mentor" replace />} />
-
         <Route
           path="career/onboarding"
           element={

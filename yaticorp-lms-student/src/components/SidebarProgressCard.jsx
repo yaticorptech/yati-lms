@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import '../career/components/mascot/mascot.css';
+import Mascot from '../career/components/mascot/Mascot';
+import useMascotCycle, { SIDEBAR_POSES } from '../career/components/mascot/useMascotCycle';
 import { levelProgress } from '../career/utils/progress';
 
 /**
@@ -21,6 +23,9 @@ export default function SidebarProgressCard({ user, onNavigate }) {
   // The card reads as a total against the next threshold, which is how a level
   // bar is read everywhere else — not as "XP into this level".
   const ceiling = xp + progress.remaining;
+  // Changes pose every few seconds so the sidebar feels alive; stays on the
+  // first pose under a reduced-motion preference.
+  const look = useMascotCycle(SIDEBAR_POSES);
 
   return (
     <Link
@@ -28,13 +33,14 @@ export default function SidebarProgressCard({ user, onNavigate }) {
       onClick={onNavigate}
       className="group block rounded-2xl bg-slate-900/70 p-3.5 text-center ring-1 ring-slate-800 transition-colors hover:bg-slate-900 hover:ring-slate-700"
     >
-      {/* The CareerPath mascot, seated. Tapping it asks the guide for help
-          rather than following the card's link. */}
+      {/* The CareerPath mascot, changing pose every few seconds. Tapping it
+          replays the current page's tour rather than following the card's
+          link. */}
       <div id="mascot-home" className="flex min-h-[4.5rem] items-end justify-center">
         <span
           role="button"
           tabIndex={0}
-          aria-label="CareerPath guide — need help?"
+          aria-label="CareerPath guide — show me around"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -47,15 +53,15 @@ export default function SidebarProgressCard({ user, onNavigate }) {
               window.dispatchEvent(new CustomEvent('mascot:ask'));
             }
           }}
-          className="mc-idle group relative inline-block cursor-pointer rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+          className="group relative inline-block cursor-pointer rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
         >
           <span aria-hidden className="mc-glow absolute inset-x-2 bottom-0 h-4 rounded-full bg-blue-400/40 blur-lg" />
-          <img
-            src="/mascot/sit.png"
-            alt=""
-            draggable={false}
-            className="relative h-[4.5rem] w-auto object-contain transition-transform group-hover:scale-110 select-none"
-            style={{ filter: 'drop-shadow(0 10px 14px rgba(28, 95, 214, 0.35))' }}
+          <Mascot
+            key={look.pose}
+            pose={look.pose}
+            height={72}
+            motion={look.motion}
+            className="mc-pop relative transition-transform group-hover:scale-110"
           />
         </span>
       </div>

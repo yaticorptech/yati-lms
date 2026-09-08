@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, Bot } from 'lucide-react';
+import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, GraduationCap } from 'lucide-react';
 import './mobileBottomNav.css';
 
 /**
  * The student's main navigation on a phone.
  *
  * The sidebar it mirrors is behind a hamburger on mobile, which puts every
- * section of the product two taps and a mental step away. The same seven
+ * section of the product two taps and a mental step away. The same six
  * destinations sit under the thumb here, and the drawer keeps what does not
  * belong in a nav bar — support and sign-out.
  *
@@ -15,7 +15,7 @@ import './mobileBottomNav.css';
  * under their icons; the sidebar's full name stays on the accessible label,
  * so a screen reader still hears "Enrolled Courses".
  *
- * Jobs, Career Path and the mentor come and go with the admin switches, exactly
+ * Jobs and Career Path come and go with the admin switches, exactly
  * as they do in the sidebar, so the bar never offers a section the student
  * cannot open.
  *
@@ -31,8 +31,8 @@ const ITEMS = [
   { to: '/enrolled-courses', label: 'Enrolled Courses', short: 'Courses', icon: BookOpen },
   { to: '/community', label: 'Community', short: 'Community', icon: MessageSquare },
   { to: '/jobs', label: 'Jobs', short: 'Jobs', icon: Briefcase, flag: 'jobs' },
-  { to: '/career', label: 'Career Path', short: 'Career', icon: Compass, flag: 'career' },
-  { to: '/mentor', label: 'AI Mentor', short: 'Mentor', icon: Bot, flag: 'career' }
+  { to: '/scholarships', label: 'Scholarships', short: 'Grants', icon: GraduationCap, flag: 'career' },
+  { to: '/career', label: 'Career Path', short: 'Career', icon: Compass, flag: 'career' }
 ];
 
 export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) {

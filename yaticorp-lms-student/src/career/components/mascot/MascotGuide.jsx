@@ -1,21 +1,20 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import Mascot from './Mascot';
-import { occupancy, contentBounds, overlaps } from './placement';
-import MascotPet from './MascotPet';
-import { AuthContext } from '../../context/AuthContext';
-import { GUIDE, CHEERS } from './guideSteps';
+import { contentBounds } from './placement';
+import { GUIDE } from './guideSteps';
 
 /**
- * 🤖 The interactive CareerPath guide, on every CareerPath page.
+ * 🤖 The CareerPath tour, on the pages that have one.
  *
- *   TOUR    first visit to a page: the mascot glides beside each important
- *           element, rings it, and says what to click. Next / Skip / Done.
- *           Remembered per page, so it plays once.
- *   REST    afterwards it floats near the bottom-left, offers a tip now and
- *           then, and opens a help menu when clicked.
- *   CHEER   when a task is completed it bounces and says "Great job!".
+ *   First visit to a page: the mascot sits in a bar docked along the bottom
+ *   of the page, rings each important element in turn, and says what to
+ *   click. Next / Skip / Done. Remembered per page, so it plays once. The bar
+ *   never floats over the page: the page is given that much room underneath,
+ *   so no words are ever covered. Between tours nothing is shown — the
+ *   resting mascot that used to float in the corner, cheer and offer tips is
+ *   gone; the seated one in the sidebar replays the page's tour on tap.
  *
  * Positions come from the real elements (`data-guide` attributes), measured
  * on the fly and again on scroll and resize, so the bubble follows what it
@@ -40,7 +39,6 @@ const markSeen = (route) => {
   }
 };
 
-const GAP = 14;
 const useIsSmall = () => {
   const [small, setSmall] = useState(() => window.innerWidth < 768);
   useEffect(() => {
@@ -53,26 +51,24 @@ const useIsSmall = () => {
 
 export default function MascotGuide() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const small = useIsSmall();
-  const size = small ? 72 : 116;
-  const bubbleW = small ? Math.min(260, window.innerWidth - 32) : 280;
+  const size = small ? 64 : 96;
+  // The guide's dock along the bottom of the page. Measured, so the page can
+  // be given exactly that much room underneath and nothing is ever hidden.
+  const dockRef = useRef(null);
+  const [dockH, setDockH] = useState(0);
 
   const routeKey = Object.keys(GUIDE).find((k) => (k === '/career' ? pathname === k : pathname.startsWith(k)));
   const steps = useMemo(() => (routeKey ? GUIDE[routeKey] : []), [routeKey]);
 
-  const [mode, setMode] = useState('rest'); // 'tour' | 'rest' | 'hidden'
+  const [mode, setMode] = useState('rest'); // 'tour' | 'rest'
   const [step, setStep] = useState(0);
   const [box, setBox] = useState(null);
-  const [menu, setMenu] = useState(false);
-  const [cheer, setCheer] = useState(null);
   const [leaving, setLeaving] = useState(false);
   const stepRef = useRef(0);
-  const pendingTour = useRef(false);
 
-  // Arriving at a page: tour if not seen yet (or if the help menu asked).
+  // Arriving at a page: tour if not seen yet.
   useEffect(() => {
-    setMenu(false);
     if (!routeKey || steps.length === 0) {
       setMode('rest');
       return;
@@ -80,30 +76,21 @@ export default function MascotGuide() {
     const seen = readSeen();
     setStep(0);
     stepRef.current = 0;
-    setMode(!seen[routeKey] || pendingTour.current ? 'tour' : 'rest');
-    pendingTour.current = false;
+    setMode(!seen[routeKey] ? 'tour' : 'rest');
   }, [routeKey, steps]);
 
-  // Positive feedback only when XP actually went up — a task, quiz or
-  // activity was finished. (The generic "progress changed" event also fires
-  // on page changes, which is why it is not used here.)
-  const { user } = useContext(AuthContext);
-  const xp = Number(user?.xp) || 0;
-  const lastXp = useRef(null);
+  // The seated mascot in the sidebar replays this page's tour on tap. On a
+  // page without one, nothing happens.
   useEffect(() => {
-    if (lastXp.current === null) {
-      lastXp.current = xp;
-      return undefined;
-    }
-    if (xp > lastXp.current) {
-      setCheer(CHEERS[Math.floor(Math.random() * CHEERS.length)]);
-      const t = setTimeout(() => setCheer(null), 4500);
-      lastXp.current = xp;
-      return () => clearTimeout(t);
-    }
-    lastXp.current = xp;
-    return undefined;
-  }, [xp]);
+    const ask = () => {
+      if (steps.length === 0) return;
+      setStep(0);
+      stepRef.current = 0;
+      setMode('tour');
+    };
+    window.addEventListener('mascot:ask', ask);
+    return () => window.removeEventListener('mascot:ask', ask);
+  }, [steps]);
 
   const current = mode === 'tour' ? steps[step] : null;
 
@@ -133,7 +120,15 @@ export default function MascotGuide() {
       return undefined;
     }
     const el = current?.target && document.querySelector(`[data-guide="${current.target}"]`);
-    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (el) {
+      // Centre it in the part of the page the dock leaves visible.
+      const main = document.querySelector('main');
+      const r = el.getBoundingClientRect();
+      const visibleH = window.innerHeight - dockH;
+      const delta = r.top + r.height / 2 - visibleH / 2;
+      if (main && main.scrollHeight > main.clientHeight) main.scrollBy({ top: delta, behavior: 'smooth' });
+      else window.scrollBy({ top: delta, behavior: 'smooth' });
+    }
     const t = setTimeout(locate, el ? 450 : 0);
     window.addEventListener('scroll', locate, true);
     window.addEventListener('resize', locate);
@@ -145,6 +140,30 @@ export default function MascotGuide() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, step, current, locate]);
 
+  // The page keeps exactly the dock's height free at its foot while the
+  // tour runs, so the student can always scroll whatever the bar sits over
+  // up into view. Removed the moment the tour ends.
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (mode !== 'tour' || !main) return undefined;
+    const measure = () => setDockH(dockRef.current?.offsetHeight || 0);
+    measure();
+    const ro = 'ResizeObserver' in window && dockRef.current ? new ResizeObserver(measure) : null;
+    ro?.observe(dockRef.current);
+    return () => ro?.disconnect();
+  }, [mode, step, small]);
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (!main) return undefined;
+    if (mode === 'tour' && dockH > 0) {
+      main.style.paddingBottom = `${dockH + 16}px`;
+      return () => {
+        main.style.paddingBottom = '';
+      };
+    }
+    return undefined;
+  }, [mode, dockH]);
+
   const finish = () => {
     if (routeKey) markSeen(routeKey);
     setLeaving(true);
@@ -155,86 +174,16 @@ export default function MascotGuide() {
     }, 380);
   };
 
-  const startTour = () => {
-    setMenu(false);
-    if (steps.length === 0) return;
-    setStep(0);
-    stepRef.current = 0;
-    setMode('tour');
-  };
-
-  const go = (option) => {
-    setMenu(false);
-    if (option.tour) pendingTour.current = true;
-    navigate(option.to);
-  };
-
   const next = () => {
     stepRef.current = step + 1;
     setStep((s) => s + 1);
   };
 
-  if (mode === 'hidden') return null;
-
   /* ---------------- Tour ---------------- */
   if (mode === 'tour' && current && step < steps.length) {
-    const vh = window.innerHeight;
-    let style;
-    let stacked = false; // bubble under the mascot (phones / no room beside)
-
-    if (box && !small) {
-      // The block is the mascot with the bubble beside it. Try it on every
-      // side of the highlighted element at a few alignments, inside the
-      // content column, and take the spot that hides the least of the page:
-      // a tour that parks itself over the words it is describing is no help.
-      const mascotW = Math.round(size * 1.2 * 0.86);
-      const mascotH = Math.round(size * 1.2);
-      const blockW = mascotW + 8 + bubbleW;
-      const blockH = Math.max(mascotH, 150);
-      const c = contentBounds(blockW);
-      const target = { left: box.left, right: box.left + box.width, top: box.top, bottom: box.top + box.height };
-      const clampXY = (x, y) => ({
-        x: Math.max(c.left, Math.min(c.right - blockW, x)),
-        y: Math.max(72, Math.min(vh - blockH - 16, y))
-      });
-      const cy = box.top + box.height / 2 - blockH / 2;
-      const cx = box.left + box.width / 2 - blockW / 2;
-      const candidates = [
-        [target.right + GAP, cy],
-        [target.right + GAP, box.top],
-        [target.right + GAP, target.bottom - blockH],
-        [target.left - blockW - GAP, cy],
-        [target.left - blockW - GAP, box.top],
-        [target.left - blockW - GAP, target.bottom - blockH],
-        [box.left, target.bottom + GAP],
-        [target.right - blockW, target.bottom + GAP],
-        [cx, target.bottom + GAP],
-        [box.left, box.top - blockH - GAP],
-        [target.right - blockW, box.top - blockH - GAP],
-        [cx, box.top - blockH - GAP]
-      ].map(([x, y]) => clampXY(x, y));
-      let best = candidates[0];
-      let bestScore = Infinity;
-      candidates.forEach((p) => {
-        const block = { left: p.x, right: p.x + blockW, top: p.y, bottom: p.y + blockH };
-        if (overlaps(block, target, 4)) return;
-        const mascot = { left: p.x + mascotW * 0.15, right: p.x + mascotW * 0.85, top: p.y + mascotH * 0.1, bottom: p.y + mascotH };
-        const bubble = { left: p.x + mascotW + 8, right: p.x + blockW, top: p.y + 8, bottom: p.y + 150 };
-        const score = occupancy(mascot) + occupancy(bubble, 5, 4);
-        if (score < bestScore - 0.02) {
-          best = p;
-          bestScore = score;
-        }
-      });
-      style = { top: best.y, left: best.x };
-    } else if (box && small) {
-      stacked = true;
-      const below = box.top + box.height + GAP;
-      style = below + 220 < vh ? { top: below, left: 12, right: 12 } : { bottom: 96, left: 12, right: 12 };
-    } else {
-      stacked = small;
-      style = small ? { bottom: 96, left: 12, right: 12 } : { left: '50%', top: '28%', transform: 'translateX(-50%)' };
-    }
+    // The dock spans the content column only, never the sidebar.
+    const c = contentBounds();
+    const last = step + 1 >= steps.length;
 
     return (
       <>
@@ -247,39 +196,46 @@ export default function MascotGuide() {
         )}
 
         <div
+          ref={dockRef}
           data-mascot
-          className={`mc-glide fixed z-[70] ${stacked ? 'flex flex-col items-start gap-1' : 'flex items-start gap-2'} ${leaving ? 'mc-out' : ''}`}
-          style={style}
           role="dialog"
           aria-label="CareerPath guide"
+          className={`fixed bottom-0 z-[70] border-t border-blue-100 bg-white/95 shadow-[0_-14px_40px_-16px_rgba(15,23,42,0.35)] backdrop-blur ${
+            leaving ? 'mc-out' : 'mc-bubble'
+          }`}
+          style={{ left: c.left - 8, right: window.innerWidth - c.right - 8 }}
         >
-          <Mascot pose={box ? 'guide' : 'hello'} height={size * 1.2} motion={box ? 'mc-nod' : 'mc-float'} className="mc-pop shrink-0" />
-
-          <div
-            key={step}
-            className="mc-bubble relative mt-2 rounded-2xl border border-blue-100 bg-white p-4 shadow-2xl"
-            style={{ width: stacked ? 'auto' : bubbleW, maxWidth: 'calc(100vw - 24px)' }}
-          >
-            <span
-              aria-hidden
-              className={`absolute h-4 w-4 rotate-45 border-blue-100 bg-white ${
-                stacked ? 'top-0 left-6 -translate-y-1/2 border-t border-l' : 'top-8 -left-2 border-b border-l'
-              }`}
+          <div className="mx-auto flex max-w-5xl items-end gap-3 px-4 pt-2 pb-3 sm:gap-5 sm:px-6">
+            <Mascot
+              pose={box ? 'guide' : 'hello'}
+              height={size}
+              motion={box ? 'mc-nod' : 'mc-float'}
+              className="mc-pop shrink-0"
             />
-            <p className="text-[0.68rem] font-black tracking-[0.14em] text-blue-600 uppercase">
-              Step {step + 1} of {steps.length}
-            </p>
-            <p className="mt-1.5 text-sm leading-relaxed font-semibold text-slate-800">{current.text}</p>
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <button type="button" onClick={finish} className="text-xs font-bold text-slate-400 hover:text-slate-700">
+
+            <div key={step} className="min-w-0 flex-1 pb-1">
+              <p className="text-[0.66rem] font-black tracking-[0.14em] text-blue-600 uppercase">
+                Step {step + 1} of {steps.length}
+              </p>
+              <p className="mt-1 text-sm leading-relaxed font-semibold text-slate-800 sm:text-[0.95rem]">
+                {current.text}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-3 pb-1">
+              <button
+                type="button"
+                onClick={finish}
+                className="text-xs font-bold text-slate-400 transition-colors hover:text-slate-700"
+              >
                 Skip
               </button>
               <button
                 type="button"
-                onClick={step + 1 >= steps.length ? finish : next}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-2 text-xs font-black text-white shadow-md shadow-blue-500/30 transition-transform active:scale-95"
+                onClick={last ? finish : next}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-blue-500/30 transition-transform active:scale-95"
               >
-                {step + 1 >= steps.length ? 'Got it!' : 'Next'}
+                {last ? 'Got it!' : 'Next'}
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -289,18 +245,6 @@ export default function MascotGuide() {
     );
   }
 
-  /* ---------------- Rest: the pet ---------------- */
-  return (
-    <MascotPet
-      small={small}
-      cheer={cheer}
-      pathname={pathname}
-      menu={menu}
-      setMenu={setMenu}
-      steps={steps}
-      onStartTour={startTour}
-      onGo={go}
-      onHide={() => setMode('hidden')}
-    />
-  );
+  // Between tours there is nothing to show.
+  return null;
 }

@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Rocket, Star } from 'lucide-react';
-import YatiMascot from '../career/components/game/YatiMascot';
+import Mascot from '../career/components/mascot/Mascot';
 import './yatiLoader.css';
 
 /**
- * 🤖 What the student watches while a page, their account, or a roadmap is
+ * What the student watches while a page, their account, or a roadmap is
  * on its way.
  *
- * YATI thinks in the middle of two slowly turning rings while a rocket and a
- * star orbit; under it, a line of encouragement changes every couple of
- * seconds and a gradient bar travels. Nothing here claims a percentage: a
+ * The CareerPath mascot floats in the middle of two slowly turning rings
+ * while a rocket and a star orbit; under it, a line of encouragement changes
+ * every couple of seconds and a gradient bar travels. Nothing here claims a percentage: a
  * request cannot be seen inside, so the bar only says "still going".
  *
  * Announces itself as a live region so a screen reader says what is loading;
@@ -24,11 +24,14 @@ const LINES = [
   'One task at a time is how it all gets done.'
 ];
 
+// The official cut-out for each mood the orbit is asked for.
+const POSE_FOR = { thinking: 'thinking', happy: 'excited', celebrating: 'confetti', pointing: 'point' };
+
 /** The mascot in its orbit, on its own so other screens can borrow it. */
 export function YatiOrbit({ size = 168, mood = 'thinking' }) {
   const ring = size;
   const inner = size * 0.78;
-  const mascot = size * 0.5;
+  const mascot = size * 0.56;
   return (
     <div className="relative shrink-0" style={{ width: ring, height: ring }} aria-hidden>
       <span className="yl-glow absolute inset-[18%] rounded-full bg-violet-300/60 blur-2xl" />
@@ -74,11 +77,8 @@ export function YatiOrbit({ size = 168, mood = 'thinking' }) {
       </span>
 
       {/* the mascot */}
-      <span
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-        style={{ width: mascot }}
-      >
-        <YatiMascot mood={mood} float />
+      <span className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
+        <Mascot pose={POSE_FOR[mood] || 'thinking'} height={mascot} motion="mc-float" />
       </span>
     </div>
   );

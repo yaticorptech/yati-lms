@@ -229,3 +229,46 @@
 @keyframes mascot-tag { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .mascot-eyes, .mascot-arm, .mascot-enter, .mascot-tag { animation: none; } }
 
+/* ── Community hero ── */
+.cm-drift { animation: cm-drift 5.5s ease-in-out infinite; }
+.cm-glow { animation: cm-glow 3.2s ease-in-out infinite; }
+.cm-ring { animation: cm-ring 2.6s ease-out infinite; }
+@keyframes cm-drift { 0%, 100% { transform: translate(0, 0) rotate(-6deg); } 50% { transform: translate(6px, -14px) rotate(8deg); } }
+@keyframes cm-glow { 0%, 100% { opacity: 0.55; transform: translateX(-50%) scale(1); } 50% { opacity: 0.95; transform: translateX(-50%) scale(1.12); } }
+@keyframes cm-ring { 0% { transform: translateX(-50%) scale(0.9); opacity: 0.6; } 100% { transform: translateX(-50%) scale(1.5); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cm-drift, .cm-glow, .cm-ring { animation: none; } }
+
+/* ── Page-entry motion for Enrolled Courses and Community ──
+   Rise: each block fades up into place. Stagger: children of a list rise one
+   after another. Sheen: one band of light crosses a hero on arrival. Shimmer:
+   the accent word's gradient drifts. Pop: chips spring in. */
+.lms-rise { animation: lms-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.lms-stagger > * { animation: lms-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.lms-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.lms-stagger > *:nth-child(2) { animation-delay: 0.12s; }
+.lms-stagger > *:nth-child(3) { animation-delay: 0.19s; }
+.lms-stagger > *:nth-child(4) { animation-delay: 0.26s; }
+.lms-stagger > *:nth-child(5) { animation-delay: 0.33s; }
+.lms-stagger > *:nth-child(6) { animation-delay: 0.40s; }
+.lms-stagger > *:nth-child(n+7) { animation-delay: 0.46s; }
+.lms-sheen { position: relative; overflow: hidden; }
+.lms-sheen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 35%, rgb(255 255 255 / 0.22) 50%, transparent 65%);
+  transform: translateX(-120%) skewX(-12deg);
+  animation: lms-sheen 1.6s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+  pointer-events: none;
+}
+.lms-shimmer { background-size: 200% 100%; animation: lms-shimmer 3.2s ease-in-out infinite; }
+.lms-pop { animation: lms-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.lms-bob { animation: lms-bob 2.6s ease-in-out infinite; }
+@keyframes lms-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes lms-sheen { to { transform: translateX(120%) skewX(-12deg); } }
+@keyframes lms-shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes lms-pop { 0% { opacity: 0; transform: scale(0.7); } 70% { opacity: 1; transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes lms-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .lms-rise, .lms-stagger > *, .lms-sheen::before, .lms-shimmer, .lms-pop, .lms-bob { animation: none; }
+}

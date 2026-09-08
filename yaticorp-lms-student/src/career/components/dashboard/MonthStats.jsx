@@ -50,7 +50,7 @@ function Sparkline({ values, stroke, fillFrom }) {
       viewBox={`0 0 ${width} ${height}`}
       aria-hidden="true"
       focusable="false"
-      className="h-7 w-[88px] shrink-0"
+      className="hidden h-7 w-[88px] shrink-0 min-[400px]:block"
     >
       <defs>
         <linearGradient id={`sk-${uid}`} x1="0" y1="0" x2="0" y2="1">

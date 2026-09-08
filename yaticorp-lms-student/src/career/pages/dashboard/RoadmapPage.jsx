@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Compass, Sparkles, RefreshCw, ArrowRight } from 'lucide-react';
+import { Compass, Sparkles, ArrowRight } from 'lucide-react';
 import api from '../../services/api';
 import RoadmapDisplay from '../../components/RoadmapDisplay';
 import PageHeader from '../../components/ui/PageHeader';
 import Button from '../../components/ui/Button';
-import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
 import ShareBadgeDialog from '../../components/roadmap/ShareBadgeDialog';
 import AiBudgetNotice from '../../components/AiBudgetNotice';
@@ -28,7 +27,6 @@ export default function RoadmapPage() {
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const confirm = useConfirm();
   const toast = useToast();
 
   useEffect(() => {
@@ -52,22 +50,10 @@ export default function RoadmapPage() {
     fetchRoadmap();
   }, []);
 
+  // Only ever called from the empty state. Generating is destructive on the
+  // server — it replaces the roadmap and everything built on it — so there is
+  // no "regenerate" offered once a roadmap exists.
   const handleGenerateRoadmap = async () => {
-    // Regenerating is destructive server-side: it deletes the existing roadmap
-    // along with every task, tracked skill, planner context, and recommendation.
-    // Only ask when there is something to lose.
-    if (roadmap) {
-      const ok = await confirm({
-        title: 'Regenerate your roadmap?',
-        message:
-          'This replaces your current roadmap and permanently deletes your tasks, tracked skills, planner history, and recommendations. Your XP and badges are kept.',
-        confirmLabel: 'Regenerate',
-        cancelLabel: 'Keep my roadmap',
-        destructive: true
-      });
-      if (!ok) return;
-    }
-
     try {
       setGenerating(true);
       setError(null);
@@ -172,16 +158,6 @@ export default function RoadmapPage() {
         <RoadmapDisplay
           data={roadmap}
           goal={goal}
-          headerAction={
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={RefreshCw}
-              onClick={handleGenerateRoadmap}
-            >
-              Regenerate
-            </Button>
-          }
           completedPhases={completedPhases}
           onShareBadge={shareBadge}
           badgeBusy={badgeBusy}

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Award, CalendarDays, Star, Zap } from 'lucide-react';
 import useCountUp from '../../../hooks/useCountUp';
 import Mascot from '../mascot/Mascot';
+import useMascotCycle, { SKILL_POSES } from '../mascot/useMascotCycle';
 
 /**
  * 🌟 The banner that opens the Skills page.
@@ -154,6 +155,8 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
   const shownXp = useCountUp(xp, 1000);
   const shownDone = useCountUp(completed, 900);
   const shownStreak = useCountUp(streak, 800);
+  // A different pose every few seconds, in the gap the scene leaves for it.
+  const look = useMascotCycle(SKILL_POSES);
 
   return (
     <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset">
@@ -170,13 +173,14 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
         className="pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] max-w-[520px] [mask-image:linear-gradient(to_right,transparent,black_18%)] md:block"
       >
         <BuildSkillsArt />
-        {/* The mascot, in the gap the scene leaves for it, pointing the
-            way to the skills. */}
+        {/* The mascot, in the gap the scene leaves for it, changing pose
+            every few seconds. */}
         <Mascot
-          pose="guide"
+          key={look.pose}
+          pose={look.pose}
           height={176}
-          motion="mc-float"
-          className="absolute bottom-1 left-1/2 -translate-x-[46%]"
+          motion={look.motion}
+          className="mc-pop absolute bottom-1 left-1/2 -translate-x-[46%]"
         />
       </div>
 
@@ -222,7 +226,6 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
 
           <Link
             to="/career/planner"
-            data-guide="skills-start"
             className="fp-press group mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
           >
             <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />

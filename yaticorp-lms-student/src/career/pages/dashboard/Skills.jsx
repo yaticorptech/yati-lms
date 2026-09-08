@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
-import { ArrowRight, CheckCircle2, Flame, Lock, Sparkles, Target, Trophy, Zap } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Flame, Lock, Target, Trophy, Zap } from 'lucide-react';
 import BuildSkillsBanner from '../../components/journey/BuildSkillsBanner';
 import SkillRail from '../../components/progress/SkillRail';
 import useCountUp from '../../../hooks/useCountUp';
@@ -10,7 +10,7 @@ import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
 import Button from '../../components/ui/Button';
 import {
-  LEVELS, PER_TASK, TASK_XP, initialsOf, nextLevel, progressOf, statusOf, tasksToNextLevel, tileFor, tilesFor
+  LEVELS, initialsOf, nextLevel, progressOf, statusOf, tasksToNextLevel, tileFor, tilesFor
 } from '../../utils/skills';
 import { currentStreak } from '../../utils/progress';
 import YatiLoader from '../../../components/YatiLoader';
@@ -207,7 +207,6 @@ export default function Skills() {
   const [badges, setBadges] = useState([]);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -246,20 +245,9 @@ export default function Skills() {
 
   const tiles = useMemo(() => tilesFor(skills), [skills]);
 
-  // Level pills, only the rungs with something on them. "All" always shows.
-  const pills = useMemo(
-    () =>
-      [
-        { key: 'all', label: 'All', count: skills.length },
-        ...LEVELS.map((l) => ({ key: l, label: l, count: skills.filter((s) => levelOf(s) === l).length }))
-      ].filter((p) => p.key === 'all' || p.count > 0),
-    [skills]
-  );
-
-  const visible = useMemo(
-    () => skills.filter((s) => filter === 'all' || levelOf(s) === filter),
-    [skills, filter]
-  );
+  // No level filter and no rule-of-the-game strip above the list: the bands
+  // below already sort the skills, and each row says what it is worth.
+  const visible = skills;
 
   // Three bands. Moving skills lead, furthest-along first; the rest sit in
   // rung order, then by name.
@@ -270,7 +258,6 @@ export default function Skills() {
     .filter((s) => statusOf(s) === 'pending')
     .sort((a, b) => LEVELS.indexOf(levelOf(a)) - LEVELS.indexOf(levelOf(b)) || byName(a, b));
 
-  const started = skills.filter((s) => progressOf(s) > 0).length;
   const completed = skills.filter((s) => statusOf(s) === 'completed').length;
   const streak = currentStreak(history);
 
@@ -305,44 +292,6 @@ export default function Skills() {
           />
         ) : (
           <Card padded={false} className="overflow-hidden">
-            {/* ---- Header: the rule of the game, said once ---- */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-100 px-4 py-3.5 sm:px-5">
-              <p className="flex items-center gap-2 text-sm text-ink-500">
-                <Sparkles className="h-4 w-4 shrink-0 text-journey-400" />
-                <span>
-                  <span className="font-bold text-ink-900">
-                    {started} of {skills.length}
-                  </span>{' '}
-                  started. Every finished task adds{' '}
-                  <span className="font-bold text-journey-700">{PER_TASK}%</span> to the skill it teaches and pays{' '}
-                  <span className="font-bold text-amber-600">+{TASK_XP} XP</span>.
-                </span>
-              </p>
-
-              <div role="tablist" aria-label="Filter skills by level" data-guide="skill-filters" className="flex flex-wrap gap-1.5">
-                {pills.map((p) => {
-                  const on = filter === p.key;
-                  return (
-                    <button
-                      key={p.key}
-                      type="button"
-                      role="tab"
-                      aria-selected={on}
-                      onClick={() => setFilter(p.key)}
-                      className={`fp-press inline-flex min-h-7 items-center gap-1 rounded-full px-3 py-1 text-xs font-bold transition-all ${
-                        on
-                          ? 'bg-journey-600 text-white shadow-md shadow-journey-500/25'
-                          : 'bg-surface-50 text-ink-600 ring-1 ring-line-200 ring-inset hover:bg-surface-100 hover:text-ink-900'
-                      }`}
-                    >
-                      {p.label}
-                      <span className={`tabular-nums ${on ? 'text-white/80' : 'text-ink-400'}`}>{p.count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             <div className="space-y-6 p-4 sm:p-5">
               {/* ---- IN PROGRESS ---- */}
               {active.length > 0 && (
@@ -416,12 +365,6 @@ export default function Skills() {
                 </section>
               )}
 
-              {visible.length === 0 && (
-                <p className="flex items-center gap-2 rounded-xl bg-surface-50 px-4 py-3 text-sm text-ink-500">
-                  <Target className="h-4 w-4 shrink-0 text-journey-400" />
-                  No {filter} skills yet.
-                </p>
-              )}
             </div>
           </Card>
         )}

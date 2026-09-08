@@ -9,7 +9,7 @@ import { useToast } from '../components/ui/Toast';
 import Button from '../components/ui/Button';
 import Card, { CardHeader } from '../components/ui/Card';
 import ProgressArt from '../components/progress/ProgressArt';
-import SkillsArt from '../components/progress/SkillsArt';
+import Mascot from '../components/mascot/Mascot';
 import ProgressStats from '../components/progress/ProgressStats';
 import { levelProgress, dayKey } from '../utils/progress';
 import { phaseStates, journeyPercent, phaseTitle, parseChoices } from '../utils/roadmap';
@@ -160,7 +160,7 @@ function RoadmapTrack({ phases, completedPhases, percent }) {
           connectors take every remaining pixel — so four phases stretch to
           both edges instead of bunching at the left, and a long roadmap still
           scrolls rather than squeezing. */}
-      <ol className="flex items-start overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ol className="flex snap-x snap-mandatory items-start overflow-x-auto pb-1 [scrollbar-width:none] [mask-image:linear-gradient(to_right,black_82%,transparent)] [&::-webkit-scrollbar]:hidden sm:snap-none sm:[mask-image:none]">
         {phases.map((phase, index) => {
           const state = states[index];
           const done = state === 'done';
@@ -294,8 +294,18 @@ function SkillsPanel({ skills }) {
         </ul>
       </div>
 
-      <div className="hidden shrink-0 self-center rounded-2xl bg-violet-50/70 p-2 lg:block">
-        <SkillsArt className="h-44 w-52" />
+      {/* The CareerPath mascot beside the skill bars — the official cut-out,
+          floating, with a couple of drifting sparks. Decorative: everything
+          it stands next to is stated in text. */}
+      <div
+        aria-hidden
+        className="relative hidden h-44 w-52 shrink-0 items-end justify-center self-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-50 via-surface to-pink-50 ring-1 ring-journey-100 ring-inset lg:flex"
+      >
+        <span className="fp-drift-icon absolute top-3 left-4 text-lg" style={{ animationDelay: '-1.4s' }}>✨</span>
+        <span className="fp-drift-icon absolute top-8 right-4 text-base" style={{ animationDelay: '-3.1s' }}>⭐</span>
+        <span className="fp-drift-icon absolute bottom-10 left-3 text-sm" style={{ animationDelay: '-2.2s' }}>⚡</span>
+        <span className="absolute bottom-2 left-1/2 h-5 w-28 -translate-x-1/2 rounded-full bg-journey-300/40 blur-lg" />
+        <Mascot pose="thumbs" height={150} motion="mc-float" className="relative mb-1" />
       </div>
     </div>
   );
@@ -575,8 +585,11 @@ export default function Profile() {
               ) : (
                 <ul className="divide-y divide-line-100">
                   {summary.skippedTasks.map((task) => (
-                    <li key={task._id} className="flex flex-wrap items-start gap-4 py-3.5 first:pt-0">
-                      <div className="min-w-0 flex-1">
+                    <li key={task._id} className="flex flex-wrap items-start gap-3 py-3.5 first:pt-0 sm:gap-4">
+                      {/* Full width on a phone, with the button beneath; a
+                          zero flex basis used to squeeze the title into a
+                          few words a line beside it. */}
+                      <div className="min-w-0 basis-full sm:flex-1 sm:basis-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-semibold text-ink-900">{task.title}</h3>
                           {/* A repeat is a signal the task is too big, not a
@@ -603,6 +616,7 @@ export default function Profile() {
                         loading={redoingId === task._id}
                         loadingText="Adding…"
                         onClick={() => handleRedo(task)}
+                        className="w-full sm:w-auto"
                       >
                         Do it today
                       </Button>
