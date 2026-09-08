@@ -29,6 +29,16 @@ const settingSchema = new mongoose.Schema({
     isRewardsEnabled: {
         type: Boolean,
         default: true
+    },
+    // Which Job Access Verification steps a student must finish before the
+    // job board opens. Each switch removes its step from the flow entirely;
+    // the server reads these, so the frontend never decides what is required.
+    jobVerification: {
+        requireAadhaar: { type: Boolean, default: true },
+        requireLinkedin: { type: Boolean, default: true },
+        requireResume: { type: Boolean, default: false },
+        requireLocation: { type: Boolean, default: true },
+        requireSkills: { type: Boolean, default: true }
     }
 }, { timestamps: true });
 

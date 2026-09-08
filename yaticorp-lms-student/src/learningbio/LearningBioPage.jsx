@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, PenLine, RefreshCw, Settings, ArrowLeft, Route, Brain, BookOpen, Award, Rocket, Trophy, Heart, Check, ChevronRight, Flag } from 'lucide-react';
+import { Sparkles, PenLine, RefreshCw, Settings, ArrowLeft, Download, Route, Brain, BookOpen, Award, Rocket, Trophy, Heart, Check, ChevronRight, Flag } from 'lucide-react';
 import { bioApi } from './api';
 import BioStrength from './BioStrength';
 import SkillProgress from './SkillProgress';
@@ -36,6 +36,7 @@ export default function LearningBioPage() {
     const regenerate = () => act('regenerate', () => bioApi.regenerate(), 'Your bio was rewritten from today\'s learning data.');
     const refresh = () => act('refresh', () => bioApi.refresh(), 'Learning data refreshed.');
     const changeInterests = (body) => act('interests', () => bioApi.interests(body));
+    const download = () => { setBusy('download'); setNotice(''); bioApi.downloadPdf(data?.user?.name).catch(setError).finally(() => setBusy('')); };
 
     if (data === undefined) return <div className="mx-auto max-w-5xl pb-12"><Analyzing /></div>;
     if (!data) return <div className="mx-auto max-w-5xl pb-12"><ErrorBox error={error} onRetry={load} /></div>;
@@ -59,6 +60,7 @@ export default function LearningBioPage() {
                         <div className="mt-3 max-w-md rounded-2xl bg-white/15 p-3 backdrop-blur"><BioStrength percent={data.strength.percent} compact /><p className="mt-1.5 text-xs text-indigo-50">{data.strength.nextStep}</p></div>
                     </div>
                     <div className="flex flex-wrap gap-2 sm:flex-col">
+                        <Btn icon={Download} onClick={download} loading={busy === 'download'} className="border-white/40 bg-white/15 text-white hover:bg-white/25">Download Bio</Btn>
                         <Btn icon={RefreshCw} onClick={refresh} loading={busy === 'refresh'} className="border-white/40 bg-white/15 text-white hover:bg-white/25">Refresh Learning Data</Btn>
                         <Btn icon={Settings} onClick={() => setModal('settings')} className="border-white/40 bg-white/15 text-white hover:bg-white/25">Bio Settings</Btn>
                     </div>

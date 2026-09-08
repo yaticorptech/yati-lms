@@ -8,7 +8,7 @@ import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet, Mic } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
@@ -339,6 +339,10 @@ const StudentLayout = () => {
                     <Compass size={20} /> <span>Career Path</span>
                 </Link>
             )}
+            {/* Interview Ready: preparation and AI mock interviews. */}
+            <Link to="/interview" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/interview') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                <Mic size={20} /> <span>Interview Ready</span>
+            </Link>
         </>
     );
 

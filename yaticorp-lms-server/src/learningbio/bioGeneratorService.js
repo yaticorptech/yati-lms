@@ -54,7 +54,7 @@ const mockGenerate = (d, interests) => {
         ? `I love taking on new challenges, learning continuously, and applying what I've learned in ${humanList(strong.slice(0, 2))} to real-world scenarios so I keep growing, both personally and professionally.`
         : `I love taking on new challenges, learning continuously, and applying what I learn in real-world scenarios to grow both personally and professionally.`;
 
-    const headline = d.headlineHint || (goal ? `Aspiring ${goal}` : areas[0] ? `${interests[0].label} learner` : 'Learner on YATICORP LMS');
+    const headline = d.headlineHint || (goal ? `Aspiring ${goal}` : areas[0] ? `${interests[0].label} learner` : 'Lifelong learner');
     return { headline: headline.slice(0, 80), bio: [p1, p2, p3].join('\n\n'), short: p1, model: 'mock' };
 };
 
@@ -84,7 +84,7 @@ Hard rules:
     1. who I am as a learner and how I learn — mention "online courses" only if completedCourses or ongoingCourses is non-empty, "assessments" only if assessments.passed is above zero, "hands-on projects" only if projects is non-empty, "certifications" only if certificates is non-empty; if experience or resumeHeadline is present, say what I do; weave in the interests. The resume-sourced skills count as much as course skills.
     2. begins "Right now, I'm focusing on" — name at most FOUR skills, chosen for relevance to the learning goal and interests (roadmap skills before resume skills), written exactly as they appear in the data (keep capitalisation), and the learning goal if present.
     3. a closing line about attitude and growth; it may name the strongest (Advanced) skills, nothing else new.
-- NO numbers of any kind: no counts, percentages, scores, dates or streaks. No emojis, hashtags, bullet points, asterisks or quotes.
+- NO numbers of any kind: no counts, percentages, scores, dates or streaks. No emojis, hashtags, bullet points, asterisks or quotes. Do not name the platform (no "YATICORP", no "LMS").
 - "short": the first paragraph only (max 35 words). "headline": at most 8 words.
 
 Answer ONLY with JSON: {"headline": string, "short": string, "bio": string}

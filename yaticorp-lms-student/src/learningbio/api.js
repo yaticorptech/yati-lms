@@ -22,7 +22,19 @@ export const bioApi = {
     refresh: () => post('/refresh'),
     saveBio: (body) => put('/bio', body),
     interests: (body) => put('/interests', body),
-    settings: (body) => put('/settings', body)
+    settings: (body) => put('/settings', body),
+    /** The bio as a PDF, handed to the browser as a download. */
+    downloadPdf: async (name = 'Learning_Bio') => {
+        const res = await client.get('/learning-bio/pdf', { responseType: 'blob' }).catch(unwrap);
+        const url = URL.createObjectURL(res.data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${String(name).replace(/[^A-Za-z0-9]+/g, '_')}_Learning_Bio.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
 };
 
 export const STATUS_TONE = {

@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
-import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, QrCode, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, BookOpen, UserPlus, User, Mail, Phone, CreditCard } from 'lucide-react';
+import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, QrCode, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 // Password strength validator
@@ -89,7 +89,7 @@ const Sparkle = ({ className, delay = 0, size = 'text-base' }) => (
 );
 
 const STEPS = [
-    ['Verify your card', 'Scan the QR code on your YATICORP card, or type it in.'],
+    ['Verify your card', 'Scan the QR code on your card, or type it in.'],
     ['Your details', 'Tell us your name, email and phone number.'],
     ['Set a password', 'Choose a strong password to protect your account.'],
 ];
@@ -274,17 +274,9 @@ const Signup = () => {
                         <div className="absolute -bottom-24 -left-10 h-56 w-[140%] rounded-[50%] bg-white/70 blur-md" />
                     </div>
 
-                    <div className="relative flex items-center gap-3">
-                        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/40 backdrop-blur"><BookOpen size={22} /></span>
-                        <div className="leading-tight">
-                            <p className="text-lg font-black tracking-tight">YATICORP</p>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-100">LMS Platform</p>
-                        </div>
-                    </div>
-
-                    <div className="relative mt-10 max-w-xs sm:mt-14">
+                    <div className="relative mt-4 max-w-xs sm:mt-6">
                         <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-[2.6rem]">
-                            Welcome<br />to <span className="text-cyan-300">YatiSphere</span>
+                            Welcome<br />to <span className="text-cyan-300">LearnHub</span>
                         </h1>
                         <p className="mt-4 max-w-[240px] text-sm leading-relaxed text-indigo-100">
                             Your smart learning journey starts here. Let&apos;s achieve great things together!
@@ -363,7 +355,7 @@ const Signup = () => {
                                                     className="lg-scan-ring mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-white text-indigo-500 shadow-lg shadow-indigo-200 transition-transform hover:scale-105">
                                                     <ScanLine size={44} strokeWidth={1.8} />
                                                 </button>
-                                                <p className="mt-4 text-lg font-bold text-slate-900">Scan your YATICORP card</p>
+                                                <p className="mt-4 text-lg font-bold text-slate-900">Scan your card</p>
                                                 <p className="mt-1 text-sm text-slate-500">Hold the QR code on your card up to the camera</p>
                                             </>
                                         ) : (

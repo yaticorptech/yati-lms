@@ -8,7 +8,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { AuthContext } from '../context/AuthContext';
 import { Navigate, Link } from 'react-router-dom';
 import api from '../utils/api';
-import { GraduationCap, Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, BookOpen } from 'lucide-react';
+import { GraduationCap, Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard } from 'lucide-react';
 
 // --- Contact Admin Modal ---
 const ContactAdminModal = ({ onClose, page = 'login' }) => {
@@ -276,7 +276,7 @@ const Login = () => {
                         <ol className="space-y-4 p-5">
                             {[
                                 ['Tap the scan area', 'Your browser will ask to use the camera. Allow it.'],
-                                ['Hold up your YATICORP card', 'Point the QR code on the card at the camera. It reads in a second.'],
+                                ['Hold up your card', 'Point the QR code on the card at the camera. It reads in a second.'],
                                 ['Enter your password', 'The card number fills itself in, so the password is all you type.']
                             ].map(([t, d], i) => (
                                 <li key={t} className="flex gap-3">
@@ -311,17 +311,9 @@ const Login = () => {
                         <div className="absolute -bottom-24 -left-10 h-56 w-[140%] rounded-[50%] bg-white/70 blur-md" />
                     </div>
 
-                    <div className="relative flex items-center gap-3">
-                        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/40 backdrop-blur"><BookOpen size={22} /></span>
-                        <div className="leading-tight">
-                            <p className="text-lg font-black tracking-tight">YATICORP</p>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-100">LMS Platform</p>
-                        </div>
-                    </div>
-
-                    <div className="relative mt-10 max-w-sm sm:mt-14">
+                    <div className="relative mt-4 max-w-sm sm:mt-6">
                         <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-[2.6rem]">
-                            Welcome back<br />to <span className="text-cyan-300">YatiSphere</span>
+                            Welcome back<br />to <span className="text-cyan-300">LearnHub</span>
                         </h1>
                         <p className="mt-4 max-w-[240px] text-sm leading-relaxed text-indigo-100">
                             Your smart learning journey starts here. Let&apos;s achieve great things together!
@@ -353,7 +345,7 @@ const Login = () => {
                                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300"><Lock size={18} /></span>
                             </span>
                             <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">Let&apos;s get you signed in</h2>
-                            <p className="mt-1.5 text-sm text-slate-500">Scan your YATICORP card or use your password to access your account.</p>
+                            <p className="mt-1.5 text-sm text-slate-500">Scan your card or use your password to access your account.</p>
                         </div>
 
                         <form className="lg-rise mt-6 space-y-5" onSubmit={handleLogin} style={{ animationDelay: '0.2s' }}>
@@ -390,7 +382,7 @@ const Login = () => {
                                                 className="lg-scan-ring mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-white text-indigo-500 shadow-lg shadow-indigo-200 transition-transform hover:scale-105 disabled:opacity-60">
                                                 {loading ? <Loader2 size={40} className="animate-spin" /> : <ScanLine size={44} strokeWidth={1.8} />}
                                             </button>
-                                            <p className="mt-4 text-lg font-bold text-slate-900">{loading ? 'Reading your card…' : 'Scan your YATICORP card'}</p>
+                                            <p className="mt-4 text-lg font-bold text-slate-900">{loading ? 'Reading your card…' : 'Scan your card'}</p>
                                             <p className="mt-1 text-sm text-slate-500">Hold the QR code on your card up to the camera</p>
                                             <button type="button" onClick={() => setShowHow(true)}
                                                 className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-4 py-1.5 text-xs font-bold text-indigo-600 transition-colors hover:bg-indigo-50">

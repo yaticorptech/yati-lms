@@ -17,6 +17,12 @@ const Scholarships = React.lazy(() => import('./pages/Scholarships'));
 // My Learning Bio — the AI-written, data-backed profile behind the dashboard card.
 const LearningBioPage = React.lazy(() => import('./learningbio/LearningBioPage'));
 const SharedBioPage = React.lazy(() => import('./learningbio/SharedBioPage'));
+// Interview Ready — preparation, AI mock interviews, reports and history.
+const InterviewDashboard = React.lazy(() => import('./interview/InterviewDashboard'));
+const PracticePage = React.lazy(() => import('./interview/PracticePage'));
+const MockInterview = React.lazy(() => import('./interview/MockInterview'));
+const InterviewReport = React.lazy(() => import('./interview/InterviewReport'));
+const InterviewHistory = React.lazy(() => import('./interview/InterviewHistory'));
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -118,6 +124,11 @@ function App() {
         <Route index element={<Profile />} />
         <Route path="enrolled-courses" element={<EnrolledCourses />} />
         <Route path="learning-bio" element={<React.Suspense fallback={<CareerFallback />}><LearningBioPage /></React.Suspense>} />
+        <Route path="interview" element={<React.Suspense fallback={<CareerFallback />}><InterviewDashboard /></React.Suspense>} />
+        <Route path="interview/practice" element={<React.Suspense fallback={<CareerFallback />}><PracticePage /></React.Suspense>} />
+        <Route path="interview/mock/:id" element={<React.Suspense fallback={<CareerFallback />}><MockInterview /></React.Suspense>} />
+        <Route path="interview/report/:id" element={<React.Suspense fallback={<CareerFallback />}><InterviewReport /></React.Suspense>} />
+        <Route path="interview/history" element={<React.Suspense fallback={<CareerFallback />}><InterviewHistory /></React.Suspense>} />
         {/* Dashboard and My Profile are one page now; the old address still lands there. */}
         <Route path="profile" element={<Navigate to="/" replace />} />
         <Route path="learn/:courseId" element={<CoursePlayer />} />
