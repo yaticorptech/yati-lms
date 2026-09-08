@@ -2,11 +2,12 @@
  * @author Preethesh Kulal
  * @description Multi-step student registration with QR code scan/manual entry
  */
+import Mascot from '../components/Mascot';
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
-import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, QrCode, Lock, Camera, Keyboard } from 'lucide-react';
+import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, QrCode, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, BookOpen, UserPlus, User, Mail, Phone, CreditCard } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 // Password strength validator
@@ -80,6 +81,23 @@ const ContactAdminModal = ({ onClose, page = 'signup' }) => {
     );
 };
 
+
+// A twinkling star, shared look with the login page. Module-level so the
+// page's re-renders do not remount it and restart its animation.
+const Sparkle = ({ className, delay = 0, size = 'text-base' }) => (
+    <span aria-hidden="true" className={`lg-twinkle pointer-events-none absolute ${size} ${className}`} style={{ animationDelay: `${delay}s` }}>✦</span>
+);
+
+const STEPS = [
+    ['Verify your card', 'Scan the QR code on your YATICORP card, or type it in.'],
+    ['Your details', 'Tell us your name, email and phone number.'],
+    ['Set a password', 'Choose a strong password to protect your account.'],
+];
+
+const inputClass = 'block w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-800 shadow-sm placeholder-slate-400 transition duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500';
+const primaryBtn = 'group relative flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:hover:translate-y-0';
+const backBtn = 'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50';
+
 const Signup = () => {
     const { setUser } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -99,11 +117,14 @@ const Signup = () => {
     // Card details fetched from backend after QR validation (stored internally)
     const [cardDetails, setCardDetails] = useState({ CardNumber: '', CVV: '' });
 
-    // Camera scanner state
-    const [scanMode, setScanMode] = useState('manual'); // 'manual' | 'camera'
-    const [scannerError, setScannerError] = useState('');
+    /* Reading the card. Same shape as the login page: a scan / type switch,
+       a camera that only runs while `scanning` is true, and a fallback to
+       typing when the camera is not available. */
+    const [mode, setMode] = useState('scan');          // 'scan' | 'manual'
+    const [scanning, setScanning] = useState(false);
+    const [scanError, setScanError] = useState('');
     const scannerRef = useRef(null);
-    const scannerDivId = 'qr-reader-signup';
+    const SCANNER_ID = 'signup-card-scanner';
 
     const [formData, setFormData] = useState({
         name: '',
@@ -113,51 +134,45 @@ const Signup = () => {
         confirmPassword: ''
     });
 
-    // Start camera scanner
-    const startScanner = async () => {
-        setScannerError('');
-        try {
-            const html5QrCode = new Html5Qrcode(scannerDivId);
-            scannerRef.current = html5QrCode;
-            await html5QrCode.start(
-                { facingMode: 'environment' },
-                { fps: 10, qrbox: { width: 220, height: 220 } },
-                (decodedText) => {
-                    // On successful scan
-                    const value = decodedText.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    setQrCodeNumber(value);
-                    stopScanner();
-                    setScanMode('manual');
-                },
-                () => {} // ignore per-frame errors
-            );
-        } catch {
-            setScannerError('Camera access denied or not available. Please enter the QR code manually.');
-            setScanMode('manual');
-        }
-    };
-
     const stopScanner = () => {
-        if (scannerRef.current) {
-            scannerRef.current.stop().catch(() => {});
-            scannerRef.current = null;
-        }
+        const inst = scannerRef.current;
+        scannerRef.current = null;
+        // stop() and clear() throw synchronously when the camera is not
+        // running (start still pending, or already stopped) — guard both.
+        if (!inst) return;
+        try {
+            Promise.resolve(inst.stop()).then(() => { try { inst.clear(); } catch { /* already clear */ } }).catch(() => {});
+        } catch { /* was not running */ }
     };
 
     useEffect(() => {
-        if (scanMode === 'camera') {
-            startScanner();
-        } else {
-            stopScanner();
-        }
-        return () => stopScanner();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [scanMode]);
+        if (!scanning) { stopScanner(); return undefined; }
+        let cancelled = false;
+        const inst = new Html5Qrcode(SCANNER_ID);
+        scannerRef.current = inst;
+        inst.start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 220, height: 220 } },
+            (decodedText) => {
+                if (cancelled) return;
+                setQrCodeNumber(decodedText.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''));
+                setScanError('');
+                setScanning(false);
+            },
+            () => {}   // a frame without a code is not an error
+        ).catch(() => {
+            if (cancelled) return;
+            scannerRef.current = null;
+            setScanning(false);
+            setScanError('The camera is not available. Type your QR code instead.');
+            setMode('manual');
+        });
+        return () => { cancelled = true; stopScanner(); };
+    }, [scanning]);
 
-    // Stop scanner when moving away from step 1
-    useEffect(() => {
-        if (step !== 1) stopScanner();
-    }, [step]);
+    // Stop the camera when moving away from step 1, and on unmount.
+    useEffect(() => { if (step !== 1) setScanning(false); }, [step]);
+    useEffect(() => () => stopScanner(), []);
 
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -234,196 +249,224 @@ const Signup = () => {
         }
     };
 
+    const [stepTitle, stepHint] = STEPS[step - 1];
+
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-            <div className="absolute top-0 left-1/2 -ml-[40rem] w-[80rem] h-[40rem] opacity-20 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-300 via-white to-transparent transform -translate-y-1/2 rounded-full pointer-events-none"></div>
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-3 sm:p-6">
+            {showContact && <ContactAdminModal onClose={() => setShowContact(false)} page="signup" />}
 
-            <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center">
-                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-lg ring-1 ring-slate-200/70 mb-6">
-                    <img src="/assets/favicon.ico" alt="YATICORP" className="w-10 h-10 object-contain" />
-                </div>
-                <h2 className="text-center text-3xl font-black tracking-tight text-slate-900">Create your account</h2>
-                <p className="mt-2 text-center text-sm text-slate-500">
-                    {step === 1 && 'Step 1: QR Code Verification'}
-                    {step === 2 && 'Step 2: Personal Details'}
-                    {step === 3 && 'Step 3: Set Your Password'}
-                </p>
-                {/* Stepper Dots */}
-                <div className="flex justify-center items-center space-x-2 mt-4">
-                    {[1, 2, 3].map(s => (
-                        <div key={s} className={`h-2.5 rounded-full transition-all duration-300 ${step === s ? 'bg-indigo-600 w-6' : step > s ? 'bg-green-500 w-2.5' : 'bg-slate-300 w-2.5'}`}></div>
-                    ))}
-                </div>
-            </div>
+            <div className="lg-rise grid w-full max-w-5xl overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-indigo-200/70 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
 
-            <div className="mt-8 sm:mx-auto sm:w-full relative z-10 sm:max-w-md">
-                <div className="bg-white/80 backdrop-blur-xl py-8 px-4 shadow-xl sm:rounded-3xl sm:px-10 border border-white/50">
+                {/* ── Left: the welcome panel ──────────────────────────── */}
+                <aside className="relative overflow-hidden bg-gradient-to-b from-indigo-600 via-violet-600 to-violet-200 p-7 text-white sm:p-9 lg:min-h-[640px]">
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+                        <div className="lg-blob absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+                        <div className="absolute right-10 top-24 h-12 w-12 rounded-full bg-white/15" />
+                        <div className="absolute right-24 top-64 h-7 w-7 rounded-full bg-white/15" />
+                        <div className="absolute left-8 top-1/2 h-4 w-4 rounded-full bg-white/20" />
+                        <Sparkle className="left-[46%] top-[9%] text-white" delay={0.3} size="text-xs" />
+                        <Sparkle className="left-[70%] top-[22%] text-white" delay={1.4} size="text-sm" />
+                        <Sparkle className="left-[16%] top-[40%] text-white" delay={0.9} size="text-xs" />
+                        <Sparkle className="left-[58%] top-[45%] text-white" delay={2.1} size="text-base" />
+                        <Sparkle className="left-[30%] top-[52%] text-white" delay={1.8} size="text-xs" />
+                        <Sparkle className="left-[80%] top-[58%] text-white" delay={0.6} size="text-sm" />
+                        {/* The pale foreground wave the illustration stands on. */}
+                        <div className="absolute -bottom-24 -left-10 h-56 w-[140%] rounded-[50%] bg-white/70 blur-md" />
+                    </div>
 
-                    {error && (
-                        <div className="mb-6 p-4 rounded-xl bg-red-50/50 border border-red-200 flex items-start space-x-3">
-                            <span className="text-red-500 mt-0.5">⚠️</span>
-                            <div className="text-sm font-medium text-red-800">{error}</div>
+                    <div className="relative flex items-center gap-3">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/20 ring-1 ring-white/40 backdrop-blur"><BookOpen size={22} /></span>
+                        <div className="leading-tight">
+                            <p className="text-lg font-black tracking-tight">YATICORP</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-100">LMS Platform</p>
                         </div>
-                    )}
+                    </div>
 
-                    {/* Step 1: QR Code */}
-                    {step === 1 && (
-                        <form className="space-y-5" onSubmit={handleValidateQR}>
-                            <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">QR Code Verification</h3>
+                    <div className="relative mt-10 max-w-xs sm:mt-14">
+                        <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-[2.6rem]">
+                            Welcome<br />to <span className="text-cyan-300">YatiSphere</span>
+                        </h1>
+                        <p className="mt-4 max-w-[240px] text-sm leading-relaxed text-indigo-100">
+                            Your smart learning journey starts here. Let&apos;s achieve great things together!
+                        </p>
+                    </div>
 
-                            <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100 flex items-start gap-3">
-                                <QrCode size={20} className="text-indigo-600 mt-0.5 flex-shrink-0" />
-                                <p className="text-sm text-indigo-800">
-                                    Scan or manually enter the QR Code from your activation card. Your card details will be fetched automatically.
-                                </p>
+                    {/* The mascot with the floating tiles. */}
+                    <div aria-hidden="true" className="relative mt-8 h-72 sm:h-80 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:h-[52%]">
+                        <span className="lg-float absolute right-8 top-2 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 text-3xl shadow-lg ring-1 ring-white/40 backdrop-blur">🏆</span>
+                        <span className="lg-float absolute left-4 top-16 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-2xl shadow-lg ring-1 ring-white/40 backdrop-blur" style={{ animationDelay: '-2.4s' }}>📈</span>
+                        <span className="mascot-tag absolute right-4 top-[38%] z-10 whitespace-nowrap rounded-2xl rounded-bl-sm bg-white px-3.5 py-2 text-sm font-black leading-tight text-indigo-700 shadow-lg">
+                            Hi! Let&apos;s learn<br />together 👋
+                        </span>
+                        {/* A box capped by both height and width, so the character is
+                            never wider than the panel and never cut off. */}
+                        <div className="mascot-enter absolute bottom-0 left-1/2 aspect-[16/17] h-[92%] max-w-[70%] -translate-x-1/2">
+                            <div className="lg-float h-full w-full" style={{ animationDelay: '-1.2s' }}>
+                                <Mascot className="h-full w-full object-contain drop-shadow-2xl" />
                             </div>
+                        </div>
+                    </div>
+                </aside>
 
-                            {/* Toggle buttons */}
-                            <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
-                                <button
-                                    type="button"
-                                    onClick={() => setScanMode('manual')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${scanMode === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    <Keyboard size={15} /> Manual Entry
+                {/* ── Right: the sign-up card ──────────────────────────── */}
+                <section className="relative bg-white px-5 py-8 sm:px-10 sm:py-10">
+                    <div className="mx-auto max-w-md">
+                        <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
+                            <span className="lg-float flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 ring-1 ring-indigo-100">
+                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300"><UserPlus size={18} /></span>
+                            </span>
+                            <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">Create your account</h2>
+                            <p className="mt-1.5 text-sm text-slate-500">{stepHint}</p>
+
+                            {/* Stepper: which of the three steps we are on. */}
+                            <div className="mt-4 flex items-center gap-2" aria-label={`Step ${step} of 3: ${stepTitle}`}>
+                                {[1, 2, 3].map(s => (
+                                    <span key={s} className={`h-2.5 rounded-full transition-all duration-300 ${step === s ? 'w-7 bg-indigo-600' : step > s ? 'w-2.5 bg-emerald-500' : 'w-2.5 bg-slate-200'}`} />
+                                ))}
+                                <span className="ml-1 text-xs font-bold uppercase tracking-wider text-slate-400">Step {step} of 3</span>
+                            </div>
+                        </div>
+
+                        {/* Step 1: card QR */}
+                        {step === 1 && (
+                            <form className="lg-rise mt-6 space-y-5" onSubmit={handleValidateQR} style={{ animationDelay: '0.2s' }}>
+                                {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">{error}</div>}
+
+                                {/* Scan / type, as one bordered switch */}
+                                <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
+                                    {[['scan', 'Scan Card', ScanLine], ['manual', 'Type Instead', Keyboard]].map(([id, label, Icon]) => (
+                                        <button key={id} type="button"
+                                            onClick={() => { setScanError(''); setScanning(false); setMode(id); }}
+                                            className={`inline-flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold transition-all ${mode === id ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
+                                            <Icon size={16} /> {label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {mode === 'scan' && qrCodeNumber ? (
+                                    <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                                        <CheckCircle2 size={22} className="shrink-0 text-emerald-600" />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-xs font-semibold text-emerald-700">Card read</p>
+                                            <p className="font-mono text-lg tracking-widest text-slate-800">{qrCodeNumber}</p>
+                                        </div>
+                                        <button type="button" onClick={() => { setQrCodeNumber(''); setScanError(''); }}
+                                            className="shrink-0 text-xs font-bold text-emerald-700 hover:underline">Change</button>
+                                    </div>
+                                ) : mode === 'scan' ? (
+                                    <div className="rounded-2xl border-2 border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/70 p-6 text-center">
+                                        {/* html5-qrcode needs this element present before it starts. */}
+                                        <div id={SCANNER_ID} className={`overflow-hidden rounded-xl bg-slate-900 ${scanning ? 'block' : 'hidden'}`} />
+                                        {!scanning ? (
+                                            <>
+                                                <button type="button" onClick={() => { setScanError(''); setScanning(true); }} aria-label="Scan your card"
+                                                    className="lg-scan-ring mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-white text-indigo-500 shadow-lg shadow-indigo-200 transition-transform hover:scale-105">
+                                                    <ScanLine size={44} strokeWidth={1.8} />
+                                                </button>
+                                                <p className="mt-4 text-lg font-bold text-slate-900">Scan your YATICORP card</p>
+                                                <p className="mt-1 text-sm text-slate-500">Hold the QR code on your card up to the camera</p>
+                                            </>
+                                        ) : (
+                                            <button type="button" onClick={() => setScanning(false)}
+                                                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                                                <X size={13} /> Stop the camera
+                                            </button>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><QrCode size={15} className="text-slate-500" /> QR Code</label>
+                                        <input type="text" required maxLength={11} value={qrCodeNumber}
+                                            onChange={(e) => setQrCodeNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                                            className={`${inputClass} font-mono tracking-widest`}
+                                            placeholder="e.g. QR12345678" />
+                                        <p className="mt-1.5 text-xs text-slate-500">Found on the back of your physical or digital card.</p>
+                                    </div>
+                                )}
+
+                                {scanError && (
+                                    <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                                        <CameraOff size={14} className="mt-0.5 shrink-0" /> {scanError}
+                                    </p>
+                                )}
+
+                                <button type="submit" disabled={qrValidating || !qrCodeNumber.trim()} className={primaryBtn}>
+                                    {qrValidating ? 'Verifying your card…' : 'Verify Card'}
+                                    {!qrValidating && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setScanMode('camera')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${scanMode === 'camera' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    <Camera size={15} /> Scan Camera
-                                </button>
-                            </div>
+                            </form>
+                        )}
 
-                            {/* Camera scanner view */}
-                            {scanMode === 'camera' && (
-                                <div className="space-y-3">
-                                    <div id={scannerDivId} className="w-full rounded-xl overflow-hidden border border-slate-200" />
-                                    {scannerError && (
-                                        <p className="text-xs text-red-500 font-medium">{scannerError}</p>
-                                    )}
-                                    <p className="text-xs text-slate-400 text-center">Point your camera at the QR code on your card</p>
+                        {/* Step 2: personal details */}
+                        {step === 2 && (
+                            <form className="lg-rise mt-6 space-y-5" onSubmit={handlePersonalDetailsNext} style={{ animationDelay: '0.2s' }}>
+                                {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">{error}</div>}
+
+                                {/* The card we verified in step 1, read-only. */}
+                                <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                                    <CheckCircle2 size={22} className="shrink-0 text-emerald-600" />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-semibold text-emerald-700">Card verified</p>
+                                        <p className="font-mono text-lg tracking-wider text-slate-800">{cardDetails.CardNumber}</p>
+                                    </div>
+                                    <CreditCard size={18} className="shrink-0 text-emerald-600/70" />
                                 </div>
-                            )}
 
-                            {/* Manual entry */}
-                            {scanMode === 'manual' && (
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1">QR Code *</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        maxLength={11}
-                                        placeholder="Enter QR Code (e.g. QR12345678)"
-                                        value={qrCodeNumber}
-                                        onChange={(e) => {
-                                            const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                                            setQrCodeNumber(value);
-                                        }}
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-mono tracking-widest text-indigo-900"
-                                    />
-                                    <p className="mt-1 text-xs text-slate-500">Found on the back of your physical or digital card.</p>
+                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><User size={15} className="text-slate-500" /> Full Name</label>
+                                    <input type="text" name="name" required value={formData.name} onChange={handleInputChange} className={inputClass} placeholder="Your full name" />
                                 </div>
-                            )}
-
-                            {/* Show scanned value if camera was used */}
-                            {scanMode === 'manual' && qrCodeNumber && (
-                                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                                    <QrCode size={14} className="text-emerald-600 flex-shrink-0" />
-                                    <span className="text-xs font-mono text-emerald-800 tracking-widest">{qrCodeNumber}</span>
-                                </div>
-                            )}
-
-                            <button
-                                type="submit"
-                                disabled={qrValidating || !qrCodeNumber.trim()}
-                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all"
-                            >
-                                {qrValidating ? 'Validating...' : 'Validate QR Code →'}
-                            </button>
-                        </form>
-                    )}
-
-                    {/* Step 2: Personal Details */}
-                    {step === 2 && (
-                        <form className="space-y-4" onSubmit={handlePersonalDetailsNext}>
-                            <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100 mb-4 flex items-start space-x-3">
-                                <CheckCircle2 size={18} className="text-indigo-600 mt-0.5 flex-shrink-0" />
                                 <div>
-                                    <h4 className="text-sm font-bold text-indigo-900">QR Code Verified</h4>
-                                    <p className="text-xs text-indigo-700 mt-0.5">Card details fetched securely. Please provide your personal details.</p>
+                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Mail size={15} className="text-slate-500" /> Email</label>
+                                    <input type="email" name="email" required value={formData.email} onChange={handleInputChange} className={inputClass} placeholder="you@gmail.com" />
+                                    <p className="mt-1.5 text-xs text-slate-500">Only @gmail.com addresses are accepted.</p>
                                 </div>
-                            </div>
-
-                            {/* Read-only card info display */}
-                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-                                <Lock size={16} className="text-slate-400 flex-shrink-0" />
                                 <div>
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Card Number (auto-fetched)</p>
-                                    <p className="font-mono text-slate-800 text-sm tracking-widest">{cardDetails.CardNumber}</p>
+                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Phone size={15} className="text-slate-500" /> Phone Number</label>
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={formData.phoneCode || '+91'}
+                                            onChange={e => setFormData({ ...formData, phoneCode: e.target.value })}
+                                            className="w-24 rounded-xl border border-slate-200 bg-white px-2 py-3 text-sm text-slate-800 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="+91">🇮🇳 +91</option>
+                                            <option value="+1">🇺🇸 +1</option>
+                                            <option value="+44">🇬🇧 +44</option>
+                                            <option value="+971">🇦🇪 +971</option>
+                                            <option value="+61">🇦🇺 +61</option>
+                                            <option value="+65">🇸🇬 +65</option>
+                                            <option value="+60">🇲🇾 +60</option>
+                                        </select>
+                                        <input
+                                            type="tel"
+                                            name="phone"
+                                            required
+                                            inputMode="numeric"
+                                            placeholder="Phone number"
+                                            value={formData.phone}
+                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
+                                            className={`${inputClass} flex-1`}
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">Personal Details</h3>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Full Name *</label>
-                                <input type="text" name="name" required value={formData.name} onChange={handleInputChange} className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Email *</label>
-                                <input type="email" name="email" required value={formData.email} onChange={handleInputChange} className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                <p className="mt-1 text-xs text-slate-400">Only @gmail.com addresses are accepted.</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Phone Number *</label>
-                                <div className="flex gap-2">
-                                    <select
-                                        value={formData.phoneCode || '+91'}
-                                        onChange={e => setFormData({ ...formData, phoneCode: e.target.value })}
-                                        className="px-2 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-white text-sm w-24"
-                                    >
-                                        <option value="+91">🇮🇳 +91</option>
-                                        <option value="+1">🇺🇸 +1</option>
-                                        <option value="+44">🇬🇧 +44</option>
-                                        <option value="+971">🇦🇪 +971</option>
-                                        <option value="+61">🇦🇺 +61</option>
-                                        <option value="+65">🇸🇬 +65</option>
-                                        <option value="+60">🇲🇾 +60</option>
-                                    </select>
-                                    <input
-                                        type="tel"
-                                        name="phone"
-                                        required
-                                        placeholder="Phone number"
-                                        value={formData.phone}
-                                        onChange={(e) => {
-                                            const digits = e.target.value.replace(/\D/g, '');
-                                            setFormData({ ...formData, phone: digits });
-                                        }}
-                                        className="flex-1 px-4 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    />
+                                <div className="flex gap-3">
+                                    <button type="button" onClick={() => { setError(null); setStep(1); setQrValidated(false); }} className={backBtn}><ArrowLeft size={15} /> Back</button>
+                                    <button type="submit" className={primaryBtn}>
+                                        Continue
+                                        <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>
+                                    </button>
                                 </div>
-                            </div>
+                            </form>
+                        )}
 
-                            <div className="flex space-x-3 pt-4 border-t border-slate-100">
-                                <button type="button" onClick={() => { setStep(1); setQrValidated(false); }} className="w-1/3 flex justify-center py-3 px-4 border border-slate-300 rounded-xl text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all">Back</button>
-                                <button type="submit" className="w-2/3 flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all">Next Step →</button>
-                            </div>
-                        </form>
-                    )}
+                        {/* Step 3: password */}
+                        {step === 3 && (
+                            <form className="lg-rise mt-6 space-y-5" onSubmit={handleRegistrationSubmit} style={{ animationDelay: '0.2s' }}>
+                                {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">{error}</div>}
 
-                    {/* Step 3: Password */}
-                    {step === 3 && (
-                        <form className="space-y-5" onSubmit={handleRegistrationSubmit}>
-                            <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">Set Your Password</h3>
-
-                            {/* No course to pick any more. Every published bundle is open
-                                to a signed-in student, so asking them to choose one thing
-                                up front only made the rest look unavailable. */}
-                            <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Set Password *</label>
+                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Password</label>
                                     <div className="relative">
                                         <input
                                             type={showPassword ? 'text' : 'password'}
@@ -433,16 +476,18 @@ const Signup = () => {
                                             onChange={handleInputChange}
                                             onFocus={() => setPasswordFocused(true)}
                                             onBlur={() => setPasswordFocused(false)}
-                                            className="w-full px-4 py-2 pr-11 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            className={`${inputClass} pr-12`}
+                                            placeholder="Create a password"
                                         />
-                                        <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 p-1" tabIndex={-1}>
-                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        <button type="button" onClick={() => setShowPassword(v => !v)} tabIndex={-1}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-700">
+                                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                     </div>
 
                                     {/* Live strength checklist — only shown while typing */}
                                     {(passwordFocused || formData.password.length > 0) && (
-                                        <div className="mt-2 space-y-1">
+                                        <div className="mt-3 grid grid-cols-1 gap-1 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 sm:grid-cols-2">
                                             {[
                                                 { label: 'At least 8 characters', ok: formData.password.length >= 8 },
                                                 { label: 'One uppercase letter', ok: /[A-Z]/.test(formData.password) },
@@ -458,8 +503,9 @@ const Signup = () => {
                                         </div>
                                     )}
                                 </div>
+
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Confirm Password *</label>
+                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Confirm Password</label>
                                     <div className="relative">
                                         <input
                                             type={showConfirmPassword ? 'text' : 'password'}
@@ -467,36 +513,39 @@ const Signup = () => {
                                             required
                                             value={formData.confirmPassword}
                                             onChange={handleInputChange}
-                                            className="w-full px-4 py-2 pr-11 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            className={`${inputClass} pr-12`}
+                                            placeholder="Repeat your password"
                                         />
-                                        <button type="button" onClick={() => setShowConfirmPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 p-1" tabIndex={-1}>
-                                            {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        <button type="button" onClick={() => setShowConfirmPassword(v => !v)} tabIndex={-1}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-700">
+                                            {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="flex space-x-3 pt-2">
-                                <button type="button" onClick={() => setStep(2)} className="w-1/3 flex justify-center py-3 px-4 border border-slate-300 rounded-xl text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all">Back</button>
-                                <button type="submit" disabled={loading} className="w-2/3 flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all">
-                                    {loading ? 'Creating...' : 'Register & Login'}
-                                </button>
-                            </div>
-                        </form>
-                    )}
-                </div>
+                                <div className="flex gap-3">
+                                    <button type="button" onClick={() => { setError(null); setStep(2); }} className={backBtn}><ArrowLeft size={15} /> Back</button>
+                                    <button type="submit" disabled={loading} className={primaryBtn}>
+                                        {loading ? 'Creating your account…' : 'Create Account'}
+                                        {!loading && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
 
-                <p className="mt-6 text-center text-sm text-slate-600">
-                    Already have an account?{' '}
-                    <Link to="/login" className="font-bold text-indigo-600 hover:text-indigo-500 hover:underline transition-colors">Sign in here</Link>
-                </p>
-                <div className="mt-4 text-center">
-                    <button onClick={() => setShowContact(true)} className="inline-flex items-center text-sm text-slate-500 hover:text-indigo-600 font-medium transition-colors group">
-                        <MessageCircleQuestion size={15} className="mr-1.5" />Having trouble? Contact Admin
-                    </button>
-                </div>
+                        <button type="button" onClick={() => setShowContact(true)}
+                            className="lg-rise mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50" style={{ animationDelay: '0.3s' }}>
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600"><MessageCircleQuestion size={16} /></span>
+                            <span className="flex-1">Having trouble? <span className="font-bold text-indigo-600">Contact Admin</span></span>
+                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white ring-1 ring-slate-200"><ChevronRight size={15} className="text-slate-500" /></span>
+                        </button>
+
+                        <p className="mt-5 text-center text-xs text-slate-500">
+                            Already have an account? <Link to="/login" className="font-bold text-indigo-600 hover:underline">Sign in here</Link>
+                        </p>
+                    </div>
+                </section>
             </div>
-            {showContact && <ContactAdminModal onClose={() => setShowContact(false)} page="signup" />}
         </div>
     );
 };

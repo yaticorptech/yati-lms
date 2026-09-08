@@ -196,7 +196,12 @@ const Login = () => {
     const stopScanner = () => {
         const inst = scannerRef.current;
         scannerRef.current = null;
-        if (inst) inst.stop().then(() => inst.clear()).catch(() => {});
+        // stop() and clear() throw synchronously when the camera is not
+        // running (start still pending, or already stopped) — guard both.
+        if (!inst) return;
+        try {
+            Promise.resolve(inst.stop()).then(() => { try { inst.clear(); } catch { /* already clear */ } }).catch(() => {});
+        } catch { /* was not running */ }
     };
 
     // Hand the scanned code to the server, which answers with the card number.
@@ -212,7 +217,12 @@ const Login = () => {
             setError('');
             setTimeout(() => passwordRef.current?.focus(), 60);
         } catch (err) {
-            setScanError(err.response?.data?.message || 'That card could not be read. Try again, or type the number.');
+            setScanError(
+                err.response?.data?.message
+                    || (!err.response
+                        ? 'Could not reach the server to check that card. Make sure the server is running and you are online, then try again or type the number.'
+                        : 'That card could not be read. Try again, or type the number.')
+            );
         } finally {
             setLoading(false);
         }
@@ -309,9 +319,9 @@ const Login = () => {
                         </div>
                     </div>
 
-                    <div className="relative mt-10 max-w-xs sm:mt-14">
+                    <div className="relative mt-10 max-w-sm sm:mt-14">
                         <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-[2.6rem]">
-                            Welcome<br />to <span className="text-cyan-300">YATICORP<br />LMS</span>
+                            Welcome back<br />to <span className="text-cyan-300">YatiSphere</span>
                         </h1>
                         <p className="mt-4 max-w-[240px] text-sm leading-relaxed text-indigo-100">
                             Your smart learning journey starts here. Let&apos;s achieve great things together!
@@ -322,7 +332,7 @@ const Login = () => {
                     <div aria-hidden="true" className="relative mt-8 h-72 sm:h-80 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:h-[52%]">
                         <span className="lg-float absolute right-8 top-2 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 text-3xl shadow-lg ring-1 ring-white/40 backdrop-blur">🏆</span>
                         <span className="lg-float absolute left-4 top-16 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-2xl shadow-lg ring-1 ring-white/40 backdrop-blur" style={{ animationDelay: '-2.4s' }}>📈</span>
-                        <span className="mascot-tag absolute right-4 top-[38%] rounded-2xl rounded-bl-sm bg-white px-3.5 py-2 text-sm font-black leading-tight text-indigo-700 shadow-lg">
+                        <span className="mascot-tag absolute right-4 top-[38%] z-10 whitespace-nowrap rounded-2xl rounded-bl-sm bg-white px-3.5 py-2 text-sm font-black leading-tight text-indigo-700 shadow-lg">
                             Hi! Let&apos;s learn<br />together 👋
                         </span>
                         {/* A box capped by both height and width, so the character is

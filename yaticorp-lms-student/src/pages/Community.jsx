@@ -4,15 +4,22 @@
  */
 import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageSquare, Plus, X, MessageCircle, AlertCircle } from 'lucide-react';
+import { MessageSquare, Plus, X, MessageCircle, AlertCircle, Sparkles, HelpCircle, Lightbulb, Users, Clock3 } from 'lucide-react';
+import Mascot from '../career/components/mascot/Mascot';
+import useMascotCycle, { COMMUNITY_POSES } from '../career/components/mascot/useMascotCycle';
 import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import useAutoRefresh from '../hooks/useAutoRefresh';
+import YatiLoader from '../components/YatiLoader';
+import useMinimumLoading from '../hooks/useMinimumLoading';
 
 const Community = () => {
     const { user } = useContext(AuthContext);
     const [posts, setPosts] = useState([]);
     const [_loading, setLoading] = useState(true);
+    // Only the first load shows the loader; the 30-second refreshes stay
+    // silent so the list does not blink away while someone is reading it.
+    const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [newPost, setNewPost] = useState({ title: '', content: '' });
@@ -32,10 +39,29 @@ const Community = () => {
             setError('Failed to load community discussions. Please try again.');
         } finally {
             setLoading(false);
+            setLoaded(true);
         }
     };
 
     useAutoRefresh(fetchPosts, 30000);
+    const showLoader = useMinimumLoading(!loaded);
+    const look = useMascotCycle(COMMUNITY_POSES);
+    const replyTotal = (posts || []).reduce((n, p) => n + (p.commentCount || 0), 0);
+
+    // "3 hours ago" reads faster than a date on a feed.
+    const timeAgo = (iso) => {
+        const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+        if (s < 60) return 'just now';
+        if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+        if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+        if (s < 86400 * 7) return `${Math.floor(s / 86400)} d ago`;
+        return new Date(iso).toLocaleDateString();
+    };
+    const openWith = (title) => {
+        setEditingPostId(null);
+        setNewPost({ title, content: '' });
+        setShowModal(true);
+    };
 
     useEffect(() => {
     if (toast.show) {
@@ -127,25 +153,68 @@ const handleEditPost = (post) => {
 
     return (
         <div className="space-y-6 animate-fade-in relative max-w-5xl mx-auto">
-            <div className="flex justify-between items-center bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -mr-20 -mt-20 opacity-50 pointer-events-none"></div>
-                <div className="relative z-10 w-full flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-4 mb-2">
-                            <span className="p-3 bg-indigo-600 text-white rounded-2xl shadow-md shadow-indigo-200">
-                                <MessageSquare size={28} />
-                            </span>
-                            Community Forum
+            <div className="lms-rise lms-sheen relative overflow-hidden rounded-3xl bg-[#3b2bd6] p-6 text-white shadow-xl shadow-indigo-500/25 md:p-8">
+                {/* Layered sky: a diagonal wash, two colour glows, a fine dot
+                    grid and a highlight along the top edge. */}
+                <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600" />
+                <div aria-hidden className="pointer-events-none absolute -top-32 -left-24 h-80 w-80 rounded-full bg-cyan-300/30 blur-3xl" />
+                <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-36 h-96 w-96 rounded-full bg-amber-300/30 blur-3xl" />
+                <div aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-pink-400/25 blur-3xl" />
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 opacity-[0.16]"
+                    style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }}
+                />
+                <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent" />
+                {/* Drifting chatter around the card. */}
+                <span aria-hidden className="cm-drift pointer-events-none absolute top-6 left-[46%] hidden text-2xl md:block" style={{ animationDelay: '-1.2s' }}>💬</span>
+                <span aria-hidden className="cm-drift pointer-events-none absolute bottom-8 left-[58%] hidden text-xl md:block" style={{ animationDelay: '-3.4s' }}>❓</span>
+                <span aria-hidden className="cm-drift pointer-events-none absolute top-1/2 right-6 hidden text-xl md:block" style={{ animationDelay: '-2.1s' }}>✨</span>
+                <span aria-hidden className="cm-drift pointer-events-none absolute top-5 right-[22%] hidden text-lg md:block" style={{ animationDelay: '-0.5s' }}>💡</span>
+
+                <div className="relative grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="min-w-0">
+                        <p className="flex items-center gap-2 text-[0.7rem] font-black tracking-[0.18em] text-indigo-100 uppercase">
+                            <Users size={14} />
+                            Community
+                        </p>
+                        <h1 className="mt-2 text-3xl font-black leading-tight sm:text-4xl">
+                            Ask, share, <span className="lms-shimmer bg-gradient-to-r from-amber-200 via-pink-200 to-amber-200 bg-clip-text text-transparent">learn together.</span>
                         </h1>
-                        <p className="text-slate-500 font-medium text-lg">Join the discussion with other students and instructors.</p>
+                        <p className="mt-2 max-w-lg text-sm font-medium text-indigo-100 sm:text-base">
+                            Questions, tips and wins from students and instructors. Nobody learns alone here.
+                        </p>
+
+                        <div className="lms-stagger mt-5 flex flex-wrap items-center gap-2.5">
+                            <button
+                                onClick={() => openWith('')}
+                                className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-indigo-700 shadow-lg shadow-indigo-900/20 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 active:scale-[0.98]"
+                            >
+                                <Plus size={18} strokeWidth={2.6} />
+                                Start a discussion
+                            </button>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums">
+                                <MessageSquare size={14} />
+                                {posts?.length || 0} {posts?.length === 1 ? 'discussion' : 'discussions'}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums">
+                                <MessageCircle size={14} />
+                                {replyTotal} {replyTotal === 1 ? 'reply' : 'replies'}
+                            </span>
+                        </div>
                     </div>
-                    <button
-                        onClick={() => setShowModal(true)}
-                        className="flex items-center space-x-2 px-6 py-3.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md hover:shadow-xl hover:-translate-y-0.5"
-                    >
-                        <Plus size={20} />
-                        <span>Start Discussion</span>
-                    </button>
+
+                    {/* The mascot on its own lit stage: a spotlight behind it,
+                        a platform under it, a slow ring going out. Wide enough
+                        that a raised arm never meets the card's edge. */}
+                    <div aria-hidden className="relative hidden h-52 w-64 items-end justify-center pb-3 md:flex">
+                        <span className="cm-glow absolute bottom-6 left-1/2 h-40 w-40 rounded-full bg-white/35 blur-2xl" />
+                        <span className="cm-ring absolute bottom-3 left-1/2 h-10 w-44 rounded-[50%] border-2 border-white/50" />
+                        <span className="absolute bottom-2 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-indigo-950/30" />
+                        <span className="absolute bottom-4 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-gradient-to-b from-white/70 to-indigo-100/60 shadow-lg" />
+                        <span className="absolute bottom-[26px] left-1/2 h-4 w-28 -translate-x-1/2 rounded-[50%] bg-white/50" />
+                        <Mascot key={look.pose} pose={look.pose} height={176} motion={look.motion} className="mc-pop relative" />
+                    </div>
                 </div>
             </div>
 
@@ -156,18 +225,52 @@ const handleEditPost = (post) => {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4">
-                {!posts || posts.length === 0 ? (
-                    <div className="p-16 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 border-dashed">
-                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-                            <MessageSquare size={40} className="text-slate-300" />
+            <div className="lms-stagger grid grid-cols-1 gap-4">
+                {showLoader ? (
+                    <YatiLoader label="Loading the community" />
+                ) : !posts || posts.length === 0 ? (
+                    <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-pink-50 p-8 text-center sm:p-12">
+                        <div aria-hidden className="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-indigo-200/40 blur-3xl" />
+                        <div className="relative mx-auto flex h-40 w-44 items-end justify-center" aria-hidden>
+                            <span className="absolute bottom-1 left-1/2 h-5 w-28 -translate-x-1/2 rounded-full bg-indigo-400/30 blur-lg" />
+                            <Mascot pose="present" height={150} motion="mc-nod" className="relative" />
                         </div>
-                        <h3 className="text-xl font-bold text-slate-700 mb-2">No discussions yet</h3>
-                        <p className="text-slate-500 max-w-md mx-auto mb-8">Be the first to start a conversation, ask a question, or share something interesting with the community!</p>
+                        <h3 className="relative mt-3 text-2xl font-black text-slate-900">Be the first to say something</h3>
+                        <p className="relative mx-auto mt-2 max-w-md text-slate-500">
+                            A question, a tip, or something you just figured out. The first post gets the room talking.
+                        </p>
+                        <div className="lms-stagger relative mt-6 flex flex-wrap items-center justify-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => openWith('Question: ')}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200"
+                            >
+                                <HelpCircle size={14} />
+                                Ask a question
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => openWith('Tip: ')}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-amber-50 hover:text-amber-700 hover:ring-amber-200"
+                            >
+                                <Lightbulb size={14} />
+                                Share a tip
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => openWith('Study group: ')}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-emerald-50 hover:text-emerald-700 hover:ring-emerald-200"
+                            >
+                                <Users size={14} />
+                                Start a study group
+                            </button>
+                        </div>
                         <button
-                            onClick={() => setShowModal(true)}
-                            className="px-6 py-3 bg-indigo-50 text-indigo-600 font-bold rounded-xl hover:bg-indigo-100 transition-colors"
+                            onClick={() => openWith('')}
+                            className="lms-pop relative mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-fuchsia-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-indigo-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
+                            style={{ animationDelay: '0.35s' }}
                         >
+                            <Sparkles size={16} />
                             Start the first discussion
                         </button>
                     </div>
@@ -176,24 +279,30 @@ const handleEditPost = (post) => {
                         <Link
                             to={`/community/${post._id}`}
                             key={post._id}
-                            className="block bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-slate-100 transition-all group"
+                            className="group relative block overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg hover:shadow-indigo-500/10 sm:p-6"
                         >
-                            <div className="flex items-start gap-5">
+                            <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-indigo-500 to-fuchsia-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                            <div className="flex items-start gap-4 sm:gap-5">
                                 <div className="hidden sm:flex flex-col items-center">
-                                    <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg uppercase shadow-inner border-2 border-white">
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-lg font-black text-white uppercase shadow-md shadow-indigo-500/30">
                                         {post.author?.name ? post.author.name.charAt(0) : '?'}
                                     </div>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-semibold text-slate-700">{post.author?.name || 'Unknown User'}</span>
-                                        <span className="text-slate-300">•</span>
-                                        <span className="text-sm font-medium text-slate-400">{new Date(post.createdAt).toLocaleDateString()}</span>
+                                    <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                                        <span className="font-bold text-slate-800">{post.author?.name || 'Unknown User'}</span>
+                                        {user?._id === post.author?._id && (
+                                            <span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[0.65rem] font-black tracking-wider text-indigo-600 uppercase">You</span>
+                                        )}
+                                        <span className="inline-flex items-center gap-1 font-medium text-slate-400">
+                                            <Clock3 size={13} />
+                                            {timeAgo(post.createdAt)}
+                                        </span>
                                     </div>
-                                    <h3 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors line-clamp-1">{post.title}</h3>
-                                    <p className="text-slate-500 line-clamp-2 mb-4 leading-relaxed">{post.content}</p>
+                                    <h3 className="mb-1.5 line-clamp-1 text-lg font-black text-slate-900 transition-colors group-hover:text-indigo-700 sm:text-xl">{post.title}</h3>
+                                    <p className="mb-4 line-clamp-2 leading-relaxed text-slate-500">{post.content}</p>
 
-                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                                    <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-500">
                                           {/* TOP ROW → Edit + Delete */}
     {user?._id === post.author?._id && (
     <div className="flex items-center gap-2">
@@ -218,9 +327,13 @@ const handleEditPost = (post) => {
         </button>
     </div>
 )}
-                                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
-                                            <MessageCircle size={16} />
-                                            <span>{post.commentCount} {post.commentCount === 1 ? 'Reply' : 'Replies'}</span>
+                                        <div className={`ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-black transition-colors ${
+                                            post.commentCount > 0
+                                                ? 'bg-indigo-50 text-indigo-700 group-hover:bg-indigo-100'
+                                                : 'bg-slate-50 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600'
+                                        }`}>
+                                            <MessageCircle size={14} />
+                                            <span>{post.commentCount > 0 ? `${post.commentCount} ${post.commentCount === 1 ? 'reply' : 'replies'}` : 'Be the first to reply'}</span>
                                         </div>
                                     </div>
                                 </div>

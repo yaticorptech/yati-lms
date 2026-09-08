@@ -9,6 +9,7 @@ const Bundle = require('../models/Bundle');
 const Enrollment = require('../models/Enrollment');
 const generateToken = require('../utils/generateToken');
 const { validatePasswordStrength } = require('../middleware/validatePassword');
+const { findUserByCardNumber } = require('../utils/cardNumber');
 
 // @desc    Validate QR Code and return card details (read-only)
 // @route   POST /api/auth/validate-qr
@@ -61,20 +62,24 @@ const scanCard = async (req, res) => {
         const raw = String(req.body?.code || '').trim();
         if (!raw) return res.status(400).json({ message: 'Nothing was scanned. Try again.' });
 
-        // A QR may carry the code alone, or a URL with it on the end. Take the
-        // last path segment or query value, then keep only card characters.
+        // A QR may carry the code alone, or a URL with it on the end. Try the
+        // whole text stripped to card characters (what the admin app does),
+        // and the last path segment or query value, so either layout reads.
+        const clean = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
         const tail = raw.split(/[?#/=]/).filter(Boolean).pop() || raw;
-        const code = tail.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (!code) return res.status(400).json({ message: "That code isn't readable. Try scanning again." });
+        const candidates = [...new Set([clean(raw), clean(tail)].filter(Boolean))];
+        if (!candidates.length) return res.status(400).json({ message: "That code isn't readable. Try scanning again." });
 
         // The QR normally holds the card's QR number; some cards encode the
         // card number itself, so both are accepted.
-        const card = await Card.findOne({ $or: [{ qrCodeNumber: code }, { CardNumber: code }] }).lean();
+        const card = await Card.findOne({ $or: [{ qrCodeNumber: { $in: candidates } }, { CardNumber: { $in: candidates } }] }).lean();
         if (!card) return res.status(404).json({ message: 'That card was not recognised. Check the card, or type the number instead.' });
         if (card.status === 'inactive') return res.status(400).json({ message: 'This card is inactive. Contact your administrator.' });
 
-        const User = require('../models/User');
-        const user = await User.findOne({ cardNumber: card.CardNumber }).select('_id status').lean();
+        // Imported students hold the card number as a number and the QR code
+        // on the record, so match on either — a text-only lookup missed them.
+        const user = (await findUserByCardNumber(card.CardNumber))
+            || (card.qrCodeNumber ? await User.findOne({ qrNumber: card.qrCodeNumber }).select('_id status cardNumber') : null);
         if (!user) {
             return res.status(404).json({
                 code: 'NOT_REGISTERED',
@@ -85,7 +90,8 @@ const scanCard = async (req, res) => {
             return res.status(403).json({ message: 'This account is not active. Contact your administrator.' });
         }
 
-        res.json({ cardNumber: card.CardNumber });
+        // The number as the account knows it, as text, which is what login reads.
+        res.json({ cardNumber: String(user.cardNumber || card.CardNumber) });
     } catch (error) {
         res.status(500).json({ message: 'Server error while reading that card', error: error.message });
     }

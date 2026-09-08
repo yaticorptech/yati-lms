@@ -1,5 +1,6 @@
 import { Star, Play, Target, Timer, Trophy, ChevronRight, RotateCcw, Sparkles } from 'lucide-react';
 import Mascot from '../mascot/Mascot';
+import useMascotCycle, { GAME_WON, GAME_LOST } from '../mascot/useMascotCycle';
 import { coachFor } from './gameCoach';
 import '../artwork.css';
 
@@ -95,9 +96,9 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart, 
 
           {/* ---- The coach: the mascot explains this game ---- */}
           <div className="relative flex items-end gap-3">
-            <div className="relative shrink-0" aria-hidden>
+            <div className="relative hidden shrink-0 sm:block" aria-hidden>
               <span className="absolute bottom-1 left-1/2 h-8 w-24 -translate-x-1/2 rounded-full bg-blue-300/40 blur-lg" />
-              <Mascot pose="guide" height={124} motion="mc-nod" className="relative" />
+              <Mascot pose="present" height={124} motion="mc-nod" className="relative" />
             </div>
             <div className="mc-bubble relative mb-6 min-w-0 flex-1 rounded-2xl border border-blue-100 bg-white p-3.5 shadow-xl">
               <span aria-hidden className="absolute top-8 -left-2 h-4 w-4 rotate-45 border-b border-l border-blue-100 bg-white" />
@@ -133,6 +134,8 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart, 
  * scolding.
  */
 export function LevelResult({ passed, stars, headline, detail, atEnd, onNext, onRetry, tone }) {
+  // Won: the leap. Lost: a moment of sorrow, then a thumbs up to go again.
+  const look = useMascotCycle(passed ? GAME_WON : GAME_LOST);
   return (
     <div className="mx-auto max-w-2xl">
       <div
@@ -156,10 +159,11 @@ export function LevelResult({ passed, stars, headline, detail, atEnd, onNext, on
           <div className="relative justify-self-center" aria-hidden>
             <span className={`absolute bottom-2 left-1/2 h-10 w-32 -translate-x-1/2 rounded-full blur-xl ${passed ? 'bg-emerald-300/50' : 'bg-blue-300/40'}`} />
             <Mascot
-              pose={passed ? (stars >= 3 ? 'star' : 'confetti') : 'flex'}
+              key={look.pose}
+              pose={look.pose}
               height={150}
-              motion={passed ? 'mc-dance' : 'mc-encourage'}
-              className="relative"
+              motion={look.motion}
+              className="mc-pop relative"
             />
           </div>
 

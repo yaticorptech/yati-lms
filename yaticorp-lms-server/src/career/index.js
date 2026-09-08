@@ -77,6 +77,7 @@ router.use('/skills', require('./routes/skillRoutes'));
 router.use('/achievements', require('./routes/achievementRoutes'));
 router.use('/badges', require('./routes/badgeRoutes'));
 router.use('/recommendations', require('./routes/recommendationRoutes'));
+router.use('/scholarships', require('./routes/scholarshipRoutes'));
 router.use('/chat', require('./routes/chatRoutes'));
 router.use('/notifications', require('./routes/notificationRoutes'));
 router.use('/study', require('./routes/studyRoutes'));

@@ -7,11 +7,11 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import SidebarProgressCard from '../components/SidebarProgressCard';
-import MentorFab from '../components/MentorFab';
 import MobileBottomNav from '../components/MobileBottomNav';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, Bot, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
+import { money, balance } from '../components/rewards/format';
 
 // Contact Support Modal
 const ContactModal = ({ onClose, user }) => {
@@ -88,6 +88,15 @@ const StudentLayout = () => {
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
     const profileDropdownRef = useRef(null);
+
+    // A link with a hash (the header's wallet pill → /#wallet) should land on
+    // that element; the router changes the URL but does not scroll to it.
+    useEffect(() => {
+        if (!location.hash) return undefined;
+        const id = decodeURIComponent(location.hash.slice(1));
+        const t = setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+        return () => clearTimeout(t);
+    }, [location.pathname, location.hash]);
 
     const handleLogout = () => { setProfileDropdownOpen(false); setShowLogoutConfirm(true); };
     const confirmLogout = () => { setShowLogoutConfirm(false); logout(); };
@@ -318,17 +327,16 @@ const StudentLayout = () => {
                     <Briefcase size={20} /> <span>Jobs</span>
                 </Link>
             )}
+            {/* Scholarships come from the student's Career Path resources, so
+                the tab follows that switch. */}
+            {isCareerPathEnabled && (
+                <Link to="/scholarships" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/scholarships') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    <GraduationCap size={20} /> <span>Scholarships</span>
+                </Link>
+            )}
             {isCareerPathEnabled && (
                 <Link to="/career" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/career') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                     <Compass size={20} /> <span>Career Path</span>
-                </Link>
-            )}
-            {/* Its own section rather than a Career Path tab. It still rides on
-                the same admin switch, because every request it makes goes to
-                /api/career/chat and the server keeps that behind the flag. */}
-            {isCareerPathEnabled && (
-                <Link to="/mentor" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/mentor') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                    <Bot size={20} /> <span>AI Mentor</span>
                 </Link>
             )}
         </>
@@ -437,9 +445,7 @@ const StudentLayout = () => {
 );
     return (
         <div className="flex h-screen bg-slate-50 text-slate-900 font-sans">
-            {isCareerPathEnabled && <MentorFab />}
-
-            {/* The seven sections under the thumb, mirroring the sidebar. */}
+            {/* The six sections under the thumb, mirroring the sidebar. */}
             <MobileBottomNav
                 isJobsEnabled={isJobsEnabled}
                 isCareerPathEnabled={isCareerPathEnabled}
@@ -692,6 +698,21 @@ const StudentLayout = () => {
                                     {(progressUser || user)?.xp || 0} XP
                                 </Link>
                             </>
+                        )}
+
+                        {/* The wallet balance, always in view at the top of the
+                            dashboard. It opens the wallet card further down the
+                            page, where the transactions and rewards live. */}
+                        {rw?.wallet && (
+                            <Link
+                                to="/#wallet"
+                                aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}`}
+                                className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                            >
+                                <Wallet size={16} />
+                                <span className="hidden lg:inline text-xs font-semibold text-emerald-600">Wallet Balance</span>
+                                <span className="tabular-nums">{money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}</span>
+                            </Link>
                         )}
 
                         {renderNotificationBell()}

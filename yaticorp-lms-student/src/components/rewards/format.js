@@ -3,6 +3,12 @@ export const money = (n, currency = 'INR') =>
 
 export const num = (n) => Number(n || 0).toLocaleString('en-IN');
 
+// Every student's wallet shows this opening balance on top of what the
+// ledger says they have earned. Display only: the server's `available`
+// is what redemptions and withdrawals are checked against.
+export const OPENING_BALANCE = 150000;
+export const balance = (available) => Number(available || 0) + OPENING_BALANCE;
+
 export const when = (d) => {
     const date = new Date(d);
     return `${date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · ${date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;

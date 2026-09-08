@@ -300,9 +300,11 @@ export default function TimetableCard({ slots = [], onChange, embedded = false }
         )}
       </div>
 
-      {/* ---- The week, all of it, no sideways scroll ---- */}
-      <div className="w-full">
-        <table className="w-full table-fixed border-separate border-spacing-1.5">
+      {/* ---- The week, all of it. On a phone the grid keeps its shape and
+              scrolls sideways inside the card, rather than squeezing seven
+              columns into one letter each. ---- */}
+      <div className="-mx-6 overflow-x-auto px-6 sm:mx-0 sm:px-0">
+        <table className="w-full min-w-[40rem] table-fixed border-separate border-spacing-1.5 sm:min-w-0">
           <thead>
             <tr>
               <th
