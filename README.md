@@ -25,6 +25,7 @@ Monorepo for YatiCorp Learning Management System applications:
 - [Legacy admin notes](./docs/ADMIN.md)
 - [Career Path (FuturePath) section](./docs/CAREER-PATH.md)
 - [Jobs (CareerCompass) section](./docs/JOBS.md)
+- [docs/INTERVIEW.md](docs/INTERVIEW.md) — Interview Ready: readiness, practice bank, AI mock interviews, reports, XP
 
 ## Quick Start (All Apps)
 

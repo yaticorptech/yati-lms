@@ -4,7 +4,7 @@
  * first-person paragraphs. Nothing else on it: no bars, no counts.
  */
 import { useCallback, useContext, useEffect, useState } from 'react';
-import { X, Sparkles } from 'lucide-react';
+import { X, Sparkles, Download, Loader2 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import { bioApi } from './api';
 import BioText from './BioText';
@@ -35,6 +35,8 @@ export default function BioPopup({ onClose }) {
     const { user: me } = useContext(AuthContext) || {};
     const [data, setData] = useState(undefined);
     const [error, setError] = useState(null);
+    const [downloading, setDownloading] = useState(false);
+    const download = () => { setDownloading(true); setError(null); bioApi.downloadPdf(name).catch(setError).finally(() => setDownloading(false)); };
 
     const load = useCallback(() => bioApi.full().then((d) => { setData(d); setError(null); }).catch((e) => { setError(e); setData(null); }), []);
     useEffect(() => { load(); }, [load]);
@@ -49,7 +51,13 @@ export default function BioPopup({ onClose }) {
             <div role="dialog" aria-modal="true" aria-labelledby="bio-popup-title" onClick={(e) => e.stopPropagation()} className="rw-pop w-full max-w-4xl overflow-hidden rounded-[28px] bg-gradient-to-br from-white via-white to-violet-50/60 shadow-2xl">
                 <div className="flex items-center justify-between border-b border-indigo-100/70 bg-indigo-50/70 px-6 py-4">
                     <h3 id="bio-popup-title" className="flex items-center gap-3 text-2xl font-black tracking-tight text-slate-900"><Sparkles size={26} className="text-violet-600" /> My Bio</h3>
-                    <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"><X size={22} /></button>
+                    <div className="flex items-center gap-2">
+                        <button type="button" onClick={download} disabled={downloading || !data}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-white px-3 py-1.5 text-sm font-bold text-violet-700 transition-colors hover:bg-violet-50 disabled:opacity-60">
+                            {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download
+                        </button>
+                        <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"><X size={22} /></button>
+                    </div>
                 </div>
 
                 <div className="grid gap-8 px-6 py-8 sm:px-10 sm:py-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:items-center">

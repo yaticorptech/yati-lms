@@ -272,3 +272,106 @@
 @media (prefers-reduced-motion: reduce) {
   .lms-rise, .lms-stagger > *, .lms-sheen::before, .lms-shimmer, .lms-pop, .lms-bob { animation: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   Leaderboard — the winner's confetti (components/rewards/LeaderboardCelebration).
+   Each piece flies in from a side edge, arcs up, then falls and spins.
+   --------------------------------------------------------------------------- */
+@keyframes lb-blast {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+  8%   { opacity: 1; }
+  35%  { transform: translate3d(calc(var(--dx) * 0.45), var(--rise), 0) rotate(calc(var(--spin) * 0.35)); opacity: 1; }
+  100% { transform: translate3d(var(--dx), var(--dy), 0) rotate(var(--spin)); opacity: 0; }
+}
+.lb-confetti { position: absolute; animation: lb-blast 2.4s cubic-bezier(0.2, 0.8, 0.4, 1) forwards; will-change: transform, opacity; }
+
+@keyframes lb-ribbon {
+  0%   { opacity: 0; transform: translate(-50%, 16px) scale(0.85); }
+  12%  { opacity: 1; transform: translate(-50%, 0) scale(1.04); }
+  20%  { transform: translate(-50%, 0) scale(1); }
+  85%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -10px) scale(0.96); }
+}
+.lb-ribbon { animation: lb-ribbon 4.4s ease-in-out forwards; }
+
+@keyframes lb-winner {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+  50%      { box-shadow: 0 0 0 10px rgba(251, 191, 36, 0.28), 0 10px 30px -8px rgba(245, 158, 11, 0.45); }
+}
+.lb-winner { animation: lb-winner 1.4s ease-in-out 3; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-confetti { animation: none; opacity: 0; }
+  .lb-ribbon { animation: none; }
+  .lb-winner { animation: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   Leaderboard podium (components/rewards/LeaderboardPodium): the pastel bokeh
+   stage, drifting confetti, twinkling sparkles, bobbing crown, glass cards
+   and the three podium bases.
+   --------------------------------------------------------------------------- */
+.lb-stage {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(253, 224, 71, 0.45) 0, transparent 22%),
+    radial-gradient(circle at 88% 22%, rgba(244, 114, 182, 0.4) 0, transparent 24%),
+    radial-gradient(circle at 20% 82%, rgba(125, 211, 252, 0.45) 0, transparent 26%),
+    radial-gradient(circle at 78% 84%, rgba(251, 146, 60, 0.35) 0, transparent 24%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.9) 0, transparent 60%),
+    linear-gradient(160deg, #fff7ed 0%, #fdf2f8 45%, #eef2ff 100%);
+}
+.lb-script { font-family: 'Pacifico', 'Brush Script MT', 'Segoe Script', cursive; line-height: 1.25; filter: drop-shadow(0 2px 0 rgba(255,255,255,0.9)); }
+
+@keyframes lb-drift {
+  0%   { transform: translate3d(0, -8%, 0) rotate(0deg); }
+  50%  { transform: translate3d(var(--sway), 240px, 0) rotate(calc(var(--spin) * 0.5)); }
+  100% { transform: translate3d(0, 520px, 0) rotate(var(--spin)); }
+}
+.lb-drift { position: absolute; top: -20px; animation: lb-drift linear infinite; will-change: transform; }
+
+/* Rock and lift only: the crown's centring comes from Tailwind's `translate`
+   utilities, which compose with `transform` — putting a translate here as
+   well shifted it a full crown-width off centre. */
+@keyframes lb-bob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-4px) rotate(4deg); } }
+@keyframes lb-bob-inline { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-6px) rotate(6deg); } }
+.lb-bob.absolute { animation: lb-bob 2.4s ease-in-out infinite; }
+/* The headline's crown: centred over the word, nudged down onto the letters, rocking gently. */
+@keyframes lb-crown { 0%, 100% { transform: translate(-50%, -10%) rotate(-8deg); } 50% { transform: translate(-50%, -22%) rotate(6deg); } }
+.lb-crown { animation: lb-crown 2.4s ease-in-out infinite; }
+.lb-bob.inline-block { animation: lb-bob-inline 2.4s ease-in-out infinite; }
+
+@keyframes lb-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.7) var(--tw-rotate, rotate(0)); } 50% { opacity: 1; transform: scale(1.15) var(--tw-rotate, rotate(0)); } }
+.lb-twinkle { animation: lb-twinkle 1.8s ease-in-out infinite; }
+
+.lb-glass-gold   { background: linear-gradient(160deg, rgba(255, 251, 235, 0.95), rgba(254, 240, 138, 0.75)); box-shadow: 0 14px 34px -14px rgba(245, 158, 11, 0.55), inset 0 1px 0 rgba(255,255,255,0.9); }
+.lb-glass-silver { background: linear-gradient(160deg, rgba(248, 250, 252, 0.95), rgba(226, 232, 240, 0.8)); box-shadow: 0 12px 30px -14px rgba(100, 116, 139, 0.45), inset 0 1px 0 rgba(255,255,255,0.9); }
+.lb-glass-bronze { background: linear-gradient(160deg, rgba(255, 247, 237, 0.95), rgba(254, 215, 170, 0.75)); box-shadow: 0 12px 30px -14px rgba(234, 88, 12, 0.4), inset 0 1px 0 rgba(255,255,255,0.9); }
+
+.lb-base-gold   { background: linear-gradient(180deg, #fde047 0%, #f59e0b 55%, #b45309 100%); }
+.lb-base-silver { background: linear-gradient(180deg, #e2e8f0 0%, #94a3b8 55%, #64748b 100%); }
+.lb-base-bronze { background: linear-gradient(180deg, #fdba74 0%, #ea580c 55%, #9a3412 100%); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-drift, .lb-bob.absolute, .lb-bob.inline-block, .lb-crown, .lb-twinkle { animation: none; }
+  .lb-crown { transform: translate(-50%, -10%); }
+  .lb-drift { opacity: 0; }
+}
+
+/* Jobs — the Aadhaar QR scanner's sweep line (src/jobs/verification). */
+@keyframes jv-scan { 0% { top: 12%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 88%; opacity: 0; } }
+.jv-scanline { animation: jv-scan 2.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .jv-scanline { animation: none; } }
+
+/* Interview Ready — the voice interview (src/interview/MockInterview.jsx). */
+@keyframes iv-wave { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+.iv-wave > span { display: inline-block; width: 4px; border-radius: 9999px; background: currentColor; height: 100%; transform-origin: center; animation: iv-wave 0.9s ease-in-out infinite; }
+.iv-wave > span:nth-child(2) { animation-delay: 0.12s; } .iv-wave > span:nth-child(3) { animation-delay: 0.24s; } .iv-wave > span:nth-child(4) { animation-delay: 0.36s; } .iv-wave > span:nth-child(5) { animation-delay: 0.48s; } .iv-wave > span:nth-child(6) { animation-delay: 0.3s; } .iv-wave > span:nth-child(7) { animation-delay: 0.18s; }
+@keyframes iv-ring { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(1.9); opacity: 0; } }
+.iv-ring::before, .iv-ring::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; border: 2px solid currentColor; animation: iv-ring 1.6s ease-out infinite; }
+.iv-ring::after { animation-delay: 0.8s; }
+@keyframes iv-dot { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-5px); opacity: 1; } }
+.iv-dots > span { display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: currentColor; animation: iv-dot 1.1s ease-in-out infinite; }
+.iv-dots > span:nth-child(2) { animation-delay: 0.15s; } .iv-dots > span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes iv-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+.iv-breathe { animation: iv-breathe 2.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .iv-wave > span, .iv-ring::before, .iv-ring::after, .iv-dots > span, .iv-breathe { animation: none; } }
