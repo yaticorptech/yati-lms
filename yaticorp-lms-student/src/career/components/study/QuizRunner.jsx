@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, X, Trophy, RotateCcw, Zap, HelpCircle, Sparkles } from 'lucide-react';
 import Button from '../ui/Button';
 import Mascot from '../mascot/Mascot';
+import useMascotCycle, { QUIZ_CLEARED, QUIZ_FAILED } from '../mascot/useMascotCycle';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -85,6 +86,9 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
   const questions = material?.quiz || [];
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
+  // The verdict's mascot: the leap for a pass; for a miss, the X card and
+  // then a thumbs up for the next try.
+  const verdict = useMascotCycle(result?.passed ? QUIZ_CLEARED : QUIZ_FAILED);
   const [index, setIndex] = useState(0);
   // Which way the card is travelling, so it can slide in from that side.
   const [dir, setDir] = useState('right');
@@ -239,10 +243,11 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
           <div className="relative flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <Mascot
-                pose={result.passed ? 'star' : 'flex'}
+                key={verdict.pose}
+                pose={verdict.pose}
                 height={72}
-                motion={result.passed ? 'mc-dance' : 'mc-encourage'}
-                className="shrink-0"
+                motion={verdict.motion}
+                className="mc-pop shrink-0"
               />
               <div>
                 <p className="text-lg font-black text-ink-900">
@@ -293,9 +298,15 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
           }`}
         />
         <div className="mb-4 flex gap-3.5 pt-1">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-journey-500 to-indigo-600 text-white shadow-md shadow-journey-500/30">
-            <HelpCircle className="h-5 w-5" strokeWidth={2.4} />
-          </span>
+          {/* Thinking beside the question; once graded, delighted or
+              holding the X card for this one. */}
+          <Mascot
+            key={outcome ? (outcome.correct ? 'clap' : 'wrong') : 'ponder'}
+            pose={outcome ? (outcome.correct ? 'clap' : 'wrong') : 'ponder'}
+            height={52}
+            motion={outcome ? (outcome.correct ? 'mc-clap' : 'mc-idle') : 'mc-think'}
+            className="mc-pop shrink-0"
+          />
           <div className="min-w-0">
             <p className="text-[0.66rem] font-black tracking-[0.14em] text-journey-600 uppercase">
               Question {index + 1}

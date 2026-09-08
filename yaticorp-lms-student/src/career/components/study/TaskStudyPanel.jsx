@@ -171,7 +171,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
 
   if (loading) {
     return (
-      <div className="space-y-3 px-6 pb-6">
+      <div className="space-y-3 px-4 pb-6 sm:px-6">
         <div className="skeleton aspect-video w-full rounded-xl" />
         <div className="skeleton h-4 w-3/4 rounded" />
         <div className="skeleton h-4 w-1/2 rounded" />
@@ -186,7 +186,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
     // student off to watch something they do not need.
     if (task.learning === 'read') {
       return (
-        <div className="px-6 pb-6">
+        <div className="px-4 pb-6 sm:px-6">
           <div className="rounded-xl border border-dashed border-line-300 bg-surface-50/60 p-6 text-center">
             <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-link">
               <BookOpen className="h-5 w-5" />
@@ -213,7 +213,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
     // would rather read; making one of them the default and the other a
     // fallback would be guessing on their behalf.
     return (
-      <div className="px-6 pb-6">
+      <div className="px-4 pb-6 sm:px-6">
         <div className="rounded-xl border border-dashed border-line-300 bg-surface-50/60 p-6">
           <div className="text-center">
             <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-link">
@@ -272,7 +272,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
   const isReading = study.mode === 'read';
 
   return (
-    <div className="space-y-7 px-6 pb-6">
+    <div className="space-y-7 px-4 pb-6 sm:px-6">
       {/* What the automatic completion is waiting on. */}
       <LessonSteps gates={study.gates} completed={task.status === 'Completed'} />
 

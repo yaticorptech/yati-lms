@@ -1,5 +1,6 @@
 import { ArrowLeft, RotateCcw, Timer, Trophy, Layers } from 'lucide-react';
 import { LevelIntro, LevelResult } from './LevelPanels';
+import Mascot from '../mascot/Mascot';
 
 /**
  * The frame every game sits in: who you are playing, how you are doing, which
@@ -59,9 +60,14 @@ export default function GameShell({
             {blurb && !intro && <p className="mt-0.5 text-xs font-semibold text-white/80">{blurb}</p>}
           </div>
 
+          {/* Cheering from the corner while the game is on. */}
+          {!intro && !result && (
+            <Mascot pose="cheer" height={56} motion="mc-encourage" className="hidden shrink-0 sm:block" />
+          )}
+
           {/* The live numbers belong to play. While the briefing or the
               verdict is up they only repeat what those panels say. */}
-          <div className={`flex shrink-0 flex-wrap items-center gap-2 ${intro || result ? 'hidden' : ''}`}>
+          <div className={`flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end ${intro || result ? 'hidden' : ''}`}>
             {progress && (
               /* One number, no menu. The difficulty rises with the level
                  rather than being chosen, so there is nothing to pick. */

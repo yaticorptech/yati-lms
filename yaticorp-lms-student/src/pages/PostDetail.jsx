@@ -8,12 +8,15 @@ import { ArrowLeft, MessageSquare, Send, AlertCircle, Clock } from 'lucide-react
 import api from '../utils/api';
 import { usePostDetail } from '../shared/hooks/useCommunity';
 import { AuthContext } from '../context/AuthContext';
+import YatiLoader from '../components/YatiLoader';
+import useMinimumLoading from '../hooks/useMinimumLoading';
 
 const PostDetail = () => {
     const { postId } = useParams();
     const { user } = useContext(AuthContext);
 
     const { post, loading, error, addComment } = usePostDetail(api, postId);
+    const showLoader = useMinimumLoading(loading);
     const [replyContent, setReplyContent] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
@@ -33,12 +36,8 @@ const PostDetail = () => {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
-            </div>
-        );
+    if (showLoader) {
+        return <YatiLoader label="Loading the discussion" />;
     }
 
     if (error || !post) {

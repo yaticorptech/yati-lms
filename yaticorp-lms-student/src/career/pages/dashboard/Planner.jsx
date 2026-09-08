@@ -5,7 +5,7 @@ import { AuthContext } from '../../context/AuthContext';
 import {
   Check, Sparkles, Target, Award, CalendarCheck, PartyPopper,
   ListTodo, ChevronDown, GraduationCap, Clock3, Map, Play, Trophy, Plus, Zap,
-  BookOpen, MonitorPlay, ArrowRight
+  BookOpen, MonitorPlay, ArrowRight, Loader2, Lock
 } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 import AiBudgetNotice from '../../components/AiBudgetNotice';
@@ -13,7 +13,7 @@ import { useCelebrate } from '../../components/ui/Celebration';
 import Button from '../../components/ui/Button';
 import Card, { CardHeader } from '../../components/ui/Card';
 import Mascot from '../../components/mascot/Mascot';
-import useMascotCycle, { MISSION_POSES, DONE_POSES } from '../../components/mascot/useMascotCycle';
+import useMascotCycle, { PLAN_POSES, DONE_POSES } from '../../components/mascot/useMascotCycle';
 import { levelProgress } from '../../utils/progress';
 import EmptyState from '../../components/ui/EmptyState';
 import TaskStudyPanel from '../../components/study/TaskStudyPanel';
@@ -95,6 +95,9 @@ export default function Planner() {
    * Someone who finished early should be able to keep going today.
    */
   const handleAddAnother = async () => {
+    // One more only once today's plan is cleared; the button is disabled
+    // before then, this just makes sure a stray call cannot get past it.
+    if (!allDone) return;
     setAddingTask(true);
     try {
       const { data } = await api.post('/tasks/another');
@@ -218,7 +221,7 @@ export default function Planner() {
     if (leveledUp) {
       dayCelebratedRef.current = clearedTheDay || dayCelebratedRef.current;
       celebrate({
-        kind: 'day',
+        kind: 'level',
         icon: Trophy,
         title: `Level ${newLevel}`,
         message:
@@ -272,7 +275,7 @@ export default function Planner() {
   }, [clearedNow]);
   // Hooks stay above the loader return; the day's state is read from the
   // tasks directly since `dayCleared` is derived further down.
-  const look = useMascotCycle(clearedNow ? DONE_POSES : MISSION_POSES);
+  const look = useMascotCycle(clearedNow ? DONE_POSES : PLAN_POSES);
   if (showLoader) return <YatiLoader label="Building today's plan" />;
 
   const completed = tasks.filter((t) => t.status === 'Completed').length;
@@ -287,8 +290,9 @@ export default function Planner() {
 
   // The one task to pick up now. Marking it removes the smallest possible
   // decision between arriving on this page and starting work.
-  const nextTaskId = tasks.find((t) => t.status !== 'Completed')?._id;
-  // The one thing worth saying beside the button: whether today's plan alone
+  const nextTask = tasks.find((t) => t.status !== 'Completed');
+  const nextTaskId = nextTask?._id;
+  // The one thing worth saying beside it: whether today's plan alone
   // would cross the next level. Everything else the hero used to carry —
   // streak, skill, a line of encouragement — is already said on the Overview.
   const level = levelProgress(user?.xp, user?.level);
@@ -322,78 +326,115 @@ export default function Planner() {
           and whether it is worth starting now. The ring answers the second and
           the line answers the third; both are read from the real task list, so
           neither can flatter a day that has not happened. */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-journey-100 via-surface to-pink-50 shadow-float ring-1 ring-journey-200/70 ring-inset">
         <div
           aria-hidden
-          className="fp-float pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-journey-200/40 blur-3xl"
+          className="fp-float pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-journey-300/50 blur-3xl"
         />
         <div
           aria-hidden
-          className="fp-float-slow pointer-events-none absolute right-1/3 -bottom-24 h-56 w-56 rounded-full bg-pink-200/40 blur-3xl"
+          className="fp-float-slow pointer-events-none absolute right-1/3 -bottom-28 h-64 w-64 rounded-full bg-pink-300/45 blur-3xl"
         />
-        {/* The mascot, changing pose every few seconds: on the move while
-            there is work left, celebrating once the day is cleared. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[42%] max-w-[420px] items-end justify-center pr-6 sm:flex"
+          className="fp-float-settle pointer-events-none absolute -top-16 right-[8%] h-48 w-48 rounded-full bg-amber-200/50 blur-3xl"
+        />
+        {/* A fine highlight along the top edge, so the card reads as lit
+            from above rather than flat. */}
+        <span aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
+        {/* The mascot, purely decorative: it stands beside the mission and
+            changes pose every few seconds so the eye keeps returning to the
+            page. It points at nothing and says nothing — the tour and the
+            speech live with the floating guide. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[30%] max-w-[300px] items-end justify-center pr-6 sm:flex"
         >
-          <span className="absolute bottom-3 left-1/2 h-10 w-44 -translate-x-1/2 rounded-full bg-blue-300/40 blur-xl" />
-          <span className="fp-drift-icon absolute top-5 right-10 text-lg" style={{ animationDelay: '-1.2s' }}>✨</span>
-          <span className="fp-drift-icon absolute top-12 left-8 text-base" style={{ animationDelay: '-2.6s' }}>⭐</span>
-          <Mascot key={look.pose} pose={look.pose} height={176} motion={look.motion} className="mc-pop relative" />
+          <span className="fp-halo absolute bottom-6 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-journey-300/40 blur-2xl" />
+          <span className="absolute bottom-3 left-1/2 h-8 w-40 -translate-x-1/2 rounded-full bg-blue-400/40 blur-xl" />
+          <span className="fp-drift-icon absolute top-4 right-6 text-xl" style={{ animationDelay: '-1.2s' }}>✨</span>
+          <span className="fp-drift-icon absolute top-10 left-4 text-lg" style={{ animationDelay: '-2.6s' }}>⭐</span>
+          <span className="fp-drift-icon absolute bottom-16 right-2 text-base" style={{ animationDelay: '-3.8s' }}>⚡</span>
+          <span className="fp-drift-icon absolute bottom-24 left-2 text-base" style={{ animationDelay: '-0.6s' }}>🔥</span>
+          <Mascot key={look.pose} pose={look.pose} height={168} motion={look.motion} className="mc-pop relative" />
         </div>
 
-        <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 sm:pr-[42%] md:min-h-[212px]">
+        <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 sm:pr-[30%] md:min-h-[196px]">
           {tasks.length > 0 && (
-            <div className="relative flex h-24 w-24 shrink-0 items-center justify-center">
-              <svg viewBox="0 0 72 72" className="h-24 w-24 -rotate-90" aria-hidden>
-                <circle cx="36" cy="36" r="31" fill="none" strokeWidth="7" className="stroke-journey-100" />
+            <div className="fp-breathe relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-surface/70 shadow-card ring-1 ring-white/80 sm:h-28 sm:w-28">
+              <svg viewBox="0 0 72 72" className="h-20 w-20 -rotate-90 sm:h-28 sm:w-28" aria-hidden>
+                <defs>
+                  <linearGradient id="fp-ring-grad" x1="0" y1="0" x2="1" y2="1">
+                    {dayCleared ? (
+                      <>
+                        <stop offset="0%" stopColor="#19b96b" />
+                        <stop offset="100%" stopColor="#1677ff" />
+                      </>
+                    ) : (
+                      <>
+                        <stop offset="0%" stopColor="#6c3bff" />
+                        <stop offset="60%" stopColor="#c026d3" />
+                        <stop offset="100%" stopColor="#ff6b22" />
+                      </>
+                    )}
+                  </linearGradient>
+                </defs>
+                <circle cx="36" cy="36" r="30" fill="none" strokeWidth="8" className="stroke-journey-100" />
                 <circle
                   cx="36"
                   cy="36"
-                  r="31"
+                  r="30"
                   fill="none"
-                  stroke={dayCleared ? '#19b96b' : '#6c3bff'}
-                  strokeWidth="7"
+                  stroke="url(#fp-ring-grad)"
+                  strokeWidth="8"
                   strokeLinecap="round"
-                  strokeDasharray={`${(donePercent / 100) * 2 * Math.PI * 31} ${2 * Math.PI * 31}`}
-                  className="transition-[stroke-dasharray] duration-700 ease-out"
+                  strokeDasharray={`${(donePercent / 100) * 2 * Math.PI * 30} ${2 * Math.PI * 30}`}
+                  className="transition-[stroke-dasharray] duration-1000 ease-out"
+                  style={{ filter: 'drop-shadow(0 0 6px rgb(108 59 255 / 0.45))' }}
                 />
               </svg>
-              <span className="absolute text-xl font-black tabular-nums text-ink-900">
-                {completed}/{tasks.length}
+              <span className="absolute flex flex-col items-center leading-none">
+                <span className="text-lg font-black tabular-nums text-ink-900 sm:text-2xl">
+                  {completed}/{tasks.length}
+                </span>
+                <span className="mt-1 text-[0.6rem] font-black tracking-[0.14em] text-journey-600 uppercase">
+                  {dayCleared ? 'cleared' : 'done'}
+                </span>
               </span>
             </div>
           )}
 
           <div className="min-w-0 flex-1">
-            <p className="text-[0.7rem] font-black tracking-[0.16em] text-journey-600 uppercase">
+            <p className="inline-flex items-center gap-1.5 rounded-full bg-surface/80 px-2.5 py-1 text-[0.68rem] font-black tracking-[0.16em] text-journey-700 uppercase shadow-sm ring-1 ring-journey-100 ring-inset">
+              <CalendarCheck className="h-3.5 w-3.5 text-journey-500" aria-hidden />
               {TODAY_LABEL}
             </p>
-            <h1 className="mt-1 flex items-center gap-2 text-2xl leading-tight font-black text-ink-900 sm:text-3xl">
-              {dayCleared ? "Today's mission complete" : "Today's mission"}
-              <Sparkles className="h-5 w-5 text-journey-500" aria-hidden />
+            <h1 className="mt-2 flex items-center gap-2 text-2xl leading-tight font-black tracking-tight sm:text-3xl md:text-4xl">
+              <span className="fp-text-shimmer bg-gradient-to-r from-journey-700 via-brand-600 to-pink-600 bg-clip-text text-transparent">
+                {dayCleared ? "Today's mission complete" : "Today's mission"}
+              </span>
+              <Sparkles className="fp-bob-soft h-6 w-6 shrink-0 text-amber-400" aria-hidden />
             </h1>
             <p className="mt-1.5 text-sm font-semibold text-ink-600 sm:text-[0.95rem]">{missionLine}</p>
 
             {tasks.length > 0 && (
               <div className="mt-5 flex flex-wrap items-center gap-3">
-                {remaining > 0 && (
-                  /* The shortest path from arriving to working: one button,
-                     straight to the row that is up next. */
-                  <a
-                    href="#next-task"
-                    data-guide="mission"
-                    className="fp-sweep fp-btn fp-btn-warm fp-beacon group relative inline-flex min-h-11 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 px-5 py-2.5 text-sm font-black text-white"
-                  >
-                    <Zap className="fp-bolt h-4 w-4 fill-white" />
-                    {completed > 0 ? 'Continue the mission' : 'Start the mission'}
-                    <ArrowRight className="fp-btn-arrow h-4 w-4" />
-                  </a>
+                {nextTask && (
+                  /* Names the task to pick up now. This used to be a button that
+                     only scrolled to the row below — on any screen where the
+                     row was already in view it did nothing, and it never opened
+                     the task. The row's own Start button is the one action, so
+                     the hero just says what it is. */
+                  <span className="fp-beacon animate-pop-in inline-flex max-w-full items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 px-4 py-2 text-sm font-black text-white shadow-md">
+                    <span aria-hidden className="fp-blink h-2 w-2 shrink-0 rounded-full bg-white" />
+                    <Target className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="hidden shrink-0 text-[0.68rem] tracking-[0.14em] uppercase sm:inline">Up next</span>
+                    <span className="line-clamp-2 min-w-0 font-bold">{nextTask.title}</span>
+                  </span>
                 )}
 
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-surface/90 px-3 py-1.5 text-xs font-black text-ink-700 shadow-card ring-1 ring-line-200/80 ring-inset">
-                  <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-800 shadow-card ring-1 ring-amber-200/80 ring-inset">
+                  <Trophy className="fp-bob-soft h-3.5 w-3.5 text-amber-500" />
                   <span className="tabular-nums">
                     {completed * TASK_XP} XP earned
                     {remaining > 0 && <span className="text-ink-400"> · {remaining * TASK_XP} to go</span>}
@@ -482,13 +523,13 @@ export default function Planner() {
           took the top of the page to say what the task row says by itself. The
           cleared-day note at the foot of the list still marks the finish. */}
 
-      <Card padded={false} data-guide="tasks" className="animate-fade-in-up overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-line-100 px-6 py-4">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-journey-50 text-journey-600 ring-1 ring-journey-100 ring-inset">
+      <Card padded={false} className="animate-fade-in-up overflow-hidden ring-1 ring-journey-100/60">
+        <div className="flex flex-wrap items-center gap-3 border-b border-line-100 bg-gradient-to-r from-journey-50/70 via-surface to-surface px-4 py-4 sm:px-6">
+          <span className="fp-journey-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-md shadow-journey-500/30">
             <CalendarCheck className="h-5 w-5" strokeWidth={2.2} />
           </span>
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-ink-900">
+            <h2 className="bg-gradient-to-r from-journey-700 to-brand-600 bg-clip-text text-lg font-black text-transparent">
               {examEve && tasks.length === 0
                 ? 'Today is clear'
                 : remaining === 0 && tasks.length > 0
@@ -504,8 +545,14 @@ export default function Planner() {
             </p>
           </div>
           {tasks.length > 0 && (
-            <span className="ml-auto shrink-0 rounded-full bg-surface px-2.5 py-1 text-xs font-semibold text-ink-500 ring-1 ring-line-200">
-              {completed} / {tasks.length} done
+            <span className="flex w-full shrink-0 items-center gap-2 rounded-full bg-surface px-3 py-1.5 text-xs font-bold text-ink-600 shadow-sm ring-1 ring-line-200 sm:ml-auto sm:w-auto">
+              <span aria-hidden className="h-1.5 w-16 overflow-hidden rounded-full bg-surface-100">
+                <span
+                  className={`block h-full rounded-full transition-[width] duration-700 ease-out ${dayCleared ? 'fp-done-gradient' : 'fp-journey-gradient'}`}
+                  style={{ width: `${donePercent}%` }}
+                />
+              </span>
+              <span className="tabular-nums">{completed} / {tasks.length} done</span>
             </span>
           )}
         </div>
@@ -570,28 +617,27 @@ export default function Planner() {
               return (
                 <li
                   key={task._id}
-                  id={isNext ? 'next-task' : undefined}
                   style={{ animationDelay: `${0.1 + index * 0.07}s` }}
                   className={`animate-fade-in-up scroll-mt-28 ${open ? 'bg-surface-50/40' : ''}`}
                 >
                   <div
-                    className={`group relative flex items-start gap-3.5 px-6 py-4 transition-colors ${
+                    className={`group relative flex flex-wrap items-start gap-3.5 px-4 py-4 transition-all sm:px-6 ${
                       isNext
-                        ? 'bg-gradient-to-r from-journey-50/80 to-surface'
+                        ? 'mx-2 my-3 overflow-hidden rounded-2xl sm:mx-3 bg-gradient-to-r from-journey-50 via-surface to-pink-50/60 shadow-md shadow-journey-500/10 ring-1 ring-journey-200/80'
                         : done
                           ? // Finished work steps back rather than competing with
                             // what is still to do. It stays legible — it is proof
                             // of progress — but it should not read as a call to
                             // action alongside the task that is.
-                            'bg-emerald-50/30'
-                          : 'hover:bg-surface-50/80'
+                            'bg-gradient-to-r from-emerald-50/70 to-surface'
+                          : 'hover:bg-gradient-to-r hover:from-surface-50 hover:to-journey-50/40'
                     }`}
                   >
                     {/* A green spine on finished work, so the list reads as a
                         strip of colour — done, next, later — before a word of
                         it is read. */}
                     {done && (
-                      <span aria-hidden className="absolute inset-y-0 left-0 w-1.5 bg-emerald-400" />
+                      <span aria-hidden className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-emerald-400 to-teal-500" />
                     )}
                     {/* The one task to start now gets a coloured spine and a
                         single sweep of light. Everything else on this page is
@@ -627,12 +673,12 @@ export default function Planner() {
                       aria-hidden
                       className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-1 ring-inset ${
                         done
-                          ? 'bg-emerald-50 text-emerald-600 ring-emerald-200'
+                          ? 'fp-done-gradient text-white ring-emerald-300 shadow-sm shadow-emerald-500/40'
                           : started
                             ? 'bg-blue-50 text-blue-600 ring-blue-200'
                             : isNext
-                              ? 'bg-gradient-to-br from-journey-500 to-indigo-600 text-white ring-journey-300 shadow-sm shadow-journey-600/30'
-                              : 'bg-surface-100 text-ink-400 ring-line-200'
+                              ? 'fp-glow-violet bg-gradient-to-br from-journey-500 to-indigo-600 text-white ring-journey-300'
+                              : 'border-2 border-dashed border-journey-300 bg-surface text-journey-600 ring-transparent'
                       }`}
                     >
                       {done ? (
@@ -667,7 +713,7 @@ export default function Planner() {
                         </h3>
 
                         {done ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[0.68rem] font-bold text-emerald-700 ring-1 ring-emerald-100 ring-inset">
+                          <span className="fp-done-gradient inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.68rem] font-black text-white shadow-sm shadow-emerald-500/30">
                             <Check className="h-3 w-3" strokeWidth={3} />
                             Done · +{TASK_XP} XP
                           </span>
@@ -676,8 +722,14 @@ export default function Planner() {
                              work is. The same TASK_XP the header totals and the
                              server actually awards — so it is a promise rather
                              than an incentive made up for the page. */
-                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[0.68rem] font-black text-amber-700 ring-1 ring-amber-100 ring-inset">
-                            <Zap className="h-3 w-3" />
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.68rem] font-black ${
+                              isNext
+                                ? 'fp-effort-gradient text-white shadow-sm shadow-orange-500/40'
+                                : 'bg-amber-50 text-amber-700 ring-1 ring-amber-100 ring-inset'
+                            }`}
+                          >
+                            <Zap className={`h-3 w-3 ${isNext ? 'fp-bolt fill-white' : ''}`} />
                             +{TASK_XP} XP
                           </span>
                         )}
@@ -726,7 +778,7 @@ export default function Planner() {
                               type="button"
                               onClick={() => toggleSteps(task._id)}
                               aria-expanded={stepsShown}
-                              className="mt-2 inline-flex items-center gap-1 rounded-lg text-xs font-bold text-ink-400 transition-colors hover:text-ink-700"
+                              className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-surface-100 px-2.5 py-1 text-xs font-bold text-ink-500 ring-1 ring-line-200 ring-inset transition-all hover:bg-journey-50 hover:text-journey-700 hover:ring-journey-200"
                             >
                               {stepsShown
                                 ? 'Hide steps'
@@ -741,7 +793,13 @@ export default function Planner() {
                             <ol className={`mt-2.5 space-y-1.5 ${done ? 'opacity-60' : ''}`}>
                               {task.guidance.map((step, i) => (
                                 <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-ink-600">
-                                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-surface-100 text-[0.68rem] font-bold text-ink-500 tabular-nums">
+                                  <span
+                                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[0.68rem] font-black tabular-nums ${
+                                      isNext && !done
+                                        ? 'fp-journey-gradient text-white shadow-sm shadow-journey-500/30'
+                                        : 'bg-surface-100 text-ink-500'
+                                    }`}
+                                  >
                                     {i + 1}
                                   </span>
                                   <span className="min-w-0">{step}</span>
@@ -790,6 +848,24 @@ export default function Planner() {
                         "push your code to GitHub" needs no tutorial — offering
                         to build one wastes the student's time on something they
                         already know how to do. It is ticked off by hand. */}
+                    {/* A tick-only task can still be learned by video: the
+                        lesson is built on request, and the manual tick stays
+                        beside it for those who already know how. */}
+                    {needsNothing && !done && (
+                      <button
+                        type="button"
+                        onClick={() => setOpenTaskId(open ? null : task._id)}
+                        aria-expanded={open}
+                        className={`relative mt-0.5 inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-[0.96] sm:w-auto sm:py-1.5 ${
+                          open
+                            ? 'bg-brand-600 text-white shadow-sm'
+                            : 'bg-surface text-journey-700 ring-1 ring-journey-200 ring-inset hover:bg-journey-50'
+                        }`}
+                      >
+                        <MonitorPlay className="h-3.5 w-3.5" />
+                        <span>{open ? 'Close' : 'Watch a video'}</span>
+                      </button>
+                    )}
                     {needsNothing ? (
                       <button
                         type="button"
@@ -801,12 +877,12 @@ export default function Planner() {
                           done
                             ? 'h-8 w-8 bg-emerald-500 text-white ring-emerald-500 hover:bg-emerald-600'
                             : isNext
-                              ? 'fp-btn fp-btn-primary fp-glow-violet h-9 bg-gradient-to-r from-journey-600 to-indigo-600 px-3.5 text-xs font-black text-white ring-transparent'
+                              ? 'fp-btn fp-btn-primary fp-glow-violet h-10 w-full bg-gradient-to-r from-journey-600 to-indigo-600 px-3.5 text-xs font-black text-white ring-transparent sm:h-9 sm:w-auto'
                               : 'h-8 w-8 bg-surface text-ink-400 ring-line-300 hover:text-link hover:ring-brand-400'
                         }`}
                       >
                         <Check className="h-4 w-4" strokeWidth={3} />
-                        {!done && isNext && <span className="hidden sm:inline">Mark done</span>}
+                        {!done && isNext && <span>Mark done</span>}
                       </button>
                     ) : (
                       /* The only route to finishing a task with a lesson, so it
@@ -818,7 +894,7 @@ export default function Planner() {
                         type="button"
                         onClick={() => setOpenTaskId(open ? null : task._id)}
                         aria-expanded={open}
-                        className={`relative mt-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all active:scale-[0.96] ${
+                        className={`relative mt-0.5 inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-[0.96] sm:w-auto sm:py-1.5 ${
                           open
                             ? 'bg-brand-600 text-white shadow-sm'
                             : done
@@ -829,9 +905,7 @@ export default function Planner() {
                         }`}
                       >
                         <GraduationCap className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">
-                          {open ? 'Close' : done ? 'Review' : started ? 'Continue' : 'Start'}
-                        </span>
+                        <span>{open ? 'Close' : done ? 'Review' : started ? 'Continue' : 'Start'}</span>
                         <ChevronDown
                           className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
                         />
@@ -840,8 +914,8 @@ export default function Planner() {
                   </div>
 
                   {/* Mounted only while open: each panel embeds a player and
-                      fetches its own lesson. Never for a task that needs none. */}
-                  {open && !needsNothing && (
+                      fetches its own lesson. */}
+                  {open && (
                     <div className="animate-fade-in border-t border-line-100 bg-surface pt-6">
                       <TaskStudyPanel
                         task={task}
@@ -873,21 +947,44 @@ export default function Planner() {
             plan, and this is a door rather than a prompt. Offering it up top
             would turn a one-task day into a suggestion to collect more. */}
         {tasks.length > 0 && !needsRoadmap && !examEve && (
-          <div className="flex flex-col items-center gap-1.5 border-t border-line-100 bg-surface-50/60 px-6 py-5 text-center">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Plus}
-              loading={addingTask}
-              loadingText="Finding one for you…"
+          <div className="relative flex flex-col items-center gap-2 overflow-hidden border-t border-journey-100 bg-gradient-to-r from-journey-50 via-pink-50/60 to-amber-50 px-6 py-6 text-center">
+            <span aria-hidden className="fp-drift-icon pointer-events-none absolute top-3 left-[12%] text-base" style={{ animationDelay: '-1.8s' }}>✨</span>
+            <span aria-hidden className="fp-drift-icon pointer-events-none absolute right-[14%] bottom-4 text-sm" style={{ animationDelay: '-3.1s' }}>⭐</span>
+            <span aria-hidden className="fp-drift-icon pointer-events-none absolute top-5 right-[28%] text-sm" style={{ animationDelay: '-0.7s' }}>🚀</span>
+            {/* Unlocked only once every task for today is done. Until then it
+                sits greyed with a lock, so the student can see the door but
+                knows what opens it. The beacon animation runs only when it
+                can actually be pressed. */}
+            <button
+              type="button"
               onClick={handleAddAnother}
+              disabled={addingTask || !allDone}
+              aria-busy={addingTask || undefined}
+              aria-disabled={!allDone || undefined}
+              title={allDone ? undefined : 'Finish today’s tasks first'}
+              className={`group relative inline-flex min-h-11 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 via-pink-500 to-journey-600 px-5 py-2.5 text-sm font-black text-white shadow-md ${
+                allDone
+                  ? 'fp-btn fp-btn-warm fp-beacon fp-sweep disabled:cursor-not-allowed disabled:opacity-70'
+                  : // Locked: still in colour so it reads as a reward waiting,
+                    // but dimmed, still, and with a lock — not a button that
+                    // is merely broken.
+                    'cursor-not-allowed opacity-80 shadow-pink-500/20 saturate-[.85]'
+              }`}
             >
-              Generate another task
-            </Button>
-            <p className="text-xs text-ink-500">
+              {addingTask ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : allDone ? (
+                <Sparkles className="fp-bolt h-4 w-4 fill-white/30" />
+              ) : (
+                <Lock className="h-4 w-4" />
+              )}
+              {addingTask ? 'Finding one for you…' : 'Generate another task'}
+              {!addingTask && allDone && <Plus className="fp-btn-arrow h-4 w-4" strokeWidth={3} />}
+            </button>
+            <p className="text-xs font-semibold text-ink-600">
               {allDone
-                ? 'Finished early? Add one more for today.'
-                : 'Only if you have the time — today’s plan is already set.'}
+                ? 'Finished early? Got time — add one more for today.'
+                : `Finish ${remaining === 1 ? 'the last task' : `all ${remaining} tasks`} for today to unlock one more.`}
             </p>
           </div>
         )}
@@ -904,13 +1001,15 @@ export default function Planner() {
             subtitle="What today's work is building towards"
             accent="amber"
           />
-          <ul className="grid gap-2.5 sm:grid-cols-2">
+          <ul className="grid min-w-0 gap-2.5 sm:grid-cols-2">
             {plannerContext.skillsToDevelop.map((skill, i) => (
               <li
                 key={i}
-                className="flex items-center justify-between gap-3 rounded-xl bg-surface-50 px-4 py-2.5 ring-1 ring-line-100 ring-inset transition-colors hover:bg-surface-100"
+                className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-surface-50 px-4 py-2.5 ring-1 ring-line-100 ring-inset transition-colors hover:bg-surface-100"
               >
-                <span className="truncate text-sm font-semibold text-ink-800">{skill.skillName}</span>
+                {/* min-w-0 so a long name shrinks and wraps inside the row
+                    instead of pushing the row out of the card. */}
+                <span className="min-w-0 flex-1 text-sm font-semibold break-words text-ink-800">{skill.skillName}</span>
                 <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
                   {skill.level}
                 </span>

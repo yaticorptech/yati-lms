@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Building2, Compass, Flame } from 'lucide-react';
 import CurrentMission from './CurrentMission';
 import Mascot from '../mascot/Mascot';
-import useMascotCycle, { LIVE_POSES, DONE_POSES } from '../mascot/useMascotCycle';
+import useMascotCycle, { OVERVIEW_POSES, DONE_POSES, STREAK_KEPT, STREAK_LOST } from '../mascot/useMascotCycle';
 import { phaseStates, journeyPercent } from '../../utils/roadmap';
 import { dailyBoost, DAY_DONE_LINE } from '../../utils/motivation';
 
@@ -38,7 +38,8 @@ export default function JourneyHero({
   completedToday = 0,
   totalToday = 0,
   streak = 0,
-  countedToday = false
+  countedToday = false,
+  streakBroken = false
 }) {
   const phases = roadmapData?.educationRoadmap || [];
   const states = phaseStates(phases.length, completedPhases);
@@ -48,7 +49,16 @@ export default function JourneyHero({
   const hasRoadmap = phases.length > 0;
   const dayCleared = totalToday > 0 && completedToday >= totalToday;
 
-  const look = useMascotCycle(dayCleared ? DONE_POSES : LIVE_POSES);
+  // What the mascot has to say about the streak leads the cycle: kept and
+  // safe for today, or lost and worth restarting. Otherwise the Overview set.
+  const poses = dayCleared
+    ? DONE_POSES
+    : countedToday && streak > 1
+      ? [STREAK_KEPT, ...OVERVIEW_POSES]
+      : streakBroken
+        ? [STREAK_LOST, ...OVERVIEW_POSES]
+        : OVERVIEW_POSES;
+  const look = useMascotCycle(poses);
 
   // The streak, phrased as what today can do for it — never as a warning.
   const streakLine = countedToday
@@ -113,6 +123,14 @@ export default function JourneyHero({
           </p>
 
           <div className="animate-fade-in-up mt-3 flex flex-wrap items-center gap-2" style={{ animationDelay: '0.2s' }}>
+            {/* On a phone the ring beside the mascot is hidden, so today's
+                count is said here instead. */}
+            {totalToday > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface/80 px-2.5 py-1 text-xs font-black text-ink-800 ring-1 ring-line-200/80 ring-inset tabular-nums md:hidden">
+                <span aria-hidden>{dayCleared ? '✅' : '🎯'}</span>
+                {completedToday}/{totalToday} today
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-journey-100/60 px-2.5 py-1 text-xs font-bold text-journey-700">
               <span aria-hidden>{dayCleared ? '🏆' : '💪'}</span>
               {dayCleared ? DAY_DONE_LINE : dailyBoost()}

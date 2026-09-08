@@ -7,9 +7,8 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import SidebarProgressCard from '../components/SidebarProgressCard';
-import MentorFab from '../components/MentorFab';
 import MobileBottomNav from '../components/MobileBottomNav';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, Bot, ChevronDown, Wallet } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
@@ -328,17 +327,16 @@ const StudentLayout = () => {
                     <Briefcase size={20} /> <span>Jobs</span>
                 </Link>
             )}
+            {/* Scholarships come from the student's Career Path resources, so
+                the tab follows that switch. */}
+            {isCareerPathEnabled && (
+                <Link to="/scholarships" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/scholarships') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                    <GraduationCap size={20} /> <span>Scholarships</span>
+                </Link>
+            )}
             {isCareerPathEnabled && (
                 <Link to="/career" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/career') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                     <Compass size={20} /> <span>Career Path</span>
-                </Link>
-            )}
-            {/* Its own section rather than a Career Path tab. It still rides on
-                the same admin switch, because every request it makes goes to
-                /api/career/chat and the server keeps that behind the flag. */}
-            {isCareerPathEnabled && (
-                <Link to="/mentor" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/mentor') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                    <Bot size={20} /> <span>AI Mentor</span>
                 </Link>
             )}
         </>
@@ -447,9 +445,7 @@ const StudentLayout = () => {
 );
     return (
         <div className="flex h-screen bg-slate-50 text-slate-900 font-sans">
-            {isCareerPathEnabled && <MentorFab />}
-
-            {/* The seven sections under the thumb, mirroring the sidebar. */}
+            {/* The six sections under the thumb, mirroring the sidebar. */}
             <MobileBottomNav
                 isJobsEnabled={isJobsEnabled}
                 isCareerPathEnabled={isCareerPathEnabled}

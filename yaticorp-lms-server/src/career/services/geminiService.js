@@ -991,6 +991,54 @@ If a category is completely inapplicable (e.g., certifications for a 10 year old
   }
 };
 
+/**
+ * A scholarship list for one student: real, named schemes they can actually
+ * apply to from where they are, with who each is for and when it closes.
+ */
+const generateScholarshipsFromAI = async (goal, roadmap) => {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is not configured.');
+  }
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+  const prompt = `
+You are an expert education-funding counsellor. Build a list of scholarships this student can realistically apply for.
+
+Student:
+- Education level: ${goal.educationLevel}
+- Class / degree: ${goal.currentClass || goal.degree || ''} ${goal.specialization || ''}
+- Stream / board: ${goal.stream || ''} ${goal.board || ''}
+- Career goal: ${goal.careerGoal}
+- Country: ${goal.country || 'India'}
+- Current stage on their roadmap: ${roadmap?.roadmapData?.currentStage || describeCurrentStage(goal)}
+
+Rules:
+1. Only REAL, currently running scholarships, fellowships and grants. Government schemes, national scholarship portals, foundations, corporate CSR programmes, university merit awards and international programmes that fit this student's country and stage. Never invent a scheme.
+2. Match the student's stage: a school student gets school and pre-university awards and entrance-linked scholarships; an undergraduate gets degree, internship-linked and postgraduate-entry awards; a postgraduate gets research, fellowship and study-abroad funding; a working professional gets upskilling and executive-education funding.
+3. Prefer schemes tied to the career goal and stream, then broad merit and need-based ones.
+4. Return 10 to 14 entries, most relevant first.
+5. "deadline": the usual application window, as a short phrase ("Usually July to October", "Rolling", "Announced each January"). Give an exact date only if it is fixed every year.
+6. "link": the official application or information page. Leave it "" if unsure - never guess a URL.
+7. "amount": what it is worth, in the student's currency, briefly. "" if it varies too much to say.
+
+Return ONLY raw JSON, no markdown:
+{
+  "scholarships": [
+    { "name": "Official name", "provider": "Who runs it", "amount": "What it is worth", "eligibility": "One or two sentences on who can apply", "deadline": "When to apply", "link": "URL or empty", "why": "One sentence on why it fits THIS student" }
+  ]
+}
+`;
+
+  try {
+    const response = await generateWithRetry(ai, prompt, { json: true, kind: 'scholarships' });
+    return parseJsonObject(response.text);
+  } catch (error) {
+    console.error('Gemini API Error for Scholarships:', error);
+    if (error instanceof aiQuota.AiBudgetError) throw error;
+    throw new Error('Failed to find scholarships: ' + error.message);
+  }
+};
+
 // Local copy rather than an import from dailyPlanService, which requires this
 // file — importing it back would be a cycle. Three lines is cheaper than the
 // refactor that would remove the duplication.
@@ -1395,16 +1443,11 @@ Rules for today's plan:
 9. Category is "Daily" for today's work. Use "Weekly" or "Monthly" only for a larger piece of work today contributes to.
 10. "duration" must be realistic for the task and the numbers must add up to ${minutes} minutes or fewer.
 
-11. "learning" says what the student needs BEFORE they can do this task. Be honest — most days it is not a video.
-   - "video": they have to LEARN a concept or a technique they do not know yet, and watching someone do it is genuinely the fastest way in. Recursion, flexbox, JOINs, how the event loop works.
-     Only choose this if the title is specific enough to find a good tutorial for.
-   - "read": they have to learn something, but a short written explanation with an example is enough — syntax, a command, a config file, a definition, a checklist.
-   - "none": there is NOTHING to learn first. The student already knows how; today is just doing it.
-     This covers practising something already taught, revising, finishing a project started earlier,
-     attending a class or workshop, applying for something, setting up an account, pushing code,
-     writing a résumé, emailing a professor, solving more problems of a kind already practised.
-   Choosing "video" for a task that is really just doing the work wastes the student's time on a
-   tutorial they do not need. When in doubt between "read" and "none", pick "none".
+11. "learning" says how the student should learn this task. Most tasks that build, implement, integrate, configure or use a concept, tool, library, API or technique deserve a VIDEO — the student is doing it for the first time, and a good tutorial is the fastest way in.
+   - "video": the task involves a concept, technique, tool, library, API, pattern or workflow the student is applying for the first time or has not mastered. Hashing passwords with bcrypt, JWT login, JOINs, flexbox, Docker, an Axios call, a Git workflow, a React hook, a maths method, an essay technique. This is the DEFAULT for anything technical or academic. The title must be specific enough to find a good tutorial for — and you must make it so.
+   - "read": the thing to learn is small enough that a short written explanation with an example covers it — one command, one config line, a definition, a checklist — and a video would be padding.
+   - "none": there is genuinely NOTHING to learn — pure admin or repetition. Attending a class, applying for something, setting up an account, sending an email, writing a résumé from a template, revising notes already made, solving more problems of a kind already practised this week.
+   When in doubt between "video" and "read", pick "video". When in doubt between "read" and "none", pick "read". At most ONE task per day may be "none" unless the day is entirely administrative.
 
 12. "guidance" is OPTIONAL, and only ever appears when "learning" is "none". Omit it entirely
    otherwise. Most tick-only tasks do not need it.
@@ -1769,6 +1812,7 @@ module.exports = {
   generateRoadmapFromAI,
   generateTasksFromAI,
   generateRecommendationsFromAI,
+  generateScholarshipsFromAI,
   generateMentorResponse,
   // Exported for tests: it is pure, and it is the part of the mentor prompt
   // that can be checked without spending a Gemini call.

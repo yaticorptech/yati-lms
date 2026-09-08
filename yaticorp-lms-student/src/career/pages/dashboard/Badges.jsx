@@ -4,10 +4,11 @@ import { AuthContext } from '../../context/AuthContext';
 import ShareBadgeDialog from '../../components/roadmap/ShareBadgeDialog';
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, Award, Trophy, Zap, Info, Share2, Medal, Sparkles, Flag, Lock, Gift
+  ArrowRight, Award, Trophy, Zap, Share2, Medal, Sparkles, Flag, Lock, Gift
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
-import RewardsArt from '../../components/rewards/RewardsArt';
+import Mascot from '../../components/mascot/Mascot';
+import useMascotCycle, { REWARD_POSES } from '../../components/mascot/useMascotCycle';
 import BadgeMedallion from '../../components/rewards/BadgeMedallion';
 import useCountUp from '../../../hooks/useCountUp';
 import { BADGE_ICONS, tierFor } from '../../components/rewards/badgeTiers';
@@ -107,7 +108,9 @@ function LevelBadge({ level, percent }) {
 }
 
 export default function Badges() {
-  const { user, isCreditSystemEnabled } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
+  // Celebrating poses, changing every few seconds — this is the page for it.
+  const look = useMascotCycle(REWARD_POSES);
   const [achievements, setAchievements] = useState([]);
   const [badges, setBadges] = useState([]);
   const [milestones, setMilestones] = useState([]);
@@ -186,7 +189,7 @@ export default function Badges() {
           <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6">
             <LevelBadge level={level} percent={percent} />
 
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
               <p className="text-[0.7rem] font-black tracking-[0.16em] text-journey-600 uppercase">
                 Rewards
               </p>
@@ -255,26 +258,20 @@ export default function Badges() {
               </div>
             </div>
 
-            <RewardsArt className="hidden h-40 w-52 shrink-0 lg:block" />
+            {/* The mascot with its confetti, beside the level: the reward the
+                page is about, celebrated. Decorative — every number is in
+                the text beside it. */}
+            <div aria-hidden className="relative hidden h-44 w-52 shrink-0 items-end justify-center lg:flex">
+              <span className="fp-halo absolute bottom-4 left-1/2 h-28 w-28 -translate-x-1/2 rounded-full bg-amber-300/50 blur-2xl" />
+              <span className="fp-drift-icon absolute top-1 left-3 text-xl" style={{ animationDelay: '-1.2s' }}>🏅</span>
+              <span className="fp-drift-icon absolute top-6 right-2 text-lg" style={{ animationDelay: '-2.8s' }}>⭐</span>
+              <span className="fp-drift-icon absolute bottom-12 left-0 text-base" style={{ animationDelay: '-0.6s' }}>✨</span>
+              <span className="fp-drift-icon absolute bottom-16 right-0 text-base" style={{ animationDelay: '-3.6s' }}>🎉</span>
+              <span className="absolute bottom-1 left-1/2 h-5 w-32 -translate-x-1/2 rounded-full bg-amber-400/40 blur-lg" />
+              <Mascot key={look.pose} pose={look.pose} height={164} motion={look.motion} className="mc-pop relative" />
+            </div>
           </div>
         </section>
-
-        {/* Said out loud because two numbers that both go up look like the same
-            number. They are not: credits come from course quizzes and belong to
-            the LMS, XP comes from Career Path tasks. Neither converts into the
-            other. */}
-        {isCreditSystemEnabled && (
-          <div className="flex items-start gap-3 rounded-2xl border border-line-200 bg-surface-50 px-4 py-3">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-400" />
-            <p className="text-sm leading-relaxed text-ink-600">
-              <strong className="font-semibold text-ink-900">XP is not credits.</strong> XP is your
-              Career Path progress and unlocks the badges below. Your{' '}
-              <strong className="font-semibold text-ink-900">{user?.credits || 0} credits</strong> are
-              separate — you earn those from quizzes inside your courses. One does not convert into
-              the other.
-            </p>
-          </div>
-        )}
 
         {/* ---- Badges --------------------------------------------------- */}
         <Card>

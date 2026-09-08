@@ -91,7 +91,7 @@ export default function ComingUpNext({ events = [], todayKey, styleFor, onSelect
                 </span>
 
                 <span
-                  className={`shrink-0 rounded-md px-2 py-1 text-[0.68rem] font-black ${style.bg} ${style.text}`}
+                  className={`hidden shrink-0 rounded-md px-2 py-1 text-[0.68rem] font-black sm:inline-block ${style.bg} ${style.text}`}
                 >
                   {event.type}
                 </span>

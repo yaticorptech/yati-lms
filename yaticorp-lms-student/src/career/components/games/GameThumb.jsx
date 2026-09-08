@@ -237,6 +237,67 @@ const THUMBS = {
       </text>
     </>
   ),
+  'grid-recall': () => (
+    <TileGrid
+      cells={[
+        { x: 6, y: 6, w: 13, h: 13, r: 3, bg: '#8b5cf6' }, { x: 21.5, y: 6, w: 13, h: 13, r: 3, bg: '#ede9fe' }, { x: 37, y: 6, w: 13, h: 13, r: 3, bg: '#8b5cf6' },
+        { x: 6, y: 21.5, w: 13, h: 13, r: 3, bg: '#ede9fe' }, { x: 21.5, y: 21.5, w: 13, h: 13, r: 3, bg: '#c4b5fd' }, { x: 37, y: 21.5, w: 13, h: 13, r: 3, bg: '#ede9fe' },
+        { x: 6, y: 37, w: 13, h: 13, r: 3, bg: '#8b5cf6' }, { x: 21.5, y: 37, w: 13, h: 13, r: 3, bg: '#ede9fe' }, { x: 37, y: 37, w: 13, h: 13, r: 3, bg: '#ede9fe' }
+      ]}
+    />
+  ),
+  'tic-tac-toe': () => (
+    <>
+      <path d="M20 8 v40 M36 8 v40 M8 20 h40 M8 36 h40" stroke="#bae6fd" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path d="M10 10 l8 8 M18 10 l-8 8" stroke="#0284c7" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="28" cy="28" r="4.5" stroke="#f43f5e" strokeWidth="3.5" fill="none" />
+      <path d="M38 38 l8 8 M46 38 l-8 8" stroke="#0284c7" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="44" cy="12" r="4.5" stroke="#f43f5e" strokeWidth="3.5" fill="none" />
+    </>
+  ),
+  'mini-sudoku': () => (
+    <TileGrid
+      cells={[
+        { x: 6, y: 6, w: 10, h: 10, r: 2, bg: '#dbeafe', fg: '#1d4ed8', label: '1', size: 8 }, { x: 17, y: 6, w: 10, h: 10, r: 2, bg: '#ffffff', fg: '#1d4ed8', label: '', size: 8 },
+        { x: 29, y: 6, w: 10, h: 10, r: 2, bg: '#dbeafe', fg: '#1d4ed8', label: '3', size: 8 }, { x: 40, y: 6, w: 10, h: 10, r: 2, bg: '#2563eb', fg: '#ffffff', label: '4', size: 8 },
+        { x: 6, y: 17, w: 10, h: 10, r: 2, bg: '#ffffff', fg: '#1d4ed8', label: '', size: 8 }, { x: 17, y: 17, w: 10, h: 10, r: 2, bg: '#dbeafe', fg: '#1d4ed8', label: '4', size: 8 },
+        { x: 29, y: 17, w: 10, h: 10, r: 2, bg: '#2563eb', fg: '#ffffff', label: '1', size: 8 }, { x: 40, y: 17, w: 10, h: 10, r: 2, bg: '#ffffff', fg: '#1d4ed8', label: '', size: 8 },
+        { x: 6, y: 29, w: 10, h: 10, r: 2, bg: '#dbeafe', fg: '#1d4ed8', label: '2', size: 8 }, { x: 17, y: 29, w: 10, h: 10, r: 2, bg: '#ffffff', fg: '#1d4ed8', label: '', size: 8 },
+        { x: 29, y: 29, w: 10, h: 10, r: 2, bg: '#dbeafe', fg: '#1d4ed8', label: '4', size: 8 }, { x: 40, y: 29, w: 10, h: 10, r: 2, bg: '#dbeafe', fg: '#1d4ed8', label: '3', size: 8 },
+        { x: 6, y: 40, w: 10, h: 10, r: 2, bg: '#2563eb', fg: '#ffffff', label: '4', size: 8 }, { x: 17, y: 40, w: 10, h: 10, r: 2, bg: '#dbeafe', fg: '#1d4ed8', label: '3', size: 8 },
+        { x: 29, y: 40, w: 10, h: 10, r: 2, bg: '#ffffff', fg: '#1d4ed8', label: '', size: 8 }, { x: 40, y: 40, w: 10, h: 10, r: 2, bg: '#dbeafe', fg: '#1d4ed8', label: '1', size: 8 }
+      ]}
+    />
+  ),
+  'typing-sprint': () => (
+    <>
+      <rect {...tile(6, 14, '#fdf4ff', 44, 28, 8)} />
+      <rect {...tile(10, 18, '#f0abfc', 8, 6, 2)} /><rect {...tile(20, 18, '#f0abfc', 8, 6, 2)} /><rect {...tile(30, 18, '#f0abfc', 8, 6, 2)} /><rect {...tile(40, 18, '#f0abfc', 6, 6, 2)} />
+      <rect {...tile(12, 26, '#e879f9', 8, 6, 2)} /><rect {...tile(22, 26, '#e879f9', 8, 6, 2)} /><rect {...tile(32, 26, '#e879f9', 8, 6, 2)} />
+      <rect {...tile(14, 34, '#c026d3', 28, 5, 2)} />
+    </>
+  ),
+  'binary-blitz': () => (
+    <>
+      <rect {...tile(6, 8, '#d1fae5', 44, 40, 8)} />
+      <text x="28" y="26" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="12" fontWeight="800" fill="#047857">
+        1011
+      </text>
+      <path d="M22 32 h12 m-3 -3 l3 3 l-3 3" stroke="#10b981" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <text x="28" y="44" textAnchor="middle" fontSize="11" fontWeight="800" fill="#065f46">
+        11
+      </text>
+    </>
+  ),
+  'speed-sort': () => (
+    <TileGrid
+      cells={[
+        { x: 6, y: 6, w: 13, h: 13, r: 3, bg: '#fde68a', fg: '#92400e', label: '7', size: 9 }, { x: 21.5, y: 6, w: 13, h: 13, r: 3, bg: '#f59e0b', fg: '#ffffff', label: '1', size: 9 }, { x: 37, y: 6, w: 13, h: 13, r: 3, bg: '#fde68a', fg: '#92400e', label: '4', size: 9 },
+        { x: 6, y: 21.5, w: 13, h: 13, r: 3, bg: '#fde68a', fg: '#92400e', label: '9', size: 9 }, { x: 21.5, y: 21.5, w: 13, h: 13, r: 3, bg: '#f59e0b', fg: '#ffffff', label: '2', size: 9 }, { x: 37, y: 21.5, w: 13, h: 13, r: 3, bg: '#fde68a', fg: '#92400e', label: '6', size: 9 },
+        { x: 6, y: 37, w: 13, h: 13, r: 3, bg: '#f59e0b', fg: '#ffffff', label: '3', size: 9 }, { x: 21.5, y: 37, w: 13, h: 13, r: 3, bg: '#fde68a', fg: '#92400e', label: '8', size: 9 }, { x: 37, y: 37, w: 13, h: 13, r: 3, bg: '#fde68a', fg: '#92400e', label: '5', size: 9 }
+      ]}
+    />
+  ),
   'running-total': () => (
     <>
       <rect {...tile(8, 6, '#d1fae5', 40, 12, 4)} />
