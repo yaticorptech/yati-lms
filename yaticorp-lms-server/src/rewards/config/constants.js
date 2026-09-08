@@ -21,7 +21,13 @@ const ACTIVITY_TYPES = [
   'course_complete',
   'certificate_earned',
   'career_task',
-  'daily_activity'
+  'daily_activity',
+  // Interview Ready
+  'interview_prep',
+  'interview_practice',
+  'mock_interview',
+  'interview_improved',
+  'interview_challenge'
 ];
 
 const ACCOUNT_TYPES = ['school_student', 'college_student', 'adult', 'professional', 'instructor'];
@@ -36,7 +42,14 @@ const DEFAULT_XP_RULES = {
   // Career Path already pays its own XP through the career module; these two
   // are here so the admin can see and change them in one place.
   career_task: 10,
-  daily_activity: 5
+  daily_activity: 5,
+  // Interview Ready: preparing, practising a question, finishing a mock
+  // interview, beating your best score, and the weekly full-interview challenge.
+  interview_prep: 10,
+  interview_practice: 5,
+  mock_interview: 30,
+  interview_improved: 20,
+  interview_challenge: 50
 };
 
 // Level n starts at thresholds[n-1] XP. The first ten match the ladder the
@@ -91,6 +104,8 @@ const DEFAULT_BADGES = [
   { key: 'quiz_master', title: 'Quiz Master', description: 'Complete 10 quizzes.', emoji: '🧠', metric: 'quizzes', target: 10, rewardPoints: 100, order: 4 },
   { key: 'top_10', title: 'Top 10 Learner', description: 'Finish a week in the top 10 of the leaderboard.', emoji: '🏆', metric: 'top10_weeks', target: 1, rewardPoints: 100, order: 5 },
   { key: 'xp_1000', title: '1,000 XP', description: 'Earn 1,000 XP in total.', emoji: '⭐', metric: 'xp', target: 1000, rewardPoints: 50, order: 6 },
+  { key: 'first_mock_interview', title: 'First Mock Interview', description: 'Complete your first AI mock interview.', emoji: '🎙️', metric: 'mock_interviews', target: 1, rewardPoints: 25, order: 7 },
+  { key: 'interview_ready', title: 'Interview Ready', description: 'Reach 75% interview readiness.', emoji: '🎤', metric: 'interview_readiness', target: 75, rewardPoints: 100, order: 8 },
   { key: 'certificate_collector', title: 'Certificate Collector', description: 'Earn three course certificates.', emoji: '🎓', metric: 'certificates', target: 3, rewardPoints: 150, order: 7 },
   { key: 'perfect_quiz', title: 'Perfect Quiz', description: 'Score 100% on a quiz.', emoji: '💯', metric: 'perfect_quizzes', target: 1, rewardPoints: 25, order: 8 }
 ];

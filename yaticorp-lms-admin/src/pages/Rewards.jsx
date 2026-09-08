@@ -162,7 +162,7 @@ function Overview() {
 }
 
 // ── Rules ───────────────────────────────────────────────────────────────────
-const XP_LABELS = { lesson_complete: 'Complete a lesson', quiz_complete: 'Complete a quiz', quiz_pass: 'Pass a quiz', assignment_complete: 'Complete an assignment', course_complete: 'Complete a course', certificate_earned: 'Earn a certificate', career_task: 'Complete a Career Path task', daily_activity: 'Solve the daily activity' };
+const XP_LABELS = { lesson_complete: 'Complete a lesson', quiz_complete: 'Complete a quiz', quiz_pass: 'Pass a quiz', assignment_complete: 'Complete an assignment', course_complete: 'Complete a course', certificate_earned: 'Earn a certificate', career_task: 'Complete a Career Path task', daily_activity: 'Solve the daily activity', interview_prep: 'Prepare for interviews (Interview Ready)', interview_practice: 'Practise an interview question', mock_interview: 'Complete a mock interview', interview_improved: 'Beat your best interview score', interview_challenge: 'Complete the weekly interview challenge' };
 
 function Rules() {
     const [cfg, setCfg] = useState(null);

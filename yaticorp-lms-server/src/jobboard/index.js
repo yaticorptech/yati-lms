@@ -20,6 +20,7 @@ const { ipKeyGenerator } = require('express-rate-limit');
 
 const { protectUser } = require('../middleware/authMiddleware');
 const { requireJobsEnabled } = require('./middleware/featureGate');
+const { requireJobAccess } = require('./middleware/requireJobAccess');
 
 /**
  * Say at startup what this section cannot do, rather than letting it be
@@ -72,14 +73,17 @@ router.use(rateLimit({
 router.use('/roles', require('./routes/roles'));
 router.use('/meta', require('./routes/meta'));
 router.use('/notifications', require('./routes/notifications'));
-router.use('/saved', require('./routes/saved'));
+// Job Access Verification — Aadhaar and LinkedIn — before the board opens.
+// Its own endpoints are reachable to any student; listings and bookmarks are not until it says so.
+router.use('/verification', require('./routes/verification'));
+router.use('/saved', requireJobAccess, require('./routes/saved'));
 router.use('/resume', require('./routes/resume'));
 // Age-aware local opportunities — the part of the section a school student
 // may use. Own profile, own index, own rules; see routes/opportunities.js.
 router.use('/opportunities', require('./routes/opportunities'));
 // Last: this one owns "/" and "/:id", so it would otherwise swallow the two
 // above as job ids.
-router.use('/', require('./routes/jobs'));
+router.use('/', requireJobAccess, require('./routes/jobs'));
 
 // An unknown path under /api/jobs is a client mistake, and should be answered
 // in the language the client speaks rather than with Express's HTML error page.

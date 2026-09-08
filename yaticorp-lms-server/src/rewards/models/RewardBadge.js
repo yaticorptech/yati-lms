@@ -4,7 +4,7 @@
  */
 const mongoose = require('mongoose');
 
-const METRICS = ['lessons', 'quizzes', 'perfect_quizzes', 'courses', 'certificates', 'xp', 'longest_streak', 'current_streak', 'top10_weeks', 'level'];
+const METRICS = ['lessons', 'quizzes', 'perfect_quizzes', 'courses', 'certificates', 'xp', 'longest_streak', 'current_streak', 'top10_weeks', 'level', 'mock_interviews', 'interview_readiness'];
 
 const rewardBadgeSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true, trim: true, match: [/^[a-z0-9_]+$/, 'key must be lowercase letters, digits and underscores'] },

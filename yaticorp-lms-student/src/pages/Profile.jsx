@@ -18,7 +18,6 @@ import { useRewards } from '../context/useRewards';
 import ProgressCard from '../components/rewards/ProgressCard';
 import LeaderboardCard from '../components/rewards/LeaderboardCard';
 import WalletCard from '../components/rewards/WalletCard';
-import LearningBioCard from '../learningbio/LearningBioCard';
 
 // Helper: convert crop area to a cropped blob
 const getCroppedBlob = (imageSrc, pixelCrop) =>
@@ -440,9 +439,6 @@ const Profile = () => {
                     </div>
                 </div>
             </div>
-
-            {/* ── My Learning Bio: the AI-written profile built from learning data ── */}
-            <LearningBioCard />
 
             {/* ── Stat tiles (Career Path numbers, shown only when rewards are locked;
                    otherwise the progress + leaderboard block below carries them) ── */}

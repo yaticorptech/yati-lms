@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Key, Plus, Trash2, Smartphone, Bell, ChevronRight, ArrowLeft, CheckCircle2, Eye, EyeOff, Compass, Lock, Unlock, Briefcase, Gift } from 'lucide-react';
+import { Shield, Key, Plus, Trash2, Smartphone, Bell, ChevronRight, ArrowLeft, CheckCircle2, Eye, EyeOff, Compass, Lock, Unlock, Briefcase, Gift, ShieldCheck, Linkedin, FileText, MapPin, Wrench } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 
 /**
@@ -52,6 +52,44 @@ const FeatureRow = ({ icon: Icon, title, description, enabled, saving, onToggle 
         </button>
     </div>
 );
+
+/**
+ * One Job Access Verification requirement. A required step is asked of every
+ * student before the job board opens; switching it off removes the step from
+ * the flow (the server reads these, students cannot skip a required one).
+ */
+const RequirementRow = ({ icon: Icon, title, description, required, saving, onToggle }) => (
+    <div className="flex items-center justify-between gap-4 py-3">
+        <div className="flex items-start gap-3 min-w-0">
+            <span className={`p-2 rounded-lg shrink-0 ${required ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                <Icon size={16} />
+            </span>
+            <div className="min-w-0">
+                <p className="font-semibold text-slate-800 text-sm">{title}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+            </div>
+        </div>
+        <button
+            type="button"
+            role="switch"
+            aria-checked={required}
+            aria-label={`${title}: ${required ? 'required' : 'not required'}`}
+            onClick={() => onToggle(!required)}
+            disabled={saving}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${required ? 'bg-indigo-600' : 'bg-slate-300'}`}
+        >
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${required ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        </button>
+    </div>
+);
+
+const JOB_VERIFICATION_STEPS = [
+    { key: 'requireAadhaar', icon: ShieldCheck, title: 'Require Aadhaar verification', description: 'Secure QR scan and an OTP to the Aadhaar-linked mobile before anything else.' },
+    { key: 'requireLinkedin', icon: Linkedin, title: 'Require LinkedIn profile', description: 'The student enters their profile URL. The format is checked; ownership is not claimed.' },
+    { key: 'requireResume', icon: FileText, title: 'Require resume', description: 'A resume on file (PDF, DOC, DOCX). One uploaded on the profile page counts.' },
+    { key: 'requireLocation', icon: MapPin, title: 'Require location', description: 'The city or area the student wants to work in.' },
+    { key: 'requireSkills', icon: Wrench, title: 'Require skills', description: 'At least one skill, chosen from the same vocabulary the job board uses.' }
+];
 
 const Settings = () => {
     const { admin } = useAuth();
@@ -103,6 +141,19 @@ const Settings = () => {
      * being kept — if the save is refused, the toggle snaps back to what is
      * actually stored instead of showing a lock that was never applied.
      */
+    /** Flip one Job Verification requirement; the server's reply is the truth, as above. */
+    const toggleRequirement = async (key, value) => {
+        setSavingFeature(key);
+        try {
+            const res = await api.put('/admin/settings', { jobVerification: { [key]: value } });
+            setFeatures(res.data);
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to update settings');
+        } finally {
+            setSavingFeature(null);
+        }
+    };
+
     const toggleFeature = async (key, value) => {
         setSavingFeature(key);
         try {
@@ -244,6 +295,23 @@ const Settings = () => {
                                     saving={savingFeature === 'isJobsEnabled'}
                                     onToggle={(next) => toggleFeature('isJobsEnabled', next)}
                                 />
+                                <div className="mt-5 ml-0 sm:ml-12 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-2">
+                                    <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 pt-2">Job Access Verification requirements</p>
+                                    <p className="text-xs text-slate-500 mt-0.5 mb-1">What a student must complete before the job board opens. Completed steps are kept; a switched-off step is skipped.</p>
+                                    <div className="divide-y divide-slate-200">
+                                        {JOB_VERIFICATION_STEPS.map((step) => (
+                                            <RequirementRow
+                                                key={step.key}
+                                                icon={step.icon}
+                                                title={step.title}
+                                                description={step.description}
+                                                required={features.jobVerification?.[step.key] !== false}
+                                                saving={savingFeature === step.key}
+                                                onToggle={(next) => toggleRequirement(step.key, next)}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                             <div className="pt-6">
                                 <FeatureRow
