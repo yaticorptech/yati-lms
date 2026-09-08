@@ -38,7 +38,6 @@ import JobsTabs from '../jobs/JobsTabs';
 import OpportunitiesTab from '../opportunities/OpportunitiesTab';
 import CareerMatchTab from '../jobs/CareerMatchTab';
 import HiddenOpportunitiesTab from '../jobs/HiddenOpportunitiesTab';
-import JobsVerificationGate from '../jobs/JobsVerificationGate';
 import { opportunitiesApi } from '../opportunities/api';
 
 const JOB_TYPES = ['Any', 'Full-time', 'Part-time', 'Internship', 'Contract'];
@@ -228,11 +227,6 @@ export default function Jobs() {
        until the first fetch answers; null when it failed. Loaded here rather
        than in the tab because the band decides what THIS page may show. */
     const [oppData, setOppData] = useState(undefined);
-    // The identity check before the board opens. undefined = not answered yet;
-    // a failed request opens the board rather than locking a student out.
-    const [verification, setVerification] = useState(undefined);
-    // The line shown above the tabs right after verifying: where the SMS went.
-    const [verifiedNotice, setVerifiedNotice] = useState(null);
     const [roles, setRoles] = useState([]);
     const [skillOptions, setSkillOptions] = useState([]);
     const [popularSkills, setPopularSkills] = useState([]);
@@ -332,12 +326,6 @@ export default function Jobs() {
             setSavedIds(new Set(rows.map((j) => j.id)));
         }).catch(() => {});
         opportunitiesApi.profile().then(setOppData).catch(() => setOppData(null));
-        // Every visit starts on the verification form, even for a student who
-        // has done it before: `complete` is what the server remembers, not a
-        // pass for this session. What it remembers is used to prefill.
-        jobsApi.verificationGet()
-            .then((r) => setVerification({ ...r, previous: r.verification, complete: false }))
-            .catch(() => setVerification({ complete: false, previous: null }));
     }, []);
 
     /* A minor never sees the global board: whatever tab the URL or a click
@@ -707,35 +695,6 @@ export default function Jobs() {
         );
     }
 
-    if (verification === undefined) {
-        return (
-            <div className="space-y-5 animate-fade-in pb-12" aria-busy="true">
-                <div className="skeleton h-56 rounded-3xl" />
-                <div className="skeleton h-14 rounded-2xl" />
-                <Skeletons />
-            </div>
-        );
-    }
-
-    if (!verification.complete) {
-        return (
-            <div className="animate-fade-in pb-12">
-                <JobsVerificationGate
-                    profilePhoto={verification.profilePhoto}
-                    profilePhone={verification.profilePhone}
-                    previous={verification.previous}
-                    onVerified={(r) => {
-                        setVerification({ ...r, complete: true });
-                        setVerifiedNotice(r.sms || { sent: false });
-                        // Land on the job bar itself, whatever tab the URL was pointing at.
-                        setTab('jobs');
-                        setTabParam('jobs');
-                    }}
-                />
-            </div>
-        );
-    }
-
     const showOpportunities = minor || tab === 'opportunities';
 
     return (
@@ -747,19 +706,6 @@ export default function Jobs() {
                     hasData={!!data}
                     topMatch={data?.results?.[0]?.match?.total ?? null}
                 />
-            )}
-
-            {verifiedNotice && (
-                <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 animate-fade-in" role="status">
-                    <Check size={18} className="mt-0.5 shrink-0" />
-                    <p className="flex-1">
-                        <span className="font-bold">You are verified.</span>{' '}
-                        {verifiedNotice.sent
-                            ? `A confirmation message was sent to ${verifiedNotice.to}.${verifiedNotice.simulated ? ' (Test mode: it was written to the server log.)' : ''}`
-                            : 'We could not send the confirmation SMS right now, but your verification is saved.'}
-                    </p>
-                    <button type="button" onClick={() => setVerifiedNotice(null)} aria-label="Dismiss" className="shrink-0 text-emerald-700 hover:text-emerald-900"><X size={16} /></button>
-                </div>
             )}
 
             {!minor && <JobsTabs tabs={TABS} active={tab} onChange={switchTab} counts={{ saved: savedJobs.length }} />}

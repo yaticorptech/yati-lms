@@ -138,7 +138,9 @@ function toDate(v) {
 function canonicalType(raw) {
   const n = norm(Array.isArray(raw) ? raw.join(" ") : raw);
   if (!n) return "Unknown";
-  if (/(^|\s)(intern|internship|trainee|apprentice|praktikum|werkstudent)/.test(n)) return "Internship";
+  // Whole words only: "International Sales Manager" and "Internal Audit"
+  // both start with "intern" and were being filed as internships.
+  if (/\b(interns?|internships?|trainee|apprentice|apprenticeship|praktikum|werkstudent)\b/.test(n)) return "Internship";
   if (/part.?time|teilzeit|minijob/.test(n)) return "Part-time";
   if (/full.?time|vollzeit|permanent|festanstellung/.test(n)) return "Full-time";
   if (/contract|freelance|temporary/.test(n)) return "Contract";
@@ -469,8 +471,15 @@ async function jsearch({ search, place } = {}) {
   // listings. Those are exactly the places with no other coverage, so an
   // empty answer earns one broader retry rather than being taken as proof
   // the town has no work.
+  // The broader retry keeps the kind of work: an empty "developer
+  // internship in Udupi" is retried as "internships in Udupi", not as
+  // "jobs in Udupi", which would answer with full-time roles the caller's
+  // type filter is about to discard.
+  const kind = /\bintern/i.test(search || "") ? "internships"
+    : /\bpart[\s-]?time\b/i.test(search || "") ? "part time jobs"
+      : "jobs";
   const queries = [`${search || "developer"} in ${where}`];
-  if (search) queries.push(`jobs in ${where}`);
+  if (search) queries.push(`${kind} in ${where}`);
 
   const out = [];
   let spent = 0;
@@ -867,6 +876,46 @@ async function companyBoards() {
   return results.flat();
 }
 
+/* ---------------- Provider: Gemini discovery (keyed, metered, opt-in) ---------------- */
+
+/**
+ * Leads a language model found with Google Search — see
+ * geminiDiscoveryService.js. The one source that reaches a college town's
+ * internships, and the one whose rows are leads rather than postings, so
+ * they are labelled as such and never keep a row without a link.
+ */
+const { discoverJobs, discoveryEnabled } = require("./geminiDiscoveryService.js");
+
+async function geminiDiscovery({ search, place } = {}) {
+  if (!discoveryEnabled() || !place?.city) return [];
+  const rows = await discoverJobs({ search, place });
+  const wantsType = canonicalType(search);
+  return rows.map((r) => {
+    const fromRow = canonicalType(r.type);
+    const fromTitle = canonicalType(r.title);
+    const type = fromRow !== "Unknown" ? fromRow : fromTitle !== "Unknown" ? fromTitle : wantsType !== "Unknown" ? wantsType : "Full-time";
+    return {
+      externalId: `gemini:${stableId(r.url)}`,
+      title: r.title,
+      company: r.company,
+      companyUrl: r.companyUrl,
+      companyLocation: r.location,
+      description: r.description,
+      location: r.location,
+      city: place.city,
+      country: place.country,
+      ...(place.coords ? { geo: { type: "Point", coordinates: place.coords } } : {}),
+      remote: r.remote,
+      type,
+      skills: skillsFrom({ tags: r.skills, title: r.title, description: r.description }),
+      salary: r.salary,
+      url: r.url,
+      source: "Gemini (AI-discovered)",
+      postedAt: new Date(),
+    };
+  });
+}
+
 const PROVIDERS = [
   { name: "Company boards", fn: companyBoards },
   { name: "Remotive", fn: remotive },
@@ -874,6 +923,7 @@ const PROVIDERS = [
   { name: "The Muse", fn: themuse },
   { name: "JSearch", fn: jsearch },
   { name: "Adzuna", fn: adzuna },
+  { name: "Gemini discovery", fn: geminiDiscovery },
 ];
 
 /* ---------------- Ingestion ---------------- */

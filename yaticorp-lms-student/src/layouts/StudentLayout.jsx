@@ -9,9 +9,10 @@ import ContinuePanel from '../components/ContinuePanel';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MentorFab from '../components/MentorFab';
 import MobileBottomNav from '../components/MobileBottomNav';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, Bot, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, Bot, ChevronDown, Wallet } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
+import { money, balance } from '../components/rewards/format';
 
 // Contact Support Modal
 const ContactModal = ({ onClose, user }) => {
@@ -88,6 +89,15 @@ const StudentLayout = () => {
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
     const profileDropdownRef = useRef(null);
+
+    // A link with a hash (the header's wallet pill → /#wallet) should land on
+    // that element; the router changes the URL but does not scroll to it.
+    useEffect(() => {
+        if (!location.hash) return undefined;
+        const id = decodeURIComponent(location.hash.slice(1));
+        const t = setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+        return () => clearTimeout(t);
+    }, [location.pathname, location.hash]);
 
     const handleLogout = () => { setProfileDropdownOpen(false); setShowLogoutConfirm(true); };
     const confirmLogout = () => { setShowLogoutConfirm(false); logout(); };
@@ -692,6 +702,21 @@ const StudentLayout = () => {
                                     {(progressUser || user)?.xp || 0} XP
                                 </Link>
                             </>
+                        )}
+
+                        {/* The wallet balance, always in view at the top of the
+                            dashboard. It opens the wallet card further down the
+                            page, where the transactions and rewards live. */}
+                        {rw?.wallet && (
+                            <Link
+                                to="/#wallet"
+                                aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}`}
+                                className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                            >
+                                <Wallet size={16} />
+                                <span className="hidden lg:inline text-xs font-semibold text-emerald-600">Wallet Balance</span>
+                                <span className="tabular-nums">{money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}</span>
+                            </Link>
                         )}
 
                         {renderNotificationBell()}

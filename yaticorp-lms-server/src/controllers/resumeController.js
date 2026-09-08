@@ -24,6 +24,13 @@ const PARSES_PER_DAY = 5;
 // student app polls for it. Nobody should watch a spinner for a minute.
 const PARSE_WAIT_MS = 8_000;
 const MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
+// Word documents are kept as the student's file but not read: neither reader
+// speaks the format, so the skills come from the courses (and from Career
+// Path) until the student uploads a PDF.
+const STORE_ONLY = {
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+};
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -31,7 +38,8 @@ const upload = multer({
     fileFilter: (_req, file, cb) => {
         const ext = String(file.originalname || '').toLowerCase().split('.').pop();
         if (Object.values(MIME).includes(file.mimetype) || MIME[ext]) return cb(null, true);
-        cb(new Error('Resumes must be a PDF or an image (PNG, JPG, WebP).'));
+        if (Object.values(STORE_ONLY).includes(file.mimetype) || STORE_ONLY[ext]) return cb(null, true);
+        cb(new Error('Resumes must be a PDF, DOC, DOCX or an image (PNG, JPG, WebP).'));
     }
 });
 
@@ -73,7 +81,8 @@ const uploadResume = (req, res) => {
             if (!req.file) return res.status(400).json({ message: 'Attach your resume.' });
 
             const ext = String(req.file.originalname || '').toLowerCase().split('.').pop();
-            const mime = Object.values(MIME).includes(req.file.mimetype) ? req.file.mimetype : MIME[ext] || 'application/pdf';
+            const storeOnly = !!(STORE_ONLY[ext] || Object.values(STORE_ONLY).includes(req.file.mimetype));
+            const mime = Object.values(MIME).includes(req.file.mimetype) ? req.file.mimetype : MIME[ext] || (storeOnly ? STORE_ONLY[ext] || req.file.mimetype : 'application/pdf');
             const filename = String(req.file.originalname || 'resume.pdf').slice(0, 200);
             const existing = await ResumeProfile.findOne({ userId: req.user._id }).lean();
 
@@ -92,7 +101,7 @@ const uploadResume = (req, res) => {
             //    search with skills even when the AI reader is unreachable.
             const userId = req.user._id;
             const uploadedAt = new Date();
-            const local = localParse(req.file.buffer, mime);
+            const local = storeOnly ? null : localParse(req.file.buffer, mime);
             const set = {
                 userId, filename, fileUrl, objectPath, parsedAt: uploadedAt, parseStatus: 'stored',
                 skills: local?.skills || [], skillsRaw: local?.skillsRaw || [], experienceYears: local?.experienceYears || 0,
@@ -109,7 +118,7 @@ const uploadResume = (req, res) => {
             let parsing = false;
             const key = `resume:${userId}:${new Date().toISOString().slice(0, 10)}`;
             const day = await ApiUsage.findOne({ key }).lean();
-            if ((day?.calls ?? 0) < PARSES_PER_DAY) {
+            if (!storeOnly && (day?.calls ?? 0) < PARSES_PER_DAY) {
                 await ApiUsage.updateOne({ key }, { $inc: { calls: 1 }, $setOnInsert: { provider: 'resume-user', month: new Date().toISOString().slice(0, 10) } }, { upsert: true });
                 await ResumeProfile.updateOne({ userId }, { $set: { parseStatus: 'parsing' } });
                 const job = parseResume(req.file.buffer, filename, mime)

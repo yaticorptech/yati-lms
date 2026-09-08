@@ -47,6 +47,7 @@ const updateSettings = async (req, res) => {
             settings.isRewardsEnabled = isRewardsEnabled;
         }
 
+
         await settings.save();
         // Both gates cache this to keep a database read off every request, so a
         // lock has to reach them immediately rather than 30s later.

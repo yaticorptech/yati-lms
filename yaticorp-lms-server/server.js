@@ -96,6 +96,8 @@ app.use('/api/jobs', require('./src/jobboard'));
 // Rewards — streaks, XP, leaderboard, badges, reward points and the wallet.
 // One mount; the module's own router fans out and carries the admin half.
 app.use('/api/rewards', require('./src/rewards'));
+// My Learning Bio — the AI-written, data-backed profile on the dashboard.
+app.use('/api/learning-bio', require('./src/learningbio'));
 // Public share links for Career Path milestone badges: /b/<code> renders the
 // page a student's followers open, /b/<code>/image.png is what LinkedIn, X and
 // WhatsApp embed. Deliberately outside /api and deliberately unauthenticated —
