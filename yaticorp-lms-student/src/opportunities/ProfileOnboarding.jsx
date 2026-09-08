@@ -1,8 +1,8 @@
 /**
  * @description The details behind the part-time board, asked in a popup:
  *              which dates you want work, what you are interested in, and a
- *              parent's phone number. The date of birth is not asked here —
- *              it comes from the Jobs verification the student already did.
+ *              parent's phone number, and the date of birth that decides
+ *              which age band of work the student may see.
  */
 import { useState } from 'react';
 import { Check, Loader2, Sparkles, X, CalendarDays, Heart, Smartphone } from 'lucide-react';
@@ -40,6 +40,7 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
     const today = toDateInput(new Date());
     const [form, setForm] = useState(() => ({
         guardianPhone: phoneDigits(initial?.guardianPhone),
+        dateOfBirth: toDateInput(initial?.dateOfBirth) || '',
         wantFrom: toDateInput(initial?.wantFrom) || today,
         wantTo: toDateInput(initial?.wantTo) || toDateInput(initial?.wantFrom) || today,
         interests: initial?.interests || []
@@ -54,6 +55,7 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
 
     const save = async (e) => {
         e.preventDefault();
+        if (!form.dateOfBirth) return setError('Enter your date of birth.');
         if (!form.wantFrom) return setError('Pick the date you want work on.');
         const wantTo = oneDay ? form.wantFrom : form.wantTo;
         if (wantTo < form.wantFrom) return setError('The end date is before the start date.');
@@ -86,6 +88,12 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
               <div className="space-y-3">
                 <Section icon={CalendarDays} n={1} title="When do you want work?" hint="Only jobs running on these dates are shown. You can change them any time.">
                     <div className="grid gap-3">
+                        <div>
+                            <label htmlFor="opp-dob" className={LABEL}>Date of birth</label>
+                            <input id="opp-dob" type="date" value={form.dateOfBirth} max={today} required
+                                onChange={(e) => update({ dateOfBirth: e.target.value })} className={INPUT} />
+                            <p className="mt-1 text-xs text-slate-500">Decides which jobs you can see. Needed once.</p>
+                        </div>
                         <div>
                             <label htmlFor="opp-from" className={LABEL}>{oneDay ? 'Date' : 'From'}</label>
                             <input id="opp-from" type="date" value={form.wantFrom} min={today} required

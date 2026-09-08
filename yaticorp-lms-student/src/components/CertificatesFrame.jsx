@@ -313,15 +313,11 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                 </div>
             )}
 
-            {/* ── Action tiles ─────────────────────────────────────────── */}
-            <div className="grid gap-2.5 px-4 py-3 sm:px-5 md:grid-cols-[1fr_1.5fr]">
+            {/* ── Earn more, and the tip with the way into the explainer:
+                   one row, two columns; they stack on a phone. ───────────── */}
+            <div className="grid gap-2.5 px-4 py-3 sm:px-5 md:grid-cols-2">
                 <Tile to="/enrolled-courses" icon={RefreshCw} title="Earn More" sub="Finish a course to get a verified one" tone="rose" />
-                <Tile to="/jobs" icon={Briefcase} title={<>Find Matching Jobs <span aria-hidden="true">🚀</span></>} sub="Discover jobs that match your skills" tone="cta" />
-            </div>
-
-            {/* ── Tip, and the way into the explainer ──────────────────── */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3.5 sm:px-5">
-                <div className="relative flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-md"><Lightbulb size={20} /></span>
                     <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold text-slate-900">Tip for Better Results <span className="text-amber-400">✨</span></p>

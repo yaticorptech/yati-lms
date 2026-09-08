@@ -14,11 +14,14 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { Tile, Feature, Artwork } from './profileBlocks';
+import BioPopup from '../learningbio/BioPopup';
+import { Sparkles as BioSparkles } from 'lucide-react';
 
 const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
 export default function ResumeSection() {
     const [resume, setResume] = useState(null);
+    const [showBio, setShowBio] = useState(false);
     // The four explainer points live behind this rather than in the card.
     const [showAbout, setShowAbout] = useState(false);
     const [ats, setAts] = useState(null);
@@ -152,10 +155,17 @@ export default function ResumeSection() {
                         <p className="text-xs text-slate-500 sm:text-sm">Keep your resume updated and get noticed by top opportunities.</p>
                     </div>
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    {/* The Learning Bio, in a popup, beside the resume it feeds. */}
+                    <button type="button" onClick={() => setShowBio(true)}
+                        className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 text-sm font-bold text-violet-700 transition-colors hover:bg-violet-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 focus-visible:ring-offset-2">
+                        <BioSparkles size={16} /> My Learning Bio
+                    </button>
                 <button type="button" onClick={download} disabled={downloading || loading}
                     className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:from-indigo-700 hover:to-violet-700 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2">
                     {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Download Resume
                 </button>
+                </div>
             </div>
 
             {error && <div className="flex items-center gap-2 bg-red-50 px-5 py-2.5 text-sm font-medium text-red-600"><AlertCircle size={15} /> {error}</div>}
@@ -208,7 +218,7 @@ export default function ResumeSection() {
                 {resume && <Tile onClick={remove} disabled={removing} icon={Trash2} title="Remove Resume" sub={removing ? 'Removing…' : 'Delete current resume'} tone="rose" />}
                 <Tile to="/jobs" icon={Briefcase} title={<>Find Matching Jobs <span aria-hidden="true">🚀</span></>} sub="Discover jobs that match your skills" tone="cta" />
             </div>
-            <input ref={inputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+            <input ref={inputRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
 
             {/* ── Tip, and the way into the explainer ──────────────────── */}
             <div className="relative overflow-hidden bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3.5 sm:px-5">
@@ -246,6 +256,7 @@ export default function ResumeSection() {
                     </div>
                 </div>
             )}
+            {showBio && <BioPopup onClose={() => setShowBio(false)} />}
         </section>
     );
 }

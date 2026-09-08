@@ -22,7 +22,9 @@ const userSchema = new mongoose.Schema({
     cardNumber: {
         type: String,
         required: true,
-        unique: true
+        unique: true,
+        // Imported records held this as a number; keep every new write as text.
+        set: (v) => (v == null ? v : String(v).trim())
     },
     serialNumber: {
         type: String

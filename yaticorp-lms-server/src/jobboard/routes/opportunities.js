@@ -20,7 +20,6 @@ const { isConnected } = require('../config/db');
 const vocab = require('../data/opportunityVocab');
 const { SEED_VERSION, rows: seedRows } = require('../data/seedOpportunities');
 const { ageFrom, bandFor, check, clientRules, publicView } = require('../services/eligibilityRules');
-const JobVerification = require('../models/JobVerification');
 const { normaliseIndianMobile } = require('../../services/smsService');
 const { recommend, scoreOne } = require('../services/opportunityRecommender');
 
@@ -125,18 +124,13 @@ router.put('/profile', async (req, res, next) => {
         if (!isConnected()) return res.status(503).json({ error: 'Database unavailable.' });
         const body = req.body ?? {};
 
-        // The date of birth is no longer asked for here. It comes from the
-        // Jobs verification the student completed on the way in, or from the
-        // profile they saved earlier; the form itself only sends the rest.
+        // The date of birth comes from the form, or from the profile the
+        // student saved earlier when they are only updating dates.
         const existing = await OpportunityProfile.findOne({ userId: req.user._id }).select('guardian dateOfBirth').lean();
-        let dob = parseDay(body.dateOfBirth) || existing?.dateOfBirth || null;
-        if (!dob) {
-            const verified = await JobVerification.findOne({ userId: req.user._id }).select('dateOfBirth').lean();
-            dob = verified?.dateOfBirth || null;
-        }
+        const dob = parseDay(body.dateOfBirth) || existing?.dateOfBirth || null;
         const age = ageFrom(dob);
         if (age == null || age < 5 || age > 100) {
-            return res.status(400).json({ error: 'Complete the Jobs verification first — your date of birth comes from there.' });
+            return res.status(400).json({ error: 'Enter your date of birth.' });
         }
         const guardianPhone = body.guardianPhone ? normaliseIndianMobile(body.guardianPhone) : '';
         if (body.guardianPhone && !guardianPhone) return res.status(400).json({ error: 'Enter a 10-digit Indian mobile number for your parent.' });

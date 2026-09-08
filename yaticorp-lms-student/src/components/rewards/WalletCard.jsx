@@ -8,7 +8,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Wallet, Gift, TrendingUp, ArrowUpCircle, Trophy, BookOpen, Award, ArrowDownToLine, RotateCcw, Briefcase, X } from 'lucide-react';
 import api from '../../utils/api';
 import WalletSection from './WalletSection';
-import { money, num, SOURCE_LABEL } from './format';
+import { money, num, balance, SOURCE_LABEL } from './format';
 
 const ICON = {
     learning_reward: { Icon: ArrowUpCircle, cls: 'bg-emerald-100 text-emerald-600' },
@@ -77,19 +77,18 @@ export default function WalletCard() {
             ) : (
                 <>
                     <div className="stagger grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                        <div className="@container min-w-0 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
                             <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">Wallet Balance</p><span className="rounded-lg bg-emerald-100 p-1.5 text-emerald-600"><Wallet size={16} /></span></div>
-                            <p className="mt-2 text-3xl font-black tabular-nums text-emerald-700">{money(w.available, cur)}</p>
-                            <p className="text-xs font-semibold text-emerald-600">Earned inside the LMS</p>
+                            <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-emerald-700">{money(balance(w.available), cur)}</p>
                         </div>
-                        <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-                            <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">Reward Points</p><span className="rounded-lg bg-amber-100 p-1.5 text-amber-600"><Gift size={16} /></span></div>
-                            <p className="mt-2 text-3xl font-black tabular-nums text-amber-700">{num(w.rewardPoints)}</p>
-                            <p className="text-xs font-semibold text-amber-700/80">{num(data.conversion.pointsPerUnit)} pts = {money(data.conversion.unitValue, cur)}</p>
+                        <div className="@container min-w-0 rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                            <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">XP Points</p><span className="rounded-lg bg-amber-100 p-1.5 text-amber-600"><Gift size={16} /></span></div>
+                            <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-amber-700">{num(w.rewardPoints)}</p>
+                            <p className="text-xs font-semibold text-amber-700/80">{num(data.conversion.pointsPerUnit)} XP = {money(data.conversion.unitValue, cur)}</p>
                         </div>
-                        <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-4">
+                        <div className="@container min-w-0 rounded-2xl border border-sky-100 bg-sky-50/70 p-4">
                             <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">Total Earned</p><span className="rounded-lg bg-sky-100 p-1.5 text-sky-600"><TrendingUp size={16} /></span></div>
-                            <p className="mt-2 text-3xl font-black tabular-nums text-sky-700">{money(w.totalEarned, cur)}</p>
+                            <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-sky-700">{money(w.totalEarned, cur)}</p>
                         </div>
                     </div>
 

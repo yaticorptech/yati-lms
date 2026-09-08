@@ -450,16 +450,19 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         <section aria-labelledby="opp-categories-title">
                             <SectionTitle icon={LayoutGrid} title={<span id="opp-categories-title">Categories</span>} hint="Counts across all upcoming dates. Only categories open to your age group are shown." />
                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                                {/* Every category is a live filter, even one with nothing
+                                    in it yet: tapping it shows the empty state for that line
+                                    of work rather than a button that does nothing. */}
                                 {listing.categories.map((c) => (
-                                    <button key={c.id} type="button" disabled={!c.count} aria-pressed={filters.category === c.id}
+                                    <button key={c.id} type="button" aria-pressed={filters.category === c.id}
                                         onClick={() => setFilters((f) => ({ ...f, category: f.category === c.id ? '' : c.id, anyDate: true }))}
-                                        className={`group flex items-center gap-3 rounded-2xl border bg-white p-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
+                                        className={`group flex items-center gap-3 rounded-2xl border bg-white p-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
                                             filters.category === c.id ? 'border-indigo-400 ring-1 ring-indigo-200' : 'border-slate-200'
                                         }`}>
                                         <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-xl transition-colors group-hover:bg-indigo-50">{c.icon}</span>
                                         <span className="min-w-0">
                                             <span className="block truncate text-sm font-semibold text-slate-800">{c.label}</span>
-                                            <span className="block text-xs text-slate-500">{c.count} upcoming</span>
+                                            <span className={`block text-xs ${c.count ? 'text-slate-500' : 'text-slate-400'}`}>{c.count ? `${c.count} upcoming` : 'None yet · tap to watch'}</span>
                                         </span>
                                     </button>
                                 ))}
