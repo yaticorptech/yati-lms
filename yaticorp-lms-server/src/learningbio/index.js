@@ -8,6 +8,7 @@
  *   PUT  /bio              { headline, bio, useCustom }  the student's own wording
  *   PUT  /interests        { add: [], remove: [] }
  *   PUT  /settings         { visibility }
+ *   GET  /pdf              the bio as a one-page PDF download
  *   GET  /public/:code     a shared bio, no login (only when visibility is shareable)
  *
  * Every route reads req.user only — a student can never reach another's bio.
@@ -19,6 +20,7 @@ const LearningBio = require('./model');
 const { collect } = require('./learningDataService');
 const { strength } = require('./bioStrengthService');
 const { generateBio, configured, MODEL } = require('./bioGeneratorService');
+const { renderBioPdf } = require('./bioPdf');
 
 const router = express.Router();
 const AUTO_REGEN_PER_DAY = Number(process.env.LEARNING_BIO_AUTO_REGEN_PER_DAY || 4);
@@ -132,6 +134,14 @@ router.use(protectUser);
 
 router.get('/', async (req, res, next) => {
     try { const out = await build(req.user._id); if (!out) return res.status(404).json({ message: 'Account not found.' }); res.json(out); } catch (err) { next(err); }
+});
+
+router.get('/pdf', async (req, res, next) => {
+    try {
+        const full = await build(req.user._id);
+        if (!full) return res.status(404).json({ message: 'Account not found.' });
+        await renderBioPdf(full, res);
+    } catch (err) { next(err); }
 });
 
 router.get('/summary', async (req, res, next) => {

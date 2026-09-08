@@ -3,24 +3,16 @@
  * the student's own row highlighted, and a "full leaderboard" view that
  * adds the scope filters and the rows around the student.
  */
-import React, { useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Trophy, ChevronDown, ArrowUp, ArrowDown, Minus, ArrowRight, Info, Globe, Building2, GraduationCap, BookOpen } from 'lucide-react';
 import api from '../../utils/api';
 import { AuthContext } from '../../context/AuthContext';
 import { num } from './format';
+import LeaderboardCelebration from './LeaderboardCelebration';
+import LeaderboardPodium, { Avatar } from './LeaderboardPodium';
 
 const PERIODS = [['daily', 'Today'], ['weekly', 'This Week'], ['monthly', 'This Month'], ['all', 'All Time']];
 const SCOPES = [['global', 'Global', Globe], ['institution', 'Institution', Building2], ['class', 'Class', GraduationCap], ['course', 'Course', BookOpen]];
-const PODIUM = {
-    1: { card: 'border-amber-200 bg-amber-50/80 sm:-translate-y-3', badge: 'bg-amber-400 text-white', ring: 'ring-amber-300' },
-    2: { card: 'border-slate-200 bg-slate-50', badge: 'bg-slate-400 text-white', ring: 'ring-slate-300' },
-    3: { card: 'border-orange-200 bg-orange-50/80', badge: 'bg-orange-700 text-white', ring: 'ring-orange-300' }
-};
-
-const initials = (name = '') => name.trim().split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
-const Avatar = ({ e, size = 'h-9 w-9', ring = '' }) => e.profilePicture
-    ? <img src={e.profilePicture} alt="" className={`${size} shrink-0 rounded-full object-cover ${ring}`} />
-    : <span className={`${size} flex shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-black text-indigo-600 ${ring}`}>{initials(e.name)}</span>;
 const Change = ({ m }) => m == null || m === 0
     ? <span className="inline-flex items-center text-slate-400"><Minus size={13} /></span>
     : m > 0 ? <span className="inline-flex items-center gap-0.5 font-bold text-emerald-600"><ArrowUp size={13} /> {m}</span>
@@ -66,6 +58,25 @@ export default function LeaderboardCard({ courses = [] }) {
     const error = result.query === query ? result.error : null;
     const rankUp = result.query === query ? result.rankUp : null;
     const podium = useMemo(() => board ? board.entries.slice(0, 3) : [], [board]);
+
+    // The winner's arrival is celebrated once per winner per session: the
+    // key remembers who was on top for this period and scope, and a change
+    // of winner (or a first look) sets the confetti off.
+    const winner = podium[0] || null;
+    const [celebrating, setCelebrating] = useState(null);
+    useEffect(() => {
+        if (!winner) return;
+        const key = `lb-celebrated:${period}:${scope}:${winner.userId}`;
+        let seen = false;
+        try { seen = sessionStorage.getItem(key) === '1'; } catch { /* storage unavailable */ }
+        if (seen) return;
+        const t = setTimeout(() => {
+            try { sessionStorage.setItem(key, '1'); } catch { /* storage unavailable */ }
+            setCelebrating({ name: winner.name, isMe: !!winner.isMe });
+        }, 350);
+        return () => clearTimeout(t);
+    }, [winner, period, scope]);
+    const stopCelebrating = useCallback(() => setCelebrating(null), []);
     const rest = useMemo(() => board ? board.entries.slice(3) : [], [board]);
     const me = board?.me;
     const meListed = board ? board.entries.some((e) => e.isMe) : true;
@@ -74,7 +85,8 @@ export default function LeaderboardCard({ courses = [] }) {
         : null;
 
     return (
-        <section id="leaderboard" className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <section id="leaderboard" className="relative flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            {celebrating && <LeaderboardCelebration onDone={stopCelebrating} />}
             <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                     <h2 className="flex items-center gap-2.5 text-xl font-black text-slate-900"><Trophy size={22} className="text-amber-500" /> Leaderboard</h2>
@@ -115,28 +127,7 @@ export default function LeaderboardCard({ courses = [] }) {
             )}
 
             {board && podium.length > 0 && (
-                <div className="stagger grid grid-cols-3 gap-3 sm:items-end sm:pt-3">
-                    {[podium[1], podium[0], podium[2]].map((e, i) => {
-                        if (!e) return <div key={`empty-${i}`} />;
-                        const p = PODIUM[e.rank];
-                        return (
-                            <div key={e.userId} className={`relative rounded-2xl border p-3 pt-6 text-center ${p.card} ${e.isMe ? 'ring-2 ring-indigo-400 ring-offset-2' : ''}`}>
-                                <span className={`absolute left-1/2 top-0 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-xs font-black shadow ${p.badge}`}>{e.rank}</span>
-                                {e.rank === 1 && (
-                                    <>
-                                        <span aria-hidden="true" className="absolute -left-1 top-3 text-amber-400">✦</span>
-                                        <span aria-hidden="true" className="absolute right-2 top-1 text-xs text-amber-300">✦</span>
-                                        <span aria-hidden="true" className="absolute -right-1 top-8 text-[10px] text-orange-300">✦</span>
-                                    </>
-                                )}
-                                <div className="flex justify-center"><Avatar e={e} size="h-16 w-16" ring={`ring-4 ${p.ring}`} /></div>
-                                <p className="mt-2 truncate text-sm font-bold text-slate-900">{e.isMe ? 'You' : e.name}</p>
-                                <p className="text-base font-black tabular-nums text-slate-800">{num(e.xp)} XP</p>
-                                <p className="text-xs font-bold text-orange-500">🔥 {e.streak} days</p>
-                            </div>
-                        );
-                    })}
-                </div>
+                <LeaderboardPodium podium={podium} />
             )}
 
             {board && (rest.length > 0 || (full && board.around.length > 0) || (!meListed && me?.rank)) && (

@@ -98,6 +98,8 @@ app.use('/api/jobs', require('./src/jobboard'));
 app.use('/api/rewards', require('./src/rewards'));
 // My Learning Bio — the AI-written, data-backed profile on the dashboard.
 app.use('/api/learning-bio', require('./src/learningbio'));
+// Interview Ready — preparation, AI mock interviews and evaluation.
+app.use('/api/interview', require('./src/interview'));
 // Public share links for Career Path milestone badges: /b/<code> renders the
 // page a student's followers open, /b/<code>/image.png is what LinkedIn, X and
 // WhatsApp embed. Deliberately outside /api and deliberately unauthenticated —

@@ -15,7 +15,10 @@ const invalidate = () => { cached = null; cachedAt = 0; };
 
 const toPlain = (doc) => {
   const o = doc.toObject ? doc.toObject() : doc;
-  return { ...o, xpRules: Object.fromEntries(doc.xpRules instanceof Map ? doc.xpRules : Object.entries(o.xpRules || {})) };
+  // Defaults first: a rule added to the code after the config document was
+  // created (the Interview Ready ones, say) would otherwise read as 0 XP.
+  const stored = Object.fromEntries(doc.xpRules instanceof Map ? doc.xpRules : Object.entries(o.xpRules || {}));
+  return { ...o, xpRules: { ...C.DEFAULT_XP_RULES, ...stored } };
 };
 
 const getConfig = async () => {

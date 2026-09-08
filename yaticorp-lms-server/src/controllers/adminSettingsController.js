@@ -24,7 +24,7 @@ const getSettings = async (req, res) => {
 // @access  Private/Admin
 const updateSettings = async (req, res) => {
     try {
-        const { isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isRewardsEnabled } = req.body;
+        const { isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isRewardsEnabled, jobVerification } = req.body;
 
         let settings = await Setting.findOne();
         if (!settings) {
@@ -47,6 +47,17 @@ const updateSettings = async (req, res) => {
             settings.isRewardsEnabled = isRewardsEnabled;
         }
 
+        // Partial updates: { jobVerification: { requireResume: false } } flips
+        // one switch and leaves the others as stored.
+        if (jobVerification && typeof jobVerification === 'object') {
+            const current = settings.jobVerification?.toObject ? settings.jobVerification.toObject() : (settings.jobVerification || {});
+            for (const key of ['requireAadhaar', 'requireLinkedin', 'requireResume', 'requireLocation', 'requireSkills']) {
+                if (typeof jobVerification[key] === 'boolean') current[key] = jobVerification[key];
+            }
+            settings.jobVerification = current;
+            settings.markModified('jobVerification');
+        }
+
 
         await settings.save();
         // Both gates cache this to keep a database read off every request, so a
@@ -54,6 +65,7 @@ const updateSettings = async (req, res) => {
         require('../career/middleware/featureGate').invalidateCareerSetting();
         require('../jobboard/middleware/featureGate').invalidateJobsSetting();
         require('../rewards/middleware/featureGate').invalidateRewardsSetting();
+        require('../jobboard/services/jobVerificationRequirements').invalidateRequirements();
         res.json(settings);
     } catch (error) {
         res.status(500).json({ message: 'Server error updating settings', error: error.message });

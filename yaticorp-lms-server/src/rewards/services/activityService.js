@@ -23,7 +23,12 @@ const DESCRIPTIONS = {
   course_complete: 'for completing a course',
   certificate_earned: 'for earning a certificate',
   career_task: 'for completing a Career Path task',
-  daily_activity: 'for today\'s activity'
+  daily_activity: 'for today\'s activity',
+  interview_prep: 'for preparing for interviews',
+  interview_practice: 'for practising an interview question',
+  mock_interview: 'for completing a mock interview',
+  interview_improved: 'for beating your best interview score',
+  interview_challenge: 'for completing the interview challenge'
 };
 
 /**

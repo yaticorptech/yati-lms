@@ -94,6 +94,18 @@ BUNNY_STREAM_API_KEY=
 
 PLATFORM_SECRET_KEY=
 
+# Job Access Verification (see docs/JOBS.md → "Job Access Verification")
+AADHAAR_PROVIDER=offline-qr             # offline-qr (default) | mock (dev only) | production
+AADHAAR_MOCK_OTP=123456                 # mock provider's fixed OTP
+AADHAAR_UIDAI_CERT_PATH=                # optional UIDAI signing cert for offline-qr signature checks
+AADHAAR_PROVIDER_BASE_URL=              # production provider (TODO(vendor) stubs until filled in)
+AADHAAR_PROVIDER_API_KEY=
+VERIFICATION_ENCRYPTION_KEY=            # 32-byte hex; defaults to a key derived from JWT_SECRET
+FAST2SMS_API_KEY=                       # or MSG91_* / TWILIO_*; none set → OTPs go to the server log
+
+# Interview Ready (see docs/INTERVIEW.md) — uses GEMINI_API_KEY; both optional
+INTERVIEW_AI_MODEL=                     # defaults to GEMINI_MODEL
+INTERVIEW_AI=                           # set to "template" to run without AI
 ```
 
 ## Scripts

@@ -17,8 +17,9 @@
     "jobs:dedupe": "node src/jobboard/scripts/dedupe.js",
     "jobs:warm": "node src/jobboard/scripts/warm.js",
     "jobs:setup": "npm run jobs:seed && npm run jobs:ingest && npm run jobs:geocode",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "career:migrate-badges": "node src/career/scripts/migrateMilestoneBadges.js"
+    "test": "node --test tests/**/*.test.js",
+    "career:migrate-badges": "node src/career/scripts/migrateMilestoneBadges.js",
+    "test:interview": "node --test tests/interview/*.test.js"
   },
   "keywords": [],
   "author": "",

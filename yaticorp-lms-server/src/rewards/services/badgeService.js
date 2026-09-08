@@ -12,13 +12,15 @@ const { notify, celebrate } = require('./notify');
 const { pointsToMoney } = require('./eligibility');
 
 const computeStats = async (userId) => {
-  const [user, streak, counts] = await Promise.all([
+  const [user, streak, counts, prep] = await Promise.all([
     User.findById(userId).select('xp level').lean(),
     Streak.findOne({ userId }).lean(),
     LearningActivity.aggregate([
       { $match: { userId } },
       { $group: { _id: '$type', n: { $sum: 1 }, perfect: { $sum: { $cond: [{ $eq: ['$meta.score', 100] }, 1, 0] } } } }
-    ])
+    ]),
+    // Required lazily: the interview module also requires this service.
+    require('../../interview/models').InterviewPrep.findOne({ userId }).select('readiness').lean().catch(() => null)
   ]);
   const by = Object.fromEntries(counts.map((c) => [c._id, c]));
   return {
@@ -31,7 +33,9 @@ const computeStats = async (userId) => {
     level: user?.level || 1,
     longest_streak: streak?.longest || 0,
     current_streak: streak?.current || 0,
-    top10_weeks: streak?.top10Weeks || 0
+    top10_weeks: streak?.top10Weeks || 0,
+    mock_interviews: by.mock_interview?.n || 0,
+    interview_readiness: prep?.readiness || 0
   };
 };
 
