@@ -16,24 +16,14 @@ export const GUIDE = {
     { target: 'unlock', pet: true, text: "Click here to do today's task and unlock the next phase." },
     { target: 'tab-planner', text: "Today's Plan is where each day begins." }
   ],
-  '/career/planner': [
-    { target: 'mission', pet: true, text: "Here's your plan for today! Click Start and let's begin." },
-    { target: 'tasks', text: 'Open a task, read the lesson and pass the quiz — it ticks itself off when you do.' },
-    { target: 'tab-calendar', text: 'Got an exam coming up? Add it in the Calendar and the evening before stays clear.' }
-  ],
+  // No tour on Today's Plan: the page is the instruction, and the guide
+  // simply rests there.
   '/career/calendar': [
     { target: 'cal-toggle', text: 'Flip between your learning calendar and your class timetable here.' },
     { target: 'day-panel', text: 'Click any day to see its tasks, and add exams or events for that day.' }
   ],
-  '/career/roadmap': [
-    { target: 'here', text: 'This is the phase you are on right now.' },
-    { target: 'next-step', pet: true, text: "Let's take this one step at a time. Your next step is here!" },
-    { target: 'work-today', pet: true, text: 'Click here to work on this phase today and earn 10 XP.' }
-  ],
-  '/career/skills': [
-    { target: 'skills-start', pet: true, text: "Click here to start today's task and move a skill forward." },
-    { target: 'skill-rail', text: 'Your overall progress, XP and badges sit here.' }
-  ],
+  // No tour on the Roadmap either: the map explains itself.
+  // No tour on Skills: the hero already says what to press.
   '/career/badges': [
     { target: 'earn', pet: true, text: 'Click here to earn 10 XP now.' },
     { target: 'badge-task', pet: true, text: 'Click here to get 10 XP closer to your next badge.' }
@@ -48,28 +38,3 @@ export const GUIDE = {
     { text: 'Courses, books and revision picked for your goal live here.' }
   ]
 };
-
-/** Short lines offered while resting, once a page's tour is done. */
-export const TIPS = [
-  "Finish today's task to keep your streak alive 🔥",
-  'Every task is +10 XP. Show up daily to level up faster.',
-  'Stuck? The AI Mentor knows your roadmap.',
-  "Add your exams to the Calendar and I'll clear the evening before.",
-  'Your next badge is closer than you think. Check Rewards!',
-  "Let's learn, grow, together! 💙"
-];
-
-/** The help menu: where each option takes the student. */
-export const HELP = [
-  { label: 'Career Path', to: '/career', tour: true },
-  { label: 'Courses', to: '/enrolled-courses' },
-  { label: 'Assessment', to: '/career/planner', tour: true },
-  { label: 'Progress', to: '/career/profile', tour: true },
-  { label: 'Calendar', to: '/career/calendar', tour: true }
-];
-
-export const CHEERS = [
-  'Great job! 🎉 You completed this step!',
-  'Nice one! 🎉 That is +10 XP in the bag.',
-  'Done! 🎉 One step closer to your goal.'
-];

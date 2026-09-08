@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Flag, Gift, Mountain, Trophy, Zap } from 'lucide-react';
+import Mascot from '../mascot/Mascot';
 import useCountUp from '../../../hooks/useCountUp';
 import BadgeMedallion from '../rewards/BadgeMedallion';
 import { BADGE_ICONS, tierFor } from '../rewards/badgeTiers';
@@ -69,29 +70,6 @@ function Ring({ percent, size = 96, stroke = 10 }) {
   );
 }
 
-/** A small summit, drawn inline so it takes the banner's palette. */
-function SummitArt() {
-  return (
-    <svg viewBox="0 0 220 120" className="h-full w-full" aria-hidden preserveAspectRatio="xMidYMax slice">
-      <path d="M0 120 L70 46 L110 84 L150 30 L220 120 Z" fill="#a78bfa" opacity="0.55" />
-      <path d="M40 120 L120 40 L200 120 Z" fill="#7c3aed" opacity="0.75" />
-      <path d="M120 40 L138 60 L128 60 L112 58 L104 56 Z" fill="#ffffff" opacity="0.9" />
-      <path d="M120 40 L120 18" stroke="#fff" strokeWidth="2" />
-      <path d="M120 18 L138 24 L120 30 Z" fill="#fb7185" />
-      <path
-        d="M60 120 C 90 100, 100 110, 112 86 S 128 70, 120 52"
-        fill="none"
-        stroke="#fde68a"
-        strokeWidth="2.5"
-        strokeDasharray="5 5"
-        strokeLinecap="round"
-      />
-      <ellipse cx="34" cy="110" rx="26" ry="8" fill="#fff" opacity="0.5" />
-      <ellipse cx="190" cy="106" rx="24" ry="7" fill="#fff" opacity="0.45" />
-    </svg>
-  );
-}
-
 export default function SkillRail({ skills = [], user, badges = [] }) {
   const total = skills.length;
   const completed = skills.filter((s) => statusOf(s) === 'completed').length;
@@ -108,7 +86,7 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
     .slice(0, 3);
 
   return (
-    <div data-guide="skill-rail" className="flex flex-col gap-4 lg:sticky lg:top-4">
+    <div className="flex flex-col gap-4 lg:sticky lg:top-4">
       {/* ---- OVERALL ---- */}
       <RailCard icon={Flag} label="Overall Progress" tone="bg-journey-50 text-journey-600 ring-journey-100">
         <div className="mt-4 flex items-center gap-4">
@@ -203,22 +181,31 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
         )}
       </RailCard>
 
-      {/* ---- BANNER ---- */}
+      {/* ---- BANNER ----
+          The words on the left, the mascot on the right, in one row that
+          never overlaps: the drawn summit used to rise up behind the text. */}
       <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-journey-100 via-journey-50 to-pink-100 p-5 shadow-card ring-1 ring-journey-100 ring-inset">
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-28 opacity-90">
-          <SummitArt />
-        </div>
-        <div className="relative pb-16">
-          <p className="flex items-center gap-1.5 text-xs font-bold text-journey-700">
-            <Mountain className="h-3.5 w-3.5" />
-            Small steps…
-          </p>
-          <p className="mt-1 text-xl leading-tight font-black text-ink-900">Big dreams!</p>
-          <p className="mt-2 text-xs font-semibold text-ink-600">
-            You&apos;re doing amazing!
-            <br />
-            Keep going! <span aria-hidden>✨</span>
-          </p>
+        <span aria-hidden className="fp-float pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-pink-300/40 blur-2xl" />
+        <span aria-hidden className="fp-float-slow pointer-events-none absolute -bottom-12 -left-8 h-32 w-32 rounded-full bg-journey-300/40 blur-2xl" />
+        <div className="relative flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-xs font-bold text-journey-700">
+              <Mountain className="h-3.5 w-3.5" />
+              Small steps…
+            </p>
+            <p className="mt-1 text-xl leading-tight font-black text-ink-900">Big dreams!</p>
+            <p className="mt-2 text-xs font-semibold text-ink-600">
+              You&apos;re doing amazing!
+              <br />
+              Keep going! <span aria-hidden>✨</span>
+            </p>
+          </div>
+          <div aria-hidden className="relative shrink-0">
+            <span className="fp-drift-icon absolute -top-3 -left-2 text-base" style={{ animationDelay: '-1.5s' }}>⭐</span>
+            <span className="fp-drift-icon absolute -top-1 -right-3 text-sm" style={{ animationDelay: '-3s' }}>✨</span>
+            <span className="absolute bottom-0 left-1/2 h-4 w-20 -translate-x-1/2 rounded-full bg-journey-400/40 blur-md" />
+            <Mascot pose="star" height={104} motion="mc-float" className="relative" />
+          </div>
         </div>
       </section>
     </div>

@@ -4,12 +4,14 @@ import { Link } from 'react-router-dom';
 import { Route, Clock, ArrowRight, Sparkles, Flag, Zap, Map as MapIcon, CheckCircle2 } from 'lucide-react';
 import JourneyTrack from './journey/JourneyTrack';
 import Card, { CardHeader } from './ui/Card';
-import RoadmapPhase from './roadmap/RoadmapPhase';
+import JourneyMap from './roadmap/JourneyMap';
+import { paletteFor } from './roadmap/palettes';
+import PhaseDialog from './roadmap/PhaseDialog';
 import {
   phaseStates, journeyPercent, phaseTitle, parseChoices, phaseBrief
 } from '../utils/roadmap';
 
-export default function RoadmapDisplay({ data, goal, headerAction, completedPhases = [], onTogglePhase, onShareBadge, badgeBusy, saving }) {
+export default function RoadmapDisplay({ data, goal, completedPhases = [], onTogglePhase, onShareBadge, badgeBusy, saving }) {
   const phases = useMemo(() => data?.educationRoadmap || [], [data]);
   const states = useMemo(() => phaseStates(phases.length, completedPhases), [phases, completedPhases]);
   const currentIndex = states.indexOf('current');
@@ -26,7 +28,9 @@ export default function RoadmapDisplay({ data, goal, headerAction, completedPhas
   //
   // Nothing re-opens it automatically either: ticking a phase off no longer
   // unrolls the next one, because that is the same wall arriving uninvited.
-  const [expanded, setExpanded] = useState(null);
+  // The phase brought to the front, if any. Opening one used to unroll it
+  // inside the list; now the map stays put and the phase opens over it.
+  const [openPhase, setOpenPhase] = useState(null);
 
   if (!data) return null;
 
@@ -88,11 +92,6 @@ export default function RoadmapDisplay({ data, goal, headerAction, completedPhas
                   </span>
                 </h2>
               </div>
-              {/* Regenerate lives here rather than above the panel. The page used
-                  to open with "Your path, one step at a time" and a subtitle, and
-                  then immediately say the same thing again in the header below —
-                  two competing titles, neither of which named the destination. */}
-              {headerAction && <div className="shrink-0">{headerAction}</div>}
             </div>
 
             <div className="animate-fade-in-up mt-3 flex flex-wrap items-center gap-2" style={{ animationDelay: '0.12s' }}>
@@ -147,7 +146,6 @@ export default function RoadmapDisplay({ data, goal, headerAction, completedPhas
 
           {/* ---- The step being stood on, as its own panel beside the road ---- */}
           <div
-            data-guide="here"
             className="animate-fade-in-up relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface/90 p-5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur"
             style={{ animationDelay: '0.3s' }}
           >
@@ -173,7 +171,6 @@ export default function RoadmapDisplay({ data, goal, headerAction, completedPhas
                 <div className="mt-auto pt-4">
                   <Link
                     to="/career/planner"
-                    data-guide="work-today"
                     className="fp-sweep fp-press group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
                   >
                     <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
@@ -197,71 +194,22 @@ export default function RoadmapDisplay({ data, goal, headerAction, completedPhas
       {/* ---------------------------------------------------------------
           The journey itself.
       --------------------------------------------------------------- */}
-      <Card className="animate-fade-in-up">
-        <CardHeader icon={Route} title="Your step-by-step path" accent="journey" />
+      <Card className="animate-fade-in-up overflow-hidden">
+        <CardHeader
+          icon={Route}
+          title="Your step-by-step path"
+          subtitle="Tap any platform to open that phase."
+          accent="journey"
+        />
 
-        {/* No single spine behind the list any more. Each phase draws the
-            stretch of road below itself, so the line can be green where the
-            journey is behind the student and grey where it is still ahead. */}
-        <ol className="relative space-y-4">
-          {/* ---- Where the road starts ----
-              A journey drawn without a beginning starts mid-air. This is the
-              stage the student told us they were at in onboarding, nothing
-              more. ---- */}
-          <li className="relative pl-14">
-            <span
-              aria-hidden="true"
-              className="absolute -bottom-4 top-6 left-6 w-0.5 -translate-x-1/2 rounded-full bg-emerald-400"
-            />
-            <span
-              aria-hidden="true"
-              className="absolute top-2 left-6 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-emerald-400 ring-4 ring-emerald-50"
-            />
-            <p className="pt-0.5 text-[0.68rem] font-bold tracking-[0.14em] text-ink-400 uppercase">
-              Start{startedFrom ? ` · ${startedFrom}` : ''}
-            </p>
-          </li>
-
-          {phases.map((stage, index) => (
-            <RoadmapPhase
-              key={index}
-              stage={stage}
-              index={index}
-              isLast={false}
-              state={states[index]}
-              expanded={expanded === index}
-              onToggleExpand={() => setExpanded(expanded === index ? null : index)}
-              onToggleComplete={() => onTogglePhase?.(index)}
-              onShareBadge={() => onShareBadge?.(index)}
-              badgeBusy={badgeBusy === index}
-              saving={saving}
-            />
-          ))}
-
-          {/* ---- The destination ----
-              The list used to stop on the last phase, which read as running out
-              rather than arriving. The goal the student chose closes the road
-              they have been looking at. ---- */}
-          <li className="relative pl-14">
-            <span
-              className={`absolute left-1 top-0 flex h-10 w-10 items-center justify-center rounded-full ring-4 ${
-                percent === 100
-                  ? 'bg-emerald-500 text-white ring-emerald-50'
-                  : 'bg-gradient-to-br from-amber-400 to-amber-500 text-amber-950 ring-amber-50'
-              }`}
-            >
-              <Flag className="h-5 w-5" strokeWidth={2.6} />
-            </span>
-            <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50/60 px-4 py-3.5 sm:px-5">
-              <p className="text-[0.68rem] font-bold tracking-[0.14em] text-amber-700 uppercase">
-                Your destination
-              </p>
-              <p className="mt-0.5 text-base font-black text-ink-900 sm:text-lg">
-                {goal?.careerGoal || 'Your career goal'}
-              </p>
-            </div>
-          </li>
-        </ol>
+        <JourneyMap
+          phases={phases}
+          states={states}
+          startedFrom={startedFrom}
+          goal={goal}
+          percent={percent}
+          onOpen={setOpenPhase}
+        />
 
         {phases.length > 0 && (
           <Link
@@ -280,6 +228,21 @@ export default function RoadmapDisplay({ data, goal, headerAction, completedPhas
           </Link>
         )}
       </Card>
+
+      {openPhase !== null && phases[openPhase] && (
+        <PhaseDialog
+          stage={phases[openPhase]}
+          index={openPhase}
+          total={phases.length}
+          state={states[openPhase]}
+          palette={paletteFor(openPhase)}
+          onClose={() => setOpenPhase(null)}
+          onToggleComplete={() => onTogglePhase?.(openPhase)}
+          onShareBadge={() => onShareBadge?.(openPhase)}
+          badgeBusy={badgeBusy === openPhase}
+          saving={saving}
+        />
+      )}
 
       {/* Nothing below the timeline. Colleges, skills, subjects, projects,
           exams and career advice used to stack up under it, which buried the

@@ -156,6 +156,7 @@ export default function Overview() {
           totalToday={tasks.length}
           streak={streak}
           countedToday={countedToday}
+          streakBroken={streak === 0 && !countedToday && history.length > 0}
         />
       )}
 

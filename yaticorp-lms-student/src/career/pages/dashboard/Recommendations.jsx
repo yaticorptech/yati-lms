@@ -1,15 +1,15 @@
-import { useState, useEffect, useContext } from 'react';
-import { Link } from 'react-router-dom';
-import { AuthContext } from '../../../context/AuthContext';
+import { useState, useEffect, useContext, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 import { ResourceRow } from '../../components/recommendations/ResourceAccordion';
-import ResourcesArt from '../../components/recommendations/ResourcesArt';
+import Mascot from '../../components/mascot/Mascot';
+import useMascotCycle, { IDEA_POSES } from '../../components/mascot/useMascotCycle';
 import ResourceSidebar from '../../components/recommendations/ResourceSidebar';
 import {
-  Search, Sparkles, RefreshCw, X, Lightbulb, Target, BookMarked,
+  Search, Sparkles, X, Lightbulb, Target, BookMarked,
   Hammer, GraduationCap, Briefcase, MonitorPlay, BadgeCheck, BookOpen, Coins,
-  Code2, TvMinimalPlay, Compass, ArrowRight, PlayCircle, ChevronRight, Trophy,
-  ChevronDown
+  Code2, TvMinimalPlay, Compass, ChevronRight, Trophy
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
@@ -23,65 +23,61 @@ import useMinimumLoading from '../../../hooks/useMinimumLoading';
  * class names — a template-built `bg-${tone}-50` produces no CSS at all.
  */
 const TONES = {
-  violet: { card: 'bg-violet-50/70 ring-violet-100 hover:ring-violet-300', icon: 'bg-violet-100 text-violet-700', count: 'bg-violet-100 text-violet-700' },
-  blue: { card: 'bg-blue-50/70 ring-blue-100 hover:ring-blue-300', icon: 'bg-blue-100 text-blue-700', count: 'bg-blue-100 text-blue-700' },
-  emerald: { card: 'bg-emerald-50/70 ring-emerald-100 hover:ring-emerald-300', icon: 'bg-emerald-100 text-emerald-700', count: 'bg-emerald-100 text-emerald-700' },
-  amber: { card: 'bg-amber-50/70 ring-amber-100 hover:ring-amber-300', icon: 'bg-amber-100 text-amber-700', count: 'bg-amber-100 text-amber-700' },
-  pink: { card: 'bg-pink-50/70 ring-pink-100 hover:ring-pink-300', icon: 'bg-pink-100 text-pink-700', count: 'bg-pink-100 text-pink-700' },
-  sky: { card: 'bg-sky-50/70 ring-sky-100 hover:ring-sky-300', icon: 'bg-sky-100 text-sky-700', count: 'bg-sky-100 text-sky-700' },
-  teal: { card: 'bg-teal-50/70 ring-teal-100 hover:ring-teal-300', icon: 'bg-teal-100 text-teal-700', count: 'bg-teal-100 text-teal-700' },
-  indigo: { card: 'bg-indigo-50/70 ring-indigo-100 hover:ring-indigo-300', icon: 'bg-indigo-100 text-indigo-700', count: 'bg-indigo-100 text-indigo-700' }
+  violet: { card: 'bg-gradient-to-br from-violet-50 to-surface ring-violet-100 hover:ring-violet-300', icon: 'from-violet-400 to-purple-600 shadow-violet-500/40', count: 'bg-violet-600', text: 'text-violet-700', wash: 'bg-violet-300' },
+  blue: { card: 'bg-gradient-to-br from-blue-50 to-surface ring-blue-100 hover:ring-blue-300', icon: 'from-sky-400 to-blue-600 shadow-blue-500/40', count: 'bg-blue-600', text: 'text-blue-700', wash: 'bg-blue-300' },
+  emerald: { card: 'bg-gradient-to-br from-emerald-50 to-surface ring-emerald-100 hover:ring-emerald-300', icon: 'from-emerald-400 to-teal-600 shadow-emerald-500/40', count: 'bg-emerald-600', text: 'text-emerald-700', wash: 'bg-emerald-300' },
+  amber: { card: 'bg-gradient-to-br from-amber-50 to-surface ring-amber-100 hover:ring-amber-300', icon: 'from-amber-400 to-orange-500 shadow-orange-500/40', count: 'bg-orange-500', text: 'text-orange-700', wash: 'bg-amber-300' },
+  pink: { card: 'bg-gradient-to-br from-pink-50 to-surface ring-pink-100 hover:ring-pink-300', icon: 'from-pink-400 to-rose-600 shadow-pink-500/40', count: 'bg-rose-600', text: 'text-rose-700', wash: 'bg-pink-300' },
+  sky: { card: 'bg-gradient-to-br from-sky-50 to-surface ring-sky-100 hover:ring-sky-300', icon: 'from-cyan-400 to-sky-600 shadow-sky-500/40', count: 'bg-sky-600', text: 'text-sky-700', wash: 'bg-sky-300' },
+  teal: { card: 'bg-gradient-to-br from-teal-50 to-surface ring-teal-100 hover:ring-teal-300', icon: 'from-teal-400 to-cyan-600 shadow-teal-500/40', count: 'bg-teal-600', text: 'text-teal-700', wash: 'bg-teal-300' },
+  indigo: { card: 'bg-gradient-to-br from-indigo-50 to-surface ring-indigo-100 hover:ring-indigo-300', icon: 'from-indigo-400 to-violet-600 shadow-indigo-500/40', count: 'bg-indigo-600', text: 'text-indigo-700', wash: 'bg-indigo-300' }
 };
 
 /** One category as a tile: what it is, how much of it there is, and a way in. */
-function CategoryTile({ icon: Icon, title, description, count, tone, open, onToggle }) {
+function CategoryTile({ icon: Icon, title, description, count, tone, onOpen }) {
   const t = TONES[tone] || TONES.violet;
   return (
     <button
       type="button"
-      onClick={onToggle}
-      aria-expanded={open}
-      className={`fp-press group relative flex flex-col rounded-2xl p-4 text-left ring-1 transition-all ring-inset ${t.card} ${
-        open ? 'ring-2 ring-journey-400' : ''
-      }`}
+      onClick={onOpen}
+      aria-haspopup="dialog"
+      className={`group relative flex min-h-[10.5rem] flex-col overflow-hidden rounded-2xl p-4 text-left shadow-card ring-1 transition-all duration-300 ring-inset hover:-translate-y-1 hover:shadow-card-hover ${t.card}`}
     >
-      <span className={`absolute top-3 right-3 rounded-lg px-1.5 py-0.5 text-[0.68rem] font-black tabular-nums ${t.count}`}>
-        {count}
+      {/* A soft wash of the tile's colour in the corner, stronger on hover. */}
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full opacity-30 blur-2xl transition-opacity duration-300 group-hover:opacity-60 ${t.wash}`}
+      />
+      <span className="relative flex items-start justify-between gap-2">
+        <span className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-md transition-transform duration-300 group-hover:scale-110 ${t.icon}`}>
+          <Icon className="h-5 w-5" strokeWidth={2.2} />
+        </span>
+        <span className={`rounded-full px-2 py-0.5 text-[0.68rem] font-black text-white shadow-sm tabular-nums ${t.count}`}>
+          {count}
+        </span>
       </span>
-      <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${t.icon}`}>
-        <Icon className="h-5 w-5" />
-      </span>
-      <span className="mt-3 flex items-center gap-1 pr-6 text-sm leading-tight font-black text-ink-900">
-        {title}
-        <ChevronRight
-          className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : 'group-hover:translate-x-0.5'}`}
-        />
-      </span>
+      <span className="relative mt-3 block text-sm leading-tight font-black text-ink-900">{title}</span>
       {description && (
-        <span className="mt-1 text-xs leading-relaxed text-ink-500">{description}</span>
+        <span className="relative mt-1 hidden text-xs leading-relaxed text-ink-500 min-[400px]:block">{description}</span>
       )}
+      <span className={`relative mt-auto inline-flex items-center gap-1 pt-3 text-xs font-black ${t.text}`}>
+        Explore
+        <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+      </span>
     </button>
   );
 }
 
 /** A heading over a run of tiles, with a control that opens or closes them all. */
-function GroupHeading({ title, subtitle, allOpen, onToggleAll }) {
+function GroupHeading({ title, subtitle }) {
   return (
     <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="text-[0.7rem] font-black tracking-[0.11em] text-journey-700 uppercase">
+        <h2 className="bg-gradient-to-r from-journey-700 to-brand-600 bg-clip-text text-lg font-black text-transparent">
           {title}
         </h2>
         <p className="mt-0.5 text-sm text-ink-500">{subtitle}</p>
       </div>
-      <button
-        type="button"
-        onClick={onToggleAll}
-        className="group inline-flex shrink-0 items-center gap-1 text-xs font-black text-journey-700 hover:underline"
-      >
-        {allOpen ? 'Collapse all' : 'View all'}
-        <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-      </button>
     </div>
   );
 }
@@ -117,24 +113,88 @@ function LabelledGroups({ groups }) {
   );
 }
 
-/** The opened category's contents, under the grid it was opened from. */
-function CategoryPanel({ category, onClose }) {
+/**
+ * One or more categories, opened in front of the page.
+ *
+ * The contents are the same CategoryPanel that used to unfold under the grid.
+ * In a dialog the grid stays where it is, the panel gets the full height of
+ * the screen to scroll in, and closing it lands the student back exactly where
+ * they were.
+ */
+function CategoryDialog({ title, categories, onClose }) {
+  const Icon = categories.length === 1 ? categories[0].icon : null;
+  const count = categories.reduce((n, c) => n + c.count, 0);
+  const closeRef = useRef(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [onClose]);
+
+  // On document.body, outside the page: the page slides in with a transform
+  // and a transformed ancestor would pin this to the page's bottom edge.
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      className="futurepath-portal fixed inset-0 z-[110] flex items-end justify-center sm:items-center sm:p-4"
+    >
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="animate-scale-in relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl bg-surface shadow-[0_30px_80px_-20px_rgba(15,23,42,0.55)] ring-1 ring-line-200 sm:max-h-[86vh] sm:rounded-3xl">
+        <div className="flex shrink-0 items-center gap-3 border-b border-line-100 px-5 py-4 sm:px-6">
+          {Icon && (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-journey-50 text-journey-600 ring-1 ring-journey-100 ring-inset">
+              <Icon className="h-4 w-4" />
+            </span>
+          )}
+          <h2 className="min-w-0 flex-1 truncate text-base font-black text-ink-900">{title}</h2>
+          <span className="shrink-0 rounded-full bg-surface-100 px-2 py-0.5 text-xs font-black text-ink-500 tabular-nums">
+            {count}
+          </span>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
+          {categories.map((c) => (
+            <CategoryPanel key={c.title} category={c} labelled={categories.length > 1} />
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/**
+ * The opened category's contents, shown inside the dialog. `labelled` adds
+ * the category's own bar on top — wanted when several sit in one dialog,
+ * redundant when the dialog's title already names the one category shown.
+ */
+function CategoryPanel({ category, labelled = false }) {
   const Icon = category.icon;
   return (
     <div className="overflow-hidden rounded-2xl border border-line-200 bg-surface shadow-card">
-      <div className="flex items-center gap-2.5 border-b border-line-200 bg-surface-50 px-4 py-3">
-        <Icon className="h-4 w-4 shrink-0 text-journey-600" />
-        <h3 className="min-w-0 flex-1 text-sm font-black text-ink-900">{category.title}</h3>
-        <span className="text-xs font-black text-ink-400 tabular-nums">{category.count}</span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={`Close ${category.title}`}
-          className="rounded-md p-1 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+      {labelled && (
+        <div className="flex items-center gap-2.5 border-b border-line-200 bg-surface-50 px-4 py-3">
+          <Icon className="h-4 w-4 shrink-0 text-journey-600" />
+          <h3 className="min-w-0 flex-1 text-sm font-black text-ink-900">{category.title}</h3>
+          <span className="text-xs font-black text-ink-400 tabular-nums">{category.count}</span>
+        </div>
+      )}
       {category.kind === 'groups' ? (
         <LabelledGroups groups={category.groups} />
       ) : (
@@ -158,10 +218,11 @@ export default function Recommendations() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [scope, setScope] = useState('all');
-  // Which categories are open. Empty to start: the point of the grid is that
-  // the whole catalogue is visible at once before anything is expanded.
-  const [openSections, setOpenSections] = useState(() => new Set());
+  // The category open in front of the page, from a tile. Nothing to start —
+  // the grid is the catalogue.
+  const [dialog, setDialog] = useState(null);
+  // Changing pose every few seconds beside the search box.
+  const look = useMascotCycle(IDEA_POSES);
   const toast = useToast();
 
   const fetchRecs = async () => {
@@ -194,14 +255,6 @@ export default function Recommendations() {
 
   const searching = searchQuery.trim().length > 0;
   const query = searchQuery.toLowerCase();
-
-  const toggleSection = (title) =>
-    setOpenSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(title)) next.delete(title);
-      else next.add(title);
-      return next;
-    });
 
   const showLoader = useMinimumLoading(loading);
   if (showLoader) return <YatiLoader label="Gathering ideas for you" />;
@@ -269,49 +322,27 @@ export default function Recommendations() {
     })
     .filter((c) => c.count > 0);
 
-  const yaticorpCourses = (data?.yaticorpCourses || []).filter((course) =>
-    JSON.stringify(course).toLowerCase().includes(query)
-  );
-
-  const showRoadmap = scope === 'all' || scope === 'roadmap';
-  const showCurated = scope === 'all' || scope === 'curated';
+  // Everything shows; the search box is the only filter.
+  const showRoadmap = true;
+  const showCurated = true;
 
   const visibleRoadmap = showRoadmap ? roadmapCategories : [];
   const visibleCurated = showCurated ? curatedCategories : [];
 
   const matchCount =
     visibleRoadmap.reduce((n, c) => n + c.count, 0) +
-    visibleCurated.reduce((n, c) => n + c.count, 0) +
-    (showCurated ? yaticorpCourses.length : 0);
+    visibleCurated.reduce((n, c) => n + c.count, 0);
 
   const hasRoadmapMaterial = roadmapDefs.some((d) => d.groups.some(([, items]) => items?.length > 0));
   const nothingAtAll = !data && !hasRoadmapMaterial;
-
-  // While searching every surviving category is forced open — matches hidden
-  // behind a closed tile would make the search look broken.
-  const isOpen = (title) => searching || openSections.has(title);
-  const toggleAll = (categories) => {
-    const allOpen = categories.every((c) => openSections.has(c.title));
-    setOpenSections((prev) => {
-      const next = new Set(prev);
-      categories.forEach((c) => (allOpen ? next.delete(c.title) : next.add(c.title)));
-      return next;
-    });
-  };
 
   // Column count per group, so the five roadmap tiles sit on one row rather
   // than wrapping a lone fifth tile onto a line of its own.
   const renderGroup = (categories, title, subtitle, cols) => {
     if (categories.length === 0) return null;
-    const open = categories.filter((c) => isOpen(c.title));
     return (
       <section>
-        <GroupHeading
-          title={title}
-          subtitle={subtitle}
-          allOpen={categories.every((c) => openSections.has(c.title))}
-          onToggleAll={() => toggleAll(categories)}
-        />
+        <GroupHeading title={title} subtitle={subtitle} />
         <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${cols}`}>
           {categories.map((c) => (
             <CategoryTile
@@ -321,18 +352,10 @@ export default function Recommendations() {
               description={c.description}
               count={c.count}
               tone={c.tone}
-              open={isOpen(c.title)}
-              onToggle={() => toggleSection(c.title)}
+              onOpen={() => setDialog({ title: c.title, categories: [c] })}
             />
           ))}
         </div>
-        {open.length > 0 && (
-          <div className="mt-3 space-y-3">
-            {open.map((c) => (
-              <CategoryPanel key={c.title} category={c} onClose={() => toggleSection(c.title)} />
-            ))}
-          </div>
-        )}
       </section>
     );
   };
@@ -340,15 +363,19 @@ export default function Recommendations() {
   return (
     <div className="fp-enter space-y-6">
       {/* ---- Hero ------------------------------------------------------- */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-50 via-indigo-50 to-sky-50 p-5 ring-1 ring-violet-100 ring-inset sm:p-7">
-        <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-100 via-indigo-50 to-amber-50 p-5 shadow-float ring-1 ring-violet-200/70 ring-inset sm:p-7">
+        <span aria-hidden className="fp-float pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-journey-300/40 blur-3xl" />
+        <span aria-hidden className="fp-float-slow pointer-events-none absolute -right-20 -bottom-28 h-72 w-72 rounded-full bg-amber-200/60 blur-3xl" />
+        <span aria-hidden className="fp-float-settle pointer-events-none absolute top-1/2 left-1/2 h-48 w-48 rounded-full bg-pink-200/40 blur-3xl" />
+        <span aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
+        <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0">
             <p className="text-[0.7rem] font-black tracking-[0.11em] text-journey-700 uppercase">
               Ideas &amp; Resources
             </p>
             <h1 className="mt-2 text-3xl leading-tight font-black text-ink-900 sm:text-4xl">
               Fuel your{' '}
-              <span className="relative whitespace-nowrap text-journey-600">
+              <span className="fp-text-shimmer relative bg-gradient-to-r from-journey-600 via-fuchsia-600 to-orange-500 bg-clip-text whitespace-nowrap text-transparent">
                 future
                 <svg
                   aria-hidden
@@ -359,7 +386,7 @@ export default function Recommendations() {
                   <path d="M2 7 C30 2, 90 2, 118 6" stroke="currentColor" strokeWidth="3.5" fill="none" strokeLinecap="round" />
                 </svg>
               </span>{' '}
-              <span aria-hidden>✨</span>
+              <Sparkles aria-hidden className="fp-bob-soft inline h-7 w-7 text-amber-400" />
             </h1>
             <p className="mt-3 max-w-md text-sm leading-relaxed text-ink-600">
               Explore handpicked resources to level up your skills, knowledge &amp; career.
@@ -388,30 +415,26 @@ export default function Recommendations() {
                     </button>
                   )}
                 </div>
-                <div className="relative shrink-0">
-                  <select
-                    value={scope}
-                    onChange={(e) => setScope(e.target.value)}
-                    aria-label="Filter by source"
-                    className="min-h-11 appearance-none rounded-xl border border-line-200 bg-surface py-2.5 pr-9 pl-4 text-sm font-bold text-ink-700 shadow-card focus:border-journey-400 focus:outline-none"
-                  >
-                    <option value="all">All categories</option>
-                    <option value="roadmap">From your roadmap</option>
-                    <option value="curated">Curated for you</option>
-                  </select>
-                  <ChevronDown aria-hidden className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-ink-400" />
-                </div>
               </div>
             )}
           </div>
 
-          {/* Art, with the mascot at the eyepiece and the encouragement card
-              over the corner — both placed by percentage inside a fixed
-              aspect ratio so they hold together at every width. */}
-          <div className="relative hidden aspect-[4/3] w-full lg:block">
-            <ResourcesArt className="h-full w-full" />
-            <div className="absolute right-0 bottom-[3%] w-[50%] rounded-2xl border border-violet-100 bg-surface/95 p-3 shadow-float backdrop-blur">
-              <div className="flex items-start gap-2.5">
+          {/* The CareerPath mascot, bright idea in hand, with the
+              encouragement card underneath it — in flow, so the two never
+              sit on top of each other at any width. Decorative: the words
+              are all beside it. */}
+          <div className="relative hidden flex-col items-center lg:flex">
+            <div aria-hidden className="relative flex h-52 w-full items-end justify-center">
+              <span className="fp-halo absolute top-1/2 left-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full bg-journey-300/40 blur-2xl" />
+              <span className="fp-drift-icon absolute top-1 left-[14%] text-3xl" style={{ animationDelay: '-1s' }}>💡</span>
+              <span className="fp-drift-icon absolute top-4 right-[14%] text-xl" style={{ animationDelay: '-2.4s' }}>✨</span>
+              <span className="fp-drift-icon absolute bottom-10 left-[6%] text-xl" style={{ animationDelay: '-3.6s' }}>🚀</span>
+              <span className="fp-drift-icon absolute top-1/2 right-[4%] text-lg" style={{ animationDelay: '-0.6s' }}>⭐</span>
+              <span className="absolute bottom-1 left-1/2 h-6 w-40 -translate-x-1/2 rounded-full bg-journey-400/40 blur-lg" />
+              <Mascot key={look.pose} pose={look.pose} height={190} motion={look.motion} className="mc-pop relative" />
+            </div>
+            <div className="mt-3 w-full max-w-[16rem] rounded-2xl border border-violet-100 bg-surface/95 p-3 shadow-float backdrop-blur">
+              <div className="flex items-center gap-2.5">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-300 to-orange-500 text-white">
                   <Trophy className="h-4 w-4" />
                 </span>
@@ -440,55 +463,8 @@ export default function Recommendations() {
             />
           )}
 
-          {/* YATICORP's own courses, above everything else.
-
-              The section used to open with Coursera and Udemy links while the
-              student sat on courses they had already been given — the platform
-              advertising its competitors to its own students. These are picked
-              from the real catalogue and validated against it server side. */}
-          {showCurated && yaticorpCourses.length > 0 && (
-            <section>
-              <GroupHeading
-                title="From your YATICORP courses"
-                subtitle="What you already have access to, and where it fits your goal."
-                allOpen
-                onToggleAll={() => {}}
-              />
-              <div className="divide-y divide-line-200 overflow-hidden rounded-2xl border border-journey-200 bg-surface">
-                {yaticorpCourses.map((course) => (
-                  <Link
-                    key={course.courseId}
-                    to={`/learn/${course.courseId}`}
-                    className="flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-journey-50"
-                  >
-                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-journey-50 text-journey-700">
-                      <PlayCircle className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold break-words text-ink-900">{course.title}</span>
-                        {course.enrolled ? (
-                          <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[0.68rem] font-bold text-emerald-700">
-                            {course.progress > 0 ? `${course.progress}% done` : 'Enrolled'}
-                          </span>
-                        ) : (
-                          <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[0.68rem] font-bold text-amber-700">
-                            Ask the office for access
-                          </span>
-                        )}
-                      </span>
-                      {course.why && (
-                        <span className="mt-1 block text-xs leading-relaxed break-words text-ink-500">
-                          {course.why}
-                        </span>
-                      )}
-                    </span>
-                    <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-journey-700" />
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
+          {/* No list of the platform's own courses here: Enrolled Courses is
+              the page for those. */}
 
           {renderGroup(
             visibleRoadmap,
@@ -522,39 +498,28 @@ export default function Recommendations() {
           {!nothingAtAll && matchCount === 0 && (
             <EmptyState
               icon={Search}
-              title={searching ? 'Nothing matches that' : 'Nothing in this category'}
+              title={searching ? 'Nothing matches that' : 'Nothing to show'}
               description={
                 searching
                   ? `No resource mentions “${searchQuery}”. Try a shorter or more general term.`
-                  : 'Try a different filter, or regenerate your resources.'
+                  : 'Regenerate your resources to fill this page.'
               }
               action={
                 searching ? (
                   <Button variant="secondary" onClick={() => setSearchQuery('')}>Clear search</Button>
-                ) : (
-                  <Button variant="secondary" onClick={() => setScope('all')}>Show all categories</Button>
-                )
+                ) : null
               }
             />
           )}
 
-          {data && (
-            <div className="flex justify-center pt-1">
-              <Button
-                variant="secondary"
-                icon={RefreshCw}
-                loading={generating}
-                loadingText="Curating…"
-                onClick={handleGenerate}
-              >
-                Regenerate resources
-              </Button>
-            </div>
-          )}
         </div>
 
         <ResourceSidebar user={user} badges={badges} />
       </div>
+
+      {dialog && (
+        <CategoryDialog title={dialog.title} categories={dialog.categories} onClose={() => setDialog(null)} />
+      )}
     </div>
   );
 }

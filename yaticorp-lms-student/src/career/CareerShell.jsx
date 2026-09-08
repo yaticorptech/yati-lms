@@ -58,10 +58,6 @@ const NAV_GROUPS = [
     ]
   },
   {
-    // The mentor used to sit here. It is its own section now — it answers
-    // about the whole product, not only the roadmap, and burying it as the
-    // ninth tab of a sub-navigation made it something a student had to already
-    // know about to find.
     label: 'Support',
     items: [{ name: 'Settings', path: '/career/settings', icon: Settings, tone: 'from-slate-400 to-slate-600 shadow-slate-500/40' }]
   }
@@ -200,10 +196,14 @@ function CareerFrame() {
           {/* The row scrolls sideways, and a scrolling box clips whatever
               pokes out of it — so the headroom the icons rise into is inside
               the box, as top padding, not outside it on the band. */}
+          {/* On a phone only three or four tabs fit, so the strip fades at
+              both edges to say there is more of it to scroll to. */}
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-journey-100 to-transparent md:hidden" />
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-journey-100 to-transparent md:hidden" />
           <nav
             ref={railRef}
             aria-label="Career Path sections"
-            className="relative overflow-x-auto pt-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pt-6"
+            className="relative snap-x overflow-x-auto pt-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pt-6"
           >
             <div className="relative flex w-max min-w-full items-end gap-1 sm:gap-1.5">
               {slider && (
@@ -252,7 +252,7 @@ function CareerFrame() {
         </div>
 
         {/* The white base the lit tab stands on. */}
-        <div className="flex min-h-3.5 items-center justify-end rounded-b-3xl border border-t-0 border-journey-200/70 bg-surface px-4 shadow-card">
+        <div className="flex min-h-3.5 flex-wrap items-center justify-end gap-2 rounded-b-3xl border border-t-0 border-journey-200/70 bg-surface px-3 shadow-card sm:px-4">
           {aiNotice && <div className="py-1.5">{aiNotice}</div>}
         </div>
       </div>
@@ -261,8 +261,7 @@ function CareerFrame() {
           same list per student; this is where the features actually are. */}
       <WhatsNew />
 
-      {/* The CareerPath mascot: tours each page once, then rests with tips
-          and a help menu. Uses the official image at /mascot.png. */}
+      {/* The CareerPath tour: plays once on the pages that have one. */}
       <MascotGuide />
 
       {/* Keyed on the route so the slide-up replays on every tab switch. */}
