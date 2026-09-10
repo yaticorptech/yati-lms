@@ -87,7 +87,9 @@ const getBadges = async (req, res) => {
 // @route GET /api/rewards/leaderboard?period=weekly&scope=global&courseId=
 const getLeaderboard = async (req, res) => {
   try {
-    const board = await S.leaderboard.getBoard({ period: req.query.period, scope: req.query.scope, courseId: req.query.courseId || null, me: req.user, limit: 10 });
+    // The card asks for ten, and for more when the student opens the full board.
+    const limit = Math.min(100, Math.max(3, Number(req.query.limit) || 10));
+    const board = await S.leaderboard.getBoard({ period: req.query.period, scope: req.query.scope, courseId: req.query.courseId || null, me: req.user, limit });
     res.json(board);
   } catch (error) { err(res, error); }
 };
