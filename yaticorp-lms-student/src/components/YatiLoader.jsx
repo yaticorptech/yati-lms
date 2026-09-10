@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Rocket, Star } from 'lucide-react';
-import Mascot from '../career/components/mascot/Mascot';
+import MascotRenderer from '../career/components/mascot/MascotRenderer';
 import './yatiLoader.css';
 
 /**
@@ -78,7 +78,7 @@ export function YatiOrbit({ size = 168, mood = 'thinking' }) {
 
       {/* the mascot */}
       <span className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
-        <Mascot pose={POSE_FOR[mood] || 'thinking'} height={mascot} motion="mc-float" />
+        <MascotRenderer pose={POSE_FOR[mood] || 'thinking'} height={mascot} motion="mc-float" />
       </span>
     </div>
   );

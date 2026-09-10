@@ -5,8 +5,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PlayCircle, Clock, BookOpen, Award, X, Compass, Layers, CheckCircle2, TrendingUp, Sparkles } from 'lucide-react';
-import Mascot from '../career/components/mascot/Mascot';
-import useMascotCycle, { COURSES_POSES } from '../career/components/mascot/useMascotCycle';
+import { CoursesArt, NoBundlesArt, NoCoursesArt } from '../components/PageArt';
 import api from '../utils/api';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import YatiLoader from '../components/YatiLoader';
@@ -35,7 +34,7 @@ const EnrolledCourses = () => {
     // The same loader as Career Path: the mascot, a line, a bar — held for a
     // moment so it never flickers.
     const showLoader = useMinimumLoading(loading);
-    const look = useMascotCycle(COURSES_POSES);
+
 
     // What the hero says: how many, how many finished, how far on average.
     const finished = courses.filter((c) => (c.progress || 0) >= 100).length;
@@ -126,7 +125,7 @@ const EnrolledCourses = () => {
                             <span className="absolute bottom-2 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-indigo-950/30" />
                             <span className="absolute bottom-4 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-gradient-to-b from-white/70 to-indigo-100/60 shadow-lg" />
                             <span className="absolute bottom-[26px] left-1/2 h-4 w-28 -translate-x-1/2 rounded-[50%] bg-white/50" />
-                            <Mascot key={look.pose} pose={look.pose} height={176} motion={look.motion} className="mc-pop relative" />
+                            <CoursesArt className="mc-pop relative h-44 w-44" />
                         </div>
                     </div>
                 </div>
@@ -246,7 +245,7 @@ const EnrolledCourses = () => {
                             <div className="drift absolute -top-10 -right-10 w-48 h-48 bg-indigo-200/30 rounded-full blur-3xl pointer-events-none"></div>
                             <div className="relative mb-3 flex h-40 w-48 items-end justify-center" aria-hidden>
                                 <span className="absolute bottom-1 left-1/2 h-5 w-32 -translate-x-1/2 rounded-full bg-indigo-400/30 blur-lg" />
-                                <Mascot pose="focus" height={150} motion="mc-idle" className="mc-pop relative" />
+                                <NoCoursesArt className="mc-pop relative h-36 w-36" />
                             </div>
                             <h3 className="relative text-xl sm:text-2xl font-black text-slate-900 mb-2">Nothing enrolled yet</h3>
                             <p className="relative text-slate-600 max-w-md mb-6">
@@ -332,7 +331,7 @@ const EnrolledCourses = () => {
                             <div className="drift absolute -top-10 -left-10 w-48 h-48 bg-indigo-200/30 rounded-full blur-3xl pointer-events-none"></div>
                             <div className="relative mb-3 flex h-40 w-48 items-end justify-center" aria-hidden>
                                 <span className="absolute bottom-1 left-1/2 h-5 w-32 -translate-x-1/2 rounded-full bg-indigo-400/30 blur-lg" />
-                                <Mascot pose="thinking" height={150} motion="mc-think" className="mc-pop relative" />
+                                <NoBundlesArt className="mc-pop relative h-36 w-36" />
                             </div>
                             <h3 className="relative text-xl sm:text-2xl font-black text-slate-900 mb-2">No bundles yet</h3>
                             <p className="text-slate-500 max-w-sm mb-6">

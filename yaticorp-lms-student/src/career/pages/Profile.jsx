@@ -9,7 +9,7 @@ import { useToast } from '../components/ui/Toast';
 import Button from '../components/ui/Button';
 import Card, { CardHeader } from '../components/ui/Card';
 import ProgressArt from '../components/progress/ProgressArt';
-import Mascot from '../components/mascot/Mascot';
+import { SkillsArt } from '../components/ui/PanelArt';
 import ProgressStats from '../components/progress/ProgressStats';
 import { levelProgress, dayKey } from '../utils/progress';
 import { phaseStates, journeyPercent, phaseTitle, parseChoices } from '../utils/roadmap';
@@ -305,7 +305,7 @@ function SkillsPanel({ skills }) {
         <span className="fp-drift-icon absolute top-8 right-4 text-base" style={{ animationDelay: '-3.1s' }}>⭐</span>
         <span className="fp-drift-icon absolute bottom-10 left-3 text-sm" style={{ animationDelay: '-2.2s' }}>⚡</span>
         <span className="absolute bottom-2 left-1/2 h-5 w-28 -translate-x-1/2 rounded-full bg-journey-300/40 blur-lg" />
-        <Mascot pose="thumbs" height={150} motion="mc-float" className="relative mb-1" />
+        <SkillsArt className="relative mb-1 h-32 w-32" />
       </div>
     </div>
   );

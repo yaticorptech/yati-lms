@@ -143,3 +143,54 @@ export const WORD_ROOTS = [
   { part: 'MAGN-', answer: 'great', wrong: ['magnet', 'middle', 'weak'], example: 'magnify, magnanimous', level: 3 },
   { part: 'TEN-', answer: 'hold', wrong: ['ten', 'stretch', 'end'], example: 'tenacious, retain', level: 3 }
 ];
+
+/**
+ * Opposites. Harder than synonyms for most students, because a near-miss
+ * distractor is always a word from the same field rather than a random one.
+ */
+export const ANTONYMS = [
+  { word: 'ABUNDANT', answer: 'Scarce', wrong: ['Plentiful', 'Ample', 'Generous'], level: 1 },
+  { word: 'ANCIENT', answer: 'Modern', wrong: ['Aged', 'Historic', 'Antique'], level: 1 },
+  { word: 'EXPAND', answer: 'Shrink', wrong: ['Enlarge', 'Widen', 'Stretch'], level: 1 },
+  { word: 'PERMANENT', answer: 'Temporary', wrong: ['Lasting', 'Fixed', 'Enduring'], level: 1 },
+  { word: 'ACCEPT', answer: 'Reject', wrong: ['Receive', 'Admit', 'Welcome'], level: 1 },
+  { word: 'VICTORY', answer: 'Defeat', wrong: ['Triumph', 'Success', 'Win'], level: 1 },
+  { word: 'GENEROUS', answer: 'Stingy', wrong: ['Giving', 'Kind', 'Liberal'], level: 2 },
+  { word: 'TRANSPARENT', answer: 'Opaque', wrong: ['Clear', 'Obvious', 'Plain'], level: 2 },
+  { word: 'CONFIDENT', answer: 'Hesitant', wrong: ['Assured', 'Certain', 'Bold'], level: 2 },
+  { word: 'TEMPORARY', answer: 'Lasting', wrong: ['Brief', 'Passing', 'Fleeting'], level: 2 },
+  { word: 'HUMBLE', answer: 'Arrogant', wrong: ['Modest', 'Meek', 'Simple'], level: 2 },
+  { word: 'DEMAND', answer: 'Supply', wrong: ['Require', 'Insist', 'Request'], level: 2 },
+  { word: 'CONDENSE', answer: 'Expand', wrong: ['Compress', 'Shorten', 'Thicken'], level: 3 },
+  { word: 'FRUGAL', answer: 'Extravagant', wrong: ['Thrifty', 'Careful', 'Sparing'], level: 3 },
+  { word: 'OBSCURE', answer: 'Renowned', wrong: ['Vague', 'Hidden', 'Unclear'], level: 3 },
+  { word: 'VOLATILE', answer: 'Stable', wrong: ['Unstable', 'Explosive', 'Erratic'], level: 3 },
+  { word: 'SCRUTINISE', answer: 'Skim', wrong: ['Examine', 'Inspect', 'Study'], level: 3 },
+  { word: 'AMPLIFY', answer: 'Muffle', wrong: ['Boost', 'Increase', 'Magnify'], level: 3 }
+];
+
+/**
+ * Idioms a student will actually meet in reading comprehension and in
+ * interviews. The wrong answers are literal readings, which is exactly the
+ * mistake the game is trying to train out.
+ */
+export const IDIOMS = [
+  { phrase: 'Break the ice', answer: 'Ease the awkwardness at a first meeting', wrong: ['Cool a drink down', 'Damage something fragile', 'Stop an argument'], level: 1 },
+  { phrase: 'Hit the books', answer: 'Start studying seriously', wrong: ['Throw something away', 'Finish a novel', 'Visit a library'], level: 1 },
+  { phrase: 'Piece of cake', answer: 'Very easy to do', wrong: ['A small reward', 'A shared portion', 'A celebration'], level: 1 },
+  { phrase: 'Once in a blue moon', answer: 'Very rarely', wrong: ['Every month', 'At night only', 'Without warning'], level: 1 },
+  { phrase: 'Call it a day', answer: 'Stop working for now', wrong: ['Name a date', 'Work all day', 'Make a decision'], level: 1 },
+  { phrase: 'On the same page', answer: 'In agreement about something', wrong: ['Reading together', 'In the same class', 'Copying each other'], level: 1 },
+  { phrase: 'Bite the bullet', answer: 'Face something painful and get it over with', wrong: ['Speak angrily', 'Take a risk for money', 'Refuse to answer'], level: 2 },
+  { phrase: 'Cut corners', answer: 'Do something cheaply or carelessly', wrong: ['Take a shortcut on a map', 'Trim a page', 'Save time honestly'], level: 2 },
+  { phrase: 'The ball is in your court', answer: 'It is your turn to act', wrong: ['You are winning', 'You have lost your chance', 'The game is unfair'], level: 2 },
+  { phrase: 'Under the weather', answer: 'Feeling slightly unwell', wrong: ['Caught in the rain', 'In a bad mood', 'Behind schedule'], level: 2 },
+  { phrase: 'Learn the ropes', answer: 'Learn how a job is done', wrong: ['Practise knots', 'Climb quickly', 'Follow rules exactly'], level: 2 },
+  { phrase: 'Go the extra mile', answer: 'Do more than is expected', wrong: ['Travel further', 'Arrive late', 'Take the long route'], level: 2 },
+  { phrase: 'Burn the midnight oil', answer: 'Work late into the night', wrong: ['Waste money', 'Ruin a plan', 'Sleep badly'], level: 3 },
+  { phrase: 'Take with a pinch of salt', answer: 'Do not believe it completely', wrong: ['Add flavour to it', 'Accept it fully', 'Treat it as urgent'], level: 3 },
+  { phrase: 'A blessing in disguise', answer: 'Something bad that turns out well', wrong: ['A hidden gift', 'A lucky guess', 'A polite lie'], level: 3 },
+  { phrase: 'Play devil’s advocate', answer: 'Argue the opposite side to test an idea', wrong: ['Behave badly on purpose', 'Defend someone guilty', 'Refuse to take sides'], level: 3 },
+  { phrase: 'Move the goalposts', answer: 'Change the rules unfairly partway through', wrong: ['Aim higher', 'Restart a game', 'Give up a target'], level: 3 },
+  { phrase: 'Read between the lines', answer: 'Understand what is implied but not said', wrong: ['Read very carefully', 'Skip parts of a text', 'Check for errors'], level: 3 }
+];

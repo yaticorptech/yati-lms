@@ -12,8 +12,7 @@ import AiBudgetNotice from '../../components/AiBudgetNotice';
 import { useCelebrate } from '../../components/ui/Celebration';
 import Button from '../../components/ui/Button';
 import Card, { CardHeader } from '../../components/ui/Card';
-import Mascot from '../../components/mascot/Mascot';
-import useMascotCycle, { PLAN_POSES, DONE_POSES } from '../../components/mascot/useMascotCycle';
+import MascotSlot from '../../components/mascot/MascotSlot';
 import { levelProgress } from '../../utils/progress';
 import EmptyState from '../../components/ui/EmptyState';
 import TaskStudyPanel from '../../components/study/TaskStudyPanel';
@@ -214,6 +213,12 @@ export default function Planner() {
     const remaining = after.filter((t) => t.status !== 'Completed').length;
     const clearedTheDay = remaining === 0 && after.length > 0;
 
+    /* One line, and the mascot reacts: a cheer for the task, a leap for the
+       level. What those reactions look like is not this page's business —
+       see components/mascot/mascotStates.js. */
+    if (!clearedTheDay) window.dispatchEvent(new CustomEvent('mascot:task-complete'));
+    if (leveledUp) window.dispatchEvent(new CustomEvent('mascot:level-up'));
+
     // ⚡ The rarest thing that can happen here, so it takes precedence over
     // both the day-cleared and the single-task celebration. Crossing a level
     // used to pass in complete silence: the ring on the Overview simply read a
@@ -275,7 +280,9 @@ export default function Planner() {
   }, [clearedNow]);
   // Hooks stay above the loader return; the day's state is read from the
   // tasks directly since `dayCleared` is derived further down.
-  const look = useMascotCycle(clearedNow ? DONE_POSES : PLAN_POSES);
+  /* Set by the day itself: cheering once it is cleared, rolling its
+     sleeves up while anything is left. */
+  const mascotState = clearedNow ? 'success' : 'determined';
   if (showLoader) return <YatiLoader label="Building today's plan" />;
 
   const completed = tasks.filter((t) => t.status === 'Completed').length;
@@ -356,7 +363,7 @@ export default function Planner() {
           <span className="fp-drift-icon absolute top-10 left-4 text-lg" style={{ animationDelay: '-2.6s' }}>⭐</span>
           <span className="fp-drift-icon absolute bottom-16 right-2 text-base" style={{ animationDelay: '-3.8s' }}>⚡</span>
           <span className="fp-drift-icon absolute bottom-24 left-2 text-base" style={{ animationDelay: '-0.6s' }}>🔥</span>
-          <Mascot key={look.pose} pose={look.pose} height={168} motion={look.motion} className="mc-pop relative" />
+          <MascotSlot name="planner-hero" state={mascotState} height={168} className="mc-pop relative" key={mascotState} priority={20} />
         </div>
 
         <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 sm:pr-[30%] md:min-h-[196px]">

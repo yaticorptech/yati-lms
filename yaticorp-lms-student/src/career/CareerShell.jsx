@@ -264,6 +264,7 @@ function CareerFrame() {
       {/* The CareerPath tour: plays once on the pages that have one. */}
       <MascotGuide />
 
+
       {/* Keyed on the route so the slide-up replays on every tab switch. */}
       <div key={pathname} className={direction === 'right' ? 'fp-page-in-right' : 'fp-page-in-left'}>
         <Outlet />

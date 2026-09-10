@@ -58,6 +58,9 @@ const CareerRecommendations = React.lazy(() => import('./career/pages/dashboard/
 const CareerProfile = React.lazy(() => import('./career/pages/Profile'));
 const CareerBadges = React.lazy(() => import('./career/pages/dashboard/Badges'));
 const CareerGames = React.lazy(() => import('./career/pages/dashboard/Games'));
+// The mascot workbench. Nothing links to it; it is reached by typing the
+// path, and it drives the rig in isolation before it goes near a real page.
+const MascotLab = React.lazy(() => import('./career/pages/MascotLab'));
 const CareerSettings = React.lazy(() => import('./career/pages/dashboard/SettingsPage'));
 const CareerOnboarding = React.lazy(() => import('./career/pages/Onboarding'));
 
@@ -179,6 +182,7 @@ function App() {
           <Route path="profile" element={<React.Suspense fallback={<CareerFallback />}><CareerProfile /></React.Suspense>} />
           <Route path="badges" element={<React.Suspense fallback={<CareerFallback />}><CareerBadges /></React.Suspense>} />
           <Route path="games" element={<React.Suspense fallback={<CareerFallback />}><CareerGames /></React.Suspense>} />
+          <Route path="mascot-lab" element={<React.Suspense fallback={<CareerFallback />}><MascotLab /></React.Suspense>} />
           <Route path="settings" element={<React.Suspense fallback={<CareerFallback />}><CareerSettings /></React.Suspense>} />
         </Route>
         </Route>
