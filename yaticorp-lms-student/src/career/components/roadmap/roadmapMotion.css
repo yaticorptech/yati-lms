@@ -1,0 +1,130 @@
+/**
+ * Motion for the Roadmap page, and only the Roadmap page.
+ *
+ * Every class here is prefixed `fp-rm-` and is applied exclusively by the
+ * components under components/roadmap plus RoadmapDisplay — all of which are
+ * imported by the roadmap page and nothing else. Nothing in here restyles a
+ * shared primitive, so no other Career Path screen can be reached by it.
+ *
+ * The section already has a motion vocabulary in career.css (fp-float,
+ * fp-beacon, fp-halo, the pulse rings on the map). This adds only what that
+ * vocabulary has no word for: depth on pointer, and the hover and press
+ * feedback that tells a student a thing can be touched. Revealing on scroll is
+ * already `.fp-reveal` in career.css and is reused rather than reinvented.
+ *
+ * One easing throughout. `--fp-rm-ease` is a long, decelerating curve — things
+ * arrive quickly and settle slowly, which is what reads as expensive. Bounce is
+ * deliberately absent: it is charming twice and cheap on the third visit.
+ */
+/* The phase dialog renders through a portal on document.body, outside
+   .fp-roadmap, so the tokens are declared for that root as well. A custom
+   property that resolves to nothing invalidates the whole `animation`
+   declaration, and the effect simply never runs. */
+.fp-roadmap,
+.futurepath-portal {
+  --fp-rm-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --fp-rm-ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+/* ---- Depth ---------------------------------------------------------------
+ * The hero's blurred orbs drift with the pointer. Two different depths, so the
+ * background separates from the card instead of sliding with it. The offsets
+ * come from JS as custom properties; with no pointer they stay at 0 and the
+ * orbs keep the ambient float they already had.
+ */
+.fp-rm-orb {
+  transform: translate3d(calc(var(--fp-rm-px, 0) * 1px), calc(var(--fp-rm-py, 0) * 1px), 0);
+  transition: transform 0.5s var(--fp-rm-ease-soft);
+  will-change: transform;
+}
+.fp-rm-orb-far { --fp-rm-depth: 0.4; }
+
+/* ---- Hover and press -----------------------------------------------------
+ * The point is legibility, not decoration: a card that lifts is a card that
+ * says it can be opened.
+ */
+.fp-rm-lift {
+  transition:
+    transform 0.35s var(--fp-rm-ease),
+    box-shadow 0.35s var(--fp-rm-ease);
+  will-change: transform;
+}
+.fp-rm-lift:hover { transform: translateY(-4px); box-shadow: 0 18px 40px -22px rgb(76 29 149 / 0.45); }
+.fp-rm-lift:active { transform: translateY(-1px) scale(0.995); }
+
+/* A platform on the map: lifts a little further and warms as it rises. */
+.fp-rm-platform { transition: transform 0.4s var(--fp-rm-ease), filter 0.4s var(--fp-rm-ease); }
+.fp-rm-platform:hover { transform: translateY(-7px) scale(1.04); filter: brightness(1.06) saturate(1.1); }
+.fp-rm-platform:active { transform: translateY(-2px) scale(0.99); }
+.fp-rm-platform:focus-visible { outline: 3px solid rgb(124 58 237 / 0.55); outline-offset: 6px; border-radius: 18px; }
+
+/* A highlight that crosses a button as the pointer enters it. */
+.fp-rm-shine { position: relative; overflow: hidden; }
+.fp-rm-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 45%;
+  left: -60%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.38), transparent);
+  transform: skewX(-18deg);
+  pointer-events: none;
+}
+.fp-rm-shine:hover::after { animation: fp-rm-shine 0.85s var(--fp-rm-ease-soft); }
+@keyframes fp-rm-shine {
+  to { left: 130%; }
+}
+
+/* An icon that leans in when its row is hovered. */
+.fp-rm-icon { transition: transform 0.35s var(--fp-rm-ease); }
+.group:hover .fp-rm-icon { transform: scale(1.12) rotate(-6deg); }
+
+/* ---- The moment a phase is completed -------------------------------------
+ * A ring opening out of the button that was pressed. One ring, once: the
+ * celebration overlay carries the noise, this only ties it to the press.
+ */
+.fp-rm-burst { position: relative; }
+.fp-rm-burst::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid rgb(16 185 129 / 0.9);
+  animation: fp-rm-burst 0.72s var(--fp-rm-ease-soft) both;
+  pointer-events: none;
+}
+@keyframes fp-rm-burst {
+  from { opacity: 0.95; transform: scale(1); }
+  to   { opacity: 0; transform: scale(1.55); }
+}
+
+/* ---- Progress ------------------------------------------------------------
+ * The completed run of the track draws itself in rather than appearing already
+ * full, so the number in the chip and the line under it agree about arriving.
+ */
+.fp-rm-progress { animation: fp-rm-progress 1.1s var(--fp-rm-ease) 0.25s both; transform-origin: left center; }
+@keyframes fp-rm-progress {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* ---- Accessibility -------------------------------------------------------
+ * Asked to reduce motion, everything above stops — and, crucially, anything
+ * the reveal had hidden is put back. An accessibility preference must never
+ * cost a student the content.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .futurepath-portal .fp-rm-burst::after,
+  .fp-roadmap .fp-rm-orb,
+  .fp-roadmap .fp-rm-lift,
+  .fp-roadmap .fp-rm-platform,
+  .fp-roadmap .fp-rm-progress,
+  .fp-roadmap .fp-rm-icon,
+  .fp-roadmap .fp-rm-shine::after,
+  .fp-roadmap .fp-rm-burst::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

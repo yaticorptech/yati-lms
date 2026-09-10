@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, GitBranch, ListChecks, Lock, Trophy, Award } from 'lucide-react';
 import { parseChoices, phaseTitle, toParagraphs } from '../../utils/roadmap';
 
@@ -74,10 +74,41 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
   const title = phaseTitle(stage);
   const choices = parseChoices(title);
   const isDone = state === 'done';
+  /**
+   * A phase the student has not reached yet.
+   *
+   * Completion is sequential on the server — ticking a phase ticks every phase
+   * before it — so "Mark done" on a phase four stages ahead does not mark that
+   * one, it silently marks the three in between as well. The button is shown
+   * locked rather than hidden, because a phase with no action at all reads as
+   * broken, while a locked one explains the order the roadmap runs in.
+   */
+  const isUpcoming = state === 'upcoming';
 
   // Both lists fold away and neither opens itself: a row already unfolded is
   // one the student never asked for, and it pushes the one beside it off the
   // screen — which is the whole reason they fold.
+  /**
+   * A ring that opens out of the button the moment it is pressed.
+   *
+   * The celebration overlay lands a beat later and carries the actual reward;
+   * this only ties it to the press, so the button does not sit inert while the
+   * request is in flight. Cleared on a timer, and on unmount — the dialog can
+   * be closed mid-flight.
+   */
+  const [burst, setBurst] = useState(false);
+  const burstTimer = useRef(null);
+  useEffect(() => () => clearTimeout(burstTimer.current), []);
+
+  const completeWithBurst = () => {
+    if (!isDone) {
+      setBurst(true);
+      clearTimeout(burstTimer.current);
+      burstTimer.current = setTimeout(() => setBurst(false), 750);
+    }
+    onToggleComplete();
+  };
+
   const [showSteps, setShowSteps] = useState(false);
   const [showMilestones, setShowMilestones] = useState(false);
 
@@ -222,19 +253,34 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
         what the student is actually meant to be doing. */}
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-100 pt-4">
       <p className="w-full text-xs text-ink-400 sm:w-auto sm:flex-1">
-        {isDone ? 'Completed — reopen it if you came back to this.' : 'Finished everything in this phase?'}
+        {isDone
+          ? 'Completed — reopen it if you came back to this.'
+          : isUpcoming
+            ? 'Finish the phase you are on first — the roadmap unlocks in order.'
+            : 'Finished everything in this phase?'}
       </p>
       <button
         type="button"
-        onClick={onToggleComplete}
-        disabled={saving}
+        onClick={completeWithBurst}
+        disabled={saving || isUpcoming}
+        aria-disabled={isUpcoming}
+        title={isUpcoming ? 'Locked until you finish the phase you are on' : undefined}
         className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all active:scale-[0.97] disabled:opacity-60 ${
-          isDone
-            ? 'border border-line-200 bg-surface text-ink-600 hover:bg-surface-50'
-            : 'fp-done-gradient text-white shadow-md shadow-emerald-600/25 hover:brightness-110'
+          burst ? 'fp-rm-burst ' : ''
+        }${
+          isUpcoming
+            ? 'cursor-not-allowed border border-line-200 bg-surface-100 text-ink-400 active:scale-100'
+            : isDone
+              ? 'border border-line-200 bg-surface text-ink-600 hover:bg-surface-50'
+              : 'fp-done-gradient text-white shadow-md shadow-emerald-600/25 hover:brightness-110'
         }`}
       >
-        {isDone ? (
+        {isUpcoming ? (
+          <>
+            <Lock className="h-3.5 w-3.5" />
+            Locked
+          </>
+        ) : isDone ? (
           <>
             <Lock className="h-3.5 w-3.5" />
             Reopen

@@ -8,6 +8,7 @@
 const { seal, open } = require('../../jobboard/utils/secretBox');
 const GoogleLink = require('./models/GoogleLink');
 const { SCOPES, clientId, clientSecret, redirectUri, isConfigured } = require('./config');
+const { fireDisconnect } = require('./hooks');
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -137,6 +138,9 @@ const disconnect = async (userId) => {
     await fetch(`${REVOKE_URL}?token=${encodeURIComponent(token)}`, { method: 'POST' }).catch(() => {});
   }
   await GoogleLink.deleteOne({ userId });
+  // Anything mirrored into the account they just took back is now pointing at
+  // something they no longer own. Whoever put it there gets to clear it.
+  await fireDisconnect(userId);
 };
 
 module.exports = { consentUrl, exchangeCode, saveLink, accessTokenFor, disconnect };

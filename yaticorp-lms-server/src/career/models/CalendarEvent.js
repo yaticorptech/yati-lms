@@ -42,6 +42,15 @@ const calendarEventSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [500, 'Keep the notes under 500 characters']
+    },
+    /**
+     * The same event on the student's Google Calendar, when they have linked
+     * an account. Empty for everyone else, and empty again once they
+     * disconnect. It is a mirror, never the record: this row is the truth.
+     */
+    googleEventId: {
+      type: String,
+      default: ''
     }
   },
   {

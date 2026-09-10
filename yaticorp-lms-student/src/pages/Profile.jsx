@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect, useRef, useCallback, useMemo } 
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
+import saveToDrive from '../integrations/google/saveToDrive';
 import CertificatesFrame from '../components/CertificatesFrame';
 import ResumeSection from '../components/ResumeSection';
 import Cropper from 'react-easy-crop';
@@ -251,14 +252,24 @@ const Profile = () => {
                 { responseType: 'blob' }
             );
             const blob = new Blob([res.data], { type: 'application/pdf' });
+            const fileName = `Certificate_${(cert.courseId?.title || 'Course').replace(/\s+/g, '_')}.pdf`;
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `Certificate_${(cert.courseId?.title || 'Course').replace(/\s+/g, '_')}.pdf`;
+            link.download = fileName;
             document.body.appendChild(link);
             link.click();
             link.parentNode.removeChild(link);
             window.URL.revokeObjectURL(url);
+
+            // And a copy in their own Drive. Not awaited: the certificate is
+            // already on their machine, and a filing failure is not a download
+            // failure.
+            saveToDrive(blob, {
+                name: fileName,
+                description: `Your certificate for ${cert.courseId?.title || 'a course'}, issued by YATICORP.`,
+                reason: 'So the certificates you earn here are kept in your own Google Drive.'
+            });
         } catch {
             setCertError('Failed to download certificate. Please try again.');
         } finally {

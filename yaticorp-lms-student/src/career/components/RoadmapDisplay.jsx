@@ -5,6 +5,7 @@ import { Route, Clock, ArrowRight, Sparkles, Flag, Zap, Map as MapIcon, CheckCir
 import JourneyTrack from './journey/JourneyTrack';
 import Card, { CardHeader } from './ui/Card';
 import JourneyMap from './roadmap/JourneyMap';
+import { useParallax, useReveal } from './roadmap/useRoadmapMotion';
 import { paletteFor } from './roadmap/palettes';
 import PhaseDialog from './roadmap/PhaseDialog';
 import {
@@ -14,6 +15,11 @@ import {
 export default function RoadmapDisplay({ data, goal, completedPhases = [], onTogglePhase, onShareBadge, badgeBusy, saving }) {
   const phases = useMemo(() => data?.educationRoadmap || [], [data]);
   const states = useMemo(() => phaseStates(phases.length, completedPhases), [phases, completedPhases]);
+
+  // Motion, all of it page-local — see roadmapMotion.css.
+  const hero = useParallax(16);
+  const mapReveal = useReveal();
+  const nextUpReveal = useReveal();
   const currentIndex = states.indexOf('current');
   const percent = journeyPercent(phases.length, completedPhases);
   const shownPercent = useCountUp(percent, 900);
@@ -64,14 +70,20 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
           drawn under it, and the current phase sits inside that context
           instead of standing in for it.
       --------------------------------------------------------------- */}
-      <section className="animate-fade-in-up relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset">
+      <section
+        {...hero}
+        className="animate-fade-in-up relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset"
+      >
+        {/* Two depths, so the background separates from the card as the pointer
+            crosses it rather than sliding with it. Both keep the ambient float
+            they already had; the parallax only offsets them. */}
         <div
           aria-hidden
-          className="fp-float pointer-events-none absolute -top-24 -left-20 h-64 w-64 rounded-full bg-journey-200/40 blur-3xl"
+          className="fp-float fp-rm-orb pointer-events-none absolute -top-24 -left-20 h-64 w-64 rounded-full bg-journey-200/40 blur-3xl"
         />
         <div
           aria-hidden
-          className="fp-float-slow pointer-events-none absolute -right-16 -bottom-24 h-64 w-64 rounded-full bg-pink-200/40 blur-3xl"
+          className="fp-float-slow fp-rm-orb fp-rm-orb-far pointer-events-none absolute -right-16 -bottom-24 h-64 w-64 rounded-full bg-pink-200/40 blur-3xl"
         />
 
         <div className="relative grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-stretch">
@@ -87,7 +99,11 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
                   className="animate-fade-in-up mt-1.5 text-2xl leading-tight font-black sm:text-3xl xl:text-4xl"
                   style={{ animationDelay: '0.06s' }}
                 >
-                  <span className="bg-gradient-to-r from-journey-600 to-indigo-600 bg-clip-text text-transparent">
+                  {/* The same live gradient the Planner and Ideas heroes use on
+                      their headline. A third stop is what makes it read: the
+                      shimmer travels through the middle colour, and across two
+                      stops there is nothing to travel through. */}
+                  <span className="fp-text-shimmer bg-gradient-to-r from-journey-600 via-fuchsia-600 to-indigo-600 bg-clip-text text-transparent">
                     {goal?.careerGoal || 'your career goal'}
                   </span>
                 </h2>
@@ -103,7 +119,10 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                 <span className="tabular-nums">{doneCount}</span> complete
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-journey-600 px-3 py-1.5 text-xs font-black text-white shadow-md shadow-journey-500/25">
+              {/* Breathing, because of the three chips this is the one a
+                  student actually came to check — and it is the only one whose
+                  number changes. */}
+              <span className="fp-breathe inline-flex items-center gap-1.5 rounded-full bg-journey-600 px-3 py-1.5 text-xs font-black text-white shadow-md shadow-journey-500/25">
                 <span className="tabular-nums">{shownPercent}%</span> of the way
               </span>
             </div>
@@ -146,7 +165,7 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
 
           {/* ---- The step being stood on, as its own panel beside the road ---- */}
           <div
-            className="animate-fade-in-up relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface/90 p-5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur"
+            className="animate-fade-in-up fp-attention relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface/90 p-5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur"
             style={{ animationDelay: '0.3s' }}
           >
             <span
@@ -169,11 +188,17 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
                 )}
 
                 <div className="mt-auto pt-4">
+                  {/* The map already shouts about where you are — a glow, two
+                      pulse rings and a bouncing pin on the platform. What it
+                      never said was what to *do*, and this was the only quiet
+                      thing on a loud page. The violet glow matches the button's
+                      own gradient rather than the warm beacon used on Today's
+                      Plan, so the two never compete when both are on screen. */}
                   <Link
                     to="/career/planner"
-                    className="fp-sweep fp-press group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
+                    className="fp-sweep fp-press fp-glow-violet fp-rm-shine group relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
                   >
-                    <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
+                    <Zap className="fp-bolt h-4 w-4 fill-amber-300 text-amber-300" />
                     Work on it today
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Link>
@@ -194,7 +219,11 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
       {/* ---------------------------------------------------------------
           The journey itself.
       --------------------------------------------------------------- */}
-      <Card className="animate-fade-in-up overflow-hidden">
+      {/* The ref sits on a wrapper because Card is a shared primitive that
+          does not forward refs — and a reveal whose ref never lands would
+          leave this card hidden for good. */}
+      <div ref={mapReveal} className="fp-reveal">
+      <Card className="overflow-hidden">
         <CardHeader
           icon={Route}
           title="Your step-by-step path"
@@ -213,8 +242,9 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
 
         {phases.length > 0 && (
           <Link
+            ref={nextUpReveal}
             to="/career/planner"
-            className="group mt-6 flex items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4 transition-colors hover:bg-brand-50"
+            className="fp-reveal fp-rm-lift group mt-6 flex items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4 transition-colors hover:bg-brand-50"
           >
             <span>
               <span className="block text-sm font-bold text-ink-900">
@@ -224,10 +254,11 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
                 The planner breaks your roadmap into things you can do today.
               </span>
             </span>
-            <ArrowRight className="h-5 w-5 shrink-0 text-link transition-transform group-hover:translate-x-1" />
+            <ArrowRight className="fp-rm-icon h-5 w-5 shrink-0 text-link transition-transform group-hover:translate-x-1" />
           </Link>
         )}
       </Card>
+      </div>
 
       {openPhase !== null && phases[openPhase] && (
         <PhaseDialog

@@ -113,7 +113,7 @@ function Platform({ palette, state, index, onClick, label, sway }) {
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`group relative h-[116px] w-[120px] shrink-0 ${locked ? 'saturate-[.75]' : ''}`}
+      className={`fp-rm-platform group relative h-[116px] w-[120px] shrink-0 ${locked ? 'saturate-[.75]' : ''}`}
       style={{ transform: `translateX(${sway}px)` }}
     >
       <span className="fp-platform absolute inset-0 block">
