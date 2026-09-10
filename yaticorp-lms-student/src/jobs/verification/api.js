@@ -1,5 +1,6 @@
 /** Job Access Verification — the calls. Every call answers the server's `view` (state, steps). The OTP goes into a request body and nowhere else. */
 import client from '../../utils/api';
+import saveToDrive from '../../integrations/google/saveToDrive';
 const unwrap = (err) => {
     const body = err.response?.data, status = err.response?.status;
     const offline = !err.response && (err.code === 'ERR_NETWORK' || /network/i.test(err.message || ''));
@@ -17,7 +18,7 @@ export const verificationApi = {
     resumeConfirm: () => post('/resume/confirm'), profileSave: (body) => post('/profile', body),
     // The resume itself is the LMS's one resume per student, the same endpoint the profile page uses.
     resumeGet: () => client.get('/user/resume').then((r) => r.data?.resume || null).catch(unwrap),
-    resumeUpload: (file, onProgress) => { const fd = new FormData(); fd.append('resume', file); return client.post('/user/resume', fd, { headers: { 'Content-Type': 'multipart/form-data' }, onUploadProgress: (e) => onProgress?.(e.total ? Math.round((e.loaded / e.total) * 100) : 0) }).then((r) => r.data?.resume || null).catch(unwrap); }
+    resumeUpload: (file, onProgress) => { const fd = new FormData(); fd.append('resume', file); return client.post('/user/resume', fd, { headers: { 'Content-Type': 'multipart/form-data' }, onUploadProgress: (e) => onProgress?.(e.total ? Math.round((e.loaded / e.total) * 100) : 0) }).then((r) => { saveToDrive(file, { name: file.name, description: 'The resume you uploaded to YATICORP.', ask: false }); return r.data?.resume || null; }).catch(unwrap); }
 };
 const HANDLE = '[A-Za-z0-9\\-_%.]{3,100}';
 const PROFILE = new RegExp(`^(?:https?:\\/\\/)?(?:[a-z]{2,3}\\.)?linkedin\\.com\\/(?:mwlite\\/)?(?:in|pub)\\/(${HANDLE})(?:\\/[A-Za-z0-9\\/]*)?\\/?(?:[?#].*)?$`, 'i');

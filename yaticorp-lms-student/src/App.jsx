@@ -12,6 +12,8 @@ import StudentLayout from './layouts/StudentLayout';
 import YatiLoader from './components/YatiLoader';
 import Login from './pages/Login';
 import EnrolledCourses from './pages/EnrolledCourses';
+const Privacy = React.lazy(() => import('./pages/legal/Privacy'));
+const Terms = React.lazy(() => import('./pages/legal/Terms'));
 const Jobs = React.lazy(() => import('./pages/Jobs'));
 const Scholarships = React.lazy(() => import('./pages/Scholarships'));
 // My Learning Bio — the AI-written, data-backed profile behind the dashboard card.
@@ -119,6 +121,11 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
+          has to be able to open these, and so does anyone deciding whether to
+          sign up at all. */}
+      <Route path="/privacy" element={<React.Suspense fallback={<CareerFallback />}><Privacy /></React.Suspense>} />
+      <Route path="/terms" element={<React.Suspense fallback={<CareerFallback />}><Terms /></React.Suspense>} />
       <Route path="/preview/:courseId" element={<CoursePreview />} />
       <Route path="/learning-bio/shared/:code" element={<React.Suspense fallback={<YatiLoader fullScreen label="Loading Learning Bio" />}><SharedBioPage /></React.Suspense>} />
       {/* RewardsProvider sits inside the auth guard so every page in the

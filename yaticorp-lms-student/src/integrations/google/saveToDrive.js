@@ -22,7 +22,7 @@ const toBase64 = (blob) =>
 /** Trim a name to what the server will accept, keeping it recognisable. */
 const tidyName = (name) => String(name).replace(/[^\w\-. ()]+/g, '_').slice(0, 120) || 'file';
 
-export default async function saveToDrive(blob, { name, description = '', reason = '' } = {}) {
+export default async function saveToDrive(blob, { name, description = '', reason = '', ask = true } = {}) {
   let state = getSnapshot();
   if (!state.loaded) state = await refresh();
 
@@ -30,6 +30,13 @@ export default async function saveToDrive(blob, { name, description = '', reason
   if (!state.available) return { ok: false, reason: 'unavailable' };
 
   if (!state.connected) {
+    // Consent leaves the page for Google's screen. That is fine when the
+    // student just pressed Download and is standing still, and destructive
+    // halfway through a verification wizard or a job application — those call
+    // sites pass ask:false and simply file no copy rather than losing the
+    // student's place. They can connect later and the next file will land.
+    if (!ask) return { ok: false, reason: 'not-connected' };
+
     const granted = await requestConsent(reason);
     // Consent leaves the page for Google's screen, so this resolves false and
     // the download itself carries on regardless.

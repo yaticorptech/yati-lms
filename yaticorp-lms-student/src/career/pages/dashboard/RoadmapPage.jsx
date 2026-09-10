@@ -7,6 +7,9 @@ import PageHeader from '../../components/ui/PageHeader';
 import Button from '../../components/ui/Button';
 import { useToast } from '../../components/ui/Toast';
 import ShareBadgeDialog from '../../components/roadmap/ShareBadgeDialog';
+import { useCelebrate } from '../../components/ui/Celebration';
+import { Trophy } from 'lucide-react';
+import '../../components/roadmap/roadmapMotion.css';
 import AiBudgetNotice from '../../components/AiBudgetNotice';
 import { readAiBudgetError } from '../../utils/aiBudget';
 import GeneratingRoadmap from '../../components/journey/GeneratingRoadmap';
@@ -28,6 +31,7 @@ export default function RoadmapPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const toast = useToast();
+  const celebrate = useCelebrate();
 
   useEffect(() => {
     const fetchRoadmap = async () => {
@@ -116,6 +120,25 @@ export default function RoadmapPage() {
     try {
       const { data } = await api.patch('/roadmap/phase', { index });
       setCompletedPhases(data.completedPhases);
+
+      // Finishing a phase is the largest thing a student does in this section
+      // — months of school, not one task — and it was being acknowledged by a
+      // checkbox changing colour. Only on completion: reopening a phase is a
+      // correction, and congratulating someone for it would be strange.
+      if (!previous.includes(index)) {
+        const total = roadmap?.educationRoadmap?.length || 0;
+        const done = data.completedPhases?.length || 0;
+        celebrate({
+          kind: done === total && total > 0 ? 'day' : 'task',
+          icon: Trophy,
+          title: done === total && total > 0 ? 'Roadmap complete' : 'Phase complete',
+          message:
+            done === total && total > 0
+              ? 'Every phase on your road is finished. That is the whole map.'
+              : 'That phase is behind you. The next one is open.',
+          progress: total ? `${done} / ${total} phases` : undefined
+        });
+      }
     } catch {
       setCompletedPhases(previous);
       setError('Could not save your progress. Check your connection and try again.');
@@ -128,7 +151,8 @@ export default function RoadmapPage() {
   if (showLoader) return <YatiLoader label="Loading your roadmap" />;
 
   return (
-    <div className="space-y-6">
+    // fp-roadmap scopes roadmapMotion.css to this page and nothing else.
+    <div className="fp-roadmap space-y-6">
       {/* The page title is the destination itself once a roadmap exists, and
           it is rendered inside the hero below. A generic "Your path, one step
           at a time" above it was a second heading saying less than the first. */}

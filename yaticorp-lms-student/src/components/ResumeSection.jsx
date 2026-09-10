@@ -85,6 +85,16 @@ export default function ResumeSection() {
             const fd = new FormData();
             fd.append('resume', file);
             const r = await api.post('/user/resume', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+
+            // The resume they uploaded, kept in their own Drive alongside the
+            // generated one. Not awaited: the upload already succeeded and a
+            // Drive copy failing must not read as a failed upload.
+            saveToDrive(file, {
+                name: file.name,
+                description: 'The resume you uploaded to YATICORP.',
+                reason: 'So the resume you upload is also kept in your own Google Drive.'
+            });
+
             setResume(r.data.resume);
             setAts(r.data.ats);
             if (r.data.parsed) {

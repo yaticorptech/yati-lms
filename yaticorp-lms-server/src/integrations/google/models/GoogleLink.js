@@ -20,6 +20,9 @@ const googleLinkSchema = new mongoose.Schema(
     scopes: { type: [String], default: [] },
     // The one folder this app created and may write to.
     driveFolderId: { type: String, default: '' },
+    // The one calendar this app created and may write to. Empty until the
+    // student first saves an event with calendar access granted.
+    calendarId: { type: String, default: '' },
     connectedAt: { type: Date, default: Date.now },
     // Set when Google rejects our refresh token, so the UI can ask the student
     // to reconnect rather than failing silently for ever.

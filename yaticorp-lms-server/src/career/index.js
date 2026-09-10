@@ -45,6 +45,28 @@ const reportConfig = () => {
 };
 reportConfig();
 
+/**
+ * Forget the Google copies of this student's calendar events whenever the
+ * calendar holding them stops existing — they disconnected the account, or
+ * deleted the calendar itself.
+ *
+ * Without this the ids outlive the calendar, and the catch-up sync reads a set
+ * of events that all carry an id as one that is already safely synced. The
+ * student then sees an empty Google calendar that never fills, and only the
+ * events they happen to edit ever appear.
+ */
+{
+  const forgetGoogleCopies = async (userId) => {
+    await require('./models/CalendarEvent').updateMany(
+      { userId, googleEventId: { $ne: '' } },
+      { googleEventId: '' }
+    );
+  };
+  const googleHooks = require('../integrations/google/hooks');
+  googleHooks.onDisconnect(forgetGoogleCopies);
+  googleHooks.onCalendarReset(forgetGoogleCopies);
+}
+
 const router = express.Router();
 
 // Every Gemini call this section makes is metered against the student who
