@@ -1,12 +1,12 @@
 /** The report: overall score, six dimensions, strengths, improvements, feedback, every question reviewed, and the plan. */
 import { useCallback, useContext, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Award, ThumbsUp, TrendingUp, MessageSquare, ListChecks, Route, RotateCcw, ChevronDown, ChevronRight, BookOpen, Lightbulb, FileText, Target, MessageCircle, Code2, Star, BarChart3, Rocket, Sprout } from 'lucide-react';
-import { interviewApi, TYPE_META, STAGE_LABEL, fmtDate, scoreTone } from './api';
+import { ArrowLeft, Award, ThumbsUp, TrendingUp, MessageSquare, ListChecks, RotateCcw, ChevronRight, ArrowRight, Lightbulb, FileText, Target, MessageCircle, Code2, Star, BarChart3, Brush, Sprout } from 'lucide-react';
+import { interviewApi, TYPE_META, STAGE_LABEL, fmtDate } from './api';
 import { AuthContext } from '../context/AuthContext';
 import Illustration from './Illustration';
 import { Section, Btn, ErrorBox, Analyzing } from '../learningbio/ui';
-import { ScoreRing, Collapse, Celebration } from './ui';
+import { ScoreRing, Celebration } from './ui';
 import { DeliveryCard, RecommendationCard } from './ReportCards';
 
 /**
@@ -22,6 +22,24 @@ const DIMENSIONS = [
     { key: 'confidence', label: 'Confidence', icon: Star, tint: 'bg-orange-100 text-orange-500', low: 'Maintain an engaging pace', high: 'Confident and steady' },
     { key: 'relevance', label: 'Relevance', icon: Target, tint: 'bg-rose-100 text-rose-500', low: 'Align answers with the role', high: 'On point for the role' }
 ];
+/* The four tones the steps cycle through, in the order they are listed. */
+const STEP_TONES = [
+    { row: 'border-violet-100 bg-violet-50/50', badge: 'bg-violet-600', tile: 'bg-violet-100 text-violet-600', cta: 'bg-violet-100 text-violet-700 hover:bg-violet-200' },
+    { row: 'border-sky-100 bg-sky-50/50', badge: 'bg-sky-500', tile: 'bg-sky-100 text-sky-600', cta: 'bg-sky-100 text-sky-700 hover:bg-sky-200' },
+    { row: 'border-emerald-100 bg-emerald-50/50', badge: 'bg-emerald-500', tile: 'bg-emerald-100 text-emerald-600', cta: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' },
+    { row: 'border-orange-100 bg-orange-50/50', badge: 'bg-orange-500', tile: 'bg-orange-100 text-orange-600', cta: 'bg-orange-100 text-orange-700 hover:bg-orange-200' }
+];
+/* An icon drawn from what the step actually says, not from its position. */
+const STEP_ICON = [
+    [/interview|retake|mock/i, BarChart3], [/star|structur|answer|method/i, ListChecks],
+    [/design|ui|ux|portfolio|visual/i, Brush], [/introduc|pitch|about yourself|elevator/i, FileText],
+    [/communicat|speak|out loud|pace/i, MessageCircle], [/code|technical|node|express|react|python|sql|api/i, Code2]
+];
+const stepIcon = (step, index, total) => {
+    const text = `${step.title} ${step.action} ${step.skill || ''}`;
+    return STEP_ICON.find(([re]) => re.test(text))?.[1] || (index === total - 1 ? BarChart3 : FileText);
+};
+
 const barFor = (v) => (v >= 75 ? 'from-emerald-400 to-teal-500' : v >= 50 ? 'from-indigo-500 to-violet-500' : 'from-amber-400 to-orange-500');
 
 /** One dimension: coloured tile, label, a bar that fills on load, the number, and its advice. */
@@ -52,9 +70,6 @@ export default function InterviewReport() {
     const { user } = useContext(AuthContext);
     const [s, setS] = useState(undefined);
     const [error, setError] = useState(null);
-    const [open, setOpen] = useState(0);
-    const [detailed, setDetailed] = useState(false);
-    const [starting, setStarting] = useState(false);
 
     const load = useCallback(() => interviewApi.session(id).then((x) => { setS(x); setError(null); }).catch((e) => { setError(e); setS(null); }), [id]);
     useEffect(() => { load(); }, [load]);
@@ -66,9 +81,10 @@ export default function InterviewReport() {
     const answered = s.turns.filter((t) => t.answer);
     const xpTotal = (s.xp?.completed || 0) + (s.xp?.improved || 0) + (s.xp?.challenge || 0);
     const practiceTarget = (r.plan || []).find((p) => p.courseId);
-    const showDetailed = () => { setDetailed(true); setTimeout(() => document.getElementById('question-by-question')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); };
-    const retake = () => { setStarting(true); navigate(`/interview/mock/new?type=${encodeURIComponent(s.type)}&role=${encodeURIComponent(s.role || '')}`); };
+    const retake = () => navigate(`/interview/mock/new?type=${encodeURIComponent(s.type)}&role=${encodeURIComponent(s.role || '')}`);
     const showPlan = () => document.getElementById('next-steps')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const openReview = () => navigate(`/interview/report/${s.id}/questions`);
+    const doRetake = () => retake();
     // A warm banner rather than a dark one: the score is read from the ring, and
     // dark text on a light ground keeps the interviewer's paragraph readable.
     const heroTone = r.overall >= 75 ? 'from-emerald-100 via-emerald-50 to-teal-100' : r.overall >= 50 ? 'from-indigo-100 via-violet-50 to-indigo-100' : 'from-amber-200 via-amber-100 to-orange-200';
@@ -186,55 +202,90 @@ export default function InterviewReport() {
             {/* ── Delivery + recommendation ────────────────────── */}
             <div className="grid gap-5 lg:grid-cols-2">
                 <DeliveryCard communication={r.communication} />
-                <RecommendationCard report={r} onPractice={() => navigate(practiceTarget ? `/learn/${practiceTarget.courseId}` : '/interview/practice')} onRetake={retake} onDetail={showDetailed} />
+                <RecommendationCard report={r} onPractice={() => navigate(practiceTarget ? `/learn/${practiceTarget.courseId}` : '/interview/practice')} onRetake={retake} onDetail={openReview} />
             </div>
 
             {/* ── Question by question ─────────────────────────── */}
-            <Section id="question-by-question" icon={ListChecks} title="Question by question" hint="Every answer, its score, the feedback, and how it could be stronger.">
-                <ul className="space-y-2">
+            {/* The scores at a glance; reading one answer properly happens on
+                its own page, where a pager beats a stack of collapsed rows. */}
+            <Section id="question-by-question" icon={ListChecks} title="Question by question" hint="Every answer scored. Open the reviewer to read the feedback one at a time.">
+                <div className="flex flex-wrap items-center gap-2">
                     {answered.map((t, i) => {
-                        const p = r.perQuestion.find((x) => x.index === t.index) || {}; const isOpen = detailed || open === i;
+                        const n = r.perQuestion.find((x) => x.index === t.index)?.score ?? 0;
                         return (
-                            <li key={t.index} className={`iv-card rounded-2xl border ${isOpen ? 'border-indigo-300 shadow-md shadow-indigo-100' : 'border-slate-200 hover:border-indigo-200'}`}>
-                                <button type="button" onClick={() => { setDetailed(false); setOpen(isOpen ? null : i); }} aria-expanded={isOpen} className="flex w-full items-center gap-3 px-4 py-3 text-left">
-                                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${scoreTone((p.score ?? 0) * 10)} text-sm font-black text-white`}>{p.score ?? '–'}/10</span>
-                                    <span className="min-w-0 flex-1"><span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Q{i + 1} · {STAGE_LABEL[t.stage] || t.stage}{t.isFollowUp ? ' · follow-up' : ''}</span><span className="block truncate text-sm font-semibold text-slate-900">{t.question}</span></span>
-                                    <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                                </button>
-                                <Collapse open={isOpen}>
-                                    <div className="space-y-3 border-t border-slate-100 px-4 py-3 text-sm">
-                                        <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Question</p><p className="text-slate-800">{t.question}</p></div>
-                                        <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Your answer{t.inputMode === 'voice' ? ' · spoken' : ''}</p><p className="rounded-xl bg-slate-50 px-3 py-2 text-slate-700">{t.answer}</p>{t.voice?.wpm ? <p className="mt-1 text-[11px] text-slate-400">{t.voice.wordCount} words · {t.voice.wpm} words/min{t.voice.fillerCount ? ` · ${t.voice.fillerCount} filler word${t.voice.fillerCount === 1 ? '' : 's'}` : ''}{t.voice.longPauses ? ` · ${t.voice.longPauses} long pause${t.voice.longPauses === 1 ? '' : 's'}` : ''}</p> : null}</div>
-                                        <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Score</p><p className="font-black text-slate-900">{p.score ?? '–'} / 10</p></div>
-                                        <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">AI feedback</p><p className="text-slate-700">{p.feedback}</p></div>
-                                        {p.betterAnswer && <div><p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Better approach</p><p className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-slate-700">{p.betterAnswer}</p></div>}
-                                    </div>
-                                </Collapse>
-                            </li>
+                            <button key={t.index} type="button" onClick={() => navigate(`/interview/report/${s.id}/questions`)}
+                                title={`Q${i + 1} · ${STAGE_LABEL[t.stage] || t.stage} — ${n}/10`}
+                                className={`iv-card flex h-11 w-11 items-center justify-center rounded-xl text-sm font-black ${n >= 8 ? 'bg-emerald-50 text-emerald-700' : n >= 5 ? 'bg-indigo-50 text-indigo-700' : 'bg-rose-50 text-rose-600'}`}>
+                                {n}
+                            </button>
                         );
                     })}
-                </ul>
+                </div>
+                <Btn tone="primary" icon={ArrowRight} onClick={() => navigate(`/interview/report/${s.id}/questions`)} className="mt-4">Review question by question</Btn>
             </Section>
 
             {/* ── Plan ─────────────────────────────────────────── */}
-            <Section id="next-steps" icon={Route} title="Your next steps" hint="Linked to LMS courses where one teaches the skill.">
-                <ol className="stagger space-y-2">
-                    {r.plan.map((p, i) => (
-                        <li key={i} className="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3">
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-black text-white">{i + 1}</span>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-slate-900">{p.title}</p>
-                                <p className="text-sm text-slate-600">→ {p.action}</p>
-                                {p.courseId && <Link to={`/learn/${p.courseId}`} className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:underline"><BookOpen size={13} /> Open course: {p.courseTitle}</Link>}
-                            </div>
-                        </li>
-                    ))}
-                </ol>
-                <div className="mt-4 flex flex-wrap gap-2">
-                    <Link to="/interview/practice" className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3.5 py-2 text-sm font-bold text-indigo-600 hover:bg-indigo-50"><ListChecks size={15} /> Practice questions</Link>
-                    <Link to="/interview/history" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"><Award size={15} /> All results</Link>
+            <section id="next-steps" className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm animate-fade-in-up sm:p-7">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600"><Target size={26} /></span>
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-900">Your next steps</h2>
+                            <p className="mt-1 max-w-lg text-sm text-slate-500">Keep going! These steps are linked to your LMS courses and will help you improve.</p>
+                        </div>
+                    </div>
+                    <div className="flex items-end gap-3">
+                        <p className="hidden items-center gap-3 rounded-2xl bg-violet-50 px-4 py-3 sm:flex">
+                            <Lightbulb size={22} className="shrink-0 text-amber-400" />
+                            <span className="lb-script text-base leading-tight text-slate-700">Small steps everyday<br />lead to big results!</span>
+                        </p>
+                        <Illustration name="steps" mascot={false} height={110} className="hidden lg:block" />
+                    </div>
                 </div>
-            </Section>
+
+                <ol className="stagger mt-5 space-y-2.5">
+                    {r.plan.map((p, i) => {
+                        const look = STEP_TONES[i % STEP_TONES.length];
+                        const Icon = stepIcon(p, i, r.plan.length);
+                        const retake = /another mock interview/i.test(p.title);
+                        const to = retake ? null : p.courseId ? `/learn/${p.courseId}` : '/interview/practice';
+                        const label = retake ? 'Start it' : p.courseId ? 'Open course' : 'Learn more';
+                        const title = retake ? 'Take another mock interview' : p.courseTitle ? `Open course: ${p.courseTitle}` : 'Practice questions for this';
+                        return (
+                            <li key={i} className={`flex flex-wrap items-center gap-4 rounded-2xl border px-4 py-3.5 ${look.row}`}>
+                                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-black text-white ${look.badge}`}>{i + 1}</span>
+                                <span className={`hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl sm:flex ${look.tile}`}><Icon size={21} /></span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-base font-black text-slate-900">{p.title}</span>
+                                    <span className="block text-sm leading-snug text-slate-600">{p.action}</span>
+                                </span>
+                                {retake ? (
+                                    <button type="button" onClick={doRetake} title={title}
+                                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold ${look.cta}`}>
+                                        {label} <ChevronRight size={16} />
+                                    </button>
+                                ) : (
+                                    <Link to={to} title={title}
+                                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold ${look.cta}`}>
+                                        {label} <ChevronRight size={16} />
+                                    </Link>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ol>
+
+                <div className="mt-6 flex flex-wrap items-center gap-4 border-t border-slate-100 pt-5">
+                    <div className="flex flex-wrap gap-2.5">
+                        <Link to="/interview/practice" className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-indigo-200 transition-transform hover:-translate-y-0.5">
+                            <ListChecks size={17} /> Practice questions <ArrowRight size={16} />
+                        </Link>
+                        <Link to="/interview/history" className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">
+                            <BarChart3 size={17} /> All results
+                        </Link>
+                    </div>
+                </div>
+            </section>
 
             {/* ── One more round ──────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-gradient-to-r from-violet-100 via-indigo-50 to-violet-100 px-5 py-4 ring-1 ring-indigo-100 sm:px-7">
@@ -245,10 +296,6 @@ export default function InterviewReport() {
                         <p className="text-sm text-slate-600">With consistent practice, you&apos;ll see great improvement in your next interview.</p>
                     </div>
                 </div>
-                <button type="button" onClick={retake} disabled={starting}
-                    className="inline-flex items-center gap-2.5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 text-base font-black text-white shadow-lg shadow-indigo-300 transition-transform hover:-translate-y-0.5 disabled:opacity-60">
-                    <Rocket size={19} /> {starting ? 'Starting…' : 'Try Another Interview'} <ChevronRight size={18} />
-                </button>
             </div>
         </div>
     );

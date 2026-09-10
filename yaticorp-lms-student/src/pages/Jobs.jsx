@@ -39,8 +39,6 @@ import OpportunitiesTab from '../opportunities/OpportunitiesTab';
 import CareerMatchTab from '../jobs/CareerMatchTab';
 import HiddenOpportunitiesTab from '../jobs/HiddenOpportunitiesTab';
 import { opportunitiesApi } from '../opportunities/api';
-import JobVerificationFlow from '../jobs/verification/JobVerificationFlow';
-import { verificationApi } from '../jobs/verification/api';
 
 const JOB_TYPES = ['Any', 'Full-time', 'Part-time', 'Internship', 'Contract'];
 
@@ -110,23 +108,6 @@ const NOUNS = {
 // "parttime" was this tab's name for one release; old links still land here.
 const tabFromParam = (value) => (value === 'parttime' ? 'opportunities' : TABS.some((t) => t.id === value) ? value : 'jobs');
 
-/**
- * The job profile saved during verification (location, skills, preferred
- * types) becomes the search form's starting point — only when the form is
- * still empty, so a shared URL or a search in progress is never overwritten.
- */
-const withJobProfile = (f, profile) => {
-    if (!profile || profile.status !== 'COMPLETED' || f.skills.length || f.location || f.role) return f;
-    const types = profile.jobTypes || [];
-    return {
-        ...f,
-        skills: profile.skills || [],
-        location: profile.location?.label || '',
-        coords: profile.location?.coords || null,
-        jobType: types.includes('internship') ? 'Internship' : types.includes('part-time') && !types.includes('it') && !types.includes('non-it') ? 'Part-time' : f.jobType,
-        remoteOnly: types.length > 0 && types.every((t) => t === 'remote')
-    };
-};
 
 /** Read the initial form from the URL, so a search can be shared or bookmarked. */
 const formFromParams = (params) => {
@@ -247,10 +228,6 @@ export default function Jobs() {
        until the first fetch answers; null when it failed. Loaded here rather
        than in the tab because the band decides what THIS page may show. */
     const [oppData, setOppData] = useState(undefined);
-    // Job Access Verification (Aadhaar + LinkedIn), as the server last reported
-    // it. undefined = not answered yet; null = the request failed (the flow
-    // then loads it itself). The server guards the listings too.
-    const [verification, setVerification] = useState(undefined);
     const [roles, setRoles] = useState([]);
     const [skillOptions, setSkillOptions] = useState([]);
     const [popularSkills, setPopularSkills] = useState([]);
@@ -350,8 +327,6 @@ export default function Jobs() {
             setSavedIds(new Set(rows.map((j) => j.id)));
         }).catch(() => {});
         opportunitiesApi.profile().then(setOppData).catch(() => setOppData(null));
-        // A student who finished verification goes straight to the board.
-        verificationApi.status().then((v) => { setVerification(v); if (v?.canAccessJobs) setForm((f) => withJobProfile(f, v.steps?.profile)); }).catch(() => setVerification(null));
     }, []);
 
     /* A minor never sees the global board: whatever tab the URL or a click
@@ -721,32 +696,6 @@ export default function Jobs() {
         );
     }
 
-    if (verification === undefined) {
-        return (
-            <div className="space-y-5 animate-fade-in pb-12" aria-busy="true">
-                <div className="skeleton h-56 rounded-3xl" />
-                <div className="skeleton h-14 rounded-2xl" />
-                <Skeletons />
-            </div>
-        );
-    }
-
-    if (!verification?.canAccessJobs) {
-        return (
-            <div className="animate-fade-in pb-12">
-                <JobVerificationFlow
-                    initialView={verification}
-                    onGranted={(v) => {
-                        setVerification(v);
-                        setForm((f) => withJobProfile(f, v.steps?.profile));
-                        jobsApi.savedList().then((r) => { const rows = r.saved ?? []; setSavedJobs(rows); setSavedIds(new Set(rows.map((j) => j.id))); }).catch(() => {});
-                        setTab('jobs');
-                        setTabParam('jobs');
-                    }}
-                />
-            </div>
-        );
-    }
 
     const showOpportunities = minor || tab === 'opportunities';
 

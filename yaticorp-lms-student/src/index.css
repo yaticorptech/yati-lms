@@ -357,11 +357,6 @@
   .lb-drift { opacity: 0; }
 }
 
-/* Jobs — the Aadhaar QR scanner's sweep line (src/jobs/verification). */
-@keyframes jv-scan { 0% { top: 12%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 88%; opacity: 0; } }
-.jv-scanline { animation: jv-scan 2.2s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .jv-scanline { animation: none; } }
-
 /* Interview Ready — the voice interview (src/interview/MockInterview.jsx). */
 @keyframes iv-wave { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
 .iv-wave > span { display: inline-block; width: 4px; border-radius: 9999px; background: currentColor; height: 100%; transform-origin: center; animation: iv-wave 0.9s ease-in-out infinite; }

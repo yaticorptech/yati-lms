@@ -17,9 +17,9 @@
     "jobs:dedupe": "node src/jobboard/scripts/dedupe.js",
     "jobs:warm": "node src/jobboard/scripts/warm.js",
     "jobs:setup": "npm run jobs:seed && npm run jobs:ingest && npm run jobs:geocode",
-    "test": "node --test tests/**/*.test.js",
+    "test": "node --test --test-concurrency=1 tests/**/*.test.js",
     "career:migrate-badges": "node src/career/scripts/migrateMilestoneBadges.js",
-    "test:interview": "node --test tests/interview/*.test.js"
+    "test:interview": "node --test --test-concurrency=1 tests/interview/*.test.js"
   },
   "keywords": [],
   "author": "",

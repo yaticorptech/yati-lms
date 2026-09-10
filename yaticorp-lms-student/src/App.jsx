@@ -24,6 +24,7 @@ const InterviewDashboard = React.lazy(() => import('./interview/InterviewDashboa
 const PracticePage = React.lazy(() => import('./interview/PracticePage'));
 const MockInterview = React.lazy(() => import('./interview/MockInterview'));
 const InterviewReport = React.lazy(() => import('./interview/InterviewReport'));
+const QuestionReview = React.lazy(() => import('./interview/QuestionReview'));
 const InterviewHistory = React.lazy(() => import('./interview/InterviewHistory'));
 
 const ProtectedRoute = ({ children }) => {
@@ -138,6 +139,7 @@ function App() {
         <Route path="interview/practice" element={<React.Suspense fallback={<CareerFallback />}><PracticePage /></React.Suspense>} />
         <Route path="interview/mock/:id" element={<React.Suspense fallback={<CareerFallback />}><MockInterview /></React.Suspense>} />
         <Route path="interview/report/:id" element={<React.Suspense fallback={<CareerFallback />}><InterviewReport /></React.Suspense>} />
+        <Route path="interview/report/:id/questions" element={<React.Suspense fallback={<CareerFallback />}><QuestionReview /></React.Suspense>} />
         <Route path="interview/history" element={<React.Suspense fallback={<CareerFallback />}><InterviewHistory /></React.Suspense>} />
         {/* Dashboard and My Profile are one page now; the old address still lands there. */}
         <Route path="profile" element={<Navigate to="/" replace />} />
