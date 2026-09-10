@@ -96,6 +96,9 @@ router.use('/milestones', require('./routes/milestoneRoutes'));
 // What is left of this student's daily AI allowance, so the UI can say so
 // before they spend it rather than only when it runs out.
 router.use('/ai-usage', require('./routes/aiUsageRoutes'));
+// Brain games: the account's copy of each student's level and stars, and the
+// leaderboard built from them. Play and scoring stay in the browser.
+router.use('/games', require('./routes/gameRoutes'));
 // An unknown path under /api/career is a client mistake, and should be answered
 // in the language the client speaks rather than with Express's HTML error page.
 router.use((req, res) => {

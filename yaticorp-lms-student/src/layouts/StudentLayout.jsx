@@ -8,6 +8,8 @@ import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
+import MascotStage from '../career/components/mascot/MascotStage';
+import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
 import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet, Mic } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
@@ -449,6 +451,17 @@ const StudentLayout = () => {
 );
     return (
         <div className="flex h-screen bg-slate-50 text-slate-900 font-sans">
+            {/* The one mascot in the whole application. It lives here rather
+                than inside Career Path because five of the mascots it replaced
+                were on pages Career Path never sees, and there may only ever
+                be one. Pages declare slots; nothing else renders a character. */}
+            <MascotStage />
+
+            {/* Raised whenever something wants to write to a student's own
+                Google account. Mounted once so the explanation they read is
+                written in exactly one place. */}
+            <GoogleConsentDialog />
+
             {/* The six sections under the thumb, mirroring the sidebar. */}
             <MobileBottomNav
                 isJobsEnabled={isJobsEnabled}

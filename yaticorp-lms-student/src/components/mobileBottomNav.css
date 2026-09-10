@@ -26,12 +26,21 @@
 }
 .mbn-icon-active { animation: mbn-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 
-/* The bar itself slides up on first paint. */
+/* The bar itself slides up on first paint.
+ *
+ * `backwards`, not `both`. `both` holds the last keyframe forever, which left
+ * the bar sitting on a permanent `transform: translateY(0)` — and any
+ * transform other than `none` makes an element a backdrop root, so the
+ * `backdrop-blur` on the glass inside it had nothing left to filter and
+ * quietly did nothing. The 90% background then let the page show through
+ * crisp and readable instead of blurred away. `backwards` still holds the
+ * opening frame before the animation starts, and lets the transform go once
+ * it has finished. */
 @keyframes mbn-in {
   from { opacity: 0; transform: translateY(24px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.mbn-in { animation: mbn-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.mbn-in { animation: mbn-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
 
 /* Press feedback, on every pointer type. */
 .mbn-press { transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); }

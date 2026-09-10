@@ -7,8 +7,7 @@ import {
   ArrowRight, Award, Trophy, Zap, Share2, Medal, Sparkles, Flag, Lock, Gift
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
-import Mascot from '../../components/mascot/Mascot';
-import useMascotCycle, { REWARD_POSES } from '../../components/mascot/useMascotCycle';
+import MascotSlot from '../../components/mascot/MascotSlot';
 import BadgeMedallion from '../../components/rewards/BadgeMedallion';
 import useCountUp from '../../../hooks/useCountUp';
 import { BADGE_ICONS, tierFor } from '../../components/rewards/badgeTiers';
@@ -110,7 +109,7 @@ function LevelBadge({ level, percent }) {
 export default function Badges() {
   const { user } = useContext(AuthContext);
   // Celebrating poses, changing every few seconds — this is the page for it.
-  const look = useMascotCycle(REWARD_POSES);
+
   const [achievements, setAchievements] = useState([]);
   const [badges, setBadges] = useState([]);
   const [milestones, setMilestones] = useState([]);
@@ -268,7 +267,7 @@ export default function Badges() {
               <span className="fp-drift-icon absolute bottom-12 left-0 text-base" style={{ animationDelay: '-0.6s' }}>✨</span>
               <span className="fp-drift-icon absolute bottom-16 right-0 text-base" style={{ animationDelay: '-3.6s' }}>🎉</span>
               <span className="absolute bottom-1 left-1/2 h-5 w-32 -translate-x-1/2 rounded-full bg-amber-400/40 blur-lg" />
-              <Mascot key={look.pose} pose={look.pose} height={164} motion={look.motion} className="mc-pop relative" />
+              <MascotSlot name="badges-hero" state="celebrating" height={164} className="mc-pop relative" priority={20} />
             </div>
           </div>
         </section>

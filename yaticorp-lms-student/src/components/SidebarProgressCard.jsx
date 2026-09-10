@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import '../career/components/mascot/mascot.css';
-import Mascot from '../career/components/mascot/Mascot';
-import useMascotCycle, { SIDEBAR_POSES } from '../career/components/mascot/useMascotCycle';
+import MascotRenderer from '../career/components/mascot/MascotRenderer';
 import { levelProgress } from '../career/utils/progress';
 
 /**
@@ -23,9 +22,6 @@ export default function SidebarProgressCard({ user, onNavigate }) {
   // The card reads as a total against the next threshold, which is how a level
   // bar is read everywhere else — not as "XP into this level".
   const ceiling = xp + progress.remaining;
-  // Changes pose every few seconds so the sidebar feels alive; stays on the
-  // first pose under a reduced-motion preference.
-  const look = useMascotCycle(SIDEBAR_POSES);
 
   return (
     <Link
@@ -56,11 +52,9 @@ export default function SidebarProgressCard({ user, onNavigate }) {
           className="group relative inline-block cursor-pointer rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
         >
           <span aria-hidden className="mc-glow absolute inset-x-2 bottom-0 h-4 rounded-full bg-blue-400/40 blur-lg" />
-          <Mascot
-            key={look.pose}
-            pose={look.pose}
+          <MascotRenderer
+            state="happy"
             height={72}
-            motion={look.motion}
             className="mc-pop relative transition-transform group-hover:scale-110"
           />
         </span>

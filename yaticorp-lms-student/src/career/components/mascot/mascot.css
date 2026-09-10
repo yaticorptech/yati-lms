@@ -232,3 +232,146 @@
   .mc-wave-whole, .mc-point-pulse, .mc-look-left, .mc-look-right, .mc-think, .mc-clap,
   .mc-dance, .mc-sad, .mc-encourage, .mc-nod-once, .mc-idle { animation: none !important; }
 }
+
+/* ======================================================================
+ * The character layer
+ *
+ * Everything below belongs to MascotController — the mascot as a character
+ * that stands somewhere on the page, walks to somewhere else and reacts,
+ * rather than a picture sitting in a card.
+ *
+ * The rules are split across nested wrappers on purpose. One element can
+ * only hold one `transform`, so travel, facing, looking, the breath beat and
+ * the body motion each get their own layer and multiply together. Every one
+ * of them moves the WHOLE image; the artwork is never touched, never
+ * recoloured and never cut into parts.
+ * ==================================================================== */
+
+/* The character's own layer. Travel is written by JS as a transform on this
+   element, so moving costs a composite and never a layout. */
+.mc-actor {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 55;
+  pointer-events: none;
+  will-change: transform;
+}
+/* Only the character and its bubble take clicks. The layer itself must stay
+   transparent to the pointer, or a mascot resting in the corner would quietly
+   block whatever sits under its box. */
+.mc-actor .mc-hit { pointer-events: auto; }
+
+/* Off-screen, or the tab is in the background: stop every loop dead rather
+   than burning frames on a character nobody is looking at. */
+.mc-paused, .mc-paused * { animation-play-state: paused !important; }
+
+/* ---- Idle -------------------------------------------------------------
+   Breathing: the ribcage rises and the whole figure settles on its feet.
+   Deliberately small and slow — an idle character should read as alive, not
+   as a looping GIF. */
+.mc-breathe { animation: mc-breathe 4.6s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes mc-breathe {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  45%      { transform: translateY(-2px) scale(0.995, 1.012); }
+  70%      { transform: translateY(-1px) scale(1.002, 0.997); }
+}
+
+/* The breath catch. Flat artwork has no separate eyelids, so this is not a
+   drawn blink — it is the brief settle a body makes between breaths, on its
+   own layer so it composes with whatever the body is doing. */
+.mc-beat { animation: mc-beat 6.7s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes mc-beat {
+  0%, 92%, 100% { transform: scale(1, 1); }
+  95%           { transform: scale(1.012, 0.978); }
+  97%           { transform: scale(1, 1); }
+}
+
+/* Looking around: mostly still, then a glance one way and back. The long
+   period is what keeps it from reading as a loop. */
+.mc-look { animation: mc-look 13s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes mc-look {
+  0%, 44%, 100% { transform: rotate(0deg) translateX(0); }
+  52%           { transform: rotate(-3.5deg) translateX(-2px); }
+  60%           { transform: rotate(-3.5deg) translateX(-2px); }
+  70%           { transform: rotate(2.5deg) translateX(2px); }
+  78%           { transform: rotate(2.5deg) translateX(2px); }
+}
+
+/* ---- Moving -----------------------------------------------------------
+   The gait. Travel itself is JS on .mc-actor; this is the up-and-down of
+   walking, so the character rises and falls as it crosses the page. */
+.mc-gait { animation: mc-gait 0.46s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes mc-gait {
+  0%, 100% { transform: translateY(0) rotate(-2.5deg) scale(1, 1); }
+  25%      { transform: translateY(-5px) rotate(0deg) scale(0.99, 1.01); }
+  50%      { transform: translateY(0) rotate(2.5deg) scale(1.01, 0.99); }
+  75%      { transform: translateY(-5px) rotate(0deg) scale(0.99, 1.01); }
+}
+
+/* ---- Speaking and reacting -------------------------------------------- */
+.mc-talk { animation: mc-talk 1.5s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes mc-talk {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30%      { transform: translateY(-3px) rotate(-1.5deg); }
+  65%      { transform: translateY(-1px) rotate(1.5deg); }
+}
+
+.mc-wonder { animation: mc-wonder 2.8s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes mc-wonder {
+  0%, 100% { transform: rotate(-4deg) translateY(0); }
+  40%      { transform: rotate(5deg) translateY(-3px); }
+  70%      { transform: rotate(-1deg) translateY(-1px); }
+}
+
+.mc-worry { animation: mc-worry 2.2s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes mc-worry {
+  0%, 100% { transform: translateX(0) rotate(0deg) scale(1); }
+  25%      { transform: translateX(-3px) rotate(-2deg) scale(0.994); }
+  75%      { transform: translateX(3px) rotate(2deg) scale(0.994); }
+}
+
+/* Tired: a long sink with a slow recovery — the shape of a yawn. */
+.mc-tired { animation: mc-tired 5.2s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes mc-tired {
+  0%, 100% { transform: translateY(0) scale(1, 1) rotate(0deg); }
+  35%      { transform: translateY(4px) scale(1.02, 0.96) rotate(2deg); }
+  55%      { transform: translateY(-2px) scale(0.99, 1.02) rotate(-1deg); }
+}
+
+.mc-leap { animation: mc-leap 1.15s cubic-bezier(0.34, 1.56, 0.64, 1) infinite; transform-origin: 50% 100%; }
+@keyframes mc-leap {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  15%      { transform: translateY(2px) scale(1.06, 0.92); }
+  45%      { transform: translateY(-34px) scale(0.96, 1.06) rotate(-6deg); }
+  70%      { transform: translateY(0) scale(1.05, 0.95); }
+  85%      { transform: translateY(0) scale(1, 1); }
+}
+
+/* ---- The ground it stands on ------------------------------------------
+   A soft contact shadow that tightens as the character rises, so a jump
+   reads as leaving the floor rather than sliding up the page. */
+.mc-ground { animation: mc-ground 4.6s ease-in-out infinite; }
+@keyframes mc-ground {
+  0%, 100% { opacity: 0.28; transform: translateX(-50%) scale(1, 1); }
+  45%      { opacity: 0.22; transform: translateX(-50%) scale(0.94, 1); }
+}
+
+/* ---- The speech bubble ------------------------------------------------- */
+.mcb-in  { animation: mcb-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes mcb-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.88); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.mcb-out { animation: mcb-out 0.28s ease-in both; }
+@keyframes mcb-out {
+  to { opacity: 0; transform: translateY(6px) scale(0.92); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-breathe, .mc-beat, .mc-look, .mc-gait, .mc-talk, .mc-wonder, .mc-worry,
+  .mc-tired, .mc-leap, .mc-ground, .mcb-in, .mcb-out {
+    animation: none !important;
+  }
+  .mc-ground { opacity: 0.24; transform: translateX(-50%); }
+}

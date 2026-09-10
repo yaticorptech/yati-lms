@@ -995,7 +995,29 @@ If a category is completely inapplicable (e.g., certifications for a 10 year old
  * A scholarship list for one student: real, named schemes they can actually
  * apply to from where they are, with who each is for and when it closes.
  */
-const generateScholarshipsFromAI = async (goal, roadmap) => {
+/**
+ * The eligibility facts a student chose to give, as prompt lines. Anything
+ * left blank is simply absent: telling the model "category: not given" invites
+ * it to assume one, and an assumed caste produces a list of schemes the
+ * student cannot actually apply for.
+ */
+const eligibilityLines = (profile) => {
+  if (!profile) return '';
+  const bits = [];
+  if (profile.category) bits.push(`- Category: ${profile.category}`);
+  if (profile.minority && profile.minority !== 'Not applicable') bits.push(`- Minority community: ${profile.minority}`);
+  if (profile.familyIncome) bits.push(`- Annual family income: ${profile.familyIncome}`);
+  if (profile.gender && profile.gender !== 'Prefer not to say') bits.push(`- Gender: ${profile.gender}`);
+  if (profile.disability) {
+    bits.push(`- Has a disability${profile.disabilityPercent ? ` (${profile.disabilityPercent}%)` : ''}`);
+  }
+  if (profile.lastScore) bits.push(`- Most recent result: ${profile.lastScore}`);
+  if (profile.institutionType) bits.push(`- Institution type: ${profile.institutionType}`);
+  if (profile.circumstances?.length) bits.push(`- Also applies: ${profile.circumstances.join(', ')}`);
+  return bits.length ? `\n\nEligibility the student has declared:\n${bits.join('\n')}` : '';
+};
+
+const generateScholarshipsFromAI = async (goal, roadmap, profile) => {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY is not configured.');
   }
@@ -1010,12 +1032,15 @@ Student:
 - Stream / board: ${goal.stream || ''} ${goal.board || ''}
 - Career goal: ${goal.careerGoal}
 - Country: ${goal.country || 'India'}
-- Current stage on their roadmap: ${roadmap?.roadmapData?.currentStage || describeCurrentStage(goal)}
+- Current stage on their roadmap: ${roadmap?.roadmapData?.currentStage || describeCurrentStage(goal)}${eligibilityLines(profile)}
 
 Rules:
 1. Only REAL, currently running scholarships, fellowships and grants. Government schemes, national scholarship portals, foundations, corporate CSR programmes, university merit awards and international programmes that fit this student's country and stage. Never invent a scheme.
 2. Match the student's stage: a school student gets school and pre-university awards and entrance-linked scholarships; an undergraduate gets degree, internship-linked and postgraduate-entry awards; a postgraduate gets research, fellowship and study-abroad funding; a working professional gets upskilling and executive-education funding.
 3. Prefer schemes tied to the career goal and stream, then broad merit and need-based ones.
+3a. Where the student has declared eligibility above, put the schemes reserved for them first: category, minority, income, gender, disability and special-track awards are usually far less competitive than open merit ones, and are the whole reason those details were asked for.
+3b. Never assume anything the student did not declare. If no category is given, do not guess one; offer open schemes instead of reserved ones.
+3c. Say plainly in "eligibility" when a scheme has an income ceiling or a category requirement, so nobody applies for something they cannot get.
 4. Return 10 to 14 entries, most relevant first.
 5. "deadline": the usual application window, as a short phrase ("Usually July to October", "Rolling", "Announced each January"). Give an exact date only if it is fixed every year.
 6. "link": the official application or information page. Leave it "" if unsure - never guess a URL.

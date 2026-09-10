@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Check, Flame, PartyPopper, Trophy, Zap } from 'lucide-react';
-import Mascot from '../mascot/Mascot';
+import MascotSlot from '../mascot/MascotSlot';
 
 /**
  * The reward moment.
@@ -31,9 +31,9 @@ export const useCelebrate = () => {
 const PALETTE = ['#3b66f6', '#f59e0b', '#10b981', '#8b5cf6', '#f97316', '#ec4899'];
 
 const PRESETS = {
-  task: { pieces: 34, icon: Check, tone: 'emerald', duration: 4200, pose: 'taskdone', motion: 'mc-nod' },
-  day: { pieces: 70, icon: Trophy, tone: 'amber', duration: 6000, pose: 'win', motion: 'mc-dance' },
-  level: { pieces: 90, icon: Zap, tone: 'brand', duration: 6000, pose: 'levelup', motion: 'mc-jump' }
+  task: { pieces: 34, icon: Check, tone: 'emerald', duration: 4200, state: 'taskDone' },
+  day: { pieces: 70, icon: Trophy, tone: 'amber', duration: 6000, state: 'gameWon' },
+  level: { pieces: 90, icon: Zap, tone: 'brand', duration: 6000, state: 'levelUp' }
 };
 
 const TONES = {
@@ -140,7 +140,7 @@ function CelebrationOverlay({ event, onDismiss }) {
         {/* The mascot for the moment, with the badge tucked at its foot. */}
         <div className="relative mx-auto mb-3 flex h-36 w-36 items-end justify-center" aria-hidden>
           <span className="absolute bottom-3 left-1/2 h-6 w-28 -translate-x-1/2 rounded-full bg-journey-400/30 blur-lg" />
-          <Mascot pose={event.pose || preset.pose} height={136} motion={event.motion || preset.motion} className="mc-pop relative" />
+          <MascotSlot name="celebration" state={event.state || preset.state} height={136} className="mc-pop relative" priority={90} />
           <span
             className={`animate-badge-burst absolute right-0 bottom-0 flex h-11 w-11 items-center justify-center rounded-xl text-white ring-4 ring-inset ${tone.badge} ${tone.glow}`}
           >
