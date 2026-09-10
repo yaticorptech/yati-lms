@@ -21,6 +21,9 @@ const turnSchema = new mongoose.Schema({
     answer: { type: String, default: '' },
     answeredAt: { type: Date, default: null },
     inputMode: { type: String, enum: ['text', 'voice'], default: 'text' },
+    // How often the interviewer had to ask again because what came back was
+    // not an answer (see answerCheck.js).
+    clarifications: { type: Number, default: 0 },
     // Delivery metrics for a spoken answer (see communicationService.js).
     voice: { type: { durationMs: Number, wordCount: Number, wpm: Number, longPauses: Number, pauseMs: Number, fillerCount: Number, fillers: [String], hedgeCount: Number, _id: false }, default: null }
 }, { _id: false });

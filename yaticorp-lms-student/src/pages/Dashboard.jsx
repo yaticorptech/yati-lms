@@ -12,8 +12,9 @@
  */
 import React, { useState } from 'react';
 import CourseCard from '../components/course/CourseCard';
+import GlobalQuiz from '../components/GlobalQuiz';
 import { Link } from 'react-router-dom';
-import { BookOpen, Award, PlayCircle, Clock, X, Compass, ArrowRight, GraduationCap, Layers, CheckCircle2, Bookmark, Star, Target, Briefcase, CalendarDays } from 'lucide-react';
+import { BookOpen, Award, PlayCircle, Clock, X, Compass, ArrowRight, GraduationCap, Layers, CheckCircle2, Bookmark, Star, Target, Briefcase, CalendarDays, Globe } from 'lucide-react';
 import { useRewards } from '../context/useRewards';
 import { ProgressRing } from '../components/ProfileWidgets';
 
@@ -210,6 +211,7 @@ const TABS = [
     { key: 'bundles', label: 'Bundles', icon: Layers },
     { key: 'completed', label: 'Completed', icon: CheckCircle2 },
     { key: 'available', label: 'Available Courses', icon: Bookmark },
+    { key: 'quiz', label: 'Global Quiz', icon: Globe },
     { key: 'activity', label: 'Weekly activity', icon: CalendarDays }
 ];
 
@@ -267,29 +269,30 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
     return (
         <section className="space-y-6">
             {/* My Learning Tabs */}
-            {/* Four tabs at text-lg do not fit a phone. Left as a plain flex
-                they widened the page itself, which is what pushed every other
-                section off the left edge. The strip now scrolls on its own —
-                the negative margin lets it bleed to the screen edges so the
-                scroll reads as more-to-see rather than as a clipped box. */}
-            <div className="-mx-4 flex items-center overflow-x-auto border-b border-slate-200 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {/* Six tabs do not fit a phone at reading size. They used to scroll
+                sideways, which hid whichever tab was off the edge; now they
+                wrap onto a second line instead, so every tab is always in
+                view. Wrapping is also what keeps the strip from widening the
+                page itself, which is what pushed every other section off the
+                left edge before the scroll was added. */}
+            <div className="-mx-4 flex flex-wrap items-center gap-x-4 border-b border-slate-200 px-4 sm:mx-0 sm:gap-x-5 sm:px-0 lg:gap-x-7">
                 {TABS.map(({ key, label, icon: Icon }) => (
                     <button
                         key={key}
                         onClick={() => setActiveTab(key)}
-                        className={`relative mr-6 flex shrink-0 items-center gap-2.5 whitespace-nowrap px-2 pb-4 pt-1 text-base font-bold transition-colors sm:mr-10 sm:text-lg ${activeTab === key ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap px-1 pb-3 pt-1 text-sm font-bold transition-colors lg:text-base ${activeTab === key ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                     >
-                        <Icon size={22} strokeWidth={1.8} className={activeTab === key ? 'text-indigo-500' : 'text-slate-400'} />
+                        <Icon size={18} strokeWidth={1.8} className={activeTab === key ? 'text-indigo-500' : 'text-slate-400'} />
                         {label}
                         {key === 'completed' && completedCount > 0 && (
-                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-700">{completedCount}</span>
+                            <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-black text-emerald-700">{completedCount}</span>
                         )}
                         {activeTab === key && <div className="absolute inset-x-0 -bottom-px h-0.5 rounded-t-full bg-indigo-600"></div>}
                     </button>
                 ))}
                 {rewards && (
-                    <span className="ml-auto mb-3 inline-flex shrink-0 items-center gap-2 rounded-full border border-indigo-100 bg-white px-4 py-2 text-sm font-bold text-indigo-600 shadow-sm">
-                        <Star size={16} className="fill-orange-300 text-orange-400" /> {Number(rewards.xp || 0).toLocaleString('en-IN')} XP
+                    <span className="ml-auto mb-2 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-indigo-100 bg-white px-3 py-1.5 text-xs font-bold text-indigo-600 shadow-sm">
+                        <Star size={14} className="fill-orange-300 text-orange-400" /> {Number(rewards.xp || 0).toLocaleString('en-IN')} XP
                     </span>
                 )}
             </div>
@@ -305,6 +308,10 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
 
                 {activeTab === 'activity' ? (
                     weeklyActivity
+                ) : activeTab === 'quiz' ? (
+                    /* Its own loader and empty state: the paper comes from the
+                       quizzes in the courses, not from the course list above. */
+                    <GlobalQuiz />
                 ) : loading ? (
                     <div className="flex justify-center p-12">
                         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
