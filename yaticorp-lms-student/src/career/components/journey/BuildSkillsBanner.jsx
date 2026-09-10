@@ -2,8 +2,7 @@ import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Award, CalendarDays, Star, Zap } from 'lucide-react';
 import useCountUp from '../../../hooks/useCountUp';
-import Mascot from '../mascot/Mascot';
-import useMascotCycle, { SKILL_POSES } from '../mascot/useMascotCycle';
+import MascotSlot from '../mascot/MascotSlot';
 
 /**
  * 🌟 The banner that opens the Skills page.
@@ -155,8 +154,6 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
   const shownXp = useCountUp(xp, 1000);
   const shownDone = useCountUp(completed, 900);
   const shownStreak = useCountUp(streak, 800);
-  // A different pose every few seconds, in the gap the scene leaves for it.
-  const look = useMascotCycle(SKILL_POSES);
 
   return (
     <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset">
@@ -173,15 +170,8 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
         className="pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] max-w-[520px] [mask-image:linear-gradient(to_right,transparent,black_18%)] md:block"
       >
         <BuildSkillsArt />
-        {/* The mascot, in the gap the scene leaves for it, changing pose
-            every few seconds. */}
-        <Mascot
-          key={look.pose}
-          pose={look.pose}
-          height={176}
-          motion={look.motion}
-          className="mc-pop absolute bottom-1 left-1/2 -translate-x-[46%]"
-        />
+        {/* The mascot, in the gap the scene leaves for it. */}
+        <MascotSlot name="skills-banner" state="thinking" height={176} className="mc-pop absolute bottom-1 left-1/2 -translate-x-[46%]" priority={20} />
       </div>
 
       <div className="relative flex items-start gap-5 p-5 sm:p-6 md:min-h-[224px] md:max-w-[58%] lg:pr-0">

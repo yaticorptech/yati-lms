@@ -3,6 +3,10 @@ import { POSES, RATIO } from './poses';
 import './mascot.css';
 
 /**
+ * The PNG backend of MascotRenderer. Nothing outside this folder should
+ * import it: pages name a STATE and let MascotRenderer decide what that
+ * looks like, which is what makes the renderer replaceable.
+ *
  * The official CareerPath mascot, shown exactly as supplied.
  *
  * `pose` picks one of the official cut-outs listed in poses.js (point,
@@ -20,7 +24,15 @@ export default function Mascot({ pose = 'point', height = 120, motion = 'mc-floa
 
   const width = Math.round(height * (RATIO[key] || 0.8));
   return (
-    <span className={`block ${flip ? '-scale-x-100' : ''} ${className}`} style={{ width, height }} aria-hidden>
+    <span
+      /* Marks this as a mascot standing in the layout. The walking character
+         in MascotController watches for these and stays off stage while one
+         is on screen, so there is only ever one mascot in a moment. */
+      data-mascot-still=""
+      className={`block ${flip ? '-scale-x-100' : ''} ${className}`}
+      style={{ width, height }}
+      aria-hidden
+    >
       <span className={`block h-full w-full ${motion}`}>
         <img
           src={POSES[key]}

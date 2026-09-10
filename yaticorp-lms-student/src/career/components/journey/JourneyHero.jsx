@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Building2, Compass, Flame } from 'lucide-react';
 import CurrentMission from './CurrentMission';
-import Mascot from '../mascot/Mascot';
-import useMascotCycle, { OVERVIEW_POSES, DONE_POSES, STREAK_KEPT, STREAK_LOST } from '../mascot/useMascotCycle';
+import MascotSlot from '../mascot/MascotSlot';
 import { phaseStates, journeyPercent } from '../../utils/roadmap';
 import { dailyBoost, DAY_DONE_LINE } from '../../utils/motivation';
 
@@ -49,16 +48,15 @@ export default function JourneyHero({
   const hasRoadmap = phases.length > 0;
   const dayCleared = totalToday > 0 && completedToday >= totalToday;
 
-  // What the mascot has to say about the streak leads the cycle: kept and
-  // safe for today, or lost and worth restarting. Otherwise the Overview set.
-  const poses = dayCleared
-    ? DONE_POSES
+  /* What the mascot is doing is a reading of the day, not a rotation. It
+     changes when the day changes and at no other time. */
+  const mascotState = dayCleared
+    ? 'success'
     : countedToday && streak > 1
-      ? [STREAK_KEPT, ...OVERVIEW_POSES]
+      ? 'streakKept'
       : streakBroken
-        ? [STREAK_LOST, ...OVERVIEW_POSES]
-        : OVERVIEW_POSES;
-  const look = useMascotCycle(poses);
+        ? 'streakBroken'
+        : 'welcoming';
 
   // The streak, phrased as what today can do for it — never as a warning.
   const streakLine = countedToday
@@ -202,7 +200,7 @@ export default function JourneyHero({
             <span className="fp-drift-icon absolute -top-3 -left-4 text-xl" style={{ animationDelay: '0s' }}>🚀</span>
             <span className="fp-drift-icon absolute top-6 -right-5 text-lg" style={{ animationDelay: '-1.7s' }}>⭐</span>
             <span className="fp-drift-icon absolute -bottom-1 -left-6 text-lg" style={{ animationDelay: '-3.2s' }}>💡</span>
-            <Mascot key={look.pose} pose={look.pose} height={168} motion={look.motion} className="mc-pop relative" />
+            <MascotSlot name="journey-hero" state={mascotState} height={168} className="mc-pop relative" key={mascotState} priority={20} />
           </div>
         </div>
       </div>

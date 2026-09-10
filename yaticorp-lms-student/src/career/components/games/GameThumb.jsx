@@ -314,6 +314,121 @@ const THUMBS = {
       </text>
     </>
   )
+,
+
+  /* ---- Added with the second wave of games ------------------------------ */
+
+  // Digits with an arrow doubling back: the number, then the number reversed.
+  'reverse-recall': () => (
+    <>
+      <TileGrid
+        cells={[
+          { x: 5, y: 8, bg: '#ede9fe', fg: '#6d28d9', label: '4', w: 14, h: 16, r: 4, size: 11 },
+          { x: 21, y: 8, bg: '#ede9fe', fg: '#6d28d9', label: '7', w: 14, h: 16, r: 4, size: 11 },
+          { x: 37, y: 8, bg: '#ede9fe', fg: '#6d28d9', label: '2', w: 14, h: 16, r: 4, size: 11 }
+        ]}
+      />
+      <path d="M46 32 A 14 12 0 0 1 10 32" fill="none" stroke="#7c3aed" strokeWidth="3" strokeLinecap="round" />
+      <path d="M10 32 l5 -5 M10 32 l5 5" fill="none" stroke="#7c3aed" strokeWidth="3" strokeLinecap="round" />
+      <TileGrid
+        cells={[
+          { x: 5, y: 36, bg: '#c4b5fd', fg: '#3730a3', label: '2', w: 14, h: 16, r: 4, size: 11 },
+          { x: 21, y: 36, bg: '#c4b5fd', fg: '#3730a3', label: '7', w: 14, h: 16, r: 4, size: 11 },
+          { x: 37, y: 36, bg: '#c4b5fd', fg: '#3730a3', label: '4', w: 14, h: 16, r: 4, size: 11 }
+        ]}
+      />
+    </>
+  ),
+
+  // A set behind a closed eye: it was there a moment ago.
+  'seen-before': () => (
+    <>
+      <rect {...tile(5, 6, '#e0e7ff', 46, 20, 6)} />
+      <circle cx="15" cy="16" r="4" fill="#6366f1" />
+      <circle cx="28" cy="16" r="4" fill="#a5b4fc" />
+      <circle cx="41" cy="16" r="4" fill="#818cf8" />
+      <path d="M8 40 Q 28 26 48 40" fill="none" stroke="#4338ca" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="28" cy="38" r="5" fill="#4338ca" />
+      <circle cx="29.5" cy="36.5" r="1.6" fill="#ffffff" />
+    </>
+  ),
+
+  // A balance: one pan lower than the other.
+  'scale-balance': () => (
+    <>
+      <rect {...tile(26, 12, '#0ea5e9', 4, 34, 2)} />
+      <rect {...tile(8, 18, '#0284c7', 40, 4, 2)} />
+      <rect {...tile(6, 24, '#bae6fd', 16, 12, 4)} />
+      <rect {...tile(34, 30, '#7dd3fc', 16, 14, 4)} />
+      <rect {...tile(18, 46, '#0369a1', 20, 4, 2)} />
+    </>
+  ),
+
+  // A three by three grid with the last cell missing.
+  'shape-matrix': () => (
+    <>
+      <TileGrid
+        cells={[
+          { x: 5, y: 5, bg: '#cffafe', fg: '#0e7490', label: '', w: 14, h: 14, r: 4 },
+          { x: 21, y: 5, bg: '#a5f3fc', fg: '#0e7490', label: '', w: 14, h: 14, r: 4 },
+          { x: 37, y: 5, bg: '#67e8f9', fg: '#0e7490', label: '', w: 14, h: 14, r: 4 },
+          { x: 5, y: 21, bg: '#a5f3fc', fg: '#0e7490', label: '', w: 14, h: 14, r: 4 },
+          { x: 21, y: 21, bg: '#67e8f9', fg: '#0e7490', label: '', w: 14, h: 14, r: 4 },
+          { x: 37, y: 21, bg: '#22d3ee', fg: '#0e7490', label: '', w: 14, h: 14, r: 4 },
+          { x: 5, y: 37, bg: '#67e8f9', fg: '#0e7490', label: '', w: 14, h: 14, r: 4 },
+          { x: 21, y: 37, bg: '#22d3ee', fg: '#0e7490', label: '', w: 14, h: 14, r: 4 }
+        ]}
+      />
+      <rect x="37.5" y="37.5" width="13" height="13" rx="4" fill="none" stroke="#0891b2" strokeWidth="2" strokeDasharray="3 2" />
+      <text x="44" y="48" textAnchor="middle" fontSize="11" fontWeight="800" fill="#0891b2">?</text>
+    </>
+  ),
+
+  // Two arrows pulling apart: opposites.
+  'antonym-match': () => (
+    <>
+      <rect {...tile(4, 12, '#f5d0fe', 20, 14, 4)} />
+      <rect {...tile(32, 12, '#e9d5ff', 20, 14, 4)} />
+      <path d="M24 34 L6 34 M6 34 l6 -5 M6 34 l6 5" fill="none" stroke="#a21caf" strokeWidth="3" strokeLinecap="round" />
+      <path d="M32 34 L50 34 M50 34 l-6 -5 M50 34 l-6 5" fill="none" stroke="#7e22ce" strokeWidth="3" strokeLinecap="round" />
+      <rect {...tile(24, 42, '#a21caf', 8, 8, 3)} />
+    </>
+  ),
+
+  // A speech mark: a phrase that does not mean what it says.
+  'idiom-sense': () => (
+    <>
+      <rect {...tile(5, 8, '#fce7f3', 46, 30, 8)} />
+      <path d="M18 38 L18 48 L28 38 Z" fill="#fce7f3" />
+      <text x="17" y="30" textAnchor="middle" fontSize="22" fontWeight="800" fill="#db2777">“</text>
+      <text x="39" y="30" textAnchor="middle" fontSize="22" fontWeight="800" fill="#db2777">”</text>
+    </>
+  ),
+
+  // Two tiles joining into a target.
+  'number-bonds': () => (
+    <>
+      <TileGrid
+        cells={[
+          { x: 4, y: 8, bg: '#fef3c7', fg: '#b45309', label: '6', w: 18, h: 18, r: 5, size: 12 },
+          { x: 34, y: 8, bg: '#fed7aa', fg: '#c2410c', label: '9', w: 18, h: 18, r: 5, size: 12 }
+        ]}
+      />
+      <path d="M14 28 Q 28 42 42 28" fill="none" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" />
+      <rect {...tile(17, 34, '#f59e0b', 22, 18, 6)} />
+      <text x="28" y="47" textAnchor="middle" fontSize="12" fontWeight="800" fill="#ffffff">15</text>
+    </>
+  ),
+
+  // A number snapping up to the round one above it.
+  'rounding-rush': () => (
+    <>
+      <text x="28" y="20" textAnchor="middle" fontSize="14" fontWeight="800" fill="#a16207">47</text>
+      <path d="M28 24 L28 34 M28 24 l-5 6 M28 24 l5 6" fill="none" stroke="#ca8a04" strokeWidth="3" strokeLinecap="round" />
+      <rect {...tile(12, 34, '#fde68a', 32, 16, 5)} />
+      <text x="28" y="46" textAnchor="middle" fontSize="13" fontWeight="800" fill="#854d0e">50</text>
+    </>
+  )
 };
 
 export default function GameThumb({ id, className = '' }) {

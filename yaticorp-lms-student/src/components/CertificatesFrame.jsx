@@ -7,6 +7,7 @@
  *              rest hang in the gallery beneath.
  */
 import { useEffect, useRef, useState } from 'react';
+import saveToDrive from '../integrations/google/saveToDrive';
 import { Link } from 'react-router-dom';
 import {
     Award, Download, Loader2, Upload, Trash2, ExternalLink, Sparkles, BadgeCheck, CalendarDays, ShieldCheck, Briefcase, ArrowRight, ChevronRight, BookOpen, Lightbulb, FileText, X, Image as ImageIcon, Lock, RefreshCw, Frame, Check, Info
@@ -95,6 +96,16 @@ const UploadDialog = ({ onClose, onDone }) => {
             fd.append('issuedOn', issuedOn);
             fd.append('kind', kind);
             const res = await api.post('/user/achievements', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+
+            // The same certificate into the student's own Drive, so it is not
+            // only in this site's storage. Not awaited: the upload already
+            // succeeded and a Drive copy failing must not read as a failure.
+            saveToDrive(file, {
+                name: `${title.trim()} - ${file.name}`,
+                description: `Certificate uploaded to YATICORP${issuer.trim() ? `, issued by ${issuer.trim()}` : ''}.`,
+                reason: 'So the certificates you upload are also kept in your own Google Drive.'
+            });
+
             onDone(res.data.achievement);
         } catch (err) {
             setError(err.response?.data?.message || 'Upload failed. Please try again.');

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import api from '../../services/api';
 
 /**
  * Levels inside one difficulty band, and the ladder as a whole.
@@ -70,12 +71,100 @@ const write = (key, value) => {
   }
 };
 
+/* ---- Keeping the account in step with the browser ----------------------
+ *
+ * The browser stays the source of truth while a level is being played. When a
+ * level ends the game's whole record — level reached and best stars per level
+ * — is sent up, and the server keeps the higher of what it had and what it
+ * was sent. Opening the hub pulls the account's copy back down and merges it
+ * the same way, so progress follows the student between devices and the
+ * leaderboard has something real to rank.
+ */
+
+/** Fired after the server has taken a game's record, so boards can refresh. */
+export const GAMES_SYNCED = 'yati:games-synced';
+
+/** This browser's record of one game, in the shape the server takes. */
+const localGame = (gameId) => {
+  const stars = {};
+  const prefix = `${gameId}:`;
+  for (const [key, value] of Object.entries(read(STAR_KEY))) {
+    if (key.startsWith(prefix)) stars[key.slice(prefix.length)] = value;
+  }
+  return { gameId, level: read(LEVEL_KEY)[gameId] || 1, stars };
+};
+
+/**
+ * Send one game's record to the account. Fire-and-forget: a failed or
+ * offline push loses nothing, because the next push or the next pull sends
+ * the whole record again.
+ */
+export const pushGame = (gameId) =>
+  api
+    .post('/games/progress', localGame(gameId))
+    .then(() => window.dispatchEvent(new CustomEvent(GAMES_SYNCED, { detail: { gameId } })))
+    .catch(() => {});
+
+/**
+ * Merge the account's record into this browser, and send back any game this
+ * browser is ahead on. Resolves true when anything local changed, so the hub
+ * knows to redraw its numbers.
+ */
+export const pullProgress = async () => {
+  let games;
+  try {
+    ({ data: { games } } = await api.get('/games/progress'));
+  } catch {
+    return false;
+  }
+  const levels = read(LEVEL_KEY);
+  const stars = read(STAR_KEY);
+  let changed = false;
+  const behind = [];
+
+  for (const remote of games || []) {
+    const local = localGame(remote.gameId);
+    let localAhead = local.level > remote.level;
+    if (remote.level > local.level) {
+      levels[remote.gameId] = remote.level;
+      changed = true;
+    }
+    for (const [level, n] of Object.entries(remote.stars || {})) {
+      const key = `${remote.gameId}:${level}`;
+      if (n > (stars[key] || 0)) {
+        stars[key] = n;
+        changed = true;
+      }
+    }
+    for (const [level, n] of Object.entries(local.stars)) {
+      if (n > (remote.stars?.[level] || 0)) localAhead = true;
+    }
+    if (localAhead) behind.push(remote.gameId);
+  }
+
+  // Games this browser knows and the account has never heard of.
+  const known = new Set((games || []).map((g) => g.gameId));
+  for (const gameId of Object.keys(levels)) if (!known.has(gameId)) behind.push(gameId);
+  for (const key of Object.keys(stars)) {
+    const gameId = key.split(':')[0];
+    if (!known.has(gameId) && !behind.includes(gameId)) behind.push(gameId);
+  }
+
+  if (changed) {
+    write(LEVEL_KEY, levels);
+    write(STAR_KEY, stars);
+  }
+  [...new Set(behind)].forEach(pushGame);
+  return changed;
+};
+
 /** The best stars earned on one level, so a replay cannot lower the record. */
 export const recordStars = (gameId, level, stars) => {
   const key = `${gameId}:${level}`;
   const all = read(STAR_KEY);
   if ((all[key] || 0) >= stars) return;
   write(STAR_KEY, { ...all, [key]: stars });
+  pushGame(gameId);
 };
 
 export const starsOn = (gameId, level) => read(STAR_KEY)[`${gameId}:${level}`] || 0;
@@ -130,6 +219,9 @@ export default function useGameProgress(gameId) {
       return next;
     });
     setAttempt((a) => a + 1);
+    // The updater above runs when React flushes the batch, which is before a
+    // queued task: by the time this fires, storage holds the new level.
+    setTimeout(() => pushGame(gameId), 0);
   }, [gameId]);
 
   /** Play this level again without moving. */

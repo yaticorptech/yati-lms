@@ -98,6 +98,12 @@ app.use('/api/jobs', require('./src/jobboard'));
 app.use('/api/rewards', require('./src/rewards'));
 // My Learning Bio — the AI-written, data-backed profile on the dashboard.
 app.use('/api/learning-bio', require('./src/learningbio'));
+
+// Connecting a student's own Google account, so the work they do here lands in
+// their Drive and their calendar rather than only in this database. Off unless
+// GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set; the UI hides it entirely
+// when they are not, rather than offering a button that cannot work.
+app.use('/api/integrations/google', require('./src/integrations/google/routes'));
 // Interview Ready — preparation, AI mock interviews and evaluation.
 app.use('/api/interview', require('./src/interview'));
 // Public share links for Career Path milestone badges: /b/<code> renders the
