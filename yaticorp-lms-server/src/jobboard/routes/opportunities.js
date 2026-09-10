@@ -309,6 +309,10 @@ router.get('/', async (req, res, next) => {
             } catch (err) {
                 webNotice = err.message || 'Could not reach Google Jobs right now.';
             }
+        } else if (webAllowed) {
+            // Vacancies are looked for near a place, and no place is known yet.
+            // Saying so beats an empty section the student cannot explain.
+            webNotice = 'Set your town to see open part-time vacancies near you from Google Jobs.';
         }
         // The same filters the local rows went through, so a category chip or
         // a search word means one thing across both sources.
@@ -340,7 +344,13 @@ router.get('/', async (req, res, next) => {
             total: onDates,
             monthTotal: results.length,
             results,
-            web: { allowed: webAllowed, place: webPlace, notice: webNotice, widened: webWidened, count: web.length },
+            // Where to look when this server could not fetch anything: the same
+            // searches, on the sites that run them, for the student's own town.
+            // Offered only when the board itself came up empty.
+            web: {
+                allowed: webAllowed, place: webPlace, notice: webNotice, widened: webWidened, count: web.length,
+                searchLinks: webAllowed && !web.length ? require('../services/jobBoardLinks').searchLinks(webPlace?.city || location) : []
+            },
             // Eligible jobs beyond this month, so the empty state can offer them.
             otherDates: laterThanMonth,
             categories,

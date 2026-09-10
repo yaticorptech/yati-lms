@@ -30,6 +30,14 @@ export const TYPE_META = {
     full: { label: 'Full Mock Interview', hint: 'All of the above, start to finish.', emoji: '🎤', tone: 'from-rose-500 to-pink-500' }
 };
 
+/**
+ * The roles a mock interview can be aimed at. Shared by the dashboard and the
+ * welcome screen so the same list appears in both, with `ROLE_OTHER` as the
+ * option that opens a box for anything not on it.
+ */
+export const ROLES = ['Full Stack Developer', 'Frontend Developer', 'Backend Developer', 'Data Analyst', 'Data Scientist', 'Software Engineer', 'Business Analyst', 'UI/UX Designer', 'Digital Marketer', 'Customer Support Executive'];
+export const ROLE_OTHER = '__other__';
+
 export const DURATION = { hr: '8–10 minutes', technical: '10–12 minutes', project: '10–12 minutes', behavioral: '10–12 minutes', full: '12–15 minutes' };
 
 export const STAGE_LABEL = { intro: 'Introduction', about: 'About you', background: 'Background', skills: 'Skills', technical: 'Technical', project: 'Projects', problem: 'Problem solving', behavioral: 'Behavioural', situational: 'Situational', candidate: 'Your questions', closing: 'Wrap-up' };

@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { Check, Loader2, Sparkles, X, CalendarDays, Heart, Smartphone } from 'lucide-react';
 import { opportunitiesApi } from './api';
-import { toDateInput } from './helpers';
+import { toDateInput, ageFromDob, bandFromAge } from './helpers';
 
 const phoneDigits = (raw) => String(raw || '').replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '').replace(/^0(?=\d{10}$)/, '').slice(0, 10);
 
@@ -33,6 +33,17 @@ const Section = ({ icon: Icon, n, title, hint, children }) => (
     </section>
 );
 
+/**
+ * What the age they just entered means for them. The bands are the server's
+ * own (`bandFromAge`), so the form never promises work the board would then
+ * refuse to show.
+ */
+const AGE_MEANS = {
+    explore: 'Local jobs open at 14. Until then, skills and projects are yours to explore.',
+    teen: 'Supervised, age-appropriate local work is open to you, with a guardian in the loop.',
+    adult: 'All the part-time work on the board is open to you.'
+};
+
 const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500';
 const LABEL = 'mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500';
 
@@ -50,6 +61,10 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
     const [error, setError] = useState('');
 
     const phoneOk = /^[6-9]\d{9}$/.test(form.guardianPhone);
+    // Worked out as they type, so they can see at once whether the date they
+    // entered is the one they meant. null until the date is a real past one.
+    const age = ageFromDob(form.dateOfBirth);
+    const band = bandFromAge(age);
     const update = (patch) => { setError(''); setForm((f) => ({ ...f, ...patch })); };
     const toggle = (id) => update({ interests: form.interests.includes(id) ? form.interests.filter((x) => x !== id) : [...form.interests, id] });
 
@@ -89,10 +104,22 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
                 <Section icon={CalendarDays} n={1} title="When do you want work?" hint="Only jobs running on these dates are shown. You can change them any time.">
                     <div className="grid gap-3">
                         <div>
-                            <label htmlFor="opp-dob" className={LABEL}>Date of birth</label>
+                            <div className="mb-1.5 flex items-center justify-between gap-2">
+                                <label htmlFor="opp-dob" className={`${LABEL} mb-0`}>Date of birth</label>
+                                {age != null && (
+                                    <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-black text-indigo-700">
+                                        {age} {age === 1 ? 'year' : 'years'} old
+                                    </span>
+                                )}
+                            </div>
                             <input id="opp-dob" type="date" value={form.dateOfBirth} max={today} required
+                                aria-describedby="opp-dob-hint"
                                 onChange={(e) => update({ dateOfBirth: e.target.value })} className={INPUT} />
-                            <p className="mt-1 text-xs text-slate-500">Decides which jobs you can see. Needed once.</p>
+                            <p id="opp-dob-hint" aria-live="polite" className="mt-1 text-xs text-slate-500">
+                                {age == null
+                                    ? 'Decides which jobs you can see. Needed once.'
+                                    : `You are ${age}. ${AGE_MEANS[band]}`}
+                            </p>
                         </div>
                         <div>
                             <label htmlFor="opp-from" className={LABEL}>{oneDay ? 'Date' : 'From'}</label>

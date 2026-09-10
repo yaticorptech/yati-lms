@@ -13,7 +13,7 @@ import {
     MessageCircle, Code2, Heart, BookOpen, Users, Crown, Briefcase, ChevronDown, FolderOpen,
     MessageSquare, Star, Gauge
 } from 'lucide-react';
-import { interviewApi, TYPE_META, fmtDate } from './api';
+import { interviewApi, TYPE_META, fmtDate, ROLES, ROLE_OTHER as OTHER } from './api';
 import Illustration from './Illustration';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
 import { TopicsCard, PracticeCard, ImproveCard } from './DashboardCards';
@@ -37,8 +37,6 @@ const TYPE_LOOK = {
 };
 const FOCUSED = ['hr', 'technical', 'project', 'behavioral'];
 /* Roles offered in the picker. The student's own goal is added on top. */
-const ROLES = ['Full Stack Developer', 'Frontend Developer', 'Backend Developer', 'Data Analyst', 'Data Scientist', 'Software Engineer', 'Business Analyst', 'UI/UX Designer', 'Digital Marketer', 'Customer Support Executive'];
-const OTHER = '__other__';
 const TIP_DISMISS_KEY = 'iv:tip-dismissed';
 
 /** One part of readiness: coloured icon, label, percentage, and a bar that fills on load. */

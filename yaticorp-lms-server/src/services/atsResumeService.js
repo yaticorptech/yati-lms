@@ -191,77 +191,239 @@ const buildResumeData = async (userId) => {
 
 /* ── PDF ───────────────────────────────────────────────────────────────── */
 
+/**
+ * The page is a classic single-column serif resume: a monogram and a centred
+ * name, then sections whose heading carries a rule out to the right margin.
+ * Entries that have detail put the who-and-when in a narrow left column and
+ * the bullets beside it, which is how a recruiter's eye reads a resume.
+ *
+ * It stays ATS-safe: every word is real selectable text in a standard font,
+ * drawn top-to-bottom in reading order. Nothing is an image, nothing is in a
+ * table, and no heading is invented — the only drawn shapes are the monogram
+ * circle, the heading rules and the progress bars, none of which a parser
+ * has to understand to read the resume.
+ */
+
+const SERIF = 'Times-Roman';
+const SERIF_B = 'Times-Bold';
+const SERIF_I = 'Times-Italic';
+
+const INK = '#111111';        // body text
+const MUTED = '#3d3d3d';      // dates, sub-labels
+const RULE = '#8f8f8f';       // the line beside a heading
+const BAR_BG = '#d6d6d6';
+const BAR_FG = '#333333';
+
+const PAGE = { top: 44, bottom: 52, left: 56, right: 56 };
+const LEFT_RATIO = 0.34;      // width of an entry's who-and-when column
+const COL_GAP = 16;
+
+/** The two letters in the circle: first name and last name, or the first two. */
+const monogram = (name) => {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'YL';
+    const first = parts[0][0] || '';
+    const second = parts.length > 1 ? parts[parts.length - 1][0] : (parts[0][1] || '');
+    return (first + second).toUpperCase();
+};
+
 const renderAtsPdf = (data, res) => {
-    const doc = new PDFDocument({ size: 'A4', margins: { top: 48, bottom: 48, left: 52, right: 52 } });
+    const doc = new PDFDocument({ size: 'A4', margins: PAGE });
     const fileName = `ATS_Resume_${String(data.name).replace(/[^A-Za-z0-9]+/g, '_')}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     doc.pipe(res);
 
-    const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const heading = (text) => {
-        doc.moveDown(0.9);
-        doc.font('Helvetica-Bold').fontSize(11).fillColor('#111111').text(text.toUpperCase(), doc.page.margins.left, doc.y, { characterSpacing: 0.8 });
-        const y = doc.y + 2;
-        doc.moveTo(doc.page.margins.left, y).lineTo(doc.page.margins.left + width, y).lineWidth(0.6).strokeColor('#444444').stroke();
-        doc.moveDown(0.5);
-        doc.font('Helvetica').fontSize(10).fillColor('#111111');
-    };
-    const bullet = (text, indent = 0) => {
-        doc.font('Helvetica').fontSize(10).fillColor('#111111')
-            .text(`•  ${text}`, doc.page.margins.left + indent, doc.y, { width: width - indent, lineGap: 1.5 });
-    };
-    const line = (text, opts = {}) => doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(opts.size || 10).fillColor(opts.color || '#111111')
-        .text(text, doc.page.margins.left, doc.y, { width, lineGap: 1.5 });
+    const L = doc.page.margins.left;
+    const W = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const leftW = Math.round(W * LEFT_RATIO);
+    const rightW = W - leftW - COL_GAP;
+    const rightX = L + leftW + COL_GAP;
+    const floor = () => doc.page.height - doc.page.margins.bottom;
 
-    // Header — name and contact, plain text so a parser reads it as text.
-    doc.font('Helvetica-Bold').fontSize(20).fillColor('#111111').text(data.name, doc.page.margins.left, doc.y, { width });
-    if (data.headline) line(data.headline, { size: 11, color: '#333333' });
-    line([data.email, data.phone].filter(Boolean).join('  |  '), { size: 10, color: '#333333' });
+    /** Start a new page when `height` will not fit under the current cursor. */
+    const room = (height) => { if (doc.y + height > floor()) doc.addPage(); };
 
-    heading('Summary');
-    line(data.summary);
+    const set = (o = {}) => doc.font(o.font || SERIF).fontSize(o.size || 10.5).fillColor(o.color || INK);
+
+    /** How tall this text will be, without drawing it. */
+    const measure = (text, o = {}) => {
+        set(o);
+        return doc.heightOfString(String(text), { width: o.width || W, lineGap: o.lineGap ?? 2 });
+    };
+
+    /** One block of text on its own line(s), advancing the cursor. */
+    const write = (text, o = {}) => {
+        set(o);
+        doc.text(String(text), o.x ?? L, doc.y, {
+            width: o.width ?? W, lineGap: o.lineGap ?? 2,
+            align: o.align || 'left', characterSpacing: o.spacing || 0
+        });
+    };
+
+    const BULLET_INDENT = 11;
+    /** A bulleted line that hangs its wrapped text under the first word. */
+    const bullet = (text, x = L, w = W) => {
+        const y = doc.y;
+        set();
+        doc.text('•', x, y, { width: BULLET_INDENT, lineGap: 2 });
+        doc.y = y;
+        doc.text(String(text), x + BULLET_INDENT, y, { width: w - BULLET_INDENT, lineGap: 2 });
+        doc.y += 1.5;
+    };
+    const bulletHeight = (text, w = W) => measure(text, { width: w - BULLET_INDENT }) + 1.5;
+
+    /** A section title with a hairline running from it to the right margin. */
+    const heading = (label) => {
+        doc.moveDown(1.1);
+        set({ font: SERIF_B, size: 13.5 });
+        room(doc.currentLineHeight() + 14);
+        const y = doc.y;
+        doc.text(label, L, y, { width: W });
+        const mid = y + doc.currentLineHeight() / 2;
+        doc.moveTo(L + doc.widthOfString(label) + 14, mid).lineTo(L + W, mid)
+            .lineWidth(0.7).strokeColor(RULE).stroke();
+        doc.y = y + doc.currentLineHeight() + 8;
+        doc.fillColor(INK);
+    };
+
+    /** A thin completion bar, the way the template shows a level. */
+    const progressBar = (x, w, percent) => {
+        const y = doc.y + 1.5;
+        const h = 3.5;
+        doc.rect(x, y, w, h).fill(BAR_BG);
+        const filled = (w * Math.max(0, Math.min(100, percent))) / 100;
+        if (filled > 0) doc.rect(x, y, Math.max(1.5, filled), h).fill(BAR_FG);
+        doc.fillColor(INK);
+        doc.y = y + h + 4;
+    };
+
+    /**
+     * One resume entry. `lines` are the who-and-when, `bullets` the detail
+     * beside them. With no bullets the lines simply run the full width.
+     */
+    const entry = ({ lines = [], bullets = [], percent = null }) => {
+        const wide = !bullets.length;
+        const lw = wide ? W : leftW;
+        const leftH = lines.reduce((h, l) => h + measure(l.text, { ...l, width: lw }), 0) + (percent === null ? 0 : 9);
+        const rightH = bullets.reduce((h, b) => h + bulletHeight(b, rightW), 0);
+
+        room(Math.min(Math.max(leftH, rightH), floor() - doc.page.margins.top));
+        const startY = doc.y;
+
+        lines.forEach((l) => write(l.text, { ...l, width: lw }));
+        if (percent !== null) progressBar(L, Math.round(lw * 0.72), percent);
+        const leftEnd = doc.y;
+
+        if (bullets.length) {
+            doc.y = startY;
+            bullets.forEach((b) => bullet(b, rightX, rightW));
+        }
+        doc.y = Math.max(leftEnd, doc.y) + 9;
+    };
+
+    /* ── Header ──────────────────────────────────────────────────────── */
+
+    const RADIUS = 25;
+    const cy = doc.y + RADIUS;
+    doc.circle(L + W / 2, cy, RADIUS).lineWidth(0.9).strokeColor('#5a5a5a').stroke();
+    set({ font: SERIF_B, size: 16 });
+    doc.text(monogram(data.name), L, cy - doc.currentLineHeight() / 2 + 1, { width: W, align: 'center', characterSpacing: 1.2 });
+    doc.y = cy + RADIUS + 12;
+
+    write(String(data.name).toUpperCase(), { font: SERIF_B, size: 27, align: 'center', spacing: 1.4, lineGap: 0 });
+    if (data.headline) write(data.headline, { font: SERIF_I, size: 11.5, color: MUTED, align: 'center' });
+    doc.moveDown(0.35);
+
+    const contact = [data.email, data.phone].filter(Boolean);
+    if (contact.length) write(contact.join('   |   '), { size: 10.5, color: MUTED, align: 'center' });
+    doc.moveDown(0.5);
+
+    /* ── Sections ────────────────────────────────────────────────────── */
+
+    if (data.summary) {
+        heading('Summary');
+        write(data.summary);
+    }
 
     if (data.skills.length) {
         heading('Skills');
-        line(data.skills.map((s) => s.name).join(' · '));
-    }
-
-    if (data.education.length) {
-        heading('Education');
-        data.education.forEach((e) => {
-            line(e.title, { bold: true });
-            if (e.detail) line(e.detail, { color: '#333333' });
-            doc.moveDown(0.3);
-        });
+        // Two bulleted columns, filled down the left one first, a row at a
+        // time so a long list breaks across pages without losing alignment.
+        const names = data.skills.map((s) => s.name);
+        const rows = Math.ceil(names.length / 2);
+        const colW = (W - 24) / 2;
+        for (let r = 0; r < rows; r++) {
+            room(16);
+            const y = doc.y;
+            bullet(names[r], L + 12, colW - 12);
+            const leftEnd = doc.y;
+            if (names[r + rows]) {
+                doc.y = y;
+                bullet(names[r + rows], L + colW + 24 + 12, colW - 12);
+            }
+            doc.y = Math.max(leftEnd, doc.y);
+        }
     }
 
     if (data.experience.length) {
         heading('Experience');
-        data.experience.forEach((e) => bullet(e.detail ? `${e.title} — ${e.detail}` : e.title));
+        data.experience.forEach((e) => entry({
+            lines: [
+                { text: e.title, font: SERIF_B },
+                ...(e.detail ? [{ text: e.detail, font: SERIF_I, color: MUTED }] : [])
+            ]
+        }));
+    }
+
+    if (data.education.length) {
+        heading('Education and Training');
+        data.education.forEach((e) => entry({
+            lines: [
+                { text: e.title, font: SERIF_B },
+                ...(e.detail ? [{ text: e.detail, font: SERIF_I, color: MUTED }] : [])
+            ]
+        }));
     }
 
     if (data.courses.length) {
-        heading('Courses & Training');
+        heading('Courses and Training');
         data.courses.forEach((c) => {
-            line(`${c.title} — YATI LMS`, { bold: true });
-            line(c.completed
-                ? `Completed${c.certificate?.certificateNumber ? ` · Certificate ${c.certificate.certificateNumber}` : ''}`
-                : `In progress · ${c.percentage}% complete · ${c.lessonsDone} lesson${c.lessonsDone === 1 ? '' : 's'} done`, { color: '#333333' });
-            if (c.skills.length) bullet(`Skills: ${c.skills.join(', ')}`, 8);
-            if (c.topics.length) bullet(`Topics covered: ${c.topics.join('; ')}`, 8);
-            doc.moveDown(0.4);
+            const bullets = [];
+            if (c.skills.length) bullets.push(`Skills applied: ${c.skills.join(', ')}.`);
+            if (c.topics.length) bullets.push(`Topics covered: ${c.topics.join('; ')}.`);
+            if (c.certificate?.certificateNumber) bullets.push(`Certificate ${c.certificate.certificateNumber}, issued ${fmtDay(c.certificate.issuedAt)}.`);
+            entry({
+                lines: [
+                    { text: 'YATI LMS', color: MUTED },
+                    { text: c.title, font: SERIF_B },
+                    {
+                        text: c.completed
+                            ? 'Completed'
+                            : `${c.percentage}% complete · ${c.lessonsDone} lesson${c.lessonsDone === 1 ? '' : 's'} done`,
+                        font: SERIF_I, color: MUTED
+                    }
+                ],
+                bullets,
+                // The bar is there to show how far along an unfinished course
+                // is; on a completed one it would only repeat the word.
+                percent: c.completed ? null : c.percentage
+            });
         });
     }
 
     if (data.certifications.length) {
         heading('Certifications');
-        data.certifications.forEach((c) => bullet([c.title, c.issuer, c.date ? fmtDay(c.date) : '', c.number ? `No. ${c.number}` : ''].filter(Boolean).join(' — ')));
+        data.certifications.forEach((c) => {
+            room(16);
+            bullet([c.title, c.issuer, c.date ? fmtDay(c.date) : '', c.number ? `No. ${c.number}` : '']
+                .filter(Boolean).join(' — '));
+        });
     }
 
-    doc.moveDown(1.2);
-    line(`Generated from YATI LMS on ${fmtDay(data.generatedAt)}.`, { size: 8, color: '#777777' });
+    doc.moveDown(1.1);
+    write(`Generated from YATI LMS on ${fmtDay(data.generatedAt)}.`, { size: 8, color: '#777777' });
     doc.end();
 };
 
-module.exports = { buildResumeData, renderAtsPdf };
+module.exports = { buildResumeData, renderAtsPdf, monogram };
