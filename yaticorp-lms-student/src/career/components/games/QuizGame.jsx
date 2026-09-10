@@ -54,10 +54,32 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
   const [chosen, setChosen] = useState(null);
   const [started, setStarted] = useState(false);
 
+  /**
+   * The questions for this level.
+   *
+   * It used to shuffle the band's pool and take the first `count`. With a pool
+   * of five and a deck of five to twelve, that handed back the entire pool
+   * every single time: thirty levels of the same handful of questions in a
+   * different order, which is exactly what a student notices first.
+   *
+   * The window now rotates with the level, so level 2 starts where level 1
+   * stopped and consecutive levels genuinely differ. The shuffle stays, but it
+   * only orders the questions that were chosen — it no longer chooses them.
+   *
+   * A pool smaller than the deck still repeats, because nothing can deal
+   * twelve distinct cards from a deck of five. That is a content problem, not
+   * a selection one, and it is fixed by writing more questions.
+   */
   const deck = useMemo(() => {
-    const pool = questions.filter((q) => (q.level || 1) === progress.difficulty);
-    return shuffle(pool.length ? pool : questions).slice(0, config.count);
-  }, [questions, progress.difficulty, config.count]);
+    const graded = questions.filter((q) => (q.level || 1) === progress.difficulty);
+    const pool = graded.length ? graded : questions;
+    if (!pool.length) return [];
+
+    const size = Math.min(config.count, pool.length);
+    const offset = ((progress.levelNo - 1) * size) % pool.length;
+    const window = Array.from({ length: size }, (_, i) => pool[(offset + i) % pool.length]);
+    return shuffle(window);
+  }, [questions, progress.difficulty, progress.levelNo, config.count]);
 
   const { seconds, over: timeUp } = useTimedRound(config.seconds, started);
   const current = deck[index];

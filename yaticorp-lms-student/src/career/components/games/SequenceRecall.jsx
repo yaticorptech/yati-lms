@@ -36,6 +36,7 @@ function Round({ progress, onExit }) {
   const [showing, setShowing] = useState(true);
   const [step, setStep] = useState(0);
   const [dead, setDead] = useState(false);
+  const [won, setWon] = useState(false);
   const timers = useRef([]);
 
   const pace = Math.max(220, config.pace);
@@ -73,15 +74,26 @@ function Round({ progress, onExit }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [started]);
 
+  /**
+   * Where the run stops on a perfect game.
+   *
+   * starsFor pays the third star at 1.5x the target, so there is nothing left
+   * to earn beyond it — and without a ceiling a student who never slips plays
+   * until they do, which is a strange way to be told they had won. Reaching
+   * this clears the level outright.
+   */
+  const maxRun = Math.ceil(config.target * 1.5);
+
+  // A death happens on the run being repeated, so the run actually completed
+  // is the one before it. A win completed the run it stopped on.
   const reached = dead ? order.length - 1 : order.length;
   const passed = reached >= config.target;
-  const finishedRound = dead;
+  const finishedRound = dead || won;
   const stars = finishedRound ? starsFor(reached, config.target, false) : 0;
   useRecordStars(progress, finishedRound, stars);
-  const finished = dead || (passed && !showing && step === 0 && order.length > config.target);
 
   const press = (pad) => {
-    if (showing || dead) return;
+    if (showing || finishedRound) return;
 
     if (order[step] !== pad) {
       setDead(true);
@@ -92,7 +104,13 @@ function Round({ progress, onExit }) {
     timers.current.push(setTimeout(() => setLit(null), 180));
 
     if (step + 1 === order.length) {
-      timers.current.push(setTimeout(() => extend(order), 600));
+      // The run just played back in full: either that is the level won, or it
+      // grows by one and goes again.
+      if (order.length >= maxRun) {
+        timers.current.push(setTimeout(() => setWon(true), 450));
+      } else {
+        timers.current.push(setTimeout(() => extend(order), 600));
+      }
     } else {
       setStep(step + 1);
     }
@@ -145,11 +163,11 @@ function Round({ progress, onExit }) {
             key={pad.id}
             type="button"
             onClick={() => press(pad.id)}
-            disabled={showing || finished}
+            disabled={showing || finishedRound}
             aria-label={`Pad ${pad.id + 1}`}
             className={`aspect-square rounded-3xl transition-all duration-150 ${
               lit === pad.id ? `${pad.on} scale-105 shadow-lg` : pad.off
-            } ${showing || dead ? 'cursor-not-allowed' : 'hover:brightness-110'}`}
+            } ${showing || finishedRound ? 'cursor-not-allowed' : 'hover:brightness-110'}`}
           />
         ))}
       </div>

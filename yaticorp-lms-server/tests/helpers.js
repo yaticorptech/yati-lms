@@ -26,6 +26,14 @@ const makeUser = async (label = 'Test') => {
  * a test asks for '/dashboard' rather than the whole path. Defaults to the
  * interview API; pass a mount and router for anything else.
  */
+/** A throwaway administrator, for the /api/admin routes. Removed by cleanup(). */
+const makeAdmin = async (label = 'Test') => {
+    const Admin = require('../src/models/Admin');
+    const stamp = `${Date.now()}${Math.floor(Math.random() * 1e4)}`;
+    const admin = await Admin.create({ name: `${label} Admin`, email: `admin-test-${stamp}@example.com`, password: 'Passw0rd!x', role: 'admin' });
+    return { admin, token: jwt.sign({ id: String(admin._id) }, process.env.JWT_SECRET, { expiresIn: '10m' }) };
+};
+
 const startApp = ({ mount = '/api/interview', router = require('../src/interview') } = {}) => {
     const app = express(); app.use(express.json());
     app.use(mount, router);
@@ -46,8 +54,9 @@ const startApp = ({ mount = '/api/interview', router = require('../src/interview
  * rewards hooks, and a list missed `rewards_xp_transactions`, whose rows then
  * ranked on the real leaderboard under the fallback name "Student".
  */
-const cleanup = async (users, server) => {
+const cleanup = async (users, server, admins = []) => {
     const db = mongoose.connection.db; const ids = users.map((u) => u._id);
+    if (admins.length) await require('../src/models/Admin').deleteMany({ _id: { $in: admins.map((a) => a._id) } });
     const collections = (await db.listCollections().toArray()).map((c) => c.name).filter((n) => n !== 'users');
     for (const c of collections) await db.collection(c).deleteMany({ userId: { $in: ids } }).catch(() => {});
     await require('../src/models/User').deleteMany({ _id: { $in: ids } });
@@ -64,4 +73,4 @@ const fakeContext = (over = {}) => ({
     projects: [{ name: 'Sales Dashboard', description: 'A retail sales dashboard', skills: ['Python', 'SQL'] }], certificates: [], interests: ['Data'], hash: 'h1', ...over
 });
 
-module.exports = { connect, makeUser, startApp, cleanup, fakeContext };
+module.exports = { connect, makeUser, makeAdmin, startApp, cleanup, fakeContext };

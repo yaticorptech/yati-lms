@@ -10,8 +10,9 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Mic, MicOff, Volume2, VolumeX, Square, Check, RotateCcw, Keyboard, Bot, User, ArrowLeft, Sparkles, Clock, MessageSquareText, ChevronDown, ChevronUp, ShieldCheck, Send, Loader2, AlertTriangle } from 'lucide-react';
-import { interviewApi, TYPE_META, DURATION, STAGE_LABEL, announceProgress } from './api';
+import { Mic, MicOff, Volume2, VolumeX, Square, Check, RotateCcw, Keyboard, Bot, User, ArrowLeft, ArrowRight, Sparkles, Clock, MessageSquareText, ChevronDown, ChevronUp, ShieldCheck, Send, Loader2, AlertTriangle, Briefcase, Code2 } from 'lucide-react';
+import { interviewApi, TYPE_META, DURATION, STAGE_LABEL, ROLES, ROLE_OTHER, announceProgress } from './api';
+import { BotScene, FeatureRow } from './IntroArt';
 import { createSpeaker, createListener, requestMicrophone, listenerErrorMessage } from './speech';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
 
@@ -46,34 +47,121 @@ const StatusPill = ({ phase }) => { const p = PHASE[phase] || PHASE.idle; const 
 function Intro({ session, onStart, starting, error }) {
     const [params] = useSearchParams();
     const [type, setType] = useState(session?.type || params.get('type') || 'full');
-    const [role, setRole] = useState(session?.role || params.get('role') || '');
+    const incoming = session?.role || params.get('role') || '';
+    // The list holds whatever role they arrived with, so it is never lost off
+    // the end of it; anything else goes in the box behind "Other role…".
+    const roleOptions = useMemo(
+        () => (incoming && !ROLES.some((x) => x.toLowerCase() === incoming.toLowerCase()) ? [incoming, ...ROLES] : ROLES),
+        [incoming]
+    );
+    const [role, setRole] = useState(incoming || ROLES[0]);
+    const [customRole, setCustomRole] = useState('');
+    const chosenRole = role === ROLE_OTHER ? customRole.trim() : role;
+
     const listenerSupported = useMemo(() => createListener().supported, []);
     const resuming = !!session;
     const answered = session ? session.turns.filter((t) => t.answer).length : 0;
     const meta = TYPE_META[type] || TYPE_META.full;
+
+    const field = 'w-full appearance-none rounded-2xl border border-violet-100 bg-white py-3.5 pl-11 pr-10 text-sm font-semibold text-slate-800 shadow-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/25 disabled:bg-slate-50 disabled:text-slate-500';
+    const label = 'text-[11px] font-black uppercase tracking-[0.16em] text-slate-500';
+    const leading = 'pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-violet-500';
+    const chevron = 'pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400';
+
     return (
-        <div className="mx-auto max-w-2xl pb-12 animate-fade-in">
-            <Link to="/interview" className="inline-flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-indigo-600"><ArrowLeft size={15} /> Interview Ready</Link>
-            <div className="relative mt-3 overflow-hidden rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm sm:p-8">
-                <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-indigo-100/70 blur-2xl" />
-                <div className="relative">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-600">🎤 AI Mock Interview</p>
-                    <h1 className="mt-1 text-2xl font-black text-slate-900">{resuming ? 'Welcome back to your mock interview.' : 'Welcome to your mock interview.'}</h1>
-                    <p className="mt-2 text-sm text-slate-600">The AI interviewer will ask you questions out loud, and you can answer naturally using your voice. It listens, understands your answer, and asks the next question or a follow-up — just like a real interviewer.</p>
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                        <label className="block"><span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Interview type</span>
-                            <div className="relative mt-1"><select value={type} onChange={(e) => setType(e.target.value)} disabled={resuming} className="w-full appearance-none rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 pr-9 text-sm font-semibold text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:bg-slate-50">{Object.entries(TYPE_META).map(([id, m]) => <option key={id} value={id}>{m.emoji} {m.label}</option>)}</select><ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" /></div></label>
-                        <div><span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Duration</span><p className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold text-slate-800"><Clock size={15} className="text-indigo-600" /> {DURATION[type]}</p></div>
+        <div className="mx-auto max-w-3xl pb-12 animate-fade-in">
+            <div className="flex items-center justify-between gap-3">
+                <Link to="/interview" className="group inline-flex items-center gap-2.5 text-base font-black text-slate-900">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors group-hover:border-violet-300 group-hover:text-violet-600"><ArrowLeft size={17} /></span>
+                    Interview Ready
+                </Link>
+                <span className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-white px-4 py-2 text-sm font-black text-violet-700 shadow-sm">
+                    <Sparkles size={16} className="text-violet-500" /> Let&apos;s crack it!
+                </span>
+            </div>
+
+            <div className="relative mt-3 overflow-hidden rounded-[1.75rem] border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-violet-50/60 p-5 shadow-sm sm:p-8">
+                {/* ── Welcome, with the interviewer beside it ──────── */}
+                <div className="flex items-start gap-6">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-violet-600">AI Mock Interview</p>
+                        <h1 className="mt-2 text-3xl font-black leading-tight text-slate-900 sm:text-[2.1rem]">
+                            {resuming ? 'Welcome back to your mock interview!' : 'Welcome to your mock interview!'}
+                        </h1>
+                        <p className="mt-3 max-w-md text-[15px] leading-relaxed text-slate-500">
+                            The AI interviewer will ask you questions out loud, and you can answer naturally using your voice. It listens, understands your answer, and asks the next question — just like a real interviewer.
+                        </p>
                     </div>
-                    <label className="mt-3 block"><span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Job role</span><input value={role} onChange={(e) => setRole(e.target.value)} disabled={resuming} maxLength={80} placeholder="e.g. Full Stack Developer" className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:bg-slate-50" /></label>
-                    <p className="mt-2 text-xs text-slate-500">{meta.hint}</p>
-                    <div className="mt-5 flex items-start gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-900">
-                        <ShieldCheck size={18} className="mt-0.5 shrink-0 text-indigo-600" />
-                        <div><p className="font-bold">Why we ask for your microphone</p><p className="mt-0.5 text-indigo-800/90">{listenerSupported ? 'Your browser turns your spoken answers into text on the spot. Nothing is recorded or uploaded — only the text of your answer and how long it took are sent to the interviewer. You can type any answer instead at any time.' : 'This browser cannot turn speech into text, so you will type your answers. The interviewer will still speak the questions aloud. Chrome, Edge or Safari support voice answers.'}</p></div>
-                    </div>
-                    {error && <div className="mt-3"><ErrorBox error={error} /></div>}
-                    <Btn tone="primary" icon={Mic} onClick={() => onStart({ type, role })} loading={starting} className="mt-5 w-full !py-3 !text-base">{starting ? 'Preparing your interviewer…' : resuming ? `Continue interview (${answered} answered)` : 'Start Interview'}</Btn>
+                    <BotScene className="hidden shrink-0 lg:block" />
                 </div>
+
+                <FeatureRow className="mt-6" />
+
+                <hr className="my-6 border-violet-100" />
+
+                {/* ── What kind of interview ───────────────────────── */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block">
+                        <span className={label}>Interview type</span>
+                        <div className="relative mt-2">
+                            <Briefcase size={17} className={leading} />
+                            <select value={type} onChange={(e) => setType(e.target.value)} disabled={resuming} className={field}>
+                                {Object.entries(TYPE_META).map(([id, m]) => <option key={id} value={id}>{m.label}</option>)}
+                            </select>
+                            <ChevronDown size={17} className={chevron} />
+                        </div>
+                    </label>
+                    <div>
+                        <span className={label}>Duration</span>
+                        <div className="relative mt-2">
+                            <Clock size={17} className={leading} />
+                            <p className={`${field} pr-4`}>{DURATION[type]}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <label className="mt-4 block">
+                    <span className={label}>Job role</span>
+                    <div className="relative mt-2">
+                        <Code2 size={17} className={leading} />
+                        <select value={roleOptions.includes(role) ? role : ROLE_OTHER} onChange={(e) => setRole(e.target.value)} disabled={resuming} className={field}>
+                            {roleOptions.map((x) => <option key={x} value={x}>{x}</option>)}
+                            <option value={ROLE_OTHER}>Other role…</option>
+                        </select>
+                        <ChevronDown size={17} className={chevron} />
+                    </div>
+                </label>
+                {role === ROLE_OTHER && !resuming && (
+                    <input autoFocus value={customRole} onChange={(e) => setCustomRole(e.target.value)} maxLength={80}
+                        placeholder="Type the role you are preparing for"
+                        className="mt-2 w-full rounded-2xl border border-violet-100 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/25" />
+                )}
+
+                {/* ── Why the microphone ───────────────────────────── */}
+                <div className="mt-6 flex flex-col gap-4 rounded-[1.4rem] bg-violet-100/50 px-5 py-4 sm:flex-row sm:items-center">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-violet-600 shadow-sm"><Mic size={21} /></span>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-base font-black text-violet-800">Why we ask for your microphone</p>
+                        <p className="mt-1 text-[13px] leading-relaxed text-violet-900/70">
+                            {listenerSupported
+                                ? 'Your browser turns your spoken answers into text on the spot. Nothing is recorded or uploaded — only the text of your answer and how long it took are sent to the interviewer. You can type any answer instead at any time.'
+                                : 'This browser cannot turn speech into text, so you will type your answers. The interviewer will still speak the questions aloud. Chrome, Edge or Safari support voice answers.'}
+                        </p>
+                    </div>
+                    <p className="flex shrink-0 items-center gap-2 border-violet-200 text-xs font-semibold leading-tight text-violet-800 sm:border-l sm:pl-4">
+                        <ShieldCheck size={18} className="shrink-0 text-violet-600" />
+                        <span>Your privacy<br />is safe with us.</span>
+                    </p>
+                </div>
+
+                {error && <div className="mt-4"><ErrorBox error={error} /></div>}
+
+                <Btn tone="primary" icon={Mic} onClick={() => onStart({ type, role: chosenRole })} loading={starting}
+                    className="mt-6 w-full !rounded-2xl !py-4 !text-base">
+                    {starting ? 'Preparing your interviewer…' : resuming ? `Continue interview (${answered} answered)` : 'Start Interview'}
+                    {!starting && <ArrowRight size={18} className="ml-1" />}
+                </Btn>
+                <p className="mt-3 text-center text-xs text-slate-500">{meta.hint}</p>
             </div>
         </div>
     );

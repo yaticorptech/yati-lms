@@ -10,7 +10,8 @@
  * props: the page owns useDashboard, because the "continue learning" card
  * higher up the page reads from the same list.
  */
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
+import { AuthContext } from '../context/AuthContext';
 import CourseCard from '../components/course/CourseCard';
 import GlobalQuiz from '../components/GlobalQuiz';
 import { Link } from 'react-router-dom';
@@ -218,6 +219,9 @@ const TABS = [
 const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, buyingCourseId, enrollCourse, refresh, weeklyActivity }) => {
     const [activeTab, setActiveTab] = useState('courses');
     const { summary: rewards } = useRewards();
+    // An administrator can take the Global Quiz away; its tab goes with it.
+    const { isGlobalQuizEnabled } = useContext(AuthContext);
+    const tabs = TABS.filter((t) => t.key !== 'quiz' || isGlobalQuizEnabled !== false);
     const [selectedBundle, setSelectedBundle] = useState(null);
     const [enrollModal, setEnrollModal] = useState(null); // { _id, title }
     const [enrolling, setEnrolling] = useState(false);
@@ -276,7 +280,7 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                 page itself, which is what pushed every other section off the
                 left edge before the scroll was added. */}
             <div className="-mx-4 flex flex-wrap items-center gap-x-4 border-b border-slate-200 px-4 sm:mx-0 sm:gap-x-5 sm:px-0 lg:gap-x-7">
-                {TABS.map(({ key, label, icon: Icon }) => (
+                {tabs.map(({ key, label, icon: Icon }) => (
                     <button
                         key={key}
                         onClick={() => setActiveTab(key)}

@@ -75,21 +75,26 @@ export const ageFromDob = (value) => {
 
 export const bandFromAge = (age) => (age == null ? null : age < 14 ? 'explore' : age < 18 ? 'teen' : 'adult');
 
+/**
+ * The banner's words, by age band. The title comes in three pieces so the
+ * middle one can be picked out in colour; `lead` and `tail` are the plain
+ * halves around it and either may be empty.
+ */
 export const BAND_COPY = {
     explore: {
-        title: "Let's explore your future.",
-        subtitle: "Local jobs aren't available for your age group yet, but you can explore skills, projects and career paths in the meantime.",
-        eyebrow: 'Explore & Learn'
+        eyebrow: 'Explore now. Work later.',
+        lead: 'Build the skills', accent: 'your future', tail: 'will need',
+        subtitle: "Local jobs aren't open to your age group yet, but skills, projects and career paths are."
     },
     teen: {
-        title: 'Part-time jobs on your dates',
-        subtitle: 'Supervised, verified, age-appropriate local work — catering, events, packing, decoration — on the dates you say you\'re free, with a guardian in the loop.',
-        eyebrow: 'Age-appropriate part-time jobs'
+        eyebrow: 'Flexible work. Brighter tomorrows.',
+        lead: 'Find the right', accent: 'part-time job', tail: 'for you',
+        subtitle: 'Supervised, age-appropriate local work on the dates you are free, with a guardian in the loop.'
     },
     adult: {
-        title: 'Part-time jobs on your dates',
-        subtitle: 'Catering, events, packing, decoration, photography and more — local work near you, on the dates you want it.',
-        eyebrow: 'Part-time jobs'
+        eyebrow: 'Flexible work. Brighter tomorrows.',
+        lead: 'Find the right', accent: 'part-time job', tail: 'for you',
+        subtitle: 'Gain experience, earn extra income and build your skills.'
     }
 };
 

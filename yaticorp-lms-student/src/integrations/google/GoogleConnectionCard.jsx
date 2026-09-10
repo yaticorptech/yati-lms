@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Check, FolderOpen, Link2, Loader2, ShieldCheck, Unlink } from 'lucide-react';
+import { CalendarDays, Check, FolderOpen, Link2, Loader2, ShieldCheck, Unlink } from 'lucide-react';
 import { beginConnect, disconnect } from './api';
 import { getSnapshot, refresh, subscribe } from './googleStore';
 
@@ -16,7 +16,7 @@ const landing = () =>
   typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('google') || '';
 
 const RETURNED = {
-  connected: 'Connected. Your documents and study plan can now be saved to your account.',
+  connected: 'Connected. Your documents and your exam dates can now go to your own account.',
   denied: 'No changes made. You can connect whenever you like.',
   expired: 'That took a little too long. Please try connecting again.',
   failed: 'Something went wrong at Google. Please try again.'
@@ -60,7 +60,13 @@ export default function GoogleConnectionCard() {
     try {
       await disconnect();
       await refresh(true);
-      setNote('Disconnected. Files already in your Drive stay there; they are yours.');
+      // The two are treated differently on purpose, so say which is which:
+      // Drive holds their originals, the calendar held only copies of dates
+      // they still have here.
+      setNote(
+        'Disconnected. Your files stay in your Drive — they are yours. The calendar we made has ' +
+          'been removed; your exam dates are still here.'
+      );
     } catch {
       setNote('Could not disconnect. Please try again.');
     }
@@ -76,7 +82,8 @@ export default function GoogleConnectionCard() {
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-black text-ink-900">Your Google account</h2>
           <p className="mt-0.5 text-xs text-ink-500">
-            Keep your certificates, resume and learning bio in your own Google Drive.
+            Keep your certificates, resume and learning bio in your own Google Drive, and your exam
+            dates in your own Google Calendar.
           </p>
         </div>
         {state.connected && (
@@ -96,7 +103,38 @@ export default function GoogleConnectionCard() {
             <div className="flex items-center gap-1.5">
               <FolderOpen className="h-3 w-3" /> Files go to “{state.folderName}”
             </div>
+            {state.calendarConnected && (
+              <div className="flex items-center gap-1.5">
+                <CalendarDays className="h-3 w-3" /> Exam dates go to the “{state.calendarName}” calendar
+              </div>
+            )}
           </dl>
+
+          {/* The grant covers Drive but not Calendar — either they linked
+              before calendar sync existed, or they left that box unticked on
+              the consent screen. Either way, saying so beats a date that
+              silently never arrives. */}
+          {!state.calendarConnected && (
+            <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2.5">
+              <p className="text-[0.7rem] font-semibold text-amber-900">
+                Your exam dates are not going to Google Calendar yet — this account was linked
+                without calendar access. Connect again to add it.
+              </p>
+              <button
+                type="button"
+                onClick={connect}
+                disabled={!!busy}
+                className="fp-press mt-2 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-2.5 py-1.5 text-[0.68rem] font-black text-white disabled:opacity-60"
+              >
+                {busy === 'connect' ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <CalendarDays className="h-3 w-3" />
+                )}
+                Add calendar access
+              </button>
+            </div>
+          )}
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button
@@ -122,6 +160,19 @@ export default function GoogleConnectionCard() {
               </li>
             ))}
           </ul>
+          {/* Where a student decides whether to hand over access is exactly
+              where the promises about it should be one click away. */}
+          <p className="mt-3 text-[0.68rem] text-ink-500">
+            Read our{' '}
+            <a className="font-bold text-blue-600 hover:underline" href="/privacy" target="_blank" rel="noreferrer noopener">
+              Privacy Policy
+            </a>{' '}
+            and{' '}
+            <a className="font-bold text-blue-600 hover:underline" href="/terms" target="_blank" rel="noreferrer noopener">
+              Terms of Service
+            </a>
+            .
+          </p>
           <button
             type="button"
             onClick={connect}

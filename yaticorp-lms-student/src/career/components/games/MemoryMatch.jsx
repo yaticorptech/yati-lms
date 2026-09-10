@@ -19,7 +19,9 @@ const shuffled = (pairs) => {
 
 /** More pairs, and a tighter move budget, the further up the band you go. */
 const configFor = (difficulty, levelNo) => {
-  const pairs = Math.min(12, between(4, 8, levelNo) + (difficulty - 1) * 2);
+  // Twelve faces exist and the top of the ramp only ever asked for eight, so
+  // most of the board was never used and levels repeated in blocks of six.
+  const pairs = Math.min(FACES.length, between(4, 10, levelNo) + (difficulty - 1) * 2);
   return { pairs, moveBudget: Math.round(pairs * (difficulty === 1 ? 2.6 : difficulty === 2 ? 2.2 : 1.9)) };
 };
 

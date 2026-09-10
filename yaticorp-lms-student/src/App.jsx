@@ -12,6 +12,8 @@ import StudentLayout from './layouts/StudentLayout';
 import YatiLoader from './components/YatiLoader';
 import Login from './pages/Login';
 import EnrolledCourses from './pages/EnrolledCourses';
+const Privacy = React.lazy(() => import('./pages/legal/Privacy'));
+const Terms = React.lazy(() => import('./pages/legal/Terms'));
 const Jobs = React.lazy(() => import('./pages/Jobs'));
 const Scholarships = React.lazy(() => import('./pages/Scholarships'));
 // My Learning Bio — the AI-written, data-backed profile behind the dashboard card.
@@ -22,6 +24,7 @@ const InterviewDashboard = React.lazy(() => import('./interview/InterviewDashboa
 const PracticePage = React.lazy(() => import('./interview/PracticePage'));
 const MockInterview = React.lazy(() => import('./interview/MockInterview'));
 const InterviewReport = React.lazy(() => import('./interview/InterviewReport'));
+const QuestionReview = React.lazy(() => import('./interview/QuestionReview'));
 const InterviewHistory = React.lazy(() => import('./interview/InterviewHistory'));
 
 const ProtectedRoute = ({ children }) => {
@@ -119,6 +122,11 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
+          has to be able to open these, and so does anyone deciding whether to
+          sign up at all. */}
+      <Route path="/privacy" element={<React.Suspense fallback={<CareerFallback />}><Privacy /></React.Suspense>} />
+      <Route path="/terms" element={<React.Suspense fallback={<CareerFallback />}><Terms /></React.Suspense>} />
       <Route path="/preview/:courseId" element={<CoursePreview />} />
       <Route path="/learning-bio/shared/:code" element={<React.Suspense fallback={<YatiLoader fullScreen label="Loading Learning Bio" />}><SharedBioPage /></React.Suspense>} />
       {/* RewardsProvider sits inside the auth guard so every page in the
@@ -131,6 +139,7 @@ function App() {
         <Route path="interview/practice" element={<React.Suspense fallback={<CareerFallback />}><PracticePage /></React.Suspense>} />
         <Route path="interview/mock/:id" element={<React.Suspense fallback={<CareerFallback />}><MockInterview /></React.Suspense>} />
         <Route path="interview/report/:id" element={<React.Suspense fallback={<CareerFallback />}><InterviewReport /></React.Suspense>} />
+        <Route path="interview/report/:id/questions" element={<React.Suspense fallback={<CareerFallback />}><QuestionReview /></React.Suspense>} />
         <Route path="interview/history" element={<React.Suspense fallback={<CareerFallback />}><InterviewHistory /></React.Suspense>} />
         {/* Dashboard and My Profile are one page now; the old address still lands there. */}
         <Route path="profile" element={<Navigate to="/" replace />} />

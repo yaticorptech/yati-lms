@@ -48,7 +48,10 @@ const makeBoard = (size, shuffles) => {
 
 const configFor = (difficulty, levelNo) => {
   const size = difficulty === 1 ? 3 : difficulty === 2 ? 4 : 5;
-  const shuffles = between(2, 6, levelNo) + (difficulty - 1);
+  // The board size cannot change inside a band, so the shuffle count carries
+  // the whole ramp. Across two to ten it has a step for most levels rather
+  // than five settings shared between thirty.
+  const shuffles = between(2, 10, levelNo) + (difficulty - 1);
   return { size, shuffles, moveBudget: shuffles + 4 + (3 - difficulty) };
 };
 

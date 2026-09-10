@@ -2,6 +2,7 @@ const CalendarEvent = require('../models/CalendarEvent');
 const Task = require('../models/Task');
 const { toISODate, startOfDay, addDays } = require('../services/dailyPlanService');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
+const { openCalendar, pushEvent, removeEvent } = require('../../integrations/google/calendar');
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -29,6 +30,61 @@ const clearEveOfExam = async (userId, date, type) => {
   return deletedCount || 0;
 };
 const TYPES = ['Exam', 'Assignment', 'Class', 'Holiday', 'Other'];
+
+/**
+ * Copy an event onto the student's Google Calendar, if they have linked one.
+ *
+ * Best-effort, always: this database is the record and Google is a
+ * convenience. A student saving an exam date at midnight must never see it
+ * fail because Google was slow, rate-limiting us, or down — so every failure
+ * here is logged and swallowed, the row simply keeps no google id, and the
+ * next edit tries again.
+ *
+ * `calendar` is passed in by callers mirroring more than one event, so the
+ * whole batch shares a single setup rather than repeating it per event.
+ */
+const mirror = async (event, calendar = null) => {
+  try {
+    const result = calendar ? await calendar.push(event) : await pushEvent(event.userId, event);
+    if (!result.ok) return false;
+    if (!result.id || result.id === event.googleEventId) return true;
+
+    // Claim the row for the copy we just made, and only if nobody has claimed
+    // it since we read it. Two tabs opening the calendar at once both find the
+    // event unsynced and both create one; without this the loser's copy is
+    // orphaned on the student's calendar for ever, since only the id we store
+    // is ever deleted. The claim is the arbiter, and the loser tidies up.
+    // '' is accepted alongside the id we read because a calendar reset may
+    // have blanked the row while this push was in flight — that is our own
+    // doing, not another writer's, and must not be mistaken for losing a race.
+    const claimed = await CalendarEvent.findOneAndUpdate(
+      { _id: event._id, googleEventId: { $in: [event.googleEventId || '', ''] } },
+      { googleEventId: result.id }
+    );
+
+    if (!claimed) {
+      const remove = calendar ? calendar.remove(result.id) : removeEvent(event.userId, result.id);
+      await remove.catch(() => {});
+      return true;
+    }
+
+    event.googleEventId = result.id;
+    return true;
+  } catch (error) {
+    console.error('[google] could not mirror event to calendar:', error.message);
+    return false;
+  }
+};
+
+/** The same, for one that has just been deleted here. */
+const unmirror = async (userId, googleEventId) => {
+  if (!googleEventId) return;
+  try {
+    await removeEvent(userId, googleEventId);
+  } catch (error) {
+    console.error('[google] could not remove event from calendar:', error.message);
+  }
+};
 
 /**
  * Pull a valid event body out of a request, or say why it is not one.
@@ -89,6 +145,7 @@ const createEvent = async (req, res) => {
 
     const event = await CalendarEvent.create({ userId: req.user._id, ...fields });
     const cleared = await clearEveOfExam(req.user._id, event.date, event.type);
+    await mirror(event);
     res.status(201).json({ ...event.toObject(), clearedToday: cleared });
   } catch (error) {
     res.status(statusFor(error)).json(aiAwareBody(error));
@@ -115,6 +172,7 @@ const updateEvent = async (req, res) => {
 
     if (!event) return res.status(404).json({ message: 'Event not found.' });
     const cleared = await clearEveOfExam(req.user._id, event.date, event.type);
+    await mirror(event);
     res.status(200).json({ ...event.toObject(), clearedToday: cleared });
   } catch (error) {
     res.status(statusFor(error)).json(aiAwareBody(error));
@@ -132,10 +190,47 @@ const deleteEvent = async (req, res) => {
     });
 
     if (!event) return res.status(404).json({ message: 'Event not found.' });
+    await unmirror(req.user._id, event.googleEventId);
     res.status(200).json({ message: 'Event deleted', _id: event._id });
   } catch (error) {
     res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
 
-module.exports = { getEvents, createEvent, updateEvent, deleteEvent, TYPES };
+/**
+ * Push everything already on this calendar across to Google in one go.
+ *
+ * For the moment a student connects their account: without this, only events
+ * they touch afterwards would ever appear, and a calendar that is mysteriously
+ * half-full is worse than one that is empty.
+ */
+// @desc    Copy every event to the student's Google Calendar
+// @route   POST /api/events/sync-google
+// @access  Private
+const syncToGoogle = async (req, res) => {
+  try {
+    // Resolved once for the whole batch: the link, the token and the calendar.
+    const calendar = await openCalendar(req.user._id);
+    if (!calendar) {
+      return res.status(409).json({
+        message: 'Connect your Google account and allow calendar access first.',
+        reason: 'not-connected'
+      });
+    }
+
+    const events = await CalendarEvent.find({ userId: req.user._id }).sort({ date: 1 });
+    let synced = 0;
+    // One at a time on purpose. A student has tens of events, not thousands,
+    // and firing them all at once is the quickest way to be rate-limited.
+    for (const event of events) {
+      if (await mirror(event, calendar)) synced += 1;
+    }
+    const failed = events.length - synced;
+
+    res.status(200).json({ ok: true, total: events.length, synced, failed });
+  } catch (error) {
+    res.status(statusFor(error)).json(aiAwareBody(error));
+  }
+};
+
+module.exports = { getEvents, createEvent, updateEvent, deleteEvent, syncToGoogle, TYPES };

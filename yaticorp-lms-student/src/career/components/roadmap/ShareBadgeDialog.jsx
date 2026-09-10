@@ -11,6 +11,7 @@
  * explicit buttons. See canUseSystemShare below for why.
  */
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import saveToDrive from '../../../integrations/google/saveToDrive';
 import { Linkedin, MessageCircle, Link2, Download, X, Check, Share2 } from 'lucide-react';
 
@@ -31,7 +32,21 @@ export default function ShareBadgeDialog({ badge, onClose }) {
 
   // Escape closes it, like every other dialog in the section.
   useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose();
+    /**
+     * Escape closes this sheet and only this sheet.
+     *
+     * The phase dialog underneath listens for Escape too, on `window`. A
+     * keydown reaches `document` before `window`, so stopping propagation here
+     * means one press dismisses the badge and leaves the student back on the
+     * phase they opened it from, rather than closing both and losing their
+     * place. Keep this listener on `document`, not `window`, or that ordering
+     * — and this behaviour — quietly goes away.
+     */
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -114,16 +129,22 @@ export default function ShareBadgeDialog({ badge, onClose }) {
     }
   };
 
-  return (
+  // On document.body, for the same reason PhaseDialog is: the roadmap page
+  // slides in under a transform, and a transformed ancestor traps a fixed
+  // child inside its own stacking context. Rendered inline, this sheet sat
+  // *behind* the phase dialog it is opened from — z-[120] counts for nothing
+  // against a portalled z-[110] in a different context — so pressing Share
+  // badge looked like it had done nothing at all.
+  return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm"
+      className="futurepath-portal fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Share your milestone badge"
     >
       <div
-        className="futurepath-portal w-full max-w-lg overflow-hidden rounded-2xl bg-surface shadow-float"
+        className="w-full max-w-lg overflow-hidden rounded-2xl bg-surface shadow-float"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-line-200 px-5 py-4">
@@ -206,6 +227,7 @@ export default function ShareBadgeDialog({ badge, onClose }) {
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

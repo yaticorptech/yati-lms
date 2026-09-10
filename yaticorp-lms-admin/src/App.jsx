@@ -27,6 +27,7 @@ import Tickets from './pages/Tickets';
 import Community from './pages/Community';
 import NotFound from './pages/NotFound';
 import Analytics from './pages/Analytics';
+import GlobalQuiz from './pages/GlobalQuiz';
 import Announcements from './pages/Announcements';
 import CareerPath from './pages/CareerPath';
 import Jobs from './pages/Jobs';
@@ -51,6 +52,7 @@ function App() {
         <Route path="career-path" element={<CareerPath />} />
         <Route path="jobs" element={<Jobs />} />
         <Route path="rewards" element={<Rewards />} />
+        <Route path="global-quiz" element={<GlobalQuiz />} />
         <Route path="announcements" element={<Announcements />} />
       </Route>
       <Route path="*" element={<NotFound />} />

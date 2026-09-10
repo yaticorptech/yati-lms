@@ -19,7 +19,8 @@ const getUserSettings = async (req, res) => {
             isCreditSystemEnabled: settings.isCreditSystemEnabled,
             isCareerPathEnabled: settings.isCareerPathEnabled,
             isJobsEnabled: settings.isJobsEnabled,
-            isRewardsEnabled: settings.isRewardsEnabled !== false
+            isRewardsEnabled: settings.isRewardsEnabled !== false,
+            isGlobalQuizEnabled: settings.globalQuiz?.enabled !== false
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error fetching settings', error: error.message });
