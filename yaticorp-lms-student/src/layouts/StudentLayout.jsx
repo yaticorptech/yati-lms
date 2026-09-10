@@ -8,7 +8,7 @@ import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Search, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet, Mic } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet, Mic } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
@@ -71,10 +71,6 @@ const ContactModal = ({ onClose, user }) => {
     );
 };
 
-/** How many Career Path hits a search returned, across all three groups. */
-const careerHitCount = (career) =>
-    (career?.phases?.length || 0) + (career?.tasks?.length || 0) + (career?.skills?.length || 0);
-
 const StudentLayout = () => {
     const { user, logout, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled } = useContext(AuthContext);
     // Streak, points and level for the header pills. Null until loaded or
@@ -125,11 +121,6 @@ const StudentLayout = () => {
     const [notifSeen, setNotifSeen] = useState(() => parseInt(localStorage.getItem('notif_seen') || '0'));
     const notifRef = useRef(null);
 
-    // Search
-    const [searchQ, setSearchQ] = useState('');
-    const [searchResults, setSearchResults] = useState(null);
-    const searchRef = useRef(null);
-    const searchTimer = useRef(null);
 
     useEffect(() => {
         api.get('/user/announcements').then(r => setAnnouncements(r.data)).catch(() => {});
@@ -255,46 +246,11 @@ const StudentLayout = () => {
     useEffect(() => {
         const handler = (e) => {
             if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotif(false);
-            if (searchRef.current && !searchRef.current.contains(e.target)) setSearchResults(null);
             if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) setProfileDropdownOpen(false);
         };
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, []);
-
-    const handleSearch = (val) => {
-        setSearchQ(val);
-        clearTimeout(searchTimer.current);
-        if (val.length < 2) { setSearchResults(null); return; }
-        searchTimer.current = setTimeout(async () => {
-            // Two endpoints, merged here. The LMS search covers courses and
-            // lessons; Career Path searches its own roadmap, tasks and skills.
-            // Kept separate on the server so the LMS never reads career_* data —
-            // composing them is the frontend's job.
-            const [lms, career] = await Promise.allSettled([
-                api.get(`/user/search?q=${encodeURIComponent(val)}`),
-                api.get(`/career/search?q=${encodeURIComponent(val)}`)
-            ]);
-            if (lms.status === 'rejected' && career.status === 'rejected') return;
-            setSearchResults({
-                ...(lms.value?.data || { courses: [], lessons: [] }),
-                career: career.value?.data || null
-            });
-        }, 350);
-    };
-
-    const goToLesson = (lesson) => {
-        setSearchQ(''); setSearchResults(null);
-        navigate(`/learn/${lesson.courseId}`);
-    };
-    const goToCourse = (course) => {
-        setSearchQ(''); setSearchResults(null);
-        navigate(`/learn/${course._id}`);
-    };
-    const goToCareer = (path) => {
-        setSearchQ(''); setSearchResults(null);
-        navigate(path);
-    };
 
     const isActive = (path) => location.pathname === path;
     // Career Path is the one nav entry with screens beneath it, so it stays lit
@@ -596,87 +552,8 @@ const StudentLayout = () => {
             <main className="flex-1 overflow-auto bg-slate-50 md:pt-0 pt-16 relative">
                 {/* Desktop Header */}
                 <header className="hidden md:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-8 sticky top-0 z-30">
-                    <div className="flex flex-1 items-center">
-                    {/* Search — the design puts it at the head of the page, not in the rail. */}
-                    <div ref={searchRef} className="relative w-full max-w-md">
-                        <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Search for courses, lessons, quizzes..."
-                                value={searchQ}
-                                onChange={e => handleSearch(e.target.value)}
-                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-10 text-sm text-slate-800 placeholder-slate-400 transition-colors focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            />
-                            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <span className="pointer-events-none absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-slate-200/70 text-slate-500"><Search size={14} /></span>
-                        </div>
-                        {searchResults && (
-                            <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl shadow-2xl border border-slate-100 z-50 max-h-72 overflow-y-auto">
-                                {searchResults.courses?.length === 0 &&
-                                 searchResults.lessons?.length === 0 &&
-                                 !careerHitCount(searchResults.career) ? (
-                                    <p className="text-slate-400 text-sm px-4 py-3">No results found.</p>
-                                ) : (
-                                    <>
-                                        {searchResults.courses?.length > 0 && (
-                                            <div className="px-3 pt-2">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Courses</p>
-                                                {searchResults.courses.map(c => (
-                                                    <button key={c._id} onClick={() => goToCourse(c)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
-                                                        <BookOpen size={14} className="text-indigo-500 flex-shrink-0" />
-                                                        <span className="text-slate-800 font-medium truncate">{c.title}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {searchResults.lessons?.length > 0 && (
-                                            <div className="px-3 pb-2 pt-1">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Lessons</p>
-                                                {searchResults.lessons.map(l => (
-                                                    <button key={l._id} onClick={() => goToLesson(l)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
-                                                        <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">{l.type}</span>
-                                                        <span className="text-slate-700 truncate">{l.title}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {careerHitCount(searchResults.career) > 0 && (
-                                            <div className="px-3 pb-2 pt-1 border-t border-slate-100">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 mt-1">Career Path</p>
-                                                {searchResults.career.phases?.map(p => (
-                                                    <button key={`p${p.index}`} onClick={() => goToCareer('/career/roadmap')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
-                                                        <Compass size={14} className="text-indigo-500 flex-shrink-0" />
-                                                        <span className="text-slate-700 truncate">{p.title}</span>
-                                                        {p.completed && <span className="ml-auto text-[9px] font-bold text-emerald-600 uppercase flex-shrink-0">Done</span>}
-                                                    </button>
-                                                ))}
-                                                {searchResults.career.tasks?.map(t => (
-                                                    <button key={t._id} onClick={() => goToCareer('/career/planner')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
-                                                        <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">task</span>
-                                                        <span className="text-slate-700 truncate">{t.title}</span>
-                                                    </button>
-                                                ))}
-                                                {searchResults.career.skills?.map(sk => (
-                                                    <button key={sk._id} onClick={() => goToCareer('/career/skills')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 flex items-center gap-2 text-sm">
-                                                        <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono flex-shrink-0">skill</span>
-                                                        <span className="text-slate-700 truncate">{sk.skillName}</span>
-                                                        <span className="ml-auto text-[10px] text-slate-400 flex-shrink-0">{sk.progress}%</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* `min-h-0` is what makes the scroll actually work. A flex
-                        child will not shrink below its content without it, so the
-                        nav kept its full height and pushed the progress card up
-                        over the last link instead of scrolling — adding a seventh
-                        section left "My Profile" half-hidden behind the astronaut. */}
-                    </div>
+                    {/* Left side kept empty so the pills and profile stay on the right. */}
+                    <div className="flex flex-1 items-center" />
 
                     <div className="flex items-center gap-3">
                         {/* Career Path's two headline numbers, in the section

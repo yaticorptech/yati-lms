@@ -108,11 +108,35 @@ INTERVIEW_AI_MODEL=                     # defaults to GEMINI_MODEL
 INTERVIEW_AI=                           # set to "template" to run without AI
 ```
 
+## Global Quiz
+
+`GET /api/user/quizzes/global?limit=10` draws one paper from every quiz inside
+the courses a student can open — their enrolments plus the published bundles —
+so revision can cross course boundaries. `POST /api/user/quizzes/global/submit`
+marks it from `{ answers: [{ quizId, questionId, answer }] }` and returns the
+right answers with their explanations.
+
+It is practice and says so on screen: no credits, no course progress, no pass
+marks, no reward activity. Those belong to the first attempt of a lesson's own
+quiz, and paying twice for the same questions would inflate both the credit
+balance and the "quizzes passed" figure. Correct answers never leave the
+server, and a quiz outside the student's own courses is refused.
+
+The student sees it as the **Global Quiz** tab on the dashboard
+(`yaticorp-lms-student/src/components/GlobalQuiz.jsx`).
+
 ## Scripts
 
 - `npm run dev` - run with `nodemon`
 - `npm start` - run with Node
 - `npm run build` - no-op placeholder
+- `npm test` - the interview suite (`node --test`); needs `MONGO_URI`
+- `node scripts/seedDemoLeaderboard.js` - eight sample learners so the
+  leaderboard shows a ladder instead of an empty table. Ordinary accounts at
+  `@demo.invalid` (a reserved domain that can never receive mail) with long
+  random passwords, ranking through the same XP ledger as everyone else and
+  listed for administrators like any other student. Students see them as
+  peers. `--remove` deletes them and everything they earned.
 
 ## Local Development
 

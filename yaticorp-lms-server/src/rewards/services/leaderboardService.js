@@ -49,6 +49,13 @@ const ranking = async ({ period, scope = 'global', courseId = null, me = null })
   const rows = await XpTransaction.aggregate([
     { $match: match },
     { $group: { _id: '$userId', xp: { $sum: '$amount' } } },
+    // XP outlives the account that earned it. Without this a deleted or
+    // deactivated student keeps their rank and shows under the fallback name
+    // "Student", which is what the all-time branch above already avoids by
+    // ranking active users directly.
+    { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user' } },
+    { $match: { 'user.status': 'active' } },
+    { $project: { xp: 1 } },
     { $sort: { xp: -1, _id: 1 } }
   ]);
   return rows.map((r) => ({ userId: r._id, xp: r.xp }));

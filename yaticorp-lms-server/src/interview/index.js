@@ -24,6 +24,7 @@ const { readiness } = require('./readinessService');
 const { safeRecordActivity } = require('../rewards/services/activityService');
 const { coursesForSkills } = require('../jobboard/services/lmsCourses');
 const comms = require('./communicationService');
+const { assess } = require('./answerCheck');
 
 const router = express.Router();
 router.use(protectUser);
@@ -45,6 +46,10 @@ const MAX_QUESTIONS = { hr: 8, technical: 9, project: 9, behavioral: 9, full: 15
 // How long each type is meant to take. The client shows a timer against it and
 // nudges — never cuts — when it is passed.
 const PLANNED_MINUTES = { hr: 10, technical: 12, project: 12, behavioral: 12, full: 15 };
+// How often one question may be re-asked before whatever was said is recorded
+// anyway. Two nudges is an interviewer being patient; more is a trap the
+// candidate cannot leave.
+const MAX_CLARIFICATIONS = 2;
 const CHALLENGE_SCORE = 75;
 const weekKey = () => { const d = new Date(); const onejan = new Date(d.getFullYear(), 0, 1); return `${d.getFullYear()}-w${Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7)}`; };
 
@@ -57,8 +62,10 @@ const publicSession = (s, { withContext = false } = {}) => ({
     // A plan can end before the question cap; a closed interview is 100% either way.
     progress: s.closingMessage || s.status !== 'active' ? 100 : Math.min(100, Math.round((s.turns.filter((t) => t.answer).length / s.maxQuestions) * 100)),
     closingMessage: s.closingMessage, report: s.status === 'completed' ? s.report : null, xp: s.xp,
+    // No separate greeting: every plan opens on the "intro" stage, whose
+    // question greets the candidate and welcomes them itself. A second welcome
+    // here meant the client spoke one before the other.
     plannedMinutes: s.plannedMinutes || PLANNED_MINUTES[s.type] || 12,
-    greeting: `Hello${s.context?.firstName ? ` ${s.context.firstName}` : ''}! Welcome to your mock interview${s.role ? ` for the ${s.role} role` : ''}. Take your time with each answer. Let's begin.`,
     startedAt: s.startedAt, completedAt: s.completedAt,
     ...(withContext ? { context: s.context } : {})
 });
@@ -128,19 +135,27 @@ router.post('/questions/:id/practice', async (req, res, next) => {
 
 /* ── Sessions ─────────────────────────────────────────────────────────── */
 
-/** Ask the interviewer for the next message and append it as a turn. */
-const askNext = async (session, context, userId) => {
+/**
+ * Ask the interviewer for the next message and append it as a turn.
+ *
+ * With `judge`, the interviewer may answer that the last answer did not
+ * address the question at all; then nothing is appended and the redirect comes
+ * back instead, for the caller to put to the candidate.
+ * @returns {Promise<{turn: object|null, redirect?: string}>} turn null = closing time
+ */
+const askNext = async (session, context, userId, { judge = false } = {}) => {
     const turns = session.turns;
     const lastTurn = turns[turns.length - 1] || null;
     const cursor = turns.filter((t) => !t.isFollowUp).length;
     const overBudget = turns.length >= session.maxQuestions;
-    if (cursor >= session.plan.length || overBudget) return null; // nothing left: closing time
+    if (cursor >= session.plan.length || overBudget) return { turn: null }; // nothing left: closing time
     const nextStage = session.plan[cursor];
     const canFollowUp = !!(lastTurn && !lastTurn.isFollowUp && lastTurn.answer && lastTurn.stage !== 'candidate' && turns.length < session.maxQuestions - 1);
-    const q = await ai.nextQuestion({ session, context, nextStage, canFollowUp, lastTurn, userId });
+    const q = await ai.nextQuestion({ session, context, nextStage, canFollowUp, lastTurn, userId, judge });
     if (!session.interviewer) session.interviewer = q.interviewer || 'template';
+    if (q.addressed === false && q.redirect) return { turn: null, redirect: q.redirect };
     session.turns.push({ index: turns.length, stage: q.stage, question: q.question, isFollowUp: q.isFollowUp, difficulty: q.difficulty, askedAt: new Date() });
-    return session.turns[session.turns.length - 1];
+    return { turn: session.turns[session.turns.length - 1] };
 };
 
 router.post('/sessions', async (req, res, next) => {
@@ -168,12 +183,33 @@ router.post('/sessions/:id/answer', async (req, res, next) => {
         if (!answer) return res.status(400).json({ message: 'Type or speak your answer first.' });
         const current = session.turns[session.turns.length - 1];
         if (!current || current.answer) return res.status(409).json({ message: 'There is no open question to answer.' });
+
+        // Keyboard mashing, or "idk": say so and ask again rather than
+        // recording it and moving on. After MAX_CLARIFICATIONS the answer is
+        // taken as given — the evaluation at the end scores it for what it is.
+        const asked = current.clarifications || 0;
+        const check = assess(answer, { attempt: asked, stage: current.stage, question: current.question });
+        if (!check.usable && asked < MAX_CLARIFICATIONS) {
+            current.clarifications = asked + 1;
+            await session.save();
+            return res.json({ ...publicSession(session), done: false, clarification: check.message, clarificationKind: check.kind });
+        }
+
         current.answer = answer;
         current.answeredAt = new Date();
         current.inputMode = req.body?.inputMode === 'voice' ? 'voice' : 'text';
         current.voice = comms.turnMetrics(answer, current.inputMode === 'voice' ? req.body?.voice : null);
         const context = session.context;
-        const nextTurn = await askNext(session, context, req.user._id);
+        // The interviewer reads the answer as it decides what to ask next. If
+        // it says that answered something else entirely, the answer is not
+        // kept and the question is put again.
+        const { turn: nextTurn, redirect } = await askNext(session, context, req.user._id, { judge: asked < MAX_CLARIFICATIONS });
+        if (redirect) {
+            current.answer = ''; current.answeredAt = null; current.inputMode = 'text'; current.voice = null;
+            current.clarifications = asked + 1;
+            await session.save();
+            return res.json({ ...publicSession(session), done: false, clarification: redirect, clarificationKind: 'off-topic' });
+        }
         if (!nextTurn) {
             session.closingMessage = `Thank you, ${context.firstName}. That concludes our interview — I'll put your evaluation together now.`;
         }

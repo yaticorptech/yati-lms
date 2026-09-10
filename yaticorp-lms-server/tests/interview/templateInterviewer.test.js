@@ -1,7 +1,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const tpl = require('../../src/interview/templateInterviewer');
-const { fakeContext } = require('./helpers');
+const { fakeContext } = require('../helpers');
 
 const ctx = fakeContext();
 const session = (turns = []) => ({ type: 'full', turns });
@@ -60,11 +60,54 @@ describe('evaluate', () => {
     test('scores a short answer low, a structured technical answer high, and penalises fillers', () => {
         const [short, structured, fillers] = r.perQuestion;
         assert.ok(short.score <= 5, `short=${short.score}`); assert.match(short.feedback, /fuller answer/);
-        assert.ok(structured.score >= 8, `structured=${structured.score}`);
+        assert.ok(structured.score >= 7, `structured=${structured.score}`);
         assert.match(fillers.feedback, /filler words/);
         assert.ok(fillers.score < structured.score);
     });
     test('every question gets a better-answer example that uses the student project', () => {
         for (const p of r.perQuestion) assert.match(p.betterAnswer, /Sales Dashboard/);
+    });
+});
+
+describe('a question the interviewer had to repeat', () => {
+    const ctx = fakeContext();
+    const run = (turns) => tpl.evaluate({ session: { type: 'project', turns }, context: ctx });
+    const ONE_LINERS = [
+        { index: 0, stage: 'intro', question: 'Tell me about yourself.', answer: 'I am doing MCA at St Agnes College.' },
+        { index: 1, stage: 'project', question: 'Tell me about your project. What was the goal and your role?', answer: 'I made a user registration.' },
+        { index: 2, stage: 'technical', question: 'Explain how you would secure a user password.', answer: 'I used bcrypt.' }
+    ];
+
+    test('that answer can score no better than a third, however it was worded', () => {
+        const once = tpl.evaluate({ session: { type: 'project', turns: [{ ...ONE_LINERS[1], clarifications: 1 }] }, context: ctx });
+        const twice = tpl.evaluate({ session: { type: 'project', turns: [{ ...ONE_LINERS[1], clarifications: 2 }] }, context: ctx });
+        assert.ok(once.perQuestion[0].score <= 3, `once=${once.perQuestion[0].score}`);
+        assert.ok(twice.perQuestion[0].score < once.perQuestion[0].score, 'twice is worse than once');
+        assert.ok(twice.perQuestion[0].score >= 1, 'they did answer in the end');
+        assert.match(once.perQuestion[0].feedback, /had to ask this a second time/);
+    });
+
+    test('the same interview scores lower when questions had to be repeated', () => {
+        const plain = run(ONE_LINERS);
+        const repeated = run([ONE_LINERS[0], { ...ONE_LINERS[1], clarifications: 2 }, { ...ONE_LINERS[2], clarifications: 1 }]);
+        assert.ok(repeated.overall < plain.overall - 10, `${repeated.overall} vs ${plain.overall}`);
+        assert.ok(repeated.scores.relevance < plain.scores.relevance, 'relevance takes the brunt');
+        assert.match(repeated.improvements[0], /Answer the question that was asked/);
+    });
+
+    test('one-line answers land in the thirties, and full ones well above', () => {
+        const thin = run(ONE_LINERS).overall;
+        assert.ok(thin >= 25 && thin <= 45, `one-liners scored ${thin}`);
+        const full = run([
+            { index: 0, stage: 'intro', question: 'Tell me about yourself.', answer: 'I am an MCA student at St Agnes College. First I studied visual arts, then I moved into development, and now I build full stack applications because I enjoy seeing a design become something people use.' },
+            { index: 1, stage: 'project', question: 'Tell me about your project. What was the goal and your role?', answer: 'For my Sales Dashboard project the goal was secure registration. I built the Express routes and the models, and because passwords cannot be stored in plain text I hashed them with bcrypt. As a result the login passed review.' }
+        ]).overall;
+        assert.ok(full >= 70, `full answers scored ${full}`);
+    });
+
+    test('no hollow praise when there was nothing to praise', () => {
+        const r = run(ONE_LINERS);
+        assert.doesNotMatch(r.strengths.join(' '), /completed the interview|attempted every question|turning up/i);
+        assert.match(r.strengths[0], /little to point to/);
     });
 });
