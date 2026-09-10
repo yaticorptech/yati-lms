@@ -6,7 +6,7 @@
  */
 const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeUser, startApp, cleanup } = require('./helpers');
+const { connect, makeUser, startApp, cleanup } = require('../helpers');
 
 let app, me, other, api, otherApi;
 const SHORT = ['Python.', 'I like it.', 'Not much.'];
@@ -48,7 +48,9 @@ describe('a session, start to report', () => {
         const r = await api('POST', '/sessions', { type: 'hr', role: 'Data Analyst' }); assert.equal(r.status, 201); s = r.body;
         assert.equal(s.status, 'active'); assert.equal(s.turns.length, 1); assert.ok(s.turns[0].question.length > 10);
         assert.equal(s.turns[0].stage, s.plan[0]); assert.equal(s.plannedMinutes, 10); assert.equal(s.maxQuestions, 8);
-        assert.match(s.greeting, /^Hello Asha! Welcome to your mock interview for the Data Analyst role/);
+        // The opening question greets and welcomes by itself; nothing else may, or the welcome is heard twice.
+        assert.match(s.turns[0].question, /Asha/); assert.match(s.turns[0].question, /welcome/i);
+        assert.equal(s.greeting, undefined, 'no separate greeting field to prepend');
         assert.equal(s.interviewer, 'template');
         const d = await api('GET', '/dashboard'); assert.equal(d.body.activeSession.id, s.id);
     });
@@ -112,5 +114,52 @@ describe('history and improvement', () => {
         const a = (await api('POST', '/sessions', { type: 'technical' })).body; const b = (await api('POST', '/sessions', { type: 'project' })).body;
         assert.equal((await api('GET', `/sessions/${a.id}`)).body.status, 'abandoned'); assert.equal((await api('GET', `/sessions/${b.id}`)).body.status, 'active');
         assert.equal((await api('GET', '/sessions')).body.sessions.length, 2, 'only completed interviews are listed');
+    });
+});
+
+/* Own sessions: the last submission in each is recorded, which would move the shared one along. */
+describe('an answer about something else', () => {
+    test('the education question answered with a job history is sent back', async () => {
+        // hr walks intro → about → background, so two answers reach the education question.
+        const own = (await api('POST', '/sessions', { type: 'hr' })).body;
+        let last = own;
+        for (const a of [FULL[0], FULL[1]]) last = (await api('POST', `/sessions/${own.id}/answer`, { answer: a })).body;
+        const open = last.turns[last.turns.length - 1];
+        assert.equal(open.stage, 'background', `reached ${open.stage}`);
+        const before = last.turns.length;
+        const off = await api('POST', `/sessions/${own.id}/answer`, { answer: 'I am working as a data analyst at Infosys and I handle client reports every week.' });
+        assert.equal(off.status, 200);
+        assert.equal(off.body.clarificationKind, 'off-topic');
+        assert.match(off.body.clarification, /work rather than your education/);
+        assert.equal(off.body.turns.length, before, 'the interview did not move on');
+        assert.equal(off.body.turns[before - 1].answer, '', 'nothing was recorded');
+        // An answer on the subject is taken.
+        const good = await api('POST', `/sessions/${own.id}/answer`, { answer: 'I did my B.E. in Computer Science at NMAM Institute and enjoyed the databases subject most.' });
+        assert.equal(good.body.clarification, undefined);
+        assert.ok(good.body.turns.length > before, 'the interview moved on');
+    });
+});
+
+describe('a dummy answer', () => {
+    test('the interviewer says so and asks again, twice, then takes what it is given', async () => {
+        const own = (await api('POST', '/sessions', { type: 'technical' })).body;
+        const before = own.turns.length;
+        const first = await api('POST', `/sessions/${own.id}/answer`, { answer: 'asdfgh asdfgh' });
+        assert.equal(first.status, 200);
+        assert.match(first.body.clarification, /couldn't make sense/); assert.equal(first.body.clarificationKind, 'gibberish');
+        assert.equal(first.body.turns.length, before, 'no new question was asked');
+        assert.equal(first.body.turns[before - 1].answer, '', 'nothing was recorded as the answer');
+        // A second dud is nudged again, in different words.
+        const second = await api('POST', `/sessions/${own.id}/answer`, { answer: 'idk' });
+        assert.equal(second.body.clarificationKind, 'non-answer');
+        assert.match(second.body.clarification, /Give it a try in your own words/);
+        assert.notEqual(second.body.clarification, first.body.clarification);
+        assert.equal(second.body.turns.length, before);
+        // Two nudges is the limit: a third submission is taken as given, so
+        // nobody is stuck on one question forever.
+        const third = await api('POST', `/sessions/${own.id}/answer`, { answer: 'blah blah blah' });
+        assert.equal(third.body.clarification, undefined);
+        assert.equal(third.body.turns[before - 1].answer, 'blah blah blah');
+        assert.ok(third.body.turns.length > before, 'the interview moved on');
     });
 });

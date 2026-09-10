@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import GoogleConnectionCard from '../../../integrations/google/GoogleConnectionCard';
 import { useNavigate } from 'react-router-dom';
 import {
   GraduationCap, Compass, MapPin, Save, RefreshCw, Undo2, AlertTriangle, Pencil, Lock
@@ -297,6 +298,13 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
+      {/* Connecting Google is its own thing: it takes effect immediately and
+          has nothing to do with the profile form's save bar, so it sits
+          outside the form rather than inside it. */}
+      <div className="mb-6">
+        <GoogleConnectionCard />
+      </div>
+
       {/* pb-28 keeps the last field clear of the save bar that floats over it. */}
       <form onSubmit={handleSave} className="space-y-6 pb-44 md:pb-28">
         <PageHeader

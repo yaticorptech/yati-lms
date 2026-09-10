@@ -456,7 +456,7 @@ const Profile = () => {
                 <>
                     <ProgressCard summary={rw} courses={courses} />
                     <div className="grid gap-4 xl:grid-cols-2">
-                        <LeaderboardCard courses={courses} />
+                        <LeaderboardCard />
                         <WalletCard />
                     </div>
                 </>

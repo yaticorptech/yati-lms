@@ -7,14 +7,16 @@
  * a fresh one, so the page opens instantly.
  */
 import { useEffect, useMemo, useState } from 'react';
+import scholarshipView from './scholarshipView';
+import ScholarshipProfileForm from '../components/ScholarshipProfileForm';
 import { Link } from 'react-router-dom';
 import {
-  GraduationCap, Search, X, ExternalLink, CalendarDays, BadgeCheck, Sparkles, Coins, RefreshCw, Compass, Building2, Loader2
+  GraduationCap, Search, X, ExternalLink, CalendarDays, BadgeCheck, Sparkles, Coins, ShieldCheck, Compass, Building2, Loader2
 } from 'lucide-react';
 import api from '../career/services/api';
 import AiBudgetNotice from '../career/components/AiBudgetNotice';
 import { readAiBudgetError } from '../career/utils/aiBudget';
-import Mascot from '../career/components/mascot/Mascot';
+import { FundedArt, SearchFundingArt } from '../components/ScholarshipArt';
 import YatiLoader from '../components/YatiLoader';
 import useMinimumLoading from '../hooks/useMinimumLoading';
 
@@ -28,18 +30,19 @@ const daysUntil = (text) => {
 };
 
 export default function Scholarships() {
-  const [data, setData] = useState({ items: [], hasGoal: false, generatedAt: null });
+  const [data, setData] = useState({ items: [], hasGoal: false, hasProfile: false, generatedAt: null });
   const [loading, setLoading] = useState(true);
   const [finding, setFinding] = useState(false);
   const [error, setError] = useState(null);
   const [aiBudget, setAiBudget] = useState(null);
   const [query, setQuery] = useState('');
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     api
       .get('/scholarships')
       .then((res) => setData(res.data))
-      .catch(() => setData({ items: [], hasGoal: false, generatedAt: null }))
+      .catch(() => setData({ items: [], hasGoal: false, hasProfile: false, generatedAt: null }))
       .finally(() => setLoading(false));
   }, []);
 
@@ -49,7 +52,11 @@ export default function Scholarships() {
     setAiBudget(null);
     try {
       const res = await api.post('/scholarships/generate');
-      setData(res.data);
+      // Merged, not replaced. Any endpoint that answers with fewer fields than
+      // the page holds would otherwise silently unset one, and unsetting
+      // `hasProfile` puts the eligibility form back in front of a student who
+      // has just filled it in.
+      setData((prev) => ({ ...prev, ...res.data }));
       setQuery('');
     } catch (err) {
       const budget = readAiBudgetError(err);
@@ -67,6 +74,50 @@ export default function Scholarships() {
   const shown = q ? all.filter((s) => JSON.stringify(s).toLowerCase().includes(q)) : all;
 
   if (showLoader) return <YatiLoader label="Finding scholarships for you" />;
+
+  /*
+   * Which screen to show. The rule lives in scholarshipView.js and is covered
+   * by tests, because the important half of it is a negative: a list must
+   * never reach a student who has not answered the eligibility questions, and
+   * a negative like that is easy to break by accident and hard to notice.
+   */
+  const view = scholarshipView({
+    loading,
+    hasGoal: data.hasGoal,
+    hasProfile: data.hasProfile,
+    asking
+  });
+  // True when the page is insisting rather than the student choosing.
+  const mustAnswer = view === 'form' && !asking;
+
+  if (view === 'form') {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-6">
+        {mustAnswer && (
+          <div className="mb-4 text-center">
+            <h1 className="text-2xl font-black text-slate-900">Before we find your scholarships</h1>
+            <p className="mx-auto mt-1.5 max-w-lg text-sm text-slate-500">
+              A few questions the schemes themselves ask. They decide which awards you are actually
+              eligible for, and most of the best ones are reserved.
+            </p>
+          </div>
+        )}
+        <ScholarshipProfileForm
+          gated={mustAnswer}
+          onClose={() => setAsking(false)}
+          onSaved={() => {
+            setAsking(false);
+            // Reload so the gate lifts, then build a list against the answers.
+            api
+              .get('/scholarships')
+              .then(({ data: fresh }) => setData((prev) => ({ ...prev, ...fresh })))
+              .catch(() => {})
+              .finally(find);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="lms-stagger mx-auto max-w-5xl space-y-6 pb-12">
@@ -101,12 +152,12 @@ export default function Scholarships() {
               {data.hasGoal ? (
                 <button
                   type="button"
-                  onClick={find}
+                  onClick={() => setAsking(true)}
                   disabled={finding}
                   className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-purple-700 shadow-lg shadow-purple-900/20 transition-all hover:-translate-y-0.5 hover:bg-pink-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {finding ? <Loader2 size={18} className="animate-spin" /> : all.length > 0 ? <RefreshCw size={18} /> : <Sparkles size={18} />}
-                  {finding ? 'Finding scholarships…' : all.length > 0 ? 'Refresh the list' : 'Find scholarships for me'}
+                  {finding ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                  {finding ? 'Finding scholarships…' : 'Eligibility form'}
                 </button>
               ) : (
                 <Link
@@ -134,7 +185,7 @@ export default function Scholarships() {
             <span className="absolute bottom-2 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-purple-950/30" />
             <span className="absolute bottom-4 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-gradient-to-b from-white/70 to-pink-100/60 shadow-lg" />
             <span className="absolute bottom-[26px] left-1/2 h-4 w-28 -translate-x-1/2 rounded-[50%] bg-white/50" />
-            <Mascot pose="levelup" height={176} motion="mc-float" className="mc-pop relative" />
+            <FundedArt className="mc-pop relative h-44 w-44" />
           </div>
         </div>
       </div>
@@ -175,7 +226,7 @@ export default function Scholarships() {
           <div aria-hidden className="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-purple-200/40 blur-3xl" />
           <div className="relative mx-auto flex h-40 w-44 items-end justify-center" aria-hidden>
             <span className="absolute bottom-1 left-1/2 h-5 w-28 -translate-x-1/2 rounded-full bg-purple-400/30 blur-lg" />
-            <Mascot pose="ponder" height={150} motion="mc-think" className="relative" />
+            <SearchFundingArt className="relative h-36 w-36" />
           </div>
           <h3 className="relative mt-3 text-2xl font-black text-slate-900">
             {data.hasGoal ? 'Let’s find your scholarships' : 'Tell us your goal first'}

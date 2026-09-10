@@ -82,20 +82,42 @@ const nextQuestion = ({ session, context, nextStage, canFollowUp, lastTurn }) =>
 const words = (s) => String(s || '').trim().split(/\s+/).filter(Boolean).length;
 const clamp = (n, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Math.round(n)));
 
+/** Words of the question worth picking up, as a sign the answer engaged with it. */
+const questionTerms = (question) => (String(question || '').toLowerCase().match(/[a-z][a-z'-]{4,}/g) || [])
+    .filter((w) => !['about', 'would', 'could', 'their', 'there', 'which', 'where', 'these', 'those', 'tell', 'walk', 'through', 'yourself', 'something', 'anything'].includes(w));
+
+/**
+ * Length is the easiest thing to measure and the least worth measuring, so it
+ * only sets the starting point. What moves the score is whether the answer
+ * engaged with the question — did it pick up the question's own terms, name a
+ * real skill or project, hold a shape — and above all whether the interviewer
+ * had to ask again, which is this session's own record that the answer failed.
+ */
 const scoreAnswer = (turn, context) => {
     const a = String(turn.answer || '');
     const n = words(a);
     if (!n) return { score: 0, feedback: 'No answer was given. Even a short, honest attempt scores better than silence.', betterAnswer: 'Start with one sentence that answers the question directly, then give one example.' };
-    let score = n < 15 ? 4 : n < 40 ? 6 : n < 120 ? 8 : 7;
-    const mentionsSkill = context.skills.some((s) => a.toLowerCase().includes(s.name.toLowerCase()));
-    const mentionsProject = context.projects.some((p) => a.toLowerCase().includes(p.name.toLowerCase().slice(0, 12)));
+    const nudges = turn.clarifications || 0;
+    let score = n < 15 ? 4 : n < 40 ? 5 : n < 120 ? 7 : 6;
+    const lower = a.toLowerCase();
+    const mentionsSkill = context.skills.some((s) => lower.includes(s.name.toLowerCase()));
+    const mentionsProject = context.projects.some((p) => lower.includes(p.name.toLowerCase().slice(0, 12)));
+    const engaged = questionTerms(turn.question).some((w) => lower.includes(w.slice(0, 6)));
     const structured = /first|then|finally|because|for example|as a result|so that/i.test(a);
     const filler = (a.match(/\b(um|uh|like|basically|actually|you know)\b/gi) || []).length;
     if (mentionsSkill || mentionsProject) score += 1;
     if (structured) score += 1;
-    if (filler > 3) score -= 1;
-    score = Math.max(1, Math.min(10, score));
+    if (engaged) score += 1;
+    // Heavy filler costs more than the odd "like": every third one is a mark.
+    score -= Math.min(2, Math.floor(filler / 3));
+    // The interviewer had to put the question again: that answer did not land,
+    // and no amount of words afterwards makes it a good one. It still scores
+    // something — they did answer in the end — but never more than a third.
+    if (nudges) score = Math.max(1, Math.min(score - nudges, 4 - nudges));
+    score = Math.max(0, Math.min(10, score));
     const tips = [];
+    if (nudges) tips.push(`The interviewer had to ask this ${nudges === 1 ? 'a second time' : `${nudges + 1} times`} before you answered it — read what is being asked, and answer that.`);
+    if (!engaged && n >= 10) tips.push('Your answer never picked up what the question was actually about.');
     if (n < 40) tips.push('Give a fuller answer — aim for three or four sentences with one concrete example.');
     if (!structured) tips.push('Structure it: the situation, what you did, and the result.');
     if (!mentionsSkill && !mentionsProject && ['technical', 'project', 'skills'].includes(turn.stage)) tips.push('Name the specific tools, skills or project you used.');
@@ -118,21 +140,28 @@ const evaluate = ({ session, context }) => {
     const techTurns = per.filter((p) => ['technical', 'skills', 'project'].includes(session.turns[p.index]?.stage));
     const probTurns = per.filter((p) => ['problem', 'situational'].includes(session.turns[p.index]?.stage));
     const avgOf = (rows) => (rows.length ? clamp(rows.reduce((a, b) => a + b.score, 0) / rows.length * 10) : base);
+    // How much of the interview the candidate had to be asked twice for.
+    const nudged = answered.filter((t) => (t.clarifications || 0) > 0).length;
+    const nudgeShare = answered.length ? nudged / answered.length : 0;
     const scores = {
-        communication: clamp(base + (meanLen >= 40 ? 6 : -4)),
+        communication: clamp(base + (meanLen >= 40 ? 6 : -4) - 12 * nudgeShare),
         technical: avgOf(techTurns),
         answerQuality: base,
         problemSolving: avgOf(probTurns),
-        confidence: clamp(base + (meanLen >= 30 ? 2 : -8)),
-        relevance: clamp(base + 4)
+        confidence: clamp(base + (meanLen >= 30 ? 2 : -8) - 10 * nudgeShare),
+        // Relevance is what a repeated question measures, so it takes the brunt.
+        relevance: clamp(base + 4 - 30 * nudgeShare)
     };
     const overall = clamp(Object.values(scores).reduce((a, b) => a + b, 0) / 6);
     const strengths = [];
     if (meanLen >= 40) strengths.push('You gave full answers with enough detail to follow.');
     if (techTurns.length && avgOf(techTurns) >= 70) strengths.push('Solid technical explanations on the skills you know best.');
     if (answered.some((t) => context.projects.some((p) => t.answer.toLowerCase().includes(p.name.toLowerCase().slice(0, 12))))) strengths.push('You brought your own projects into your answers.');
-    if (!strengths.length) strengths.push('You completed the interview and attempted every question — that is the first step.');
+    // No hollow praise for turning up: a candidate who reads "you joined the
+    // interview" under "what you did well" learns nothing from the report.
+    if (!strengths.length) strengths.push('There is little to point to in this round — your answers were too short and too general to show what you know. The steps below are what will change that.');
     const improvements = [];
+    if (nudged) improvements.push(`Answer the question that was asked — the interviewer had to repeat ${nudged === 1 ? 'a question' : `${nudged} questions`} because your reply was about something else.`);
     if (meanLen < 40) improvements.push('Give more structured, fuller answers with specific examples.');
     if (probTurns.length && avgOf(probTurns) < 70) improvements.push('Practise walking through problems step by step out loud.');
     if (per.some((p) => p.score <= 4)) improvements.push('Prepare short stories for common questions so you are never caught without an example.');

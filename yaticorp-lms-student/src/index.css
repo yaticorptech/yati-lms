@@ -375,3 +375,17 @@
 @keyframes iv-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 .iv-breathe { animation: iv-breathe 2.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .iv-wave > span, .iv-ring::before, .iv-ring::after, .iv-dots > span, .iv-breathe { animation: none; } }
+
+/* Interview Ready — dashboard, practice, report and history motion (src/interview/ui.jsx). */
+.iv-ring-draw { transition: stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes iv-confetti { 0% { transform: translateY(0) rotate(0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(260px) rotate(var(--spin, 360deg)); opacity: 0; } }
+.iv-confetti { animation: iv-confetti 2.4s ease-in both; }
+@keyframes iv-check-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.25); opacity: 1; } 100% { transform: scale(1); } }
+.iv-check-pop { animation: iv-check-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes iv-toast { 0% { transform: translateY(-8px) scale(0.96); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.iv-toast { animation: iv-toast 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes iv-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.iv-shimmer { background-image: linear-gradient(110deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0) 70%); background-size: 200% 100%; animation: iv-shimmer 2.8s linear infinite; }
+.iv-card { transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.2s ease; }
+.iv-card:hover { transform: translateY(-3px) scale(1.01); }
+@media (prefers-reduced-motion: reduce) { .iv-ring-draw { transition: none; } .iv-confetti, .iv-check-pop, .iv-toast, .iv-shimmer { animation: none; } .iv-card:hover { transform: none; } }

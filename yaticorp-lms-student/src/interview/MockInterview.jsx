@@ -93,6 +93,7 @@ export default function MockInterview() {
     const [draft, setDraft] = useState('');          // the editable answer
     const [voiceMode, setVoiceMode] = useState(true);
     const [voiceNote, setVoiceNote] = useState('');  // why voice is off, when it is
+    const [clarify, setClarify] = useState('');      // the interviewer could not use the last answer
     const [muted, setMuted] = useState(false);
     const [showTranscript, setShowTranscript] = useState(false);
     const [finishing, setFinishing] = useState(false);
@@ -101,7 +102,6 @@ export default function MockInterview() {
     const listener = useMemo(() => createListener(), []);
     const metricsRef = useRef(null);
     const spokenRef = useRef(new Set());              // turn indexes already spoken
-    const greetedRef = useRef(false);
     const mountedRef = useRef(true);
     const inputRef = useRef(null);
 
@@ -129,22 +129,22 @@ export default function MockInterview() {
         });
     }, [listener]);
 
-    /* Speak the open question (and the greeting the first time), then listen. */
-    const askAloud = useCallback(async (turn, { greet = false } = {}) => {
+    /* Speak the open question, then listen. The interviewer's first question
+       greets and welcomes on its own, so nothing is prepended to it — doing
+       that made the welcome play twice before the first question. */
+    const askAloud = useCallback(async (turn) => {
         if (!turn || spokenRef.current.has(turn.index)) return;
         spokenRef.current.add(turn.index);
         setVoiceNote(''); setHeard(''); setDraft('');
-        const text = `${greet ? `${session?.greeting || 'Welcome to your mock interview.'} ` : ''}${turn.question}`;
-        await speaker.speak(text, { onStart: () => mountedRef.current && setPhase('speaking') });
+        await speaker.speak(turn.question, { onStart: () => mountedRef.current && setPhase('speaking') });
         if (!mountedRef.current) return;
         if (voiceMode && listener.supported) listen(); else { setPhase('review'); setTimeout(() => inputRef.current?.focus(), 50); }
-    }, [speaker, listener, listen, voiceMode, session?.greeting]);
+    }, [speaker, listener, listen, voiceMode]);
 
     useEffect(() => {
         if (!live || !waiting || !current) return;
-        const greet = !greetedRef.current && answered === 0; greetedRef.current = true;
-        askAloud(current, { greet });
-    }, [live, waiting, current, answered, askAloud]);
+        askAloud(current);
+    }, [live, waiting, current, askAloud]);
 
     /* Start: microphone first (with the reason already on screen), then the session. */
     const start = async ({ type, role }) => {
@@ -171,8 +171,18 @@ export default function MockInterview() {
             const usedVoice = !!metricsRef.current;
             const next = await interviewApi.answer(session.id, text, usedVoice ? 'voice' : 'text', usedVoice ? metricsRef.current : undefined);
             metricsRef.current = null; setDraft(''); setHeard('');
-            setPhase(next.done ? 'done' : 'next');
             setSession(next);
+            // The interviewer could not use that: it says so aloud and the same
+            // question stays open, rather than the interview moving on.
+            if (next.clarification) {
+                setClarify(next.clarification);
+                await speaker.speak(next.clarification, { onStart: () => mountedRef.current && setPhase('speaking') });
+                if (!mountedRef.current) return;
+                if (voiceMode && listener.supported) listen(); else { setPhase('review'); setTimeout(() => inputRef.current?.focus(), 50); }
+                return;
+            }
+            setClarify('');
+            setPhase(next.done ? 'done' : 'next');
             if (next.done) speaker.speak(next.closingMessage || '');
         } catch (e) { setError(e); setPhase('review'); }
     };
@@ -235,6 +245,12 @@ export default function MockInterview() {
                             <p className="text-lg font-semibold leading-relaxed text-slate-900 sm:text-2xl">“{current?.question}”</p>
                         )}
                     </div>
+                    {!done && clarify && (
+                        <div role="status" className="mx-auto mt-5 flex max-w-2xl items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left animate-fade-in-up">
+                            <AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-600" />
+                            <p className="text-sm font-semibold text-amber-900">{clarify}</p>
+                        </div>
+                    )}
                     {!done && phase === 'speaking' && <button type="button" onClick={() => { speaker.stop(); if (voiceMode && listener.supported) listen(); else setPhase('review'); }} className="mt-4 text-xs font-bold text-indigo-600 hover:underline">Skip to answering</button>}
                     {!done && phase === 'listening' && (
                         <div className="mt-5 rounded-2xl border border-rose-100 bg-rose-50/60 px-4 py-3 text-left">

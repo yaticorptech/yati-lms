@@ -3,8 +3,7 @@ import { createPortal } from 'react-dom';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 import { ResourceRow } from '../../components/recommendations/ResourceAccordion';
-import Mascot from '../../components/mascot/Mascot';
-import useMascotCycle, { IDEA_POSES } from '../../components/mascot/useMascotCycle';
+import MascotSlot from '../../components/mascot/MascotSlot';
 import ResourceSidebar from '../../components/recommendations/ResourceSidebar';
 import {
   Search, Sparkles, X, Lightbulb, Target, BookMarked,
@@ -222,7 +221,7 @@ export default function Recommendations() {
   // the grid is the catalogue.
   const [dialog, setDialog] = useState(null);
   // Changing pose every few seconds beside the search box.
-  const look = useMascotCycle(IDEA_POSES);
+
   const toast = useToast();
 
   const fetchRecs = async () => {
@@ -431,7 +430,7 @@ export default function Recommendations() {
               <span className="fp-drift-icon absolute bottom-10 left-[6%] text-xl" style={{ animationDelay: '-3.6s' }}>🚀</span>
               <span className="fp-drift-icon absolute top-1/2 right-[4%] text-lg" style={{ animationDelay: '-0.6s' }}>⭐</span>
               <span className="absolute bottom-1 left-1/2 h-6 w-40 -translate-x-1/2 rounded-full bg-journey-400/40 blur-lg" />
-              <Mascot key={look.pose} pose={look.pose} height={190} motion={look.motion} className="mc-pop relative" />
+              <MascotSlot name="ideas-hero" state="excited" height={190} className="mc-pop relative" priority={20} />
             </div>
             <div className="mt-3 w-full max-w-[16rem] rounded-2xl border border-violet-100 bg-surface/95 p-3 shadow-float backdrop-blur">
               <div className="flex items-center gap-2.5">

@@ -38,9 +38,12 @@ const userSettingsController = require('../controllers/userSettingsController');
 router.get('/settings', protectUser, userSettingsController.getUserSettings);
 
 // Quiz Routes
-const { getQuizForStudent, submitQuizAnswers } = require('../controllers/userQuizController');
+const { getQuizForStudent, submitQuizAnswers, getGlobalQuiz, submitGlobalQuiz } = require('../controllers/userQuizController');
 router.get('/lessons/:lessonId/quiz', protectUser, getQuizForStudent);
 router.post('/lessons/:lessonId/quiz/submit', protectUser, submitQuizAnswers);
+// One paper across every course the student can open. Practice: it records nothing.
+router.get('/quizzes/global', protectUser, getGlobalQuiz);
+router.post('/quizzes/global/submit', protectUser, submitGlobalQuiz);
 
 // Ticket Routes
 router.post('/tickets', protectUser, createTicket);

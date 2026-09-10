@@ -41,6 +41,21 @@ dimensions, strengths, improvements, a personal paragraph, a score, feedback
 and a stronger example answer for every question, and a plan whose skills
 are matched to published courses by `jobboard/services/lmsCourses.js`.
 
+**The scoring is honest, not kind.** A soft score teaches nothing, and a
+candidate would rather read the truth here than be turned down later without
+knowing why. Both evaluators are given the session's own record of how often
+the interviewer had to put a question again — an answer that needed repeating
+scores 0-3 out of 10 for that question and pulls relevance down hardest. The AI
+evaluator gets an explicit band table (85-100 thorough and specific, 30-49
+one-line answers, 0-29 nothing usable) and is told not to invent strengths or
+praise anyone for turning up; it returns one honest strength rather than three
+generous ones when that is all there is. The built-in evaluator scores each
+answer from length, whether it picked up the question's own terms, whether it
+named a real skill or project, whether it held a shape, and how much filler it
+carried, then caps anything the interviewer had to re-ask. One-line answers
+land around 35, the same interview with two repeated questions around 22, and
+full specific answers around 80.
+
 ## The voice interview
 
 `MockInterview.jsx` is an interview room, not a chat. `/interview/mock/new`
@@ -75,6 +90,41 @@ behavioural answers). Nothing claims to read mood or personality. The
 summary is also handed to the AI evaluator so the communication and
 confidence scores reflect delivery. `report.recommendation` is one sentence
 built from the first two plan steps.
+
+## When the answer is not an answer
+
+`answerCheck.js` reads every submission before it is recorded. Two kinds go
+back to the candidate instead of being filed:
+
+- **Not language.** Keyboard mashing, one word repeated to fill the box, or an
+  outright non-answer ("idk", "nothing", "skip", "test").
+- **Not the question.** Two checks, in that order. Without the AI, a keyword
+  test on the stages whose subject is unmistakable — `background` (education)
+  and `project` — and only when the answer carries no sign of that subject at
+  all: the education question answered with a job history gets "That tells me
+  about your work rather than your education." With Gemini configured, the
+  interviewer judges every answer against its own question as it decides what
+  to ask next (`addressed` in `aiInterviewer.nextQuestion`), so no stage is
+  left out and the redirect is in its own voice. That verdict rides along with
+  the question the model was going to write anyway, so it costs no extra call,
+  and the model is not asked to judge once the nudges are used up.
+
+The interviewer says so aloud, the same question stays open, nothing is
+recorded, and the counter does not move. A second dud is put differently. After
+`MAX_CLARIFICATIONS` (2) whatever was said is taken as given, so no one is
+stuck on one question, and the evaluation scores it for what it is.
+
+An answer the interviewer refuses is never written to the turn: the answer,
+its timing and its voice metrics are rolled back before the session is saved,
+so the transcript and the report only ever contain answers it accepted.
+
+Deliberately not rejected: short answers (a one-word answer is an answer, and
+the interviewer follows it up asking to expand), runs of real but uncommon
+words such as "Django Flask FastAPI Celery Redis", any answer that picks up the
+question's own distinctive words, and weak or partial answers — "I think it
+helps a bit" is on the subject, and earns a follow-up rather than a redirect. Wrongly telling a candidate they made no
+sense, or missed the question, is worse than letting filler through. Nothing
+here judges whether an answer is factually right — that is the report's job.
 
 ## Readiness
 

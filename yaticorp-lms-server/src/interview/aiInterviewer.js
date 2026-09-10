@@ -68,7 +68,18 @@ const STAGE_GUIDE = {
 
 /* ── nextQuestion ─────────────────────────────────────────────────────── */
 
-const nextQuestion = async ({ session, context, nextStage, canFollowUp, lastTurn, userId }) => {
+/**
+ * The next thing the interviewer says.
+ *
+ * When the last answer plainly did not respond to the question — the design
+ * question answered with "I am a housekeeper" — this comes back as
+ * `{ addressed: false, redirect }`: the interviewer's own words saying so and
+ * asking again. The caller decides whether to use it, and one judgement rides
+ * along with the question the model was going to write anyway, so it costs no
+ * extra call. `answerCheck.js` catches the same thing without the AI, but only
+ * where a keyword test can be trusted; this covers every stage.
+ */
+const nextQuestion = async ({ session, context, nextStage, canFollowUp, lastTurn, userId, judge = false }) => {
     const fallback = () => template.nextQuestion({ session, context, nextStage, canFollowUp, lastTurn });
     if (!configured()) return { ...fallback(), interviewer: 'template' };
     const stage = nextStage;
@@ -81,21 +92,32 @@ ${profile(context)}
 TRANSCRIPT SO FAR:
 ${transcript || '(nothing yet)'}
 
-NOW: ${canFollowUp && lastTurn
+${judge && lastTurn?.answer ? `FIRST, judge the answer just given:
+  You asked: "${lastTurn.question}"
+  They said: "${lastTurn.answer}"
+Set "addressed" false ONLY if that plainly does not respond to what you asked — a different subject altogether, or a statement that ignores the question. A short, vague, weak, partial or mistaken answer still counts as addressed: set true. When it is false, leave "question" empty and write "redirect": one or two warm sentences in your own voice saying that this does not answer what you asked, and putting the same question again more plainly. Otherwise set addressed true, leave redirect empty, and ask the next thing:
+
+` : ''}NOW: ${canFollowUp && lastTurn
         ? `The candidate just answered a "${lastTurn.stage}" question. If that answer mentions something worth probing (a project, a decision, a claim, something vague), ask ONE natural follow-up about it and set isFollowUp true and stage "${lastTurn.stage}". Otherwise move on: stage "${stage}" — ${STAGE_GUIDE[stage]} — with isFollowUp false and stage "${stage}".`
         : `Stage "${stage}". ${STAGE_GUIDE[stage]} isFollowUp is false and stage is "${stage}".`}
 Adjust difficulty to their answers so far: stronger answers earn harder questions. Keep the message under 60 words.
 
-Answer ONLY with JSON: {"question": string, "stage": string, "isFollowUp": boolean, "difficulty": "easy" | "medium" | "hard"}`;
+Answer ONLY with JSON: {${judge && lastTurn?.answer ? '"addressed": boolean, "redirect": string, ' : ''}"question": string, "stage": string, "isFollowUp": boolean, "difficulty": "easy" | "medium" | "hard"}`;
     try {
-        const out = await call(prompt, { userId, kind: 'interview-question', maxOutputTokens: 300 });
+        const out = await call(prompt, { userId, kind: 'interview-question', maxOutputTokens: 400 });
+        // Off topic: hand back the redirect instead of a question. A missing
+        // redirect means the model only half-answered, so the answer stands.
+        const redirect = String(out.redirect || '').trim();
+        if (judge && lastTurn?.answer && out.addressed === false && redirect && redirect.length <= 600) {
+            return { addressed: false, redirect, interviewer: MODEL };
+        }
         const question = String(out.question || '').trim();
         if (!question || question.length > 600) throw new Error('empty question');
         const isFollowUp = !!(canFollowUp && lastTurn && out.isFollowUp);
-        return { question, stage: isFollowUp ? lastTurn.stage : stage, isFollowUp, difficulty: ['easy', 'medium', 'hard'].includes(out.difficulty) ? out.difficulty : 'medium', interviewer: MODEL };
+        return { addressed: true, question, stage: isFollowUp ? lastTurn.stage : stage, isFollowUp, difficulty: ['easy', 'medium', 'hard'].includes(out.difficulty) ? out.difficulty : 'medium', interviewer: MODEL };
     } catch (err) {
         console.warn('[interview] question fell back to the template interviewer:', err.message);
-        return { ...fallback(), interviewer: 'template' };
+        return { addressed: true, ...fallback(), interviewer: 'template' };
     }
 };
 
@@ -108,8 +130,24 @@ const evaluate = async ({ session, context, userId, delivery = '' }) => {
     if (!configured()) return fallback();
     const answered = session.turns.filter((t) => t.answer);
     if (!answered.length) return fallback();
-    const transcript = answered.map((t) => `Q${t.index + 1} [${t.stage}]: ${t.question}\nA${t.index + 1}: ${t.answer}`).join('\n\n');
-    const prompt = `You are an experienced interviewer writing an honest, constructive evaluation of a mock ${session.type} interview${session.role ? ` for the role of ${session.role}` : ''}. Judge only what the candidate actually said. Be specific and encouraging; never just say correct/incorrect.
+    // The repeats are this session's own record of an answer that did not land:
+    // the interviewer had already told the candidate so at the time.
+    const transcript = answered.map((t) => {
+        const nudges = t.clarifications || 0;
+        const note = nudges ? ` (the interviewer had to put this question again ${nudges === 1 ? 'once' : `${nudges} times`}: the first repl${nudges === 1 ? 'y' : 'ies'} did not answer it)` : '';
+        return `Q${t.index + 1} [${t.stage}]${note}: ${t.question}\nA${t.index + 1}: ${t.answer}`;
+    }).join('\n\n');
+    const repeated = answered.filter((t) => (t.clarifications || 0) > 0).length;
+    const prompt = `You are an experienced interviewer writing an honest evaluation of a mock ${session.type} interview${session.role ? ` for the role of ${session.role}` : ''}. Judge only what the candidate actually said, and judge it as an interviewer deciding whether to hire — not as a teacher being kind. This is practice: a soft score teaches nothing, and the candidate would rather read it here than be turned down without knowing why. Be specific, be direct, and stay respectful.
+
+SCORE HONESTLY, USING THE WHOLE RANGE:
+  85-100  thorough, specific answers that address the questions, with real examples and reasoning
+  70-84   solid answers with gaps
+  50-69   thin or vague answers, or a few that miss the point
+  30-49   one-line answers, or answers with no substance behind them
+  0-29    almost nothing usable, or answers about something else entirely
+An answer the interviewer had to ask for again scores 0-3 out of 10 for that question, and drags relevance down.${repeated ? ` That happened ${repeated} time${repeated === 1 ? '' : 's'} here, so relevance cannot be high.` : ''}
+Do NOT invent strengths, and never praise the candidate for turning up or for completing the interview. If there was genuinely little to praise, say so plainly in one sentence instead.
 
 CANDIDATE PROFILE:
 ${profile(context)}
@@ -121,9 +159,9 @@ Answer ONLY with JSON of this exact shape:
 {
  "overall": 0-100,
  "scores": {"communication": 0-100, "technical": 0-100, "answerQuality": 0-100, "problemSolving": 0-100, "confidence": 0-100, "relevance": 0-100},
- "strengths": [3 short specific sentences about what went well],
- "improvements": [3 short specific, actionable sentences],
- "feedback": "one paragraph (60-100 words) of personalised feedback addressed to ${context.firstName}, referring to their actual answers",
+ "strengths": [1 to 3 short specific sentences about what actually went well — fewer, honest items beat three generous ones],
+ "improvements": [3 short specific, actionable sentences naming what was missing],
+ "feedback": "one paragraph (60-100 words) addressed to ${context.firstName}, saying plainly how the interview went and why, quoting or naming what they actually said",
  "perQuestion": [ for EVERY question index in the transcript: {"index": number (0-based, matching Q number minus 1), "score": 0-10, "feedback": "2 sentences on this answer", "betterAnswer": "a concise example of a stronger answer (40-80 words), using the candidate's real skills or projects where possible"} ],
  "plan": [3 to 4 items: {"title": "Improve …", "action": "one concrete practice step", "skill": "the single skill name this targets, from the profile, or empty"}]
 }`;

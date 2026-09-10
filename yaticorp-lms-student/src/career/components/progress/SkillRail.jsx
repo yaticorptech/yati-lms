@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Flag, Gift, Mountain, Trophy, Zap } from 'lucide-react';
-import Mascot from '../mascot/Mascot';
+import MascotSlot from '../mascot/MascotSlot';
 import useCountUp from '../../../hooks/useCountUp';
 import BadgeMedallion from '../rewards/BadgeMedallion';
 import { BADGE_ICONS, tierFor } from '../rewards/badgeTiers';
@@ -204,7 +204,7 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
             <span className="fp-drift-icon absolute -top-3 -left-2 text-base" style={{ animationDelay: '-1.5s' }}>⭐</span>
             <span className="fp-drift-icon absolute -top-1 -right-3 text-sm" style={{ animationDelay: '-3s' }}>✨</span>
             <span className="absolute bottom-0 left-1/2 h-4 w-20 -translate-x-1/2 rounded-full bg-journey-400/40 blur-md" />
-            <Mascot pose="star" height={104} motion="mc-float" className="relative" />
+            <MascotSlot name="skills-rail" state="starred" height={104} className="relative" priority={20} />
           </div>
         </div>
       </section>

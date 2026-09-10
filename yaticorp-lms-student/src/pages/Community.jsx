@@ -5,8 +5,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { MessageSquare, Plus, X, MessageCircle, AlertCircle, Sparkles, HelpCircle, Lightbulb, Users, Clock3 } from 'lucide-react';
-import Mascot from '../career/components/mascot/Mascot';
-import useMascotCycle, { COMMUNITY_POSES } from '../career/components/mascot/useMascotCycle';
+import { CommunityArt, FirstPostArt } from '../components/PageArt';
 import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import useAutoRefresh from '../hooks/useAutoRefresh';
@@ -45,7 +44,7 @@ const Community = () => {
 
     useAutoRefresh(fetchPosts, 30000);
     const showLoader = useMinimumLoading(!loaded);
-    const look = useMascotCycle(COMMUNITY_POSES);
+
     const replyTotal = (posts || []).reduce((n, p) => n + (p.commentCount || 0), 0);
 
     // "3 hours ago" reads faster than a date on a feed.
@@ -213,7 +212,7 @@ const handleEditPost = (post) => {
                         <span className="absolute bottom-2 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-indigo-950/30" />
                         <span className="absolute bottom-4 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-gradient-to-b from-white/70 to-indigo-100/60 shadow-lg" />
                         <span className="absolute bottom-[26px] left-1/2 h-4 w-28 -translate-x-1/2 rounded-[50%] bg-white/50" />
-                        <Mascot key={look.pose} pose={look.pose} height={176} motion={look.motion} className="mc-pop relative" />
+                        <CommunityArt className="mc-pop relative h-44 w-44" />
                     </div>
                 </div>
             </div>
@@ -233,7 +232,7 @@ const handleEditPost = (post) => {
                         <div aria-hidden className="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-indigo-200/40 blur-3xl" />
                         <div className="relative mx-auto flex h-40 w-44 items-end justify-center" aria-hidden>
                             <span className="absolute bottom-1 left-1/2 h-5 w-28 -translate-x-1/2 rounded-full bg-indigo-400/30 blur-lg" />
-                            <Mascot pose="present" height={150} motion="mc-nod" className="relative" />
+                            <FirstPostArt className="relative h-36 w-36" />
                         </div>
                         <h3 className="relative mt-3 text-2xl font-black text-slate-900">Be the first to say something</h3>
                         <p className="relative mx-auto mt-2 max-w-md text-slate-500">
