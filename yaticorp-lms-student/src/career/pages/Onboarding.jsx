@@ -107,6 +107,7 @@ export default function Onboarding() {
   const navigate = useNavigate();
   
   const [step, setStep] = useState(1);
+
   const [formData, setFormData] = useState({
     educationLevel: '',
     currentClass: '',

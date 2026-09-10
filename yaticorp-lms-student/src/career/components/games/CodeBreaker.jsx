@@ -48,9 +48,16 @@ const scoreGuess = (guess, secret) => {
 };
 
 /** More colours to search and fewer attempts to do it in. */
+/**
+ * Six colours exist; only four or five were ever reached, and the try count
+ * moved in lockstep with them — so a band of thirty levels offered four
+ * distinct games, each repeated seven or eight times in a row. The ranges now
+ * span what the game actually supports, and the two settings step at different
+ * rates so their combinations keep changing.
+ */
 const configFor = (difficulty, levelNo) => ({
-  colours: Math.min(6, between(4, 5, levelNo) + (difficulty - 1)),
-  tries: Math.max(4, between(10, 7, levelNo) - (difficulty - 1))
+  colours: Math.min(COLOURS.length, between(4, 6, levelNo) + (difficulty - 1)),
+  tries: Math.max(4, between(12, 6, levelNo) - (difficulty - 1))
 });
 
 const makeSecret = (palette) =>

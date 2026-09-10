@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useContext } from 'react';
+import { useState, useEffect, useMemo, useContext, useRef } from 'react';
 import api from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import {
@@ -8,6 +8,8 @@ import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
 import Button from '../../components/ui/Button';
 import { monthBounds, monthIndexOfDate } from '../../utils/calendar';
+import { getSnapshot as googleSnapshot, refresh as refreshGoogle } from '../../../integrations/google/googleStore';
+import GoogleConnectionCard from '../../../integrations/google/GoogleConnectionCard';
 import { currentStreak, greeting, levelProgress } from '../../utils/progress';
 import JourneyBanner from '../../components/journey/JourneyBanner';
 import MonthStats from '../../components/dashboard/MonthStats';
@@ -111,6 +113,43 @@ export default function CalendarView() {
         .then(({ data }) => setTimetable(Array.isArray(data?.slots) ? data.slots : []))
     ]).finally(() => setLoading(false));
   }, []);
+
+  /**
+   * Catch Google up on everything that was already here.
+   *
+   * Events added from now on mirror themselves as they are saved, but the ones
+   * a student entered before they linked their account would otherwise never
+   * appear — a Google calendar that is mysteriously half-full is worse than an
+   * empty one. Runs only when something is actually missing an id, so the
+   * ordinary visit to this page costs nothing.
+   */
+  const caughtUp = useRef(false);
+  useEffect(() => {
+    // Once per visit. Without this, a sync that could not place every event
+    // would set state, re-enter, and try again for ever.
+    if (loading || caughtUp.current || !events.length) return;
+    let cancelled = false;
+
+    (async () => {
+      const google = googleSnapshot().loaded ? googleSnapshot() : await refreshGoogle();
+      if (cancelled || !google?.calendarConnected) return;
+      if (events.every((event) => event.googleEventId)) return;
+      caughtUp.current = true;
+
+      try {
+        await api.post('/events/sync-google');
+        const { data } = await api.get('/events');
+        if (!cancelled) setEvents(Array.isArray(data) ? data : []);
+      } catch {
+        // Their calendar here is the record; Google is the convenience. A
+        // failed catch-up is retried on the next visit rather than announced.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, events]);
 
   // Tasks grouped by the day they belong to, so a square can render its real
   // workload instead of a decorative dot.
@@ -944,6 +983,14 @@ export default function CalendarView() {
             </Button>
           )}
         </Card>
+
+        {/* Connecting Google lives here rather than in Settings.
+            This is the page whose contents it actually syncs — the exam dates
+            beside it — so a student meets the offer while looking at the thing
+            it applies to, instead of having to go hunting in a settings screen
+            for a feature they never knew existed. It is also the only route to
+            disconnecting, so it must stay on a page students visit. */}
+        <GoogleConnectionCard />
 
         <ComingUpNext
           events={events}

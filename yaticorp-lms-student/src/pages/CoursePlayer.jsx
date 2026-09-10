@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../utils/api';
+import saveToDrive from '../integrations/google/saveToDrive';
 import { AuthContext } from '../context/AuthContext';
 import { PlayCircle, FileText, CheckCircle2, ChevronDown, ChevronRight, CheckSquare, Briefcase, Award, Download, HelpCircle, Lock, Paperclip } from 'lucide-react';
 import VideoPlayer from '../components/VideoPlayer';
@@ -85,15 +86,24 @@ const CoursePlayer = () => {
     const generateCertificate = async () => {
         try {
             const blob = await sharedGenerateCertificate();
+            const fileName = `Certificate_${courseData.course.title.replace(/\s+/g, '_')}.pdf`;
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `Certificate_${courseData.course.title.replace(/\s+/g, '_')}.pdf`);
+            link.setAttribute('download', fileName);
             document.body.appendChild(link);
             link.click();
             link.parentNode.removeChild(link);
             window.URL.revokeObjectURL(url);
             setCertResult({ downloaded: true });
+
+            // The best moment there is to offer this: they have just finished
+            // the course. Not awaited — the file is already downloaded.
+            saveToDrive(blob, {
+                name: fileName,
+                description: `Your certificate for ${courseData.course.title}, issued by YATICORP.`,
+                reason: 'So the certificates you earn here are kept in your own Google Drive.'
+            });
         } catch {
             alert('Failed to generate certificate');
         }
