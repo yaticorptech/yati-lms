@@ -154,6 +154,11 @@ router.route('/tickets/:id').put(protectAdmin, updateTicketStatus);
 const settingsCtrl = require('../controllers/adminSettingsController');
 router.route('/settings').get(protectAdmin, settingsCtrl.getSettings).put(protectAdmin, settingsCtrl.updateSettings);
 
+// Global Quiz — the general-knowledge bank every student draws from.
+const globalQuizCtrl = require('../controllers/adminGlobalQuizController');
+router.route('/global-quiz').get(protectAdmin, globalQuizCtrl.listQuestions).post(protectAdmin, globalQuizCtrl.createQuestion);
+router.route('/global-quiz/:id').put(protectAdmin, globalQuizCtrl.updateQuestion).delete(protectAdmin, globalQuizCtrl.deleteQuestion);
+
 // Analytics Routes
 const { getAnalytics } = require('../controllers/adminAnalyticsController');
 router.get('/analytics', protectAdmin, getAnalytics);

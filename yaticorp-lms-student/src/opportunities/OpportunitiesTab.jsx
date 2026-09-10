@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { opportunitiesApi } from './api';
 import { BAND_COPY, EMPTY_FILTERS, countActive, shortDate, longDate } from './helpers';
+import { WorkerScene } from './HeroArt';
 import OpportunityCard from './OpportunityCard';
 import OpportunityDetails from './OpportunityDetails';
 import ProfileOnboarding from './ProfileOnboarding';
@@ -34,30 +35,31 @@ const sameDay = (a, b) => a && b && new Date(a).toDateString() === new Date(b).t
 const windowLabel = (w) => (!w?.from ? '' : sameDay(w.from, w.to) ? longDate(w.from) : `${shortDate(w.from)} – ${shortDate(w.to)}`);
 
 const Hero = ({ band, hasProfile, total, loading, window: w }) => {
-    const copy = hasProfile && band ? BAND_COPY[band] : {
-        eyebrow: 'Part-time jobs',
-        title: 'Find part-time jobs that fit you',
-        subtitle: 'Catering, events, packing, decoration and more — local work on the dates you want it, matched to your interests and open to your age.'
-    };
+    const copy = (hasProfile && band && BAND_COPY[band]) || BAND_COPY.adult;
     const stat = !hasProfile ? 'Tell us your dates and interests to get started'
         : band === 'explore' ? 'Local jobs open at 14'
             : loading ? 'Finding jobs on your dates…'
                 : `${total} ${total === 1 ? 'job' : 'jobs'} on ${windowLabel(w) || 'your dates'}`;
     return (
-        <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white px-6 py-7 lg:px-10 lg:py-9">
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgb(99_102_241/0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgb(99_102_241/0.06)_1px,transparent_1px)] bg-[size:28px_28px] [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)]" />
-            <div aria-hidden="true" className="pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full bg-indigo-200/40 blur-3xl" />
-            <div aria-hidden="true" className="pointer-events-none absolute -bottom-28 -right-10 h-72 w-72 rounded-full bg-emerald-200/40 blur-3xl" />
-            <div className="relative max-w-2xl">
-                <span className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white/80 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-indigo-700 shadow-sm">
-                    <Sparkles size={13} className="text-indigo-500" aria-hidden="true" /> {copy.eyebrow}
-                </span>
-                <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl lg:text-[2.75rem] lg:leading-[1.1]">{copy.title}</h1>
-                <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">{copy.subtitle}</p>
-                <p aria-live="polite" className="mt-5 inline-flex items-center gap-2.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${!hasProfile ? 'bg-slate-300' : loading ? 'animate-pulse bg-indigo-500' : total ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                    {stat}
-                </p>
+        <section className="overflow-hidden rounded-3xl bg-violet-100/70 px-6 py-7 lg:px-10">
+            <div className="flex items-center gap-8">
+                <div className="min-w-0 flex-1">
+                    <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-indigo-950/55">{copy.eyebrow}</p>
+                    <h1 className="mt-3 text-3xl font-black leading-[1.15] tracking-tight text-slate-900 sm:text-4xl lg:text-[2.6rem]">
+                        {copy.lead}{' '}
+                        {/* Always its own line, so the coloured half sits under
+                            the first the way the banner is drawn. The space
+                            before it is kept: a block hides it on screen, but a
+                            screen reader would otherwise run the two together. */}
+                        <span className="block"><span className="text-indigo-700">{copy.accent}</span> {copy.tail}</span>
+                    </h1>
+                    <p className="mt-3 text-base text-slate-600">{copy.subtitle}</p>
+                    <p aria-live="polite" className="mt-5 inline-flex items-center gap-2.5 rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${!hasProfile ? 'bg-slate-300' : loading ? 'animate-pulse bg-indigo-500' : total ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        {stat}
+                    </p>
+                </div>
+                <WorkerScene className="hidden shrink-0 lg:block" />
             </div>
         </section>
     );
@@ -394,6 +396,28 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                                     {listing.web.widened && <> Few were posted in {listing.web.place?.city || webLocation}, so some come from {listing.web.widened}.</>}
                                 </>}
                         </p>
+                    )}
+
+                    {/* Nothing came back from the board itself, so the student
+                        is handed the same search on the sites that run it.
+                        These are searches, not vacancies, and say so. */}
+                    {listing?.web?.searchLinks?.length > 0 && (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                            <p className="text-xs font-bold text-slate-700">
+                                Search part-time work in {listing.web.place?.city || webLocation} yourself
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-500">These open a search on each site — the vacancies are theirs, not ours.</p>
+                            <ul className="mt-2 flex flex-wrap gap-2">
+                                {listing.web.searchLinks.map((link) => (
+                                    <li key={link.id}>
+                                        <a href={link.url} target="_blank" rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-indigo-300 hover:text-indigo-700">
+                                            <Globe size={13} className="text-sky-500" aria-hidden="true" /> {link.name}
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
                     )}
 
                     {rules && hiddenByRules > 0 && rules.band !== 'adult' && (

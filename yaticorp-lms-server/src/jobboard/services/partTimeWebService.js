@@ -107,7 +107,19 @@ const THIN_RESULT = 6;
 // How long an accumulated listing is worth keeping. Google only answers for
 // the last month, so anything older than this was posted before that window
 // and is very likely filled.
-const KEEP_DAYS = 21;
+// Google is asked for the last month, but routinely answers with older
+// listings — two months is common. Anything past the window it was asked for
+// is dropped as it arrives, so a paid call is never spent on rows the very
+// next read would throw away, and the cache holds only what a student can
+// still be shown.
+const KEEP_DAYS = 35;
+
+/**
+ * Whether a listing is inside the window Google was asked for. Applied both as
+ * answers arrive and as the cache is read, so the two can never drift apart.
+ * A listing with no date is trusted rather than guessed at.
+ */
+const withinWindow = (daysAgo) => daysAgo == null || daysAgo <= KEEP_DAYS;
 
 // A vacancy a student can actually take alongside their studies. The broad
 // query is already filtered to part-time; the trade queries are not, because
@@ -164,7 +176,12 @@ const partTimeNear = async (locationInput, { refresh = false } = {}) => {
   const cacheKey = `${plc.city}|${plc.state}|${plc.countryCode || plc.country}`.toLowerCase();
 
   const hit = await PartTimeWebCache.findOne({ key: cacheKey }).lean().catch(() => null);
-  const kept = (hit?.results || []).filter((r) => (r.daysAgo == null || r.daysAgo <= KEEP_DAYS));
+  const kept = (hit?.results || []).filter((r) => withinWindow(r.daysAgo));
+  // Freshness alone decides whether to ask again. A thin answer is not a
+  // reason to re-ask: where Google has few part-time jobs it will have few
+  // again an hour later, and re-asking every request would spend the month's
+  // allowance on the same empty answer. The widening step below is what
+  // actually helps a small town, and it runs when a fetch happens.
   if (hit && !refresh && Date.now() - new Date(hit.fetchedAt).getTime() < FRESH_MS) {
     return { place: hit.place, results: kept, fetchedAt: hit.fetchedAt, cached: true, widened: hit.widened || '' };
   }
@@ -203,6 +220,8 @@ const partTimeNear = async (locationInput, { refresh = false } = {}) => {
         if (!j.job_title || !(j.job_apply_link || j.job_google_link)) continue;
         if (!suitable(j)) continue;
         const r = { ...row(j), typeLabel: TYPE_LABEL[typeOf(j)] || 'Part-time', wider: wider || false };
+        // Too old to still be open, whatever Google says it matched.
+        if (!withinWindow(r.daysAgo)) continue;
         if (seen.has(r.id)) continue;
         seen.add(r.id);
         fresh.push(r);
@@ -253,7 +272,7 @@ const partTimeNear = async (locationInput, { refresh = false } = {}) => {
   return { place: plc, results: merged, fetchedAt, cached: false, widened, unavailable: '' };
 };
 
-module.exports = { partTimeNear };
+module.exports = { partTimeNear, withinWindow, KEEP_DAYS };
 
 /**
  * Which of the local vocabulary's categories a web listing belongs to, from

@@ -2,12 +2,10 @@
  * @author Preethesh Kulal
  * @description Student quiz retrieval and answer submission with credit rewards
  */
+const mongoose = require('mongoose');
 const Quiz = require('../models/Quiz');
-const Module = require('../models/Module');
-const Lesson = require('../models/Lesson');
-const Enrollment = require('../models/Enrollment');
-const Bundle = require('../models/Bundle');
-const Course = require('../models/Course');
+const GlobalQuestion = require('../models/GlobalQuestion');
+const Setting = require('../models/Setting');
 
 // @desc    Get quiz for a specific lesson (Student view - hides correct answers)
 // @route   GET /api/user/lessons/:lessonId/quiz
@@ -154,63 +152,17 @@ const submitQuizAnswers = async (req, res) => {
 
 /* ── Global quiz ──────────────────────────────────────────────────────────
  *
- * One paper drawn from every quiz across the courses a student can open —
- * revision that crosses course boundaries, which the per-lesson quizzes
- * cannot do.
+ * A general-knowledge paper drawn from the bank an administrator writes in
+ * the admin dashboard. It is deliberately NOT built from the quizzes inside
+ * courses: those belong to their lessons, are already scored there, and would
+ * make this a re-run of work the student has done rather than something new.
  *
  * It is practice, and says so: no credits, no course progress, no pass marks,
- * no reward activity. Those all belong to the first attempt of a lesson's own
- * quiz, and paying twice for the same questions would inflate both the
- * credit balance and the "quizzes passed" figure on the progress card.
+ * no reward activity.
  */
 
 const MAX_QUESTIONS = 25;
 const DEFAULT_QUESTIONS = 10;
-
-/** Every course this student may open: the ones they are enrolled in, plus the published bundles' courses. */
-const accessibleCourseIds = async (userId) => {
-    const ids = new Set();
-    const enrollments = await Enrollment.find({ userId }).lean();
-    const bundleIds = [];
-    for (const e of enrollments) {
-        if (e.type === 'Course' && e.courseId) ids.add(String(e.courseId));
-        else if (e.type === 'Bundle' && e.bundleId) bundleIds.push(e.bundleId);
-    }
-    // Bundles are open to any signed-in student, so their courses count too.
-    const bundles = await Bundle.find({ isPublished: true }).select('courses').lean();
-    for (const b of bundles) for (const c of b.courses || []) ids.add(String(c));
-    if (bundleIds.length) {
-        const own = await Bundle.find({ _id: { $in: bundleIds } }).select('courses').lean();
-        for (const b of own) for (const c of b.courses || []) ids.add(String(c));
-    }
-    const published = await Course.find({ _id: { $in: [...ids] }, isPublished: true }).select('_id title').lean();
-    return { ids: published.map((c) => String(c._id)), titles: Object.fromEntries(published.map((c) => [String(c._id), c.title])) };
-};
-
-/** Every quiz question in those courses, each carrying where it came from. */
-const questionPool = async (courseIds, titles) => {
-    if (!courseIds.length) return [];
-    const modules = await Module.find({ courseId: { $in: courseIds } }).select('_id courseId').lean();
-    if (!modules.length) return [];
-    const moduleCourse = Object.fromEntries(modules.map((m) => [String(m._id), String(m.courseId)]));
-    const lessons = await Lesson.find({ moduleId: { $in: modules.map((m) => m._id) }, isPublished: true }).select('_id moduleId title').lean();
-    if (!lessons.length) return [];
-    const lessonById = Object.fromEntries(lessons.map((l) => [String(l._id), l]));
-    const quizzes = await Quiz.find({ lessonId: { $in: lessons.map((l) => l._id) } }).lean();
-    const pool = [];
-    for (const quiz of quizzes) {
-        const lesson = lessonById[String(quiz.lessonId)];
-        const courseId = lesson ? moduleCourse[String(lesson.moduleId)] : null;
-        for (const q of quiz.questions || []) {
-            pool.push({
-                quizId: String(quiz._id), questionId: String(q._id),
-                questionText: q.questionText, options: q.options,
-                courseId, courseTitle: titles[courseId] || '', lessonTitle: lesson?.title || ''
-            });
-        }
-    }
-    return pool;
-};
 
 const shuffle = (rows) => {
     const out = [...rows];
@@ -218,20 +170,25 @@ const shuffle = (rows) => {
     return out;
 };
 
-// @desc    A mixed quiz across everything the student can open
+const quizConfig = async () => (await Setting.findOne().select('globalQuiz').lean())?.globalQuiz || {};
+
+// @desc    A general-knowledge paper from the global bank
 // @route   GET /api/user/quizzes/global?limit=10
 // @access  Private/User
 const getGlobalQuiz = async (req, res) => {
     try {
-        const limit = Math.min(MAX_QUESTIONS, Math.max(3, Number(req.query.limit) || DEFAULT_QUESTIONS));
-        const { ids, titles } = await accessibleCourseIds(req.user._id);
-        const pool = await questionPool(ids, titles);
+        const config = await quizConfig();
+        if (config.enabled === false) return res.status(403).json({ code: 'GLOBAL_QUIZ_OFF', message: 'The global quiz is currently unavailable.' });
+        const fallback = Math.min(MAX_QUESTIONS, Math.max(3, Number(config.defaultLength) || DEFAULT_QUESTIONS));
+        const limit = Math.min(MAX_QUESTIONS, Math.max(3, Number(req.query.limit) || fallback));
+
+        const pool = await GlobalQuestion.find({ isPublished: { $ne: false } }).select('question options category difficulty').lean();
         const picked = shuffle(pool).slice(0, limit);
         res.json({
             // The answers stay on the server; the client sends the ids back to be marked.
-            questions: picked.map((q) => ({ quizId: q.quizId, questionId: q.questionId, questionText: q.questionText, options: q.options, courseTitle: q.courseTitle, lessonTitle: q.lessonTitle })),
+            questions: picked.map((q) => ({ questionId: String(q._id), questionText: q.question, options: q.options, category: q.category || 'General', difficulty: q.difficulty || 'medium' })),
             available: pool.length,
-            courses: [...new Set(pool.map((q) => q.courseTitle).filter(Boolean))]
+            categories: [...new Set(pool.map((q) => q.category || 'General'))]
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -243,27 +200,26 @@ const getGlobalQuiz = async (req, res) => {
 // @access  Private/User
 const submitGlobalQuiz = async (req, res) => {
     try {
+        const config = await quizConfig();
+        if (config.enabled === false) return res.status(403).json({ code: 'GLOBAL_QUIZ_OFF', message: 'The global quiz is currently unavailable.' });
         const answers = Array.isArray(req.body?.answers) ? req.body.answers.slice(0, MAX_QUESTIONS) : null;
         if (!answers || !answers.length) return res.status(400).json({ message: 'Answer at least one question first.' });
 
-        // Only quizzes from courses this student can open may be marked, so the
-        // endpoint cannot be used to read answers to anything else.
-        const { ids, titles } = await accessibleCourseIds(req.user._id);
-        const allowed = new Set((await questionPool(ids, titles)).map((q) => `${q.quizId}:${q.questionId}`));
-        const wanted = answers.filter((a) => allowed.has(`${a.quizId}:${a.questionId}`));
-        if (!wanted.length) return res.status(400).json({ message: 'Those questions are not from your courses.' });
+        const ids = answers.map((a) => a.questionId).filter((id) => mongoose.isValidObjectId(id));
+        const rows = ids.length ? await GlobalQuestion.find({ _id: { $in: ids } }).lean() : [];
+        const byId = Object.fromEntries(rows.map((q) => [String(q._id), q]));
+        const marked = answers.filter((a) => byId[a.questionId]);
+        if (!marked.length) return res.status(400).json({ message: 'Those questions are not in the quiz bank.' });
 
-        const quizzes = await Quiz.find({ _id: { $in: [...new Set(wanted.map((a) => a.quizId))] } }).lean();
-        const byQuiz = Object.fromEntries(quizzes.map((q) => [String(q._id), q]));
         let correctCount = 0;
-        const results = wanted.map((a) => {
-            const question = (byQuiz[a.quizId]?.questions || []).find((q) => String(q._id) === String(a.questionId));
-            const isCorrect = !!question && a.answer === question.correctAnswerIndex;
+        const results = marked.map((a) => {
+            const q = byId[a.questionId];
+            const isCorrect = a.answer === q.correctAnswerIndex;
             if (isCorrect) correctCount++;
             return {
-                quizId: a.quizId, questionId: a.questionId, questionText: question?.questionText || '',
-                providedAnswer: a.answer ?? null, correctAnswer: question?.correctAnswerIndex ?? null,
-                isCorrect, explanation: question?.explanation || ''
+                questionId: String(q._id), questionText: q.question,
+                providedAnswer: a.answer ?? null, correctAnswer: q.correctAnswerIndex,
+                isCorrect, explanation: q.explanation || ''
             };
         });
         res.json({

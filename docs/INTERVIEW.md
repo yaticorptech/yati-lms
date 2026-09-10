@@ -174,3 +174,11 @@ Student (`tests/interview/`): the speech layer with a fake recogniser and
 microphone — interim and final text, duration and long pauses, error
 mapping, the no-recognition fallback, the speaker without synthesis, and
 microphone permission outcomes.
+
+Student screens (`tests/ui/`): the report, the question reviewer, the Global
+Quiz tab and the illustration slots, each rendered in headless Chrome by
+`harness.js` — it bundles the screen with esbuild, stubs the API module,
+serves it, and reads back whatever the browser script returns. No DOM emulator
+is involved, so the code runs as a student's browser runs it. Where Chrome is
+not installed the suites skip rather than fail. The admin app has the same
+harness for its Global Quiz page (`yaticorp-lms-admin/tests/ui/`).

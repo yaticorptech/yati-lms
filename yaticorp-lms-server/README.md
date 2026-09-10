@@ -94,15 +94,6 @@ BUNNY_STREAM_API_KEY=
 
 PLATFORM_SECRET_KEY=
 
-# Job Access Verification (see docs/JOBS.md → "Job Access Verification")
-AADHAAR_PROVIDER=offline-qr             # offline-qr (default) | mock (dev only) | production
-AADHAAR_MOCK_OTP=123456                 # mock provider's fixed OTP
-AADHAAR_UIDAI_CERT_PATH=                # optional UIDAI signing cert for offline-qr signature checks
-AADHAAR_PROVIDER_BASE_URL=              # production provider (TODO(vendor) stubs until filled in)
-AADHAAR_PROVIDER_API_KEY=
-VERIFICATION_ENCRYPTION_KEY=            # 32-byte hex; defaults to a key derived from JWT_SECRET
-FAST2SMS_API_KEY=                       # or MSG91_* / TWILIO_*; none set → OTPs go to the server log
-
 # Interview Ready (see docs/INTERVIEW.md) — uses GEMINI_API_KEY; both optional
 INTERVIEW_AI_MODEL=                     # defaults to GEMINI_MODEL
 INTERVIEW_AI=                           # set to "template" to run without AI
@@ -110,19 +101,30 @@ INTERVIEW_AI=                           # set to "template" to run without AI
 
 ## Global Quiz
 
-`GET /api/user/quizzes/global?limit=10` draws one paper from every quiz inside
-the courses a student can open — their enrolments plus the published bundles —
-so revision can cross course boundaries. `POST /api/user/quizzes/global/submit`
-marks it from `{ answers: [{ quizId, questionId, answer }] }` and returns the
-right answers with their explanations.
+A general-knowledge paper every student can take, drawn from a bank an
+administrator writes. It is deliberately **not** built from the quizzes inside
+courses: those belong to their lessons, are already scored there, and reusing
+them would make this a re-run of work the student has done rather than
+something new.
 
-It is practice and says so on screen: no credits, no course progress, no pass
-marks, no reward activity. Those belong to the first attempt of a lesson's own
-quiz, and paying twice for the same questions would inflate both the credit
-balance and the "quizzes passed" figure. Correct answers never leave the
-server, and a quiz outside the student's own courses is refused.
+The bank is one collection, `global_quiz_questions` (`models/GlobalQuestion.js`):
+a question, two to six answers, which one is right, an optional explanation, a
+free-text category, a difficulty, and `isPublished` so a draft can be held back.
 
-The student sees it as the **Global Quiz** tab on the dashboard
+**Admin** (admin → Global Quiz) manages it through
+`GET/POST /api/admin/global-quiz` and `PUT/DELETE /api/admin/global-quiz/:id`.
+Those routes carry the answers, which is why they sit behind `protectAdmin`.
+Two settings live in `Setting.globalQuiz` and save through
+`PUT /api/admin/settings`: `enabled` (off removes the student tab and closes
+both student endpoints with `GLOBAL_QUIZ_OFF`) and `defaultLength` (3-25).
+
+**Students** get `GET /api/user/quizzes/global?limit=10`, which returns a
+shuffled selection of published questions without their answers, and
+`POST /api/user/quizzes/global/submit` with `{ answers: [{ questionId, answer }] }`,
+which marks them and returns the right answers with their explanations. The
+quiz is practice: no credits, no course progress, no pass marks, no reward
+activity, so it cannot inflate the credit balance or the "quizzes passed"
+figure. The student sees it as the **Global Quiz** tab on the dashboard
 (`yaticorp-lms-student/src/components/GlobalQuiz.jsx`).
 
 ## Scripts
@@ -130,7 +132,8 @@ The student sees it as the **Global Quiz** tab on the dashboard
 - `npm run dev` - run with `nodemon`
 - `npm start` - run with Node
 - `npm run build` - no-op placeholder
-- `npm test` - the interview suite (`node --test`); needs `MONGO_URI`
+- `npm test` - every server suite (`node --test`, one file at a time because
+  they share one database); needs `MONGO_URI`
 - `node scripts/seedDemoLeaderboard.js` - eight sample learners so the
   leaderboard shows a ladder instead of an empty table. Ordinary accounts at
   `@demo.invalid` (a reserved domain that can never receive mail) with long
