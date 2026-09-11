@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
     X, Heart, Flag, MapPin, CalendarDays, Clock, GraduationCap, Wallet, BadgeCheck,
-    ShieldCheck, Sparkles, Loader2, AlertCircle, Mail, Phone, Lock, Users, Tag
+    ShieldCheck, Sparkles, Loader2, AlertCircle, Mail, Phone, Lock, Users, Tag, Briefcase
 } from 'lucide-react';
 import { opportunitiesApi } from './api';
 import { labelFor, reasonSentence, ageLabel, whereLabel, hoursLabel, dateLabel } from './helpers';
@@ -31,7 +31,7 @@ const GUARDIAN_TEXT = {
     rejected: 'Your guardian has not approved local jobs yet.'
 };
 
-export default function OpportunityDetails({ id, vocab, guardian, onClose, onInterested, onReport }) {
+export default function OpportunityDetails({ id, vocab, guardian, onClose, onInterested, onReport, onApply }) {
     // Keyed by id: while the answer on hand is for another listing (or none),
     // the dialog is loading. No flag to flip, so nothing to set in the effect.
     const [state, setState] = useState({ id: null, opp: null, rules: null, error: '' });
@@ -61,12 +61,15 @@ export default function OpportunityDetails({ id, vocab, guardian, onClose, onInt
     const liked = opp?.preference === 'interested';
     const safety = opp && vocab.safety.find((s) => s.id === opp.safetyClassification);
 
+    // Padded on a phone too, not flush: a sheet against the screen edge reads
+    // as cut off, and the header is the first thing lost. The panel is capped
+    // well under the viewport so there is always overlay visible above it.
     return (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
             <div
                 role="dialog" aria-modal="true" aria-labelledby="opp-details-title"
                 onClick={(e) => e.stopPropagation()}
-                className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl animate-fade-in-up sm:rounded-3xl"
+                className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up"
             >
                 <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-5">
                     <div className="flex min-w-0 items-start gap-3">
@@ -91,7 +94,7 @@ export default function OpportunityDetails({ id, vocab, guardian, onClose, onInt
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-5 opp-scroll">
+                <div className="min-h-0 flex-1 overflow-y-auto p-5 opp-scroll">
                     {loading && (
                         <div className="flex items-center gap-2 py-10 text-sm text-slate-500"><Loader2 size={16} className="animate-spin" /> Loading the details…</div>
                     )}
@@ -186,6 +189,12 @@ export default function OpportunityDetails({ id, vocab, guardian, onClose, onInt
                         >
                             <Heart size={16} fill={liked ? 'currentColor' : 'none'} aria-hidden="true" /> {liked ? 'Interested ✓' : 'Interested'}
                         </button>
+                        {onApply && (
+                            <button type="button" onClick={() => onApply(opp)}
+                                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60">
+                                <Briefcase size={16} aria-hidden="true" /> Apply for part-time job
+                            </button>
+                        )}
                         <button type="button" onClick={() => onReport(opp)}
                             className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/40">
                             <Flag size={15} aria-hidden="true" /> Report

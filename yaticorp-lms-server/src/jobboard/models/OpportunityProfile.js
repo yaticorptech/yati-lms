@@ -16,6 +16,10 @@ const guardianSchema = new mongoose.Schema(
     // has not asked yet. The rest are the request's life.
     status: { type: String, enum: ["not-required", "none", "pending", "approved", "rejected"], default: "none" },
     guardianName: { type: String, default: "" },
+    // Where the job permission request is sent. Email rather than SMS: the
+    // LMS already has a mail sender configured, and a link in a message the
+    // parent can read on any device beats one they cannot receive at all.
+    email: { type: String, default: "" },
     // The parent's mobile, +91XXXXXXXXXX, asked for on the details form.
     phone: { type: String, default: "" },
     requestedAt: { type: Date, default: null },

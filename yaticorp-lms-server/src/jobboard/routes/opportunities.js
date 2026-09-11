@@ -87,6 +87,8 @@ const shape = (row, ctx) => ({
 const profileOut = (profile, age) => profile && ({
     dateOfBirth: profile.dateOfBirth,
     guardianPhone: profile.guardian?.phone || '',
+    guardianEmail: profile.guardian?.email || '',
+    guardianName: profile.guardian?.guardianName || '',
     wantFrom: profile.wantFrom,
     wantTo: profile.wantTo,
     interests: profile.interests,
@@ -134,6 +136,11 @@ router.put('/profile', async (req, res, next) => {
         }
         const guardianPhone = body.guardianPhone ? normaliseIndianMobile(body.guardianPhone) : '';
         if (body.guardianPhone && !guardianPhone) return res.status(400).json({ error: 'Enter a 10-digit Indian mobile number for your parent.' });
+        const guardianName = String(body.guardianName || '').trim().slice(0, 80);
+        const guardianEmail = String(body.guardianEmail || '').trim().toLowerCase().slice(0, 160);
+        if (guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(guardianEmail)) {
+            return res.status(400).json({ error: "Enter a valid email address for your parent or guardian." });
+        }
         const wantFrom = parseDay(body.wantFrom);
         const wantTo = parseDay(body.wantTo || body.wantFrom);
         if (!wantFrom || !wantTo) return res.status(400).json({ error: 'Pick the date, or dates, you want work on.' });
@@ -143,16 +150,28 @@ router.put('/profile', async (req, res, next) => {
         if (!interests.length) return res.status(400).json({ error: 'Pick at least one interest.' });
 
         const band = bandFor(age);
-        if (band.guardianApproval && !guardianPhone) return res.status(400).json({ error: "Add your parent's phone number — a guardian has to approve work for your age." });
+        // Who must name a guardian: the bands that need board-level approval,
+        // and anyone the job application flow will stop for. The second rule
+        // is the stricter of the two below fifteen, where the band itself asks
+        // for nothing — without it a young student fills in the form, applies,
+        // and is only then told they need a parent.
+        const { GUARDIAN_AGE } = require('../models/JobApplication');
+        const needsGuardian = band.guardianApproval || age < GUARDIAN_AGE;
+        // The email is the one that must be there: that is where the job
+        // permission request is sent. The phone is kept as contact detail.
+        if (needsGuardian && !guardianEmail) return res.status(400).json({ error: "Add your parent or guardian's email address — that is where the job permission request is sent." });
+        if (needsGuardian && !guardianName) return res.status(400).json({ error: "Add your parent or guardian's name — the approval message is addressed to them." });
         const update = {
             dateOfBirth: dob, wantFrom, wantTo, interests, completedAt: new Date(),
             // Guardian state follows the band: an adult has nothing to approve,
             // and a teen keeps whatever the request had reached.
             guardian: {
-                ...(band.guardianApproval
+                ...(needsGuardian
                     ? (existing?.guardian?.status && existing.guardian.status !== 'not-required' ? existing.guardian : { status: 'none' })
                     : { status: 'not-required' }),
-                phone: guardianPhone
+                phone: guardianPhone,
+                email: guardianEmail || existing?.guardian?.email || '',
+                guardianName: guardianName || existing?.guardian?.guardianName || ''
             }
         };
 
