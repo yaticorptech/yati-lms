@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Flag, Gift, Mountain, Trophy, Zap } from 'lucide-react';
-import MascotSlot from '../mascot/MascotSlot';
 import useCountUp from '../../../hooks/useCountUp';
 import BadgeMedallion from '../rewards/BadgeMedallion';
 import { BADGE_ICONS, tierFor } from '../rewards/badgeTiers';
@@ -182,8 +181,8 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
       </RailCard>
 
       {/* ---- BANNER ----
-          The words on the left, the mascot on the right, in one row that
-          never overlaps: the drawn summit used to rise up behind the text. */}
+          Words and glow alone. A drawn summit, then a mascot, stood on the
+          right of this row; both are gone, so the line runs the full width. */}
       <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-journey-100 via-journey-50 to-pink-100 p-5 shadow-card ring-1 ring-journey-100 ring-inset">
         <span aria-hidden className="fp-float pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-pink-300/40 blur-2xl" />
         <span aria-hidden className="fp-float-slow pointer-events-none absolute -bottom-12 -left-8 h-32 w-32 rounded-full bg-journey-300/40 blur-2xl" />
@@ -199,12 +198,6 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
               <br />
               Keep going! <span aria-hidden>✨</span>
             </p>
-          </div>
-          <div aria-hidden className="relative shrink-0">
-            <span className="fp-drift-icon absolute -top-3 -left-2 text-base" style={{ animationDelay: '-1.5s' }}>⭐</span>
-            <span className="fp-drift-icon absolute -top-1 -right-3 text-sm" style={{ animationDelay: '-3s' }}>✨</span>
-            <span className="absolute bottom-0 left-1/2 h-4 w-20 -translate-x-1/2 rounded-full bg-journey-400/40 blur-md" />
-            <MascotSlot name="skills-rail" state="starred" height={104} className="relative" priority={20} />
           </div>
         </div>
       </section>

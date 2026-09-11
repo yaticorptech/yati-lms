@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { Rocket } from 'lucide-react';
 import CurrentMission from './CurrentMission';
 import './careerHero.css';
@@ -58,48 +57,42 @@ export default function JourneyHero({ task, completedToday = 0, totalToday = 0 }
         style={{ backgroundImage: "url('/illustrations/career-hero-bg.png')" }}
       />
 
-      {/* Narrow screens get the scene itself, filling the panel.
-          Sizing it to the width and sitting it on the bottom left a hard
-          horizontal edge partway down with blank panel above it — the picture
-          read as a band stuck to the floor rather than as a background. It
-          covers the whole panel now, anchored bottom right so the crop keeps
-          the summit and the trophy: those are the far right of the file, and
-          a centred crop drops them entirely. */}
+      {/* Narrow screens: the whole picture, as the background.
+          Expanded to fill the card, which costs a crop: the picture is
+          1.8:1 and the card is nearer 1.3:1, so filling one dimension always
+          spends the other. Anchored right rather than centred, because that
+          is what decides *which* crop — from the right, the trophy, the
+          script and the pins all survive and only the far left of the sky is
+          trimmed. Centred at this height the trophy is the first thing lost.
+
+          The card is kept near 275px for the same reason: below that the
+          whole scene including the book pin is in frame, above it the crop
+          starts eating real content. */}
       <div
         aria-hidden
-        className="ch-art pointer-events-none absolute inset-0 bg-cover bg-right-bottom bg-no-repeat lg:hidden"
+        className="ch-art pointer-events-none absolute inset-0 bg-cover bg-right bg-no-repeat lg:hidden"
         style={{ backgroundImage: "url('/illustrations/career-hero-art.png')" }}
       />
 
-      {/* A wash under the words only, and it must finish before the scene
-          begins. It used to fade out across the full width, which laid a
-          white veil over the illustration and was half the reason the colours
-          looked flat beside the original. The artwork starts around 63% of
-          panel at the common width and as early as 52% on a narrower one, so
-          this is fully clear by 50% — it can never touch the illustration.
-          The text itself ends well before that: the sentence is capped at
-          28rem and the buttons finish around 37%. */}
+      {/* Even, not graded. The picture is whole here rather than cropped to
+          its calm half, so the pins sit under the paragraph — a gradient
+          that lightened only the top would leave the worst of it exposed.
+          70%: at 66% the body text measured 4.44:1 over a pin — the most
+          saturated thing in the scene — which is under the line. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-white/70 lg:hidden"
+      />
+
+      {/* Wide screens: a wash under the words only, finishing before the
+          scene begins. The artwork starts around 63% of the panel at the
+          common width and as early as 52% on a narrower one, so this is
+          fully clear by 50% and can never touch the illustration. The text
+          ends well before that — the sentence is capped at 28rem and the
+          buttons finish around 37%. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-white/88 from-0% via-white/38 via-30% to-transparent to-50% lg:block"
-      />
-
-      {/* Narrow screens get a veil over the whole panel instead.
-          A horizontal wash protects the left of a wide banner; on a phone
-          there is no left — the picture is under every line — so the same
-          gradient lightened one half of an image that sat beneath the
-          paragraph and the text became unreadable over the mountains.
-
-          So the veil runs down the panel instead, and its strength is set by
-          measurement rather than taste: the body text holds its 4.5:1 over
-          the darkest part of the scene down to a 72% veil and fails below it,
-          so the band behind the words sits at 72-90%. Under the paragraph
-          there is nothing but the buttons, which are solid, so it drops to
-          15% and the picture comes through at nearly full strength. The blur
-          is gone — it was what made the scene unrecognisable. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/90 from-0% via-white/72 via-52% to-white/15 lg:hidden"
       />
 
       {/* Motes rising through the sky half. */}
@@ -114,13 +107,13 @@ export default function JourneyHero({ task, completedToday = 0, totalToday = 0 }
       </div>
 
       {/* ---- What this section is for ---- */}
-      <div className="relative px-6 pt-7 pb-24 sm:px-9 sm:pt-8 sm:pb-28 lg:w-[62%] lg:py-8">
-        <span className="ch-badge inline-flex items-center gap-2 rounded-full bg-violet-100/80 px-3.5 py-1.5 text-sm font-black text-violet-700 ring-1 ring-violet-200/70 ring-inset">
+      <div className="relative px-6 pt-6 pb-5 sm:px-8 sm:pt-7 sm:pb-6 lg:w-[62%] lg:px-9 lg:py-8">
+        <span className="ch-badge inline-flex items-center gap-1.5 rounded-full bg-violet-100/80 px-2.5 py-1 text-[0.7rem] font-black text-violet-700 ring-1 ring-violet-200/70 ring-inset lg:gap-2 lg:px-3.5 lg:py-1.5 lg:text-sm">
           <Rocket className="h-4 w-4 text-orange-500" />
           Build Your Future
         </span>
 
-        <h1 className="mt-3 text-[1.75rem] leading-[1.1] font-black tracking-tight text-slate-900 sm:text-[2.1rem] xl:text-[2.4rem]">
+        <h1 data-mascot-clear className="mt-3 text-[1.6rem] leading-[1.14] font-black tracking-tight text-slate-900 sm:text-[1.9rem] lg:text-[2.1rem] xl:text-[2.4rem]">
           <span className="ch-in block" style={{ animationDelay: '0.08s' }}>
             Your Career Journey
           </span>
@@ -143,30 +136,23 @@ export default function JourneyHero({ task, completedToday = 0, totalToday = 0 }
           </span>
         </h1>
 
-        <p className="ch-in mt-4 max-w-md text-[0.95rem] leading-relaxed text-slate-600" style={{ animationDelay: '0.28s' }}>
+        {/* Marked so the companion will not stand on it or float its bubble
+            through it on the way to the quest button. The heading below
+            carries the same mark. Nothing can infer "these are words being
+            read" from the DOM, so the hero says so. */}
+        <p data-mascot-clear className="ch-in mt-2.5 max-w-md text-[0.86rem] leading-[1.45] text-slate-600 lg:mt-4 lg:text-[0.95rem] lg:leading-relaxed" style={{ animationDelay: '0.28s' }}>
           Explore. Learn. Grow. Turn your goals into achievements with a step-by-step career
           path designed just for you.
         </p>
 
-        <div className="ch-in mt-5 flex flex-wrap items-center gap-3" style={{ animationDelay: '0.38s' }}>
+        {/* The one action. A "View My Progress" button stood beside it and
+            has been removed: My Progress is a tab in the strip above, so the
+            hero offered a second route to a page that was never hard to
+            reach, at the cost of splitting attention with the quest. */}
+        <div className="ch-in mt-4 flex flex-wrap items-center gap-2.5 lg:mt-5 lg:gap-3" style={{ animationDelay: '0.38s' }}>
           {/* Unchanged: it already carries the XP chip, the three states and
               the beacon that makes it findable. */}
           <CurrentMission task={task} completedToday={completedToday} totalToday={totalToday} />
-
-          <Link
-            to="/career/profile"
-            className="ch-btn ch-progress group inline-flex min-h-12 shrink-0 items-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50 to-violet-50 px-5 py-3 text-sm font-black text-blue-800 shadow-card ring-1 ring-blue-200/80 ring-inset transition-colors hover:from-blue-100 hover:via-indigo-100 hover:to-violet-100"
-          >
-            {/* Drawn rather than taken from the icon set, so each bar can
-                climb on its own delay — a chart icon that sits still next to
-                a button marked "progress" is a small missed opportunity. */}
-            <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4">
-              <rect className="ch-bar" x="1.5" y="9" width="3.4" height="5.5" rx="1.1" fill="#2563eb" />
-              <rect className="ch-bar ch-bar-2" x="6.3" y="6" width="3.4" height="8.5" rx="1.1" fill="#4f46e5" />
-              <rect className="ch-bar ch-bar-3" x="11.1" y="2.5" width="3.4" height="12" rx="1.1" fill="#7c3aed" />
-            </svg>
-            View My Progress
-          </Link>
         </div>
       </div>
 

@@ -7,7 +7,6 @@ import {
   ArrowRight, Award, Trophy, Zap, Share2, Medal, Sparkles, Flag, Lock, Gift
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
-import MascotSlot from '../../components/mascot/MascotSlot';
 import BadgeMedallion from '../../components/rewards/BadgeMedallion';
 import useCountUp from '../../../hooks/useCountUp';
 import { BADGE_ICONS, tierFor } from '../../components/rewards/badgeTiers';
@@ -257,18 +256,6 @@ export default function Badges() {
               </div>
             </div>
 
-            {/* The mascot with its confetti, beside the level: the reward the
-                page is about, celebrated. Decorative — every number is in
-                the text beside it. */}
-            <div aria-hidden className="relative hidden h-44 w-52 shrink-0 items-end justify-center lg:flex">
-              <span className="fp-halo absolute bottom-4 left-1/2 h-28 w-28 -translate-x-1/2 rounded-full bg-amber-300/50 blur-2xl" />
-              <span className="fp-drift-icon absolute top-1 left-3 text-xl" style={{ animationDelay: '-1.2s' }}>🏅</span>
-              <span className="fp-drift-icon absolute top-6 right-2 text-lg" style={{ animationDelay: '-2.8s' }}>⭐</span>
-              <span className="fp-drift-icon absolute bottom-12 left-0 text-base" style={{ animationDelay: '-0.6s' }}>✨</span>
-              <span className="fp-drift-icon absolute bottom-16 right-0 text-base" style={{ animationDelay: '-3.6s' }}>🎉</span>
-              <span className="absolute bottom-1 left-1/2 h-5 w-32 -translate-x-1/2 rounded-full bg-amber-400/40 blur-lg" />
-              <MascotSlot name="badges-hero" state="celebrating" height={164} className="mc-pop relative" priority={20} />
-            </div>
           </div>
         </section>
 

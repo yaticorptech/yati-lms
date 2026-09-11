@@ -81,11 +81,18 @@ export const isState = (name) => Object.prototype.hasOwnProperty.call(STATES, na
  * A page reports what happened. It does not choose a pose, a class or a
  * duration. `ms` is how long the accompanying words stay on screen; the
  * mascot itself holds the state until the next event.
+ *
+ * `anchor` names the element the reaction belongs beside. Every reaction
+ * that can have one does, because a reaction with nowhere to point has
+ * nowhere to appear — the character has no corner to float in any more, by
+ * design — and is simply not shown. Naming the panel a moment happened in
+ * is what puts the celebration on the game rather than in the corner of
+ * the window.
  */
 export const REACTIONS = {
   /* -- The ten moments that must be covered ------------------------------ */
-  quizPassed: { state: 'quizPassed', message: 'Quiz cleared! That is the whole lesson locked in.' },
-  quizFailed: { state: 'encouraging', message: 'Not this time. Read it again and go once more.' },
+  quizPassed: { state: 'quizPassed', message: 'Quiz cleared! That is the whole lesson locked in.', anchor: 'quiz' },
+  quizFailed: { state: 'encouraging', message: 'Not this time. Read it again and go once more.', anchor: 'quiz' },
   levelUp: { state: 'levelUp', message: 'Level up! Your work is adding up.' },
   newBadge: { state: 'starred', message: 'A new badge. That one is yours for good.' },
   noRoadmap: {
@@ -99,16 +106,23 @@ export const REACTIONS = {
   examTomorrow: { state: 'reading', message: 'You have an exam tomorrow. Today is a revision day.', ms: 8000 },
   lateEveningWithTasks: { state: 'tired', message: 'It is getting late. One small task, then rest.', ms: 8000 },
   streakAtRisk: { state: 'worried', message: 'Your streak ends tonight unless you finish something.', ms: 8000 },
-  taskCompleted: { state: 'taskDone', message: 'Task done. On to the next one.' },
+  taskCompleted: { state: 'taskDone', message: 'Task done. On to the next one.', anchor: 'today-tasks' },
 
   /* -- Everything else the interface already reports --------------------- */
   streakKept: { state: 'streakKept', message: 'Streak kept. Same time tomorrow.' },
   streakBroken: { state: 'encouraging', message: 'The streak went. Start a new one today.' },
-  gameWon: { state: 'gameWon', message: 'Cleared it. Your brain is warming up.' },
-  gameLost: { state: 'encouraging', message: 'So close. Go again.' },
-  quizStart: { state: 'pondering', message: 'Take your time. Read each one twice.' },
+  /*
+   * Three beats around a game, not two. `gameLost` is the honest reaction and
+   * is deliberately short-lived: CareerPathMascot follows it with
+   * `encouraging` a moment later, so the student sees sympathy and then a
+   * nudge rather than a mascot left sitting in a sulk.
+   */
+  gameStart: { state: 'presenting', message: 'Ready? I’ll show you how to play!', anchor: 'game-start', ms: 7000 },
+  gameWon: { state: 'gameWon', message: 'Awesome! You did it!', anchor: 'game' },
+  gameLost: { state: 'gameLost', message: 'Almost there! Try again — you’ve got this.', anchor: 'game' },
+  quizStart: { state: 'pondering', message: 'Take your time. Read each one twice.', anchor: 'quiz' },
   taskStart: { state: 'reading', message: 'Watch it through and the task ticks itself off.' },
-  dayCleared: { state: 'success', message: "That is today's plan finished. Well done." },
+  dayCleared: { state: 'success', message: "That is today's plan finished. Well done.", anchor: 'today-tasks' },
   greeting: { state: 'welcoming', message: 'Welcome back! Ready for your next career step?' }
 };
 

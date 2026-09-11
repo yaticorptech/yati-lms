@@ -73,7 +73,12 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
 
   return (
     <section data-guide="journey" className="overflow-hidden rounded-3xl border border-line-200 bg-surface p-5 shadow-card sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      {/* data-mascot-clear marks the row, not the card. The companion
+          guiding the hero above can reach down into the top of this one on
+          a phone; marking the whole section would hand it the card's
+          padding as well, and a guide that treats empty margin as content
+          ends up making worse choices elsewhere to avoid it. */}
+      <div data-mascot-clear className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-base font-black text-ink-900">
             <span aria-hidden>🗺️</span>
