@@ -1,5 +1,4 @@
 import { Star, Play, Target, Timer, Trophy, ChevronRight, RotateCcw, Sparkles } from 'lucide-react';
-import MascotSlot from '../mascot/MascotSlot';
 import { coachFor } from './gameCoach';
 import '../artwork.css';
 
@@ -93,14 +92,12 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart, 
             </button>
           </div>
 
-          {/* ---- The coach: the mascot explains this game ---- */}
-          <div className="relative flex items-end gap-3">
-            <div className="relative hidden shrink-0 sm:block" aria-hidden>
-              <span className="absolute bottom-1 left-1/2 h-8 w-24 -translate-x-1/2 rounded-full bg-blue-300/40 blur-lg" />
-              <MascotSlot name="game-intro" state="presenting" height={124} className="relative" priority={40} />
-            </div>
-            <div className="mc-bubble relative mb-6 min-w-0 flex-1 rounded-2xl border border-blue-100 bg-white p-3.5 shadow-xl">
-              <span aria-hidden className="absolute top-8 -left-2 h-4 w-4 rotate-45 border-b border-l border-blue-100 bg-white" />
+          {/* ---- The coach: how this game is played ----
+              A mascot stood to the left and this card was its speech bubble,
+              tail and all. Without a speaker a tail points at nothing, so the
+              card is now simply a card and takes the full width. */}
+          <div className="relative">
+            <div className="mc-bubble relative min-w-0 rounded-2xl border border-blue-100 bg-white p-3.5 shadow-xl">
               <p className="text-[0.66rem] font-black tracking-[0.16em] text-blue-600 uppercase">How to play</p>
               <ol className="mt-1.5 space-y-1">
                 {coach.steps.map((step, i) => (
@@ -125,16 +122,12 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart, 
 }
 
 /**
- * The screen after a level ends: the mascot's reaction first, then the
- * stars, the numbers, and the way onward.
+ * The screen after a level ends: the stars, the numbers, and the way onward.
  *
- * A clear is celebrated properly — the dance, confetti, stars bursting in.
- * A miss gets the same card with the mascot encouraging rather than a
- * scolding.
+ * A clear is celebrated properly — confetti, stars bursting in. A miss gets
+ * the same card, worded as encouragement rather than a scolding.
  */
 export function LevelResult({ passed, stars, headline, detail, atEnd, onNext, onRetry, tone }) {
-  // Won: the leap. Lost: encouragement. Decided by the result, then held.
-  const resultState = passed ? 'gameWon' : 'encouraging';
   return (
     <div className="mx-auto max-w-2xl">
       <div
@@ -154,12 +147,7 @@ export function LevelResult({ passed, stars, headline, detail, atEnd, onNext, on
             />
           ))}
 
-        <div className="relative grid items-center gap-6 sm:grid-cols-[auto_minmax(0,1fr)]">
-          <div className="relative justify-self-center" aria-hidden>
-            <span className={`absolute bottom-2 left-1/2 h-10 w-32 -translate-x-1/2 rounded-full blur-xl ${passed ? 'bg-emerald-300/50' : 'bg-blue-300/40'}`} />
-            <MascotSlot name="game-result" state={resultState} height={150} className="mc-pop relative" key={resultState} priority={60} />
-          </div>
-
+        <div className="relative">
           <div className="min-w-0 text-center sm:text-left">
             <p className={`text-[0.68rem] font-black tracking-[0.2em] uppercase ${passed ? 'text-emerald-600' : 'text-journey-600'}`}>
               {passed ? 'Level complete' : 'Not quite'}

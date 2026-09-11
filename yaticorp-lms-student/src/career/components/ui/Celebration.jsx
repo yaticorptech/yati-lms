@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Check, Flame, PartyPopper, Trophy, Zap } from 'lucide-react';
-import MascotSlot from '../mascot/MascotSlot';
 
 /**
  * The reward moment.
@@ -137,14 +136,15 @@ function CelebrationOverlay({ event, onDismiss }) {
         onClick={onDismiss}
         className="animate-pop-in relative w-full max-w-sm cursor-pointer rounded-2xl bg-surface p-7 text-center shadow-float"
       >
-        {/* The mascot for the moment, with the badge tucked at its foot. */}
-        <div className="relative mx-auto mb-3 flex h-36 w-36 items-end justify-center" aria-hidden>
-          <span className="absolute bottom-3 left-1/2 h-6 w-28 -translate-x-1/2 rounded-full bg-journey-400/30 blur-lg" />
-          <MascotSlot name="celebration" state={event.state || preset.state} height={136} className="mc-pop relative" priority={90} />
+        {/* The moment's own icon, on its glow. This held the mascot with the
+            badge tucked at its foot; with the character gone the badge is the
+            subject, so it is centred and sized to carry the card. */}
+        <div className="relative mx-auto mb-4 flex h-20 w-20 items-center justify-center" aria-hidden>
+          <span className={`absolute inset-0 rounded-full blur-xl ${tone.glow}`} />
           <span
-            className={`animate-badge-burst absolute right-0 bottom-0 flex h-11 w-11 items-center justify-center rounded-xl text-white ring-4 ring-inset ${tone.badge} ${tone.glow}`}
+            className={`animate-badge-burst relative flex h-16 w-16 items-center justify-center rounded-2xl text-white ring-4 ring-inset ${tone.badge} ${tone.glow}`}
           >
-            <Icon className="h-5 w-5" strokeWidth={2.6} />
+            <Icon className="h-7 w-7" strokeWidth={2.6} />
           </span>
         </div>
 

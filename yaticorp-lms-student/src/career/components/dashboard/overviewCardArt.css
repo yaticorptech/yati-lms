@@ -184,6 +184,60 @@
   animation: oc-drift-b 15s ease-in-out infinite;
 }
 
+/* ---- Foreground motion -------------------------------------------------
+ * The blobs drift, but on 17-24s cycles under an 88% white core, which is
+ * slow and faint enough to read as a still image. These two run on top of
+ * the core — still behind the content — so the cards have something the eye
+ * actually catches. They hang off the core element because .oc-art has both
+ * its pseudo-elements taken by blobs.
+ */
+
+/* Learning streak: embers going up. One tall layer of dots sliding rather
+   than a dozen elements each with a timer; it is twice the card's height and
+   travels exactly half of itself, so the loop has no seam. */
+.oc-fx-embers::before {
+  content: '';
+  position: absolute;
+  inset: -100% 0 0 0;
+  height: 200%;
+  background-image:
+    radial-gradient(circle, rgba(249, 115, 22, 0.55) 1.7px, transparent 1.9px),
+    radial-gradient(circle, rgba(251, 191, 36, 0.5) 1.2px, transparent 1.4px);
+  background-size: 110px 84px, 160px 124px;
+  background-position: 14px 0, 70px 38px;
+  -webkit-mask-image: linear-gradient(to top, black 12%, transparent 78%);
+  mask-image: linear-gradient(to top, black 12%, transparent 78%);
+  animation: oc-embers 9s linear infinite;
+}
+
+/* Your level: rings leaving the dial. Two on the same path, half a cycle
+   apart, so one is always travelling. */
+.oc-fx-rings::before,
+.oc-fx-rings::after {
+  content: '';
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  width: 128px;
+  height: 128px;
+  margin: -64px 0 0 -64px;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(108, 59, 255, 0.32);
+  animation: oc-ring 7s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+.oc-fx-rings::after { animation-delay: 3.5s; }
+
+@keyframes oc-embers {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-50%); }
+}
+@keyframes oc-ring {
+  0%   { transform: scale(0.72); opacity: 0; }
+  12%  { opacity: 1; }
+  70%,
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
 /* ---- The drift ----------------------------------------------------------
  * Two paths, used alternately and at lengths that do not divide into each
  * other, so no two blobs on the page ever settle into the same rhythm.
@@ -203,7 +257,12 @@
   .oc-art::before,
   .oc-art::after,
   .js-art::before,
-  .js-art::after {
+  .js-art::after,
+  .oc-fx-embers::before,
+  .oc-fx-rings::before,
+  .oc-fx-rings::after {
     animation: none !important;
   }
+  .oc-fx-rings::before,
+  .oc-fx-rings::after { opacity: 0; }
 }

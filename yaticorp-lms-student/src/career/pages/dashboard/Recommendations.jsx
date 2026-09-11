@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 import { ResourceRow } from '../../components/recommendations/ResourceAccordion';
-import MascotSlot from '../../components/mascot/MascotSlot';
 import ResourceSidebar from '../../components/recommendations/ResourceSidebar';
 import {
   Search, Sparkles, X, Lightbulb, Target, BookMarked,
@@ -418,21 +417,11 @@ export default function Recommendations() {
             )}
           </div>
 
-          {/* The CareerPath mascot, bright idea in hand, with the
-              encouragement card underneath it — in flow, so the two never
-              sit on top of each other at any width. Decorative: the words
-              are all beside it. */}
+          {/* The encouragement card. A mascot with a bright idea in hand
+              stood above it; the card is what carried the words, so it stays
+              and the column is now just the card. */}
           <div className="relative hidden flex-col items-center lg:flex">
-            <div aria-hidden className="relative flex h-52 w-full items-end justify-center">
-              <span className="fp-halo absolute top-1/2 left-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full bg-journey-300/40 blur-2xl" />
-              <span className="fp-drift-icon absolute top-1 left-[14%] text-3xl" style={{ animationDelay: '-1s' }}>💡</span>
-              <span className="fp-drift-icon absolute top-4 right-[14%] text-xl" style={{ animationDelay: '-2.4s' }}>✨</span>
-              <span className="fp-drift-icon absolute bottom-10 left-[6%] text-xl" style={{ animationDelay: '-3.6s' }}>🚀</span>
-              <span className="fp-drift-icon absolute top-1/2 right-[4%] text-lg" style={{ animationDelay: '-0.6s' }}>⭐</span>
-              <span className="absolute bottom-1 left-1/2 h-6 w-40 -translate-x-1/2 rounded-full bg-journey-400/40 blur-lg" />
-              <MascotSlot name="ideas-hero" state="excited" height={190} className="mc-pop relative" priority={20} />
-            </div>
-            <div className="mt-3 w-full max-w-[16rem] rounded-2xl border border-violet-100 bg-surface/95 p-3 shadow-float backdrop-blur">
+            <div className="w-full rounded-2xl border border-violet-100 bg-surface/95 p-4 shadow-float backdrop-blur">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-300 to-orange-500 text-white">
                   <Trophy className="h-4 w-4" />
@@ -448,7 +437,7 @@ export default function Recommendations() {
 
       {/* ---- Body + sidebar --------------------------------------------- */}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="min-w-0 space-y-6">
+        <div data-guide="idea-list" className="min-w-0 space-y-6">
           {nothingAtAll && (
             <EmptyState
               icon={Lightbulb}
