@@ -76,16 +76,34 @@ export default function LeaderboardCard() {
     const hasMore = !!board && (board.total > board.entries.length || board.around.length > 0);
     const me = board?.me;
     const meListed = board ? board.entries.some((e) => e.isMe) : true;
+    /* The rows under the podium, worked out once and then rendered twice —
+       as a table on a wide screen, as a stacked list on a phone. A `gap` entry
+       is the "· · ·" that stands for the ranks not shown. */
+    const listRows = useMemo(() => {
+        if (!board) return [];
+        const rows = rest.map((e) => ({ key: e.userId, e }));
+        if (full && board.around.length > 0) rows.push({ key: 'gap', gap: true }, ...board.around.map((e) => ({ key: e.userId, e })));
+        else if (!full && !meListed && me?.rank) rows.push({ key: 'gap', gap: true }, { key: 'me', e: me });
+        return rows;
+    }, [board, rest, full, meListed, me]);
 
     return (
         <section id="leaderboard" className="relative flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             {celebrating && <LeaderboardCelebration onDone={stopCelebrating} />}
-            <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
-                    <h2 className="flex items-center gap-2.5 text-xl font-black text-slate-900"><Trophy size={22} className="text-amber-500" /> Leaderboard</h2>
+            {/* On a narrow phone the title and the period picker do not fit on
+                one line: the heading was pushed off the card and took the rest
+                of the page sideways with it. The picker drops to its own line
+                instead, and the text is allowed to wrap rather than insist on
+                its full width. */}
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                {/* A base width, not just flex-1: with a basis of zero the text
+                    would shrink to nothing beside the picker instead of pushing
+                    it onto the next line, and the heading would still be cut. */}
+                <div className="min-w-0 flex-1 basis-48">
+                    <h2 className="flex items-center gap-2.5 text-xl font-black text-slate-900"><Trophy size={22} className="shrink-0 text-amber-500" /> Leaderboard</h2>
                     <p className="text-sm text-slate-500">Compete with learners and climb the ranks</p>
                 </div>
-                <label className="relative">
+                <label className="relative shrink-0">
                     <select value={period} onChange={(e) => setPeriod(e.target.value)} className="appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none">
                         {PERIODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                     </select>
@@ -108,31 +126,31 @@ export default function LeaderboardCard() {
                 <LeaderboardPodium podium={podium} />
             )}
 
-            {board && (rest.length > 0 || (full && board.around.length > 0) || (!meListed && me?.rank)) && (
-                <div className="mt-4 overflow-x-auto">
-                    <table className="w-full min-w-[520px] text-left text-sm">
-                        <thead>
-                            <tr className="text-xs font-semibold text-slate-500">
-                                <th className="px-2 pb-2 font-semibold">Rank</th><th className="px-2 pb-2 font-semibold">Learner</th><th className="px-2 pb-2 font-semibold">Level</th><th className="px-2 pb-2 text-right font-semibold">XP</th><th className="px-2 pb-2 font-semibold">Streak</th><th className="px-2 pb-2 font-semibold">Badge</th><th className="px-2 pb-2 text-right font-semibold">Change</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {rest.map((e) => <Row key={e.userId} e={e} />)}
-                            {full && board.around.length > 0 && (
-                                <>
-                                    <tr><td colSpan="7" className="py-1 text-center text-[11px] font-bold text-slate-400">· · ·</td></tr>
-                                    {board.around.map((e) => <Row key={e.userId} e={e} />)}
-                                </>
-                            )}
-                            {!full && !meListed && me?.rank && (
-                                <>
-                                    <tr><td colSpan="7" className="py-1 text-center text-[11px] font-bold text-slate-400">· · ·</td></tr>
-                                    <Row e={me} />
-                                </>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+            {board && listRows.length > 0 && (
+                <>
+                    {/* Seven columns need 520px, which no phone has; there the
+                        same rows are stacked instead, so nothing scrolls
+                        sideways. The table returns as soon as it fits. */}
+                    <ul className="mt-4 divide-y divide-slate-100 sm:hidden">
+                        {listRows.map(({ key, e, gap }) => (gap
+                            ? <li key={key} className="py-1 text-center text-[11px] font-bold text-slate-400">· · ·</li>
+                            : <StackedRow key={key} e={e} />))}
+                    </ul>
+                    <div className="mt-4 hidden overflow-x-auto sm:block">
+                        <table className="w-full min-w-[520px] text-left text-sm">
+                            <thead>
+                                <tr className="text-xs font-semibold text-slate-500">
+                                    <th className="px-2 pb-2 font-semibold">Rank</th><th className="px-2 pb-2 font-semibold">Learner</th><th className="px-2 pb-2 font-semibold">Level</th><th className="px-2 pb-2 text-right font-semibold">XP</th><th className="px-2 pb-2 font-semibold">Streak</th><th className="px-2 pb-2 font-semibold">Badge</th><th className="px-2 pb-2 text-right font-semibold">Change</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {listRows.map(({ key, e, gap }) => (gap
+                                    ? <tr key={key}><td colSpan="7" className="py-1 text-center text-[11px] font-bold text-slate-400">· · ·</td></tr>
+                                    : <Row key={key} e={e} />))}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
             )}
 
             {board && me && !me.rank && board.entries.length > 0 && (
@@ -150,6 +168,30 @@ export default function LeaderboardCard() {
         </section>
     );
 }
+
+/**
+ * The same standing as a table row, stacked for a phone: rank and face on the
+ * left, name above the details that would have been their own columns, XP and
+ * the movement on the right.
+ */
+const StackedRow = ({ e }) => (
+    <li className={`flex items-center gap-3 py-3 ${e.isMe ? 'bg-indigo-50/80' : ''}`}>
+        <span className="w-5 shrink-0 text-center font-bold tabular-nums text-slate-700">{e.rank}</span>
+        <Avatar e={e} size="h-9 w-9" ring={e.isMe ? 'ring-2 ring-rose-300' : ''} />
+        <div className="min-w-0 flex-1">
+            <p className={`truncate font-semibold ${e.isMe ? 'font-black text-slate-900' : 'text-slate-800'}`}>{e.isMe ? 'You' : e.name}</p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                <span className="rounded bg-indigo-50 px-1.5 font-bold text-indigo-700">Lv. {e.level}</span>
+                <span className="whitespace-nowrap">🔥 {e.streak} {e.streak === 1 ? 'day' : 'days'}</span>
+                {e.badge && <span title={`${e.badge.title}${e.badge.count > 1 ? ` +${e.badge.count - 1}` : ''}`}>{e.badge.emoji}</span>}
+            </p>
+        </div>
+        <span className="shrink-0 text-right">
+            <span className="block whitespace-nowrap font-bold tabular-nums text-slate-800">{num(e.xp)} XP</span>
+            <span className="mt-0.5 block text-xs"><Change m={e.movement} /></span>
+        </span>
+    </li>
+);
 
 const Row = ({ e }) => (
     <tr className={e.isMe ? 'rounded-xl bg-indigo-50/80' : ''}>
