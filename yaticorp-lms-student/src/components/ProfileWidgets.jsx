@@ -65,11 +65,17 @@ export const StatTile = ({ tone = 'amber', icon: Icon, value, suffix = '', label
 };
 
 /** Seven dots, oldest first, the way a calendar reads. */
+/**
+ * The week as seven circles. Today's circle carries a ring that is drawn
+ * outside its box, so the row is padded to leave room for it — without that
+ * the last day is clipped by the card it sits in. The circles themselves step
+ * down a size on the narrowest phones, where seven at full size do not fit.
+ */
 export const ActivityStrip = ({ days = [] }) => (
-    <ol className="flex items-end justify-between gap-1" aria-label="Activity this week">
+    <ol className="flex items-end justify-between gap-1 px-1" aria-label="Activity this week">
         {days.map((d, i) => (
             <li key={d.key} className="flex flex-1 flex-col items-center gap-1.5" style={{ animationDelay: `${i * 60}ms` }}>
-                <span className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-all duration-300 ${
+                <span className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold transition-all duration-300 sm:h-9 sm:w-9 sm:text-xs ${
                     d.active
                         ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-orange-200'
                         : d.isToday ? 'border-2 border-dashed border-indigo-300 text-indigo-500' : 'bg-slate-100 text-slate-400'

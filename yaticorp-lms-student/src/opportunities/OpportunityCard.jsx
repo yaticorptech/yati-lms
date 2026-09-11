@@ -43,24 +43,32 @@ export default function OpportunityCard({
 
     return (
         <article
-            className={`group relative flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg focus-within:border-indigo-300 ${
+            // min-w-0: as a grid item this would otherwise refuse to go below
+            // its own content width, and on a small phone that pushed the match
+            // badge and the buttons off the side of the screen.
+            className={`group relative flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg focus-within:border-indigo-300 ${
                 leaving ? 'opp-card-leave' : ''
             } ${liked ? 'ring-1 ring-rose-100' : ''}`}
             aria-label={opp.title}
         >
-            <div className="mb-3 flex items-start gap-3">
+            {/* The match badge drops below the title on a small phone rather
+                than squeezing it into a column too narrow for one word. */}
+            <div className="mb-3 flex flex-wrap items-start gap-3">
                 <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-2xl">
                     {opp.icon}
                 </span>
-                <div className="min-w-0 flex-1">
-                    <h3 className="font-bold leading-snug text-slate-900">
+                <div className="min-w-0 flex-1 basis-40">
+                    {/* break-words, not anywhere: the card can already shrink
+                        (min-w-0 on the article), so this only has to catch a
+                        word too long for the line rather than break every one. */}
+                    <h3 className="font-bold leading-snug text-slate-900 break-words">
                         <button type="button" onClick={() => onOpen?.(opp)}
                             className="text-left transition-colors hover:text-indigo-600 focus:outline-none focus-visible:rounded focus-visible:ring-2 focus-visible:ring-indigo-500/50">
                             {opp.title}
                         </button>
                     </h3>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-sm text-slate-600">
-                        <span className="truncate">{opp.organization?.name}</span>
+                        <span className="min-w-0 truncate">{opp.organization?.name}</span>
                         {opp.organization?.verified && (
                             <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-700">
                                 <BadgeCheck size={13} aria-hidden="true" /> Verified
@@ -83,7 +91,7 @@ export default function OpportunityCard({
                 )}
             </div>
 
-            <p className={`mb-2 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold ${
+            <p className={`mb-2 inline-flex w-fit max-w-full flex-wrap items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold ${
                 onDate ? 'border-indigo-200 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-slate-50 text-slate-700'
             }`}>
                 <CalendarDays size={13} aria-hidden="true" /> {dateLabel(opp)}{opp.timeLabel ? ` · ${opp.timeLabel}` : ''}

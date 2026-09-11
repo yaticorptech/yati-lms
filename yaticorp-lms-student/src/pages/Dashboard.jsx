@@ -274,12 +274,12 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
         <section className="space-y-6">
             {/* My Learning Tabs */}
             {/* Six tabs do not fit a phone at reading size. They used to scroll
-                sideways, which hid whichever tab was off the edge; now they
-                wrap onto a second line instead, so every tab is always in
-                view. Wrapping is also what keeps the strip from widening the
-                page itself, which is what pushed every other section off the
-                left edge before the scroll was added. */}
-            <div className="-mx-4 flex flex-wrap items-center gap-x-4 border-b border-slate-200 px-4 sm:mx-0 sm:gap-x-5 sm:px-0 lg:gap-x-7">
+                sideways, which hid whichever tab was off the edge; they wrap
+                onto a second line instead, so every tab is always in view.
+                The strip once bled to the screen edges with a negative margin,
+                which widened the page by that margin on a phone and set every
+                section scrolling sideways; it now stays inside its column. */}
+            <div className="flex flex-wrap items-center gap-x-4 border-b border-slate-200 sm:gap-x-5 lg:gap-x-7">
                 {tabs.map(({ key, label, icon: Icon }) => (
                     <button
                         key={key}
@@ -401,23 +401,30 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                 <p className="text-sm text-slate-500">Continue where you left off</p>
                             </div>
                             {inProgress.length ? (
+                            /* On a phone this row has nowhere near the width for four
+                               things side by side: the title column was being crushed to
+                               a few characters. The ring stands down there (the bar and
+                               the "% complete" line already say the same thing) and
+                               Continue takes its own full-width line. */
                             <ul className="stagger space-y-3">
                                 {inProgress.map((c, i) => (
-                                    <li key={c._id} className="group flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-white hover:shadow-md">
+                                    <li key={c._id} className="group flex flex-wrap items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-white hover:shadow-md sm:flex-nowrap sm:gap-4">
                                         <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-black text-white shadow-md ${['bg-indigo-500', 'bg-fuchsia-500', 'bg-sky-500'][i % 3]}`}>
                                             {getInitials(c.title)}
                                         </span>
-                                        <div className="min-w-0 flex-1">
+                                        <div className="min-w-0 flex-1 basis-40">
                                             <p className="truncate font-bold text-slate-800">{c.title}</p>
                                             <p className="text-xs text-slate-500">{c.completedLessons || 0} lesson{c.completedLessons === 1 ? '' : 's'} done · {c.progress}% complete</p>
                                             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
                                                 <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 transition-[width] duration-1000 ease-out" style={{ width: `${c.progress}%` }} />
                                             </div>
                                         </div>
-                                        <ProgressRing percent={c.progress} size={48} stroke={5} label={`${c.progress}% complete`}>
-                                            <span className="text-[11px] font-black tabular-nums text-slate-700">{c.progress}%</span>
-                                        </ProgressRing>
-                                        <Link to={`/learn/${c._id}`} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 group-hover:translate-x-0.5">
+                                        <span className="hidden shrink-0 sm:block">
+                                            <ProgressRing percent={c.progress} size={48} stroke={5} label={`${c.progress}% complete`}>
+                                                <span className="text-[11px] font-black tabular-nums text-slate-700">{c.progress}%</span>
+                                            </ProgressRing>
+                                        </span>
+                                        <Link to={`/learn/${c._id}`} className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 group-hover:translate-x-0.5 sm:w-auto sm:justify-start">
                                             <PlayCircle size={14} /> Continue
                                         </Link>
                                     </li>
