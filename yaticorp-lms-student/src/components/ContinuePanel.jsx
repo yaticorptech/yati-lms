@@ -29,6 +29,7 @@ import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
 // The brain's motion lives with the rest of the Career Path artwork.
 import '../career/components/artwork.css';
+import './continuePanel.css';
 
 // Once per browser session, so it returns tomorrow but not on every click.
 const SEEN_KEY = 'yati:dailyActivitySeen';
@@ -63,6 +64,13 @@ const LETTER_TONES = [
   'bg-gradient-to-br from-pink-400 to-rose-500 text-white shadow-pink-500/30',
   'bg-gradient-to-br from-emerald-400 to-teal-600 text-white shadow-emerald-500/30',
   'bg-gradient-to-br from-fuchsia-400 to-purple-600 text-white shadow-fuchsia-500/30'
+];
+
+// One burst of confetti: colour, where it starts across the panel, when.
+const CONFETTI = [
+  ['#7c3aed', 8, 0], ['#f472b6', 22, 0.12], ['#fbbf24', 36, 0.05], ['#34d399', 50, 0.18],
+  ['#60a5fa', 64, 0.08], ['#f97316', 78, 0.22], ['#a78bfa', 90, 0.14], ['#fde68a', 30, 0.3],
+  ['#f472b6', 58, 0.26], ['#34d399', 84, 0.34]
 ];
 
 /**
@@ -297,6 +305,22 @@ export default function ContinuePanel() {
           <div aria-hidden className="cp-drift pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-violet-200/60 blur-3xl" />
           <div aria-hidden className="cp-drift-late pointer-events-none absolute -right-10 -bottom-16 h-48 w-48 rounded-full bg-pink-200/60 blur-3xl" />
           <div aria-hidden className="cp-drift pointer-events-none absolute top-1/2 left-1/3 h-40 w-40 rounded-full bg-amber-100/60 blur-3xl" />
+          <div aria-hidden className="pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-violet-200/50 blur-3xl" />
+          <div aria-hidden className="pointer-events-none absolute -right-10 -bottom-16 h-48 w-48 rounded-full bg-pink-200/50 blur-3xl" />
+          {/* Sparkles drifting up, offset so they never rise in step. */}
+          {[
+            ['6%', '70%', '0s', '#a78bfa'], ['18%', '20%', '1.1s', '#f9a8d4'], ['40%', '80%', '2.2s', '#fbbf24'],
+            ['55%', '18%', '0.6s', '#c4b5fd'], ['88%', '76%', '1.7s', '#f472b6'], ['70%', '10%', '2.9s', '#fcd34d']
+          ].map(([left, top, delay, color]) => (
+            <span
+              key={`${left}-${top}`}
+              aria-hidden
+              className="cp-spark"
+              style={{ left, top, animationDelay: delay, color }}
+            >
+              ✦
+            </span>
+          ))}
 
           <button
             type="button"
@@ -309,18 +333,21 @@ export default function ContinuePanel() {
 
           <div className="relative flex items-center gap-6">
             <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-1.5 text-[11px] font-black tracking-[0.18em] text-violet-600 uppercase">
+              <p className="animate-fade-in-up flex items-center gap-1.5 text-[11px] font-black tracking-[0.18em] text-violet-600 uppercase">
                 <Target size={13} />
                 Today’s {kind.toLowerCase()}
               </p>
-              <h2 className="mt-2 text-2xl leading-tight font-black text-slate-900 sm:text-3xl">
+              <h2
+                className="animate-fade-in-up mt-2 text-2xl leading-tight font-black text-slate-900 sm:text-3xl"
+                style={{ animationDelay: '0.08s' }}
+              >
                 {result ? (
                   result.correct ? (
                     <>
                       Great start,{' '}
                       <span className="relative inline-block text-violet-600">
                         {firstName}!
-                        <span aria-hidden className="absolute -bottom-1 left-0 h-1 w-full rounded-full bg-amber-300" />
+                        <span aria-hidden className="cp-underline absolute -bottom-1 left-0 h-1 w-full rounded-full bg-amber-300" />
                       </span>
                     </>
                   ) : (
@@ -328,7 +355,7 @@ export default function ContinuePanel() {
                       Good try,{' '}
                       <span className="relative inline-block text-violet-600">
                         {firstName}!
-                        <span aria-hidden className="absolute -bottom-1 left-0 h-1 w-full rounded-full bg-amber-300" />
+                        <span aria-hidden className="cp-underline absolute -bottom-1 left-0 h-1 w-full rounded-full bg-amber-300" />
                       </span>
                     </>
                   )
@@ -337,12 +364,15 @@ export default function ContinuePanel() {
                     A quick one before you start,{' '}
                     <span className="relative inline-block text-violet-600">
                       {firstName}!
-                      <span aria-hidden className="absolute -bottom-1 left-0 h-1 w-full rounded-full bg-amber-300" />
+                      <span aria-hidden className="cp-underline absolute -bottom-1 left-0 h-1 w-full rounded-full bg-amber-300" />
                     </span>
                   </>
                 )}
               </h2>
-              <p className="mt-3 max-w-sm text-sm leading-relaxed text-slate-600 sm:text-[0.95rem]">
+              <p
+                className="animate-fade-in-up mt-3 max-w-sm text-sm leading-relaxed text-slate-600 sm:text-[0.95rem]"
+                style={{ animationDelay: '0.16s' }}
+              >
                 {result
                   ? result.correct
                     ? 'Brain warmed up. That is exactly how a good day begins.'
@@ -351,17 +381,23 @@ export default function ContinuePanel() {
               </p>
             </div>
 
-            <BrainArt happy={Boolean(result?.correct)} className="hidden h-44 w-52 shrink-0 sm:block" />
+            <div className="relative hidden shrink-0 sm:block">
+              <span aria-hidden className="cp-glow absolute inset-6 rounded-full bg-violet-300/50 blur-2xl" />
+              <div className={`cp-mascot relative ${result?.correct ? 'cp-jump' : ''}`}>
+                <BrainArt happy={Boolean(result?.correct)} className="h-44 w-52" />
+              </div>
+            </div>
           </div>
         </div>
 
         {/* ---- The question ---- */}
         <div className="space-y-4 px-6 py-5 sm:px-8">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+          <div className="animate-fade-in-up rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5" style={{ animationDelay: '0.12s' }}>
             <div className="flex items-start gap-3.5">
               <span
                 aria-hidden
-                className="grid h-12 w-12 shrink-0 grid-cols-2 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-sm leading-none font-black text-white shadow-md shadow-violet-500/30"
+                className="animate-pop-in grid h-12 w-12 shrink-0 grid-cols-2 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 text-sm leading-none font-black text-white shadow-md shadow-violet-500/30"
+                style={{ animationDelay: '0.25s' }}
               >
                 <span>+</span>
                 <span>−</span>
@@ -404,7 +440,9 @@ export default function ContinuePanel() {
                     onClick={() => submit(i)}
                     aria-label={option}
                     style={{ animationDelay: `${0.1 + i * 0.06}s` }}
-                    className={`animate-fade-in-up flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 disabled:cursor-default ${tone}`}
+                    className={`animate-fade-in-up flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 disabled:cursor-default ${tone} ${
+                      isWrongPick ? 'cp-shake' : isAnswer ? 'cp-correct' : ''
+                    }`}
                   >
                     <span className={`cp-letter flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${badge}`}>
                       {isAnswer ? <Check size={14} strokeWidth={3.5} /> : isWrongPick ? <X size={14} strokeWidth={3.5} /> : LETTERS[i]}
@@ -421,7 +459,7 @@ export default function ContinuePanel() {
 
           {/* ---- Tip on the left, verdict and the way on on the right ---- */}
           <div className="grid gap-4 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] sm:items-stretch">
-            <div className="flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+            <div className="animate-fade-in-up flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-4" style={{ animationDelay: '0.3s' }}>
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-amber-500 shadow-sm ring-1 ring-violet-100">
                 <Lightbulb size={18} />
               </span>
@@ -435,17 +473,29 @@ export default function ContinuePanel() {
               </div>
             </div>
 
-            <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-50 to-pink-50 p-4 text-center ring-1 ring-violet-100">
+            <div
+              className="animate-fade-in-up relative flex flex-col items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-50 to-pink-50 p-4 text-center ring-1 ring-violet-100"
+              style={{ animationDelay: '0.36s' }}
+            >
               {result ? (
                 <>
+                  {result.correct &&
+                    CONFETTI.map(([color, left, delay], i) => (
+                      <span
+                        key={i}
+                        aria-hidden
+                        className="cp-confetti"
+                        style={{ left: `${left}%`, background: color, animationDelay: `${delay}s` }}
+                      />
+                    ))}
                   <span aria-hidden className="pointer-events-none absolute top-2 left-3 text-amber-300">✦</span>
                   <span aria-hidden className="pointer-events-none absolute right-4 bottom-3 text-violet-300">✦</span>
                   <span aria-hidden className="pointer-events-none absolute top-3 right-6 text-pink-300">✦</span>
-                  <p className="animate-fade-in-up text-lg font-black text-violet-700">
-                    {result.correct ? 'Great start!' : 'Nice try!'}
+                  <p className="animate-pop-in text-lg font-black text-violet-700">
+                    {result.correct ? 'Great start! 🎉' : 'Nice try!'}
                   </p>
                   <p className="mt-0.5 flex flex-wrap items-center justify-center gap-x-2 text-sm font-semibold text-slate-600">
-                    {result.correct ? 'You got it right! 🎉' : 'Tomorrow brings another.'}
+                    {result.correct ? 'You got it right!' : 'Tomorrow brings another.'}
                     {result.xpAwarded > 0 && (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-800">
                         +{result.xpAwarded} XP
