@@ -18,16 +18,6 @@ const { lastRun, claimRun, markRun } = require("../services/stateService.js");
 
 const router = express.Router();
 
-const OpportunityProfile = require("../models/OpportunityProfile");
-const { ageFrom, bandFor } = require("../services/eligibilityRules");
-
-/** True when the student's opportunity profile puts them under 18. */
-const isMinor = async (userId) => {
-  const profile = await OpportunityProfile.findOne({ userId }).select("dateOfBirth").lean();
-  const band = bandFor(ageFrom(profile?.dateOfBirth));
-  return !!band && band.id !== "adult";
-};
-
 /** Candidate pool size pulled from Mongo before in-memory scoring. */
 const POOL_LIMIT = 600;
 
@@ -598,15 +588,11 @@ router.post("/recommend", async (req, res, next) => {
       });
     }
 
-    // The scraped board carries no age data, so it is closed to anyone whose
-    // opportunity profile says they are under 18 — at the API, not only in
-    // the UI that hides the tab. See services/eligibilityRules.js.
-    if (await isMinor(req.user._id)) {
-      return res.status(403).json({
-        code: "JOBS_MINOR",
-        error: "The global job board is for students aged 18 and over. Your Opportunities tab has what's open to you.",
-      });
-    }
+    // The scraped board carries no age data. It used to be closed to anyone
+    // under 18 for that reason; it is now open to every student, and the
+    // student app says plainly on the board that the listings are not
+    // age-checked. Jobs written for a younger age, with a guardian in the
+    // loop, remain under Part-Time Jobs. See services/eligibilityRules.js.
 
     // Resolve what the user typed into a real place before anything reads it.
     // A bare city carries no country of its own, so without this the ranker

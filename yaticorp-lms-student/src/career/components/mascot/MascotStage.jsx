@@ -6,9 +6,10 @@ import { claimStage, getStageOwner, releaseStage, subscribeStage } from './stage
 /**
  * 🎪 The stage: the only thing in the application that renders a mascot.
  *
- * Mounted once, in StudentLayout, above every route. Not in CareerShell —
- * five of the mascots this replaces lived on pages Career Path never sees, and
- * the one-mascot rule is app-wide.
+ * Mounted once, by CareerPathMascot inside CareerShell. That is deliberate
+ * and is what confines the character to Career Path: leaving the section
+ * unmounts the shell, the stage goes with it, and no other part of the
+ * application can put a mascot on screen.
  *
  * Uniqueness is a module-level claim rather than a convention or a hiding
  * trick. A second stage cannot take ownership and renders nothing at all, so
@@ -24,7 +25,7 @@ export default function MascotStage() {
     if (!claimStage(id)) {
       console.error(
         '[mascot] A second MascotStage was mounted and will render nothing. ' +
-          'There must be exactly one, in StudentLayout.'
+          'There must be exactly one, mounted by CareerPathMascot.'
       );
     }
     return () => releaseStage(id);

@@ -126,6 +126,7 @@ function ActiveRow({ skill, task, tile, index, closest }) {
             {task && (
               <Link
                 to="/career/planner"
+                data-guide={closest ? 'today-task' : undefined}
                 className="fp-press group inline-flex max-w-full items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 py-1.5 pr-3 pl-2.5 text-xs font-black text-white shadow-md shadow-journey-500/25 transition-all hover:from-journey-700 hover:to-indigo-700"
               >
                 <Zap className="h-3.5 w-3.5 shrink-0 fill-amber-300 text-amber-300" />
@@ -291,7 +292,7 @@ export default function Skills() {
             }
           />
         ) : (
-          <Card padded={false} className="overflow-hidden">
+          <Card data-guide="skill-progress" padded={false} className="overflow-hidden">
             <div className="space-y-6 p-4 sm:p-5">
               {/* ---- IN PROGRESS ---- */}
               {active.length > 0 && (

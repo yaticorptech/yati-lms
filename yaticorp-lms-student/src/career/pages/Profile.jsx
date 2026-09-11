@@ -409,7 +409,7 @@ export default function Profile() {
     <div className="fp-enter grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_16rem]">
       <div className="min-w-0 space-y-5">
         {/* ---- Identity, level, and what it is all pointed at ----------- */}
-        <Card padded={false} className="overflow-hidden">
+        <Card data-guide="progress-summary" padded={false} className="overflow-hidden">
           <div className="relative overflow-hidden bg-gradient-to-r from-journey-50 via-surface to-amber-50/70 p-5 sm:p-6">
             <div
               aria-hidden

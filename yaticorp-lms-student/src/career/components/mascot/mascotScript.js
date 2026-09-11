@@ -64,7 +64,10 @@ const playStep = async (step, token) => {
   if (step.walkTo) {
     const ok = await bringIntoView(step.walkTo);
     if (token.cancelled) return false;
-    if (!ok || !findTarget(step.walkTo)) return false;
+    // `optional` is for an element a page only sometimes has — an empty
+    // planner has no task list. Skipping the step keeps the rest of the
+    // sequence; treating it as a vanished target would abandon it.
+    if (!ok || !findTarget(step.walkTo)) return !!step.optional;
     mascot.goTo(step.walkTo, { state: 'walking', priority: PRIORITY.guidance });
     await sleep(step.hold ?? step.ms ?? 900, token);
     return !token.cancelled;
@@ -72,9 +75,10 @@ const playStep = async (step, token) => {
 
   // Arrive, face it, point at it, and say why.
   if (step.point) {
-    if (!findTarget(step.point)) return false;
+    if (!findTarget(step.point)) return !!step.optional;
     mascot.goTo(step.point, {
-      state: 'pointing',
+      state: step.state ?? 'pointing',
+      prefer: step.prefer ?? null,
       message: step.say ?? null,
       ms: step.ms,
       priority: PRIORITY.guidance
@@ -105,7 +109,12 @@ const playStep = async (step, token) => {
   }
 
   if (step.say) {
-    mascot.say(step.say, { ms: step.ms ?? 4200, priority: PRIORITY.guidance, anchor: step.at ?? null });
+    mascot.say(step.say, {
+      ms: step.ms ?? 4200,
+      priority: PRIORITY.guidance,
+      anchor: step.at ?? null,
+      ...(step.state ? { state: step.state } : {})
+    });
     await sleep(step.hold ?? READ_MS, token);
     return !token.cancelled;
   }
@@ -129,7 +138,7 @@ const playStep = async (step, token) => {
 };
 
 /** Start a sequence, abandoning any sequence already in flight. */
-const run = async (steps, { onEnd } = {}) => {
+const run = async (steps, { onEnd, stay = false } = {}) => {
   cancel();
   const token = makeToken();
   running = token;
@@ -142,9 +151,17 @@ const run = async (steps, { onEnd } = {}) => {
 
   if (running === token) {
     running = null;
-    // However a script ends — finished, target gone, student ignored it — the
-    // character returns to a sensible resting place rather than freezing.
-    if (!token.cancelled) mascot.dock();
+    /*
+     * However a script ends — finished, target gone, student ignored it —
+     * the character returns to a resting place rather than freezing.
+     *
+     * Unless it was sent somewhere to stay. Page guidance ends standing
+     * beside the thing it is pointing at and belongs there until the
+     * student scrolls past it or leaves the page; walking home the moment
+     * it had finished its sentence was the behaviour that made the guidance
+     * useless, because the answer left before the question was read.
+     */
+    if (!token.cancelled && !stay) mascot.dock();
     onEnd?.(token.cancelled ? 'cancelled' : 'finished');
   }
 };

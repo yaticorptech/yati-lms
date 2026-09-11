@@ -8,7 +8,6 @@ import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
-import MascotStage from '../career/components/mascot/MascotStage';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
 import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet, Mic } from 'lucide-react';
 import api from '../utils/api';
@@ -407,12 +406,6 @@ const StudentLayout = () => {
 );
     return (
         <div className="flex h-screen bg-slate-50 text-slate-900 font-sans">
-            {/* The one mascot in the whole application. It lives here rather
-                than inside Career Path because five of the mascots it replaced
-                were on pages Career Path never sees, and there may only ever
-                be one. Pages declare slots; nothing else renders a character. */}
-            <MascotStage />
-
             {/* Raised whenever something wants to write to a student's own
                 Google account. Mounted once so the explanation they read is
                 written in exactly one place. */}
@@ -456,7 +449,12 @@ const StudentLayout = () => {
             )}
 
             {/* Desktop Sidebar */}
-            <aside className="hidden md:flex w-64 bg-slate-900 text-white flex-col z-10 shadow-xl">
+            {/* data-mascot-clear: the Career Path companion measures the page
+                to find somewhere to stand, and the gutter beside the content
+                looks like empty space to it. This marks the navigation as
+                somewhere it may not stand. Read only by the mascot; nothing
+                about this sidebar changes. */}
+            <aside data-mascot-clear className="hidden md:flex w-64 bg-slate-900 text-white flex-col z-10 shadow-xl">
                 <div className="p-6 flex items-center justify-center border-b border-slate-800 bg-slate-900">
                     <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
                 </div>
