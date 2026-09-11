@@ -329,15 +329,20 @@ export default function Jobs() {
         opportunitiesApi.profile().then(setOppData).catch(() => setOppData(null));
     }, []);
 
-    /* A minor never sees the global board: whatever tab the URL or a click
-       asked for, the page answers with Opportunities. */
+    /* Every tab is open to every student now. Under-18s still land on
+       Part-Time Jobs first, because that is the part of the section written
+       for their age, but nothing stops them looking at the rest — the global
+       board carries a notice instead, since those listings are scraped and
+       carry no age information. */
     const minor = MINOR_BANDS.includes(oppData?.band);
+    const [landed, setLanded] = useState(false);
     useEffect(() => {
-        if (minor && tab !== 'opportunities') {
+        if (minor && !landed && !params.get('tab')) {
+            setLanded(true);
             setTab('opportunities');
             setParams((prev) => { const next = new URLSearchParams(prev); next.set('tab', 'opportunities'); return next; }, { replace: true });
         }
-    }, [minor, tab, setParams]);
+    }, [minor, landed, params, setParams]);
 
     /**
      * Optimistic either way: the icon answers the tap, the server catches up,
@@ -697,7 +702,7 @@ export default function Jobs() {
     }
 
 
-    const showOpportunities = minor || tab === 'opportunities';
+    const showOpportunities = tab === 'opportunities';
 
     return (
         <div className="space-y-5 animate-fade-in pb-12">
@@ -710,7 +715,8 @@ export default function Jobs() {
                 />
             )}
 
-            {!minor && <JobsTabs tabs={TABS} active={tab} onChange={switchTab} counts={{ saved: savedJobs.length }} />}
+            <JobsTabs tabs={TABS} active={tab} onChange={switchTab} counts={{ saved: savedJobs.length }} />
+
 
             {showOpportunities ? (
                 <OpportunitiesTab data={oppData} onData={setOppData} careerPathEnabled={isCareerPathEnabled}

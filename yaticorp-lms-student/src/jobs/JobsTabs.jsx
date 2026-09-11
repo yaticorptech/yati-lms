@@ -17,34 +17,38 @@ const TONES = {
 };
 
 export default function JobsTabs({ tabs, active, onChange, counts = {} }) {
+    // Five tabs in one row need 760px, which no phone has. Rather than
+    // scrolling them sideways — where whichever tab is off the edge is the one
+    // nobody finds — they wrap onto a grid and the strip fits. The single row,
+    // and the dividers that only make sense in one, return when there is room.
     return (
-        <nav aria-label="Job views" className="overflow-x-auto rounded-[28px] border border-slate-100 bg-white shadow-lg shadow-indigo-100/60">
-            <div role="tablist" className="grid min-w-[760px] grid-cols-5 gap-0 p-2">
+        <nav aria-label="Job views" className="rounded-[28px] border border-slate-100 bg-white shadow-lg shadow-indigo-100/60 lg:overflow-x-auto">
+            <div role="tablist" className="grid grid-cols-2 gap-1 p-2 sm:grid-cols-3 lg:min-w-[760px] lg:grid-cols-5 lg:gap-0">
                 {tabs.map(({ id, label, hint, icon: Icon, tone = 'indigo' }, i) => {
                     const on = id === active;
                     const count = counts[id];
                     return (
-                        <div key={id} className={`relative px-1 ${i > 0 ? 'before:absolute before:bottom-4 before:left-0 before:top-4 before:w-px before:bg-slate-200' : ''}`}>
+                        <div key={id} className={`relative px-1 ${i > 0 ? 'lg:before:absolute lg:before:bottom-4 lg:before:left-0 lg:before:top-4 lg:before:w-px lg:before:bg-slate-200' : ''}`}>
                             <button
                                 type="button"
                                 role="tab"
                                 aria-selected={on}
                                 onClick={() => onChange(id)}
-                                className={`relative flex h-full w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-all duration-200 ${
+                                className={`relative flex h-full w-full items-center gap-2.5 rounded-2xl px-2.5 py-3 text-left transition-all duration-200 sm:gap-3 sm:px-3 ${
                                     on ? 'bg-indigo-50/40 ring-[1.5px] ring-indigo-500' : 'hover:bg-slate-50'
                                 }`}
                             >
-                                <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${TONES[tone]}`}>
-                                    <Icon size={22} strokeWidth={1.9} />
+                                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 ${TONES[tone]}`}>
+                                    <Icon size={20} strokeWidth={1.9} className="sm:h-[22px] sm:w-[22px]" />
                                 </span>
                                 <span className="min-w-0">
-                                    <span className={`block text-[15px] font-bold leading-snug ${on ? 'text-indigo-600' : 'text-slate-900'}`}>
+                                    <span className={`block text-sm font-bold leading-snug sm:text-[15px] ${on ? 'text-indigo-600' : 'text-slate-900'}`}>
                                         {label}
                                         {count > 0 && (
                                             <span className={`ml-1.5 rounded-full px-1.5 py-0.5 align-middle text-[10px] font-bold tabular-nums ${on ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>{count}</span>
                                         )}
                                     </span>
-                                    <span className={`mt-0.5 block text-[13px] ${on ? 'text-indigo-500' : 'text-slate-500'}`}>{hint}</span>
+                                    <span className={`mt-0.5 hidden text-[13px] sm:block ${on ? 'text-indigo-500' : 'text-slate-500'}`}>{hint}</span>
                                 </span>
                                 {on && <span aria-hidden="true" className="absolute bottom-[3px] left-1/2 h-[3px] w-20 -translate-x-1/2 rounded-full bg-indigo-600" />}
                             </button>

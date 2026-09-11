@@ -50,6 +50,8 @@ const LABEL = 'mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em] te
 export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel }) {
     const today = toDateInput(new Date());
     const [form, setForm] = useState(() => ({
+        guardianName: initial?.guardianName || '',
+        guardianEmail: initial?.guardianEmail || '',
         guardianPhone: phoneDigits(initial?.guardianPhone),
         dateOfBirth: toDateInput(initial?.dateOfBirth) || '',
         wantFrom: toDateInput(initial?.wantFrom) || today,
@@ -61,10 +63,13 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
     const [error, setError] = useState('');
 
     const phoneOk = /^[6-9]\d{9}$/.test(form.guardianPhone);
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.guardianEmail.trim());
     // Worked out as they type, so they can see at once whether the date they
     // entered is the one they meant. null until the date is a real past one.
     const age = ageFromDob(form.dateOfBirth);
     const band = bandFromAge(age);
+    /** Under fifteen, every job application needs a guardian to agree first. */
+    const needsGuardian = age != null && age < 15;
     const update = (patch) => { setError(''); setForm((f) => ({ ...f, ...patch })); };
     const toggle = (id) => update({ interests: form.interests.includes(id) ? form.interests.filter((x) => x !== id) : [...form.interests, id] });
 
@@ -76,6 +81,11 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
         if (wantTo < form.wantFrom) return setError('The end date is before the start date.');
         if (!form.interests.length) return setError('Pick at least one interest.');
         if (form.guardianPhone && !phoneOk) return setError('Enter a 10-digit Indian mobile number for your parent.');
+        // Under fifteen a guardian has to approve each job, so their name and
+        // address are needed here rather than at the worst possible moment.
+        if (form.guardianEmail && !emailOk) return setError("Enter a valid email address for your parent or guardian.");
+        if (needsGuardian && !emailOk) return setError("Add your parent or guardian's email address — that is where the job permission request is sent.");
+        if ((needsGuardian || form.guardianEmail) && !form.guardianName.trim()) return setError("Add your parent or guardian's name too — the request is addressed to them.");
         setBusy(true);
         try {
             const res = await opportunitiesApi.saveProfile({ ...form, wantTo });
@@ -139,10 +149,26 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
                         Just one day
                     </label>
                 </Section>
-                <Section icon={Smartphone} n={2} title="Parent's phone number" hint="A parent or guardian we can reach about the work. Needed for students under 18.">
+                <Section icon={Smartphone} n={2} title="Your parent or guardian"
+                    hint={needsGuardian
+                        ? 'Required for your age. Applying for a job emails them the details, and the job waits until they approve it.'
+                        : 'Who we reach about the work. Needed for students under 18.'}>
                     <div className="grid gap-3">
                         <div>
-                            <label htmlFor="opp-guardian-phone" className={LABEL}>Mobile number</label>
+                            <label htmlFor="opp-guardian-name" className={LABEL}>Their name</label>
+                            <input id="opp-guardian-name" autoComplete="off" maxLength={80} placeholder="e.g. Devaki"
+                                value={form.guardianName} onChange={(e) => update({ guardianName: e.target.value })}
+                                className={INPUT} />
+                        </div>
+                        <div>
+                            <label htmlFor="opp-guardian-email" className={LABEL}>Their email address</label>
+                            <input id="opp-guardian-email" type="email" autoComplete="off" maxLength={160} placeholder="e.g. devaki@example.com"
+                                value={form.guardianEmail} onChange={(e) => update({ guardianEmail: e.target.value })}
+                                className={INPUT} />
+                            <p className="mt-1 text-xs text-slate-500">The job permission request is emailed here.</p>
+                        </div>
+                        <div>
+                            <label htmlFor="opp-guardian-phone" className={LABEL}>Mobile number <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></label>
                             <div className={`${INPUT} flex items-center gap-2 p-0 ${form.guardianPhone.length === 10 && !phoneOk ? 'border-rose-300' : ''}`}>
                                 <span className="pl-4 text-sm font-bold text-slate-500">+91</span>
                                 <input id="opp-guardian-phone" inputMode="numeric" autoComplete="off" placeholder="98765 43210"

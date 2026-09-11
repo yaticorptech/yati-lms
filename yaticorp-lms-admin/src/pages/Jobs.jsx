@@ -15,6 +15,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import LocalJobsPanel from '../components/LocalJobsPanel';
+import PartTimeApplicationsPanel from '../components/PartTimeApplicationsPanel';
 import {
     Briefcase, Database, MapPin, Search, Sparkles, RefreshCw, Lock, Unlock
 } from 'lucide-react';
@@ -180,6 +181,7 @@ const Jobs = () => {
 
             {/* ── Local jobs the admin posts (the students' Opportunities tab) ── */}
             <LocalJobsPanel />
+            <PartTimeApplicationsPanel />
 
             {/* ── Index health ─────────────────────────────────────────── */}
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
