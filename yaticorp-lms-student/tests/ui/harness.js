@@ -12,7 +12,7 @@
  */
 import { build } from 'esbuild';
 import http from 'node:http';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
@@ -28,6 +28,17 @@ export const CHROME = [
 ].find((p) => existsSync(p));
 export const skipWithoutChrome = CHROME ? false : 'no Chrome on this machine';
 
+/** The app's built stylesheet, or null when the app has not been built. */
+export const builtStylesheet = () => {
+    const assets = path.join(ROOT, 'dist', 'assets');
+    if (!existsSync(assets)) return null;
+    const name = readdirSync(assets).find((f) => f.startsWith('index-') && f.endsWith('.css'));
+    return name ? path.join(assets, name) : null;
+};
+/** Why a layout test cannot run here, or false when it can. */
+export const skipWithoutStyles = skipWithoutChrome
+    || (builtStylesheet() ? false : 'the app has not been built — run `npx vite build` first');
+
 const run = (cmd, args) => new Promise((resolve, reject) =>
     execFile(cmd, args, { maxBuffer: 64 * 1024 * 1024 }, (err, stdout) => (err ? reject(err) : resolve(stdout))));
 
@@ -38,12 +49,16 @@ const run = (cmd, args) => new Promise((resolve, reject) =>
  * @param {string} o.script  browser code, its return value comes back as `result`
  * @param {number} [o.width] viewport width
  * @param {object} [o.files] extra files to serve, keyed by url path
+ * @param {boolean} [o.styles] serve the app's real stylesheet, for a test that
+ *                 measures layout rather than text. Needs `npx vite build` to
+ *                 have produced dist/; without it the test is skipped, because
+ *                 measuring an unstyled page would pass on anything.
  * @param {number} [o.budget] milliseconds of page time before Chrome gives up.
  *                 Timers run as fast as they can inside it, so this is a
  *                 ceiling on the clock the page sees, not on how long the test
  *                 takes. Raise it for a screen that waits on a long timeout.
  */
-export const screen = async ({ entry, api, script, width = 1400, height = 1400, budget = 12000, files = {} }) => {
+export const screen = async ({ entry, api, script, width = 1400, height = 1400, budget = 12000, styles = false, files = {} }) => {
     const cache = path.join(ROOT, 'node_modules', '.cache');
     await mkdir(cache, { recursive: true });
     const dir = await mkdtemp(path.join(cache, 'ui-test-'));
@@ -67,7 +82,11 @@ export const screen = async ({ entry, api, script, width = 1400, height = 1400, 
             }]
         });
 
-        await writeFile(path.join(dir, 'index.html'), `<!doctype html><html><head><meta charset="utf-8"></head><body>
+        // The bundle stubs every CSS import away, so a page is unstyled unless
+        // the built stylesheet is asked for. Only a layout test needs it.
+        const sheet = styles ? `<link rel="stylesheet" href="/app.css">` : '';
+        await writeFile(path.join(dir, 'index.html'), `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">${sheet}</head><body>
 <div id="root"></div>
 <script>window.__errors = [];
 window.addEventListener('error', (e) => window.__errors.push(String(e.message)));
@@ -97,6 +116,13 @@ window.addEventListener('unhandledrejection', (e) => window.__errors.push('rejec
 
         server = http.createServer(async (req, res) => {
             const url = req.url.split('?')[0];
+            if (url === '/app.css') {
+                try {
+                    const body = await readFile(builtStylesheet());
+                    res.writeHead(200, { 'Content-Type': 'text/css' });
+                    return res.end(body);
+                } catch { return res.writeHead(404).end('no stylesheet'); }
+            }
             const file = alias[url] || (url === '/' ? 'index.html' : url.slice(1));
             try {
                 const body = await readFile(path.join(dir, file));

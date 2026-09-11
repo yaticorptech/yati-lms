@@ -244,12 +244,14 @@ export default function ResumeSection() {
             <div className="relative overflow-hidden bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3.5 sm:px-5">
                 <div className="relative flex flex-wrap items-center gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-md"><Lightbulb size={20} /></span>
-                    <div className="min-w-0 flex-1">
+                    {/* See the same block in CertificatesFrame: the basis is
+                        what moves the button to its own line on a phone. */}
+                    <div className="min-w-0 flex-1 basis-56">
                         <p className="text-sm font-bold text-slate-900">Tip for Better Results <span className="text-amber-400">✨</span></p>
                         <p className="text-xs leading-relaxed text-slate-600">Keep your resume updated and complete more courses to improve your job matches and stand out!</p>
                     </div>
                     <button type="button" onClick={() => setShowAbout(true)}
-                        className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50">
+                        className="inline-flex min-h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 sm:w-auto sm:justify-start">
                         <Info size={14} /> How it works
                     </button>
                 </div>

@@ -129,8 +129,11 @@ export default function GlobalQuiz() {
         ? paper.questions.map((q, i) => [q, i])
         : [[paper.questions[current], current]];
 
+    // The panel stays inside its column. It used to bleed past it with a
+    // negative margin, which widened the page by that margin on a phone and
+    // set the whole tab scrolling sideways.
     return (
-        <div className="relative isolate -m-2 overflow-hidden rounded-[2rem] bg-violet-50/60 p-2 sm:p-3 animate-fade-in">
+        <div className="relative isolate overflow-hidden rounded-[2rem] bg-violet-50/60 p-2 sm:p-3 animate-fade-in">
             <Waves className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-40 w-full opacity-70" />
 
             {/* ── Banner ──────────────────────────────────────────── */}
