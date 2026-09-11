@@ -328,14 +328,17 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                    one row, two columns; they stack on a phone. ───────────── */}
             <div className="grid gap-2.5 px-4 py-3 sm:px-5 md:grid-cols-2">
                 <Tile to="/enrolled-courses" icon={RefreshCw} title="Earn More" sub="Finish a course to get a verified one" tone="rose" />
-                <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-md"><Lightbulb size={20} /></span>
-                    <div className="min-w-0 flex-1">
+                    {/* A base width, not just flex-1: beside a button that will
+                        not shrink, a basis of zero squeezes the tip down to one
+                        word a line instead of moving the button below it. */}
+                    <div className="min-w-0 flex-1 basis-56">
                         <p className="text-sm font-bold text-slate-900">Tip for Better Results <span className="text-amber-400">✨</span></p>
                         <p className="text-xs leading-relaxed text-slate-600">Complete more courses and add your certificates here to improve your job matches and stand out.</p>
                     </div>
                     <button type="button" onClick={() => setShowAbout(true)}
-                        className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50">
+                        className="inline-flex min-h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 sm:w-auto sm:justify-start">
                         <Info size={14} /> How it works
                     </button>
                 </div>

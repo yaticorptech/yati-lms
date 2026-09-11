@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import '../dashboard/overviewCardArt.css';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Check, Flag, Lock } from 'lucide-react';
 import { phaseStates, phaseTitle, parseChoices } from '../../utils/roadmap';
@@ -118,7 +119,7 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
                   {index > 0 && <Track walked={states[index - 1] === 'done'} />}
 
                   <div
-                    className={`flex w-32 min-w-32 flex-1 flex-col items-center rounded-2xl px-2.5 pt-4 pb-3 text-center transition-transform sm:w-36 sm:min-w-36 lg:max-w-52 ${
+                    className={`relative isolate flex w-32 min-w-32 flex-1 flex-col items-center rounded-2xl px-2.5 pt-4 pb-3 text-center transition-transform sm:w-36 sm:min-w-36 lg:max-w-52 ${
                       done
                         ? 'bg-emerald-50/70 ring-1 ring-emerald-100 ring-inset'
                         : current
@@ -126,6 +127,14 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
                           : 'bg-surface-50 ring-1 ring-line-200 ring-inset'
                     }`}
                   >
+                    {/* Texture by state, not by position — a walked stage, the
+                        one being stood on, and one still shut should not look
+                        alike with the words covered. Decoration only. */}
+                    <span
+                      aria-hidden
+                      className={`js-art ${done ? 'js-done' : current ? 'js-current' : 'js-locked'}`}
+                    />
+                    <span aria-hidden className="js-core" />
                     <span className="relative flex h-12 w-12 items-center justify-center">
                       {/* Three pulses on the live checkpoint, then still — long
                           enough to find it on arrival, not so long that it is
@@ -190,7 +199,9 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
               style={{ animationDelay: `${0.15 + phases.length * 0.08}s` }}
             >
               <Track walked={doneCount === phases.length} />
-              <div className="flex w-32 min-w-32 flex-1 flex-col items-center rounded-2xl bg-amber-50 px-2.5 pt-4 pb-3 text-center ring-1 ring-amber-200 ring-inset sm:w-36 sm:min-w-36 lg:max-w-52">
+              <div className="relative isolate flex w-32 min-w-32 flex-1 flex-col items-center rounded-2xl bg-amber-50 px-2.5 pt-4 pb-3 text-center ring-1 ring-amber-200 ring-inset sm:w-36 sm:min-w-36 lg:max-w-52">
+                <span aria-hidden className="js-art js-destination" />
+                <span aria-hidden className="js-core" />
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-orange-600/30">
                   <Flag className="h-5 w-5" strokeWidth={2.6} />
                 </span>
