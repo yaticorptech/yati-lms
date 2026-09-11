@@ -349,7 +349,7 @@ export default function SettingsPage() {
         {/* ---------------------------------------------------------------
             Education
         --------------------------------------------------------------- */}
-        <Card className="animate-fade-in-up">
+        <Card data-guide="settings-panel" className="animate-fade-in-up">
           <CardHeader
             icon={GraduationCap}
             title="Where you are studying"
@@ -636,7 +636,9 @@ export default function SettingsPage() {
           pass, and fixed rather than sticky so it stays put on a long form.
       --------------------------------------------------------------- */}
       {editing && isDirty && (
-        <div className="animate-fade-in-up fixed inset-x-0 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-40 border-t border-line-200 bg-surface/95 px-4 py-3 shadow-[0_-4px_16px_-6px_rgb(16_24_40/0.12)] backdrop-blur md:bottom-0 md:left-64">
+        <div
+          data-mascot-avoid
+          className="animate-fade-in-up fixed inset-x-0 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-40 border-t border-line-200 bg-surface/95 px-4 py-3 shadow-[0_-4px_16px_-6px_rgb(16_24_40/0.12)] backdrop-blur md:bottom-0 md:left-64">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold text-ink-700">
               <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-amber-500 align-middle" />

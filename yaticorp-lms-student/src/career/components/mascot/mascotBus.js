@@ -34,6 +34,15 @@ const BASE = {
    */
   mode: 'hidden',
   visible: false,
+  /*
+   * Told to go, rather than simply having nowhere to stand.
+   *
+   * Without this the two are indistinguishable, and the automatic rule below
+   * reads "hidden, but a slot exists" as "bring it back" — so a character
+   * sent away because the student scrolled past what it was explaining
+   * walked straight back on again.
+   */
+  suppressed: false,
   state: 'idle',
   pose: STATES.idle.pose,
   body: STATES.idle.body,
@@ -44,6 +53,8 @@ const BASE = {
   lastMessage: null,
   cta: null,
   anchor: null,
+  // Which side of the anchor the page would rather it stood on.
+  prefer: null,
   // A slot the caller would rather dock into, when one is named.
   slot: null,
   // Bumped on every commit so the view can restart one-shot animations.
@@ -126,17 +137,26 @@ const SPEAK_MS = 6000;
  * this system exists to be rid of: the state holds until the application
  * reports something new.
  */
-const play = ({ state = 'idle', pose, body, message = null, cta = null, anchor, ms, priority = PRIORITY.ambient }) => {
+const play = ({ state = 'idle', pose, body, message = null, cta = null, anchor, prefer, ms, priority = PRIORITY.ambient }) => {
   if (priority < holdPriority && now() < holdUntil) return false;
 
   const base = STATES[isState(state) ? state : 'idle'];
-  const speakFor = message ? (ms ?? SPEAK_MS) : 0;
+  /*
+   * `ms: 0` means the line stands until something replaces it.
+   *
+   * Page guidance needs this. A student who is being shown where to click
+   * has not been given a few seconds to read and then abandoned — the
+   * instruction is true for as long as they are looking at the thing it is
+   * about, so it is cleared by leaving, not by a clock.
+   */
+  const persistent = !!message && ms === 0;
+  const speakFor = message && !persistent ? (ms ?? SPEAK_MS) : 0;
 
   clearTimer();
   holdPriority = priority;
   // The priority window lasts as long as the words; after that anything may
   // speak again, while the pose stays exactly where it was left.
-  holdUntil = speakFor ? now() + speakFor : 0;
+  holdUntil = persistent ? Infinity : speakFor ? now() + speakFor : 0;
 
   commit({
     mode: 'active',
@@ -146,7 +166,8 @@ const play = ({ state = 'idle', pose, body, message = null, cta = null, anchor, 
     body: body || base.body,
     message,
     cta,
-    ...(anchor === undefined ? {} : { anchor })
+    ...(anchor === undefined ? {} : { anchor }),
+    ...(prefer === undefined ? {} : { prefer })
   });
 
   if (speakFor) {
@@ -182,9 +203,10 @@ export const installScriptRunner = ({ run, cancel }) => {
  *
  * Returns 'dock', 'hide', or null for leave it alone.
  */
-export const autoMode = ({ mode, busy, hasSlot, overlay }) => {
+export const autoMode = ({ mode, busy, hasSlot, overlay, suppressed = false }) => {
   if (busy || overlay) return null;
-  if (mode === 'hidden' && hasSlot) return 'dock';
+  // Sent away on purpose: only an explicit enter() brings it back.
+  if (mode === 'hidden' && hasSlot && !suppressed) return 'dock';
   if (mode === 'docked' && !hasSlot) return 'hide';
   return null;
 };
@@ -192,7 +214,7 @@ export const autoMode = ({ mode, busy, hasSlot, overlay }) => {
 export const mascot = {
   /** Bring the character on stage, docked unless told otherwise. */
   enter(opts = {}) {
-    commit({ mode: 'docked', visible: true });
+    commit({ mode: 'docked', visible: true, suppressed: false });
     if (opts.message || opts.state) play({ priority: PRIORITY.guidance, ...opts });
     return mascot;
   },
@@ -203,7 +225,7 @@ export const mascot = {
     clearTimer();
     holdUntil = 0;
     holdPriority = 0;
-    commit({ mode: 'hidden', visible: false, message: null, cta: null, anchor: null });
+    commit({ mode: 'hidden', visible: false, suppressed: true, message: null, cta: null, anchor: null, prefer: null });
     return mascot;
   },
 
@@ -216,12 +238,14 @@ export const mascot = {
     commit({
       mode: 'docked',
       visible: true,
+      suppressed: false,
       state: 'idle',
       pose: STATES.idle.pose,
       body: STATES.idle.body,
       message: null,
       cta: null,
       anchor: null,
+      prefer: null,
       slot
     });
     return mascot;
@@ -311,6 +335,7 @@ const BRIDGE = {
   'mascot:quiz-start': () => mascot.react('quizStart'),
   'mascot:quiz-end': () => mascot.rest(),
   'mascot:quiz-result': (e) => mascot.react(e.detail?.passed ? 'quizPassed' : 'quizFailed'),
+  'mascot:game-start': () => mascot.react('gameStart'),
   'mascot:game-result': (e) => mascot.react(e.detail?.passed ? 'gameWon' : 'gameLost'),
   'mascot:task-start': () => mascot.react('taskStart'),
   'mascot:section-complete': () => mascot.react('dayCleared'),

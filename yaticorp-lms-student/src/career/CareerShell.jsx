@@ -24,7 +24,7 @@ import api from './services/api';
 import { AuthContext } from './context/AuthContext';
 import CareerProviders from './CareerProviders';
 import WhatsNew from './components/WhatsNew';
-import MascotGuide from './components/mascot/MascotGuide';
+import CareerPathMascot from './components/mascot/CareerPathMascot';
 
 /**
  * The section's ten screens, in the order the standalone app grouped them:
@@ -261,9 +261,9 @@ function CareerFrame() {
           same list per student; this is where the features actually are. */}
       <WhatsNew />
 
-      {/* The CareerPath tour: plays once on the pages that have one. */}
-      <MascotGuide />
-
+      {/* The Career Path companion. Mounted here and nowhere else, so the
+          character exists for exactly as long as this section is open. */}
+      <CareerPathMascot />
 
       {/* Keyed on the route so the slide-up replays on every tab switch. */}
       <div key={pathname} className={direction === 'right' ? 'fp-page-in-right' : 'fp-page-in-left'}>

@@ -40,6 +40,25 @@ import './mascot.css';
  */
 const HIDE_GRACE_MS = 700;
 
+/**
+ * The widest the speech bubble gets, and therefore how close to an edge the
+ * character has to be before the bubble has to open the other way. Matches
+ * `max-w-[16rem]` on the bubble below.
+ */
+const BUBBLE_W = 256;
+
+/**
+ * How tall the character stands while it is out guiding, as opposed to
+ * resting in a slot, which is sized by the slot itself.
+ *
+ * Bigger than the resting size on purpose: a guide beside a full-width
+ * button is competing with the whole page for attention, and at the size it
+ * sits quietly in the sidebar it simply reads as a decoration that has come
+ * loose.
+ */
+const ROAMING_WIDE = 124;
+const ROAMING_PHONE = 84;
+
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
@@ -55,6 +74,12 @@ export default function MascotController() {
   const [paused, setPaused] = useState(false);
   const [size, setSize] = useState(() => (typeof window !== 'undefined' && window.innerWidth < 768 ? 66 : 98));
   const [look, setLook] = useState(0);
+  /*
+   * Which way the bubble opens. Chosen by the placement scorer, not here:
+   * under a button the bubble has to hang below the character or it goes
+   * straight back through the button. See standBeside().
+   */
+  const [bubbleBelow, setBubbleBelow] = useState(false);
   // Bumped by the grace timer below to re-run the visibility decision.
   const [recheck, setRecheck] = useState(0);
 
@@ -64,7 +89,7 @@ export default function MascotController() {
    * written straight to a transform sixty times a second, and a re-render per
    * frame would be the one thing that made this expensive.
    */
-  const [gait, setGait] = useState({ phase: null, rate: 0, facingLeft: false });
+  const [gait, setGait] = useState({ phase: null, rate: 0, facingLeft: false, edge: null });
 
   const rootRef = useRef(null);
   const bodyRef = useRef(null);
@@ -89,10 +114,18 @@ export default function MascotController() {
         const phase = motionState(body);
         // Quantised: a gait that changed by a hundredth is not a new gait.
         const rate = Math.round(gaitRate(body) * 8) / 8;
+        /*
+         * Which window edge it is standing against, if any. The bubble needs
+         * this: which way the character faces says which side is clear of
+         * the thing it is explaining, but says nothing about whether that
+         * side is on the screen. Both of the places it calls home — the
+         * sidebar card and the fallback corner — are hard against an edge.
+         */
+        const edge = body.x < BUBBLE_W ? 'left' : body.x > window.innerWidth - BUBBLE_W ? 'right' : null;
         setGait((prev) =>
-          prev.phase === phase && prev.rate === rate && prev.facingLeft === body.facingLeft
+          prev.phase === phase && prev.rate === rate && prev.facingLeft === body.facingLeft && prev.edge === edge
             ? prev
-            : { phase, rate, facingLeft: body.facingLeft }
+            : { phase, rate, facingLeft: body.facingLeft, edge }
         );
       },
       loop(now) {
@@ -156,35 +189,43 @@ export default function MascotController() {
 
     // A modal owns the screen; the mascot sits above nothing and waits.
     if (mode === 'hidden' || overlayOpen()) {
-      const s = phone ? 66 : 98;
+      const s = phone ? ROAMING_PHONE : ROAMING_WIDE;
+      /*
+       * Leave beside wherever home is, not off the right of the window. Home
+       * is usually the sidebar card, and exiting to the far right meant
+       * crossing the whole page in both directions for a disappearance
+       * nobody asked to watch.
+       */
+      const hit = chooseSlot(live.slot);
+      const home = hit ? spotInSlot(hit.rect, hit.slot.height || s) : cornerSpot(s);
       // Still report whether anywhere to dock exists, so the pass below can
       // decide to bring it on stage.
-      return { size: s, spot: offStageSpot(s), gone: false, slot: chooseSlot(live.slot)?.slot?.name ?? null };
+      return { size: s, spot: offStageSpot(s, home), gone: false, slot: hit?.slot?.name ?? null };
     }
 
     if (mode === 'active') {
-      const roaming = phone ? 66 : 98;
+      const roaming = phone ? ROAMING_PHONE : ROAMING_WIDE;
 
       if (anchor) {
         const rect = rectOf(anchor);
         // The target went away underneath it. Say so; the caller cancels.
         if (!rect) return { size: roaming, spot: cornerSpot(roaming), gone: true, slot: null };
-        return { size: roaming, spot: standBeside(rect, roaming), gone: false, targetRect: rect, slot: null };
+        return { size: roaming, spot: standBeside(rect, roaming, live.prefer), gone: false, targetRect: rect, slot: null };
       }
 
       /*
-       * A reaction with nothing to point at belongs in the space the page
-       * reserved for it, not in the corner. A game result card leaves a
-       * mascot-shaped gap for the celebration; standing beside the window
-       * instead left that gap empty and put the character somewhere the
-       * layout knows nothing about.
+       * A reaction with nothing to point at, and no slot reserved for it,
+       * has nowhere legitimate to be. It used to fall back to the corner of
+       * the window, which is precisely the permanently-floating mascot this
+       * is not allowed to be — so it reports itself gone instead and the
+       * pass below quietly puts it away.
        */
       const hit = chooseSlot(live.slot);
       if (hit) {
         const s = hit.slot.height || roaming;
         return { size: s, spot: spotInSlot(hit.rect, s), gone: false, slot: hit.slot.name };
       }
-      return { size: roaming, spot: cornerSpot(roaming), gone: false, slot: null };
+      return { size: roaming, spot: cornerSpot(roaming), gone: true, slot: null };
     }
 
     // Docked: stand in a slot at exactly the size that slot reserved, so the
@@ -196,7 +237,7 @@ export default function MascotController() {
     }
     const s = phone ? 56 : 72;
     return { size: s, spot: cornerSpot(s), gone: false, slot: null };
-  }, [mode, anchor, live.slot]);
+  }, [mode, anchor, live.slot, live.prefer]);
 
   // Start off stage, so the first appearance is an entrance.
   useLayoutEffect(() => {
@@ -228,6 +269,7 @@ export default function MascotController() {
     if (!next) return;
     setSmall(window.innerWidth < 768);
     setSize(next.size);
+    setBubbleBelow(!!next.spot?.bubbleBelow);
 
     /*
      * The two automatic transitions. A page that declares a slot is a reason
@@ -239,7 +281,8 @@ export default function MascotController() {
       mode,
       busy: !!anchor || !!live.message,
       hasSlot: !!next.slot,
-      overlay: overlayOpen()
+      overlay: overlayOpen(),
+      suppressed: live.suppressed
     });
     if (next.slot) slotSeenRef.current = Date.now();
 
@@ -291,25 +334,33 @@ export default function MascotController() {
     }
 
     if (next.gone) {
-      // Graceful cancellation: abandon the script and dock, rather than point
-      // at an element that no longer exists.
+      // Nothing to point at, or the target went away underneath it. Abandon
+      // the sequence and leave, rather than stand somewhere arbitrary.
       mascot.cancelGuide();
-      mascot.dock();
+      mascot.leave();
       return;
     }
     /*
-     * The character walks in exactly one situation: it has been sent to point
-     * at something. Everything else places it instantly.
+     * Placement is immediate, always.
      *
-     * Docking, changing pages, following a card as it scrolls, and leaving are
-     * all placement, not journeys. Animating them meant that switching Career
-     * Path tabs sent the mascot flying across the screen, which is movement
-     * nobody asked for and nobody could read.
+     * This used to decide between walking and placing — the character
+     * strolled in from off screen, crossed the page to whatever it was
+     * pointing at, and walked home again. That is gone: it now appears
+     * where it is needed and fades, which is both calmer and impossible to
+     * catch standing somewhere it should not be mid-journey.
+     *
+     * The locomotion engine underneath is left intact and simply unused, so
+     * bringing walking back is a change here and nowhere else.
      */
-    const walkThere = mode === 'active' && !!anchor;
     dockedInRef.current = mode === 'docked' ? next.slot : null;
-    travelTo(next.spot, { instant: !walkThere });
-  }, [resolve, travelTo, mode, anchor, live.message]);
+    /*
+     * A hidden character is not moved. It fades out exactly where it was
+     * standing, which is the point of fading rather than walking — sending
+     * it off the side of the window first would be a journey again, and a
+     * visible one for as long as the fade lasts.
+     */
+    if (mode !== 'hidden') travelTo(next.spot, { instant: true });
+  }, [resolve, travelTo, mode, anchor, live.message, live.suppressed]);
 
   useEffect(() => {
     let queued = false;
@@ -391,21 +442,37 @@ export default function MascotController() {
 
   const docked = mode === 'docked';
   const offStage = mode === 'hidden';
-  const walking = gait.phase === 'walking';
   const facingLeft = gait.facingLeft;
+
+  /*
+   * Hidden now means faded out where it stood rather than parked off the
+   * side of the window, so "gone" and "asleep" are the same thing again.
+   * The fade is CSS on .mc-actor; stopping the idle loops underneath it is
+   * what makes a hidden character cost nothing.
+   */
+  const dormant = offStage;
+
 
   // While docked the slot decides what the character is doing; while active
   // the instruction does.
   const slotHit = docked ? chooseSlot(live.slot) : null;
   const shownState = docked ? slotHit?.slot?.state || 'idle' : live.state;
   const base = STATES[isState(shownState) ? shownState : 'idle'];
-  const pose = walking ? 'walk' : docked ? base.pose : live.pose || base.pose;
-  const body = walking ? 'mc-gait' : docked ? base.body : live.body || base.body;
+  // No walk pose: the character never travels, so it is only ever whatever
+  // its current state asks for.
+  const pose = docked ? base.pose : live.pose || base.pose;
+  const body = docked ? base.body : live.body || base.body;
 
   // Speech belongs to guidance. A docked mascot is quiet.
   const message = docked || offStage ? null : live.message || live.lastMessage;
   const bubbleOut = !live.message && !!live.lastMessage;
-  const side = bubbleSide(facingLeft);
+  /*
+   * Facing chooses the side; the window overrules it. A bubble that opens
+   * leftward from the sidebar, or rightward from the corner, is a bubble
+   * half off the screen — and the mascot lives in one of those two places
+   * whenever it is not out guiding.
+   */
+  const side = gait.edge === 'left' ? 'left' : gait.edge === 'right' ? 'right' : bubbleSide(facingLeft);
 
   return (
     <div
@@ -413,16 +480,18 @@ export default function MascotController() {
       // The only mascot instance in the document. The attribute is what the
       // duplicate test counts.
       data-mascot-instance=""
-      className={`mc-actor ${paused || offStage ? 'mc-paused' : ''}`}
+      className={`mc-actor ${offStage ? 'mc-gone' : 'mc-here'} ${paused || dormant ? 'mc-paused' : ''}`}
       aria-live="polite"
       aria-hidden={offStage}
     >
       <div className="relative" style={{ transform: 'translate(-50%, -100%)' }}>
         {message && (
           <div
-            className={`mc-hit absolute bottom-full mb-2 w-max max-w-[16rem] sm:max-w-xs ${
-              side === 'right' ? 'right-1/2 translate-x-[15%]' : 'left-1/2 -translate-x-[15%]'
-            } ${bubbleOut ? 'mcb-out' : 'mcb-in'}`}
+            className={`absolute w-max max-w-[13rem] sm:max-w-xs ${
+              bubbleBelow ? 'top-full mt-2' : 'bottom-full mb-2'
+            } ${side === 'right' ? 'right-1/2 translate-x-[15%]' : 'left-1/2 -translate-x-[15%]'} ${
+              bubbleOut ? 'mcb-out' : 'mcb-in'
+            }`}
           >
             <div className="rounded-2xl border border-journey-100 bg-surface px-3.5 py-2.5 shadow-card">
               <p className="text-xs leading-relaxed font-semibold text-ink-800">{message}</p>
@@ -435,7 +504,7 @@ export default function MascotController() {
                     live.cta.onPress?.();
                     mascot.dock();
                   }}
-                  className="fp-press mt-2 inline-flex items-center gap-1.5 rounded-lg bg-journey-600 px-2.5 py-1.5 text-[0.68rem] font-black text-white"
+                  className="mc-hit fp-press mt-2 inline-flex items-center gap-1.5 rounded-lg bg-journey-600 px-2.5 py-1.5 text-[0.68rem] font-black text-white"
                 >
                   {live.cta.label}
                 </button>
@@ -443,9 +512,9 @@ export default function MascotController() {
             </div>
             <span
               aria-hidden
-              className={`absolute -bottom-1.5 h-3 w-3 rotate-45 border-r border-b border-journey-100 bg-surface ${
-                side === 'right' ? 'right-[18%]' : 'left-[18%]'
-              }`}
+              className={`absolute h-3 w-3 rotate-45 border-journey-100 bg-surface ${
+                bubbleBelow ? '-top-1.5 border-t border-l' : '-bottom-1.5 border-r border-b'
+              } ${side === 'right' ? 'right-[18%]' : 'left-[18%]'}`}
             />
           </div>
         )}
@@ -460,7 +529,7 @@ export default function MascotController() {
           <span className="mc-beat block">
             <button
               type="button"
-              onClick={() => !walking && !docked && mascot.react('greeting', { ms: 3600 })}
+              onClick={() => !docked && mascot.react('greeting', { ms: 3600 })}
               aria-label="Your CareerPath guide"
               tabIndex={offStage ? -1 : 0}
               className="mc-hit block cursor-pointer border-0 bg-transparent p-0"
@@ -472,7 +541,7 @@ export default function MascotController() {
                 height={size}
                 flip={facingLeft}
                 talking={!!message}
-                paused={paused || offStage}
+                paused={paused || dormant}
                 /* The rig plays the walk at the speed the body is really
                    travelling, and turns its head toward what it was sent to. */
                 speed={gait.rate}

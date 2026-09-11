@@ -13,8 +13,20 @@ import mascot, { PRIORITY } from './mascotBus';
  *
  * It speaks once per session. A guide that greets you on every tab change is
  * not a companion, it is a popup.
+ *
+ * It is also deliberately the SECOND thing the student hears. Overview has an
+ * opening line of its own now (careerPathPages.js), so this waits for that
+ * tour to finish and speaks at ambient priority — low enough that it can
+ * never cut a greeting in half, and low enough that a real reaction beats it.
  */
 const ONCE_KEY = 'career.mascot.greeted';
+
+/**
+ * How long to hold a briefing when the tour never reports back — a tour that
+ * was cancelled by a scroll, or a page that had nothing to say. Long enough
+ * to cover the Overview sequence end to end.
+ */
+const TOUR_GRACE_MS = 11000;
 
 const seenThisSession = () => {
   try {
@@ -62,16 +74,21 @@ const readSituation = (today, events) => {
 
   if (today.planReady && (today.totalToday || 0) === 0) return { key: 'noTasks' };
 
-  // Nothing pressing: point at the next task rather than say nothing.
+  /*
+   * Nothing pressing: name the next task rather than say nothing.
+   *
+   * Said from wherever it is standing, deliberately without an anchor. This
+   * used to walk the character over to the quest button — the same button
+   * the Overview tour has just finished pointing at, seconds earlier. One
+   * trip to a button is guidance; two in a row is a mascot pacing.
+   */
   if (today.task) {
     return {
       key: 'greeting',
       opts: {
-        state: 'pointing',
-        pose: 'guide',
-        anchor: 'quest',
+        state: 'talking',
         message: `Next up: ${today.task.title}. Shall we start there?`,
-        ms: 9000
+        ms: 7000
       }
     };
   }
@@ -88,11 +105,26 @@ export default function MascotSignals() {
     if (!atOverview || seenThisSession()) return undefined;
 
     let cancelled = false;
+    let release = null;
 
-    /* No delay timer. The character speaks the moment the answer arrives,
-       which is also long enough for the page to have laid out its anchors.
-       An artificial wait would be one more clock deciding what the mascot
-       does, and this system has none. */
+    /* Wait for the page's own tour to finish rather than for a clock. The
+       grace timer is a fallback for a tour that ends without reporting, not
+       a guess at how long one takes. */
+    const afterTour = () =>
+      new Promise((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          window.removeEventListener('mascot:tour-end', finish);
+          resolve();
+        };
+        const timer = setTimeout(finish, TOUR_GRACE_MS);
+        window.addEventListener('mascot:tour-end', finish);
+        release = finish;
+      });
+
     (async () => {
       let today = null;
       let events = null;
@@ -106,13 +138,18 @@ export default function MascotSignals() {
       if (cancelled) return;
 
       const { key, opts } = readSituation(today, Array.isArray(events) ? events : events?.events);
+
+      await afterTour();
+      if (cancelled) return;
+
       markSeen();
       mascot.enter();
-      mascot.react(key, { priority: PRIORITY.guidance, ...opts });
+      mascot.react(key, { priority: PRIORITY.ambient, ...opts });
     })();
 
     return () => {
       cancelled = true;
+      release?.();
     };
   }, [atOverview]);
 

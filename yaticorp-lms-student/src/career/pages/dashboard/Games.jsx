@@ -219,13 +219,14 @@ const SPARKS = [
  * measures work on the roadmap, and a card promising some would be making a
  * promise the product does not keep.
  */
-function GameCard({ game, theme, reached, stars, onPlay }) {
+function GameCard({ game, theme, reached, stars, onPlay, first = false }) {
   const started = reached > 1;
 
   return (
     <button
       type="button"
       onClick={() => onPlay(game)}
+      data-guide={first ? 'game-play' : undefined}
       className={`fp-press group flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br text-left ring-1 transition-all ring-inset hover:-translate-y-1 hover:shadow-card-hover ${theme.wash} ${theme.ring}`}
     >
       {/* ---- The artwork, on its own colour ---------------------------- */}
@@ -400,6 +401,7 @@ export default function Games() {
                   reached={progress[game.id] || 1}
                   stars={starsForGame(game.id)}
                   onPlay={setActive}
+                  first={i === 0}
                 />
               ))}
             </div>

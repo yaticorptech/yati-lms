@@ -375,3 +375,23 @@
   }
   .mc-ground { opacity: 0.24; transform: translateX(-50%); }
 }
+
+/* ---- Appearing and leaving --------------------------------------------
+   The companion no longer walks on and off; it fades and settles where it
+   is needed. Opacity only, on the actor's own layer — its transform is
+   written by JS sixty times a second to place it, so nothing else may
+   animate that property. The spring belongs to the figure inside it. */
+.mc-actor {
+  transition: opacity 0.26s ease;
+}
+.mc-actor.mc-gone {
+  opacity: 0;
+  pointer-events: none;
+}
+.mc-actor.mc-here {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-actor { transition: none; }
+}

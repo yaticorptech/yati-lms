@@ -12,7 +12,6 @@ import AiBudgetNotice from '../../components/AiBudgetNotice';
 import { useCelebrate } from '../../components/ui/Celebration';
 import Button from '../../components/ui/Button';
 import Card, { CardHeader } from '../../components/ui/Card';
-import MascotSlot from '../../components/mascot/MascotSlot';
 import { levelProgress } from '../../utils/progress';
 import EmptyState from '../../components/ui/EmptyState';
 import TaskStudyPanel from '../../components/study/TaskStudyPanel';
@@ -282,7 +281,6 @@ export default function Planner() {
   // tasks directly since `dayCleared` is derived further down.
   /* Set by the day itself: cheering once it is cleared, rolling its
      sleeves up while anything is left. */
-  const mascotState = clearedNow ? 'success' : 'determined';
   if (showLoader) return <YatiLoader label="Building today's plan" />;
 
   const completed = tasks.filter((t) => t.status === 'Completed').length;
@@ -349,24 +347,7 @@ export default function Planner() {
         {/* A fine highlight along the top edge, so the card reads as lit
             from above rather than flat. */}
         <span aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
-        {/* The mascot, purely decorative: it stands beside the mission and
-            changes pose every few seconds so the eye keeps returning to the
-            page. It points at nothing and says nothing — the tour and the
-            speech live with the floating guide. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[30%] max-w-[300px] items-end justify-center pr-6 sm:flex"
-        >
-          <span className="fp-halo absolute bottom-6 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-journey-300/40 blur-2xl" />
-          <span className="absolute bottom-3 left-1/2 h-8 w-40 -translate-x-1/2 rounded-full bg-blue-400/40 blur-xl" />
-          <span className="fp-drift-icon absolute top-4 right-6 text-xl" style={{ animationDelay: '-1.2s' }}>✨</span>
-          <span className="fp-drift-icon absolute top-10 left-4 text-lg" style={{ animationDelay: '-2.6s' }}>⭐</span>
-          <span className="fp-drift-icon absolute bottom-16 right-2 text-base" style={{ animationDelay: '-3.8s' }}>⚡</span>
-          <span className="fp-drift-icon absolute bottom-24 left-2 text-base" style={{ animationDelay: '-0.6s' }}>🔥</span>
-          <MascotSlot name="planner-hero" state={mascotState} height={168} className="mc-pop relative" key={mascotState} priority={20} />
-        </div>
-
-        <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 sm:pr-[30%] md:min-h-[196px]">
+        <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 md:min-h-[196px]">
           {tasks.length > 0 && (
             <div className="fp-breathe relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-surface/70 shadow-card ring-1 ring-white/80 sm:h-28 sm:w-28">
               <svg viewBox="0 0 72 72" className="h-20 w-20 -rotate-90 sm:h-28 sm:w-28" aria-hidden>
@@ -604,7 +585,7 @@ export default function Planner() {
         ) : (
           /* One flat list. Every task here belongs to today, so grouping them
              under Daily/Weekly/Monthly headings only added labels to read. */
-          <ul className="divide-y divide-line-100">
+          <ul data-guide="today-tasks" className="divide-y divide-line-100">
             {tasks.map((task, index) => {
               const done = task.status === 'Completed';
               const open = openTaskId === task._id;
@@ -863,6 +844,12 @@ export default function Planner() {
                         type="button"
                         onClick={() => setOpenTaskId(open ? null : task._id)}
                         aria-expanded={open}
+                        /* The companion walks to the next unfinished task.
+                           Keyed on nextTaskId rather than the `isNext` flag
+                           below, which goes false as soon as the row opens
+                           and would pull the anchor out mid-sentence. A row
+                           renders one of these two buttons, never both. */
+                        data-guide={task._id === nextTaskId ? 'task-start' : undefined}
                         className={`relative mt-0.5 inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-[0.96] sm:w-auto sm:py-1.5 ${
                           open
                             ? 'bg-brand-600 text-white shadow-sm'
@@ -901,6 +888,12 @@ export default function Planner() {
                         type="button"
                         onClick={() => setOpenTaskId(open ? null : task._id)}
                         aria-expanded={open}
+                        /* The companion walks to the next unfinished task.
+                           Keyed on nextTaskId rather than the `isNext` flag
+                           below, which goes false as soon as the row opens
+                           and would pull the anchor out mid-sentence. A row
+                           renders one of these two buttons, never both. */
+                        data-guide={task._id === nextTaskId ? 'task-start' : undefined}
                         className={`relative mt-0.5 inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-[0.96] sm:w-auto sm:py-1.5 ${
                           open
                             ? 'bg-brand-600 text-white shadow-sm'

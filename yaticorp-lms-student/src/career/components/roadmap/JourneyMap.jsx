@@ -113,6 +113,7 @@ function Platform({ palette, state, index, onClick, label, sway }) {
       type="button"
       onClick={onClick}
       aria-label={label}
+      data-guide={isCurrent ? 'milestone' : undefined}
       className={`fp-rm-platform group relative h-[116px] w-[120px] shrink-0 ${locked ? 'saturate-[.75]' : ''}`}
       style={{ transform: `translateX(${sway}px)` }}
     >
@@ -202,6 +203,11 @@ function PhaseCard({ stage, index, state, palette, onClick, side }) {
     <button
       type="button"
       onClick={onClick}
+      /* Every phase card is content the companion must not stand on. It is
+         sent to the platform beside the current one, and on a phone the
+         card is the only thing immediately to that platform's right — so
+         without this it lands squarely on the phase it is announcing. */
+      data-mascot-clear
       aria-label={`Open phase ${index + 1}: ${choices ? choices.lead : title}`}
       className={`group relative w-full max-w-md overflow-hidden rounded-2xl border p-3.5 text-left shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover md:p-5 ${shell} ${
         side === 'left' ? 'md:ml-auto' : 'md:mr-auto'

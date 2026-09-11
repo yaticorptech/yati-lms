@@ -76,42 +76,6 @@
   50%      { transform: translateY(-2.5px); }
 }
 
-/* ---- The progress button ----------------------------------------------
- * Cool where the quest button is warm, so the two read as a pair rather than
- * as rivals. Its ring pulses on a 4.6s cycle against the quest beacon's 2.4s:
- * co-prime enough that they never settle into lockstep, which is what makes
- * two pulsing buttons look like one flashing panel.
- */
-.ch-progress { animation: ch-progress 4.6s ease-in-out 1s infinite; }
-@keyframes ch-progress {
-  0%, 100% { box-shadow: 0 0 0 0 rgb(37 99 235 / 0.30); }
-  55%      { box-shadow: 0 0 0 11px rgb(37 99 235 / 0); }
-}
-
-/* The three bars climb in sequence, so the icon reads as progress being
-   made rather than as a picture of a chart. */
-.ch-bar {
-  transform-box: fill-box;
-  transform-origin: bottom;
-  animation: ch-bar 2.8s ease-in-out infinite;
-}
-.ch-bar-2 { animation-delay: 0.22s; }
-.ch-bar-3 { animation-delay: 0.44s; }
-@keyframes ch-bar {
-  0%, 100% { transform: scaleY(0.5); opacity: 0.7; }
-  45%      { transform: scaleY(1);   opacity: 1; }
-}
-
-/* ---- The secondary button ----------------------------------------------
- * The quest button already carries the beacon; this one only needs to answer
- * the pointer, or the two compete.
- */
-.ch-btn {
-  transition: transform 0.3s var(--ch-ease), box-shadow 0.3s var(--ch-ease);
-}
-.ch-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -18px rgb(30 58 138 / 0.55); }
-.ch-btn:active { transform: translateY(0) scale(0.98); }
-
 /* ---- Accessibility ------------------------------------------------------
  * Asked to reduce motion, everything above stops and anything an entrance had
  * hidden is put back. The hero must never be blank because of a preference.
@@ -121,12 +85,7 @@
   .ch-hero .ch-underline,
   .ch-hero .ch-art,
   .ch-hero .ch-mote,
-  .ch-hero .ch-badge,
-  .ch-hero .ch-progress,
-  .ch-hero .ch-bar,
-  .ch-hero .ch-bar-2,
-  .ch-hero .ch-bar-3,
-  .ch-hero .ch-btn {
+  .ch-hero .ch-badge {
     animation: none !important;
     transition: none !important;
     opacity: 1 !important;

@@ -36,7 +36,7 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
         {/* Decoration only — painted first so every line below stacks over
             it, and faint enough that the numbers stay the loudest thing. */}
         <span aria-hidden className="oc-art oc-streak" />
-        <span aria-hidden className="oc-core" />
+        <span aria-hidden className="oc-core oc-fx-embers" />
         <div
           aria-hidden
           className="fp-float pointer-events-none absolute -top-16 -left-10 h-40 w-40 rounded-full bg-amber-400/15 blur-3xl"
@@ -148,7 +148,7 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
       {/* ---------------- The ladder ---------------- */}
       <div className="isolate relative flex flex-col items-center overflow-hidden bg-gradient-to-br from-journey-50/70 to-surface p-6 text-center sm:p-7">
         <span aria-hidden className="oc-art oc-level" />
-        <span aria-hidden className="oc-core" />
+        <span aria-hidden className="oc-core oc-fx-rings" />
         <p className="flex items-center gap-2 self-start text-[0.68rem] font-black tracking-[0.16em] text-journey-700 uppercase">
           <span className="text-sm" aria-hidden>⚡</span>
           Your level
