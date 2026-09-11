@@ -53,6 +53,11 @@ const router = express.Router();
 // refreshing the index or reading what students are looking for.
 router.use('/admin', require('./routes/admin'));
 
+// A guardian answering a permission request has no account here and reaches
+// this by a link, so it is mounted ahead of the student sign-in. The link
+// itself is the credential; see routes/guardianLink.js.
+router.use('/guardian-approval', require('./routes/guardianLink'));
+
 // Everything below is the student section.
 router.use(requireJobsEnabled);
 router.use(protectUser);
@@ -76,6 +81,7 @@ router.use('/saved', require('./routes/saved'));
 router.use('/resume', require('./routes/resume'));
 // Age-aware local opportunities — the part of the section a school student
 // may use. Own profile, own index, own rules; see routes/opportunities.js.
+router.use('/opportunities/applications', require('./routes/applications'));
 router.use('/opportunities', require('./routes/opportunities'));
 // Last: this one owns "/" and "/:id", so it would otherwise swallow the two
 // above as job ids.

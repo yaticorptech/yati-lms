@@ -94,6 +94,15 @@ BUNNY_STREAM_API_KEY=
 
 PLATFORM_SECRET_KEY=
 
+# Emailing a parent or guardian their part-time job permission link. The same
+# Brevo sender the rest of the LMS uses; nothing extra to sign up for.
+# BREVO_API_KEY must be ENABLED in the Brevo dashboard, not merely present —
+# a disabled key answers "API Key is not enabled" and no mail leaves. When a
+# send is refused the student's screen says so rather than claiming an email.
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=                     # a verified sender in Brevo
+FRONTEND_URL=http://localhost:5173      # the address the guardian's link points at
+
 # Interview Ready (see docs/INTERVIEW.md) — uses GEMINI_API_KEY; both optional
 INTERVIEW_AI_MODEL=                     # defaults to GEMINI_MODEL
 INTERVIEW_AI=                           # set to "template" to run without AI

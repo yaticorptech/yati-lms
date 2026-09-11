@@ -23,6 +23,7 @@ import FiltersDrawer from './FiltersDrawer';
 import ReportDialog from './ReportDialog';
 import GuardianBanner from './GuardianBanner';
 import WebJobCard from './WebJobCard';
+import ApplyFlow from './application/ApplyFlow';
 import './opportunities.css';
 
 const useDebounced = (value, ms) => {
@@ -117,6 +118,9 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
     const [leaving, setLeaving] = useState(() => new Set());
     const [undo, setUndo] = useState(null);
     const [detailsId, setDetailsId] = useState(null);
+    // Applying opens over the board: the age check and, for a young student,
+    // the guardian request all happen here rather than on another page.
+    const [applyingTo, setApplyingTo] = useState(null);
     const [reporting, setReporting] = useState(null);
     const reqId = useRef(0);
     // The place is the Jobs section's own — the one typed into the search
@@ -292,16 +296,19 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                 dismiss it — there is nothing to show until it is answered. */}
             {(!hasProfile || editing) && (
                 <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="opp-onboarding-title">
-                  {/* Centred when the card is shorter than the screen; when it is
-                      taller, the overlay itself moves and nothing is cut off. */}
-                  <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
-                    {/* No inner scrolling: the card is sized to fit the screen, and
-                        the close button sits on the card's edge, never inside a box
-                        that could clip it. */}
+                  {/* items-start with my-auto, not items-center: a flex item
+                      centred inside a scroll container overflows equally top and
+                      bottom, and the top half can never be scrolled back to.
+                      This centres the card when it fits and pins it to the top
+                      when it does not. */}
+                  <div className="flex min-h-full items-start justify-center p-4 sm:p-6">
                     <div className="relative my-auto w-full max-w-5xl">
+                        {/* Inside the card, not overhanging it. A button offset
+                            beyond the card's own edge is the first thing the
+                            viewport clips; the form's header keeps room for it. */}
                         {hasProfile && (
                             <button type="button" onClick={() => setEditing(false)} aria-label="Close"
-                                className="absolute -right-3 -top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md hover:bg-slate-100">
+                                className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
                                 <X size={18} />
                             </button>
                         )}
@@ -340,7 +347,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         </button>
                     </div>
 
-                    <GuardianBanner rules={rules} guardian={guardian} onGuardian={(g) => onData((d) => ({ ...d, guardian: g }))} />
+                    <GuardianBanner rules={rules} />
 
                     {band !== 'explore' && (
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm">
@@ -514,9 +521,33 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
 
             {detailsId && (
                 <OpportunityDetails id={detailsId} vocab={vocab} guardian={guardian} onClose={closeDetails}
-                    onInterested={(opp) => { onInterested(opp); }} onReport={(opp) => setReporting(opp)} />
+                    onInterested={(opp) => { onInterested(opp); }} onReport={(opp) => setReporting(opp)}
+                    onApply={(opp) => { closeDetails(); setApplyingTo(opp.id || opp._id || detailsId); }} />
             )}
             {reporting && <ReportDialog opp={reporting} onClose={closeReport} />}
+
+            {/* Applying, over the board. Everything the age check and the
+                guardian request need is inside ApplyFlow. */}
+            {applyingTo && (
+                <div className="fixed inset-0 z-[140] overflow-y-auto bg-slate-900/50 backdrop-blur-sm animate-fade-in"
+                    role="dialog" aria-modal="true" aria-label="Job application">
+                    {/* items-start with my-auto, the same as the details form
+                        above: a flex item centred inside a scroll container
+                        overflows equally top and bottom, and the top half can
+                        never be scrolled back to. This centres when it fits and
+                        pins to the top when it does not. */}
+                    <div className="flex min-h-full items-start justify-center p-4 sm:p-6">
+                        {/* Capped and scrolling inside itself, so the popup
+                            always fits the page rather than making the page
+                            scroll — and the heading stays put while the rest
+                            of it moves. */}
+                        <div className="my-auto max-h-[88vh] w-full max-w-2xl overflow-y-auto opp-scroll"
+                            onClick={(e) => e.stopPropagation()}>
+                            <ApplyFlow opportunityId={applyingTo} onClose={() => setApplyingTo(null)} onContinue={() => load(true)} />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {undo && (
                 <div role="status" aria-live="polite"

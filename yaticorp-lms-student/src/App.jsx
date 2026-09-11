@@ -12,6 +12,9 @@ import StudentLayout from './layouts/StudentLayout';
 import YatiLoader from './components/YatiLoader';
 import Login from './pages/Login';
 import EnrolledCourses from './pages/EnrolledCourses';
+// A guardian answering a part-time job permission request. Outside the auth
+// guard on purpose: a parent has no account and arrives from a link.
+const GuardianReview = React.lazy(() => import('./opportunities/application/GuardianReview'));
 const Privacy = React.lazy(() => import('./pages/legal/Privacy'));
 const Terms = React.lazy(() => import('./pages/legal/Terms'));
 const Jobs = React.lazy(() => import('./pages/Jobs'));
@@ -87,22 +90,22 @@ const JobsGate = () => {
 
 /**
  * The second lock on Jobs, and the student's own to open: the section stays
- * shut until every enrolled course reads 100%.
+ * shut until a quarter of their enrolled learning is behind them.
  *
  * It shows a message rather than redirecting. A student who clicks Jobs has
  * asked a question, and "finish these two courses first" answers it, where a
  * silent bounce back to the home page would not.
  */
 const CoursesCompleteGate = () => {
-  const { loading, allComplete, total } = useCourseCompletion();
+  const { loading, unlocked, total, percent, required } = useCourseCompletion();
   // A developer working on the Jobs section can open the gate with
   // VITE_JOBS_GATE_BYPASS=true in .env.local. It is honoured only in a dev
   // build — a production bundle ignores the flag even if it is set.
   const devBypass = import.meta.env.DEV && import.meta.env.VITE_JOBS_GATE_BYPASS === 'true';
   if (devBypass) return <Outlet />;
   if (loading) return <CareerFallback />;
-  if (allComplete) return <Outlet />;
-  return <JobsLockedNotice total={total} />;
+  if (unlocked) return <Outlet />;
+  return <JobsLockedNotice total={total} percent={percent} required={required} />;
 };
 
 const CareerGate = () => {
@@ -124,6 +127,7 @@ function App() {
       {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
           has to be able to open these, and so does anyone deciding whether to
           sign up at all. */}
+      <Route path="/jobs/guardian/:token" element={<React.Suspense fallback={<CareerFallback />}><GuardianReview /></React.Suspense>} />
       <Route path="/privacy" element={<React.Suspense fallback={<CareerFallback />}><Privacy /></React.Suspense>} />
       <Route path="/terms" element={<React.Suspense fallback={<CareerFallback />}><Terms /></React.Suspense>} />
       <Route path="/preview/:courseId" element={<CoursePreview />} />

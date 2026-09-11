@@ -216,6 +216,28 @@ router.delete('/opportunities/:id', async (req, res, next) => {
   }
 });
 
+/* ── Part-time applications: watch, never decide ──────────────────────── */
+
+/**
+ * GET /admin/opportunities/applications — every application and where its
+ * permission has got to.
+ *
+ * Read-only on purpose. A guardian's answer is theirs to give, so there is no
+ * route here that records one; an operator who is asked to "just approve it"
+ * has nothing to press.
+ */
+router.get('/opportunities/applications', async (req, res, next) => {
+  try {
+    const Application = require('../models/JobApplication');
+    const { adminView } = require('../services/applicationService');
+    const status = String(req.query.status || '').trim();
+    const where = status ? { status } : {};
+    const rows = await Application.find(where).sort({ updatedAt: -1 }).limit(200).lean();
+    const counts = rows.reduce((a, r) => ({ ...a, [r.status]: (a[r.status] || 0) + 1 }), {});
+    res.json({ applications: rows.map(adminView), total: rows.length, counts });
+  } catch (err) { next(err); }
+});
+
 /* ── Opportunities: guardian decisions and safety reports ─────────────── */
 
 /**
