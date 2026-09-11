@@ -1,0 +1,209 @@
+/**
+ * Aurora backgrounds for the Overview cards and the journey strip tiles.
+ *
+ * One idiom across both: several saturated blobs of colour overlapping and
+ * bleeding into each other, drifting slowly and out of step. No repeating
+ * fills — those are what made the first attempt look dated — and no hard
+ * edges anywhere.
+ *
+ * Every layer is decorative: absolutely positioned, `aria-hidden`, no pointer
+ * events, and behind the content. `z-index: -1` is what puts it behind; the
+ * card carries `isolate` so a negative index cannot drop it behind the card's
+ * own background instead. Without both, a positioned layer paints *over*
+ * in-flow text and quietly dims every number on the card.
+ *
+ * Each state gets its own palette rather than a shared one, so the row can be
+ * read at a glance with the words covered: green for walked, violet for where
+ * you are, grey for shut, amber for the goal.
+ *
+ * Legibility is handled by a light core rather than by draining the colour.
+ * Blobs drift and overlap, and where two or three cross the ground darkens
+ * enough to put muted text under 4.5:1 — on the current tile it fell to
+ * 3.4:1. Scaling every alpha down to survive that worst case washed the
+ * whole thing out, which is the look this replaced. So the blobs stay rich
+ * at the edges and each card carries a soft white core over them, under the
+ * content: colour where there is no text, clarity where there is. The tiles
+ * hold two lines of dark type at 24px and under, so their blobs run lighter
+ * than the big cards'.
+ */
+
+.oc-art,
+.js-art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: -1;
+}
+.js-art { border-radius: 1rem; }
+
+/* The light core: sits above the blobs, below the content. This is what
+   keeps the text off the colour, and it is why the blobs can stay saturated.
+   Paints above .oc-art because it comes later in the DOM at the same
+   z-index. */
+.oc-core,
+.js-core {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+.oc-core {
+  background: radial-gradient(
+    72% 62% at 50% 50%,
+    rgba(255, 255, 255, 0.88),
+    rgba(255, 255, 255, 0.5) 58%,
+    transparent 80%
+  );
+}
+.js-core {
+  border-radius: 1rem;
+  background: radial-gradient(
+    80% 70% at 50% 56%,
+    rgba(255, 255, 255, 0.9),
+    rgba(255, 255, 255, 0.55) 56%,
+    transparent 82%
+  );
+}
+
+/* A blob. Positioned, sized and coloured by whatever uses it; the drift is
+   shared so the whole page moves to one rhythm. */
+.oc-art::before,
+.oc-art::after,
+.js-art::before,
+.js-art::after {
+  content: '';
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(26px);
+}
+
+/* ===========================================================================
+   The three Overview cards
+   ========================================================================= */
+
+/* Learning streak — heat. */
+.oc-streak {
+  background:
+    radial-gradient(60% 55% at 92% 2%, rgba(253, 186, 116, 0.55), transparent 68%),
+    radial-gradient(50% 45% at 4% 96%, rgba(251, 146, 60, 0.4), transparent 70%);
+}
+.oc-streak::before {
+  inset: 34% -18% -40% 8%;
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.42), transparent 66%);
+  animation: oc-drift-a 17s ease-in-out infinite;
+}
+.oc-streak::after {
+  inset: -22% 24% 52% -14%;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.45), transparent 68%);
+  animation: oc-drift-b 21s ease-in-out infinite;
+}
+
+/* Your level — cool. */
+.oc-level {
+  background:
+    radial-gradient(65% 55% at 50% 4%, rgba(165, 180, 252, 0.6), transparent 70%),
+    radial-gradient(55% 50% at 6% 98%, rgba(196, 181, 253, 0.5), transparent 72%);
+}
+.oc-level::before {
+  inset: -20% -16% 46% 30%;
+  background: radial-gradient(circle, rgba(129, 140, 248, 0.5), transparent 66%);
+  animation: oc-drift-b 19s ease-in-out infinite;
+}
+.oc-level::after {
+  inset: 44% 34% -26% -12%;
+  background: radial-gradient(circle, rgba(216, 180, 254, 0.45), transparent 68%);
+  animation: oc-drift-a 24s ease-in-out infinite;
+}
+
+/* What you'll unlock — warm meeting cool, because it is the goal. */
+.oc-unlock {
+  background:
+    radial-gradient(60% 50% at 98% 0%, rgba(252, 211, 77, 0.55), transparent 68%),
+    radial-gradient(55% 50% at 2% 100%, rgba(196, 181, 253, 0.5), transparent 70%);
+}
+.oc-unlock::before {
+  inset: -24% 18% 50% -16%;
+  background: radial-gradient(circle, rgba(244, 114, 182, 0.36), transparent 68%);
+  animation: oc-drift-a 23s ease-in-out infinite;
+}
+.oc-unlock::after {
+  inset: 40% -20% -30% 34%;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.42), transparent 66%);
+  animation: oc-drift-b 18s ease-in-out infinite;
+}
+
+/* ===========================================================================
+   The journey strip tiles — same idiom, lighter, one palette per state
+   ========================================================================= */
+
+/* Done: walked. Still, because a finished stage asks nothing of anyone. */
+.js-done {
+  background:
+    radial-gradient(70% 60% at 12% 4%, rgba(110, 231, 183, 0.5), transparent 70%),
+    radial-gradient(70% 60% at 92% 104%, rgba(45, 212, 191, 0.42), transparent 70%);
+}
+.js-done::before {
+  inset: 30% -26% -34% 20%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.3), transparent 68%);
+}
+
+/* Current: where you are. The one tile that moves. */
+.js-current {
+  background:
+    radial-gradient(75% 60% at 8% 0%, rgba(196, 181, 253, 0.62), transparent 70%),
+    radial-gradient(70% 60% at 98% 100%, rgba(129, 140, 248, 0.5), transparent 70%);
+}
+.js-current::before {
+  inset: 26% -24% -36% 18%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.42), transparent 66%);
+  animation: oc-drift-a 13s ease-in-out infinite;
+}
+.js-current::after {
+  inset: -28% 22% 54% -18%;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.34), transparent 68%);
+  animation: oc-drift-b 16s ease-in-out infinite;
+}
+
+/* Locked: shut. The same idiom drained of colour, and completely still. */
+.js-locked {
+  background:
+    radial-gradient(70% 60% at 10% 2%, rgba(148, 163, 184, 0.3), transparent 72%),
+    radial-gradient(70% 60% at 94% 102%, rgba(203, 213, 225, 0.42), transparent 72%);
+}
+
+/* Destination: the goal, lit. */
+.js-destination {
+  background:
+    radial-gradient(75% 60% at 50% 0%, rgba(253, 224, 71, 0.6), transparent 70%),
+    radial-gradient(70% 60% at 96% 104%, rgba(251, 146, 60, 0.42), transparent 70%);
+}
+.js-destination::before {
+  inset: 28% -26% -34% 16%;
+  background: radial-gradient(circle, rgba(244, 114, 182, 0.3), transparent 68%);
+  animation: oc-drift-b 15s ease-in-out infinite;
+}
+
+/* ---- The drift ----------------------------------------------------------
+ * Two paths, used alternately and at lengths that do not divide into each
+ * other, so no two blobs on the page ever settle into the same rhythm.
+ */
+@keyframes oc-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(7%, -5%, 0) scale(1.12); }
+  66%      { transform: translate3d(-5%, 4%, 0) scale(0.94); }
+}
+@keyframes oc-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.04); }
+  40%      { transform: translate3d(-8%, 6%, 0) scale(0.92); }
+  75%      { transform: translate3d(5%, -6%, 0) scale(1.14); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-art::before,
+  .oc-art::after,
+  .js-art::before,
+  .js-art::after {
+    animation: none !important;
+  }
+}

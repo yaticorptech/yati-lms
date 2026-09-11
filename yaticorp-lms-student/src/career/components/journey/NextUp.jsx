@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import '../dashboard/overviewCardArt.css';
 import { ArrowRight, Lock, Trophy, Zap } from 'lucide-react';
 import { phaseTitle, parseChoices } from '../../utils/roadmap';
 
@@ -26,7 +27,11 @@ export default function NextUp({ nextPhase, levelProgress }) {
   const tasksToLevel = hasLevel ? Math.max(1, Math.ceil(levelProgress.remaining / 10)) : 0;
 
   return (
-    <section className="fp-lift flex h-full flex-col overflow-hidden rounded-3xl border border-line-200 bg-surface p-6 shadow-card">
+    <section className="isolate fp-lift relative flex h-full flex-col overflow-hidden rounded-3xl border border-line-200 bg-surface p-6 shadow-card">
+      {/* Decoration only, behind the content. `relative` above exists purely
+          to anchor it; it changes nothing that is drawn. */}
+      <span aria-hidden className="oc-art oc-unlock" />
+        <span aria-hidden className="oc-core" />
       <p className="flex items-center gap-2 text-[0.68rem] font-black tracking-[0.16em] text-ink-500 uppercase">
         <span className="text-sm" aria-hidden>🔓</span>
         What you'll unlock
