@@ -411,12 +411,6 @@ const Login = () => {
                                 </p>
                             )}
 
-                            <div className="flex items-center gap-3" aria-hidden="true">
-                                <span className="h-px flex-1 bg-slate-200" />
-                                <span className="rounded-full border border-slate-200 px-2.5 py-0.5 text-[11px] font-bold tracking-wider text-slate-400">OR</span>
-                                <span className="h-px flex-1 bg-slate-200" />
-                            </div>
-
                             <div>
                                 <div className="flex items-center justify-between">
                                     <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Password</label>

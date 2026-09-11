@@ -1,8 +1,13 @@
 # Section illustrations
 
-Drop your own artwork here as PNGs with a transparent background. Each is
-optional: a slot falls back to `student.png`, and then to the LMS mascot, so a
-missing file never shows as a broken image.
+Drop your own artwork here. PNG, WebP and JPEG all work — the page tries each
+in turn, so whichever your design tool exports needs no renaming. A transparent
+background looks best.
+
+Each file is optional. A slot falls back to a shared `student` image, and then
+to the LMS mascot, so a missing file never shows as a broken image. Two slots
+deliberately skip the mascot and stay empty until your own artwork arrives:
+the report's banner (`cheer`) and the next-steps card (`steps`).
 
 | File | Where it appears |
 |---|---|
@@ -10,7 +15,14 @@ missing file never shows as a broken image.
 | `thumbs-up.png` | the Interview Ready welcome banner |
 | `thinking.png` | the "More questions, more confidence!" panel |
 | `idea.png` | the AI recommendation card |
+| `steps.png` | the "Your next steps" card on the report |
 | `student.png` | stands in for any of the above that is missing |
+
+Use the name from the left column with your own extension, for example
+`steps.webp` or `cheer.jpg`.
+
+Portrait or square, roughly 600 px tall, and trimmed to the figure — the page
+sizes them by height and aligns them to the bottom of their slot.
 
 ## Career Path
 
@@ -20,31 +32,25 @@ missing file never shows as a broken image.
 | `career-hero-art.png` | the scene alone; the source `career-hero-bg.png` is built from |
 | `career-hero.png` | the full supplied banner; the source `career-hero-art.png` is cropped from |
 
-Three files, each derived from the one below it. `career-hero-bg.png` is
-`career-hero-art.png` with its sky extended leftwards to 3400x518. The scene
-is 1.8:1 and the hero panel is close to 5:1, so `cover` on the scene alone
-would scale it four times too tall and crop the trophy off; widening the file
-lets the picture reach both edges with nothing cropped vertically. 3400 is
-chosen so the panel is still the shorter aspect on a very wide window.
+Three files, each derived from the one below it.
 
 `career-hero-art.png` is `career-hero.png` with its left half removed. That
 half carries a headline, a sentence and two buttons painted into the picture,
 and the hero renders all three as real elements — the quest button changes its
 words once the day is cleared, so a painted copy would go on saying "Start
 today's quest" after the student had finished it, and would show through
-behind the real text. Re-crop with:
+behind the real text.
 
-    node -e "const {createCanvas,loadImage}=require('canvas');const fs=require('fs');
-    loadImage('career-hero.png').then(i=>{const x=Math.round(i.width*0.5),w=i.width-x;
-    const c=createCanvas(w,i.height);c.getContext('2d').drawImage(i,x,0,w,i.height,0,0,w,i.height);
-    fs.writeFileSync('career-hero-art.png',c.toBuffer('image/png'));});"
+`career-hero-bg.png` is `career-hero-art.png` with its sky extended leftwards
+to 3400x518. The scene is 1.8:1 and the hero panel is close to 5:1, so `cover`
+on the scene alone would scale it four times too tall and crop the trophy off;
+widening the file lets the picture reach both edges with nothing cropped
+vertically. 3400 is chosen so the panel is still the shorter aspect even on a
+very wide window.
 
-(run from the server project, which has `canvas` installed)
-
-Landscape, roughly 1200 x 520, transparent or on a pale background that suits
-the hero's sky-to-violet wash. It is decorative — the page states everything it
-shows in words as well — so it carries an empty `alt` and is hidden from screen
-readers. If the file is absent the hero falls back to the mascot.
-
-Portrait or square, roughly 600 px tall, and trimmed to the figure — the page
-sizes them by height and aligns them to the bottom of their slot.
+Unlike the slots above, this one has no fallback: the hero simply hides the
+layer if the file is missing. To rebuild both derived files after replacing
+`career-hero.png`, run the two steps in
+`yaticorp-lms-server` (which has `canvas` installed) — the crop first, then
+the widening. Both are a dozen lines of node-canvas; see the git history of
+this file for the exact commands used.

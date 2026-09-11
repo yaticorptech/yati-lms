@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Layers, LogOut,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift } from 'lucide-react';
+    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 
@@ -162,6 +162,9 @@ const AdminLayout = () => {
                             <MessageCircleQuestion size={20} /> <span className="font-medium">Support</span>
                         </div>
                         {openTickets > 0 && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isActive('/tickets') ? 'bg-white/20 text-white' : 'bg-red-500 text-white animate-pulse'}`}>{openTickets}</span>}
+                    </Link>
+                    <Link to="/global-quiz" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/global-quiz') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                        <Globe size={20} /> <span className="font-medium">Global Quiz</span>
                     </Link>
                     <Link to="/analytics" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/analytics') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                         <BarChart2 size={20} /> <span className="font-medium">Analytics</span>

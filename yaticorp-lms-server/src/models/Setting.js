@@ -33,13 +33,13 @@ const settingSchema = new mongoose.Schema({
     // Which Job Access Verification steps a student must finish before the
     // job board opens. Each switch removes its step from the flow entirely;
     // the server reads these, so the frontend never decides what is required.
-    jobVerification: {
-        requireAadhaar: { type: Boolean, default: true },
-        requireLinkedin: { type: Boolean, default: true },
-        requireResume: { type: Boolean, default: false },
-        requireLocation: { type: Boolean, default: true },
-        requireSkills: { type: Boolean, default: true }
-    }
+    // The Global Quiz tab on the student dashboard: whether it is offered at
+    // all, and how many questions a paper holds unless the student picks
+    // otherwise. The pool itself is the quizzes already inside the courses.
+    globalQuiz: {
+        enabled: { type: Boolean, default: true },
+        defaultLength: { type: Number, default: 10, min: 3, max: 25 }
+    },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Setting', settingSchema);
