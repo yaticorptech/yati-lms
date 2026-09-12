@@ -41,9 +41,9 @@ const Panel = ({ onClose, filters, onApply, vocab, rules, categories }) => {
     const verifiedForced = rules.verifiedOnly;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm md:items-stretch md:justify-end" onClick={onClose}>
+        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-900/50 pb-[7.5rem] backdrop-blur-sm md:items-stretch md:justify-end md:pb-0" onClick={onClose}>
             <aside role="dialog" aria-modal="true" aria-labelledby="opp-filters-title" onClick={(e) => e.stopPropagation()}
-                className="opp-sheet flex max-h-[88vh] w-full flex-col rounded-t-3xl bg-white shadow-2xl md:h-full md:max-h-none md:w-[400px] md:rounded-none">
+                className="opp-sheet flex max-h-[calc(88vh-7.5rem)] w-full flex-col rounded-t-3xl bg-white shadow-2xl md:h-full md:max-h-none md:w-[400px] md:rounded-none">
                 <div className="flex items-center justify-between border-b border-slate-100 p-4">
                     <h2 id="opp-filters-title" className="flex items-center gap-2 font-bold text-slate-800">
                         <SlidersHorizontal size={17} className="text-indigo-500" aria-hidden="true" /> Filters

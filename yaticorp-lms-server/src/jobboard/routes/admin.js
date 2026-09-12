@@ -216,27 +216,96 @@ router.delete('/opportunities/:id', async (req, res, next) => {
   }
 });
 
-/* ── Part-time applications: watch, never decide ──────────────────────── */
+/* ── Part-time applications: sign off, but only after the parent ─────── */
 
 /**
  * GET /admin/opportunities/applications — every application and where its
  * permission has got to.
  *
- * Read-only on purpose. A guardian's answer is theirs to give, so there is no
- * route here that records one; an operator who is asked to "just approve it"
- * has nothing to press.
+ * A guardian's answer is theirs alone to give: there is no route here that
+ * records one, and an operator asked to "just approve it for the parent" has
+ * nothing to press. What an operator does hold is the step afterwards — once
+ * a parent has agreed, the LMS signs the application off itself, below.
  */
+/**
+ * What each filter asks for.
+ *
+ * A filter names an outcome, not a status string. "Approved" has to keep
+ * showing an application after the student carries on with it — the school
+ * approved it either way, and an operator looking for what they approved this
+ * week should not find the list empty because the students got on with it.
+ */
+const APPLICATION_FILTERS = {
+  'awaiting-admin': ['awaiting-admin'],
+  'awaiting-guardian': ['awaiting-guardian'],
+  approved: ['approved', 'continued'],
+  declined: ['declined'],
+  rejected: ['rejected'],
+  'needs-guardian': ['needs-guardian', 'ready']
+};
+
 router.get('/opportunities/applications', async (req, res, next) => {
   try {
     const Application = require('../models/JobApplication');
     const { adminView } = require('../services/applicationService');
-    const status = String(req.query.status || '').trim();
-    const where = status ? { status } : {};
-    const rows = await Application.find(where).sort({ updatedAt: -1 }).limit(200).lean();
-    const counts = rows.reduce((a, r) => ({ ...a, [r.status]: (a[r.status] || 0) + 1 }), {});
+    const filter = String(req.query.status || '').trim();
+    const wanted = APPLICATION_FILTERS[filter];
+    const where = wanted ? { status: { $in: wanted } } : {};
+
+    // Counted over everything, not over the page just fetched: a filter's
+    // number has to mean "how many are there", or the buttons read as zero
+    // the moment you press one of them.
+    const [rows, all] = await Promise.all([
+      Application.find(where).sort({ updatedAt: -1 }).limit(200).lean(),
+      Application.find({}).select('status').lean()
+    ]);
+    const counts = Object.fromEntries(
+      Object.entries(APPLICATION_FILTERS)
+        .map(([key, statuses]) => [key, all.filter((r) => statuses.includes(r.status)).length])
+    );
+    counts[''] = all.length;
+
     res.json({ applications: rows.map(adminView), total: rows.length, counts });
   } catch (err) { next(err); }
 });
+
+/**
+ * POST /admin/opportunities/applications/:id/approve  { note }
+ * POST /admin/opportunities/applications/:id/decline  { note }
+ *
+ * The LMS's own sign-off, and the only decision an operator makes here. It is
+ * refused unless the application is sitting at 'awaiting-admin', which it only
+ * reaches because a parent said yes — so there is no order of calls that lets
+ * an operator answer in a parent's place, or overturn a parent who said no.
+ */
+const decideApplication = (verb) => async (req, res, next) => {
+  try {
+    const Application = require('../models/JobApplication');
+    const { adminView } = require('../services/applicationService');
+    const row = await Application.findById(req.params.id).catch(() => null);
+    if (!row) return res.status(404).json({ error: 'Application not found.' });
+
+    if (row.status === 'awaiting-guardian' || row.status === 'needs-guardian') {
+      return res.status(409).json({
+        error: 'The parent has not answered yet. Only they can give that permission.',
+        application: adminView(row)
+      });
+    }
+    if (row.status !== 'awaiting-admin') {
+      return res.status(409).json({ error: 'This application has already been decided.', application: adminView(row) });
+    }
+
+    row.status = verb === 'approve' ? 'approved' : 'rejected';
+    row.adminDecidedAt = new Date();
+    row.adminNote = String(req.body?.note || '').trim().slice(0, 300);
+    row.adminBy = req.admin?.name || req.admin?.email || 'Admin';
+    await row.save();
+    res.json({ application: adminView(row) });
+  } catch (err) { next(err); }
+};
+
+router.post('/opportunities/applications/:id/approve', decideApplication('approve'));
+router.post('/opportunities/applications/:id/decline', decideApplication('decline'));
 
 /* ── Opportunities: guardian decisions and safety reports ─────────────── */
 

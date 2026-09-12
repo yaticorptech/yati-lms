@@ -16,7 +16,9 @@ const User = require('../../models/User');
 const { ageFrom } = require('../services/eligibilityRules');
 const { studentView, GUARDIAN_AGE } = require('../services/applicationService');
 const { normaliseIndianMobile } = require('../../services/smsService');
-const { sendEmail } = require('../../utils/emailService');
+// Held as the module rather than destructured, so the mail this builds can be
+// read back in a test without standing a mail server up.
+const mailer = require('../../utils/emailService');
 const { maskEmail } = require('../services/applicationService');
 
 const HOURS = { '1-2': '1–2 hrs/day', '2-4': '4 hrs/day', '4+': '4+ hrs/day' };
@@ -32,43 +34,57 @@ const field = (label, value) => (value
 /**
  * Email the guardian their link.
  *
+ * The two buttons carry the guardian's answer to the page rather than
+ * recording it themselves. A link that decided on being fetched would be
+ * pressed by every mail scanner and link preview between here and their
+ * inbox — the parent's answer has to come from a tap they made.
+ *
  * Never throws and never blocks the request: the record is already saved, and
  * the mail provider having a bad minute must not read as a failed application.
  * What comes back says whether it truly went, so the student's screen can tell
  * them the truth rather than claiming a message that was never accepted.
  */
-const emailGuardian = async (application, { reminder = false } = {}) => {
+const emailGuardian = async (application) => {
     const link = `${siteUrl()}/jobs/guardian/${application.linkToken}`;
     const who = application.student?.name || 'A student';
     const job = application.job || {};
-    const subject = reminder
-        ? `Reminder: ${who} is waiting for your permission`
-        : `${who} needs your permission for a part-time job`;
+    const subject = `${who} needs your permission for a part-time job`;
     const htmlContent = `
 <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0f172a">
   <p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#4f46e5">Guardian permission</p>
   <h1 style="margin:0 0 12px;font-size:22px">Part-time job permission</h1>
   <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#475569">
-    ${reminder ? `${who} is still waiting for your answer.` : `${who} has asked to apply for a part-time job.`}
-    Nothing is arranged until you answer.
+    ${who} has asked to apply for a part-time job. Nothing is arranged until you answer.
   </p>
   <table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:8px 16px">
     ${field('Job', job.title)}${field('Company', job.company)}${field('Hours', job.hours)}
     ${field('Dates', job.duration)}${field('Location', job.location)}${field('Pay', job.pay)}
   </table>
-  <p style="margin:24px 0">
-    <a href="${link}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px">
-      Read the details and answer
-    </a>
+  <p style="margin:24px 0 10px;font-size:15px;font-weight:700">Do you give permission?</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0 10px;width:100%">
+    <tr><td>
+      <a href="${link}?answer=approve" style="display:block;background:#059669;color:#fff;text-align:center;text-decoration:none;font-weight:700;font-size:16px;padding:16px 24px;border-radius:12px">
+        &#10003;&nbsp; Yes, I approve
+      </a>
+    </td></tr>
+    <tr><td>
+      <a href="${link}?answer=decline" style="display:block;background:#fff;color:#be123c;border:2px solid #fecdd3;text-align:center;text-decoration:none;font-weight:700;font-size:16px;padding:14px 24px;border-radius:12px">
+        &#10007;&nbsp; No, I do not approve
+      </a>
+    </td></tr>
+  </table>
+  <p style="margin:14px 0 8px;font-size:13px;line-height:1.6;color:#64748b">
+    Either button opens the request, where you confirm your answer with one tap. Nothing is
+    recorded until you confirm, so opening this email changes nothing.
   </p>
   <p style="margin:0 0 8px;font-size:13px;line-height:1.6;color:#64748b">
     Only you can answer this. Nobody at the school or the LMS can approve it for you.
   </p>
-  <p style="margin:0;font-size:12px;color:#94a3b8;word-break:break-all">If the button does not work, open: ${link}</p>
+  <p style="margin:0;font-size:12px;color:#94a3b8;word-break:break-all">If the buttons do not work, open: ${link}</p>
 </div>`;
 
     try {
-        await sendEmail({ to: application.guardian.email, toName: application.guardian.name, subject, htmlContent });
+        await mailer.sendEmail({ to: application.guardian.email, toName: application.guardian.name, subject, htmlContent });
         return { sent: true, to: maskEmail(application.guardian.email), link };
     } catch (err) {
         console.error('[applications] guardian email failed:', err.message);
@@ -171,8 +187,11 @@ router.put('/:id/guardian', async (req, res, next) => {
 });
 
 /**
- * POST /:id/request — send the permission request. The link the guardian
- * follows is minted here; until this is called there is nothing to follow.
+ * POST /:id/request — send the permission request, once.
+ *
+ * The link the guardian follows is minted here; until this is called there is
+ * nothing to follow. Calling it again does not mail again — a parent gets one
+ * message about one job, not a copy every time a student presses a button.
  */
 router.post('/:id/request', async (req, res, next) => {
     try {
@@ -185,19 +204,30 @@ router.post('/:id/request', async (req, res, next) => {
         if (!row.guardian?.name || !row.guardian?.email) {
             return res.status(400).json({ error: "Add your parent or guardian's name and email address first." });
         }
-        const reminder = row.status === 'awaiting-guardian';
-        if (reminder) {
-            // A second press is a reminder, not a second request.
-            row.remindedAt = new Date();
-            row.reminders = (row.reminders || 0) + 1;
-        } else {
+        // One request, one message. A request already sitting in a parent's
+        // inbox is not sent again: pressing the button twice used to mail them
+        // twice, which is noise to the parent and tells the student nothing.
+        if (row.status === 'awaiting-guardian' && row.mailSentAt) {
+            return res.status(409).json({
+                error: `The request was already sent to ${maskEmail(row.guardian.email)}. They still have it.`,
+                application: studentView(row)
+            });
+        }
+
+        // A send the provider refused left nothing in any inbox, so that one
+        // may be tried again — the only case where this route mails twice.
+        if (row.status !== 'awaiting-guardian') {
             row.issueLink();
             row.requestedAt = new Date();
             row.status = 'awaiting-guardian';
         }
         await row.save();
 
-        const mail = await emailGuardian(row, { reminder });
+        const mail = await emailGuardian(row);
+        if (mail.sent) {
+            row.mailSentAt = new Date();
+            await row.save();
+        }
         // Why it failed is for the server log; a student can do nothing with
         // a provider's error string.
         res.json({ application: studentView(row), mail: { sent: mail.sent, to: mail.to, link: mail.link } });

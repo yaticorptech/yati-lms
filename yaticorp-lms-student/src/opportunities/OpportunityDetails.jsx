@@ -64,12 +64,16 @@ export default function OpportunityDetails({ id, vocab, guardian, onClose, onInt
     // Padded on a phone too, not flush: a sheet against the screen edge reads
     // as cut off, and the header is the first thing lost. The panel is capped
     // well under the viewport so there is always overlay visible above it.
+    // pb-[7.5rem] on a phone: this sheet sits on the bottom edge, which is
+    // exactly where the floating nav bar lives. Without the allowance its
+    // footer went under the bar — Report and Close entirely behind it, and
+    // Apply clipped. The bar is gone from sm up, and so is the padding.
     return (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-900/60 p-3 pb-[7.5rem] pt-[4.5rem] backdrop-blur-sm sm:items-center sm:p-4 sm:pt-4" onClick={onClose}>
             <div
                 role="dialog" aria-modal="true" aria-labelledby="opp-details-title"
                 onClick={(e) => e.stopPropagation()}
-                className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up"
+                className="flex max-h-[calc(85vh-7.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up sm:max-h-[85vh]"
             >
                 <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-5">
                     <div className="flex min-w-0 items-start gap-3">

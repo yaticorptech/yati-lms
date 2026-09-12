@@ -96,7 +96,7 @@ export default function InterviewReport() {
             <div className="flex items-center justify-between gap-3">
                 <Link to="/interview" className="inline-flex items-center gap-2.5 text-lg font-black text-slate-900 hover:text-indigo-600">
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm ring-1 ring-slate-200"><ArrowLeft size={17} /></span>
-                    Interview Ready
+                    Interview
                 </Link>
                 <Link to="/interview/practice" className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-bold text-indigo-600 shadow-sm ring-1 ring-slate-200 hover:bg-indigo-50">
                     <RotateCcw size={15} /> Practice Again

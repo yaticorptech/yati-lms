@@ -298,7 +298,7 @@ const StudentLayout = () => {
             )}
             {/* Interview Ready: preparation and AI mock interviews. */}
             <Link to="/interview" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/interview') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                <Mic size={20} /> <span>Interview Ready</span>
+                <Mic size={20} /> <span>Interview</span>
             </Link>
         </>
     );

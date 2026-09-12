@@ -14,6 +14,24 @@ const Opportunity = require('../../src/jobboard/models/Opportunity');
 const OpportunityProfile = require('../../src/jobboard/models/OpportunityProfile');
 const Application = require('../../src/jobboard/models/JobApplication');
 
+/**
+ * No message leaves this machine.
+ *
+ * These tests used to send for real, through whatever provider the developer's
+ * .env happened to point at, to a fixture address that does not exist. Every
+ * one of them bounced back into the sender's own inbox — thirty-seven of them
+ * in a single afternoon. A test suite has no business putting mail on the
+ * internet, so the sender is replaced here, once, for the whole file.
+ *
+ * What the mail actually contains is asserted where it matters, by swapping
+ * this stub for one that keeps the message (see the buttons test below).
+ * Real delivery is proved in tests/email/emailService.test.js, against an SMTP
+ * server that runs inside that test.
+ */
+const mailer = require('../../src/utils/emailService');
+const sentHere = [];
+mailer.sendEmail = async (msg) => { sentHere.push(msg); };
+
 let server, jobsServer, api, guardianCall, adminApi, young, older, admin, job, made = [];
 
 /** A date of birth that makes someone exactly `years` old today. */
@@ -62,6 +80,9 @@ after(async () => {
     await OpportunityProfile.deleteMany({ _id: { $in: made } });
     if (job) await Opportunity.deleteOne({ _id: job._id });
     if (jobsServer) jobsServer.close();
+    // Sending a real request opens a pooled SMTP connection; left open, the
+    // test process stays alive after the last assertion and never exits.
+    require('../../src/utils/emailService').closeEmailTransport();
     await cleanup([young.user, older.user], server, [admin.admin]);
 });
 
@@ -128,7 +149,9 @@ describe('sending the request', () => {
 
     test('the guardian is emailed their link, and the reply says whether it went', async () => {
         const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) });
-        // Send again so this test sees a fresh reply of its own.
+        // A request already delivered is never sent twice, so this test asks
+        // down the one path that does send: the retry after a refused send.
+        await Application.updateOne({ _id: row._id }, { $set: { mailSentAt: null } });
         const r = await api('POST', `/opportunities/applications/${row.id}/request`);
         assert.ok(r.body.mail, 'the send is reported back');
         assert.equal(typeof r.body.mail.sent, 'boolean');
@@ -137,18 +160,80 @@ describe('sending the request', () => {
         assert.equal(/devaki\.rao@example\.com/.test(JSON.stringify(r.body)), false, 'and never returned in full');
     });
 
+    test('the mail carries both answers as buttons, and neither one decides on its own', async () => {
+        const mailer = require('../../src/utils/emailService');
+        const real = mailer.sendEmail;
+        let html = '';
+        mailer.sendEmail = async (msg) => { html = msg.htmlContent; };
+        try {
+            const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) });
+            await Application.updateOne({ _id: row._id }, { $set: { mailSentAt: null } });
+            await api('POST', `/opportunities/applications/${row.id}/request`);
+        } finally {
+            mailer.sendEmail = real;
+        }
+
+        const token = (await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) })).linkToken;
+        assert.ok(html.includes(`/jobs/guardian/${token}?answer=approve`), 'an approve button');
+        assert.ok(html.includes(`/jobs/guardian/${token}?answer=decline`), 'and a decline button');
+        assert.match(html, /I approve/);
+        assert.match(html, /do not approve/);
+
+        // The answer is carried, never acted on: a scanner fetching either
+        // address must leave the application exactly where it was.
+        assert.equal((await Application.findById((await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) }))._id)).status,
+            'awaiting-guardian', 'building the mail decides nothing');
+    });
+
     test('the student still cannot continue while it is pending', async () => {
         const r = await api('POST', `/opportunities/applications/${await id()}/continue`);
         assert.equal(r.status, 409);
         assert.match(r.body.error, /cannot continue/);
     });
 
-    test('pressing send again is a reminder, not a second request', async () => {
+    test('pressing send again mails nobody a second time', async () => {
         const before = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) }).lean();
-        const r = await api('POST', `/opportunities/applications/${await id()}/request`);
-        assert.ok(r.body.application.reminders >= 1, 'the press counted as a reminder');
+        assert.ok(before.mailSentAt, 'the first send was accepted');
+
+        const mailer = require('../../src/utils/emailService');
+        const real = mailer.sendEmail;
+        let sends = 0;
+        mailer.sendEmail = async () => { sends += 1; };
+        let r;
+        try {
+            r = await api('POST', `/opportunities/applications/${await id()}/request`);
+        } finally {
+            mailer.sendEmail = real;
+        }
+
+        assert.equal(sends, 0, 'no second message left the server');
+        assert.equal(r.status, 409);
+        assert.match(r.body.error, /already sent/i);
+
         const after = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) }).lean();
         assert.equal(after.linkToken, before.linkToken, 'the link the guardian already has keeps working');
+        assert.deepEqual(after.mailSentAt, before.mailSentAt, 'and the record of the one send is untouched');
+    });
+
+    test('a send the provider refused may be tried again', async () => {
+        const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) });
+        // Put it back to the state a refused send leaves behind.
+        await Application.updateOne({ _id: row._id }, { $set: { mailSentAt: null } });
+
+        const mailer = require('../../src/utils/emailService');
+        const real = mailer.sendEmail;
+        let sends = 0;
+        mailer.sendEmail = async () => { sends += 1; };
+        try {
+            const r = await api('POST', `/opportunities/applications/${row.id}/request`);
+            assert.equal(r.status, 200, 'a message that never arrived may be sent again');
+        } finally {
+            mailer.sendEmail = real;
+        }
+        assert.equal(sends, 1, 'exactly one retry, not a flood');
+
+        const after = await Application.findOne({ _id: row._id }).lean();
+        assert.ok(after.mailSentAt, 'and once accepted, the door closes again');
     });
 });
 
@@ -188,14 +273,15 @@ describe('the guardian decides', () => {
         assert.equal((await Application.findById(id)).status, before, 'the decision is untouched');
     });
 
-    test('approving moves every screen on together', async () => {
+    test('approving hands the application to the LMS, it does not finish it', async () => {
         const r = await guardianCall('POST', `/guardian-approval/${await token()}/approve`);
         assert.equal(r.status, 200);
-        assert.equal(r.body.request.status, 'approved');
+        assert.equal(r.body.request.status, 'awaiting-admin');
         const student = await api('GET', `/opportunities/applications/${String((await Application.findOne({ userId: young.user._id }))._id)}`);
-        assert.equal(student.body.application.status, 'approved');
-        assert.deepEqual(student.body.application.steps.map((s) => s.state), ['done', 'done', 'done', 'active']);
-        assert.equal(student.body.application.canContinue, true);
+        assert.equal(student.body.application.status, 'awaiting-admin');
+        // The parent's step is done; the wait has moved to the admin's step.
+        assert.deepEqual(student.body.application.steps.map((s) => s.state), ['done', 'done', 'active', 'waiting']);
+        assert.equal(student.body.application.canContinue, false, 'a parent saying yes is not the whole permission');
     });
 
     test('a decision cannot be changed by opening the link again', async () => {
@@ -204,12 +290,36 @@ describe('the guardian decides', () => {
         assert.match(r.body.error, /already been answered/);
     });
 
-    test('the student can now continue, and only now', async () => {
+    test('the student still cannot continue on the parent\'s word alone', async () => {
         const id = String((await Application.findOne({ userId: young.user._id }))._id);
         const r = await api('POST', `/opportunities/applications/${id}/continue`);
-        assert.equal(r.status, 200);
-        assert.equal(r.body.application.status, 'continued');
-        assert.deepEqual(r.body.application.steps.map((s) => s.state), ['done', 'done', 'done', 'done']);
+        assert.equal(r.status, 409, 'the LMS has not signed it off yet');
+        assert.equal((await Application.findById(id)).status, 'awaiting-admin');
+    });
+
+    test('the admin signs it off, and only then does the student go on', async () => {
+        const id = String((await Application.findOne({ userId: young.user._id }))._id);
+
+        const decided = await adminApi('POST', `/admin/opportunities/applications/${id}/approve`, { note: 'Checked with the school.' });
+        assert.equal(decided.status, 200);
+        assert.equal(decided.body.application.status, 'approved');
+        assert.equal(decided.body.application.canDecide, false, 'there is nothing left to press');
+
+        const student = await api('GET', `/opportunities/applications/${id}`);
+        assert.equal(student.body.application.status, 'approved');
+        assert.deepEqual(student.body.application.steps.map((s) => s.state), ['done', 'done', 'done', 'done']);
+        assert.equal(student.body.application.canContinue, true);
+
+        const on = await api('POST', `/opportunities/applications/${id}/continue`);
+        assert.equal(on.status, 200);
+        assert.equal(on.body.application.status, 'continued');
+    });
+
+    test('the admin cannot decide the same application twice', async () => {
+        const id = String((await Application.findOne({ userId: young.user._id }))._id);
+        const again = await adminApi('POST', `/admin/opportunities/applications/${id}/decline`, { note: 'second thoughts' });
+        assert.equal(again.status, 409);
+        assert.equal((await Application.findById(id)).status, 'continued', 'the record is untouched');
     });
 });
 
@@ -241,10 +351,15 @@ describe('when the guardian says no', () => {
         assert.equal(student.body.application.status, 'declined');
         assert.equal(student.body.application.canContinue, false);
         assert.equal(student.body.application.declineReason, 'School exams that week.');
-        assert.deepEqual(student.body.application.steps.map((s) => s.state), ['done', 'done', 'blocked', 'blocked']);
+        assert.deepEqual(student.body.application.steps.map((s) => s.state), ['done', 'blocked', 'blocked', 'blocked']);
 
         const blocked = await api('POST', `/opportunities/applications/${id}/continue`);
         assert.equal(blocked.status, 409, 'a declined application goes nowhere');
+
+        // The new admin route must not become a way around a parent's no.
+        const override = await adminApi('POST', `/admin/opportunities/applications/${id}/approve`, {});
+        assert.equal(override.status, 409, 'an operator cannot overturn a parent who said no');
+        assert.equal((await Application.findById(id)).status, 'declined');
     });
 });
 
@@ -317,5 +432,26 @@ describe('what an operator sees', () => {
         assert.equal(row.underAge, true);
         assert.match(row.guardian.email, /•/, 'the address stays masked for operators too');
         assert.ok(Array.isArray(row.steps) && row.steps.length === 4);
+    });
+
+    test('the Approved tab keeps an application the student has carried on with', async () => {
+        // The Front Desk application was approved and then continued. A filter
+        // naming an outcome must not lose it the moment the student moves on.
+        const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) }).lean();
+        assert.equal(row.status, 'continued', 'the case this test is about');
+
+        const r = await adminApi('GET', '/admin/opportunities/applications?status=approved');
+        assert.equal(r.status, 200);
+        const listed = r.body.applications.find((a) => a.id === String(row._id));
+        assert.ok(listed, 'a continued application still shows as approved');
+        assert.ok(listed.adminDecidedAt, 'and carries the sign-off it was given');
+        assert.ok(listed.continuedAt, 'and says the student went on with it');
+    });
+
+    test('a filter button still knows its number while another filter is on', async () => {
+        const r = await adminApi('GET', '/admin/opportunities/applications?status=declined');
+        // Counted over every application, not over the handful just returned.
+        assert.ok(r.body.counts.approved >= 1, 'the Approved button keeps its count');
+        assert.ok(r.body.counts[''] >= r.body.applications.length, 'and All counts everything');
     });
 });
