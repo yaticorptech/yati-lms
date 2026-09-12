@@ -8,6 +8,10 @@
  * through a link, which is why the decision is recorded here rather than being
  * typed in by an operator.
  *
+ * A guardian's yes is not the end of it. It moves the application to the LMS,
+ * which signs it off separately — two answers, in that order, never the one
+ * standing in for the other.
+ *
  * The job is copied in rather than referenced. A guardian is approving the
  * hours, pay and place they were shown; if the listing is edited or withdrawn
  * afterwards, what they agreed to must still be readable.
@@ -22,10 +26,15 @@ const STATUSES = [
     'ready',              // old enough; nothing to wait for
     'needs-guardian',     // under age, the request has not been sent yet
     'awaiting-guardian',  // sent, waiting on the guardian
-    'approved',
-    'declined',
+    'awaiting-admin',     // the guardian agreed; the LMS has still to sign it off
+    'approved',           // both the guardian and the LMS agreed
+    'declined',           // the guardian said no
+    'rejected',           // the guardian agreed, the LMS did not
     'continued'           // the student has taken it on from here
 ];
+
+/** The two ends of the road: nothing moves an application out of these. */
+const SETTLED = ['approved', 'declined', 'rejected', 'continued'];
 
 /** A guardian link is long, single-use per application, and expires. */
 const newToken = () => crypto.randomBytes(32).toString('base64url');
@@ -61,11 +70,20 @@ const schema = new mongoose.Schema({
 
     status: { type: String, enum: STATUSES, default: 'needs-guardian', index: true },
     requestedAt: { type: Date, default: null },
-    remindedAt: { type: Date, default: null },
-    reminders: { type: Number, default: 0 },
+    // When a mail provider actually accepted the request. One request is one
+    // message: this is what stops a second press sending a second copy, and
+    // staying null after a refused send is what still allows a retry.
+    mailSentAt: { type: Date, default: null },
     decidedAt: { type: Date, default: null },
     declineReason: { type: String, default: '' },
     continuedAt: { type: Date, default: null },
+
+    // The LMS's own sign-off, which only ever happens after the guardian's.
+    // Kept apart from the guardian's fields above so the record always says
+    // which of the two answered, and when.
+    adminDecidedAt: { type: Date, default: null },
+    adminNote: { type: String, default: '' },
+    adminBy: { type: String, default: '' },
 
     // How the guardian reaches their own copy of this request.
     linkToken: { type: String, default: '', index: true },
@@ -85,4 +103,5 @@ schema.methods.issueLink = function issueLink() {
 module.exports = mongoose.model('JobBoardApplication', schema, 'jobboard_job_applications');
 module.exports.STATUSES = STATUSES;
 module.exports.GUARDIAN_AGE = GUARDIAN_AGE;
+module.exports.SETTLED = SETTLED;
 module.exports.LINK_DAYS = LINK_DAYS;

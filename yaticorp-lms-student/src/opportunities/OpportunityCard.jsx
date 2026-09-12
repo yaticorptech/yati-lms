@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import {
     Heart, X, ArrowRight, MapPin, CalendarDays, Clock, BadgeCheck, Sparkles,
-    ShieldCheck, GraduationCap, Wallet, Users
+    GraduationCap, Wallet, Users
 } from 'lucide-react';
 import { labelFor, reasonSentence, ageLabel, whereLabel, hoursLabel, dateLabel } from './helpers';
 
@@ -20,21 +20,13 @@ const Meta = ({ icon: Icon, children, title }) => (
     </li>
 );
 
-const GUARDIAN = {
-    none: { text: 'Guardian approval required', tone: 'bg-amber-50 text-amber-800 border-amber-200' },
-    pending: { text: 'Guardian approval pending', tone: 'bg-sky-50 text-sky-800 border-sky-200' },
-    approved: { text: 'Guardian approved', tone: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-    rejected: { text: 'Guardian declined', tone: 'bg-rose-50 text-rose-800 border-rose-200' }
-};
-
 export default function OpportunityCard({
-    opp, vocab, guardian, leaving = false, onInterested, onNotInterested, onOpen
+    opp, vocab, leaving = false, onInterested, onNotInterested, onOpen
 }) {
     const [pop, setPop] = useState(false);
     const liked = opp.preference === 'interested';
     const matches = (opp.signals?.interests || []).map((i) => ({ key: `i:${i}`, label: labelFor(vocab.categories, i), kind: 'interest' }));
     const onDate = opp.signals?.date === 'in-window';
-    const guardianState = opp.guardianApprovalRequired ? GUARDIAN[guardian?.status] || GUARDIAN.none : null;
 
     const like = () => {
         if (!liked) { setPop(true); setTimeout(() => setPop(false), 600); }
@@ -125,11 +117,6 @@ export default function OpportunityCard({
                 <span>{reasonSentence(opp)}</span>
             </p>
 
-            {guardianState && (
-                <p className={`mb-4 inline-flex w-fit items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold ${guardianState.tone}`}>
-                    <ShieldCheck size={13} aria-hidden="true" /> {guardianState.text}
-                </p>
-            )}
 
             <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
                 <button

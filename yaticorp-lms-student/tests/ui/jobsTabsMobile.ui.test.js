@@ -75,6 +75,27 @@ describe('the Jobs tab strip on a phone', { skip: skipWithoutStyles }, () => {
         assert.ok(saved && saved.includes('3'), `the saved count survives, saw ${JSON.stringify(saved)}`);
     });
 
+    test('a tab name gets the whole cell, so it does not break across lines', async () => {
+        // Beside its icon the name was left a 94px column, and "Hidden
+        // Opportunities" broke into two cramped lines inside it. Stacked under
+        // the icon it has the full cell. 360px is the narrowest common phone.
+        const LINES = `
+            await sleep(700);
+            return $$('[role="tab"]').map((t) => {
+                const label = t.querySelector('span > span');
+                const lh = parseFloat(getComputedStyle(label).lineHeight);
+                return {
+                    text: label.textContent.trim(),
+                    lines: Math.round(label.getBoundingClientRect().height / lh),
+                    width: Math.round(label.getBoundingClientRect().width)
+                };
+            });`;
+        const { result } = await screen({ entry: entry(360), api, width: PHONE_VIEWPORT, styles: true, script: LINES });
+        for (const tab of result) {
+            assert.equal(tab.lines, 1, `"${tab.text}" wrapped onto ${tab.lines} lines in ${tab.width}px`);
+        }
+    });
+
     test('on a wide screen it is one row again, subtitles and all', async () => {
         const { result } = await screen({
             entry: entry("'100%'"), api, width: 1280, styles: true,

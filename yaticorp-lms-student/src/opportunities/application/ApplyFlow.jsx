@@ -7,7 +7,7 @@
  * The age check is the server's — this screen only draws what it was told, so
  * a student cannot talk their way past it from the browser.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     ShieldCheck, User, Mail, Send, Loader2, CheckCircle2, XCircle, RefreshCw,
     ArrowRight, Eye, Pencil, PartyPopper, Ban
@@ -92,13 +92,49 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
     }, [opportunityId]);
 
     const app = state.application;
+    // A poll must never land on top of a button the student is still pressing,
+    // so the two take turns. Set from handlers, never during a render.
+    const working = useRef(false);
     const run = (key, fn) => {
+        working.current = true;
         setBusy(key); setFormError('');
         return fn()
             .then((d) => { setState({ loading: false, application: d.application, error: '' }); if (d.mail) setMail(d.mail); return d; })
             .catch((e) => { setFormError(e.message); throw e; })
-            .finally(() => setBusy(''));
+            .finally(() => { working.current = false; setBusy(''); });
     };
+
+    /**
+     * While the answer is somebody else's to give, keep the screen current.
+     *
+     * A parent answers on their own phone and an admin in another window; a
+     * student sitting on this page has no way to know either happened. Rather
+     * than tell them to refresh, the page asks — every few seconds while it is
+     * waiting, and immediately whenever they come back to the tab, which is
+     * when a student who just watched their parent tap approve will look.
+     */
+    const appId = state.application?.id;
+    const pending = state.application?.status === 'awaiting-guardian'
+        || state.application?.status === 'awaiting-admin';
+    useEffect(() => {
+        if (!appId || !pending) return undefined;
+        let stopped = false;
+        const refresh = () => {
+            if (stopped || working.current || document.hidden) return;
+            applicationApi.read(appId)
+                .then((d) => { if (!stopped && !working.current) setState({ loading: false, application: d.application, error: '' }); })
+                .catch(() => { /* a dropped poll is not worth an error on screen */ });
+        };
+        const timer = setInterval(refresh, 8000);
+        window.addEventListener('focus', refresh);
+        document.addEventListener('visibilitychange', refresh);
+        return () => {
+            stopped = true;
+            clearInterval(timer);
+            window.removeEventListener('focus', refresh);
+            document.removeEventListener('visibilitychange', refresh);
+        };
+    }, [appId, pending]);
 
     if (state.loading) {
         return (
@@ -119,8 +155,11 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
     const { status, guardian, job, steps } = app;
     const needsGuardian = status === 'needs-guardian';
     const waiting = status === 'awaiting-guardian';
+    // The parent has answered; the wait has moved to the LMS. Nothing on this
+    // screen is for the parent any more, so the resend and reminder go away.
+    const withAdmin = status === 'awaiting-admin';
     const approved = status === 'approved' || status === 'continued';
-    const declined = status === 'declined';
+    const declined = status === 'declined' || status === 'rejected';
     const canSend = !!guardian.name && !!guardian.email;
 
     /* ── The banner at the top changes with the state ─────────────────── */
@@ -129,12 +168,16 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
             body: `Because this student is under ${app.guardianAge}, parent or guardian approval is required before continuing.` },
         'awaiting-guardian': { icon: CheckCircle2, ring: 'bg-emerald-100 text-emerald-700', title: 'Approval request sent',
             body: 'Your guardian has received a permission request.' },
-        approved: { icon: PartyPopper, ring: 'bg-emerald-100 text-emerald-700', title: 'Guardian approval received',
-            body: `${guardian.name || 'Your guardian'} has approved this application. You can carry on.` },
+        'awaiting-admin': { icon: CheckCircle2, ring: 'bg-indigo-100 text-indigo-700', title: 'Parent approved — with the admin now',
+            body: `${guardian.name || 'Your guardian'} has agreed. Your school still has to approve it before you can carry on.` },
+        approved: { icon: PartyPopper, ring: 'bg-emerald-100 text-emerald-700', title: 'Approved',
+            body: `${guardian.name || 'Your guardian'} and your school have both approved this application. You can carry on.` },
         continued: { icon: PartyPopper, ring: 'bg-emerald-100 text-emerald-700', title: 'Application in progress',
-            body: 'Your guardian approved this one. The organisation is being told through the LMS.' },
+            body: 'Your guardian and your school have both approved this one. Your school will take it from here.' },
         declined: { icon: Ban, ring: 'bg-rose-100 text-rose-700', title: 'Permission declined',
             body: 'Your guardian has not approved this application.' },
+        rejected: { icon: Ban, ring: 'bg-rose-100 text-rose-700', title: 'Not approved by your school',
+            body: `${guardian.name || 'Your guardian'} agreed, but your school has not approved this application.` },
         ready: { icon: CheckCircle2, ring: 'bg-emerald-100 text-emerald-700', title: 'Ready to apply',
             body: `You are ${app.student.age ?? 15} — no guardian permission is needed for this one.` }
     }[status] || {};
@@ -196,13 +239,21 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
                     {waiting && (
                         <>
                             <div className="flex flex-wrap gap-2.5">
-                                <button type="button" disabled={busy === 'send'}
-                                    onClick={() => run('send', () => applicationApi.sendRequest(app.id)).catch(() => {})}
-                                    className={`${btn.ghost} w-full sm:w-auto`}>
-                                    {busy === 'send'
-                                        ? <><Loader2 size={15} className="animate-spin" aria-hidden="true" /> Resending…</>
-                                        : <><RefreshCw size={15} aria-hidden="true" /> Resend request</>}
-                                </button>
+                                {/* There is no resend. One request is one message, and a
+                                    button here only ever mailed the same parent the same
+                                    job again. The exception is a send the provider refused:
+                                    that one left nothing in any inbox, so it may be tried
+                                    again — and the server, not this screen, is what decides
+                                    that, by leaving mailSentAt unset. */}
+                                {!app.mailSentAt && (
+                                    <button type="button" disabled={busy === 'send'}
+                                        onClick={() => run('send', () => applicationApi.sendRequest(app.id)).catch(() => {})}
+                                        className={`${btn.primary} w-full sm:w-auto`}>
+                                        {busy === 'send'
+                                            ? <><Loader2 size={15} className="animate-spin" aria-hidden="true" /> Sending…</>
+                                            : <><RefreshCw size={15} aria-hidden="true" /> Try sending again</>}
+                                    </button>
+                                )}
                                 <button type="button" onClick={() => setShowRequest((v) => !v)} className={`${btn.ghost} w-full sm:w-auto`}>
                                     <Eye size={15} aria-hidden="true" /> {showRequest ? 'Hide request details' : 'View request details'}
                                 </button>
@@ -213,16 +264,14 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
                                         ? <><span className="font-bold">Email sent to {mail.to}. </span>{guardian.name || 'Your guardian'} can open the link in it to answer.</>
                                         : <>
                                             <span className="font-bold">The email could not be sent. </span>
-                                            Your school has been told. Try again in a moment, or open the guardian&apos;s
-                                            page below and show it to {guardian.name || 'your guardian'} yourself.
+                                            Your school has been told. Open the guardian&apos;s page below and show it to
+                                            {' '}{guardian.name || 'your guardian'} yourself, or try sending again.
                                         </>}
                                 </p>
                             )}
-                            {app.reminders > 0 && (
-                                <p className="text-xs text-slate-500">Reminded {app.reminders} time{app.reminders === 1 ? '' : 's'}.</p>
-                            )}
                             <p className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs leading-relaxed text-slate-600">
                                 You cannot continue this application until {guardian.name || 'your guardian'} answers.
+                                {app.mailSentAt && ' They have been sent the request once — we will not email them again about this job.'}
                             </p>
                             {app.guardianLink && (
                                 <a href={app.guardianLink} target="_blank" rel="noopener noreferrer" className={`${btn.ghost} w-full sm:w-auto`}>
@@ -239,11 +288,36 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
                         </>
                     )}
 
+                    {withAdmin && (
+                        <>
+                            <p className="rounded-xl border border-emerald-100 bg-emerald-50 px-3.5 py-2.5 text-sm leading-relaxed text-emerald-900">
+                                <span className="font-bold">{guardian.name || 'Your guardian'} approved this
+                                    {app.decidedAt ? ` on ${new Date(app.decidedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}. </span>
+                                Nothing more is needed from them.
+                            </p>
+                            <p className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs leading-relaxed text-slate-600">
+                                Your school is checking it now. You will see it here as soon as they answer — there is
+                                nothing you need to do, and no reason to send the request again.
+                            </p>
+                            <button type="button" onClick={() => setShowRequest((v) => !v)} className={`${btn.ghost} w-full sm:w-auto`}>
+                                <Eye size={15} aria-hidden="true" /> {showRequest ? 'Hide request details' : 'View request details'}
+                            </button>
+                            {showRequest && (
+                                <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                                    <p className="text-xs font-bold text-slate-700">This is what {guardian.name || 'your guardian'} agreed to.</p>
+                                    <JobCard job={job} />
+                                    <SafetySection notes={job.safety} />
+                                </div>
+                            )}
+                        </>
+                    )}
+
                     {declined && (
                         <>
-                            {app.declineReason && (
+                            {(status === 'rejected' ? app.adminNote : app.declineReason) && (
                                 <p className="rounded-xl border border-rose-100 bg-rose-50 px-3.5 py-2.5 text-sm text-rose-800">
-                                    <span className="font-bold">Reason given: </span>{app.declineReason}
+                                    <span className="font-bold">Reason given: </span>
+                                    {status === 'rejected' ? app.adminNote : app.declineReason}
                                 </p>
                             )}
                             <div className="flex flex-wrap gap-2.5">

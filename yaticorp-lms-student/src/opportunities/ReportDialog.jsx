@@ -45,7 +45,7 @@ export default function ReportDialog({ opp, onClose }) {
     };
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
             <form role="dialog" aria-modal="true" aria-labelledby="opp-report-title" onSubmit={submit} onClick={(e) => e.stopPropagation()}
                 className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-fade-in-up">
                 <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4">

@@ -98,17 +98,36 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
     };
 
     return (
-        <form onSubmit={save} aria-labelledby="opp-onboarding-title" className="relative rounded-3xl bg-white p-5 sm:p-6">
-            <div className="mb-4 pr-10">
-                <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-indigo-600">
-                    <Sparkles size={13} aria-hidden="true" /> {initial ? 'Your details' : 'Three quick answers'}
-                </p>
-                <h2 id="opp-onboarding-title" className="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">
-                    {initial ? 'Update your dates and interests' : 'Tell us when you want work, and what kind'}
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">No resume, no CV — jobs on your dates that match your interests.</p>
+        <form onSubmit={save} aria-labelledby="opp-onboarding-title"
+            className="relative flex h-full max-h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[calc(100vh-3rem)] sm:rounded-3xl">
+            {/* Band 1 of 3: the heading, which never moves. It used to be
+                sticky inside a card that was itself taller than the window, so
+                scrolling the popup carried the whole card — heading included —
+                off the top of the screen. A card that cannot outgrow the
+                screen has nowhere to carry it to. */}
+            <div className="shrink-0 border-b border-slate-100 bg-white px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
+                <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                        <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-indigo-600">
+                            <Sparkles size={13} aria-hidden="true" /> {initial ? 'Your details' : 'Three quick answers'}
+                        </p>
+                        <h2 id="opp-onboarding-title" className="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">
+                            {initial ? 'Update your dates and interests' : 'Tell us when you want work, and what kind'}
+                        </h2>
+                        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">No resume, no CV — jobs on your dates that match your interests.</p>
+                    </div>
+                    {onCancel && (
+                        <button type="button" onClick={onCancel} aria-label="Close"
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
+                            <X size={18} />
+                        </button>
+                    )}
+                </div>
             </div>
 
+            {/* Band 2: the only part that scrolls. min-h-0 is what lets a flex
+                child shrink below its content and scroll at all. */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.75fr)]">
               <div className="space-y-3">
                 <Section icon={CalendarDays} n={1} title="When do you want work?" hint="Only jobs running on these dates are shown. You can change them any time.">
@@ -189,8 +208,10 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
             </div>
 
             {error && <p role="alert" className="mt-3 flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700"><X size={14} aria-hidden="true" /> {error}</p>}
+            </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+            {/* Band 3: the buttons, always where the student left them. */}
+            <div className="shrink-0 flex flex-wrap items-center gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:px-6 sm:py-4">
                 {onCancel && (
                     <button type="button" onClick={onCancel} className="min-h-11 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:min-h-10">Cancel</button>
                 )}

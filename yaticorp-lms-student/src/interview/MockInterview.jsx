@@ -73,7 +73,7 @@ function Intro({ session, onStart, starting, error }) {
             <div className="flex items-center justify-between gap-3">
                 <Link to="/interview" className="group inline-flex items-center gap-2.5 text-base font-black text-slate-900">
                     <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors group-hover:border-violet-300 group-hover:text-violet-600"><ArrowLeft size={17} /></span>
-                    Interview Ready
+                    Interview
                 </Link>
                 <span className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-white px-4 py-2 text-sm font-black text-violet-700 shadow-sm">
                     <Sparkles size={16} className="text-violet-500" /> Let&apos;s crack it!

@@ -4,7 +4,9 @@
  * A parent has no account here, so these three routes sit outside the
  * section's sign-in. What protects them is the link itself: 32 random bytes,
  * good for one application, expiring after a fortnight. An operator cannot
- * answer in the guardian's place — there is no route for it anywhere.
+ * answer in the guardian's place — there is no route for it anywhere. What an
+ * operator does get is the step after this one: once a parent agrees, the LMS
+ * signs the application off separately.
  *
  * What the link gives up is deliberately thin: the child's name, the job they
  * were shown, and the two buttons. No account, no contact details, nothing
@@ -15,6 +17,7 @@ const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const router = express.Router();
 
 const Application = require('../models/JobApplication');
+const { SETTLED } = Application;
 const { guardianView } = require('../services/applicationService');
 
 // Enough for a parent reading, deciding and pressing a button; not enough to
@@ -54,13 +57,15 @@ const decide = (verb) => async (req, res, next) => {
     try {
         const { row, error, status } = await byToken(req.params.token);
         if (error) return res.status(status).json({ error });
-        if (row.status === 'approved' || row.status === 'declined' || row.status === 'continued') {
+        if (SETTLED.includes(row.status) || row.status === 'awaiting-admin') {
             return res.status(409).json({ error: 'This request has already been answered.', request: guardianView(row) });
         }
         if (row.status !== 'awaiting-guardian') {
             return res.status(409).json({ error: 'This request is not waiting for an answer.', request: guardianView(row) });
         }
-        row.status = verb === 'approve' ? 'approved' : 'declined';
+        // A yes does not finish the application, it passes it on: the LMS still
+        // has to sign it off. A no ends it here — nobody overrides a parent.
+        row.status = verb === 'approve' ? 'awaiting-admin' : 'declined';
         row.decidedAt = new Date();
         if (verb === 'decline') row.declineReason = String(req.body?.reason || '').trim().slice(0, 300);
         await row.save();

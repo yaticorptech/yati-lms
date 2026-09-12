@@ -94,13 +94,27 @@ BUNNY_STREAM_API_KEY=
 
 PLATFORM_SECRET_KEY=
 
-# Emailing a parent or guardian their part-time job permission link. The same
-# Brevo sender the rest of the LMS uses; nothing extra to sign up for.
-# BREVO_API_KEY must be ENABLED in the Brevo dashboard, not merely present —
-# a disabled key answers "API Key is not enabled" and no mail leaves. When a
-# send is refused the student's screen says so rather than claiming an email.
+# Email — password resets, support tickets, and the part-time job permission
+# request a parent or guardian answers. Two ways out, SMTP first.
+#
+# SMTP: any mailbox that will hand out a password. Nothing to enable in a
+# third-party dashboard. All three are needed or SMTP is skipped.
+SMTP_HOST=                              # e.g. smtp.gmail.com, smtp.zoho.in
+SMTP_USER=                              # the mailbox address
+SMTP_PASS=                              # an app password, not the login password
+SMTP_PORT=587                           # 587 STARTTLS, or 465 for implicit TLS
+SMTP_SECURE=                            # "true" forces TLS; otherwise true only on 465
+SMTP_FROM=                              # optional, defaults to SMTP_USER
+SMTP_FROM_NAME=YATICORP LMS             # optional display name
+#
+# Brevo: the fallback, used only when SMTP is not set. The key must be ENABLED
+# in the Brevo dashboard, not merely present — a disabled one answers
+# "API Key is not enabled" and no mail leaves.
 BREVO_API_KEY=
 BREVO_SENDER_EMAIL=                     # a verified sender in Brevo
+#
+# With neither configured, sending fails loudly and the student's screen says
+# the email could not be sent rather than claiming one that never went.
 FRONTEND_URL=http://localhost:5173      # the address the guardian's link points at
 
 # Interview Ready (see docs/INTERVIEW.md) — uses GEMINI_API_KEY; both optional
