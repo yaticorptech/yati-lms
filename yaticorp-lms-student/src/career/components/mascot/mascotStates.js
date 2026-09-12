@@ -62,6 +62,8 @@ export const STATES = {
   streakBroken: { clip: 'sad', pose: 'streakbroken', body: 'mc-idle' },
   quizPassed: { clip: 'celebrate', pose: 'clear', body: 'mc-dance' },
   quizFailed: { clip: 'sad', pose: 'wrong', body: 'mc-idle' },
+  // Still states, no longer reactions: the games section does not speak to
+  // the companion, but the day-cleared celebration wears gameWon.
   gameWon: { clip: 'celebrate', pose: 'win', body: 'mc-dance' },
   gameLost: { clip: 'sad', pose: 'lose', body: 'mc-idle' }
 };
@@ -111,15 +113,6 @@ export const REACTIONS = {
   /* -- Everything else the interface already reports --------------------- */
   streakKept: { state: 'streakKept', message: 'Streak kept. Same time tomorrow.' },
   streakBroken: { state: 'encouraging', message: 'The streak went. Start a new one today.' },
-  /*
-   * Three beats around a game, not two. `gameLost` is the honest reaction and
-   * is deliberately short-lived: CareerPathMascot follows it with
-   * `encouraging` a moment later, so the student sees sympathy and then a
-   * nudge rather than a mascot left sitting in a sulk.
-   */
-  gameStart: { state: 'presenting', message: 'Ready? I’ll show you how to play!', anchor: 'game-start', ms: 7000 },
-  gameWon: { state: 'gameWon', message: 'Awesome! You did it!', anchor: 'game' },
-  gameLost: { state: 'gameLost', message: 'Almost there! Try again — you’ve got this.', anchor: 'game' },
   quizStart: { state: 'pondering', message: 'Take your time. Read each one twice.', anchor: 'quiz' },
   taskStart: { state: 'reading', message: 'Watch it through and the task ticks itself off.' },
   dayCleared: { state: 'success', message: "That is today's plan finished. Well done.", anchor: 'today-tasks' },

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import BadgeMedallion from '../../components/rewards/BadgeMedallion';
+import RewardsHeroArt from '../../components/rewards/RewardsHeroArt';
 import useCountUp from '../../../hooks/useCountUp';
 import { BADGE_ICONS, tierFor } from '../../components/rewards/badgeTiers';
 import YatiLoader from '../../../components/YatiLoader';
@@ -59,19 +60,97 @@ const levelBounds = (xp) => {
 // backend/services/taskCompletionService.js.
 const TASK_XP = 10;
 
-/** One figure in the rail beside the badges. */
-const RewardStat = ({ icon: Icon, label, value, detail, tone }) => (
-  <section className="rounded-2xl border border-line-200/80 bg-surface p-4 shadow-card">
-    <p className="flex items-center gap-2 text-sm font-bold text-ink-900">
-      <span className={`flex h-7 w-7 items-center justify-center rounded-lg ring-1 ring-inset ${tone}`}>
-        <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
-      </span>
-      {label}
-    </p>
-    <p className="mt-3 text-3xl leading-none font-black text-ink-900 tabular-nums">{value}</p>
-    {detail && <p className="mt-1.5 text-xs font-semibold text-ink-500">{detail}</p>}
-  </section>
-);
+/**
+ * The four figures in the rail, and the colour each one owns.
+ *
+ * Written out as whole class names rather than assembled from a hue, because
+ * Tailwind generates classes by scanning source text: a name built at runtime
+ * is a name it never emits, and the style would simply be missing from the
+ * build.
+ */
+const STAT_TONES = {
+  badge: {
+    chip: 'from-amber-300 to-amber-500 shadow-amber-500/40',
+    lip: 'bg-amber-600/70',
+    card: 'from-amber-100/80 ring-amber-100',
+    glow: 'bg-amber-200/50',
+    figure: 'from-amber-500 to-orange-600'
+  },
+  achievement: {
+    chip: 'from-pink-300 to-rose-500 shadow-rose-500/40',
+    lip: 'bg-rose-600/70',
+    card: 'from-pink-100/70 ring-pink-100',
+    glow: 'bg-pink-200/50',
+    figure: 'from-pink-500 to-rose-600'
+  },
+  xp: {
+    chip: 'from-journey-400 to-journey-600 shadow-journey-500/40',
+    lip: 'bg-journey-700/70',
+    card: 'from-journey-100/70 ring-journey-100',
+    glow: 'bg-journey-200/50',
+    figure: 'from-journey-600 to-indigo-600'
+  },
+  milestone: {
+    chip: 'from-emerald-300 to-emerald-500 shadow-emerald-500/40',
+    lip: 'bg-emerald-600/70',
+    card: 'from-emerald-100/70 ring-emerald-100',
+    glow: 'bg-emerald-200/50',
+    figure: 'from-emerald-500 to-teal-600'
+  }
+};
+
+/**
+ * One figure in the rail beside the badges.
+ *
+ * The icon is built the way the solids in the heroes are: a darker copy of
+ * the shape behind it standing in for its thickness, a gradient across the
+ * face, and a crown along the top where the light lands. One light source,
+ * from above — the same one the illustrations use, so the rail and the
+ * picture beside it belong to each other.
+ *
+ * The figure itself is what the card is for, so it is the largest thing on
+ * it and carries the colour; the label above it is only a name.
+ */
+const RewardStat = ({ icon: Icon, label, value, detail, tone = 'xp' }) => {
+  const t = STAT_TONES[tone] || STAT_TONES.xp;
+  return (
+    <section
+      /* Lit from the top-right corner and nowhere else: the tint, the glow
+         and the icon all sit there, and the figure below is left on plain
+         white where it reads hardest. An earlier pass ran the tint up from
+         the bottom-left while the glow sat top-right, which gave one small
+         card two light sources pointing at each other. */
+      className={`group relative overflow-hidden rounded-2xl bg-gradient-to-bl via-surface to-surface p-4 shadow-card ring-1 ring-inset transition-transform duration-300 hover:-translate-y-0.5 ${t.card}`}
+    >
+      {/* The card's own light, off in the corner and well behind the words. */}
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute -top-12 -right-12 h-28 w-28 rounded-full blur-2xl ${t.glow}`}
+      />
+
+      <div className="relative flex items-start justify-between gap-3">
+        <p className="pt-1 text-sm font-bold text-ink-900">{label}</p>
+
+        <span aria-hidden className="relative h-10 w-10 shrink-0">
+          <span className={`absolute inset-x-0 top-1.5 bottom-0 rounded-2xl ${t.lip}`} />
+          <span
+            className={`absolute inset-x-0 top-0 bottom-1.5 flex items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br text-white shadow-md ${t.chip}`}
+          >
+            <Icon className="h-4 w-4" strokeWidth={2.5} />
+            <span className="absolute inset-x-1.5 top-1 h-1.5 rounded-full bg-white/45" />
+          </span>
+        </span>
+      </div>
+
+      <p
+        className={`relative mt-2.5 bg-gradient-to-br bg-clip-text text-[2.1rem] leading-none font-black text-transparent tabular-nums ${t.figure}`}
+      >
+        {value}
+      </p>
+      {detail && <p className="relative mt-1.5 text-xs font-semibold text-ink-500">{detail}</p>}
+    </section>
+  );
+};
 
 /** The level, as a ring filled to the next one. */
 function LevelBadge({ level, percent }) {
@@ -184,7 +263,20 @@ export default function Badges() {
             className="fp-float-slow pointer-events-none absolute -right-10 -bottom-24 h-56 w-56 rounded-full bg-amber-200/50 blur-3xl"
           />
 
-          <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6">
+          {/* The cup bleeds to the right edge rather than sitting in a column
+              of its own: boxed, it reads as a picture pasted onto the banner
+              instead of as the banner itself. It counts the same badges the
+              shelf below does, so it is `aria-hidden` and costs a screen
+              reader nothing it is not already told in words. */}
+          <div
+            aria-hidden
+            data-mascot-clear
+            className="pointer-events-none absolute inset-y-0 right-0 hidden w-[38%] max-w-[380px] [mask-image:linear-gradient(to_right,transparent,black_10%)] lg:block"
+          >
+            <RewardsHeroArt earned={unlockedCount} className="h-full w-full" />
+          </div>
+
+          <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 lg:max-w-[64%]">
             <LevelBadge level={level} percent={percent} />
 
             <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
@@ -487,21 +579,21 @@ export default function Badges() {
           label="Badges earned"
           value={unlockedCount}
           detail={nextBadge ? `Next: ${nextBadge.title}` : 'Every badge so far is yours'}
-          tone="bg-amber-50 text-amber-600 ring-amber-100"
+          tone="badge"
         />
         <RewardStat
           icon={Trophy}
           label="Achievements"
           value={achievements.length}
           detail={achievements.length ? 'Moments worth keeping' : 'Finish a task to start'}
-          tone="bg-pink-50 text-pink-600 ring-pink-100"
+          tone="achievement"
         />
         <RewardStat
           icon={Zap}
           label="Total XP"
           value={animatedXp}
           detail={`${xpToLevel} XP to Level ${level + 1}`}
-          tone="bg-journey-50 text-journey-600 ring-journey-100"
+          tone="xp"
         />
         {milestones.length > 0 && (
           <RewardStat
@@ -509,7 +601,7 @@ export default function Badges() {
             label="Milestones"
             value={milestones.length}
             detail="Phases finished"
-            tone="bg-emerald-50 text-emerald-600 ring-emerald-100"
+            tone="milestone"
           />
         )}
       </aside>

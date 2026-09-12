@@ -15,6 +15,7 @@ import Card, { CardHeader } from '../../components/ui/Card';
 import { levelProgress } from '../../utils/progress';
 import EmptyState from '../../components/ui/EmptyState';
 import TaskStudyPanel from '../../components/study/TaskStudyPanel';
+import MissionArt from '../../components/plan/MissionArt';
 import LessonProgress from '../../components/study/LessonProgress';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
@@ -347,7 +348,26 @@ export default function Planner() {
         {/* A fine highlight along the top edge, so the card reads as lit
             from above rather than flat. */}
         <span aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
-        <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 md:min-h-[196px]">
+
+        {/* The target bleeds to the right edge rather than sitting in a column
+            of its own: boxed, it reads as a picture pasted onto the banner
+            instead of as the banner itself. It says the same thing the ring on
+            the left does — arrow still flying while there is work left, in the
+            gold once the day is cleared — so it is `aria-hidden` and costs a
+            screen reader nothing.
+
+            `data-mascot-clear` keeps the companion off it: there is a task
+            list below for it to point at, and a character standing on the
+            bullseye is the one place it must not stop. */}
+        <div
+          aria-hidden
+          data-mascot-clear
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[32%] max-w-[380px] [mask-image:linear-gradient(to_right,transparent,black_8%)] lg:block"
+        >
+          <MissionArt cleared={dayCleared} className="h-full w-full" />
+        </div>
+
+        <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 md:min-h-[196px] lg:max-w-[68%]">
           {tasks.length > 0 && (
             <div className="fp-breathe relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-surface/70 shadow-card ring-1 ring-white/80 sm:h-28 sm:w-28">
               <svg viewBox="0 0 72 72" className="h-20 w-20 -rotate-90 sm:h-28 sm:w-28" aria-hidden>

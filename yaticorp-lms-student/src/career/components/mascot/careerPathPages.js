@@ -74,33 +74,43 @@ export const CAREER_PAGES = [
     key: 'skills',
     show: { at: 'today-task', state: 'determined', say: 'Start today’s task and build your skills!' }
   },
+  /*
+   * Ideas, My Progress and Rewards have no `show`, so the companion never
+   * appears on any of them. Ideas is a page to browse — the cards are the
+   * point, and a character presenting them is something to dismiss before
+   * the browsing can start; the other two are pages a student opens to read
+   * their own record, where the numbers are the point in the same way. They
+   * keep their entries so the routes are still known to be inside Career
+   * Path, which is what lets the companion be sent away on arriving here
+   * from a page it was showing on.
+   */
   {
     route: '/career/recommendations',
-    key: 'ideas',
-    show: { at: 'idea-list', state: 'presenting', say: 'Explore these ideas and discover new ways to grow.' }
+    key: 'ideas'
   },
   {
     route: '/career/profile',
-    key: 'progress',
-    show: { at: 'progress-summary', state: 'progressing', say: 'Let’s see how far you’ve come!' }
+    key: 'progress'
   },
   {
     route: '/career/badges',
-    key: 'rewards',
-    show: { at: 'earn', state: 'excited', say: 'You’ve earned this! Check out your rewards.' }
+    key: 'rewards'
   },
+  /* Games has no `show`, and the section dispatches no events to the
+     companion either: a game's own console, briefing and result screen say
+     everything a student needs, and a character beside a timed puzzle is
+     something to look past. Kept in the table so the route still counts as
+     inside Career Path — see the note above the three silent pages. */
   {
     route: '/career/games',
-    key: 'games',
-    // The first game in the list. Once a level briefing is open the
-    // `mascot:game-start` event takes over and moves it to that screen's
-    // own start button.
-    show: { at: 'game-play', state: 'presenting', say: 'Ready to play? Click Start!' }
+    key: 'games'
   },
+  /* Settings, for the same reason and one more: it is the one page whose
+     whole job is to let someone change things, and a guide that turns up to
+     say the page exists is in the way of doing that. */
   {
     route: '/career/settings',
-    key: 'settings',
-    show: { at: 'settings-panel', state: 'happy', say: 'You can customise your Career Path experience here.' }
+    key: 'settings'
   }
 ];
 

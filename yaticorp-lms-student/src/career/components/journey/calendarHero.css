@@ -1,0 +1,69 @@
+/**
+ * Motion for the calendar's banner, and nothing else.
+ *
+ * Every class is prefixed `cb-` and applied only by JourneyBanner, which is
+ * imported by the Calendar page alone — so no other screen can be reached by
+ * anything in here. The sibling file careerHero.css does the same job for the
+ * overview hero; the two are deliberately kept apart rather than shared,
+ * because each is tuned to the artwork behind it.
+ *
+ * The banner arrives once and then rests. The scene it sits on is busy
+ * enough — three floating cards, a calendar, a desk — that anything still
+ * moving after the first second competes with the words in front of it.
+ */
+
+.cb-hero {
+  --cb-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---- Entrance ----------------------------------------------------------
+ * One curve, staggered by hand rather than by a loop, so the order reads:
+ * greeting, first line, second line, sentence, stats, script.
+ */
+.cb-in {
+  animation: cb-in 0.7s var(--cb-ease) both;
+}
+@keyframes cb-in {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The amber rule under "Build your future.", drawn left to right once the
+   words it belongs to have arrived. */
+.cb-underline {
+  transform-origin: left center;
+  animation: cb-underline 0.65s var(--cb-ease) 0.5s both;
+}
+@keyframes cb-underline {
+  from { transform: scaleX(0); opacity: 0; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+
+/* ---- The artwork -------------------------------------------------------
+ * The scene fades in and then holds. It cannot be moved or scaled: it is
+ * sized to the panel height and pinned to the right edge, so there is no
+ * spare image in any direction — any drift would pull it off the border and
+ * open a gap.
+ */
+.cb-art {
+  animation: cb-art-in 1.1s var(--cb-ease) 0.05s both;
+}
+@keyframes cb-art-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ---- Accessibility ------------------------------------------------------
+ * Asked to reduce motion, everything above stops and anything an entrance had
+ * hidden is put back. The banner must never be blank because of a preference.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .cb-hero .cb-in,
+  .cb-hero .cb-underline,
+  .cb-hero .cb-art {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

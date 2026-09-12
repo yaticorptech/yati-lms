@@ -27,13 +27,21 @@ const halfWidth = (size) => size * 0.42;
 
 /**
  * The app's fixed furniture, measured rather than assumed. The mascot must
- * not stand behind the header, under the floating phone navigation, or on
- * top of anything a page has pinned to the foot of the screen.
+ * not stand behind a top bar, under the floating phone navigation, or on top
+ * of anything a page has pinned to an edge of the screen.
  *
- * The header and the phone nav are found by what they are. Everything else
- * has to say so with `data-mascot-avoid`, because "is this element pinned to
- * the bottom?" cannot be answered by scanning the document cheaply or
+ * The `<header>` and the phone nav are found by what they are. Everything
+ * else has to say so with `data-mascot-avoid`, because "is this element
+ * pinned to an edge?" cannot be answered by scanning the document cheaply or
  * reliably — and a bar the mascot stands on is a bar that cannot be read.
+ *
+ * A marked element is read as whichever edge it is actually against, not
+ * assumed to be the bottom one. The layout has two top bars, one for each
+ * width: the desktop one is a `<header>` and is found above, but the phone
+ * one is a plain div, so on a phone nothing was found at all — and because
+ * the desktop `<header>` is still in the document at that width, merely
+ * hidden, it measured as a zero-height box and quietly reported no bar
+ * rather than no match. The character walked up behind the black bar.
  */
 export const forbiddenBands = () => {
   const bands = [];
@@ -52,13 +60,21 @@ export const forbiddenBands = () => {
   // rules are tested headless, against a stub with no querySelectorAll.
   for (const el of document.querySelectorAll?.('[data-mascot-avoid]') ?? []) {
     const r = el.getBoundingClientRect();
-    // Only while it is actually on screen and near the foot of it.
-    if (r.height > 0 && r.bottom > window.innerHeight - r.height - 8) {
+    // Zero height is the hidden half of a responsive pair, not a bar.
+    if (r.height <= 0) continue;
+    if (r.top <= 1) {
+      bands.push({ side: 'top', top: 0, bottom: r.bottom });
+    } else if (r.bottom > window.innerHeight - r.height - 8) {
+      // Only while it is actually on screen and near the foot of it.
       bands.push({ side: 'bottom', top: r.top, bottom: window.innerHeight });
     }
   }
   return bands;
 };
+
+/** The lowest edge of everything pinned to the top of the screen. */
+export const topGuard = (bands) =>
+  bands.reduce((m, b) => (b.side === 'top' ? Math.max(m, b.bottom) : m), 0);
 
 /**
  * Roughly how much room the speech bubble takes.
@@ -175,7 +191,22 @@ export const standBeside = (rect, size, prefer = null) => {
   const bands = forbiddenBands();
   const zones = keepOutRects();
 
-  const floor = (y) => Math.min(Math.max(y, EDGE + size), h - EDGE);
+  /*
+   * The ceiling is the foot of the top bar, not the top of the window.
+   *
+   * A top band used to be scored and nothing more, and a score is a
+   * preference: when every candidate was poor — which is what scrolling a
+   * target up under the bar produces — the least-bad one still put the
+   * character's head behind the bar, where it renders as a figure sliced in
+   * half by the black strip. The bar is not a place that is worse than
+   * others, it is not a place, so it is a clamp.
+   *
+   * `Math.max(ceiling, …)` on the far side keeps the pair from inverting on
+   * a viewport too short to hold the character at all: it then rests on its
+   * ceiling rather than being flipped below the floor.
+   */
+  const ceiling = topGuard(bands) + EDGE + size;
+  const floor = (y) => Math.min(Math.max(y, ceiling), Math.max(ceiling, h - EDGE));
   const clampX = (x) => Math.min(Math.max(x, EDGE + half), w - EDGE - half);
 
   /*

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import MascotStage from './MascotStage';
-import mascot, { PRIORITY } from './mascotBus';
+import mascot from './mascotBus';
 import { watchTarget } from './mascotTargets';
 import { pageFor, stepsFor } from './careerPathPages';
 import './mascot.css';
@@ -48,8 +48,6 @@ const RETURN_PAD = 120;
 const VIEW_SETTLE_MS = 160;
 
 /** How long a win is celebrated, and how long sympathy lasts before a nudge. */
-const CELEBRATE_MS = 3600;
-const SYMPATHY_MS = 1900;
 
 export default function CareerPathMascot() {
   const { pathname } = useLocation();
@@ -99,7 +97,14 @@ export default function CareerPathMascot() {
   /* ---- Going, and going away -------------------------------------------- */
 
   const runTour = useCallback(() => {
-    if (!page) return;
+    /*
+     * A page with nothing to point at has no tour, including when one is
+     * asked for. `mascot:ask` below is dispatched by the sidebar card from
+     * every page in the app, and the runner calls enter() before it looks at
+     * the steps it was given — so handing it an empty sequence summons the
+     * character to stand on a page that deliberately has no line for it.
+     */
+    if (!page?.show) return;
     mascot.guide(stepsFor(page), {
       /*
        * The sequence ends beside the target rather than tidying itself
@@ -140,36 +145,6 @@ export default function CareerPathMascot() {
     window.addEventListener('mascot:ask', runTour);
     return () => window.removeEventListener('mascot:ask', runTour);
   }, [runTour]);
-
-  /* ---- After a game -----------------------------------------------------
-     The bus holds a state until something new happens, which is right for
-     every reaction except these two: a celebration that never ends stops
-     reading as a celebration, and a character left sitting in a sulk is the
-     thing the brief asks us not to build. The game already announces its
-     result; this only decides how long the reaction to it lasts. */
-  useEffect(() => {
-    let timer = null;
-    const onResult = (e) => {
-      const passed = !!e.detail?.passed;
-      clearTimeout(timer);
-      timer = setTimeout(
-        () =>
-          passed
-            ? mascot.rest()
-            : mascot.setState('encouraging', {
-                message: 'Go again — you’re closer than you think.',
-                ms: 4200,
-                priority: PRIORITY.reaction
-              }),
-        passed ? CELEBRATE_MS : SYMPATHY_MS
-      );
-    };
-    window.addEventListener('mascot:game-result', onResult);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('mascot:game-result', onResult);
-    };
-  }, []);
 
   /* Leaving Career Path. The stage unmounts with this component, so this is
      only about leaving the store in a state the next visit can start from. */
