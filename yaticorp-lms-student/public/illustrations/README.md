@@ -54,3 +54,40 @@ layer if the file is missing. To rebuild both derived files after replacing
 `yaticorp-lms-server` (which has `canvas` installed) — the crop first, then
 the widening. Both are a dozen lines of node-canvas; see the git history of
 this file for the exact commands used.
+
+## Career Path — the calendar
+
+| File | Where it appears |
+|---|---|
+| `calendar-hero-bg.png` | the calendar's banner background — this is the one the page loads on a wide screen |
+| `calendar-hero-art.png` | the scene alone; loaded directly as the band under the words on a narrow screen, and the source `calendar-hero-bg.png` is built from |
+| `calendar-hero.png` | the full supplied banner; the source `calendar-hero-art.png` is cropped from |
+
+The same three steps as above, and for the same reasons. `calendar-hero.png`
+is 2172x724 and carries a greeting, a headline, a sentence, a three-part stat
+bar and a signature line painted into its left half; the banner renders all of
+those as real elements, because the painted ones name a student who does not
+exist and quote a level, an XP total and a streak that belong to nobody.
+
+`calendar-hero-art.png` is that file cropped to x >= 980 — right of the painted
+card and of the left sparkle burst, left of the books, which are the leftmost
+thing in the scene — and trimmed to 1180x678 to drop the white page margin
+below and to the right of the picture, so the scene bleeds to every edge.
+
+Two extra passes the Career Path files did not need:
+
+* The painted card's rounded bottom-right corner reaches past the crop, so the
+  scene inherits a white swoosh sweeping out from under the desk. It is
+  blurred away rather than painted over — everything it crosses is already a
+  smooth pale gradient, and the phone and the desk are held out of the blur by
+  colour so nothing bleeds into them.
+* The leftward extension to 4400x678 (~6.5:1, so `cover` never crops the scene
+  vertically on any panel this wide) smears each row in its own colour, as
+  before, but off a vertically blurred copy of the seam column. Smeared raw,
+  every edge a row crosses — the desk lip, the shelf behind it — draws itself
+  across the full width as a hard horizontal band.
+
+To rebuild both derived files after replacing `calendar-hero.png`, run
+`node scripts/buildCalendarHero.js` from `yaticorp-lms-server`, which is the
+workspace `canvas` is installed in. It reads the banner from this directory
+and writes both derived files back into it.

@@ -109,6 +109,33 @@
   to   { transform: scaleX(1); }
 }
 
+/* ---- The phase being stood on -------------------------------------------
+ * The platform already announces itself: a halo, two outgoing rings and a
+ * bouncing pin. Its card said nothing, and on a phone the platform is drawn
+ * at 62% in a 76px rail while the card takes the rest of the screen — so the
+ * one loud thing on the map was also the smallest thing on it, and the eye
+ * landed on the cards instead.
+ *
+ * A ring around the card, breathing. Slow, because unlike the platform's
+ * three pulses this has no end: "here" keeps being true for as long as the
+ * student is on this phase, and something that states a standing fact must
+ * not behave like something announcing news.
+ *
+ * box-shadow rather than a border or an outline: the card already has both,
+ * a coloured stripe down its leading edge and a rounded border, and animating
+ * either would move the content inside it. The trade is that this card keeps
+ * its resting shadow on hover instead of the raised one — an animation beats
+ * a static declaration — which costs it nothing it needs, because the lift
+ * on hover is a transform and still happens.
+ */
+.fp-rm-now {
+  animation: fp-rm-now 3.6s var(--fp-rm-ease-soft) infinite;
+}
+@keyframes fp-rm-now {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(124 58 237 / 0.32), 0 10px 30px -18px rgb(49 46 129 / 0.35); }
+  50%      { box-shadow: 0 0 0 7px rgb(124 58 237 / 0), 0 10px 30px -18px rgb(49 46 129 / 0.35); }
+}
+
 /* ---- Accessibility -------------------------------------------------------
  * Asked to reduce motion, everything above stops — and, crucially, anything
  * the reveal had hidden is put back. An accessibility preference must never
@@ -122,6 +149,7 @@
   .fp-roadmap .fp-rm-progress,
   .fp-roadmap .fp-rm-icon,
   .fp-roadmap .fp-rm-shine::after,
+  .fp-roadmap .fp-rm-now,
   .fp-roadmap .fp-rm-burst::after {
     animation: none !important;
     transition: none !important;

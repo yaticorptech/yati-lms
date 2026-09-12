@@ -1,4 +1,5 @@
 import { Flag } from 'lucide-react';
+import { travel, LEAD_S } from './journeyTravel';
 
 /**
  * The whole roadmap as one line of checkpoints.
@@ -9,9 +10,17 @@ import { Flag } from 'lucide-react';
  * A number ("Phase 4 of 9") states that; a track lets it be seen without
  * reading, which is the difference between a statistic and a sense of progress.
  *
- * Deliberately not interactive. It sits on the Overview and inside the roadmap
- * hero as an orientation device; the phases themselves are opened in the list
- * below, where there is room to actually read one.
+ * Deliberately not interactive. It sits inside the roadmap hero as an
+ * orientation device; the phases themselves are opened in the list below,
+ * where there is room to actually read one.
+ *
+ * On arrival it plays the journey rather than just showing its result. The
+ * travelled run of the rail fills from Start one segment at a time, the
+ * checkpoint being stood on lights up the moment the fill reaches it, and
+ * everything else on the page that says "how far" — the percentage, the
+ * card's pulse — is timed off the same `travel()` clock so it all lands
+ * together. Four things arriving at four different times said "loading";
+ * four things arriving at once say "this far".
  *
  * Sized to fit any roadmap. These run from six phases for a working
  * professional to fifteen for a Class 6 student, so the checkpoints share the
@@ -19,8 +28,21 @@ import { Flag } from 'lucide-react';
  * scrolls sideways on a phone, which is the one thing an at-a-glance component
  * must never do.
  */
+/**
+ * The same check useCountUp makes. The global reduced-motion rule collapses
+ * every duration but leaves delays alone, so a checkpoint told to wait 1.4s
+ * before a 0.01ms pop would sit invisible for 1.4s — a blank track, which is
+ * the opposite of what the preference asks for. With it set, nothing waits.
+ */
+const reducedMotion = () =>
+  typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
 export default function JourneyTrack({ states = [], tone = 'dark' }) {
   if (!states.length) return null;
+
+  const { step, arrive } = travel(states);
+  const still = reducedMotion();
+  const at = (seconds) => (still ? '0s' : `${seconds.toFixed(2)}s`);
 
   const isLight = tone === 'light';
 
@@ -54,7 +76,7 @@ export default function JourneyTrack({ states = [], tone = 'dark' }) {
           <li key={index} className={`flex items-center ${isLast ? 'shrink-0' : 'min-w-0 flex-1'}`}>
             {isGoalPost ? (
               <span
-                style={{ animationDelay: `${0.15 + index * 0.07}s` }}
+                style={{ animationDelay: at(arrive + 0.12) }}
                 className={`animate-pop-in flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
                   state === 'done'
                     ? isLight
@@ -73,13 +95,14 @@ export default function JourneyTrack({ states = [], tone = 'dark' }) {
                 {state === 'current' && (
                   <span
                     aria-hidden
+                    style={{ animationDelay: at(arrive) }}
                     className={`fp-halo absolute h-7 w-7 rounded-full blur-sm ${
                       isLight ? 'bg-brand-400/50' : 'bg-white/40'
                     }`}
                   />
                 )}
                 <span
-                  style={{ animationDelay: `${0.15 + index * 0.07}s` }}
+                  style={{ animationDelay: at(state === 'current' ? arrive : 0.15 + index * 0.07) }}
                   className={`animate-pop-in relative shrink-0 rounded-full transition-all duration-500 ${dot[state]}`}
                 />
               </span>
@@ -90,7 +113,11 @@ export default function JourneyTrack({ states = [], tone = 'dark' }) {
                 run reads as distance covered rather than as items ticked. */}
             {!isLast && (
               <span
-                style={{ animationDelay: `${0.2 + index * 0.07}s` }}
+                style={
+                  state === 'done'
+                    ? { animationDelay: at(LEAD_S + index * step), animationDuration: still ? '0.01ms' : `${step.toFixed(2)}s` }
+                    : undefined
+                }
                 className={`h-0.5 min-w-1.5 flex-1 origin-left rounded-full transition-colors duration-500 ${
                   state === 'done' ? `fp-fill ${railDone}` : railTodo
                 }`}

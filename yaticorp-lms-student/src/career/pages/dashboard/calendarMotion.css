@@ -1,0 +1,106 @@
+/**
+ * Motion for the calendar page, and nothing else.
+ *
+ * Every class is prefixed `cal-` and applied only by Calendar.jsx, so no
+ * other screen can be reached by anything in here. The shared vocabulary in
+ * career.css — `animate-fade-in-up`, `.stagger` and the rest — covers a card
+ * arriving; what it cannot express is the two things this page does that no
+ * other page does: replacing a grid of forty-two cells with a different
+ * month, and answering a tap on one of them.
+ *
+ * All of it is one-shot. A calendar is a thing people scan for a date, and
+ * anything still moving while they scan is something the eye has to dismiss
+ * before it can read.
+ */
+
+.cal-page {
+  --cal-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---- Changing month ----------------------------------------------------
+ * The grid arrives from the side it came from: forward and it enters from
+ * the right, back and it enters from the left. Without it the month simply
+ * becomes a different month, and the two arrows are the only evidence
+ * anything happened — which is fine until the numbers are similar enough
+ * that you cannot tell at a glance whether the click registered.
+ *
+ * The direction is a custom property rather than two separate animations, so
+ * the label above the grid can lean the same way off the same switch by
+ * inheriting it.
+ */
+.cal-next { --cal-from: 30px; }
+.cal-prev { --cal-from: -30px; }
+
+.cal-grid {
+  animation: cal-grid-in 0.34s var(--cal-ease) both;
+}
+@keyframes cal-grid-in {
+  from { transform: translate3d(var(--cal-from, 0px), 0, 0); }
+  to   { transform: none; }
+}
+
+/* The month's name, moved a little less far than the grid it titles. On the
+   first paint there is no direction and this is a plain fade. */
+.cal-label {
+  animation: cal-label-in 0.32s var(--cal-ease) both;
+}
+@keyframes cal-label-in {
+  from { opacity: 0; transform: translate3d(calc(var(--cal-from, 0px) * 0.45), 0, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- The days ----------------------------------------------------------
+ * A short cascade across the grid, so a month reads as being dealt out
+ * rather than appearing whole. `--cal-i` is the cell's index, set inline;
+ * the delay is capped so the last square is not still arriving after the
+ * eye has reached it.
+ *
+ * Transform only, and filled `backwards` rather than `both`, because two
+ * things already own these cells' other properties and an animation would
+ * outrank both: Tailwind dims an empty future day to 70%, and `.fp-press`
+ * squashes any cell being pressed. Animating opacity here would undim the
+ * first; holding the final transform would flatten the second.
+ */
+.cal-cell {
+  animation: cal-cell-in 0.3s var(--cal-ease) backwards;
+  animation-delay: min(calc(var(--cal-i, 0) * 9ms), 200ms);
+}
+@keyframes cal-cell-in {
+  from { transform: translate3d(0, 7px, 0) scale(0.97); }
+  to   { transform: none; }
+}
+
+/* ---- Flipping the card -------------------------------------------------
+ * The month and the timetable are the same card showing two different
+ * things, so the swap is a cross-fade rather than an entrance: they are
+ * alternatives, not a sequence.
+ */
+.cal-panel {
+  animation: cal-panel-in 0.26s var(--cal-ease) both;
+}
+@keyframes cal-panel-in {
+  from { opacity: 0; transform: scale(0.992); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- Accessibility ------------------------------------------------------
+ * Asked to reduce motion, every entrance above is simply not run. The
+ * calendar must never be blank, or a month short, because of a preference.
+ *
+ * Cancelling the animation is the whole fix, and it is deliberately the only
+ * one. The sibling hero sheets follow `animation: none` with `opacity: 1`
+ * and `transform: none` as belt and braces, which is harmless there because
+ * nothing else sets either property on those elements. Here both are
+ * spoken for — Tailwind dims an empty future day to 70%, `.fp-press`
+ * squashes a cell being pressed — and an `!important` reset would win
+ * against them permanently. With no animation there is no fill to undo, so
+ * the natural styles are already the right answer.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .cal-page .cal-grid,
+  .cal-page .cal-label,
+  .cal-page .cal-cell,
+  .cal-page .cal-panel {
+    animation: none !important;
+  }
+}

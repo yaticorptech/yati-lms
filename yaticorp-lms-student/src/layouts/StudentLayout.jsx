@@ -484,8 +484,14 @@ const StudentLayout = () => {
                 </div>
             </aside>
 
-            {/* Mobile Header */}
-            <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4">
+            {/* Mobile Header. Marked for the Career Path companion: it is the
+                top bar at this width but it is a div, not the <header> below,
+                so nothing else here would tell the character it exists — and
+                it walked up behind it. */}
+            <div
+                data-mascot-avoid
+                className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4"
+            >
                 <div className="flex items-center">
                     <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-8 object-contain" />
                 </div>

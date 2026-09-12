@@ -248,12 +248,18 @@
  * ==================================================================== */
 
 /* The character's own layer. Travel is written by JS as a transform on this
-   element, so moving costs a composite and never a layout. */
+   element, so moving costs a composite and never a layout.
+
+   45 puts it over the page and the phone's bottom bar (40) and under the
+   layout's own chrome — the phone header and the menu drawer are 50, its
+   dropdowns 60 — so an open drawer covers the character and its bubble
+   instead of the bubble floating over the menu. Career Path's own dialogs
+   start at 90 and were already above it. */
 .mc-actor {
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 55;
+  z-index: 45;
   pointer-events: none;
   will-change: transform;
 }
@@ -386,6 +392,17 @@
 }
 .mc-actor.mc-gone {
   opacity: 0;
+  pointer-events: none;
+}
+/* And its hit box with it. `.mc-actor .mc-hit` re-enables the pointer on the
+   character so it can be tapped, and an explicit `auto` on a child beats the
+   `none` inherited from its parent — so a character that had faded out was
+   still an invisible, sprite-sized button. leave() only changes the mode; it
+   does not move the figure, so that button sat exactly where the character
+   last stood. On the games page that is under the level briefing's how-to
+   card, which the board then renders across: one answer box, the same one
+   every level, quietly dead. */
+.mc-actor.mc-gone .mc-hit {
   pointer-events: none;
 }
 .mc-actor.mc-here {

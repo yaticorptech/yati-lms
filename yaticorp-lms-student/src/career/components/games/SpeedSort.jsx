@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsFor, starsOn } from './levels';
+import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 
@@ -42,7 +42,7 @@ function Round({ progress, onExit }) {
   const [cleared, setCleared] = useState(0);
   const [shake, setShake] = useState(false);
   const [started, setStarted] = useState(false);
-  const { seconds, over } = useTimedRound(config.seconds, started);
+  const { seconds, over } = useTimedRound(config.seconds, started, cleared >= starsCap(config.target));
 
   const passed = cleared >= config.target;
   const stars = over ? starsFor(cleared, config.target) : 0;
@@ -75,7 +75,7 @@ function Round({ progress, onExit }) {
       title="Speed Sort"
       blurb={`Clear ${config.target} boards, smallest to largest, before the clock runs out.`}
       tone="bg-gradient-to-br from-amber-500 to-red-600"
-      score={`${cleared}/${config.target}`}
+      score={cleared}
       scoreLabel="Boards"
       seconds={seconds}
       progress={progress}
@@ -99,7 +99,7 @@ function Round({ progress, onExit }) {
               passed,
               stars,
               headline: passed ? `Level ${progress.level} cleared!` : 'So close',
-              detail: `${cleared} of ${config.target} boards`,
+              detail: `${cleared} boards cleared`,
               atEnd: progress.atEnd,
               onNext: progress.advance,
               onRetry: progress.retry

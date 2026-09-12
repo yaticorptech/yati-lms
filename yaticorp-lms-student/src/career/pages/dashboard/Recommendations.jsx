@@ -4,10 +4,11 @@ import { AuthContext } from '../../context/AuthContext';
 import api from '../../services/api';
 import { ResourceRow } from '../../components/recommendations/ResourceAccordion';
 import ResourceSidebar from '../../components/recommendations/ResourceSidebar';
+import IdeasHeroArt from '../../components/recommendations/IdeasHeroArt';
 import {
   Search, Sparkles, X, Lightbulb, Target, BookMarked,
   Hammer, GraduationCap, Briefcase, MonitorPlay, BadgeCheck, BookOpen, Coins,
-  Code2, TvMinimalPlay, Compass, ChevronRight, Trophy
+  Code2, TvMinimalPlay, Compass, ChevronRight
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
@@ -366,8 +367,22 @@ export default function Recommendations() {
         <span aria-hidden className="fp-float-slow pointer-events-none absolute -right-20 -bottom-28 h-72 w-72 rounded-full bg-amber-200/60 blur-3xl" />
         <span aria-hidden className="fp-float-settle pointer-events-none absolute top-1/2 left-1/2 h-48 w-48 rounded-full bg-pink-200/40 blur-3xl" />
         <span aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
-        <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-          <div className="min-w-0">
+        {/* The scene bleeds to the right edge rather than sitting in a
+            column of its own: boxed, it read as a picture pasted onto the
+            banner instead of as the banner itself. `data-mascot-clear` keeps
+            the companion off it — it has the idea list below to point at, and
+            a character standing on the bulb is the one place it must not
+            stop. */}
+        <div
+          aria-hidden
+          data-mascot-clear
+          className="ih-frame pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] max-w-[520px] [mask-image:linear-gradient(to_right,transparent,black_12%)] lg:block"
+        >
+          <IdeasHeroArt />
+        </div>
+
+        <div className="relative lg:min-h-[212px] lg:max-w-[58%]">
+          <div data-mascot-clear className="min-w-0">
             <p className="text-[0.7rem] font-black tracking-[0.11em] text-journey-700 uppercase">
               Ideas &amp; Resources
             </p>
@@ -417,27 +432,12 @@ export default function Recommendations() {
             )}
           </div>
 
-          {/* The encouragement card. A mascot with a bright idea in hand
-              stood above it; the card is what carried the words, so it stays
-              and the column is now just the card. */}
-          <div className="relative hidden flex-col items-center lg:flex">
-            <div className="w-full rounded-2xl border border-violet-100 bg-surface/95 p-4 shadow-float backdrop-blur">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-300 to-orange-500 text-white">
-                  <Trophy className="h-4 w-4" />
-                </span>
-                <p className="text-xs leading-snug font-black text-ink-900">
-                  Small steps today, big wins tomorrow!
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
       {/* ---- Body + sidebar --------------------------------------------- */}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
-        <div data-guide="idea-list" className="min-w-0 space-y-6">
+        <div className="min-w-0 space-y-6">
           {nothingAtAll && (
             <EmptyState
               icon={Lightbulb}

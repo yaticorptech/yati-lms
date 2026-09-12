@@ -129,8 +129,8 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
               stars,
               headline: passed ? `Level ${progress.level} cleared!` : 'So close',
               detail: timeUp && !finished
-                ? `Time ran out on ${score} of ${passMark} needed`
-                : `${score} of ${passMark} needed`,
+                ? `Time ran out at ${score} correct`
+                : `${score} correct`,
               atEnd: progress.atEnd,
               onNext: progress.advance,
               onRetry: progress.retry

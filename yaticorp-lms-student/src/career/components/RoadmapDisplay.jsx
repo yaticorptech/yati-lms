@@ -3,6 +3,7 @@ import useCountUp from '../../hooks/useCountUp';
 import { Link } from 'react-router-dom';
 import { Route, Clock, ArrowRight, Sparkles, Flag, Zap, Map as MapIcon, CheckCircle2 } from 'lucide-react';
 import JourneyTrack from './journey/JourneyTrack';
+import { travel } from './journey/journeyTravel';
 import Card, { CardHeader } from './ui/Card';
 import JourneyMap from './roadmap/JourneyMap';
 import { useParallax, useReveal } from './roadmap/useRoadmapMotion';
@@ -22,7 +23,11 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
   const nextUpReveal = useReveal();
   const currentIndex = states.indexOf('current');
   const percent = journeyPercent(phases.length, completedPhases);
-  const shownPercent = useCountUp(percent, 900);
+  /* Timed off the track's own clock, so "6%" finishes counting at the
+     exact moment the fill reaches the checkpoint being stood on — instead of
+     landing 900ms after mount and half a second before the line does. */
+  const { arrive } = travel(states);
+  const shownPercent = useCountUp(percent, Math.round(arrive * 1000));
 
   // Every phase starts closed.
   //
@@ -166,7 +171,13 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
           {/* ---- The step being stood on, as its own panel beside the road ---- */}
           <div
             className="animate-fade-in-up fp-attention relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface/90 p-5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur"
-            style={{ animationDelay: '0.3s' }}
+            /* Its three pulses start when the fill reaches the checkpoint it
+               describes, so the card and the track agree about "here". (Of
+               the two animation classes above, only fp-attention runs — both
+               are `animation:` shorthand at equal specificity and it comes
+               later in the sheet — so this delay retimes the pulse and
+               nothing else, which is also all the old fixed 0.3s ever did.) */
+            style={{ animationDelay: `${arrive.toFixed(2)}s` }}
           >
             <span
               aria-hidden

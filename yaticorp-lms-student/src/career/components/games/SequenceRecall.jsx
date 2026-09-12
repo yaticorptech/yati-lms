@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsFor, starsOn } from './levels';
+import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
 
 const PADS = [
@@ -82,7 +82,7 @@ function Round({ progress, onExit }) {
    * until they do, which is a strange way to be told they had won. Reaching
    * this clears the level outright.
    */
-  const maxRun = Math.ceil(config.target * 1.5);
+  const maxRun = starsCap(config.target);
 
   // A death happens on the run being repeated, so the run actually completed
   // is the one before it. A win completed the run it stopped on.
@@ -121,7 +121,7 @@ function Round({ progress, onExit }) {
       title="Sequence Recall"
       blurb={`Reach a run of ${config.target} to clear this level.`}
       tone="bg-gradient-to-br from-violet-500 to-indigo-700"
-      score={`${order.length}/${config.target}`}
+      score={order.length}
       scoreLabel="Run"
       progress={progress}
       onRestart={progress.retry}
@@ -143,7 +143,7 @@ function Round({ progress, onExit }) {
               passed,
               stars,
               headline: passed ? `Level ${progress.level} cleared!` : 'So close',
-              detail: `A run of ${reached}, of ${config.target} needed`,
+              detail: `A run of ${reached}`,
               atEnd: progress.atEnd,
               onNext: progress.advance,
               onRetry: progress.retry

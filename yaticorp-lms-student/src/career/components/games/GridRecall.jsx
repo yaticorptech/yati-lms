@@ -81,7 +81,7 @@ function Round({ progress, onExit }) {
       title="Grid Recall"
       blurb={`Remember ${config.lit} tiles on a ${config.size}×${config.size} grid.`}
       tone="bg-gradient-to-br from-violet-500 to-purple-700"
-      score={`${hits}/${config.target}`}
+      score={hits}
       scoreLabel="Rounds"
       progress={progress}
       onRestart={progress.retry}
@@ -103,7 +103,7 @@ function Round({ progress, onExit }) {
               passed,
               stars,
               headline: passed ? `Level ${progress.level} cleared!` : 'So close',
-              detail: `${hits} of ${config.rounds} rounds right — ${config.target} needed`,
+              detail: `${hits} of ${config.rounds} rounds right`,
               atEnd: progress.atEnd,
               onNext: progress.advance,
               onRetry: progress.retry

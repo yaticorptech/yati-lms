@@ -1,5 +1,6 @@
 import { ArrowLeft, RotateCcw, Star, Timer, Trophy, Layers, Zap } from 'lucide-react';
 import { LevelIntro, LevelResult } from './LevelPanels';
+import MissionArt from '../plan/MissionArt';
 import { starsForGame, starsOn } from './levels';
 
 /**
@@ -13,12 +14,14 @@ import { starsForGame, starsOn } from './levels';
  * Shared so twelve games cannot drift into twelve ideas of where the score
  * lives or what "back" does.
  */
-import { useEffect } from 'react';
 
 /**
- * Every game reports its score as "done/needed". Reading it here means a
- * progress bar for all of them without a single game having to pass one, and
- * without inventing a second source of truth for the same two numbers.
+ * A game reports its score either as "done/needed" — a figure out of a fixed
+ * maximum, read straight out of the string, which gets a progress bar here
+ * without the game having to pass one — or as a plain figure. A plain figure
+ * gets no bar and no target: what it is worth is said once, on the result
+ * screen, as stars. While the level is being played the student sees the
+ * score and the clock and nothing that grades them mid-round.
  *
  * Drawn in the game's own colour rather than green, because for a few games
  * the number counts moves spent rather than points won, and a green bar
@@ -42,14 +45,14 @@ function Readout({ label, value, icon: Icon, urgent = false, gold = false }) {
   return (
     <div
       className={`flex min-w-[4.5rem] flex-col items-center justify-center px-3.5 py-2 transition-colors ${
-        urgent ? 'bg-rose-500/40' : gold ? 'bg-amber-300/20' : ''
+        urgent ? 'bg-rose-100' : gold ? 'bg-amber-50' : ''
       }`}
     >
-      <span className="flex items-center gap-1 text-[0.55rem] font-black tracking-[0.14em] text-white/65 uppercase">
+      <span className="flex items-center gap-1 text-[0.55rem] font-black tracking-[0.14em] text-slate-500 uppercase">
         {Icon && <Icon className="h-2.5 w-2.5" />}
         {label}
       </span>
-      <span className={`text-lg leading-tight font-black tabular-nums ${gold ? 'text-amber-100' : 'text-white'}`}>
+      <span className={`text-lg leading-tight font-black tabular-nums ${urgent ? 'text-rose-600' : gold ? 'text-amber-600' : 'text-[#1b2456]'}`}>
         {value}
       </span>
     </div>
@@ -107,30 +110,31 @@ export default function GameShell({
   const earnedHere = progress ? starsOn(progress.gameId, progress.level) : 0;
   const bankedStars = progress ? starsForGame(progress.gameId) : 0;
 
-  // Tell the mascot: the rules are on screen (it explains them), and how the
-  // level went (a dance, or a droop then a word of encouragement).
-  useEffect(() => {
-    if (intro) window.dispatchEvent(new CustomEvent('mascot:game-start', { detail: { title, blurb } }));
-  }, [intro, title, blurb]);
-  useEffect(() => {
-    if (result) window.dispatchEvent(new CustomEvent('mascot:game-result', { detail: { passed: !!result.passed } }));
-  }, [result]);
-
   return (
     <section data-guide="game" className="overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card">
-      <div className={`relative overflow-hidden text-white ${tone}`}>
-        <div aria-hidden className="fp-stars pointer-events-none absolute inset-0" />
+      {/* A sky band in every game, not the game's own colour: the level
+          briefing below carries the colour, and the band's job is to hold the
+          objective legibly and the target art beside it. */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-sky-100 via-blue-50 to-indigo-100 text-[#1b2456]">
         {/* Soft shapes behind the band, so it has weather rather than being a
             flat rectangle of colour. */}
-        <span aria-hidden className="pointer-events-none absolute -top-28 -left-20 h-64 w-80 rounded-full bg-white/20 blur-3xl" />
-        <span aria-hidden className="pointer-events-none absolute -right-16 -bottom-24 h-56 w-72 rounded-full bg-white/10 blur-3xl" />
+        <span aria-hidden className="fp-float pointer-events-none absolute -top-28 -left-20 h-64 w-80 rounded-full bg-sky-200/70 blur-3xl" />
+        <span aria-hidden className="fp-float-slow pointer-events-none absolute -right-10 -bottom-24 h-56 w-80 rounded-full bg-violet-300/50 blur-3xl" />
+        {/* The target, and the arrow on its way to it: the section's mission
+            art, here for the two screens with room for it. During play the
+            console sits where it would go. */}
+        {(intro || result) && (
+          <div aria-hidden className="pointer-events-none absolute inset-y-0 right-14 hidden w-[30%] max-w-[300px] [mask-image:linear-gradient(to_right,transparent,black_20%)] md:block sm:right-20">
+            <MissionArt cleared={!!result?.passed} className="h-full w-full" />
+          </div>
+        )}
 
         <div className="relative flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:px-6 sm:py-5">
           <button
             type="button"
             onClick={onExit}
             aria-label="Back to all games"
-            className="fp-press inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/25 ring-inset transition-colors hover:bg-white/25"
+            className="fp-press relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#1b2456] shadow-md shadow-sky-900/10 ring-1 ring-sky-100 ring-inset transition-colors hover:bg-sky-50"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
@@ -138,14 +142,36 @@ export default function GameShell({
           <div className="min-w-0 flex-1">
             {/* The game's name reads as the label; what you have to do reads as
                 the headline, because that is the thing a student needs. */}
-            <p className="text-[0.68rem] font-black tracking-[0.16em] text-white/70 uppercase">{title}</p>
-            <h2 className="mt-0.5 truncate text-xl leading-tight font-black sm:text-2xl">
+            <p className="text-[0.68rem] font-black tracking-[0.16em] text-violet-600 uppercase">{title}</p>
+            {/* Up to three lines on a phone rather than one line cut short: this
+                is the objective, and "One tile changes eac…" is not an
+                objective. Wide screens keep the single truncating line — there
+                the console sits beside it and the width is genuinely limited. */}
+            <h2 className="mt-0.5 line-clamp-3 text-base leading-snug font-black text-[#1b2456] sm:line-clamp-none sm:truncate sm:text-2xl sm:leading-tight">
               {blurb || title}
             </h2>
+            {/* The section's own line, only on the briefing: during play the
+                band has a console to carry and no room for a flourish. */}
+            {intro && (
+              <p className="mt-1 hidden items-center gap-1.5 text-[0.95rem] text-[#2b4bd8] sm:flex">
+                <span className="lb-script relative inline-block">
+                  Small steps. Big dreams!
+                  <svg aria-hidden viewBox="0 0 200 10" preserveAspectRatio="none" className="absolute -bottom-1 left-[6%] h-1.5 w-[88%] text-amber-400">
+                    <path d="M3 6 C 50 1, 140 9, 197 3" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                </span>
+              </p>
+            )}
           </div>
 
+          {/* On a phone the console takes a row of its own, under the title.
+              In one row it left the title about sixty pixels — "SHAPE MATRIX"
+              broke letter by letter, the objective truncated to "Re…", and
+              the restart button fell to a second line on its own. `order-last`
+              sends the console below the restart button in the wrap, and
+              `basis-full` gives it the whole width there. */}
           {!intro && !result && (
-            <div className="flex shrink-0 items-stretch divide-x divide-white/20 overflow-hidden rounded-2xl bg-black/20 ring-1 ring-white/20 ring-inset">
+            <div className="order-last flex basis-full items-stretch justify-center divide-x divide-sky-100 overflow-hidden rounded-2xl bg-white/85 shadow-md shadow-sky-900/10 ring-1 ring-sky-100 ring-inset backdrop-blur sm:order-none sm:shrink-0 sm:basis-auto sm:justify-start">
               {progress && <Readout label="Level" value={progress.level} icon={Star} />}
               {score !== undefined && <Readout label={scoreLabel} value={score} />}
               {seconds !== undefined && (
@@ -159,7 +185,7 @@ export default function GameShell({
             type="button"
             onClick={onRestart}
             aria-label="Start over"
-            className="fp-press inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/25 ring-inset transition-colors hover:bg-white/25"
+            className="fp-press relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#1b2456] shadow-md shadow-sky-900/10 ring-1 ring-sky-100 ring-inset transition-colors hover:bg-sky-50"
           >
             <RotateCcw className="h-4 w-4" />
           </button>
