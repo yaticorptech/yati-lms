@@ -83,7 +83,43 @@ const MEASURE = `
         headingStillUp: heading.getBoundingClientRect().top >= 0
     };`;
 
+/**
+ * On a phone the panel no longer caps its own height, so the overlay is the
+ * only scroller. Measured the same way whichever one it turns out to be.
+ */
+const PHONE = `
+    await sleep(1300);
+    $$('button').find((b) => /View details/i.test(b.innerText)).click();
+    await sleep(700);
+    $$('button').find((b) => /Apply for part-time job/i.test(b.innerText)).click();
+    await sleep(1000);
+    const overlay = $('[aria-label="Job application"]');
+    const panel = overlay.querySelector('.opp-scroll') || overlay.firstElementChild.firstElementChild;
+    const heading = overlay.querySelector('h2');
+    const scroller = overlay.scrollHeight > overlay.clientHeight + 1 ? overlay : panel;
+    scroller.scrollTop = scroller.scrollHeight;
+    await sleep(300);
+    const result = {
+        scrolled: scroller.scrollTop,
+        nested: overlay.scrollHeight > overlay.clientHeight + 1 && panel.scrollHeight > panel.clientHeight + 1,
+        headingTop: Math.round(heading.getBoundingClientRect().top),
+        headingHeld: heading.getBoundingClientRect().top >= 0
+    };`;
+
 describe('the job application popup', { skip: skipWithoutStyles }, () => {
+    test('on a phone the heading stays put while the flow scrolls', async () => {
+        // A phone had two nested scrollers — the overlay and the panel — and
+        // the flow's own sticky heading pinned to the inner one, which was
+        // itself moving. 62px of scroll put it 25px above the screen.
+        const { result, errors } = await screen({
+            entry, api, width: 500, height: 700, styles: true, budget: 25_000,
+            script: `${PHONE} return result;` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.scrolled > 100, 'the flow really is taller than the screen');
+        assert.equal(result.nested, false, 'one scroll container on a phone, not two');
+        assert.ok(result.headingHeld, `the heading slid to ${result.headingTop}px, off the screen`);
+    });
+
     for (const [w, h] of [[1400, 900], [1200, 700], [1000, 620], [760, 560]]) {
         test(`its heading is on screen at ${w} by ${h}`, async () => {
             const { result, errors } = await screen({

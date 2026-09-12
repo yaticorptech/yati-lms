@@ -13,9 +13,9 @@
  * says what the view insists on. See TABS and TAB_QUERY.
  *
  * The Opportunities tab is different in kind: it is the age-aware section
- * (src/opportunities/) with its own profile and index. Once a student's
- * opportunity profile says they are under 18, it is the ONLY view — the
- * scraped global board carries no age data and is never shown to a minor.
+ * (src/opportunities/) with its own profile and index, and the only tab whose
+ * listings are checked against a student's age. Every tab is reachable by
+ * every student; the page opens on Jobs for all of them.
  */
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -61,9 +61,6 @@ const TABS = [
     { id: 'opportunities', label: 'Part-Time Jobs', hint: 'Flexible Work', icon: Clock, tone: 'sky' },
     { id: 'saved', label: 'Saved Jobs', hint: 'Your Collection', icon: Bookmark, tone: 'violet' }
 ];
-
-/* Bands whose opportunity profile says the global job board is off-limits. */
-const MINOR_BANDS = ['explore', 'teen'];
 
 /* What each tab lays over the form when it asks the ranker. Hidden
    Opportunities asks for remote roles only: listings a search for the
@@ -334,16 +331,6 @@ export default function Jobs() {
        for their age, but nothing stops them looking at the rest — the global
        board carries a notice instead, since those listings are scraped and
        carry no age information. */
-    const minor = MINOR_BANDS.includes(oppData?.band);
-    const [landed, setLanded] = useState(false);
-    useEffect(() => {
-        if (minor && !landed && !params.get('tab')) {
-            setLanded(true);
-            setTab('opportunities');
-            setParams((prev) => { const next = new URLSearchParams(prev); next.set('tab', 'opportunities'); return next; }, { replace: true });
-        }
-    }, [minor, landed, params, setParams]);
-
     /**
      * Optimistic either way: the icon answers the tap, the server catches up,
      * and a failure puts things back rather than leaving the icon lying.

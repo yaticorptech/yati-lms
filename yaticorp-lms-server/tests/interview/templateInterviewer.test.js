@@ -111,3 +111,84 @@ describe('a question the interviewer had to repeat', () => {
         assert.match(r.strengths[0], /little to point to/);
     });
 });
+
+/**
+ * The four interview types the student picks between.
+ *
+ * The worry worth testing is that the picker is decoration — four buttons
+ * leading to the same interview. It is not: each type walks a different plan
+ * of stages, and a stage is what decides the question. These run against the
+ * template interviewer because it is deterministic and costs no API quota;
+ * the AI interviewer is handed the same stage and writes to it.
+ */
+const PLANS = {
+    hr: ['intro', 'about', 'background', 'behavioral', 'situational', 'candidate'],
+    technical: ['intro', 'skills', 'technical', 'technical', 'problem', 'candidate'],
+    project: ['intro', 'project', 'project', 'technical', 'problem', 'candidate'],
+    behavioral: ['intro', 'behavioral', 'behavioral', 'situational', 'situational', 'candidate']
+};
+
+/** Walk a whole interview of one type, returning what it asked, stage by stage. */
+const runType = (plan) => {
+    const turns = [];
+    return plan.map((stage) => {
+        const q = tpl.nextQuestion({ session: { type: 'x', turns }, context: ctx, nextStage: stage, canFollowUp: false, lastTurn: null });
+        turns.push({ stage: q.stage, question: q.question, isFollowUp: false });
+        return { stage, question: q.question };
+    });
+};
+
+describe('the four interview types', () => {
+    test('two types only ever share a question through a stage they both have', () => {
+        const asked = Object.fromEntries(Object.entries(PLANS).map(([t, p]) => [t, runType(p)]));
+        const types = Object.keys(asked);
+
+        // The rule, stated exactly. Types are not required to be disjoint —
+        // an HR round legitimately asks behavioural questions, so HR and
+        // Behavioural overlap where their plans do. What would make the picker
+        // decoration is a question turning up in a type whose plan never named
+        // that stage, and that is what this catches.
+        for (let a = 0; a < types.length; a += 1) {
+            for (let b = a + 1; b < types.length; b += 1) {
+                const [x, y] = [types[a], types[b]];
+                const common = new Set(PLANS[x].filter((st) => PLANS[y].includes(st)));
+                for (const { question } of asked[x]) {
+                    const alsoIn = asked[y].find((o) => o.question === question);
+                    if (!alsoIn) continue;
+                    assert.ok(common.has(alsoIn.stage),
+                        `${x} and ${y} share a "${alsoIn.stage}" question neither plan shares: "${question}"`);
+                }
+            }
+        }
+    });
+
+    test('types with nothing in common share only the greeting and the closing', () => {
+        // technical and behavioural have no middle stage in common at all.
+        const technical = runType(PLANS.technical);
+        const behavioral = runType(PLANS.behavioral);
+        const shared = technical.filter((t) => behavioral.some((b) => b.question === t.question));
+        assert.deepEqual(shared.map((s) => s.stage).sort(), ['candidate', 'intro'],
+            'anything else in common would mean the type was ignored');
+    });
+
+    test('a technical interview asks about skills, an HR one does not', () => {
+        const technical = runType(PLANS.technical).map((q) => q.question).join(' ');
+        const hr = runType(PLANS.hr).map((q) => q.question).join(' ');
+        assert.match(technical, /Python|SQL|skill/i, 'technical digs into what they can do');
+        assert.match(hr, /time you|Imagine|would you/i, 'HR asks about conduct and situations');
+    });
+
+    test('a project interview asks about their actual projects', () => {
+        assert.match(runType(PLANS.project).map((q) => q.question).join(' '), /Sales Dashboard/,
+            "the project round names the student's own work");
+    });
+
+    test('a behavioural interview is all past behaviour and situations', () => {
+        const asked = runType(PLANS.behavioral).map((x) => x.question);
+        // Past the greeting and the closing, every question asks for conduct.
+        const middle = asked.slice(1, -1);
+        for (const q of middle) {
+            assert.match(q, /time you|Describe|Imagine|If you were/i, `not a behavioural question: "${q}"`);
+        }
+    });
+});

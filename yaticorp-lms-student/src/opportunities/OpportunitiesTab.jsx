@@ -267,7 +267,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
         <div className="stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {items.map((o) => (o.kind === 'web'
                 ? <WebJobCard key={o.id} job={o} categoryLabel={categoryLabel(o.category)} />
-                : <OpportunityCard key={o.id} opp={o} vocab={vocab} guardian={guardian} leaving={leaving.has(o.id)}
+                : <OpportunityCard key={o.id} opp={o} vocab={vocab} leaving={leaving.has(o.id)}
                     onInterested={onInterested} onNotInterested={onNotInterested} onOpen={openDetails} />
             ))}
         </div>
@@ -294,24 +294,29 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
 
             {/* The details form is a popup over the board. A first visit cannot
                 dismiss it — there is nothing to show until it is answered. */}
+            {/* Above the app's own chrome, not level with it. This sat at z-50 —
+                the same layer as the mobile header — and two fixed elements on
+                one layer are ordered by whichever the DOM happens to reach last,
+                which is how the header came to sit across the top of the card.
+                The section's scale: chrome 40-50, dialogs 120, report 130,
+                applying 140, confirmations 160. */}
             {(!hasProfile || editing) && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="opp-onboarding-title">
-                  {/* items-start with my-auto, not items-center: a flex item
+                <div className="fixed inset-0 z-[120] overflow-hidden bg-slate-900/50 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="opp-onboarding-title">
+                  {/* A phone gets a sheet, not a card: full width, full height,
+                      no gutters and nothing floating. A centred card with side
+                      margins is a desktop shape, and on a 360px screen it left
+                      a cramped column with its corners clipped.
+
+                      From sm up it is a card again — and there, items-start with
+                      my-auto rather than items-center, because a flex item
                       centred inside a scroll container overflows equally top and
-                      bottom, and the top half can never be scrolled back to.
-                      This centres the card when it fits and pins it to the top
-                      when it does not. */}
-                  <div className="flex min-h-full items-start justify-center p-4 sm:p-6">
-                    <div className="relative my-auto w-full max-w-5xl">
-                        {/* Inside the card, not overhanging it. A button offset
-                            beyond the card's own edge is the first thing the
-                            viewport clips; the form's header keeps room for it. */}
-                        {hasProfile && (
-                            <button type="button" onClick={() => setEditing(false)} aria-label="Close"
-                                className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
-                                <X size={18} />
-                            </button>
-                        )}
+                      bottom and the top half can never be scrolled back to. */}
+                  {/* The overlay does not scroll any more and the card cannot
+                      outgrow it: the card's own body is the only scroller, so
+                      the heading and the buttons are always on screen whatever
+                      the window size or the browser's zoom. */}
+                  <div className="flex h-full items-stretch justify-center pt-16 pb-[7.5rem] sm:items-center sm:p-6">
+                    <div className="relative flex max-h-full w-full max-w-5xl">
                         <ProfileOnboarding vocab={vocab} initial={data.profile} onSaved={onSaved} onCancel={hasProfile ? () => setEditing(false) : undefined} />
                     </div>
                   </div>
@@ -536,12 +541,15 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         overflows equally top and bottom, and the top half can
                         never be scrolled back to. This centres when it fits and
                         pins to the top when it does not. */}
-                    <div className="flex min-h-full items-start justify-center p-4 sm:p-6">
-                        {/* Capped and scrolling inside itself, so the popup
-                            always fits the page rather than making the page
-                            scroll — and the heading stays put while the rest
-                            of it moves. */}
-                        <div className="my-auto max-h-[88vh] w-full max-w-2xl overflow-y-auto opp-scroll"
+                    <div className="flex min-h-full items-stretch justify-center p-3 pb-[7.5rem] pt-[4.5rem] sm:items-start sm:p-6 sm:pt-6">
+                        {/* One scroll container on a phone, two from sm up.
+                            Capping the panel here as well as the overlay gave a
+                            phone two nested scrollers, and the flow's own
+                            sticky heading pinned to the inner one — which is
+                            itself scrolling — so it slid away instead of
+                            staying put. On a phone the overlay does the
+                            scrolling and the heading pins to the screen. */}
+                        <div className="opp-scroll w-full max-w-2xl sm:my-auto sm:max-h-[88vh] sm:overflow-y-auto"
                             onClick={(e) => e.stopPropagation()}>
                             <ApplyFlow opportunityId={applyingTo} onClose={() => setApplyingTo(null)} onContinue={() => load(true)} />
                         </div>
