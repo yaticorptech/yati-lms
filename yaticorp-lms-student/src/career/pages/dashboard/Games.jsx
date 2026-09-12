@@ -37,6 +37,14 @@ import AntonymMatch from '../../components/games/AntonymMatch';
 import IdiomSense from '../../components/games/IdiomSense';
 import NumberBonds from '../../components/games/NumberBonds';
 import RoundingRush from '../../components/games/RoundingRush';
+import DotCount from '../../components/games/DotCount';
+import MatchBack from '../../components/games/MatchBack';
+import SpinMatch from '../../components/games/SpinMatch';
+import LastStone from '../../components/games/LastStone';
+import TensePick from '../../components/games/TensePick';
+import SoundAlike from '../../components/games/SoundAlike';
+import FractionMatch from '../../components/games/FractionMatch';
+import ClockRead from '../../components/games/ClockRead';
 import GameLeaderboard from '../../components/games/GameLeaderboard';
 import { starsForGame, pullProgress } from '../../components/games/levels';
 
@@ -65,7 +73,9 @@ const CATEGORIES = [
       { id: 'spot-the-change', name: 'Spot the Change', blurb: 'One tile changes. Which one was it?', Component: SpotTheChange },
       { id: 'grid-recall', name: 'Grid Recall', blurb: 'Tiles light up, then go dark. Tap the ones that lit.', Component: GridRecall },
       { id: 'reverse-recall', name: 'Reverse Recall', blurb: 'Memorise a number, then type it backwards.', Component: ReverseRecall },
-      { id: 'seen-before', name: 'Seen Before', blurb: 'A set flashes up. Which one did you see?', Component: SeenBefore }
+      { id: 'seen-before', name: 'Seen Before', blurb: 'A set flashes up. Which one did you see?', Component: SeenBefore },
+      { id: 'dot-count', name: 'Dot Count', blurb: 'How many dots of one colour? Count fast.', Component: DotCount },
+      { id: 'match-back', name: 'Match Back', blurb: 'Is this letter the same as the one before?', Component: MatchBack }
     ]
   },
   {
@@ -89,7 +99,9 @@ const CATEGORIES = [
       { id: 'tic-tac-toe', name: 'Tic-Tac-Toe', blurb: 'Beat a computer that gets sharper every level.', Component: TicTacToe },
       { id: 'mini-sudoku', name: 'Mini Sudoku', blurb: 'A four-by-four grid, solved against the clock.', Component: MiniSudoku },
       { id: 'scale-balance', name: 'Scale Balance', blurb: 'Read the scales and find the heaviest.', Component: ScaleBalance },
-      { id: 'shape-matrix', name: 'Shape Matrix', blurb: 'Spot the rule and finish the grid.', Component: ShapeMatrix }
+      { id: 'shape-matrix', name: 'Shape Matrix', blurb: 'Spot the rule and finish the grid.', Component: ShapeMatrix },
+      { id: 'spin-match', name: 'Spin Match', blurb: 'Which one is the same shape, only turned?', Component: SpinMatch },
+      { id: 'last-stone', name: 'Last Stone', blurb: 'Take one, two or three. Take the last and win.', Component: LastStone }
     ]
   },
   {
@@ -112,7 +124,9 @@ const CATEGORIES = [
       { id: 'word-roots', name: 'Word Roots', blurb: 'What does this prefix or root mean?', Component: WordRoots },
       { id: 'typing-sprint', name: 'Typing Sprint', blurb: 'Type the word exactly, fast, and learn it on the way.', Component: TypingSprint },
       { id: 'antonym-match', name: 'Antonym Match', blurb: 'Pick the word that means the opposite.', Component: AntonymMatch },
-      { id: 'idiom-sense', name: 'Idiom Sense', blurb: 'What does the phrase really mean?', Component: IdiomSense }
+      { id: 'idiom-sense', name: 'Idiom Sense', blurb: 'What does the phrase really mean?', Component: IdiomSense },
+      { id: 'tense-pick', name: 'Tense Pick', blurb: 'Go, went, gone — pick the right past tense.', Component: TensePick },
+      { id: 'sound-alike', name: 'Sound Alike', blurb: 'Their, there or they’re? Only one fits.', Component: SoundAlike }
     ]
   },
   {
@@ -136,7 +150,9 @@ const CATEGORIES = [
       { id: 'binary-blitz', name: 'Binary Blitz', blurb: 'Read binary as fast as you read decimal.', Component: BinaryBlitz },
       { id: 'speed-sort', name: 'Speed Sort', blurb: 'Tap the numbers from smallest to largest.', Component: SpeedSort },
       { id: 'number-bonds', name: 'Number Bonds', blurb: 'Tap the two tiles that make the target.', Component: NumberBonds },
-      { id: 'rounding-rush', name: 'Rounding Rush', blurb: 'Round it to the nearest ten, hundred or thousand.', Component: RoundingRush }
+      { id: 'rounding-rush', name: 'Rounding Rush', blurb: 'Round it to the nearest ten, hundred or thousand.', Component: RoundingRush },
+      { id: 'fraction-match', name: 'Fraction Match', blurb: 'Which fraction is worth the same amount?', Component: FractionMatch },
+      { id: 'clock-read', name: 'Clock Read', blurb: 'Read the hands and pick the time.', Component: ClockRead }
     ]
   }
 ];
@@ -219,14 +235,13 @@ const SPARKS = [
  * measures work on the roadmap, and a card promising some would be making a
  * promise the product does not keep.
  */
-function GameCard({ game, theme, reached, stars, onPlay, first = false }) {
+function GameCard({ game, theme, reached, stars, onPlay }) {
   const started = reached > 1;
 
   return (
     <button
       type="button"
       onClick={() => onPlay(game)}
-      data-guide={first ? 'game-play' : undefined}
       className={`fp-press group flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br text-left ring-1 transition-all ring-inset hover:-translate-y-1 hover:shadow-card-hover ${theme.wash} ${theme.ring}`}
     >
       {/* ---- The artwork, on its own colour ---------------------------- */}
@@ -401,7 +416,6 @@ export default function Games() {
                   reached={progress[game.id] || 1}
                   stars={starsForGame(game.id)}
                   onPlay={setActive}
-                  first={i === 0}
                 />
               ))}
             </div>

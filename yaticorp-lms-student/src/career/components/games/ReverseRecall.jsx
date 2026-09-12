@@ -90,7 +90,7 @@ function Round({ progress, onExit }) {
               passed,
               stars,
               headline: passed ? `Level ${progress.level} cleared!` : 'Good run',
-              detail: `${reached} of ${config.target} digits needed`,
+              detail: `${reached} digits reversed`,
               atEnd: progress.atEnd,
               onNext: progress.advance,
               onRetry: progress.retry

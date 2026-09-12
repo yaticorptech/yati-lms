@@ -428,6 +428,93 @@ const THUMBS = {
       <rect {...tile(12, 34, '#fde68a', 32, 16, 5)} />
       <text x="28" y="46" textAnchor="middle" fontSize="13" fontWeight="800" fill="#854d0e">50</text>
     </>
+  ),
+  'dot-count': () => (
+    <>
+      {[
+        [10, 10, '#f43f5e'], [28, 10, '#0ea5e9'], [46, 10, '#f43f5e'],
+        [10, 28, '#10b981'], [28, 28, '#f43f5e'], [46, 28, '#0ea5e9'],
+        [10, 46, '#f43f5e'], [28, 46, '#10b981'], [46, 46, '#fbbf24']
+      ].map(([x, y, fill]) => (
+        <circle key={`${x}-${y}`} cx={x} cy={y} r="6.5" fill={fill} />
+      ))}
+    </>
+  ),
+  'match-back': () => (
+    <>
+      <rect {...tile(4, 18, '#c7d2fe', 22, 22, 6)} />
+      <text x="15" y="34" textAnchor="middle" fontSize="14" fontWeight="800" fill="#3730a3">K</text>
+      <rect {...tile(30, 18, '#a5b4fc', 22, 22, 6)} />
+      <text x="41" y="34" textAnchor="middle" fontSize="14" fontWeight="800" fill="#312e81">K</text>
+      <path d="M40 12 C 34 4, 22 4, 16 12" fill="none" stroke="#6366f1" strokeWidth="3" strokeLinecap="round" />
+      <path d="M16 12 l-1 -6 M16 12 l6 -1" fill="none" stroke="#6366f1" strokeWidth="3" strokeLinecap="round" />
+    </>
+  ),
+  'spin-match': () => (
+    <>
+      <rect {...tile(6, 6, '#38bdf8', 9, 9, 2)} />
+      <rect {...tile(6, 17, '#38bdf8', 9, 9, 2)} />
+      <rect {...tile(6, 28, '#38bdf8', 9, 9, 2)} />
+      <rect {...tile(17, 28, '#38bdf8', 9, 9, 2)} />
+      <path d="M26 24 a10 10 0 0 1 8 -8" fill="none" stroke="#0369a1" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M34 16 l-5 -1 M34 16 l0 5" fill="none" stroke="#0369a1" strokeWidth="2.5" strokeLinecap="round" />
+      <rect {...tile(30, 30, '#0284c7', 9, 9, 2)} />
+      <rect {...tile(41, 30, '#0284c7', 9, 9, 2)} />
+      <rect {...tile(41, 41, '#0284c7', 9, 9, 2)} />
+      <rect {...tile(30, 41, '#0284c7', 9, 9, 2)} />
+    </>
+  ),
+  'last-stone': () => (
+    <>
+      <circle cx="16" cy="40" r="7" fill="#94a3b8" />
+      <circle cx="30" cy="42" r="7" fill="#64748b" />
+      <circle cx="44" cy="40" r="7" fill="#94a3b8" />
+      <circle cx="23" cy="28" r="7" fill="#cbd5e1" />
+      <circle cx="37" cy="28" r="7" fill="#94a3b8" />
+      <circle cx="30" cy="15" r="7" fill="#fbbf24" />
+      <circle cx="28" cy="13" r="2.5" fill="#fff" opacity="0.7" />
+    </>
+  ),
+  'tense-pick': () => (
+    <>
+      <rect {...tile(6, 8, '#fae8ff', 44, 16, 5)} />
+      <text x="28" y="20" textAnchor="middle" fontSize="11" fontWeight="800" fill="#a21caf">GO</text>
+      <path d="M28 27 v6 M28 33 l-4 -4 M28 33 l4 -4" fill="none" stroke="#c026d3" strokeWidth="2.5" strokeLinecap="round" />
+      <rect {...tile(6, 36, '#f0abfc', 44, 16, 5)} />
+      <text x="28" y="48" textAnchor="middle" fontSize="11" fontWeight="800" fill="#701a75">WENT</text>
+    </>
+  ),
+  'sound-alike': () => (
+    <>
+      <rect {...tile(4, 8, '#f5d0fe', 48, 16, 5)} />
+      <text x="28" y="20" textAnchor="middle" fontSize="10" fontWeight="800" fill="#86198f">THEIR</text>
+      <rect {...tile(4, 32, '#fae8ff', 48, 16, 5)} />
+      <text x="28" y="44" textAnchor="middle" fontSize="10" fontWeight="800" fill="#a21caf">THERE</text>
+      <path d="M22 27 h12" stroke="#d946ef" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="1 4" />
+    </>
+  ),
+  'fraction-match': () => (
+    <>
+      <text x="15" y="24" textAnchor="middle" fontSize="13" fontWeight="800" fill="#c2410c">3</text>
+      <rect x="8" y="27" width="14" height="2.5" rx="1" fill="#ea580c" />
+      <text x="15" y="42" textAnchor="middle" fontSize="13" fontWeight="800" fill="#c2410c">4</text>
+      <text x="28" y="34" textAnchor="middle" fontSize="14" fontWeight="800" fill="#fb923c">=</text>
+      <text x="41" y="24" textAnchor="middle" fontSize="13" fontWeight="800" fill="#9a3412">6</text>
+      <rect x="34" y="27" width="14" height="2.5" rx="1" fill="#ea580c" />
+      <text x="41" y="42" textAnchor="middle" fontSize="13" fontWeight="800" fill="#9a3412">8</text>
+    </>
+  ),
+  'clock-read': () => (
+    <>
+      <circle cx="28" cy="28" r="22" fill="#fff7ed" stroke="#fdba74" strokeWidth="4" />
+      <circle cx="28" cy="10" r="1.8" fill="#c2410c" />
+      <circle cx="46" cy="28" r="1.8" fill="#c2410c" />
+      <circle cx="28" cy="46" r="1.8" fill="#c2410c" />
+      <circle cx="10" cy="28" r="1.8" fill="#c2410c" />
+      <path d="M28 28 L28 16" stroke="#7c2d12" strokeWidth="4" strokeLinecap="round" />
+      <path d="M28 28 L39 34" stroke="#ea580c" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="28" cy="28" r="2.5" fill="#7c2d12" />
+    </>
   )
 };
 

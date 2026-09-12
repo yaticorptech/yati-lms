@@ -115,14 +115,16 @@ export default function PhaseDialog({
                 {choices ? choices.lead : title}
               </h2>
               {meta.length > 0 && (
-                <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-ink-500">
-                  {meta.map((entry, i) => (
-                    <span key={entry.label} className="inline-flex items-center gap-2">
-                      {i > 0 && <span aria-hidden className="text-ink-300">·</span>}
-                      <span className="inline-flex items-center gap-1.5 tabular-nums">
-                        <entry.icon className="h-3.5 w-3.5 text-ink-400" />
-                        {entry.label}
-                      </span>
+                /* No separators between these. Each entry already opens with
+                   its own icon, and an interpunct travelled with the entry it
+                   preceded — so when the row wrapped, which it does as soon as
+                   a duration runs to two lines, the new line began with a
+                   stray dot. */
+                <p className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs font-medium text-ink-500">
+                  {meta.map((entry) => (
+                    <span key={entry.label} className="inline-flex items-center gap-1.5 tabular-nums">
+                      <entry.icon className="h-3.5 w-3.5 shrink-0 text-ink-400" />
+                      {entry.label}
                     </span>
                   ))}
                 </p>

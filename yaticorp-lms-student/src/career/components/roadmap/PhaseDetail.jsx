@@ -9,6 +9,11 @@ import { parseChoices, phaseTitle, toParagraphs } from '../../utils/roadmap';
  * language — numbered rows, green ticks — and an icon beside every label added
  * a column of small decorations down the panel without telling the reader
  * anything the words did not.
+ *
+ * That went for the emoji that had crept into four of these labels too. Two of
+ * them sat directly beside a lucide icon saying the same thing — a rocket next
+ * to a checklist, a trophy next to a trophy — so the heading carried two marks
+ * and they did not agree with each other.
  */
 function Section({ title, children }) {
   return (
@@ -126,7 +131,7 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
       <section className="overflow-hidden rounded-xl border border-line-200 bg-surface-50/70">
         <header className="flex flex-wrap items-baseline gap-2 border-b border-line-200/70 px-4 py-3">
           <GitBranch className="h-4 w-4 shrink-0 translate-y-0.5 text-amber-600" />
-          <h4 className="text-sm font-black text-ink-900">🧭 Choose your path</h4>
+          <h4 className="text-sm font-black text-ink-900">Choose your path</h4>
           <span className="w-full text-xs font-semibold text-ink-500 sm:ml-auto sm:w-auto">
             {choices.options.length} routes, same destination
           </span>
@@ -173,7 +178,7 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
     )}
 
     {paragraphs.length > 0 && (
-      <Section title="🎯 Why this matters">
+      <Section title="Why this matters">
         <div className="space-y-3">
           {paragraphs.map((paragraph, idx) => (
             <p key={idx} className="text-sm leading-relaxed text-ink-600">
@@ -196,7 +201,7 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
       <Disclosure
         icon={ListChecks}
         iconClass="text-link"
-        title="🚀 Your actions"
+        title="Your actions"
         count={stage.actionItems.length}
         open={showSteps}
         onToggle={() => setShowSteps((isOpen) => !isOpen)}
@@ -225,7 +230,7 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
       <Disclosure
         icon={Trophy}
         iconClass="text-emerald-600"
-        title="🏆 Your milestones"
+        title="Your milestones"
         count={stage.milestones.length}
         open={showMilestones}
         onToggle={() => setShowMilestones((isOpen) => !isOpen)}
@@ -262,10 +267,13 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
       <button
         type="button"
         onClick={completeWithBurst}
+        /* `ml-auto` because the paragraph beside it takes the whole row on a
+           phone, which drops this onto a line of its own where
+           `justify-between` has nothing to push it against. */
         disabled={saving || isUpcoming}
         aria-disabled={isUpcoming}
         title={isUpcoming ? 'Locked until you finish the phase you are on' : undefined}
-        className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all active:scale-[0.97] disabled:opacity-60 ${
+        className={`ml-auto inline-flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all active:scale-[0.97] disabled:opacity-60 ${
           burst ? 'fp-rm-burst ' : ''
         }${
           isUpcoming
