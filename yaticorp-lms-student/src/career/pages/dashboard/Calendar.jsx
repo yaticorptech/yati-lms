@@ -19,6 +19,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
+import './calendarMotion.css';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -85,6 +86,10 @@ export default function CalendarView() {
   const [panel, setPanel] = useState('calendar');
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState(new Date());
+  // Which way the last month change went, so the grid can arrive from the
+  // side it came from. 0 is the first paint, which has no direction and
+  // therefore no slide.
+  const [drift, setDrift] = useState(0);
   const [selectedKey, setSelectedKey] = useState(dayKey(new Date()));
   // 'month' or 'week'. A week is the same data over seven days instead of
   // thirty-something — the same tasks, the same events, the same map lookups —
@@ -326,12 +331,27 @@ export default function CalendarView() {
 
   /** One month back or forward. */
   const step = (direction) => {
+    setDrift(direction);
     setCursor((current) => {
       const next = new Date(current);
       next.setMonth(next.getMonth() + direction, 1);
       return next;
     });
   };
+
+  /** Back to the month we are actually in, from wherever the student paged to. */
+  const goToToday = () => {
+    const now = new Date();
+    setDrift(monthIndexOfDate(now) > cursorIndex ? 1 : -1);
+    setCursor(now);
+  };
+
+  // Remounts the grid and the label on every month change, which is what
+  // replays their entrance — the same trick the shell uses to replay a page
+  // slide on each route change.
+  const monthKey = `${year}-${month}`;
+  /** Which way the grid and its label lean in. Empty on the first paint. */
+  const lean = drift > 0 ? 'cal-next' : drift < 0 ? 'cal-prev' : '';
 
   /**
    * What the month on screen actually amounts to.
@@ -414,7 +434,7 @@ export default function CalendarView() {
     // whose own header says the same words — and the subtitle under it
     // explained a bound the back arrow already enforces and explains in its
     // own tooltip. The calendar titles itself.
-    <div className="fp-enter space-y-4">
+    <div className="fp-enter cal-page space-y-4">
       <JourneyBanner
         name={user?.name}
         greeting={greeting()}
@@ -490,10 +510,13 @@ export default function CalendarView() {
             </div>
           </div>
 
+          {/* Keyed on which face is showing, so the swap cross-fades rather
+              than cutting. */}
+          <div key={panel} className="cal-panel">
           {panel === 'timetable' ? (
             <TimetableCard embedded slots={timetable} onChange={setTimetable} />
           ) : (
-            <>
+            <div className={lean}>
           {/* ---- Where in time we are, with the arrows beside it rather than
                   stranded at the far edge of the card. ---- */}
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -516,7 +539,10 @@ export default function CalendarView() {
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
-              <h3 className="ml-1 min-w-0 text-base font-black text-ink-900 sm:text-lg">
+              <h3
+                key={monthKey}
+                className="cal-label ml-1 min-w-0 text-base font-black text-ink-900 sm:text-lg"
+              >
                 {rangeLabel}
               </h3>
             </div>
@@ -524,7 +550,7 @@ export default function CalendarView() {
             {/* Once you can page forward indefinitely you need a way back —
                 eleven clicks to return from next August is not a way back. */}
             {!isThisMonth && (
-              <Button variant="ghost" size="sm" onClick={() => setCursor(new Date())}>
+              <Button variant="ghost" size="sm" onClick={goToToday}>
                 Today
               </Button>
             )}
@@ -566,7 +592,7 @@ export default function CalendarView() {
             ))}
           </div>
 
-          <div className="-mx-3 grid grid-cols-7 gap-1 sm:mx-0 sm:gap-2">
+          <div key={monthKey} className="cal-grid -mx-3 grid grid-cols-7 gap-1 sm:mx-0 sm:gap-2">
             {cells.map(({ date, day, outside }, idx) => {
               const key = dayKey(date);
               const dayTasks = byDay.get(key) || [];
@@ -591,7 +617,8 @@ export default function CalendarView() {
                   <div
                     key={idx}
                     aria-hidden
-                    className={`rounded-xl border border-line-100 bg-surface-50/50 p-1.5 sm:p-2 ${cellHeight}`}
+                    style={{ '--cal-i': idx }}
+                    className={`cal-cell rounded-xl border border-line-100 bg-surface-50/50 p-1.5 sm:p-2 ${cellHeight}`}
                   >
                     <span className="text-xs font-semibold text-ink-300 sm:text-sm">{day}</span>
                   </div>
@@ -602,6 +629,7 @@ export default function CalendarView() {
                 <button
                   key={idx}
                   type="button"
+                  style={{ '--cal-i': idx }}
                   onClick={() => {
                     setSelectedKey(key);
                     // A half-typed event belongs to the day it was started on.
@@ -612,7 +640,7 @@ export default function CalendarView() {
                   }${dayEvents.length ? `, ${dayEvents.length} of your own events` : ''}`}
                   aria-pressed={isSelected}
                   aria-current={isToday ? 'date' : undefined}
-                  className={`fp-press relative flex flex-col rounded-xl border p-1.5 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-journey-500/40 sm:p-2 ${cellHeight} ${
+                  className={`cal-cell fp-press relative flex flex-col rounded-xl border p-1.5 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-journey-500/40 sm:p-2 ${cellHeight} ${
                     isToday
                       ? 'border-transparent bg-gradient-to-br from-journey-600 to-indigo-600 text-white shadow-md shadow-journey-600/30'
                       : isSelected
@@ -723,12 +751,13 @@ export default function CalendarView() {
               );
             })}
           </div>
-            </>
+            </div>
           )}
+          </div>
         </Card>
 
         <div className="space-y-4">
-        <Card data-guide="day-panel" className="animate-fade-in-up">
+        <Card key={selectedKey} data-guide="day-panel" className="animate-fade-in-up">
           <div className="mb-4">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-bold text-ink-900">

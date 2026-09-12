@@ -7,7 +7,7 @@
  * sign-in, and not the rest of the LMS.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
     ShieldCheck, Loader2, Check, X, CheckCircle2, Ban, GraduationCap, Clock
 } from 'lucide-react';
@@ -23,9 +23,18 @@ const Shell = ({ children }) => (
 
 export default function GuardianReview() {
     const { token } = useParams();
+    // The mail's two buttons carry the answer here as ?answer=approve|decline,
+    // so the parent lands on the confirmation for the one they pressed. It is
+    // read as the initial value rather than in an effect: no scanner following
+    // the link can turn it into a decision, and nothing is sent until they
+    // confirm on this page.
+    const [params] = useSearchParams();
+    const fromMail = params.get('answer');
     const [state, setState] = useState({ loading: true, request: null, error: '' });
     const [busy, setBusy] = useState('');
-    const [confirming, setConfirming] = useState(false);
+    const [confirming, setConfirming] = useState(
+        fromMail === 'approve' || fromMail === 'decline' ? fromMail : ''
+    );
     const [reason, setReason] = useState('');
 
     const load = useCallback(() => {
@@ -39,7 +48,7 @@ export default function GuardianReview() {
         setBusy(verb);
         const call = verb === 'approve' ? guardianApi.approve(token) : guardianApi.decline(token, reason.trim());
         call
-            .then((d) => { setState({ loading: false, request: d.request, error: '' }); setConfirming(false); })
+            .then((d) => { setState({ loading: false, request: d.request, error: '' }); setConfirming(''); })
             .catch((e) => setState((s) => ({ ...s, error: e.message })))
             .finally(() => setBusy(''));
     };
@@ -58,8 +67,12 @@ export default function GuardianReview() {
     }
 
     const req = state.request;
-    const answered = req.status === 'approved' || req.status === 'declined' || req.status === 'continued';
-    const approved = req.status === 'approved' || req.status === 'continued';
+    // A parent's part ends the moment they answer. Everything after that —
+    // the school's sign-off, the student continuing — is somebody else's step,
+    // so the page says so rather than leaving them wondering what to do next.
+    const answered = req.guardianAnswered
+        || ['awaiting-admin', 'approved', 'rejected', 'declined', 'continued'].includes(req.status);
+    const approved = req.status !== 'declined';
 
     return (
         <Shell>
@@ -111,9 +124,16 @@ export default function GuardianReview() {
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
                         {approved
-                            ? 'Thank you. The student can now carry on with this application.'
+                            ? 'Thank you. Your permission has been recorded.'
                             : 'The student has been told, and cannot continue with this job.'}
                     </p>
+                    {approved && (
+                        <p className="mx-auto mt-3 max-w-sm rounded-xl bg-white/70 px-3.5 py-2.5 text-xs leading-relaxed text-slate-600">
+                            {req.status === 'awaiting-admin'
+                                ? 'The school is checking the application now. Nothing further is needed from you — you will not be asked again.'
+                                : 'The school has signed it off as well, and the student can carry on.'}
+                        </p>
+                    )}
                     {req.declineReason && <p className="mt-2 text-sm text-rose-800"><span className="font-bold">Your reason: </span>{req.declineReason}</p>}
                     <p className="mt-3 text-xs text-slate-500">You can close this page.</p>
                 </div>
@@ -124,11 +144,11 @@ export default function GuardianReview() {
                     </p>
                     {state.error && <p className="mt-2 text-center text-sm font-semibold text-rose-600">{state.error}</p>}
                     <div className="mt-4 flex flex-col-reverse gap-2.5 sm:flex-row">
-                        <button type="button" onClick={() => setConfirming(true)} disabled={!!busy}
+                        <button type="button" onClick={() => setConfirming('decline')} disabled={!!busy}
                             className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-5 text-sm font-bold text-rose-700 transition-colors hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50 disabled:opacity-50">
                             <X size={17} aria-hidden="true" /> Decline
                         </button>
-                        <button type="button" onClick={() => decide('approve')} disabled={!!busy}
+                        <button type="button" onClick={() => setConfirming('approve')} disabled={!!busy}
                             className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white shadow-md shadow-emerald-200 transition-all hover:bg-emerald-700 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 disabled:opacity-50">
                             {busy === 'approve'
                                 ? <><Loader2 size={17} className="animate-spin" aria-hidden="true" /> Approving…</>
@@ -141,13 +161,25 @@ export default function GuardianReview() {
                 </div>
             )}
 
-            {confirming && (
+            {confirming === 'approve' && !answered && (
+                <ConfirmDialog
+                    title="Give permission?"
+                    body={`This tells the LMS that you allow ${req.student.name || 'this student'} to go ahead with this job. Your school checks it afterwards.`}
+                    confirmLabel={busy === 'approve' ? 'Approving…' : 'Yes, I approve'}
+                    tone="emerald"
+                    busy={busy === 'approve'}
+                    onCancel={() => setConfirming('')}
+                    onConfirm={() => decide('approve')}
+                />
+            )}
+
+            {confirming === 'decline' && !answered && (
                 <ConfirmDialog
                     title="Decline permission?"
                     body="Are you sure you want to decline permission for this job application?"
                     confirmLabel={busy === 'decline' ? 'Declining…' : 'Decline permission'}
                     busy={busy === 'decline'}
-                    onCancel={() => setConfirming(false)}
+                    onCancel={() => setConfirming('')}
                     onConfirm={() => decide('decline')}
                 >
                     <label className="mt-4 block">

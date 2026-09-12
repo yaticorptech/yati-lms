@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsFor, starsOn } from './levels';
+import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 
@@ -63,7 +63,7 @@ function Round({ progress, onExit }) {
   const [games, setGames] = useState({ won: 0, drawn: 0, lost: 0 });
   const [ended, setEnded] = useState(null); // 'X' | 'O' | 'draw' for the flash
   const [started, setStarted] = useState(false);
-  const { seconds, over } = useTimedRound(config.seconds, started);
+  const { seconds, over } = useTimedRound(config.seconds, started, points >= starsCap(config.target));
 
   const passed = points >= config.target;
   const stars = over ? starsFor(points, config.target) : 0;
@@ -106,7 +106,7 @@ function Round({ progress, onExit }) {
       title="Tic-Tac-Toe"
       blurb={`Score ${config.target} points: a win is 2, a draw is 1.`}
       tone="bg-gradient-to-br from-sky-500 to-indigo-700"
-      score={`${points}/${config.target}`}
+      score={points}
       scoreLabel="Points"
       seconds={seconds}
       progress={progress}
@@ -130,7 +130,7 @@ function Round({ progress, onExit }) {
               passed,
               stars,
               headline: passed ? `Level ${progress.level} cleared!` : 'So close',
-              detail: `${games.won} won · ${games.drawn} drawn · ${games.lost} lost — ${points} of ${config.target} points`,
+              detail: `${games.won} won · ${games.drawn} drawn · ${games.lost} lost`,
               atEnd: progress.atEnd,
               onNext: progress.advance,
               onRetry: progress.retry

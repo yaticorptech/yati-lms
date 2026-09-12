@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react';
 import api from '../../services/api';
 
+// The star rules live in stars.js so a test can load them; see there.
+export { starsFor, starsCap } from './stars';
+
 /**
  * Levels inside one difficulty band, and the ladder as a whole.
  *
@@ -31,25 +34,7 @@ export const ramp = (stepNo) =>
 /** Interpolate between two values across a band, rounded to a whole number. */
 export const between = (from, to, stepNo) => Math.round(from + (to - from) * ramp(stepNo));
 
-/**
- * One to three stars for how well a level was cleared, nought for a miss.
- *
- * Games where a lower number is better — moves used, guesses spent — pass
- * `lowerIsBetter` and the comparison flips.
- */
-export const starsFor = (value, target, lowerIsBetter = false) => {
-  if (!target) return value > 0 ? 3 : 0;
-  if (lowerIsBetter) {
-    if (value > target) return 0;
-    if (value <= target * 0.7) return 3;
-    if (value <= target * 0.85) return 2;
-    return 1;
-  }
-  if (value < target) return 0;
-  if (value >= target * 1.5) return 3;
-  if (value >= target * 1.2) return 2;
-  return 1;
-};
+
 
 const LEVEL_KEY = 'yati:gameLevel';
 const STAR_KEY = 'yati:gameStars';

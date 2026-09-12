@@ -298,7 +298,7 @@ const StudentLayout = () => {
             )}
             {/* Interview Ready: preparation and AI mock interviews. */}
             <Link to="/interview" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/interview') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                <Mic size={20} /> <span>Interview Ready</span>
+                <Mic size={20} /> <span>Interview</span>
             </Link>
         </>
     );
@@ -484,8 +484,14 @@ const StudentLayout = () => {
                 </div>
             </aside>
 
-            {/* Mobile Header */}
-            <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4">
+            {/* Mobile Header. Marked for the Career Path companion: it is the
+                top bar at this width but it is a div, not the <header> below,
+                so nothing else here would tell the character it exists — and
+                it walked up behind it. */}
+            <div
+                data-mascot-avoid
+                className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4"
+            >
                 <div className="flex items-center">
                     <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-8 object-contain" />
                 </div>

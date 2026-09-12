@@ -30,13 +30,14 @@ describe('the mock interview welcome screen', { skip: skipWithoutChrome }, () =>
                     eyebrow: /AI Mock Interview/i.test(body),
                     heading: text($$('h1')[0]),
                     explains: /asks the next question/.test(body),
-                    back: !!find(/Interview Ready/, 'a')
+                    back: !!find(/^\s*Interview\s*$/, 'a')
                 };` });
         assert.deepEqual(errors, []);
         assert.equal(result.eyebrow, true);
         assert.equal(result.heading, 'Welcome to your mock interview!');
         assert.ok(result.explains, 'it says what the interviewer does');
-        assert.ok(result.back, 'there is a way back to Interview Ready');
+        // The section is called "Interview" now, not "Interview Ready".
+        assert.ok(result.back, 'there is a way back to the Interview section');
     });
 
     test('says what a mock interview gives you, in three', async () => {

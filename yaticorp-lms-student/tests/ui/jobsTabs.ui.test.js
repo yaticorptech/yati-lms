@@ -59,22 +59,27 @@ describe('the Jobs section tabs', { skip: skipWithoutStyles }, () => {
         });
     }
 
-    test('an under-18 lands on Part-Time Jobs, the part written for them', async () => {
+    test('every student opens the section on Jobs, nobody is sent elsewhere', async () => {
+        // An under-18 used to be redirected straight to Part-Time Jobs, which
+        // made the other four tabs look like they were not there.
         const { result } = await screen({
             entry, api: apiFor('teen'), styles: true, budget: 25_000, script: `
                 await sleep(1600);
-                return { body: text(document.body) };` });
-        assert.match(result.body, /Flexible work\. Brighter tomorrows\./i, 'the part-time banner is what they see first');
+                return { body: text(document.body), url: location.search };` });
+        assert.equal(/Flexible work\. Brighter tomorrows\./i.test(result.body), false,
+            'the part-time banner is not what opens');
+        assert.equal(/tab=opportunities/.test(result.url), false,
+            'and nothing rewrote the address on their behalf');
     });
 
     test('the guardian notice belongs to Part-Time Jobs and stays there', async () => {
         const { result } = await screen({
             entry, api: apiFor('teen'), styles: true, budget: 25_000, script: `
                 await sleep(1600);
-                const partTime = text(document.body);
-                const jobsTab = $$('button').find((b) => /^Jobs\\b/.test(b.innerText.trim()));
-                jobsTab.click(); await sleep(900);
-                return { partTime, board: text(document.body) };` });
+                const board = text(document.body);
+                const partTimeTab = $$('button').find((b) => /Part-Time/.test(b.innerText));
+                partTimeTab.click(); await sleep(1200);
+                return { board, partTime: text(document.body) };` });
         assert.match(result.partTime, /A parent or guardian has to agree first/,
             'the part-time tab explains the permission');
         assert.equal(/A parent or guardian has to agree first/.test(result.board), false,

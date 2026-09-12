@@ -210,8 +210,8 @@ function PhaseCard({ stage, index, state, palette, onClick, side }) {
       data-mascot-clear
       aria-label={`Open phase ${index + 1}: ${choices ? choices.lead : title}`}
       className={`group relative w-full max-w-md overflow-hidden rounded-2xl border p-3.5 text-left shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover md:p-5 ${shell} ${
-        side === 'left' ? 'md:ml-auto' : 'md:mr-auto'
-      }`}
+        isCurrent ? 'fp-rm-now' : ''
+      } ${side === 'left' ? 'md:ml-auto' : 'md:mr-auto'}`}
     >
       {/* A wash of the platform's colour in one corner, and its colour down
           the leading edge — enough to tie the card to its platform across
@@ -247,7 +247,14 @@ function PhaseCard({ stage, index, state, palette, onClick, side }) {
               You are here
             </span>
           )}
-          <span className={`block text-base leading-snug font-black ${locked ? 'text-ink-600' : 'text-ink-900'}`}>
+          {/* Held to two lines on a phone. A stream name in brackets runs a
+              title to four of them, which pushes the row's own facts off the
+              bottom of the card and puts every row out of rhythm with its
+              neighbours. The whole title is in the aria-label above and at
+              the head of the dialog this opens, so nothing is lost. */}
+          <span
+            className={`line-clamp-2 text-base leading-snug font-black md:line-clamp-none ${locked ? 'text-ink-600' : 'text-ink-900'}`}
+          >
             {choices ? choices.lead : title}
           </span>
 
@@ -334,7 +341,7 @@ export default function JourneyMap({ phases, states, startedFrom, goal, percent,
   const cols = wide ? `minmax(0,1fr) ${track}px minmax(0,1fr)` : `${track}px minmax(0,1fr)`;
 
   return (
-    <div className="relative -mx-6 -mb-6 overflow-hidden rounded-b-2xl bg-gradient-to-b from-sky-50 via-journey-50/70 to-pink-50 px-3 pt-4 pb-6 md:px-6">
+    <div className="relative -mx-6 -mb-6 overflow-hidden rounded-b-2xl bg-gradient-to-b from-sky-50 via-journey-50/70 to-pink-50 px-2 pt-4 pb-6 md:px-6">
       {/* The sky: a fine dot grid and three soft colour orbs that drift. */}
       <div
         aria-hidden
@@ -444,7 +451,7 @@ export default function JourneyMap({ phases, states, startedFrom, goal, percent,
           <Reveal
             key={i}
             delay={0.05}
-            className="relative grid items-center gap-3 py-2 md:py-0"
+            className="relative grid items-center gap-2 py-2 md:gap-3 md:py-0"
             style={{ height: wide ? row : undefined, gridTemplateColumns: cols }}
           >
             {wide && <div className="flex justify-end pr-2">{cardSide === 'left' ? card : null}</div>}

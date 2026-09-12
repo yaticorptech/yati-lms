@@ -9,7 +9,7 @@
 import { useEffect, useRef } from 'react';
 import {
     Check, Clock, Circle, X, Briefcase, Building2, MapPin, CalendarDays,
-    Wallet, ShieldCheck, ChevronDown, AlertTriangle
+    Wallet, ShieldCheck, ChevronDown, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 
 /* ── Progress tracker ─────────────────────────────────────────────────── */
@@ -129,15 +129,21 @@ export const ConfirmDialog = ({ title, body, confirmLabel, tone = 'rose', busy, 
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [onCancel]);
-    const confirmCls = tone === 'rose'
-        ? 'bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500/60'
-        : 'bg-indigo-600 hover:bg-indigo-700 focus-visible:ring-indigo-500/60';
+    // A dialog that asks someone to agree must not be dressed as a warning:
+    // the same red triangle on "approve" and "decline" reads as "something is
+    // wrong" either way, and a parent pressing yes should not see one.
+    const LOOK = {
+        rose: { btn: 'bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500/60', mark: 'bg-rose-50 text-rose-600', Icon: AlertTriangle },
+        emerald: { btn: 'bg-emerald-600 hover:bg-emerald-700 focus-visible:ring-emerald-500/60', mark: 'bg-emerald-50 text-emerald-600', Icon: CheckCircle2 },
+        indigo: { btn: 'bg-indigo-600 hover:bg-indigo-700 focus-visible:ring-indigo-500/60', mark: 'bg-indigo-50 text-indigo-600', Icon: AlertTriangle }
+    };
+    const { btn: confirmCls, mark, Icon } = LOOK[tone] || LOOK.indigo;
     return (
         <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-fade-in" onClick={onCancel}>
             <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" onClick={(e) => e.stopPropagation()}
                 className="w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl animate-fade-in-up sm:p-6">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-rose-50 text-rose-600">
-                    <AlertTriangle size={20} aria-hidden="true" />
+                <span className={`flex h-11 w-11 items-center justify-center rounded-full ${mark}`}>
+                    <Icon size={20} aria-hidden="true" />
                 </span>
                 <h3 id="confirm-title" className="mt-3 text-lg font-black text-slate-900">{title}</h3>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">{body}</p>

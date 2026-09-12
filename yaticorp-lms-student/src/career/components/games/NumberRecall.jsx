@@ -71,7 +71,7 @@ function Round({ progress, onExit }) {
       title="Number Recall"
       blurb={`Recall ${config.target} digits to clear this level.`}
       tone="bg-gradient-to-br from-indigo-500 to-violet-700"
-      score={`${digits.length}/${config.target}`}
+      score={digits.length}
       scoreLabel="Digits"
       progress={progress}
       onRestart={progress.retry}
@@ -93,7 +93,7 @@ function Round({ progress, onExit }) {
               passed,
               stars,
               headline: passed ? `Level ${progress.level} cleared!` : 'So close',
-              detail: `${reached} digits, of ${config.target} needed`,
+              detail: `${reached} digits remembered`,
               atEnd: progress.atEnd,
               onNext: progress.advance,
               onRetry: progress.retry

@@ -4,8 +4,11 @@
  *
  * Five equal cells in one row: a tinted icon tile, the name, and a two-word
  * hint. The active cell is outlined and underlined.
- * On a phone the row keeps its width and scrolls sideways rather than
- * squashing the names.
+ *
+ * On a phone the cells wrap onto a grid, and the icon sits above the name
+ * rather than beside it. Beside it, the name was left a 94px column — narrow
+ * enough that "Hidden Opportunities" broke across two cramped lines. Stacked,
+ * the name has the whole cell to use.
  */
 // Written out in full: Tailwind cannot see a class name assembled at runtime.
 const TONES = {
@@ -34,15 +37,15 @@ export default function JobsTabs({ tabs, active, onChange, counts = {} }) {
                                 role="tab"
                                 aria-selected={on}
                                 onClick={() => onChange(id)}
-                                className={`relative flex h-full w-full items-center gap-2.5 rounded-2xl px-2.5 py-3 text-left transition-all duration-200 sm:gap-3 sm:px-3 ${
+                                className={`relative flex h-full w-full flex-col items-center gap-1.5 rounded-2xl px-1.5 pb-4 pt-3 text-center transition-all duration-200 sm:flex-row sm:gap-3 sm:px-3 sm:py-3 sm:text-left ${
                                     on ? 'bg-indigo-50/40 ring-[1.5px] ring-indigo-500' : 'hover:bg-slate-50'
                                 }`}
                             >
-                                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 ${TONES[tone]}`}>
-                                    <Icon size={20} strokeWidth={1.9} className="sm:h-[22px] sm:w-[22px]" />
+                                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 ${TONES[tone]}`}>
+                                    <Icon size={19} strokeWidth={1.9} className="sm:h-[22px] sm:w-[22px]" />
                                 </span>
-                                <span className="min-w-0">
-                                    <span className={`block text-sm font-bold leading-snug sm:text-[15px] ${on ? 'text-indigo-600' : 'text-slate-900'}`}>
+                                <span className="min-w-0 w-full sm:w-auto">
+                                    <span className={`block text-[12px] font-bold leading-tight tracking-[-0.01em] text-balance sm:text-[15px] sm:tracking-normal sm:leading-snug ${on ? 'text-indigo-600' : 'text-slate-900'}`}>
                                         {label}
                                         {count > 0 && (
                                             <span className={`ml-1.5 rounded-full px-1.5 py-0.5 align-middle text-[10px] font-bold tabular-nums ${on ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>{count}</span>
@@ -50,7 +53,7 @@ export default function JobsTabs({ tabs, active, onChange, counts = {} }) {
                                     </span>
                                     <span className={`mt-0.5 hidden text-[13px] sm:block ${on ? 'text-indigo-500' : 'text-slate-500'}`}>{hint}</span>
                                 </span>
-                                {on && <span aria-hidden="true" className="absolute bottom-[3px] left-1/2 h-[3px] w-20 -translate-x-1/2 rounded-full bg-indigo-600" />}
+                                {on && <span aria-hidden="true" className="absolute bottom-[3px] left-1/2 h-[3px] w-10 -translate-x-1/2 rounded-full bg-indigo-600 sm:w-20" />}
                             </button>
                         </div>
                     );

@@ -19,7 +19,7 @@ const SafetyNotes = ({ rules }) => (
         <ul className="space-y-1.5 border-t border-slate-100 px-4 py-3 text-xs leading-relaxed text-slate-600">
             {rules?.verifiedOnly && <li>Only jobs from organisations the LMS has verified are shown to you.</li>}
             {!rules?.exposeContact && <li>Organisations never see your contact details, and you never see theirs. When you mark interest, the LMS passes it on{rules?.guardianApproval ? ' and copies your guardian' : ''}.</li>}
-            {rules?.guardianApproval && <li>Applying for a job sends your parent or guardian a text with the job's details. Nothing is arranged until they answer.</li>}
+            {rules?.guardianApproval && <li>Applying for a job emails your parent or guardian the job's details. They answer, then your school signs it off. Nothing is arranged until both have.</li>}
             <li>Your date of birth is used only to decide which jobs you may see. It is never shown to an organisation.</li>
             <li>Your dates, interests and ♡ / ✕ choices stay in your account and only shape your own recommendations. You can edit or clear them any time.</li>
             <li>Anything that looks unsafe, asks for money, or asks to talk outside the LMS — use <strong>Report</strong> on the listing. Reports go to the LMS team.</li>
@@ -52,7 +52,7 @@ export default function GuardianBanner({ rules }) {
                     <p className="font-bold text-amber-900">A parent or guardian has to agree first</p>
                     <p className="mt-0.5 text-sm leading-relaxed text-slate-700">
                         Browse and mark interest freely. When you apply for a job, we ask your
-                        parent or guardian for permission for that job — they get a text with the
+                        parent or guardian for permission for that job — they get an email with the
                         details and answer it themselves.
                     </p>
                 </div>

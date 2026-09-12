@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Flame } from 'lucide-react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsFor, starsOn } from './levels';
+import useGameProgress, { between, starsCap, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 
@@ -75,7 +75,7 @@ function Round({ progress, onExit }) {
   const [streak, setStreak] = useState(0);
   const [flash, setFlash] = useState(null);
   const [started, setStarted] = useState(false);
-  const { seconds, over } = useTimedRound(config.seconds, started);
+  const { seconds, over } = useTimedRound(config.seconds, started, score >= starsCap(config.target));
 
   const passed = score >= config.target;
   const stars = over ? starsFor(score, config.target) : 0;
@@ -102,7 +102,7 @@ function Round({ progress, onExit }) {
       title="Math Sprint"
       blurb={`Reach ${config.target} correct before the clock runs out.`}
       tone="bg-gradient-to-br from-amber-500 to-orange-600"
-      score={`${score}/${config.target}`}
+      score={score}
       seconds={seconds}
       progress={progress}
       onRestart={progress.retry}
@@ -125,7 +125,7 @@ function Round({ progress, onExit }) {
               passed,
               stars,
               headline: passed ? `Level ${progress.level} cleared!` : 'So close',
-              detail: `${score} of ${config.target} needed`,
+              detail: `${score} correct`,
               atEnd: progress.atEnd,
               onNext: progress.advance,
               onRetry: progress.retry

@@ -85,9 +85,13 @@ describe('a part-time card on a phone', { skip: skipWithoutStyles }, () => {
                 };` });
         for (const phrase of ['Photography assistant, engagement ceremony', 'Frame & Focus Studio', 'Verified',
             '100% match', 'YOUR DATES', 'Whitefield, Bengaluru', '2–4 hrs', 'Ages 16+', '₹800',
-            'Photography & media', 'Events & functions', 'Guardian approval pending']) {
+            'Photography & media', 'Events & functions']) {
             assert.ok(result.body.includes(phrase), `"${phrase}" is missing from the card`);
         }
+        // The guardian badge was taken off the cards: permission is shown on the
+        // application itself, where it is answered, not repeated on every row.
+        assert.equal(/Guardian approval/.test(result.body), false,
+            'no guardian badge belongs on a card any more');
         assert.ok(result.viewInside, 'the View details button is inside the card, not past its edge');
     });
 

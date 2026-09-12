@@ -15,11 +15,14 @@ const JOB = {
     duration: '18 Sept 2026', location: 'Whitefield, Bengaluru', pay: '₹800',
     safety: ['The organisation has been verified by the LMS.', 'An adult supervisor is present for the whole shift.']
 };
+const STEP_LABELS = ['Request sent', 'Parent review', 'Admin approval', 'Approved'];
 const STEPS = {
     'needs-guardian': ['waiting', 'waiting', 'waiting', 'waiting'],
     'awaiting-guardian': ['done', 'active', 'waiting', 'waiting'],
-    approved: ['done', 'done', 'done', 'active'],
-    declined: ['done', 'done', 'blocked', 'blocked'],
+    // The parent agreed; the LMS has still to sign it off.
+    'awaiting-admin': ['done', 'done', 'active', 'waiting'],
+    approved: ['done', 'done', 'done', 'done'],
+    declined: ['done', 'blocked', 'blocked', 'blocked'],
     continued: ['done', 'done', 'done', 'done'],
     // Old enough that there is nothing to approve; the screen hides the
     // tracker for this one, but the server still reports the steps.
@@ -30,7 +33,7 @@ const application = (status, extra = {}) => ({
     student: { name: 'Sowndarya', age: 13 },
     job: JOB,
     guardian: { name: 'Devaki', email: 'de••••@example.com', phone: '+91 XXXXX XXX10' },
-    steps: STEPS[status].map((state, i) => ({ label: ['Request sent', 'Guardian review', 'Approval', 'Application continues'][i], state })),
+    steps: STEPS[status].map((state, i) => ({ label: STEP_LABELS[i], state })),
     guardianAge: 15, reminders: 0, declineReason: '',
     canContinue: status === 'approved' || status === 'continued',
     guardianLink: status === 'needs-guardian' ? '' : '/jobs/guardian/tok',
@@ -114,9 +117,12 @@ describe('the student applying', { skip: skipWithoutStyles }, () => {
                 const body = text(document.body);
                 return { body, tracker, buttons: $$('button').map((b) => b.innerText.replace(/\\s+/g, ' ').trim()).filter(Boolean) };` });
         assert.match(result.body, /Approval request sent/);
-        assert.match(result.body, /Waiting for guardian response/);
+        assert.match(result.body, /Waiting for parent response/);
         assert.deepEqual(result.tracker, ['done', 'active', 'waiting', 'waiting']);
-        assert.ok(result.buttons.some((b) => /Resend request/i.test(b)));
+        // There is no resend. One request is one message, and a button here
+        // only ever mailed the same parent the same job again.
+        assert.ok(!result.buttons.some((b) => /Resend request/i.test(b)),
+            `nothing should offer to send it again, saw ${JSON.stringify(result.buttons)}`);
         assert.ok(result.buttons.some((b) => /View request details/i.test(b)));
         assert.ok(!result.buttons.some((b) => /^Continue application/i.test(b)), 'there is nothing to continue with yet');
         assert.match(result.body, /cannot continue this application until Devaki answers/);
@@ -149,16 +155,27 @@ describe('the student applying', { skip: skipWithoutStyles }, () => {
         assert.ok(result.hasGuardianPage, 'and the guardian page is offered so the flow can still be tried');
     });
 
-    test('once the guardian approves, the student can carry on', async () => {
+    test('a parent\'s yes hands it to the LMS; the student still waits', async () => {
+        const { result } = await screen({
+            entry, api: api(application('awaiting-admin')), styles: true, script: `
+                await sleep(700);
+                ${TRACKER}
+                const go = $$('button').find((b) => /Continue application/i.test(b.innerText));
+                return { body: text(document.body), tracker, hasGo: !!go };` });
+        assert.match(result.body, /Parent approved/);
+        assert.deepEqual(result.tracker, ['done', 'done', 'active', 'waiting']);
+        assert.equal(result.hasGo, false, 'a parent saying yes is not the whole permission');
+    });
+
+    test('once the LMS signs it off too, the student can carry on', async () => {
         const { result } = await screen({
             entry, api: api(application('approved')), styles: true, script: `
                 await sleep(700);
                 ${TRACKER}
                 const go = $$('button').find((b) => /Continue application/i.test(b.innerText));
                 return { body: text(document.body), tracker, hasGo: !!go, goDisabled: go ? go.disabled : null };` });
-        assert.match(result.body, /Guardian approval received/);
         assert.match(result.body, /Approved/);
-        assert.deepEqual(result.tracker, ['done', 'done', 'done', 'active']);
+        assert.deepEqual(result.tracker, ['done', 'done', 'done', 'done']);
         assert.ok(result.hasGo, 'the way on is offered');
         assert.equal(result.goDisabled, false);
     });
@@ -174,7 +191,7 @@ describe('the student applying', { skip: skipWithoutStyles }, () => {
         assert.match(result.body, /Permission declined/);
         assert.match(result.body, /has not approved this application/);
         assert.match(result.body, /School exams that week\./);
-        assert.deepEqual(result.tracker, ['done', 'done', 'blocked', 'blocked']);
+        assert.deepEqual(result.tracker, ['done', 'blocked', 'blocked', 'blocked']);
         assert.ok(result.buttons.some((b) => /Choose another job/i.test(b)));
         assert.ok(!result.buttons.some((b) => /Continue application/i.test(b)), 'a declined application goes nowhere');
     });
@@ -195,15 +212,15 @@ describe('the student applying', { skip: skipWithoutStyles }, () => {
 describe("the guardian's own page", { skip: skipWithoutStyles }, () => {
     const guardianApi = (status, extra = {}) => `
 const request = ${JSON.stringify({ id: 'a1', student: { name: 'Sowndarya', age: 13 }, job: JOB, guardian: { name: 'Devaki' }, requestedAt: null, decidedAt: null, declineReason: '', expired: false })};
-let current = { ...request, status: ${JSON.stringify(status)}, steps: ${JSON.stringify(STEPS[status] || STEPS['awaiting-guardian'])}.map((state, i) => ({ label: ['Request sent','Guardian review','Approval','Application continues'][i], state })), ...${JSON.stringify(extra)} };
+let current = { ...request, status: ${JSON.stringify(status)}, steps: ${JSON.stringify(STEPS[status] || STEPS['awaiting-guardian'])}.map((state, i) => ({ label: ${JSON.stringify(STEP_LABELS)}[i], state })), ...${JSON.stringify(extra)} };
 window.__calls = [];
 const reply = () => Promise.resolve({ data: { request: current } });
 export default {
   get: (url) => { window.__calls.push(['GET', url]); return reply(); },
   post: (url, body) => {
     window.__calls.push(['POST', url, body]);
-    if (url.includes('/approve')) current = { ...current, status: 'approved', steps: current.steps.map((s, i) => ({ ...s, state: i < 3 ? 'done' : 'active' })) };
-    if (url.includes('/decline')) current = { ...current, status: 'declined', declineReason: (body && body.reason) || '', steps: current.steps.map((s, i) => ({ ...s, state: i < 2 ? 'done' : 'blocked' })) };
+    if (url.includes('/approve')) current = { ...current, status: 'awaiting-admin', guardianAnswered: true, steps: current.steps.map((s, i) => ({ ...s, state: i < 2 ? 'done' : i === 2 ? 'active' : 'waiting' })) };
+    if (url.includes('/decline')) current = { ...current, status: 'declined', declineReason: (body && body.reason) || '', steps: current.steps.map((s, i) => ({ ...s, state: i < 1 ? 'done' : 'blocked' })) };
     return reply();
   },
   put: () => reply(), delete: () => reply()
@@ -240,12 +257,20 @@ createRoot(document.getElementById('root')).render(
         assert.match(result.body, /Nobody at the school or the LMS can approve it for you/);
     });
 
-    test('approving shows the guardian it landed', async () => {
+    test('approving asks once, then shows the guardian it landed', async () => {
         const { result } = await screen({
             entry: guardianEntry, api: guardianApi('awaiting-guardian'), styles: true, script: `
                 await sleep(700);
-                click(/Approve & continue/); await sleep(600);
-                return { body: text(document.body), posted: window.__calls.filter((c) => c[0] === 'POST').map((c) => c[1]) };` });
+                click(/Approve & continue/); await sleep(400);
+                // Approving is confirmed, the same as declining: the button on
+                // the page opens the question, it does not answer it.
+                const asked = text(document.body);
+                const postedBefore = window.__calls.filter((c) => c[0] === 'POST').length;
+                click(/Yes, I approve/); await sleep(600);
+                return { asked, postedBefore, body: text(document.body),
+                         posted: window.__calls.filter((c) => c[0] === 'POST').map((c) => c[1]) };` });
+        assert.match(result.asked, /Give permission\?/, 'it asks before it sends');
+        assert.equal(result.postedBefore, 0, 'opening the dialog decides nothing');
         assert.match(result.body, /Permission given/);
         assert.ok(result.posted.some((u) => /\/approve$/.test(u)));
     });
