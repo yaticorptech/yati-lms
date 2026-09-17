@@ -41,6 +41,16 @@ const Users = () => {
     const [enrollmentToReset, setEnrollmentToReset] = useState(null);
     const [resetLoading, setResetLoading] = useState(false);
 
+    // Set Progress Modal State
+    const [showProgressModal, setShowProgressModal] = useState(false);
+    const [progressDetail, setProgressDetail] = useState(null);
+    const [progressDetailLoading, setProgressDetailLoading] = useState(false);
+    const [progressMode, setProgressMode] = useState('percentage'); // 'percentage' | 'lessons'
+    const [progressPercent, setProgressPercent] = useState(0);
+    const [progressLessons, setProgressLessons] = useState([]);
+    const [progressSaving, setProgressSaving] = useState(false);
+    const [progressError, setProgressError] = useState('');
+
     // New User Form State
     const [showAddModal, setShowAddModal] = useState(false);
     const [newUser, setNewUser] = useState({ name: '', email: '', phone: '', password: '' });
@@ -377,6 +387,68 @@ const Users = () => {
         }
     };
 
+    const openProgressModal = async (courseId) => {
+        if (!selectedUser) return;
+        setShowProgressModal(true);
+        setProgressDetail(null);
+        setProgressError('');
+        setProgressMode('percentage');
+        setProgressDetailLoading(true);
+        try {
+            const res = await api.get(`/admin/users/${selectedUser._id}/progress/${courseId}`);
+            setProgressDetail(res.data);
+            setProgressPercent(res.data.percentage ?? 0);
+            setProgressLessons(
+                res.data.modules.flatMap(m => m.lessons.filter(l => l.completed).map(l => l._id))
+            );
+        } catch (err) {
+            setProgressError(err.response?.data?.message || 'Could not load this course\'s lessons.');
+        } finally {
+            setProgressDetailLoading(false);
+        }
+    };
+
+    const closeProgressModal = () => {
+        setShowProgressModal(false);
+        setProgressDetail(null);
+        setProgressError('');
+    };
+
+    const toggleProgressLesson = (lessonId) => {
+        setProgressLessons(prev =>
+            prev.includes(lessonId) ? prev.filter(id => id !== lessonId) : [...prev, lessonId]
+        );
+    };
+
+    const toggleProgressModule = (module) => {
+        const ids = module.lessons.map(l => l._id);
+        const allDone = ids.every(id => progressLessons.includes(id));
+        setProgressLessons(prev => allDone
+            ? prev.filter(id => !ids.includes(id))
+            : [...new Set([...prev, ...ids])]);
+    };
+
+    const saveProgress = async () => {
+        if (!selectedUser || !progressDetail) return;
+        setProgressSaving(true);
+        setProgressError('');
+        try {
+            const body = progressMode === 'lessons'
+                ? { completedLessons: progressLessons }
+                : { percentage: Number(progressPercent) };
+            const res = await api.put(`/admin/users/${selectedUser._id}/progress/${progressDetail.course._id}`, body);
+            setAlertType('success');
+            setAlertMessage(res.data?.message || 'Progress updated');
+            setShowAlert(true);
+            closeProgressModal();
+            openUserModal(selectedUser);
+        } catch (err) {
+            setProgressError(err.response?.data?.message || 'Could not save progress.');
+        } finally {
+            setProgressSaving(false);
+        }
+    };
+
     const confirmDeleteUser = (user) => {
         setUserToDelete(user);
         setShowDeleteUserModal(true);
@@ -397,9 +469,12 @@ const Users = () => {
         }
     };
 
+    const query = search.trim().toLowerCase();
     const filteredUsers = users.filter(user =>
-        user.name?.toLowerCase().includes(search.toLowerCase()) ||
-        user.email?.toLowerCase().includes(search.toLowerCase())
+        !query ||
+        user.name?.toLowerCase().includes(query) ||
+        user.email?.toLowerCase().includes(query) ||
+        String(user.cardNumber ?? '').toLowerCase().includes(query)
     );
 
     return (
@@ -413,7 +488,7 @@ const Users = () => {
                     <div className="relative">
                         <input
                             type="text"
-                            placeholder="Search by name or email..."
+                            placeholder="Search by name, email or card number..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 text-sm shadow-sm transition-all"
@@ -669,11 +744,24 @@ const Users = () => {
                                         <div className="space-y-3">
                                             {userDetails.progressSummary.map(prog => (
                                                 <div key={prog.courseId} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <p className="font-semibold text-slate-800 text-sm truncate max-w-full sm:max-w-[220px]" title={prog.courseTitle}>{prog.courseTitle}</p>
-                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${prog.percentage >= 100 ? 'bg-emerald-100 text-emerald-700' : prog.percentage > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-500'}`}>
-                                                            {prog.percentage >= 100 ? '✓ Completed' : `${prog.percentage}%`}
-                                                        </span>
+                                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                                        <div className="min-w-0">
+                                                            <p className="font-semibold text-slate-800 text-sm truncate max-w-full sm:max-w-[220px]" title={prog.courseTitle}>{prog.courseTitle}</p>
+                                                            {prog.via && prog.via !== 'Course' && (
+                                                                <p className="text-[11px] text-slate-400 truncate" title={prog.via}>via {prog.via}</p>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${prog.percentage >= 100 ? 'bg-emerald-100 text-emerald-700' : prog.percentage > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-500'}`}>
+                                                                {prog.percentage >= 100 ? '✓ Completed' : `${prog.percentage}%`}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => openProgressModal(prog.courseId)}
+                                                                className="text-indigo-600 hover:bg-indigo-50 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors border border-indigo-200"
+                                                            >
+                                                                Set Progress
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <div className="w-full bg-slate-200 rounded-full h-2 mb-3 overflow-hidden">
                                                         <div
@@ -701,6 +789,157 @@ const Users = () => {
                         </div>
                     </div>
                 )}
+
+            {/* Set Progress Modal */}
+            {showProgressModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+                        <div className="p-5 border-b border-slate-100">
+                            <h3 className="text-base font-bold text-slate-800">Set Course Progress</h3>
+                            <p className="text-sm text-slate-500 mt-1">
+                                <span className="font-semibold text-slate-700">{selectedUser?.name}</span>
+                                {progressDetail && <> · <span className="font-semibold text-slate-700">{progressDetail.course.title}</span></>}
+                            </p>
+                        </div>
+
+                        <div className="p-5 overflow-y-auto flex-1 space-y-4">
+                            {progressDetailLoading && (
+                                <div className="animate-pulse space-y-3">
+                                    <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+                                    <div className="h-4 bg-slate-200 rounded"></div>
+                                    <div className="h-4 bg-slate-200 rounded w-5/6"></div>
+                                </div>
+                            )}
+
+                            {progressDetail && (
+                                <>
+                                    <div className="flex items-center gap-4 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                        <span>Current: <b className="text-slate-700">{progressDetail.percentage}%</b></span>
+                                        <span>📗 {progressDetail.completedCount}/{progressDetail.totalLessons} lessons</span>
+                                        <span>🏆 {progressDetail.passedQuizzes} quizzes</span>
+                                    </div>
+
+                                    <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-medium">
+                                        <button
+                                            onClick={() => setProgressMode('percentage')}
+                                            className={`flex-1 px-3 py-2 ${progressMode === 'percentage' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                        >
+                                            By percentage
+                                        </button>
+                                        <button
+                                            onClick={() => setProgressMode('lessons')}
+                                            className={`flex-1 px-3 py-2 border-l border-slate-200 ${progressMode === 'lessons' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                        >
+                                            By lessons
+                                        </button>
+                                    </div>
+
+                                    {progressMode === 'percentage' ? (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="range" min="0" max="100" step="1"
+                                                    value={progressPercent}
+                                                    onChange={e => setProgressPercent(Number(e.target.value))}
+                                                    className="flex-1 accent-indigo-600"
+                                                />
+                                                <div className="flex items-center gap-1">
+                                                    <input
+                                                        type="number" min="0" max="100"
+                                                        value={progressPercent}
+                                                        onChange={e => setProgressPercent(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                                                        className="w-20 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-right focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                    />
+                                                    <span className="text-sm text-slate-500">%</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 flex-wrap">
+                                                {[0, 25, 50, 75, 100].map(v => (
+                                                    <button
+                                                        key={v}
+                                                        onClick={() => setProgressPercent(v)}
+                                                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${progressPercent === v ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                                                    >
+                                                        {v}%
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <p className="text-xs text-slate-500">
+                                                The first {progressPercent === 100 ? progressDetail.totalLessons : Math.floor((progressPercent / 100) * progressDetail.totalLessons)} of {progressDetail.totalLessons} lessons will be marked complete, in course order.
+                                                {progressPercent === 100 && ' This makes the student eligible for the certificate.'}
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            <p className="text-xs text-slate-500">
+                                                {progressLessons.length} of {progressDetail.totalLessons} lessons selected
+                                                {' '}({progressDetail.totalLessons ? Math.min(100, Math.round((progressLessons.length / progressDetail.totalLessons) * 100)) : 0}%)
+                                            </p>
+                                            {progressDetail.modules.length === 0 && (
+                                                <p className="text-sm text-slate-400 italic">This course has no modules yet.</p>
+                                            )}
+                                            {progressDetail.modules.map(module => {
+                                                const ids = module.lessons.map(l => l._id);
+                                                const doneCount = ids.filter(id => progressLessons.includes(id)).length;
+                                                return (
+                                                    <div key={module._id} className="border border-slate-200 rounded-lg overflow-hidden">
+                                                        <label className="flex items-center gap-2 px-3 py-2 bg-slate-50 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="accent-indigo-600"
+                                                                checked={ids.length > 0 && doneCount === ids.length}
+                                                                ref={el => { if (el) el.indeterminate = doneCount > 0 && doneCount < ids.length; }}
+                                                                onChange={() => toggleProgressModule(module)}
+                                                                disabled={ids.length === 0}
+                                                            />
+                                                            <span className="text-sm font-semibold text-slate-700 flex-1 truncate">{module.title}</span>
+                                                            <span className="text-xs text-slate-400">{doneCount}/{ids.length}</span>
+                                                        </label>
+                                                        {module.lessons.length === 0 ? (
+                                                            <p className="px-3 py-2 text-xs text-slate-400 italic">No published lessons.</p>
+                                                        ) : module.lessons.map(lesson => (
+                                                            <label key={lesson._id} className="flex items-center gap-2 px-3 py-1.5 border-t border-slate-100 cursor-pointer hover:bg-slate-50">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    className="accent-indigo-600 ml-4"
+                                                                    checked={progressLessons.includes(lesson._id)}
+                                                                    onChange={() => toggleProgressLesson(lesson._id)}
+                                                                />
+                                                                <span className="text-sm text-slate-700 flex-1 truncate">{lesson.title}</span>
+                                                                <span className="text-[10px] uppercase tracking-wide text-slate-400">{lesson.type}</span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
+                            {progressError && (
+                                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{progressError}</p>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end gap-3 px-5 py-4 bg-slate-50 border-t border-slate-100">
+                            <button
+                                onClick={closeProgressModal}
+                                className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors text-sm"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={saveProgress}
+                                disabled={progressSaving || !progressDetail}
+                                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors text-sm disabled:opacity-50"
+                            >
+                                {progressSaving ? 'Saving...' : 'Save Progress'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Reset Progress Confirm Dialog */}
             {showResetModal && enrollmentToReset && (

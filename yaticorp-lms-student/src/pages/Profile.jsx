@@ -5,6 +5,7 @@ import api from '../utils/api';
 import saveToDrive from '../integrations/google/saveToDrive';
 import CertificatesFrame from '../components/CertificatesFrame';
 import ResumeSection from '../components/ResumeSection';
+import AiKeySettings from '../components/AiKeySettings';
 import Cropper from 'react-easy-crop';
 import {
     CreditCard, Mail, Phone, Award, Loader2, Edit2, Check, X, Camera, ZoomIn, ZoomOut,
@@ -497,6 +498,9 @@ const Profile = () => {
 
             {/* Resume — the uploaded file, and the ATS resume built from courses */}
             <ResumeSection />
+
+            {/* Bring your own Gemini key for the AI features */}
+            <AiKeySettings />
 
             {/* ── Photo Viewer Modal ── */}
             {viewingPhoto && user?.profilePicture && (

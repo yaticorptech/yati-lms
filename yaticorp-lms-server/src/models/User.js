@@ -123,7 +123,16 @@ const userSchema = new mongoose.Schema({
     // Free-text cohort labels for the "My institution" / "My class"
     // leaderboards. Students in the same institution and class see each other.
     institution: { type: String, default: '', trim: true },
-    className: { type: String, default: '', trim: true }
+    className: { type: String, default: '', trim: true },
+
+    // ─── Bring your own AI key ───────────────────────────────────────────────
+    // A student's own Google Gemini API key, sealed with AES-256-GCM (see
+    // utils/userAiKey.js). When present, Career Path, the mock interviewer and
+    // the Learning Bio writer call Gemini with it instead of the platform key,
+    // and the platform's per-student daily cap no longer applies. Never
+    // selected by default, so no API response can carry it by accident.
+    geminiApiKey: { type: String, default: '', select: false },
+    geminiApiKeyAddedAt: { type: Date, default: null }
 }, { timestamps: true });
 
 // Match user entered password to database password (which is plain text Verification_value)

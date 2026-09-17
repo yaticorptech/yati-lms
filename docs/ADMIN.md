@@ -91,6 +91,8 @@ yaticorp-lms-admin/src/
   - View active enrollments with:
     - 🔴 **Remove** button (removes enrollment)
     - 🟡 **Reset Progress** button (for Courses — wipes progress to 0%)
+  - Course Progress Report (direct enrollments and courses inside enrolled bundles) with:
+    - 🔵 **Set Progress** button — opens a modal to set progress by percentage (marks the first N lessons in course order) or by ticking individual lessons per module
 - **Block/Unblock** student toggle
 - **Delete** student (also resets their activation card to `unactivated`)
 - Welcome email sent automatically when admin creates a new user

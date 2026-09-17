@@ -37,6 +37,10 @@ router.get('/bundles/:id', protectUser, getBundleContent);
 const userSettingsController = require('../controllers/userSettingsController');
 router.get('/settings', protectUser, userSettingsController.getUserSettings);
 
+// Bring your own Gemini key: see, save (after a live check) or remove.
+const aiKeyCtrl = require('../controllers/userAiKeyController');
+router.route('/ai-key').get(protectUser, aiKeyCtrl.getAiKey).put(protectUser, aiKeyCtrl.setAiKey).delete(protectUser, aiKeyCtrl.deleteAiKey);
+
 // Quiz Routes
 const { getQuizForStudent, submitQuizAnswers, getGlobalQuiz, submitGlobalQuiz } = require('../controllers/userQuizController');
 router.get('/lessons/:lessonId/quiz', protectUser, getQuizForStudent);
