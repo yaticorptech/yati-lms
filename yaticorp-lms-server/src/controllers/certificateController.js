@@ -34,11 +34,16 @@ const generateCertificate = async (req, res) => {
         const course = await Course.findById(courseId);
         const user = await User.findById(userId);
 
-        // Fallback for card number if it doesn't exist on the user model yet
-        const displayCardNumber = user.cardNumber || Math.random().toString(36).substr(2, 6).toUpperCase();
-        const certNumber = `YATI${displayCardNumber}`;
+        let certNumber = existingCert?.certificateNumber;
 
         if (!existingCert) {
+            // Fallback for card number if it doesn't exist on the user model yet
+            const displayCardNumber = user.cardNumber || Math.random().toString(36).substr(2, 6).toUpperCase();
+            // Each certificate the student earns gets the next sequence number:
+            // YATI<card>-01 for the first course, -02 for the second, and so on.
+            const heldSoFar = await Certificate.countDocuments({ userId });
+            certNumber = `YATI${displayCardNumber}-${String(heldSoFar + 1).padStart(2, '0')}`;
+
             // Save to DB on first generation
             existingCert = await Certificate.create({
                 userId,
@@ -88,7 +93,7 @@ const generateCertificate = async (req, res) => {
 
         // Certificate Number (top left)
         doc.fillColor('#bc2a2a').fontSize(11).font('Times-Roman')
-            .text(existingCert.certificateNumber || certNumber, 218, 107);
+            .text(certNumber, 218, 107);
 
         // User Name (Middle)
         doc.fillColor('#000000').fontSize(36).font('Times-Bold')
