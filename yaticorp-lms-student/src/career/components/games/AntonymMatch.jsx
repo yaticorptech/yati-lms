@@ -16,7 +16,8 @@ export default function AntonymMatch({ onExit }) {
         word: a.word,
         answer: a.answer,
         options: [a.answer, ...a.wrong],
-        note: `The opposite of ${a.word.toLowerCase()} is "${a.answer.toLowerCase()}".`
+        note: `The opposite of ${a.word.toLowerCase()} is "${a.answer.toLowerCase()}".`,
+        level: a.level
       })),
     []
   );

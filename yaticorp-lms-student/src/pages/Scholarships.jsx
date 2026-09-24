@@ -334,23 +334,23 @@ export default function Scholarships() {
                   </p>
                 )}
 
+                {/* Every entry that reaches this page has an application link
+                    that answered: the server drops the rest rather than
+                    listing a scholarship it cannot send anyone to. There is no
+                    linkless branch here any more because there is no linkless
+                    entry — the old one told the student to go and search for
+                    the page themselves, which is the job the page exists to
+                    do. */}
                 <div className="mt-auto pt-4">
-                  {s.link ? (
-                    <a
-                      href={s.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-pink-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-purple-500/25 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
-                    >
-                      Apply
-                      <ExternalLink size={14} />
-                    </a>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-                      <Sparkles size={13} />
-                      Search the name to find the application page
-                    </span>
-                  )}
+                  <a
+                    href={s.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-pink-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-purple-500/25 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
+                  >
+                    Apply
+                    <ExternalLink size={14} />
+                  </a>
                 </div>
               </li>
             );

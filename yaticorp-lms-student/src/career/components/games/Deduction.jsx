@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import QuizGame from './QuizGame';
 import { SYLLOGISMS } from '../../data/brainPuzzles';
+import { buildSyllogisms } from '../../data/genSyllogisms';
 
 /**
  * 🧩 Logic & deduction: does the conclusion actually follow?
@@ -9,15 +10,19 @@ import { SYLLOGISMS } from '../../data/brainPuzzles';
  * do not follow, which is the trap the game exists to teach.
  */
 export default function Deduction({ onExit }) {
+  // Sixty generated arguments per band (genSyllogisms.js) and the
+  // hand-written ones, which keep their place because several are the exact
+  // textbook traps worth meeting verbatim.
   const questions = useMemo(
     () =>
-      SYLLOGISMS.map((q) => ({
+      [...buildSyllogisms(), ...SYLLOGISMS].map((q) => ({
         premises: q.premises,
         conclusion: q.conclusion,
         answer: q.answer,
         options: ['Follows', 'Does not follow'],
         note: q.why,
-        level: q.level
+        level: q.level,
+        tier: q.tier
       })),
     []
   );

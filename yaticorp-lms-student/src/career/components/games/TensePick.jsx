@@ -1,17 +1,23 @@
 import { useMemo } from 'react';
 import QuizGame from './QuizGame';
-import { PAST_TENSES } from '../../data/brainGrammar';
+import { buildTenses } from '../../data/genTenses';
 
-/** ⏪ Grammar: the verb is given; pick its past tense. */
+/**
+ * ⏪ Grammar: the verb is given; pick its past tense.
+ *
+ * Forty-five verbs per band, their wrong forms generated (genTenses.js)
+ * the ways people actually get them wrong.
+ */
 export default function TensePick({ onExit }) {
   const questions = useMemo(
     () =>
-      PAST_TENSES.map((v) => ({
+      buildTenses().map((v) => ({
         base: v.base,
-        answer: v.past,
-        options: [v.past, ...v.wrong],
-        note: `Yesterday, I ${v.past}. (${v.base} → ${v.past})`,
-        level: v.level
+        answer: v.answer,
+        options: v.options,
+        note: `Yesterday, I ${v.answer}. (${v.base} → ${v.answer})`,
+        level: v.level,
+        tier: v.tier
       })),
     []
   );

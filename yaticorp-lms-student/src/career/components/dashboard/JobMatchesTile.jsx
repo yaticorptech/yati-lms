@@ -2,6 +2,12 @@
  * @description Live job matches for the student's career goal, on the
  *              Career Path Overview.
  *
+ * Read-only here. The three matches are a preview of what the goal leads to,
+ * not a way in: the cards open nothing, carry no hover state, and the tile
+ * itself no longer lifts under the pointer, because a card that reacts to a
+ * pointer and then does nothing reads as broken. Applying to anything happens
+ * on the Jobs page, which "See all matches" is still the way to.
+ *
  * The bridge in the other direction from the Jobs page's prefill: Career Path
  * knows where the student is going, the job board knows who is hiring for it,
  * and until this tile neither section ever mentioned the other. Three matches,
@@ -75,7 +81,7 @@ export default function JobMatchesTile() {
     // to say it returns null, and an empty wrapper cell left behind in the
     // bento would still cost a phantom row of gap.
     <div>
-    <Card hover>
+    <Card>
       <CardHeader
         icon={Briefcase}
         title="Jobs for you"
@@ -97,12 +103,9 @@ export default function JobMatchesTile() {
           Scientist,…" three times over, which tells the student nothing. */}
       <div className="grid gap-3 lg:grid-cols-3">
         {jobs.map((job) => (
-          <a
+          <div
             key={job.id}
-            href={job.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group rounded-xl border border-line-200 p-4 transition-colors hover:border-brand-300 hover:bg-brand-50/40"
+            className="rounded-xl border border-line-200 p-4"
           >
             <div className="mb-2 flex items-center justify-between gap-2">
               {hadSkills ? (
@@ -118,7 +121,7 @@ export default function JobMatchesTile() {
                 <span className="text-[0.68rem] font-bold uppercase tracking-wider text-ink-400">Remote</span>
               )}
             </div>
-            <p className="line-clamp-2 text-sm font-bold leading-snug text-ink-900 group-hover:text-link">
+            <p className="line-clamp-2 text-sm font-bold leading-snug text-ink-900">
               {job.title}
             </p>
             <p className="mt-1 truncate text-xs font-medium text-ink-500">{job.company}</p>
@@ -128,7 +131,7 @@ export default function JobMatchesTile() {
                 {job.location}
               </p>
             )}
-          </a>
+          </div>
         ))}
       </div>
     </Card>

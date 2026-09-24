@@ -1,16 +1,23 @@
 import { useMemo } from 'react';
 import QuizGame from './QuizGame';
-import { SPELLINGS } from '../../data/brainPuzzles';
+import { buildSpellings } from '../../data/genSpellings';
 
-/** ✍️ Vocabulary: exactly one of these four is spelled correctly. */
+/**
+ * ✍️ Vocabulary: exactly one of these four is spelled correctly.
+ *
+ * Sixty words per band, their misspellings generated (genSpellings.js) from
+ * the mistakes people actually make, so the pool no longer wraps by level
+ * four.
+ */
 export default function SpellingFix({ onExit }) {
   const questions = useMemo(
     () =>
-      SPELLINGS.map((q) => ({
+      buildSpellings().map((q) => ({
         answer: q.answer,
-        options: [q.answer, ...q.wrong],
+        options: q.options,
         note: `"${q.answer}" is the correct spelling.`,
-        level: q.level
+        level: q.level,
+        tier: q.tier
       })),
     []
   );
