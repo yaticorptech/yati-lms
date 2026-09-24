@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Search, SlidersHorizontal, Sparkles, CalendarDays, LayoutGrid, Heart, Plus, Pencil,
-    RotateCcw, AlertCircle, ShieldCheck, Compass, Undo2, X, CalendarRange, MapPin, Globe
+    RotateCcw, AlertCircle, ShieldCheck, ShieldAlert, Compass, Undo2, X, CalendarRange, MapPin, Globe
 } from 'lucide-react';
 import { opportunitiesApi } from './api';
 import { BAND_COPY, EMPTY_FILTERS, countActive, shortDate, longDate } from './helpers';
@@ -315,7 +315,12 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                       outgrow it: the card's own body is the only scroller, so
                       the heading and the buttons are always on screen whatever
                       the window size or the browser's zoom. */}
-                  <div className="flex h-full items-stretch justify-center pt-16 pb-[7.5rem] sm:items-center sm:p-6">
+                  {/* items-start, never items-center. A centred item that is
+                      taller than the visible area overflows equally above and
+                      below, and the half above the top can never be reached —
+                      which is how the title came to be sliced along its middle.
+                      Anchored to the top, any overflow goes downward only. */}
+                  <div className="flex h-full items-stretch justify-center pt-16 pb-[7.5rem] sm:items-start sm:p-6">
                     <div className="relative flex max-h-full w-full max-w-5xl">
                         <ProfileOnboarding vocab={vocab} initial={data.profile} onSaved={onSaved} onCancel={hasProfile ? () => setEditing(false) : undefined} />
                     </div>
@@ -407,6 +412,22 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                                     Including {listing.web.count} open part-time vacanc{listing.web.count === 1 ? 'y' : 'ies'} near {listing.web.place?.label || webLocation} from Google Jobs.
                                     {listing.web.widened && <> Few were posted in {listing.web.place?.city || webLocation}, so some come from {listing.web.widened}.</>}
                                 </>}
+                        </p>
+                    )}
+
+                    {/* These come straight off Google. Unlike the jobs above them
+                        nobody has checked the age, the hours or the organisation,
+                        and applying leaves the LMS — so a student under 18 is told
+                        that plainly rather than left to assume otherwise. */}
+                    {listing?.web?.notAgeChecked && listing.web.count > 0 && (
+                        <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                            <ShieldAlert size={14} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
+                            <span>
+                                <span className="font-bold">The Google Jobs results are not age-checked. </span>
+                                They are open adverts from the internet — nobody has checked whether they suit your
+                                age, and applying takes you to another website. Show one to your parent or guardian
+                                before you answer it.
+                            </span>
                         </p>
                     )}
 

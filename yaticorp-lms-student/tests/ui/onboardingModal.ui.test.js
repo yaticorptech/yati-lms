@@ -58,8 +58,13 @@ createRoot(document.getElementById('root')).render(
     </MemoryRouter>
   </AuthContext.Provider>);`;
 
+const SCROLLER = `
+    const scrollerIn = (card) => Array.from(card.querySelectorAll('div'))
+        .find((d) => d.scrollHeight > d.clientHeight + 1 && getComputedStyle(d).overflowY === 'auto');
+`;
+
 /** Open the form the way a student does, then measure it. */
-const MEASURE = `
+const MEASURE = `${SCROLLER}
     await sleep(1000);
     const open = $$('button').find((b) => /dates|Edit|Change/i.test(b.innerText));
     if (open) open.click();
@@ -77,7 +82,7 @@ const MEASURE = `
         insideCard: c.top >= f.top - 0.5 && c.right <= f.right + 0.5 && c.left >= f.left - 0.5,
         // Reachable: nothing above the top of the scroll area.
         aboveViewport: Math.min(c.top, f.top) < 0,
-        scrollable: (() => { const b = card.children[1]; return b.scrollHeight > b.clientHeight; })()
+        scrollable: !!scrollerIn(card)
     };`;
 
 describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
@@ -100,13 +105,13 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
         // On a phone this form is several screens long. The close button used
         // to sit at the card's top corner and scroll away with it, leaving a
         // student halfway down with no visible way out.
-        const SCROLL = `
+        const SCROLL = `${SCROLLER}
             await sleep(1000);
             const open = $$('button').find((b) => /dates|Edit|Change/i.test(b.innerText));
             if (open) open.click();
             await sleep(600);
             const dialog = $('[role="dialog"]');
-            const body = dialog.querySelector('form').children[1];
+            const body = scrollerIn(dialog.querySelector('form'));
             body.scrollTop = body.scrollHeight;          // all the way to the bottom
             await sleep(400);
             const close = dialog.querySelector('button[aria-label="Close"]');
@@ -189,13 +194,13 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
         // The nav floats over the last 4rem of every phone screen. A sheet that
         // runs the full height puts its actions underneath it, and Save ended up
         // 25px behind the bar — there, but not pressable.
-        const BOTTOM = `
+        const BOTTOM = `${SCROLLER}
             await sleep(1200);
             const open = $$('button').find((b) => /dates|Edit|Change/i.test(b.innerText));
             if (open) open.click();
             await sleep(800);
             const dialog = $('[role="dialog"][aria-modal="true"]');
-            const body = dialog.querySelector('form').children[1];
+            const body = scrollerIn(dialog.querySelector('form'));
             body.scrollTop = body.scrollHeight; await sleep(400);
             const nav = $('.mbn-in');
             const save = $$('button').find((b) => /save/i.test(b.innerText) && dialog.contains(b));
@@ -211,27 +216,27 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
     for (const [w, h, floor] of [[1400, 800, 0], [1000, 700, 0], [500, 700, 64]]) {
         test(`the pinned heading keeps its own padding at ${w} by ${h}`, async () => {
             // It pinned at a negative offset — -24px on a wide screen, -16px on
-            // a phone — so its top padding scrolled off and the eyebrow ended up
+            // a phone — so its top padding scrolled off and the title ended up
             // at y=3. On a phone that is behind the app's 4rem header entirely.
-            const PIN = `
+            const PIN = `${SCROLLER}
                 await sleep(1200);
                 const open = $$('button').find((b) => /dates|Edit|Change/i.test(b.innerText));
                 if (open) open.click();
                 await sleep(800);
                 const dialog = $('[role="dialog"][aria-modal="true"]');
                 const head = dialog.querySelector('form').firstElementChild;
-                const eyebrow = head.querySelector('p');
-                const body = dialog.querySelector('form').children[1];
+                const title = head.querySelector('h2');
+                const body = scrollerIn(dialog.querySelector('form'));
                 body.scrollTop = 700; await sleep(350);
                 return { headTop: Math.round(head.getBoundingClientRect().top),
-                         eyebrowTop: Math.round(eyebrow.getBoundingClientRect().top) };`;
+                         titleTop: Math.round(title.getBoundingClientRect().top) };`;
             const { result, errors } = await screen({
                 entry: shellEntry, api: shellApi, width: w, height: h, styles: true, budget: 25_000, script: PIN });
             assert.deepEqual(errors, []);
             assert.ok(result.headTop >= floor,
                 `the heading pinned at ${result.headTop}px, above its floor of ${floor}px`);
-            assert.ok(result.eyebrowTop >= floor + 16,
-                `the eyebrow sat at ${result.eyebrowTop}px, with no room above it`);
+            assert.ok(result.titleTop >= floor + 16,
+                `the title sat at ${result.titleTop}px, with no room above it`);
         });
     }
 
@@ -241,15 +246,15 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
     // off the top.
     for (const [w, h] of [[2132, 790], [1400, 900], [1000, 560], [500, 700]]) {
         test(`the card fits the window at ${w} by ${h}, and only its body scrolls`, async () => {
-            const BANDS = `
+            const BANDS = `${SCROLLER}
                 await sleep(1200);
                 const open = $$('button').find((b) => /dates|Edit|Change/i.test(b.innerText));
                 if (open) open.click();
                 await sleep(900);
                 const dialog = $('[role="dialog"][aria-modal="true"]');
                 const card = dialog.querySelector('form');
-                const body = card.children[1];
-                const eyebrow = card.children[0].querySelector('p');
+                const body = scrollerIn(card);
+                const title = card.children[0].querySelector('h2');
                 const save = $$('button').find((b) => /Save|Show my jobs/i.test(b.innerText));
                 body.scrollTop = body.scrollHeight; await sleep(300);
                 return {
@@ -257,7 +262,7 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
                     cardFits: card.getBoundingClientRect().height <= innerHeight + 1,
                     dialogScrolls: dialog.scrollHeight > dialog.clientHeight + 1,
                     bodyScrolled: body.scrollTop,
-                    eyebrowTop: Math.round(eyebrow.getBoundingClientRect().top),
+                    titleTop: Math.round(title.getBoundingClientRect().top),
                     saveBottom: Math.round(save.getBoundingClientRect().bottom),
                     vh: innerHeight
                 };`;
@@ -267,10 +272,40 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
             assert.ok(result.cardFits, `the card is ${result.cardHeight}px in a ${result.vh}px window`);
             assert.equal(result.dialogScrolls, false, 'the popup itself must not scroll — only its body');
             assert.ok(result.bodyScrolled > 50, 'and the body really does scroll');
-            assert.ok(result.eyebrowTop >= 0, `the heading sat at ${result.eyebrowTop}px after scrolling`);
+            assert.ok(result.titleTop >= 0, `the heading sat at ${result.titleTop}px after scrolling`);
             assert.ok(result.saveBottom <= result.vh, `Save ended at ${result.saveBottom}px in a ${result.vh}px window`);
         });
     }
+
+    test('the card never starts above the top of the window', async () => {
+        // The one failure mode that survived everything else: the card was
+        // centred, and a centred item taller than the visible area overflows
+        // equally above and below. The half above the top is unreachable —
+        // the title came out sliced through its middle. Anchored to the top,
+        // overflow can only go downward.
+        const TOP = `${SCROLLER}
+            await sleep(1200);
+            const open = $$('button').find((b) => /dates|Edit|Change/i.test(b.innerText));
+            if (open) open.click();
+            await sleep(900);
+            const dialog = $('[role="dialog"][aria-modal="true"]');
+            const card = dialog.querySelector('form');
+            const title = card.children[0].querySelector('h2');
+            const r = card.getBoundingClientRect(), t = title.getBoundingClientRect();
+            return { cardTop: Math.round(r.top), titleTop: Math.round(t.top),
+                     cardHeight: Math.round(r.height), vh: innerHeight };`;
+        // Short windows are where centring did the damage; 300px is shorter
+        // than the card has any hope of being.
+        for (const [w, h] of [[1051, 700], [1051, 460], [1400, 380], [1051, 300]]) {
+            const { result, errors } = await screen({
+                entry: shellEntry, api: shellApi, width: w, height: h, styles: true, budget: 25_000, script: TOP });
+            assert.deepEqual(errors, []);
+            assert.ok(result.cardTop >= 0,
+                `at ${w}x${h} the card started at ${result.cardTop}px, above the window`);
+            assert.ok(result.titleTop >= 0,
+                `at ${w}x${h} the title started at ${result.titleTop}px, above the window`);
+        }
+    });
 
     test('the close button sits inside the card, not hanging off its corner', async () => {
         const { result } = await screen({

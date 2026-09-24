@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Mic, MicOff, Volume2, VolumeX, Square, Check, RotateCcw, Keyboard, Bot, User, ArrowLeft, ArrowRight, Sparkles, Clock, MessageSquareText, ChevronDown, ChevronUp, ShieldCheck, Send, Loader2, AlertTriangle, Briefcase, Code2 } from 'lucide-react';
+import Dropdown from './Dropdown';
 import { interviewApi, TYPE_META, DURATION, STAGE_LABEL, ROLES, ROLE_OTHER, announceProgress } from './api';
 import { BotScene, FeatureRow } from './IntroArt';
 import { createSpeaker, createListener, requestMicrophone, listenerErrorMessage } from './speech';
@@ -63,10 +64,9 @@ function Intro({ session, onStart, starting, error }) {
     const answered = session ? session.turns.filter((t) => t.answer).length : 0;
     const meta = TYPE_META[type] || TYPE_META.full;
 
-    const field = 'w-full appearance-none rounded-2xl border border-violet-100 bg-white py-3.5 pl-11 pr-10 text-sm font-semibold text-slate-800 shadow-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/25 disabled:bg-slate-50 disabled:text-slate-500';
+    const field = 'relative w-full appearance-none rounded-2xl border border-violet-100 bg-white py-3.5 pl-11 pr-10 text-sm font-semibold text-slate-800 shadow-sm focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/25 disabled:bg-slate-50 disabled:text-slate-500';
     const label = 'text-[11px] font-black uppercase tracking-[0.16em] text-slate-500';
     const leading = 'pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-violet-500';
-    const chevron = 'pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400';
 
     return (
         <div className="mx-auto max-w-3xl pb-12 animate-fade-in">
@@ -105,10 +105,10 @@ function Intro({ session, onStart, starting, error }) {
                         <span className={label}>Interview type</span>
                         <div className="relative mt-2">
                             <Briefcase size={17} className={leading} />
-                            <select value={type} onChange={(e) => setType(e.target.value)} disabled={resuming} className={field}>
-                                {Object.entries(TYPE_META).map(([id, m]) => <option key={id} value={id}>{m.label}</option>)}
-                            </select>
-                            <ChevronDown size={17} className={chevron} />
+                            <Dropdown
+                                label="Interview type" icon={Briefcase} disabled={resuming} className={field}
+                                value={type} onChange={setType}
+                                options={Object.entries(TYPE_META).map(([id, m]) => ({ value: id, label: m.label }))} />
                         </div>
                     </label>
                     <div>
@@ -124,11 +124,10 @@ function Intro({ session, onStart, starting, error }) {
                     <span className={label}>Job role</span>
                     <div className="relative mt-2">
                         <Code2 size={17} className={leading} />
-                        <select value={roleOptions.includes(role) ? role : ROLE_OTHER} onChange={(e) => setRole(e.target.value)} disabled={resuming} className={field}>
-                            {roleOptions.map((x) => <option key={x} value={x}>{x}</option>)}
-                            <option value={ROLE_OTHER}>Other role…</option>
-                        </select>
-                        <ChevronDown size={17} className={chevron} />
+                        <Dropdown
+                            label="Job role" icon={Code2} disabled={resuming} className={field}
+                            value={roleOptions.includes(role) ? role : ROLE_OTHER} onChange={setRole}
+                            options={[...roleOptions.map((x) => ({ value: x, label: x })), { value: ROLE_OTHER, label: 'Other role…' }]} />
                     </div>
                 </label>
                 {role === ROLE_OTHER && !resuming && (

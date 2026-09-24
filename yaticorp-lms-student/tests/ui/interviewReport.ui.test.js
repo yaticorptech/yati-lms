@@ -64,6 +64,48 @@ describe('the report', { skip: skipWithoutChrome }, () => {
         assert.equal(result.removed, false, 'the two removed pieces stay removed');
     });
 
+    test('on a phone a next step gives its words room instead of a two-word column', async () => {
+        // Badge, wording and button shared one line at every width. On a 500px
+        // screen that left the wording about 110px wide — "Improve / project /
+        // storytelling" reading straight down the card.
+        const WIDTH = `
+            await sleep(900);
+            const li = $$('#next-steps li')[0];
+            const desc = li.querySelectorAll('span.block')[1];
+            const cta = li.querySelector('a, button');
+            const t = desc.getBoundingClientRect(), c = cta.getBoundingClientRect(), l = li.getBoundingClientRect();
+            const lh = parseFloat(getComputedStyle(desc).lineHeight);
+            return {
+                cardWidth: Math.round(l.width),
+                textWidth: Math.round(t.width),
+                lines: Math.round(t.height / lh),
+                ctaOnItsOwnLine: c.top >= t.bottom - 1,
+                ctaWidth: Math.round(c.width)
+            };`;
+        const { result, errors } = await screen({
+            entry: reportEntry, api, width: 500, height: 900, styles: true, budget: 20_000, script: WIDTH });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, `probe threw: ${result.__error}`);
+        assert.ok(result.textWidth >= result.cardWidth * 0.6,
+            `the wording got ${result.textWidth}px of a ${result.cardWidth}px card`);
+        assert.ok(result.ctaOnItsOwnLine, 'the button dropped below the wording rather than sharing its line');
+        assert.ok(result.lines <= 6, `the description ran to ${result.lines} lines`);
+    });
+
+    test('on a desktop the step stays on one line, button beside the words', async () => {
+        const SIDE = `
+            await sleep(900);
+            const li = $$('#next-steps li')[0];
+            const desc = li.querySelectorAll('span.block')[1];
+            const cta = li.querySelector('a, button');
+            const t = desc.getBoundingClientRect(), c = cta.getBoundingClientRect();
+            return { beside: c.left > t.right - 1, ctaWidth: Math.round(c.width) };`;
+        const { result } = await screen({
+            entry: reportEntry, api, width: 1280, height: 900, styles: true, budget: 20_000, script: SIDE });
+        assert.ok(result.beside, 'the button sits beside the words on a wide screen');
+        assert.ok(result.ctaWidth < 220, `and keeps its natural width, not ${result.ctaWidth}px`);
+    });
+
     test('the question strip opens the reviewer instead of unfolding in place', async () => {
         const { result } = await screen({
             entry: reportEntry, api, script: `

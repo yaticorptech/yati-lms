@@ -37,6 +37,10 @@ const profileSchema = new mongoose.Schema(
     wantFrom: { type: Date, required: true },
     wantTo: { type: Date, required: true },
     interests: { type: [{ type: String, enum: INTEREST_IDS }], default: [] },
+    // The town the student can actually get to. Local listings are matched
+    // against it, and it is the place Google Jobs is asked about — without it
+    // that half of the board has nothing to search on.
+    location: { type: String, default: '', trim: true, maxlength: 120 },
     guardian: { type: guardianSchema, default: () => ({}) },
     completedAt: { type: Date, default: Date.now }
   },

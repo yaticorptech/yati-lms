@@ -50,4 +50,7 @@ const currentUserId = () => {
  */
 const runFor = (userId, fn) => storage.run({ req: null, userId: userId ? String(userId) : null }, fn);
 
-module.exports = { withAiContext, currentUserId, runFor };
+/** The raw request-scoped store, for values worth caching per request. */
+const currentStore = () => storage.getStore() || null;
+
+module.exports = { withAiContext, currentUserId, runFor, currentStore };

@@ -252,21 +252,28 @@ export default function InterviewReport() {
                         const label = retake ? 'Start it' : p.courseId ? 'Open course' : 'Learn more';
                         const title = retake ? 'Take another mock interview' : p.courseTitle ? `Open course: ${p.courseTitle}` : 'Practice questions for this';
                         return (
-                            <li key={i} className={`flex flex-wrap items-center gap-4 rounded-2xl border px-4 py-3.5 ${look.row}`}>
+                            /* The button used to sit on the same line as the text
+                               at every width. On a phone that left the wording a
+                               column a couple of words wide, reading straight
+                               down. It takes its own line below 640px instead. */
+                            <li key={i} className={`flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3.5 sm:gap-4 ${look.row}`}>
                                 <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-black text-white ${look.badge}`}>{i + 1}</span>
                                 <span className={`hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl sm:flex ${look.tile}`}><Icon size={21} /></span>
-                                <span className="min-w-0 flex-1">
+                                {/* basis-40: the text asks for 10rem before anything
+                                    is allowed to share its line, which is what pushes
+                                    the button down rather than squeezing the words. */}
+                                <span className="min-w-0 flex-1 basis-40">
                                     <span className="block text-base font-black text-slate-900">{p.title}</span>
                                     <span className="block text-sm leading-snug text-slate-600">{p.action}</span>
                                 </span>
                                 {retake ? (
                                     <button type="button" onClick={doRetake} title={title}
-                                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold ${look.cta}`}>
+                                        className={`inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold sm:w-auto ${look.cta}`}>
                                         {label} <ChevronRight size={16} />
                                     </button>
                                 ) : (
                                     <Link to={to} title={title}
-                                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold ${look.cta}`}>
+                                        className={`inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold sm:w-auto ${look.cta}`}>
                                         {label} <ChevronRight size={16} />
                                     </Link>
                                 )}
