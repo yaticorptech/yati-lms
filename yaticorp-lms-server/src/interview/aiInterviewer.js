@@ -12,11 +12,14 @@
  * Learning Bio: a student regenerating in a loop is bounded the same way.
  */
 const aiQuota = require('../career/services/aiQuota');
+const { geminiClient, describeKeyError, aiConfiguredFor } = require('../utils/userAiKey');
 const { runFor } = require('../career/services/aiContext');
 const template = require('./templateInterviewer');
 
 const MODEL = process.env.INTERVIEW_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 const configured = () => String(process.env.INTERVIEW_AI || '').toLowerCase() !== 'template' && !!String(process.env.GEMINI_API_KEY || '').trim();
+/** Like configured(), but a student's own key counts too. */
+const configuredFor = async (userId) => String(process.env.INTERVIEW_AI || '').toLowerCase() !== 'template' && (await aiConfiguredFor(userId));
 
 const parse = (text) => {
     const cleaned = String(text || '').replace(/```(?:json)?/gi, '').trim();
@@ -26,8 +29,8 @@ const parse = (text) => {
 };
 
 const call = async (prompt, { userId, kind, maxOutputTokens = 900 }) => {
-    const { GoogleGenAI } = require('@google/genai');
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    // The student's own Gemini key when they have saved one, else the platform's.
+    const ai = await runFor(userId, geminiClient);
     const started = Date.now();
     let ok = false;
     try {
@@ -35,7 +38,7 @@ const call = async (prompt, { userId, kind, maxOutputTokens = 900 }) => {
         const res = await runFor(userId, () => ai.models.generateContent({
             model: MODEL, contents: prompt,
             config: { responseMimeType: 'application/json', maxOutputTokens, temperature: 0.5 }
-        }));
+        })).catch((error) => { throw describeKeyError(error, ai.__ownKey); });
         const text = typeof res.text === 'function' ? res.text() : res.text || res?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
         const out = parse(text);
         ok = true;
@@ -81,7 +84,7 @@ const STAGE_GUIDE = {
  */
 const nextQuestion = async ({ session, context, nextStage, canFollowUp, lastTurn, userId, judge = false }) => {
     const fallback = () => template.nextQuestion({ session, context, nextStage, canFollowUp, lastTurn });
-    if (!configured()) return { ...fallback(), interviewer: 'template' };
+    if (!(await configuredFor(userId))) return { ...fallback(), interviewer: 'template' };
     const stage = nextStage;
     const transcript = session.turns.map((t) => `Q${t.index + 1} [${t.stage}]: ${t.question}\nA${t.index + 1}: ${t.answer || '(no answer)'}`).join('\n');
     const prompt = `You are a warm, professional interviewer conducting a ${session.type === 'full' ? 'full mock' : session.type} interview${session.role ? ` for the role of ${session.role}` : ''}. Speak naturally, one question at a time, as a human interviewer would. Never use bullet points. Never repeat a question already asked.
@@ -127,7 +130,7 @@ const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(n) || 0
 
 const evaluate = async ({ session, context, userId, delivery = '' }) => {
     const fallback = () => template.evaluate({ session, context });
-    if (!configured()) return fallback();
+    if (!(await configuredFor(userId))) return fallback();
     const answered = session.turns.filter((t) => t.answer);
     if (!answered.length) return fallback();
     // The repeats are this session's own record of an answer that did not land:
@@ -197,7 +200,7 @@ Answer ONLY with JSON of this exact shape:
 
 const generateQuestions = async ({ context, userId }) => {
     const fallback = () => ({ questions: template.generateQuestions(context), topics: template.recommendTopics(context), model: 'template' });
-    if (!configured()) return fallback();
+    if (!(await configuredFor(userId))) return fallback();
     const prompt = `Create a personalised interview practice bank for this candidate${context.goal ? `, who wants to become a ${context.goal}` : ''}. Base every technical and project question on the profile's real skills, courses and projects; do not invent technologies.
 
 PROFILE:
@@ -219,4 +222,4 @@ Mix: about 4 hr, 8-10 technical across their skills, 3-4 project, 3 behavioral, 
     }
 };
 
-module.exports = { nextQuestion, evaluate, generateQuestions, configured, MODEL };
+module.exports = { nextQuestion, evaluate, generateQuestions, configured, configuredFor, MODEL };

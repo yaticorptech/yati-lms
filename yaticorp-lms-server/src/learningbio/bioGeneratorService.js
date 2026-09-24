@@ -18,6 +18,7 @@ const { runFor } = require('../career/services/aiContext');
 
 const MODEL = process.env.LEARNING_BIO_MODEL || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 const configured = () => !!String(process.env.GEMINI_API_KEY || '').trim();
+const { geminiClient, aiConfiguredFor } = require('../utils/userAiKey');
 
 const list = (arr, max = 5) => arr.slice(0, max).join(', ');
 const humanList = (arr) => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} and ${arr[arr.length - 1]}`);
@@ -128,8 +129,8 @@ const fabricated = (text, d, interests) => {
 };
 
 const geminiGenerate = async (d, interests) => {
-    const { GoogleGenAI } = require('@google/genai');
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    // The student's own Gemini key when they have saved one, else the platform's.
+    const ai = await geminiClient();
     const started = Date.now();
     let ok = false;
     try {
@@ -160,7 +161,7 @@ const geminiGenerate = async (d, interests) => {
  * support — and says which in `model`, so the UI can be honest about it.
  */
 const generateBio = async (data, interests, { userId } = {}) => {
-    if (!configured()) return mockGenerate(data, interests);
+    if (!(await aiConfiguredFor(userId))) return mockGenerate(data, interests);
     try {
         return await runFor(userId, () => geminiGenerate(data, interests));
     } catch (err) {

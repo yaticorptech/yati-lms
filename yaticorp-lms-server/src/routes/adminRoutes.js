@@ -96,6 +96,7 @@ const attachmentUpload = multer({
 // Import secondary controllers directly mapping here for simplicity
 const { getUsers, getUserById, updateUserStatus, addUser, deleteUser, updateUser, resetProgress, bulkAddUsers } = require('../controllers/adminUserController');
 const { getAdmins, addAdmin, deleteAdmin, updateAdmin } = require('../controllers/adminManagementController');
+const { getUserCourseProgress, setUserCourseProgress } = require('../controllers/adminProgressController');
 const courseCtrl = require('../controllers/adminCourseController');
 const bundleCtrl = require('../controllers/adminBundleController');
 const { superAdminOnly } = require('../middleware/authMiddleware');
@@ -105,7 +106,10 @@ router.route('/users').get(protectAdmin, getUsers).post(protectAdmin, addUser);
 router.post('/users/bulk', protectAdmin, upload.single('file'), bulkAddUsers);
 router.route('/users/:id').get(protectAdmin, getUserById).put(protectAdmin, updateUser).delete(protectAdmin, deleteUser);
 router.route('/users/:id/status').put(protectAdmin, updateUserStatus);
-router.route('/users/:id/progress/:courseId').delete(protectAdmin, resetProgress);
+router.route('/users/:id/progress/:courseId')
+    .get(protectAdmin, getUserCourseProgress)
+    .put(protectAdmin, setUserCourseProgress)
+    .delete(protectAdmin, resetProgress);
 
 // Bundle Management Routes
 router.route('/bundles').get(protectAdmin, bundleCtrl.getBundles).post(protectAdmin, bundleCtrl.createBundle);

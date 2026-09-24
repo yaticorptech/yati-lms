@@ -52,6 +52,8 @@
 | PUT | `/admin/users/:id` | Admin | Update student |
 | DELETE | `/admin/users/:id` | Admin | Delete student |
 | PUT | `/admin/users/:id/status` | Admin | Block/unblock student |
+| GET | `/admin/users/:id/progress/:courseId` | Admin | Student's progress in a course, lesson by lesson |
+| PUT | `/admin/users/:id/progress/:courseId` | Admin | Set student course progress (`{ percentage }` or `{ completedLessons: [] }`) |
 | DELETE | `/admin/users/:id/progress/:courseId` | Admin | Reset student course progress |
 
 ### Courses, Modules, Lessons, Quiz
@@ -126,6 +128,9 @@
 | POST | `/user/courses/:id/enroll` | Student | Enroll into a course |
 | POST | `/user/progress/update` | Student | Update lesson progress |
 | GET | `/user/settings` | Student | Get user settings |
+| GET | `/user/ai-key` | User | Whether the student has saved their own Gemini key (masked, never the key itself) |
+| PUT | `/user/ai-key` | User | Save the student's Gemini key (`{ key }`); checked live with Google, stored encrypted |
+| DELETE | `/user/ai-key` | User | Remove the key; AI features fall back to the platform key |
 | GET | `/user/lessons/:lessonId/quiz` | Student | Get lesson quiz |
 | POST | `/user/lessons/:lessonId/quiz/submit` | Student | Submit quiz answers |
 | POST | `/user/tickets` | Student | Create support ticket |
