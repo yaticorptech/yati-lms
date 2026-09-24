@@ -13,6 +13,7 @@ import {
     MessageCircle, Code2, Heart, BookOpen, Users, Crown, Briefcase, ChevronDown, FolderOpen,
     MessageSquare, Star, Gauge
 } from 'lucide-react';
+import Dropdown from './Dropdown';
 import { interviewApi, TYPE_META, fmtDate, ROLES, ROLE_OTHER as OTHER } from './api';
 import Illustration from './Illustration';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
@@ -201,7 +202,6 @@ export default function InterviewDashboard() {
                                         <span className="block truncate text-[13px] font-black leading-tight text-slate-900">{m.label}</span>
                                         <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">{m.hint}</span>
                                     </span>
-                                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors ${on ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-500 shadow-sm'}`}><ArrowRight size={13} /></span>
                                 </button>
                             );
                         })}
@@ -217,19 +217,16 @@ export default function InterviewDashboard() {
                             </span>
                             <span className="block text-[11px] text-slate-500">All of the above, start to finish.</span>
                         </span>
-                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${type === 'full' ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-500 shadow-sm'}`}><ArrowRight size={15} /></span>
                     </button>
 
                     <div className="mt-4">
                         <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Job role</span>
                         <div className="relative mt-1.5">
-                            <Briefcase size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <select value={roleOptions.includes(role) ? role : OTHER} onChange={(e) => { setRole(e.target.value); }}
-                                className="w-full appearance-none rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-9 text-sm font-semibold text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-                                {roleOptions.map((x) => <option key={x} value={x}>{x}</option>)}
-                                <option value={OTHER}>Other role…</option>
-                            </select>
-                            <ChevronDown size={16} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <Dropdown
+                                label="Job role" icon={Briefcase}
+                                value={roleOptions.includes(role) ? role : OTHER} onChange={setRole}
+                                options={[...roleOptions.map((x) => ({ value: x, label: x })), { value: OTHER, label: 'Other role…' }]}
+                                className="relative w-full appearance-none rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-9 text-sm font-semibold text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
                         </div>
                         {role === OTHER && (
                             <input autoFocus value={customRole} onChange={(e) => setCustomRole(e.target.value)} maxLength={80} placeholder="Type the role you are preparing for"

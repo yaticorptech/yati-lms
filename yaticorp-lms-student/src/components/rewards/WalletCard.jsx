@@ -21,6 +21,21 @@ const ICON = {
     admin_adjustment: { Icon: Award, cls: 'bg-violet-100 text-violet-600' }
 };
 
+/**
+ * The PhonePe mark: their purple disc with the Devanagari "पे".
+ *
+ * Drawn here rather than loaded as a file so the card has no missing-image
+ * state. It is a close likeness, not the official asset — if exact brand
+ * fidelity matters, drop PhonePe's own SVG into public/ and point this at it.
+ */
+const PhonePeMark = ({ size = 28 }) => (
+    <svg viewBox="0 0 64 64" width={size} height={size} role="img" aria-label="PhonePe">
+        <circle cx="32" cy="32" r="32" fill="#5F259F" />
+        <text x="32" y="46" textAnchor="middle" fill="#fff" fontSize="40" fontWeight="600"
+            fontFamily="'Noto Sans Devanagari', 'Devanagari MT', system-ui, sans-serif">पे</text>
+    </svg>
+);
+
 const ago = (d) => {
     const s = (Date.now() - new Date(d).getTime()) / 1000;
     if (s < 60) return 'Just now';
@@ -78,7 +93,7 @@ export default function WalletCard() {
                 <>
                     <div className="stagger grid gap-3 sm:grid-cols-3">
                         <div className="@container min-w-0 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
-                            <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">Wallet Balance</p><span className="rounded-lg bg-emerald-100 p-1.5 text-emerald-600"><Wallet size={16} /></span></div>
+                            <div className="flex items-start justify-between gap-2"><p className="text-sm font-semibold text-slate-600">Wallet Balance</p><span className="shrink-0"><PhonePeMark size={28} /></span></div>
                             <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-emerald-700">{money(balance(w.available), cur)}</p>
                         </div>
                         <div className="@container min-w-0 rounded-2xl border border-amber-100 bg-amber-50/70 p-4">

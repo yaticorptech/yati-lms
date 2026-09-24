@@ -5,7 +5,7 @@
  *              which age band of work the student may see.
  */
 import { useState } from 'react';
-import { Check, Loader2, Sparkles, X, CalendarDays, Heart, Smartphone } from 'lucide-react';
+import { Check, Loader2, Sparkles, X, CalendarDays, Heart, Smartphone, MapPin } from 'lucide-react';
 import { opportunitiesApi } from './api';
 import { toDateInput, ageFromDob, bandFromAge } from './helpers';
 
@@ -56,6 +56,7 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
         dateOfBirth: toDateInput(initial?.dateOfBirth) || '',
         wantFrom: toDateInput(initial?.wantFrom) || today,
         wantTo: toDateInput(initial?.wantTo) || toDateInput(initial?.wantFrom) || today,
+        location: initial?.location || '',
         interests: initial?.interests || []
     }));
     const [oneDay, setOneDay] = useState(() => !initial || toDateInput(initial.wantFrom) === toDateInput(initial.wantTo));
@@ -99,22 +100,23 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
 
     return (
         <form onSubmit={save} aria-labelledby="opp-onboarding-title"
-            className="relative flex h-full max-h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[calc(100vh-3rem)] sm:rounded-3xl">
+            className="relative flex h-full max-h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl">
             {/* Band 1 of 3: the heading, which never moves. It used to be
                 sticky inside a card that was itself taller than the window, so
                 scrolling the popup carried the whole card — heading included —
                 off the top of the screen. A card that cannot outgrow the
                 screen has nowhere to carry it to. */}
-            <div className="shrink-0 border-b border-slate-100 bg-white px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
+            <div className="shrink-0 border-b border-slate-100 bg-white px-4 pb-3 pt-5 sm:px-6 sm:pt-6">
                 <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
-                        <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-indigo-600">
-                            <Sparkles size={13} aria-hidden="true" /> {initial ? 'Your details' : 'Three quick answers'}
-                        </p>
-                        <h2 id="opp-onboarding-title" className="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">
+                        {/* The title is the first thing in the card. There used to
+                            be a small "Your details" eyebrow above it, which said
+                            nothing the title does not and was the one line thin
+                            enough to be clipped by the card's top edge. */}
+                        <h2 id="opp-onboarding-title" className="text-lg font-bold text-slate-900 sm:text-xl">
                             {initial ? 'Update your dates and interests' : 'Tell us when you want work, and what kind'}
                         </h2>
-                        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">No resume, no CV — jobs on your dates that match your interests.</p>
+                        <p className="mt-1 text-xs text-slate-500 sm:text-sm">No resume, no CV — jobs on your dates that match your interests.</p>
                     </div>
                     {onCancel && (
                         <button type="button" onClick={onCancel} aria-label="Close"
@@ -126,8 +128,14 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
             </div>
 
             {/* Band 2: the only part that scrolls. min-h-0 is what lets a flex
-                child shrink below its content and scroll at all. */}
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+                child shrink below its content and scroll at all.
+
+                The fade at its foot is not decoration. Content ends at the fold
+                mid-sentence — "THEIR NAME" with the box below it gone — and a
+                hard edge there reads as text that has been cut off rather than
+                text that carries on. The fade says there is more. */}
+            <div className="relative min-h-0 flex-1">
+            <div className="h-full overflow-y-auto px-4 py-4 sm:px-6">
             <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.75fr)]">
               <div className="space-y-3">
                 <Section icon={CalendarDays} n={1} title="When do you want work?" hint="Only jobs running on these dates are shown. You can change them any time.">
@@ -167,6 +175,24 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
                         <input type="checkbox" checked={oneDay} onChange={(e) => setOneDay(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                         Just one day
                     </label>
+
+                    {/* The town decides which local jobs are near enough to
+                        take, and it is the place Google Jobs is asked about.
+                        Without it that half of the board has nothing to
+                        search on and says so instead of showing work. */}
+                    <div className="mt-4 border-t border-slate-100 pt-3.5">
+                        <label htmlFor="opp-location" className={LABEL}>Your town or area</label>
+                        <div className="relative">
+                            <MapPin size={15} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-500" />
+                            <input id="opp-location" type="text" maxLength={120} autoComplete="address-level2"
+                                value={form.location} onChange={(e) => update({ location: e.target.value })}
+                                placeholder="e.g. Whitefield, Bengaluru"
+                                className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-3.5 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                        </div>
+                        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                            Jobs near here come first, and vacancies around it are searched too.
+                        </p>
+                    </div>
                 </Section>
                 <Section icon={Smartphone} n={2} title="Your parent or guardian"
                     hint={needsGuardian
@@ -208,6 +234,13 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
             </div>
 
             {error && <p role="alert" className="mt-3 flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700"><X size={14} aria-hidden="true" /> {error}</p>}
+            </div>
+                {/* A fade at each end. Scrolled content meets these edges
+                    mid-heading — "When do you want work?" sliced along its
+                    top — and a hard edge there reads as content that has been
+                    cut rather than content that carries on past the fold. */}
+                <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-white to-transparent" />
+                <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent" />
             </div>
 
             {/* Band 3: the buttons, always where the student left them. */}

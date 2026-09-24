@@ -110,3 +110,81 @@ describe('how old a Google vacancy may be', () => {
         assert.ok(KEEP_DAYS >= 31, `KEEP_DAYS is ${KEEP_DAYS}, narrower than the month requested`);
     });
 });
+
+/**
+ * Admin-added jobs and Google vacancies in one list.
+ *
+ * The section is meant to show both: what an operator entered, and what Google
+ * has open near the student. The provider is replaced here with a fixed answer
+ * so the merge can be checked without spending a metered call — and so it is
+ * checked at all, which a quota-exhausted key otherwise prevents.
+ */
+describe('admin jobs and Google vacancies together', () => {
+    const webService = require('../../src/jobboard/services/partTimeWebService');
+    const realNear = webService.partTimeNear;
+    let local;
+
+    before(async () => {
+        const Opportunity = require('../../src/jobboard/models/Opportunity');
+        const start = new Date(); start.setDate(start.getDate() + 3);
+        const end = new Date(start);
+        local = await Opportunity.create({
+            slug: `admin-added-${Date.now()}`,
+            title: 'Admin-added: sweet box packing',
+            organization: { name: 'Anand Sweets', verified: true },
+            description: 'Pack festival sweet boxes at the counter.',
+            category: 'packing', icon: '📦', opportunityType: 'gig', interests: ['packing'],
+            location: { area: 'Malleshwaram', city: 'Bengaluru' },
+            startsAt: start, endsAt: end, timeLabel: '10:00–14:00',
+            hoursPerSession: '2-4', slots: 5, minimumAge: 14,
+            compensation: { kind: 'paid', label: '₹400/day' },
+            verified: true, safetyClassification: 'youth-safe',
+            guardianApprovalRequired: false, status: 'open', source: 'admin'
+        });
+
+        // One vacancy, shaped the way the service returns them.
+        webService.partTimeNear = async () => ({
+            place: { city: 'Bengaluru', state: 'Karnataka', country: 'India', countryCode: 'IN', label: 'Bengaluru, Karnataka, India' },
+            results: [{
+                id: 'g:testrow', title: 'Part-time store assistant', company: 'BigBasket',
+                logo: '', location: 'Bengaluru, Karnataka, India', type: 'Part-time', remote: false,
+                salary: '₹12,000 / month', daysAgo: 3, description: 'Evening shifts at the store.',
+                highlights: ['No experience needed'], publisher: 'Indeed',
+                url: 'https://example.invalid/listing', category: 'shop'
+            }],
+            fetchedAt: new Date(), cached: true
+        });
+    });
+
+    after(async () => {
+        webService.partTimeNear = realNear;
+        if (local) await require('../../src/jobboard/models/Opportunity').deleteOne({ _id: local._id });
+    });
+
+    test('one list carries both, each tagged with where it came from', async () => {
+        const r = await api('GET', '/opportunities?location=Bengaluru');
+        assert.equal(r.status, 200);
+        const rows = r.body.results || [];
+
+        const admin = rows.find((x) => x.title === 'Admin-added: sweet box packing');
+        assert.ok(admin, 'the job an operator added is in the list');
+        assert.notEqual(admin.kind, 'web', 'and is not marked as a web row');
+
+        const google = rows.find((x) => x.kind === 'web');
+        assert.ok(google, 'and so is the Google vacancy');
+        assert.equal(google.title, 'Part-time store assistant');
+        assert.equal(google.url, 'https://example.invalid/listing', 'with its apply link intact');
+
+        assert.equal(r.body.web.allowed, true, 'the web half is switched on');
+        assert.equal(r.body.web.count, 1, 'and counted for the notice above the grid');
+    });
+
+    test('the two are ordered, not interleaved at random', async () => {
+        const r = await api('GET', '/opportunities?location=Bengaluru');
+        const rows = r.body.results || [];
+        const firstWeb = rows.findIndex((x) => x.kind === 'web');
+        const lastLocal = rows.map((x) => x.kind === 'web').lastIndexOf(false);
+        assert.ok(firstWeb === -1 || lastLocal < firstWeb,
+            'the board\'s own jobs come first; open vacancies follow them');
+    });
+});
