@@ -86,14 +86,53 @@ const StudentLayout = () => {
     const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
     const profileDropdownRef = useRef(null);
 
-    // A link with a hash (the header's wallet pill → /#wallet) should land on
-    // that element; the router changes the URL but does not scroll to it.
+    /**
+     * A link with a hash (the header's wallet button → /#wallet) should land on
+     * that element; the router changes the URL but does not scroll to it.
+     *
+     * Two things the single 150ms attempt got wrong. Arriving from another page,
+     * the target often does not exist yet — the page it lives on is still
+     * fetching — and one look that early finds nothing and never tries again.
+     * And `location.key` is in the dependencies so that tapping the same link
+     * twice scrolls twice: without it the hash is unchanged, the effect never
+     * re-runs, and the second tap appears to do nothing at all.
+     */
     useEffect(() => {
         if (!location.hash) return undefined;
         const id = decodeURIComponent(location.hash.slice(1));
-        const t = setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
-        return () => clearTimeout(t);
-    }, [location.pathname, location.hash]);
+        const smooth = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        let timer = null;
+        let check = null;
+        let tries = 0;
+
+        /** Where the page is scrolled now, whichever box is doing the scrolling. */
+        const positionOf = (el) => {
+            for (let p = el.parentElement; p; p = p.parentElement) {
+                if (p.scrollHeight > p.clientHeight + 1) return { box: p, at: p.scrollTop };
+            }
+            return { box: null, at: window.scrollY };
+        };
+
+        const look = () => {
+            const el = document.getElementById(id);
+            // Two seconds of looking: long enough for a page to finish loading,
+            // short enough that a wrong hash stops rather than polls forever.
+            if (!el) { if (tries++ < 20) timer = setTimeout(look, 100); return; }
+
+            const before = positionOf(el);
+            el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+            if (!smooth) return;
+            // Smooth scrolling is a no-op in some browsers and webviews — the
+            // call returns, nothing moves, and the link looks broken. If nothing
+            // has budged shortly after, jump there instead of doing nothing.
+            check = setTimeout(() => {
+                const now = before.box ? before.box.scrollTop : window.scrollY;
+                if (now === before.at) el.scrollIntoView({ behavior: 'auto', block: 'start' });
+            }, 400);
+        };
+        timer = setTimeout(look, 100);
+        return () => { clearTimeout(timer); clearTimeout(check); };
+    }, [location.pathname, location.hash, location.key]);
 
     const handleLogout = () => { setProfileDropdownOpen(false); setShowLogoutConfirm(true); };
     const confirmLogout = () => { setShowLogoutConfirm(false); logout(); };
@@ -492,14 +531,34 @@ const StudentLayout = () => {
                 data-mascot-avoid
                 className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4"
             >
-                <div className="flex items-center">
-                    <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-8 object-contain" />
+                <div className="flex min-w-0 shrink items-center">
+                    <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-8 max-w-full object-contain" />
                 </div>
-                <div className="flex items-center gap-2">
-                    <div className="text-slate-400">
+                <div className="flex min-w-0 items-center gap-1.5">
+                    {/* The wallet, as a bare icon — no tile behind it, matching
+                        the bell beside it. The desktop bar has room to print the
+                        figure; a phone bar does not, and the balance is the first
+                        thing on the card this opens. Emerald-400 rather than the
+                        card's emerald-600: on this navy bar the darker green is
+                        almost invisible. The amount still reaches a screen reader
+                        through the label. */}
+                    {rw?.wallet && (
+                        <Link
+                            to="/#wallet"
+                            aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}. Open the wallet.`}
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-emerald-400 transition-colors hover:text-emerald-300"
+                        >
+                            <Wallet size={20} />
+                        </Link>
+                    )}
+                    {/* The bell sets its own slate colour, so a colour on this
+                        wrapper alone never reaches it — these descendant rules
+                        do. Emerald to match the wallet beside it; the unread
+                        badge keeps its own red. */}
+                    <div className="shrink-0 [&_button]:text-emerald-400 [&_button:hover]:bg-white/10 [&_svg]:text-emerald-400">
                         {renderNotificationBell()}
                     </div>
-                    <button onClick={() => setMobileMenuOpen(true)} className="p-2 text-white ml-1">
+                    <button onClick={() => setMobileMenuOpen(true)} className="shrink-0 p-2 text-white">
                         <Menu size={24} />
                     </button>
                 </div>
@@ -520,8 +579,22 @@ const StudentLayout = () => {
                                 <X size={24} />
                             </button>
                         </div>
-                        <nav className="flex-1 p-4 space-y-2">
+                        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                             {renderNavLinks(() => setMobileMenuOpen(false))}
+
+                            {/* Logging out belongs with the places you can go,
+                                at the end of them. It used to sit below the
+                                profile card and Contact Support, off the bottom
+                                of a phone screen unless you went looking. */}
+                            <div className="!mt-4 border-t border-slate-800 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+                                    className="flex w-full items-center space-x-3 rounded-lg p-2.5 font-medium text-rose-300 transition-colors duration-200 hover:bg-rose-500/10 hover:text-rose-200"
+                                >
+                                    <LogOut size={20} /> <span>Logout</span>
+                                </button>
+                            </div>
                         </nav>
                         <div className="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
                             {/* Profile card in mobile drawer */}
@@ -553,12 +626,6 @@ const StudentLayout = () => {
                                 className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
                             >
                                 <MessageCircleQuestion size={20} /> <span>Contact Support</span>
-                            </button>
-                            <button
-                                onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-                                className="flex items-center justify-center space-x-2 bg-red-50 text-red-600 w-full py-3 rounded-xl transition-all duration-200 font-bold"
-                            >
-                                <LogOut size={20} /> <span>Logout</span>
                             </button>
                         </div>
                     </div>

@@ -20,6 +20,21 @@ createRoot(document.getElementById('root')).render(
     </Routes>
   </MemoryRouter>);`;
 
+
+/* The pickers are the app's own control now, not a native <select>: a test has
+   to open the list and click a row, the same as a student would. */
+const PICKERS = `
+    const pickers = () => $$('button[aria-haspopup="listbox"]');
+    const openPicker = async (i) => { pickers()[i].click(); await sleep(250); };
+    const rows = () => $$('[role="option"]').map((o) => o.innerText.trim());
+    const choose = async (i, re) => {
+        await openPicker(i);
+        const row = $$('[role="option"]').find((o) => re.test(o.innerText));
+        row.click(); await sleep(250);
+    };
+    const chosenIn = (i) => pickers()[i].innerText.replace(/\\s+/g, ' ').trim();
+`;
+
 describe('the mock interview welcome screen', { skip: skipWithoutChrome }, () => {
     test('introduces the interview and what it will do', async () => {
         const { result, errors } = await screen({
@@ -61,15 +76,15 @@ describe('the mock interview welcome screen', { skip: skipWithoutChrome }, () =>
 
     test('the duration follows the interview type', async () => {
         const { result } = await screen({
-            entry, api, script: `
+            entry, api, script: `${PICKERS}
                 const shown = () => $$('p').map(text).find((t) => /minutes/.test(t || ''));
                 await sleep(600);
                 const full = shown();
-                const select = $$('select')[0];
-                select.value = 'hr';
-                select.dispatchEvent(new Event('change', { bubbles: true }));
-                await sleep(200);
-                return { full, hr: shown(), types: Array.from(select.options).map((o) => o.text) };` });
+                await openPicker(0);
+                const types = rows();
+                const hrRow = $$('[role="option"]').find((o) => /HR Interview/.test(o.innerText));
+                hrRow.click(); await sleep(250);
+                return { full, hr: shown(), types };` });
         assert.equal(result.full, '12–15 minutes');
         assert.equal(result.hr, '8–10 minutes', 'a shorter interview shows a shorter time');
         assert.ok(result.types.includes('Full Mock Interview'));
@@ -78,10 +93,11 @@ describe('the mock interview welcome screen', { skip: skipWithoutChrome }, () =>
 
     test('the role they arrived with is the one chosen, and it stays on the list', async () => {
         const { result } = await screen({
-            entry, api, script: `
+            entry, api, script: `${PICKERS}
                 await sleep(600);
-                const roles = $$('select')[1];
-                return { chosen: roles.value, options: Array.from(roles.options).map((o) => o.text) };` });
+                const chosen = chosenIn(1);
+                await openPicker(1);
+                return { chosen, options: rows() };` });
         assert.equal(result.chosen, 'Full Stack Developer');
         assert.ok(result.options.includes('Data Analyst'), 'the rest of the list is there too');
         assert.equal(result.options[result.options.length - 1], 'Other role…');
@@ -90,22 +106,21 @@ describe('the mock interview welcome screen', { skip: skipWithoutChrome }, () =>
     test('a role that is not on the list is kept rather than dropped', async () => {
         const oddRole = entry.replace('role=Full%20Stack%20Developer', 'role=Sound%20Engineer');
         const { result } = await screen({
-            entry: oddRole, api, script: `
+            entry: oddRole, api, script: `${PICKERS}
                 await sleep(600);
-                const roles = $$('select')[1];
-                return { chosen: roles.value, first: roles.options[0].text };` });
+                const chosen = chosenIn(1);
+                await openPicker(1);
+                return { chosen, first: rows()[0] };` });
         assert.equal(result.chosen, 'Sound Engineer');
         assert.equal(result.first, 'Sound Engineer', 'it is put at the top of the list');
     });
 
     test('"Other role" opens a box, and what is typed there is what is started', async () => {
         const { result } = await screen({
-            entry, api, budget: 30_000, script: `
+            entry, api, budget: 30_000, script: `${PICKERS}
                 await sleep(600);
                 const before = $$('input').length;
-                const roles = $$('select')[1];
-                roles.value = '__other__';
-                roles.dispatchEvent(new Event('change', { bubbles: true }));
+                await choose(1, /Other role/);
                 await sleep(300);
                 const after = $$('input').length;
 
