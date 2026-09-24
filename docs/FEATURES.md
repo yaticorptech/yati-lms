@@ -245,3 +245,7 @@ Cards can be seeded using `seedCard.js`. When a student is deleted by admin, the
 | VdoCipher | DRM upload, OTP playback, delete |
 | Cards | Seed, validate, track usage, reset on user delete |
 | Admin Mgmt | CRUD admin users (superadmin only) |
+
+## Bring your own AI key
+
+Students can save their own Google Gemini API key (free from Google AI Studio) on their profile page. The server checks the key live with Google before saving it, stores it encrypted (AES-256-GCM, never returned by any API), and from then on Career Path, the AI mock interviewer and the Learning Bio writer call Gemini with the student's key instead of the platform's `GEMINI_API_KEY`. A student on their own key is not subject to the platform's per-student daily AI cap. If Google rejects the key later, the student is told to check it in their profile. Removing the key puts them back on the platform key. Job-board embeddings stay on the platform key.

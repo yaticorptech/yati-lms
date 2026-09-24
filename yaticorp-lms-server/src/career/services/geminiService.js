@@ -1,4 +1,4 @@
-const { GoogleGenAI } = require('@google/genai');
+const { geminiClient, describeKeyError } = require('../../utils/userAiKey');
 const aiQuota = require('./aiQuota');
 
 // Free-tier quotas are per-day, per-model, so the model choice directly decides
@@ -144,7 +144,8 @@ const generateWithRetry = async (
       }
 
       if (!TRANSIENT_STATUSES.includes(error.status) || isLastAttempt) {
-        throw error;
+        // A student's own key that Google refuses is told to them as such.
+        throw describeKeyError(error, ai.__ownKey);
       }
 
       const delayMs = 1000 * 2 ** (attempt - 1); // 1s, 2s
@@ -550,11 +551,7 @@ Required JSON Structure:
 
 const generateRoadmapFromAI = async (goal, courseContext = '') => {
   // Ensure the API key is present
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured in the environment.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   // Construct the prompt based on the user's goal
   const prompt = `
@@ -842,11 +839,7 @@ Required JSON Structure:
 };
 
 const generateTasksFromAI = async (goal, roadmap) => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   const prompt = `
 You are an expert education and career planner AI. Based on the user's career roadmap, generate a structured list of initial Daily, Weekly, and Monthly learning tasks.
@@ -913,11 +906,7 @@ Required JSON Structure:
 };
 
 const generateRecommendationsFromAI = async (goal, roadmap, courseContext = '') => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   const prompt = `
 You are an expert career and education counselor AI. Based on the user's details and roadmap, generate a massive list of customized recommendations in structured JSON format.
@@ -1018,10 +1007,7 @@ const eligibilityLines = (profile) => {
 };
 
 const generateScholarshipsFromAI = async (goal, roadmap, profile) => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   const prompt = `
 You are an expert education-funding counsellor. Build a list of scholarships this student can realistically apply for.
@@ -1191,11 +1177,7 @@ const buildMentorContext = (goal, roadmap, tasks = [], skills = [], events = [],
 };
 
 const generateMentorResponse = async (user, goal, roadmap, tasks, skills, chatHistory, newQuestion, events = [], courses = []) => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   const liveContext = buildMentorContext(goal, roadmap, tasks, skills, events, courses);
 
@@ -1329,11 +1311,7 @@ Rules:
 };
 
 const generateStudyMaterialFromAI = async (skillName, goal, level) => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   const prompt = `
 You are an expert tutor. Build a compact study pack for ONE skill so a student can learn it, watch good videos on it, and test themselves.
@@ -1424,11 +1402,7 @@ Provide 3-5 sections, 4-6 key terms, 4 videos, and at least 5 quiz questions (5 
  * single-task rule on whatever comes back, because a prompt is a request.
  */
 const generateDailyTasksFromAI = async (goal, roadmap, history = {}, minutes = 60, trackedSkills = []) => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   const list = (items, empty) =>
     items?.length ? items.map((t) => `- ${t}`).join('\n') : `(${empty})`;
@@ -1548,11 +1522,7 @@ Required JSON Structure:
  * @param {string}  searchQuery the phrase they will search, used when video is null
  */
 const generateTaskStudyFromVideo = async (task, video, goal, searchQuery = '') => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   // The description is the only real signal about what the video actually
   // covers, but full descriptions are mostly sponsor links and timestamps.
@@ -1653,11 +1623,7 @@ Provide 3-4 sections, 4-6 key terms, and at least 5 quiz questions (5 or 6 — n
  * explain, show, then let them try.
  */
 const generateReadingLesson = async (task, goal) => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   const prompt = `
 You are writing a short, self-contained written lesson for ONE student, in the style of a
@@ -1744,11 +1710,7 @@ Provide 4-5 sections, 4-6 key terms, and at least 5 quiz questions (5 or 6 — n
  * same notes so they stay answerable from the material.
  */
 const generateExtraQuizQuestions = async (topic, notes, existing, count) => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   const material = [
     notes?.summary ? `Summary: ${notes.summary}` : '',
@@ -1807,11 +1769,7 @@ Rules:
  * title if it fails, so a lesson is never blocked on phrasing.
  */
 const generateVideoSearchQuery = async (task, goal) => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const ai = await geminiClient();
 
   const prompt = `
 Turn this study task into the best possible YouTube search phrase for finding a tutorial that teaches it.

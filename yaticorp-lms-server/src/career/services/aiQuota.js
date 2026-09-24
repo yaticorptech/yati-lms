@@ -80,6 +80,10 @@ const usageToday = async (userId) => {
 const assertWithinBudget = async () => {
   const userId = currentUserId();
   try {
+    // A student on their own Gemini key spends their own allowance, not the
+    // platform's, so neither cap applies to them.
+    if (await require('../../utils/userAiKey').usingOwnKey()) return;
+
     const { mine, all } = await usageToday(userId);
 
     if (userId && mine >= PER_STUDENT) {

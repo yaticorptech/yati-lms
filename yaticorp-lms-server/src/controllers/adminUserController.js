@@ -8,6 +8,7 @@ const Progress = require('../models/Progress');
 const { sendEmail } = require('../utils/emailService');
 const XLSX = require('xlsx');
 const Card = require('../models/Card');
+const Course = require('../models/Course');
 
 // @desc    Get all users
 // @route   GET /api/admin/users
@@ -49,7 +50,7 @@ const getUserById = async (req, res) => {
         // 🔽 ENROLLMENTS — populate and filter out orphans (deleted course/bundle)
         const rawEnrollments = await Enrollment.find({ userId: user._id })
             .populate('courseId', 'title thumbnail')
-            .populate('bundleId', 'title');
+            .populate('bundleId', 'title courses');
 
         // Collect IDs of orphaned enrollments to clean up
         const orphanIds = rawEnrollments
@@ -66,14 +67,33 @@ const getUserById = async (req, res) => {
             (e.type === 'Course' && e.courseId) || (e.type === 'Bundle' && e.bundleId)
         );
 
-        // 🔽 PROGRESS
-        const courseEnrollments = enrollments.filter(
-            e => e.type === 'Course' && e.courseId
-        );
+        // 🔽 PROGRESS — one row per course the student can reach, whether
+        // enrolled in it directly or through a bundle, so the administrator
+        // can see and set progress on every course the student has.
+        const courseRows = new Map();
+        enrollments
+            .filter(e => e.type === 'Course' && e.courseId)
+            .forEach(e => courseRows.set(e.courseId._id.toString(), { courseId: e.courseId._id.toString(), courseTitle: e.courseId.title || 'N/A', via: 'Course' }));
 
-        const courseIds = courseEnrollments
-            .map(e => e.courseId?._id?.toString())
-            .filter(Boolean);
+        const bundleCourseIds = new Set();
+        enrollments
+            .filter(e => e.type === 'Bundle' && e.bundleId)
+            .forEach(e => (e.bundleId.courses || []).forEach(cid => {
+                const key = cid.toString();
+                if (!courseRows.has(key)) {
+                    bundleCourseIds.add(key);
+                    courseRows.set(key, { courseId: key, courseTitle: 'N/A', via: `Bundle: ${e.bundleId.title || 'Untitled'}` });
+                }
+            }));
+        if (bundleCourseIds.size > 0) {
+            const bundleCourses = await Course.find({ _id: { $in: Array.from(bundleCourseIds) } }).select('title').lean();
+            bundleCourses.forEach(c => { const row = courseRows.get(c._id.toString()); if (row) row.courseTitle = c.title; });
+            // A bundle can still point at a course that has since been deleted.
+            const alive = new Set(bundleCourses.map(c => c._id.toString()));
+            bundleCourseIds.forEach(key => { if (!alive.has(key)) courseRows.delete(key); });
+        }
+
+        const courseIds = Array.from(courseRows.keys());
 
         const progressDocs = await Progress.find({
             userId: user._id,
@@ -85,14 +105,12 @@ const getUserById = async (req, res) => {
             progressByCourse[p.courseId?.toString()] = p;
         });
 
-        const progressSummary = courseEnrollments.map(e => {
-            const cid = e.courseId?._id?.toString();
-            const prog = progressByCourse[cid] || {};
+        const progressSummary = Array.from(courseRows.values()).map(row => {
+            const prog = progressByCourse[row.courseId] || {};
 
             return {
-                courseId: cid,
-                courseTitle: e.courseId?.title || 'N/A',
-                percentage: prog.percentage ?? 0,
+                ...row,
+                percentage: Math.min(100, prog.percentage ?? 0),
                 completedLessons: prog.completedLessons?.length ?? 0,
                 passedQuizzes: prog.passedQuizzes?.length ?? 0,
                 lastActivity: prog.updatedAt || null
