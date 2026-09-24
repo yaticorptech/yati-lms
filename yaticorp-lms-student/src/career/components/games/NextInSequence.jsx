@@ -1,31 +1,41 @@
 import { useMemo } from 'react';
 import QuizGame from './QuizGame';
 import { SEQUENCES } from '../../data/brainPuzzles';
+import { buildSequences } from '../../data/genSequences';
+import { seeded, numberDistractors } from '../../data/seeded';
 
-/** Three plausible wrong numbers around the true one. */
-const distractors = (answer) => {
-  const out = new Set();
-  const drifts = [1, 2, 3, 4, 5, 6, 10];
-  while (out.size < 3) {
-    const d = drifts[Math.floor(Math.random() * drifts.length)];
-    const candidate = answer + (Math.random() < 0.5 ? -d : d);
-    if (candidate > 0 && candidate !== answer) out.add(candidate);
-  }
-  return [...out];
-};
-
-/** 🧩 Logic & deduction: spot the rule, then continue the run. */
+/**
+ * 🧩 Logic & deduction: spot the rule, then continue the run.
+ *
+ * The pool is sixty generated runs per band (genSequences.js) plus the
+ * hand-written ones. The wrong options used to come from Math.random on
+ * every mount, which gave the same run a different set of options each
+ * visit — and since the question memory hashes options too, it never
+ * recognised a run it had already asked and repeats went unchecked. Both
+ * sources now build their options from a seeded generator, so a run's
+ * options are the same every time and the memory can do its job.
+ */
 export default function NextInSequence({ onExit }) {
-  const questions = useMemo(
-    () =>
-      SEQUENCES.map((s) => ({
-        run: s.run,
-        answer: s.answer,
-        options: [s.answer, ...distractors(s.answer)],
-        note: s.rule
-      })),
-    []
-  );
+  const questions = useMemo(() => {
+    const rng = seeded(7150);
+    const generated = buildSequences().map((s) => ({
+      run: s.run,
+      answer: s.answer,
+      options: s.options,
+      note: s.rule,
+      level: s.level,
+      tier: s.tier
+    }));
+    const seen = new Set(generated.map((q) => q.run.join(',')));
+    const written = SEQUENCES.filter((s) => !seen.has(s.run.join(','))).map((s) => ({
+      run: s.run,
+      answer: s.answer,
+      options: [s.answer, ...numberDistractors(rng, s.answer, 3, s.run)],
+      note: s.rule,
+      level: s.level
+    }));
+    return [...generated, ...written];
+  }, []);
 
   return (
     <QuizGame

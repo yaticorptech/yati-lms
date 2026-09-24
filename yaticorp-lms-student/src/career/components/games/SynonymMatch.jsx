@@ -10,7 +10,8 @@ export default function SynonymMatch({ onExit }) {
         word: s.word,
         answer: s.answer,
         options: [s.answer, ...s.wrong],
-        note: `${s.word.charAt(0)}${s.word.slice(1).toLowerCase()} means "${s.answer.toLowerCase()}".`
+        note: `${s.word.charAt(0)}${s.word.slice(1).toLowerCase()} means "${s.answer.toLowerCase()}".`,
+        level: s.level
       })),
     []
   );

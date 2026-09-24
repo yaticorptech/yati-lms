@@ -6,6 +6,7 @@ import { ArrowRight, CheckCircle2, Flame, Lock, Target, Trophy, Zap } from 'luci
 import BuildSkillsBanner from '../../components/journey/BuildSkillsBanner';
 import SkillRail from '../../components/progress/SkillRail';
 import useCountUp from '../../../hooks/useCountUp';
+import useInView from '../../../hooks/useInView';
 import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
 import Button from '../../components/ui/Button';
@@ -47,7 +48,7 @@ function Tile({ tile, name, className = 'h-11 w-11 text-sm' }) {
   return (
     <span
       aria-hidden
-      className={`flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br font-black text-white shadow-sm ${className} ${tile}`}
+      className={`fp-tile-hover flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br font-black text-white shadow-sm ${className} ${tile}`}
     >
       {initialsOf(name)}
     </span>
@@ -65,7 +66,7 @@ function LevelChip({ level, className = '' }) {
 }
 
 /** One skill that is moving: the bar, the distance to the next rung, and today's task if there is one. */
-function ActiveRow({ skill, task, tile, index, closest }) {
+function ActiveRow({ skill, task, tile, index, closest, seen }) {
   const progress = progressOf(skill);
   // Bar and number driven by one hook so they land together. A CSS width
   // transition cannot do this: React paints the final width on the first frame,
@@ -76,12 +77,14 @@ function ActiveRow({ skill, task, tile, index, closest }) {
   const up = nextLevel(level);
   const left = tasksToNextLevel(progress);
 
+  const reveal = revealIn(seen, index, 0.06);
+
   return (
     <li
-      className={`animate-fade-in-up rounded-2xl p-4 transition-colors ${
+      className={`${reveal.className} rounded-2xl p-4 transition-colors ${
         closest ? 'bg-journey-50/60 ring-1 ring-journey-200' : 'hover:bg-surface-50/70'
       }`}
-      style={{ animationDelay: `${0.04 + index * 0.06}s` }}
+      style={reveal.style}
     >
       <div className="flex items-start gap-3.5">
         <Tile tile={tile} name={skill.skillName} />
@@ -92,7 +95,7 @@ function ActiveRow({ skill, task, tile, index, closest }) {
             <LevelChip level={level} />
             {closest && (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[0.64rem] font-black text-amber-700 ring-1 ring-amber-100 ring-inset">
-                <Flame className="h-3 w-3" />
+                <Flame className="fp-flame-live h-3 w-3" />
                 Closest to levelling up
               </span>
             )}
@@ -107,7 +110,10 @@ function ActiveRow({ skill, task, tile, index, closest }) {
               aria-label={`${skill.skillName} progress`}
               className="block h-2.5 flex-1 overflow-hidden rounded-full bg-surface-100"
             >
-              <span className={`block h-full rounded-full ${LEVEL_STYLES[level].bar}`} style={{ width: `${width}%` }} />
+              <span
+                className={`block h-full rounded-full ${LEVEL_STYLES[level].bar} ${closest ? 'fp-bar-sheen' : ''}`}
+                style={{ width: `${width}%` }}
+              />
             </span>
             <span className="w-11 shrink-0 text-right text-sm font-black tabular-nums text-ink-900">{shown}%</span>
           </div>
@@ -142,28 +148,36 @@ function ActiveRow({ skill, task, tile, index, closest }) {
 }
 
 /** A skill the student has finished. Green, quiet, and proud of it. */
-function MasteredRow({ skill, tile, index }) {
+function MasteredRow({ skill, tile, index, seen }) {
+  const reveal = revealIn(seen, index, 0.05);
   return (
     <li
-      className="animate-fade-in-up flex items-center gap-3 rounded-2xl bg-emerald-50/60 p-3 ring-1 ring-emerald-100 ring-inset"
-      style={{ animationDelay: `${0.04 + index * 0.05}s` }}
+      className={`${reveal.className} flex items-center gap-3 rounded-2xl bg-emerald-50/60 p-3 ring-1 ring-emerald-100 ring-inset`}
+      style={reveal.style}
     >
       <Tile tile={tile} name={skill.skillName} className="h-10 w-10 text-xs" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-bold text-ink-900">{skill.skillName}</span>
         <LevelChip level={levelOf(skill)} className="mt-1" />
       </span>
-      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" aria-hidden />
+      {/* The tick pops in just behind its row, so a band of mastered skills
+          ticks itself off one after another rather than all at once. */}
+      <CheckCircle2
+        className={`h-5 w-5 shrink-0 text-emerald-500 ${seen ? 'animate-pop-in' : 'opacity-0'}`}
+        style={{ animationDelay: `${(0.24 + index * 0.05).toFixed(2)}s` }}
+        aria-hidden
+      />
     </li>
   );
 }
 
 /** A skill not yet started. Small on purpose: it is a door, not a debt. */
-function WaitingCard({ skill, tile, task, index }) {
+function WaitingCard({ skill, tile, task, index, seen }) {
+  const reveal = revealIn(seen, index, 0.04);
   return (
     <li
-      className="animate-fade-in-up flex items-center gap-3 rounded-2xl border border-dashed border-line-300 bg-surface p-3 transition-colors hover:border-journey-300 hover:bg-journey-50/40"
-      style={{ animationDelay: `${0.04 + index * 0.04}s` }}
+      className={`${reveal.className} flex items-center gap-3 rounded-2xl border border-dashed border-line-300 bg-surface p-3 transition-colors hover:border-journey-300 hover:bg-journey-50/40`}
+      style={reveal.style}
     >
       <Tile tile={tile} name={skill.skillName} className="h-10 w-10 text-xs opacity-80" />
       <span className="min-w-0 flex-1">
@@ -171,8 +185,11 @@ function WaitingCard({ skill, tile, task, index }) {
         <span className="mt-1 flex flex-wrap items-center gap-1.5">
           <LevelChip level={levelOf(skill)} />
           {task ? (
-            <Link to="/career/planner" className="text-[0.66rem] font-black text-journey-700 hover:underline">
-              Starts today →
+            <Link to="/career/planner" className="inline-flex items-center gap-0.5 text-[0.66rem] font-black text-journey-700 hover:underline">
+              Starts today
+              {/* The arrow keeps nudging: this card is the only one in a grid
+                  of waiting skills that has something to do today. */}
+              <ArrowRight className="fp-nudge-x h-3 w-3" />
             </Link>
           ) : (
             <span className="inline-flex items-center gap-1 text-[0.66rem] font-semibold text-ink-400">
@@ -187,6 +204,9 @@ function WaitingCard({ skill, tile, task, index }) {
 }
 
 function BandHeader({ icon: Icon, tone, title, count, hint }) {
+  // The tally counts up with the rows it is counting, so the number and the
+  // list arrive as one thing rather than a total sitting above an empty band.
+  const shown = useCountUp(count, 700);
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <p className="flex items-center gap-2 text-sm font-black text-ink-900">
@@ -194,12 +214,42 @@ function BandHeader({ icon: Icon, tone, title, count, hint }) {
           <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
         </span>
         {title}
-        <span className="rounded-full bg-surface-100 px-2 py-0.5 text-xs font-bold text-ink-500 tabular-nums">{count}</span>
+        <span className="rounded-full bg-surface-100 px-2 py-0.5 text-xs font-bold text-ink-500 tabular-nums">{shown}</span>
       </p>
       {hint && <p className="text-xs text-ink-500">{hint}</p>}
     </div>
   );
 }
+
+/**
+ * One band of the tracker, which holds its entrance until it is scrolled to.
+ *
+ * Every row carries a staggered entrance, and they all ran on mount — so on a
+ * tracker holding a dozen skills the bands past the fold played the whole
+ * sequence to nobody and were sitting motionless by the time anyone reached
+ * them. `seen` is handed to the rows, which stay transparent until it turns
+ * true and then arrive in order.
+ *
+ * The rows are rendered either way, never swapped for a placeholder: a band
+ * that changed height when it came into view would shove the page around
+ * under the reader, which is the one thing a reveal must not do.
+ */
+function Band({ children }) {
+  const [ref, seen] = useInView();
+  return <section ref={ref}>{children(seen)}</section>;
+}
+
+/**
+ * How a row arrives, once its band has been seen.
+ *
+ * `fp-reveal` is the roadmap's transition, reused: opacity and a small rise,
+ * driven by a class rather than an animation, so holding it back is a matter
+ * of not adding the class yet. The delay staggers the band.
+ */
+const revealIn = (seen, i, step = 0.05) => ({
+  className: `fp-reveal ${seen ? 'is-in' : ''}`,
+  style: { transitionDelay: `${(seen ? i * step : 0).toFixed(2)}s` }
+});
 
 export default function Skills() {
   const { user } = useContext(AuthContext);
@@ -296,74 +346,89 @@ export default function Skills() {
             <div className="space-y-6 p-4 sm:p-5">
               {/* ---- IN PROGRESS ---- */}
               {active.length > 0 && (
-                <section>
-                  <BandHeader
-                    icon={Flame}
-                    tone="bg-amber-50 text-amber-600 ring-amber-100"
-                    title="In progress"
-                    count={active.length}
-                    hint="Keep the momentum — these move first."
-                  />
-                  <ul className="mt-3 space-y-1.5">
-                    {active.map((skill, i) => (
-                      <ActiveRow
-                        key={skill._id || skill.skillName}
-                        skill={skill}
-                        task={taskFor.get(skill.skillName)}
-                        tile={tiles.get(skill.skillName) || tileFor(skill.skillName)}
-                        index={i}
-                        closest={closest?._id === skill._id}
+                <Band>
+                  {(seen) => (
+                    <>
+                      <BandHeader
+                        icon={Flame}
+                        tone="bg-amber-50 text-amber-600 ring-amber-100"
+                        title="In progress"
+                        count={active.length}
+                        hint="Keep the momentum — these move first."
                       />
-                    ))}
-                  </ul>
-                </section>
+                      <ul className="mt-3 space-y-1.5">
+                        {active.map((skill, i) => (
+                          <ActiveRow
+                            key={skill._id || skill.skillName}
+                            skill={skill}
+                            task={taskFor.get(skill.skillName)}
+                            tile={tiles.get(skill.skillName) || tileFor(skill.skillName)}
+                            index={i}
+                            closest={closest?._id === skill._id}
+                            seen={seen}
+                          />
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </Band>
               )}
 
               {/* ---- MASTERED ---- */}
               {mastered.length > 0 && (
-                <section>
-                  <BandHeader
-                    icon={Trophy}
-                    tone="bg-emerald-50 text-emerald-600 ring-emerald-100"
-                    title="Mastered"
-                    count={mastered.length}
-                    hint="Done. These already count as experience."
-                  />
-                  <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {mastered.map((skill, i) => (
-                      <MasteredRow
-                        key={skill._id || skill.skillName}
-                        skill={skill}
-                        tile={tiles.get(skill.skillName) || tileFor(skill.skillName)}
-                        index={i}
+                <Band>
+                  {(seen) => (
+                    <>
+                      <BandHeader
+                        icon={Trophy}
+                        tone="bg-emerald-50 text-emerald-600 ring-emerald-100"
+                        title="Mastered"
+                        count={mastered.length}
+                        hint="Done. These already count as experience."
                       />
-                    ))}
-                  </ul>
-                </section>
+                      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {mastered.map((skill, i) => (
+                          <MasteredRow
+                            key={skill._id || skill.skillName}
+                            skill={skill}
+                            tile={tiles.get(skill.skillName) || tileFor(skill.skillName)}
+                            index={i}
+                            seen={seen}
+                          />
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </Band>
               )}
 
               {/* ---- WAITING ---- */}
               {waiting.length > 0 && (
-                <section>
-                  <BandHeader
-                    icon={Target}
-                    tone="bg-journey-50 text-journey-600 ring-journey-100"
-                    title="Ready when you are"
-                    count={waiting.length}
-                    hint="One finished task is all it takes to get a skill moving."
-                  />
-                  <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {waiting.map((skill, i) => (
-                      <WaitingCard
-                        key={skill._id || skill.skillName}
-                        skill={skill}
-                        task={taskFor.get(skill.skillName)}
-                        tile={tiles.get(skill.skillName) || tileFor(skill.skillName)}
-                        index={i}
+                <Band>
+                  {(seen) => (
+                    <>
+                      <BandHeader
+                        icon={Target}
+                        tone="bg-journey-50 text-journey-600 ring-journey-100"
+                        title="Ready when you are"
+                        count={waiting.length}
+                        hint="One finished task is all it takes to get a skill moving."
                       />
-                    ))}
-                  </ul>
-                </section>
+                      <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {waiting.map((skill, i) => (
+                          <WaitingCard
+                            key={skill._id || skill.skillName}
+                            skill={skill}
+                            task={taskFor.get(skill.skillName)}
+                            tile={tiles.get(skill.skillName) || tileFor(skill.skillName)}
+                            index={i}
+                            seen={seen}
+                          />
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </Band>
               )}
 
             </div>

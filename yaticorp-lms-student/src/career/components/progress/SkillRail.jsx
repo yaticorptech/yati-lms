@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Flag, Gift, Mountain, Trophy, Zap } from 'lucide-react';
 import useCountUp from '../../../hooks/useCountUp';
+import useInView from '../../../hooks/useInView';
 import BadgeMedallion from '../rewards/BadgeMedallion';
 import { BADGE_ICONS, tierFor } from '../rewards/badgeTiers';
 import { levelProgress } from '../../utils/progress';
@@ -20,9 +21,12 @@ import { progressOf, statusOf } from '../../utils/skills';
  * backend uses, and the medallions are badges the server says are unlocked.
  */
 
-function RailCard({ icon: Icon, label, tone, action, children, className = '' }) {
+function RailCard({ icon: Icon, label, tone, action, children, seen = true, index = 0, className = '' }) {
   return (
-    <section className={`rounded-2xl border border-line-200/80 bg-surface p-5 shadow-card ${className}`}>
+    <section
+      className={`fp-reveal ${seen ? 'is-in' : ''} rounded-2xl border border-line-200/80 bg-surface p-5 shadow-card ${className}`}
+      style={{ transitionDelay: `${(seen ? index * 0.09 : 0).toFixed(2)}s` }}
+    >
       <div className="flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm font-bold text-ink-900">
           <span
@@ -39,11 +43,14 @@ function RailCard({ icon: Icon, label, tone, action, children, className = '' })
   );
 }
 
-function Ring({ percent, size = 96, stroke = 10 }) {
+function Ring({ percent, size = 96, stroke = 10, seen = true }) {
   const shown = useCountUp(percent, 1100);
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const offset = c - (Math.max(0, Math.min(100, percent)) / 100) * c;
+  // Held at empty until the rail is on screen, so the arc is watched being
+  // drawn rather than found already finished. The transition below does the
+  // drawing; this only decides when it starts.
+  const offset = seen ? c - (Math.max(0, Math.min(100, percent)) / 100) * c : c;
 
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
@@ -63,21 +70,25 @@ function Ring({ percent, size = 96, stroke = 10 }) {
         />
       </svg>
       <span className="absolute inset-0 flex items-center justify-center text-xl font-black tabular-nums text-ink-900">
-        {shown}%
+        {seen ? shown : 0}%
       </span>
     </div>
   );
 }
 
 export default function SkillRail({ skills = [], user, badges = [] }) {
+  // One observer for the whole rail rather than one per card: the four cards
+  // are a single column and should arrive as one thing, in order — not
+  // independently as each crosses the fold.
+  const [railRef, seen] = useInView({ rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
   const total = skills.length;
   const completed = skills.filter((s) => statusOf(s) === 'completed').length;
   const avg = total ? Math.round(skills.reduce((sum, s) => sum + progressOf(s), 0) / total) : 0;
 
   const xp = Number(user?.xp) || 0;
   const level = levelProgress(xp, user?.level);
-  const shownXp = useCountUp(xp, 1100);
-  const xpWidth = useCountUp(level.percent, 1100);
+  const shownXp = useCountUp(seen ? xp : 0, 1100);
+  const xpWidth = useCountUp(seen ? level.percent : 0, 1100);
 
   const earned = badges
     .filter((b) => b.unlocked)
@@ -85,11 +96,11 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
     .slice(0, 3);
 
   return (
-    <div className="flex flex-col gap-4 lg:sticky lg:top-4">
+    <div ref={railRef} className="flex flex-col gap-4 lg:sticky lg:top-4">
       {/* ---- OVERALL ---- */}
-      <RailCard icon={Flag} label="Overall Progress" tone="bg-journey-50 text-journey-600 ring-journey-100">
+      <RailCard icon={Flag} label="Overall Progress" tone="bg-journey-50 text-journey-600 ring-journey-100" seen={seen} index={0}>
         <div className="mt-4 flex items-center gap-4">
-          <Ring percent={avg} />
+          <Ring percent={avg} seen={seen} />
           <div className="min-w-0">
             <p className="text-3xl leading-none font-black tabular-nums text-ink-900">
               {completed}
@@ -113,7 +124,9 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
         icon={Zap}
         label="Your Skill XP"
         tone="bg-amber-50 text-amber-600 ring-amber-100"
-        action={<Gift className="h-5 w-5 text-pink-500" aria-hidden />}
+        seen={seen}
+        index={1}
+        action={<Gift className="fp-bob-soft h-5 w-5 text-pink-500" aria-hidden />}
       >
         <p className="mt-3 text-3xl leading-none font-black tabular-nums text-ink-900">
           {shownXp.toLocaleString()} <span className="text-lg text-ink-500">XP</span>
@@ -142,6 +155,8 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
         icon={Trophy}
         label="Recent Achievements"
         tone="bg-pink-50 text-pink-600 ring-pink-100"
+        seen={seen}
+        index={2}
         action={
           <Link to="/career/badges" className="text-xs font-bold text-link hover:underline">
             View all
@@ -159,7 +174,7 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
                     tier={tier}
                     unlocked
                     size={56}
-                    delay={0.08 * i}
+                    delay={0.28 + 0.08 * i}
                   />
                   <p className="mt-2 line-clamp-2 text-[0.7rem] leading-tight font-bold text-ink-900">
                     {badge.title}
@@ -183,13 +198,16 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
       {/* ---- BANNER ----
           Words and glow alone. A drawn summit, then a mascot, stood on the
           right of this row; both are gone, so the line runs the full width. */}
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-journey-100 via-journey-50 to-pink-100 p-5 shadow-card ring-1 ring-journey-100 ring-inset">
+      <section
+        className={`fp-reveal ${seen ? 'is-in' : ''} relative overflow-hidden rounded-2xl bg-gradient-to-br from-journey-100 via-journey-50 to-pink-100 p-5 shadow-card ring-1 ring-journey-100 ring-inset`}
+        style={{ transitionDelay: `${seen ? 0.27 : 0}s` }}
+      >
         <span aria-hidden className="fp-float pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-pink-300/40 blur-2xl" />
         <span aria-hidden className="fp-float-slow pointer-events-none absolute -bottom-12 -left-8 h-32 w-32 rounded-full bg-journey-300/40 blur-2xl" />
         <div className="relative flex items-end justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-xs font-bold text-journey-700">
-              <Mountain className="h-3.5 w-3.5" />
+              <Mountain className="fp-bob-soft h-3.5 w-3.5" />
               Small steps…
             </p>
             <p className="mt-1 text-xl leading-tight font-black text-ink-900">Big dreams!</p>
