@@ -1,19 +1,114 @@
+import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
-import '../career/components/mascot/mascot.css';
-import MascotRenderer from '../career/components/mascot/MascotRenderer';
 import { levelProgress } from '../career/utils/progress';
 
 /**
- * The astronaut, drawn rather than downloaded.
+ * The level ring: the card's own numbers, drawn rather than described twice.
  *
- * Original artwork and an inline SVG for the same reasons as the summit on the
- * calendar banner: about a kilobyte, no request, sharp at any size, and it
- * inherits the sidebar's own palette instead of being a flat PNG that stops
- * matching the moment the navy behind it changes.
+ * An inline SVG for the same reasons as the summit on the calendar banner:
+ * about a kilobyte, no request, sharp at any size, and it inherits the
+ * sidebar's own palette instead of being a flat PNG that stops matching the
+ * moment the navy behind it changes.
  *
- * Decorative, so it is hidden from assistive technology — every fact on this
- * card is written next to it.
+ * The ring replaced a second copy of the CareerPath mascot. That mascot is a
+ * single roaming character owned by MascotStage, and a still one pinned up
+ * here read as a duplicate of it — two of the same face on screen at once,
+ * one of them unable to do any of the things the real one does. This says
+ * what the card is actually for instead.
+ *
+ * Geometry note: the circle is rotated a quarter turn so the arc starts at
+ * twelve o'clock rather than three, and the dash offset counts DOWN from the
+ * full circumference, so a rising percentage draws clockwise.
+ */
+const SIZE = 92;
+const STROKE = 7;
+const RADIUS = (SIZE - STROKE) / 2;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+function LevelRing({ level, percent, nextLevel }) {
+  // Gradients are referenced by id, and this card renders twice on a phone
+  // (the drawer and the rail), so a hardcoded id would have the second copy
+  // painting with the first one's fill.
+  const gradientId = `${useId()}-ring`;
+
+  return (
+    <svg
+      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      width={SIZE}
+      height={SIZE}
+      role="progressbar"
+      aria-valuenow={percent}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={`Level ${level}, ${percent}% to level ${nextLevel}`}
+      className="transition-transform duration-300 group-hover:scale-105"
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+          {/* The same violet → indigo the XP bar used, so the card keeps its
+              colour identity now that the bar itself is gone. */}
+          <stop offset="0%" stopColor="#8b5cf6" />
+          <stop offset="100%" stopColor="#818cf8" />
+        </linearGradient>
+      </defs>
+
+      <g transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}>
+        <circle
+          cx={SIZE / 2}
+          cy={SIZE / 2}
+          r={RADIUS}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={STROKE}
+          className="text-slate-800"
+        />
+        <circle
+          cx={SIZE / 2}
+          cy={SIZE / 2}
+          r={RADIUS}
+          fill="none"
+          stroke={`url(#${gradientId})`}
+          strokeWidth={STROKE}
+          strokeLinecap="round"
+          strokeDasharray={CIRCUMFERENCE}
+          strokeDashoffset={CIRCUMFERENCE * (1 - percent / 100)}
+          className="transition-[stroke-dashoffset] duration-1000 ease-out"
+        />
+      </g>
+
+      {/* Inside the ring, where the eye lands first: the one number a student
+          is tracking. The word sits above it so the digit stays the largest
+          thing in the card. */}
+      <text
+        x="50%"
+        y="44%"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        className="fill-slate-400 text-[0.5rem] font-black tracking-[0.18em] uppercase"
+      >
+        Level
+      </text>
+      <text
+        x="50%"
+        y="64%"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        className="fill-white text-2xl font-black tabular-nums"
+      >
+        {level}
+      </text>
+    </svg>
+  );
+}
+
+/**
+ * Where a student stands, in the sidebar, on every page.
+ *
+ * The whole card is one link to the badges page and nothing else, so it is a
+ * plain <Link> rather than a stretched overlay. The overlay was there to let a
+ * "Show me around" button sit on top of it without being nested inside an
+ * anchor; the button is gone, and so is the reason for the overlay.
  */
 export default function SidebarProgressCard({ user, onNavigate }) {
   const level = user?.level || 1;
@@ -27,67 +122,24 @@ export default function SidebarProgressCard({ user, onNavigate }) {
     <Link
       to="/career/badges"
       onClick={onNavigate}
-      className="group block rounded-2xl bg-slate-900/70 p-3.5 text-center ring-1 ring-slate-800 transition-colors hover:bg-slate-900 hover:ring-slate-700"
+      className="group block rounded-2xl bg-slate-900/70 p-3.5 text-center ring-1 ring-slate-800 transition-colors hover:bg-slate-900 hover:ring-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
     >
-      {/* The CareerPath mascot, changing pose every few seconds. Tapping it
-          replays the current page's tour rather than following the card's
-          link. */}
-      <div id="mascot-home" className="flex min-h-[4.5rem] items-end justify-center">
-        <span
-          role="button"
-          tabIndex={0}
-          aria-label="CareerPath guide — show me around"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            window.dispatchEvent(new CustomEvent('mascot:ask'));
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              e.stopPropagation();
-              window.dispatchEvent(new CustomEvent('mascot:ask'));
-            }
-          }}
-          className="group relative inline-block cursor-pointer rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-        >
-          <span aria-hidden className="mc-glow absolute inset-x-2 bottom-0 h-4 rounded-full bg-blue-400/40 blur-lg" />
-          <MascotRenderer
-            state="happy"
-            height={72}
-            className="mc-pop relative transition-transform group-hover:scale-110"
-          />
-        </span>
+      <div className="flex justify-center">
+        <LevelRing level={level} percent={progress.percent} nextLevel={progress.nextLevel} />
       </div>
 
-      <p className="mt-1 text-sm font-bold text-white">Keep going, champ!</p>
+      <p className="mt-2 text-sm font-bold text-white">Keep going, champ!</p>
       <p className="mt-1 text-xs leading-relaxed text-slate-400">
         Every step today builds your tomorrow.
       </p>
 
-      <div className="mt-3 rounded-xl bg-slate-950/70 p-2.5 ring-1 ring-slate-800">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-black text-white">Level {level}</span>
-          <Zap className="h-4 w-4 fill-amber-400/30 text-amber-400" />
-        </div>
-
-        <p className="mt-1 text-left text-xs font-semibold text-slate-400 tabular-nums">
-          {xp} / {ceiling} XP
-        </p>
-
-        <div
-          role="progressbar"
-          aria-valuenow={progress.percent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`Level ${level}, ${progress.percent}% to level ${progress.nextLevel}`}
-          className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-800"
-        >
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-400 transition-[width] duration-1000 ease-out"
-            style={{ width: `${progress.percent}%` }}
-          />
-        </div>
+      {/* The ring says the proportion; this says the actual numbers. The flat
+          bar that used to sit here said the proportion a second time. */}
+      <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-slate-950/70 p-2.5 ring-1 ring-slate-800">
+        <span className="text-xs font-semibold text-slate-400 tabular-nums">
+          <span className="font-black text-white">{xp}</span> / {ceiling} XP
+        </span>
+        <Zap className="h-4 w-4 shrink-0 fill-amber-400/30 text-amber-400" />
       </div>
     </Link>
   );

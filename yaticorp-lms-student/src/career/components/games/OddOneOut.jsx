@@ -1,19 +1,29 @@
 import { useMemo } from 'react';
 import QuizGame from './QuizGame';
 import { ODD_ONE_OUT } from '../../data/brainPuzzles';
+import { buildOddOneOut } from '../../data/genOddOneOut';
 
 /** 🧩 Logic & deduction: three of these belong together. One does not. */
 export default function OddOneOut({ onExit }) {
-  const questions = useMemo(
-    () =>
-      ODD_ONE_OUT.map((q) => ({
+  // Sixty generated sets per band (genOddOneOut.js) plus the hand-written
+  // ones, with any set that appears in both kept once.
+  const questions = useMemo(() => {
+    const seen = new Set();
+    return [...buildOddOneOut(), ...ODD_ONE_OUT]
+      .filter((q) => {
+        const key = [...q.items].sort().join('|');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((q) => ({
         answer: q.answer,
         options: q.items,
         note: q.why,
-        level: q.level
-      })),
-    []
-  );
+        level: q.level,
+        tier: q.tier
+      }));
+  }, []);
 
   return (
     <QuizGame

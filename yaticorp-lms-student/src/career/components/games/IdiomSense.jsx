@@ -15,7 +15,8 @@ export default function IdiomSense({ onExit }) {
         phrase: i.phrase,
         answer: i.answer,
         options: [i.answer, ...i.wrong],
-        note: `“${i.phrase}” means: ${i.answer.toLowerCase()}.`
+        note: `“${i.phrase}” means: ${i.answer.toLowerCase()}.`,
+        level: i.level
       })),
     []
   );

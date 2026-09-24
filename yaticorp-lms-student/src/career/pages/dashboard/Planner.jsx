@@ -26,11 +26,114 @@ import useMinimumLoading from '../../../hooks/useMinimumLoading';
 // guess.
 const TASK_XP = 10;
 
-const TODAY_LABEL = new Date().toLocaleDateString(undefined, {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long'
-});
+// The circumference of the progress ring, once. The ring is drawn as a full
+// circle and revealed with `stroke-dashoffset`, which is what lets it sweep
+// from nothing to the day's real figure instead of appearing already drawn.
+const RING_R = 30;
+const RING_C = 2 * Math.PI * RING_R;
+
+/* Where the cleared-day motes start from and how far apart they are in time.
+   Fixed rather than random so the pattern is the same every render and a
+   re-render cannot restart them all at once. */
+const CLEAR_MOTES = [
+  { glyph: '✨', left: '6%', bottom: '18%', delay: '-0.2s' },
+  { glyph: '⭐', left: '22%', bottom: '8%', delay: '-1.6s' },
+  { glyph: '✨', left: '41%', bottom: '24%', delay: '-2.9s' },
+  { glyph: '🎉', left: '58%', bottom: '6%', delay: '-0.9s' },
+  { glyph: '✨', left: '74%', bottom: '20%', delay: '-3.6s' },
+  { glyph: '⭐', left: '88%', bottom: '10%', delay: '-2.2s' }
+];
+
+const dayLabel = (d) =>
+  d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+
+/* How a cleared day should be sent off, which depends on when it was cleared.
+   The line used to say "enjoy the evening" unconditionally, so a student who
+   finished their plan before breakfast was told the day was over. Ordered by
+   the hour they stop applying. */
+const DAY_PHASES = [
+  { until: 12, closer: 'the rest of the day is yours' },
+  { until: 17, closer: 'enjoy the afternoon' },
+  { until: 24, closer: 'enjoy the evening' }
+];
+
+const readClock = () => {
+  const now = new Date();
+  const hour = now.getHours();
+  return { label: dayLabel(now), closer: DAY_PHASES.find((p) => hour < p.until).closer };
+};
+
+/**
+ * The date and the time of day, kept true for as long as the page is open.
+ *
+ * Both used to be read once, when the module was first evaluated. A tab left
+ * open overnight — which is the normal way a study page is used — then sat
+ * there headed with yesterday's date above today's tasks. It re-reads itself
+ * at each boundary that could change what it says, and at no other time.
+ */
+function useDayClock() {
+  const [clock, setClock] = useState(readClock);
+
+  useEffect(() => {
+    let timer;
+    const schedule = () => {
+      const now = new Date();
+      const next = new Date(now);
+      // `setHours(24, …)` rolls into tomorrow morning, which is exactly the
+      // boundary the last phase of the day needs.
+      next.setHours(DAY_PHASES.find((p) => now.getHours() < p.until).until, 0, 0, 0);
+      // A second of slack, so a timer that fires a hair early does not read
+      // the old hour and then wait a whole phase to correct itself.
+      timer = setTimeout(() => {
+        setClock(readClock());
+        schedule();
+      }, next - now + 1000);
+    };
+    schedule();
+    return () => clearTimeout(timer);
+  }, []);
+
+  return clock;
+}
+
+/**
+ * A number that travels to its new value rather than jumping to it.
+ *
+ * Used on the XP in the header: ticking a task moves that figure, and a number
+ * that counts up is the cheapest way to say "this just went up because of what
+ * you did" without another badge on the screen. Starts from zero on arrival,
+ * and respects the OS motion setting by landing immediately.
+ */
+function useCountUp(value, duration = 900) {
+  const [shown, setShown] = useState(0);
+  // Where the next run should start from. Mirrored in an effect rather than
+  // written during render, so a re-render that does not commit cannot move it.
+  const shownRef = useRef(0);
+  useEffect(() => {
+    shownRef.current = shown;
+  }, [shown]);
+
+  useEffect(() => {
+    const from = shownRef.current;
+    if (from === value) return undefined;
+    // Asked for no motion: the number lands on the first frame instead of
+    // travelling. Still a frame rather than a synchronous set, so the whole
+    // path through this effect is the same one.
+    const reduced = !!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    let raf;
+    const start = performance.now();
+    const step = (now) => {
+      const t = reduced ? 1 : Math.min(1, (now - start) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      setShown(Math.round(from + (value - from) * eased));
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+
+  return shown;
+}
 
 
 export default function Planner() {
@@ -59,6 +162,8 @@ export default function Planner() {
     });
   const toast = useToast();
   const celebrate = useCelebrate();
+  // The date and the sign-off, live rather than frozen at module load.
+  const { label: todayLabel, closer: dayCloser } = useDayClock();
 
   // Clearing the day is a once-per-day event. Without this guard, re-opening a
   // finished task and letting its gates re-report would throw the confetti
@@ -278,6 +383,36 @@ export default function Planner() {
     }
     if (!clearedNow) clearedRef.current = false;
   }, [clearedNow]);
+
+  /* The ring starts empty and sweeps to the day's real figure. It is held at
+     zero until two frames after the loader clears, because a transition whose
+     start value was never painted does not animate — the browser simply sees
+     the finished number. */
+  const [ringReady, setRingReady] = useState(false);
+  useEffect(() => {
+    if (showLoader) return undefined;
+    // Two frames, so the empty ring is genuinely painted before the value it
+    // transitions to is set. Someone who asked for no motion gets it on the
+    // first frame, since there is no sweep for the empty state to introduce.
+    const reduced = !!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    let inner;
+    const outer = requestAnimationFrame(() => {
+      if (reduced) {
+        setRingReady(true);
+        return;
+      }
+      inner = requestAnimationFrame(() => setRingReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      if (inner) cancelAnimationFrame(inner);
+    };
+  }, [showLoader]);
+
+  // XP counts up to what the day is actually worth so far.
+  const earnedXp = useCountUp(
+    tasks.filter((t) => t.status === 'Completed').length * TASK_XP
+  );
   // Hooks stay above the loader return; the day's state is read from the
   // tasks directly since `dayCleared` is derived further down.
   /* Set by the day itself: cheering once it is cleared, rolling its
@@ -303,8 +438,12 @@ export default function Planner() {
   // streak, skill, a line of encouragement — is already said on the Overview.
   const level = levelProgress(user?.xp, user?.level);
   const canLevelToday = remaining > 0 && level.remaining <= remaining * TASK_XP;
-  const donePercent = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
+  const doneFraction = tasks.length ? completed / tasks.length : 0;
+  const donePercent = Math.round(doneFraction * 100);
   const dayCleared = tasks.length > 0 && remaining === 0;
+  // How much of the ring is left hidden. Held at the full circumference until
+  // the first paint is behind us, so the sweep has somewhere to start.
+  const ringOffset = RING_C * (1 - (ringReady ? doneFraction : 0));
 
   /* One honest line about where the day stands. It never claims progress that
      has not happened, and it never nags: the "not started" case offers the
@@ -314,7 +453,7 @@ export default function Planner() {
     : tasks.length === 0
       ? "Your plan for today will appear here."
       : dayCleared
-        ? "Every task done. That's the day cleared — enjoy the evening."
+        ? `Every task done. That's the day cleared — ${dayCloser}.`
         : completed === 0
           ? `${tasks.length === 1 ? 'One task' : `${tasks.length} tasks`} today. Start at the top and the rest follows.`
           : `${completed} down, ${remaining} to go — you're ${donePercent}% through today.`;
@@ -349,6 +488,26 @@ export default function Planner() {
             from above rather than flat. */}
         <span aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
 
+        {/* A cleared day earns a little confetti that never lands — slow motes
+            drifting up behind the text. Purely decorative, so it is hidden
+            from assistive tech, and it exists only while the day is actually
+            cleared rather than animating on every visit. The full celebration
+            is the modal thrown at the moment of the last tick; this is what is
+            left on the page afterwards. */}
+        {dayCleared && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+            {CLEAR_MOTES.map((mote) => (
+              <span
+                key={mote.left}
+                className="fp-mote absolute text-sm"
+                style={{ left: mote.left, bottom: mote.bottom, animationDelay: mote.delay }}
+              >
+                {mote.glyph}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* The target bleeds to the right edge rather than sitting in a column
             of its own: boxed, it reads as a picture pasted onto the banner
             instead of as the banner itself. It says the same thing the ring on
@@ -369,8 +528,29 @@ export default function Planner() {
 
         <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 md:min-h-[196px] lg:max-w-[68%]">
           {tasks.length > 0 && (
-            <div className="fp-breathe relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-surface/70 shadow-card ring-1 ring-white/80 sm:h-28 sm:w-28">
-              <svg viewBox="0 0 72 72" className="h-20 w-20 -rotate-90 sm:h-28 sm:w-28" aria-hidden>
+            <div className="relative flex h-20 w-20 shrink-0 items-center justify-center sm:h-28 sm:w-28">
+              {/* Two halos, and only one of them runs at a time. While there is
+                  work left the badge breathes violet, which is the section's
+                  "this is live" signal; once the day is cleared it sends out
+                  green rings instead, so the change of state is visible from
+                  the corner of the eye rather than only in the word below. */}
+              <span
+                aria-hidden
+                className={`absolute inset-0 rounded-full bg-surface/70 shadow-card ring-1 ring-white/80 ${
+                  dayCleared ? '' : 'fp-breathe'
+                }`}
+              />
+              {dayCleared && (
+                <>
+                  <span aria-hidden className="fp-ring-victory pointer-events-none absolute inset-0 rounded-full ring-2 ring-emerald-400/70" />
+                  <span
+                    aria-hidden
+                    className="fp-ring-victory pointer-events-none absolute inset-0 rounded-full ring-2 ring-sky-400/60"
+                    style={{ animationDelay: '-1.3s' }}
+                  />
+                </>
+              )}
+              <svg viewBox="0 0 72 72" className="relative h-20 w-20 -rotate-90 sm:h-28 sm:w-28" aria-hidden>
                 <defs>
                   <linearGradient id="fp-ring-grad" x1="0" y1="0" x2="1" y2="1">
                     {dayCleared ? (
@@ -387,41 +567,79 @@ export default function Planner() {
                     )}
                   </linearGradient>
                 </defs>
-                <circle cx="36" cy="36" r="30" fill="none" strokeWidth="8" className="stroke-journey-100" />
+                <circle cx="36" cy="36" r={RING_R} fill="none" strokeWidth="8" className="stroke-journey-100" />
                 <circle
                   cx="36"
                   cy="36"
-                  r="30"
+                  r={RING_R}
                   fill="none"
                   stroke="url(#fp-ring-grad)"
                   strokeWidth="8"
                   strokeLinecap="round"
-                  strokeDasharray={`${(donePercent / 100) * 2 * Math.PI * 30} ${2 * Math.PI * 30}`}
-                  className="transition-[stroke-dasharray] duration-1000 ease-out"
-                  style={{ filter: 'drop-shadow(0 0 6px rgb(108 59 255 / 0.45))' }}
+                  /* A whole circle of dash, revealed by pulling the offset
+                     back. Animating the offset rather than the dash array is
+                     what makes this sweep round from the top instead of
+                     stretching into place, and it is the one property SVG
+                     rings are guaranteed to transition. */
+                  strokeDasharray={RING_C}
+                  strokeDashoffset={ringOffset}
+                  className="fp-ring-draw"
+                  style={{
+                    // The glow used to be violet whatever the ring was doing,
+                    // so a cleared day wore a green ring inside a purple halo.
+                    filter: dayCleared
+                      ? 'drop-shadow(0 0 8px rgb(25 185 107 / 0.5))'
+                      : 'drop-shadow(0 0 6px rgb(108 59 255 / 0.45))'
+                  }}
                 />
               </svg>
-              <span className="absolute flex flex-col items-center leading-none">
+              {/* Bounded by the badge rather than free-floating at its centre.
+                  Left to size itself, "CLEARED" — seven letter-spaced capitals
+                  — ran wider than the 80px ring on a phone and spilled out
+                  over the rim. The word stays; the letter-spacing it cannot
+                  afford at that size does not. */}
+              <span className="absolute inset-0 flex flex-col items-center justify-center px-1.5 leading-none">
                 <span className="text-lg font-black tabular-nums text-ink-900 sm:text-2xl">
                   {completed}/{tasks.length}
                 </span>
-                <span className="mt-1 text-[0.6rem] font-black tracking-[0.14em] text-journey-600 uppercase">
+                <span
+                  key={dayCleared ? 'cleared' : 'done'}
+                  className={`mt-1 text-[0.5rem] font-black tracking-[0.06em] uppercase sm:text-[0.6rem] sm:tracking-[0.14em] ${
+                    dayCleared ? 'fp-stamp-in text-emerald-600' : 'text-journey-600'
+                  }`}
+                >
                   {dayCleared ? 'cleared' : 'done'}
                 </span>
               </span>
             </div>
           )}
 
-          <div className="min-w-0 flex-1">
+          {/* Date, then title, then the state of the day — in that order and a
+              beat apart, which is the order they are read in. `stagger` only
+              runs once, on arrival. */}
+          <div className="stagger min-w-0 flex-1">
             <p className="inline-flex items-center gap-1.5 rounded-full bg-surface/80 px-2.5 py-1 text-[0.68rem] font-black tracking-[0.16em] text-journey-700 uppercase shadow-sm ring-1 ring-journey-100 ring-inset">
               <CalendarCheck className="h-3.5 w-3.5 text-journey-500" aria-hidden />
-              {TODAY_LABEL}
+              {todayLabel}
             </p>
             <h1 className="mt-2 flex items-center gap-2 text-2xl leading-tight font-black tracking-tight sm:text-3xl md:text-4xl">
-              <span className="fp-text-shimmer bg-gradient-to-r from-journey-700 via-brand-600 to-pink-600 bg-clip-text text-transparent">
+              {/* Keyed on the state, so the headline re-enters when the last
+                  task turns "Today's mission" into "Today's mission complete"
+                  rather than silently swapping a word mid-sentence. */}
+              <span
+                key={dayCleared ? 'complete' : 'open'}
+                className={`fp-text-shimmer bg-clip-text text-transparent ${
+                  dayCleared
+                    ? 'animate-pop-in bg-gradient-to-r from-emerald-600 via-journey-600 to-sky-600'
+                    : 'bg-gradient-to-r from-journey-700 via-brand-600 to-pink-600'
+                }`}
+              >
                 {dayCleared ? "Today's mission complete" : "Today's mission"}
               </span>
-              <Sparkles className="fp-bob-soft h-6 w-6 shrink-0 text-amber-400" aria-hidden />
+              <Sparkles
+                className={`h-6 w-6 shrink-0 ${dayCleared ? 'fp-twinkle text-amber-400' : 'fp-bob-soft text-amber-400'}`}
+                aria-hidden
+              />
             </h1>
             <p className="mt-1.5 text-sm font-semibold text-ink-600 sm:text-[0.95rem]">{missionLine}</p>
 
@@ -441,10 +659,21 @@ export default function Planner() {
                   </span>
                 )}
 
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-800 shadow-card ring-1 ring-amber-200/80 ring-inset">
+                {/* The figure climbs to the day's total rather than
+                    appearing at it, so ticking a task is visibly what moved
+                    it. `key` on the pill restages the pop each time the total
+                    changes, which is the same beat as the count. */}
+                <span
+                  key={completed}
+                  className={`animate-pop-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-black shadow-card ring-inset ${
+                    dayCleared
+                      ? 'fp-xp-flash bg-amber-100 text-amber-900 ring-1 ring-amber-300/90'
+                      : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200/80'
+                  }`}
+                >
                   <Trophy className="fp-bob-soft h-3.5 w-3.5 text-amber-500" />
                   <span className="tabular-nums">
-                    {completed * TASK_XP} XP earned
+                    {earnedXp} XP earned
                     {remaining > 0 && <span className="text-ink-400"> · {remaining * TASK_XP} to go</span>}
                   </span>
                 </span>
@@ -532,11 +761,23 @@ export default function Planner() {
           cleared-day note at the foot of the list still marks the finish. */}
 
       <Card padded={false} className="animate-fade-in-up overflow-hidden ring-1 ring-journey-100/60">
-        <div className="flex flex-wrap items-center gap-3 border-b border-line-100 bg-gradient-to-r from-journey-50/70 via-surface to-surface px-4 py-4 sm:px-6">
+        {/* `data-mascot-clear` for the reason the header of the journey strip
+            carries it: this is a heading and a line of the day's focus, which
+            is words the student is reading, and the companion was landing
+            square on them. It has the task list below to stand beside. */}
+        <div
+          data-mascot-clear
+          className="flex flex-wrap items-center gap-3 border-b border-line-100 bg-gradient-to-r from-journey-50/70 via-surface to-surface px-4 py-4 sm:px-6"
+        >
           <span className="fp-journey-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-md shadow-journey-500/30">
             <CalendarCheck className="h-5 w-5" strokeWidth={2.2} />
           </span>
-          <div className="min-w-0">
+          {/* `flex-1` with a zero basis, so the block asks for a share of the
+              line instead of its content's natural width. Sized from content,
+              the day's focus sentence is far wider than a phone, so the whole
+              block wrapped and left the icon sitting alone on a row of its
+              own with the heading stranded underneath it. */}
+          <div className="min-w-0 flex-1 basis-0">
             <h2 className="bg-gradient-to-r from-journey-700 to-brand-600 bg-clip-text text-lg font-black text-transparent">
               {examEve && tasks.length === 0
                 ? 'Today is clear'
@@ -967,7 +1208,16 @@ export default function Planner() {
             plan, and this is a door rather than a prompt. Offering it up top
             would turn a one-task day into a suggestion to collect more. */}
         {tasks.length > 0 && !needsRoadmap && !examEve && (
-          <div className="relative flex flex-col items-center gap-2 overflow-hidden border-t border-journey-100 bg-gradient-to-r from-journey-50 via-pink-50/60 to-amber-50 px-6 py-6 text-center">
+          /* `data-mascot-clear` for the same reason as the bullseye above, and
+             a sharper one: the companion celebrates a finished task, and the
+             moment it has to celebrate is the moment this button unlocks — so
+             it landed square on the one thing the student is being invited to
+             press, and a mascot standing on a button is a button that cannot
+             be pressed. It has the whole task list to stand beside instead. */
+          <div
+            data-mascot-clear
+            className="relative flex flex-col items-center gap-2 overflow-hidden border-t border-journey-100 bg-gradient-to-r from-journey-50 via-pink-50/60 to-amber-50 px-6 py-6 text-center"
+          >
             <span aria-hidden className="fp-drift-icon pointer-events-none absolute top-3 left-[12%] text-base" style={{ animationDelay: '-1.8s' }}>✨</span>
             <span aria-hidden className="fp-drift-icon pointer-events-none absolute right-[14%] bottom-4 text-sm" style={{ animationDelay: '-3.1s' }}>⭐</span>
             <span aria-hidden className="fp-drift-icon pointer-events-none absolute top-5 right-[28%] text-sm" style={{ animationDelay: '-0.7s' }}>🚀</span>
