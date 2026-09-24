@@ -45,14 +45,18 @@ export default function PracticePage() {
             <Link to="/interview" className="inline-flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-indigo-600"><ArrowLeft size={15} /> Interview</Link>
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-600 to-violet-600 p-5 text-white shadow-lg shadow-indigo-200 animate-fade-in-up">
                 <span aria-hidden="true" className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+                {/* basis-64: the wording asks for 16rem before the button is
+                    allowed to share its line. Without it the button held its
+                    width and the text collapsed into a column three words wide,
+                    reading straight down the card. */}
                 <div className="relative flex flex-wrap items-center gap-4">
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 basis-64">
                         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-100">Practice bank</p>
                         <p className="text-xl font-black"><CountUp value={done.size} /> of {data.questions.length} practised</p>
                         <p className="mt-0.5 text-xs text-indigo-100">Open a question, think your answer through out loud, then mark it practised for +5 XP.</p>
                         <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/25"><div className="h-full rounded-full bg-white transition-[width] duration-1000 ease-out" style={{ width: `${pct}%` }} /></div>
                     </div>
-                    {nextUp && <Btn onClick={() => { setOpen(nextUp.id); document.getElementById(`pq-${nextUp.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} icon={ArrowRight} className="!border-white/40 !bg-white/15 !text-white hover:!bg-white/25">Practise the next one</Btn>}
+                    {nextUp && <Btn onClick={() => { setOpen(nextUp.id); document.getElementById(`pq-${nextUp.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} icon={ArrowRight} className="w-full !border-white/40 !bg-white/15 !text-white hover:!bg-white/25 sm:w-auto">Practise the next one</Btn>}
                     {!nextUp && <span className="rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold">All done here 🎉</span>}
                 </div>
             </div>
@@ -78,9 +82,18 @@ export default function PracticePage() {
                                 <Collapse open={isOpen}>
                                     <div className="border-t border-slate-100 px-4 py-3">
                                         <p className="flex items-start gap-2 rounded-xl bg-amber-50/70 px-3 py-2 text-sm text-slate-700"><Lightbulb size={15} className="mt-0.5 shrink-0 text-amber-500" /> {q.hint}</p>
-                                        <div className="mt-3 flex items-center justify-between gap-2">
-                                            <span className="text-xs text-slate-400">Say your answer out loud — it is the best rehearsal.</span>
-                                            {isDone ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700"><CheckCircle2 size={13} /> Practised</span> : <Btn tone="primary" icon={CheckCircle2} onClick={() => practise(q.id)} loading={busy === q.id} disabled={!isOpen}>I practised this (+5 XP)</Btn>}
+                                        {/* The row did not wrap, so the note shrank and
+                                            the button's own label broke across three
+                                            lines. The note asks for 12rem before it
+                                            shares the line, and the button never shrinks
+                                            or breaks its label — so where there is not
+                                            room for both, the button wraps onto its own
+                                            line instead of being crushed. Giving it
+                                            w-full was wrong: that makes its flex base the
+                                            whole row, so it wrapped at every width. */}
+                                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                                            <span className="min-w-0 flex-1 basis-48 text-xs text-slate-400">Say your answer out loud — it is the best rehearsal.</span>
+                                            {isDone ? <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700"><CheckCircle2 size={13} /> Practised</span> : <Btn tone="primary" icon={CheckCircle2} onClick={() => practise(q.id)} loading={busy === q.id} disabled={!isOpen} className="shrink-0 whitespace-nowrap">I practised this (+5 XP)</Btn>}
                                         </div>
                                     </div>
                                 </Collapse>

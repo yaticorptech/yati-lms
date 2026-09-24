@@ -91,6 +91,7 @@ const profileOut = (profile, age) => profile && ({
     guardianName: profile.guardian?.guardianName || '',
     wantFrom: profile.wantFrom,
     wantTo: profile.wantTo,
+    location: profile.location || '',
     interests: profile.interests,
     completedAt: profile.completedAt,
     age
@@ -161,8 +162,12 @@ router.put('/profile', async (req, res, next) => {
         // permission request is sent. The phone is kept as contact detail.
         if (needsGuardian && !guardianEmail) return res.status(400).json({ error: "Add your parent or guardian's email address — that is where the job permission request is sent." });
         if (needsGuardian && !guardianName) return res.status(400).json({ error: "Add your parent or guardian's name — the approval message is addressed to them." });
+        // Free text: a student writes "Whitefield" or "Mangalore", and the
+        // place is resolved when the board is searched, not here.
+        const location = String(body.location || '').trim().slice(0, 120);
+
         const update = {
-            dateOfBirth: dob, wantFrom, wantTo, interests, completedAt: new Date(),
+            dateOfBirth: dob, wantFrom, wantTo, interests, location, completedAt: new Date(),
             // Guardian state follows the band: an adult has nothing to approve,
             // and a teen keeps whatever the request had reached.
             guardian: {
@@ -315,7 +320,13 @@ router.get('/', async (req, res, next) => {
         let webPlace = null;
         let webNotice = '';
         let webWidened = '';
-        const webAllowed = ctx.band.id !== 'explore' && ctx.band.id !== 'teen';
+        // Open to every band, on the account owner's explicit instruction
+        // (2026-09-15). These are raw Google Jobs results: no age data, no
+        // safety class, no verified organisation, and the apply link leaves
+        // the LMS — so none of the protections the local board applies reach
+        // them, and a student under 18 sees them alongside vetted work. The
+        // cards say where they came from and that they are not age-checked.
+        const webAllowed = true;
         const location = String(req.query.location || '').trim();
         if (webAllowed && location) {
             try {
@@ -368,6 +379,10 @@ router.get('/', async (req, res, next) => {
             // Offered only when the board itself came up empty.
             web: {
                 allowed: webAllowed, place: webPlace, notice: webNotice, widened: webWidened, count: web.length,
+                // A minor now sees these. They carry none of the board's own
+                // checks, so the client is told to say so rather than letting
+                // them pass as vetted work alongside it.
+                notAgeChecked: (ctx.age ?? 99) < 18,
                 searchLinks: webAllowed && !web.length ? require('../services/jobBoardLinks').searchLinks(webPlace?.city || location) : []
             },
             // Eligible jobs beyond this month, so the empty state can offer them.
