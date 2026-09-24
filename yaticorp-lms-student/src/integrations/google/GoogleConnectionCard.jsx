@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { CalendarDays, Check, FolderOpen, Link2, Loader2, ShieldCheck, Unlink } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, FolderOpen, Link2, Loader2, ShieldCheck, Unlink } from 'lucide-react';
 import { beginConnect, disconnect } from './api';
 import { getSnapshot, refresh, subscribe } from './googleStore';
 
@@ -151,15 +151,34 @@ export default function GoogleConnectionCard() {
       ) : (
         <>
           {/* The same words as the consent screen, so the promise made before
-              connecting is still readable after it. */}
-          <ul className="mt-3 space-y-2">
-            {(state.permissions || []).map((p) => (
-              <li key={p.key} className="text-[0.72rem] leading-relaxed text-ink-600">
-                <span className="font-bold text-ink-900">{p.title}.</span> {p.why}{' '}
-                <span className="font-semibold text-emerald-700">{p.limit}</span>
-              </li>
-            ))}
-          </ul>
+              connecting is still readable after it — but folded away, because
+              three paragraphs of permissions opened above the button pushed
+              the button itself off a phone screen, and a wall of text is not
+              read more carefully than a line of it.
+
+              Folded, never dropped: this is the page where someone decides
+              whether to hand over access, so what they are handing over stays
+              on it, one click away, above the button. The summary says what is
+              inside rather than "Details", so the choice to open it is an
+              informed one. */}
+          <details className="group mt-3 rounded-xl border border-line-200 bg-surface-50">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-[0.72rem] font-bold text-ink-700 [&::-webkit-details-marker]:hidden">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+              <span className="flex-1">What connecting gives us access to</span>
+              <ChevronDown
+                aria-hidden
+                className="h-3.5 w-3.5 shrink-0 text-ink-400 transition-transform duration-200 group-open:rotate-180"
+              />
+            </summary>
+            <ul className="space-y-2 px-3 pt-1 pb-3">
+              {(state.permissions || []).map((p) => (
+                <li key={p.key} className="text-[0.72rem] leading-relaxed text-ink-600">
+                  <span className="font-bold text-ink-900">{p.title}.</span> {p.why}{' '}
+                  <span className="font-semibold text-emerald-700">{p.limit}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
           {/* Where a student decides whether to hand over access is exactly
               where the promises about it should be one click away. */}
           <p className="mt-3 text-[0.68rem] text-ink-500">

@@ -185,6 +185,33 @@ export const starsForGame = (gameId) =>
 /** How far a game has been climbed, for the hub card. */
 export const levelReached = (gameId) => read(LEVEL_KEY)[gameId] || 1;
 
+/* ---- The game played most recently -----------------------------------
+ * One id, kept in this browser, so the hub can mark where the student left
+ * off. Deliberately not sent to the account: it is a pointer back into the
+ * page, not progress, and the level and star records already follow the
+ * student between devices.
+ */
+const RECENT_KEY = 'yati:gameRecent';
+
+/** Note that a game has just been opened. */
+export const markPlayed = (gameId) => {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify({ gameId, at: Date.now() }));
+  } catch {
+    // Private mode or a blocked origin: the hub simply shows no marker.
+  }
+};
+
+/** The id of the game opened most recently, or null. */
+export const lastPlayed = () => {
+  try {
+    const { gameId } = JSON.parse(localStorage.getItem(RECENT_KEY) || '{}');
+    return typeof gameId === 'string' ? gameId : null;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Where the student has got to in one game.
  *

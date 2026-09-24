@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Trophy, Star, Layers, Gamepad2, RefreshCw, Crown, ArrowRight } from 'lucide-react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Trophy, Star, Layers, Gamepad2, RefreshCw, Crown, ArrowRight, ChevronDown } from 'lucide-react';
 import api from '../../services/api';
 import { GAMES_SYNCED } from './levels';
 
@@ -141,7 +142,187 @@ const emptyReason = (scope, cohort) => {
 };
 
 const SELECT =
-  'min-h-9 cursor-pointer rounded-xl border border-line-200 bg-surface-50 px-2.5 py-1.5 text-xs font-bold text-ink-700 outline-none transition-colors hover:border-violet-200 focus:border-violet-400';
+  'inline-flex min-h-9 cursor-pointer items-center justify-between gap-1.5 rounded-xl border border-line-200 bg-surface-50 px-2.5 py-1.5 text-xs font-bold text-ink-700 outline-none transition-colors hover:border-violet-200 focus-visible:border-violet-400';
+
+const MENU_GAP = 4; // between the trigger and its menu
+const MENU_MIN_WIDTH = 132; // "My institution" without wrapping
+const ROW_HEIGHT = 32; // matches the `px-3 py-1.5 text-xs` rows below
+const MENU_PADDING = 8 + 2; // the menu's own py-1, plus its two 1px borders
+const EDGE = 8; // never closer than this to the edge of the window
+const MENU_MIN_HEIGHT = 64; // ~2 rows, so a very short window still shows a list
+
+/**
+ * The period / scope picker.
+ *
+ * A native <select> here opened its list in the wrong place entirely — up in
+ * the hero copy, nowhere near the control. The games page animates its cards
+ * in, and the transform that entrance leaves behind moves the box the browser
+ * anchors a popup to, which is the same reason SuggestField portals its
+ * suggestions to <body>. This does the same: the menu is drawn in fixed
+ * coordinates measured off the trigger, outside every transformed ancestor and
+ * outside the hero's overflow-hidden, so it lands under the control and stays
+ * there while the page scrolls.
+ */
+function FilterSelect({ label, value, options, onChange, className = '' }) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [box, setBox] = useState(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const current = options.find(([v]) => v === value);
+
+  const place = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const width = Math.max(r.width, MENU_MIN_WIDTH);
+    const wanted = options.length * ROW_HEIGHT + MENU_PADDING;
+
+    const below = window.innerHeight - r.bottom - MENU_GAP;
+    const above = r.top - MENU_GAP;
+    // Flip up only when there is genuinely more room there, so a control near
+    // the bottom of the window does not open off-screen.
+    const up = below < wanted && above > below;
+
+    // Right-aligned, because these sit at the right edge of their header and a
+    // left-aligned menu wider than its trigger would run off a phone screen.
+    const left = Math.min(Math.max(r.right - width, EDGE), window.innerWidth - width - EDGE);
+
+    setBox({
+      left,
+      width,
+      top: up ? undefined : r.bottom + MENU_GAP,
+      bottom: up ? window.innerHeight - r.top + MENU_GAP : undefined,
+      maxHeight: Math.max(MENU_MIN_HEIGHT, Math.min(wanted, (up ? above : below) - EDGE))
+    });
+  }, [options.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    place();
+    // Capture phase so the menu follows an inner scroller too, not just the window.
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, place]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (triggerRef.current?.contains(e.target)) return;
+      if (menuRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const choose = (next) => {
+    onChange(next);
+    setOpen(false);
+    setActive(-1);
+    triggerRef.current?.focus();
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      if (!open) return;
+      e.preventDefault();
+      setOpen(false);
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!open) {
+        setOpen(true);
+        setActive(Math.max(options.findIndex(([v]) => v === value), 0));
+        return;
+      }
+      setActive((i) => {
+        const step = e.key === 'ArrowDown' ? 1 : options.length - 1;
+        return (Math.max(i, 0) + step) % options.length;
+      });
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (open && active >= 0) choose(options[active][0]);
+      else if (!open) {
+        setOpen(true);
+        setActive(Math.max(options.findIndex(([v]) => v === value), 0));
+      }
+    }
+  };
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? id : undefined}
+        onClick={() => {
+          setOpen((o) => !o);
+          setActive(options.findIndex(([v]) => v === value));
+        }}
+        onKeyDown={handleKeyDown}
+        className={`${SELECT} ${open ? 'border-violet-400' : ''} ${className}`}
+      >
+        <span className="truncate">{current?.[1] ?? label}</span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 text-ink-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+
+      {open &&
+        box &&
+        createPortal(
+          <ul
+            ref={menuRef}
+            id={id}
+            role="listbox"
+            aria-label={label}
+            // futurepath-portal: drawn on <body>, outside the section wrapper, so
+            // it has to opt back in to the section's typography.
+            // z-[90] matches SuggestField: above the cards and the sticky bars,
+            // below the dialogs and the celebration overlay.
+            className="futurepath-portal fixed z-[90] overflow-y-auto rounded-xl border border-line-200 bg-surface py-1 shadow-float"
+            style={{ left: box.left, width: box.width, top: box.top, bottom: box.bottom, maxHeight: box.maxHeight }}
+          >
+            {options.map(([optionValue, optionLabel], i) => (
+              <li
+                key={optionValue}
+                role="option"
+                aria-selected={optionValue === value}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  choose(optionValue);
+                }}
+                onMouseEnter={() => setActive(i)}
+                className={`cursor-pointer px-3 py-1.5 text-xs font-bold ${
+                  optionValue === value
+                    ? 'text-violet-700'
+                    : i === active
+                      ? 'bg-surface-50 text-ink-700'
+                      : 'text-ink-700'
+                } ${i === active && optionValue === value ? 'bg-violet-50' : ''}`}
+              >
+                {optionLabel}
+              </li>
+            ))}
+          </ul>,
+          document.body
+        )}
+    </>
+  );
+}
 
 export default function GameLeaderboard({ dense = false, limit }) {
   const shownLimit = limit ?? (dense ? 5 : 10);
@@ -186,30 +367,20 @@ export default function GameLeaderboard({ dense = false, limit }) {
 
   const filters = (
     <div className={`flex items-center gap-2 ${dense ? 'mt-3' : 'ml-auto'}`}>
-      <select
-        aria-label="Period"
+      <FilterSelect
+        label="Period"
         value={period}
-        onChange={(e) => setPeriod(e.target.value)}
-        className={`${SELECT} ${dense ? 'min-w-0 flex-1' : ''}`}
-      >
-        {PERIODS.map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-      <select
-        aria-label="Scope"
+        options={PERIODS}
+        onChange={setPeriod}
+        className={dense ? 'min-w-0 flex-1' : ''}
+      />
+      <FilterSelect
+        label="Scope"
         value={scope}
-        onChange={(e) => setScope(e.target.value)}
-        className={`${SELECT} ${dense ? 'min-w-0 flex-1' : ''}`}
-      >
-        {SCOPES.map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
+        options={SCOPES}
+        onChange={setScope}
+        className={dense ? 'min-w-0 flex-1' : ''}
+      />
     </div>
   );
 
@@ -289,18 +460,7 @@ export default function GameLeaderboard({ dense = false, limit }) {
           {/* The period is the only choice worth offering here. Scope was a
               second dropdown that nearly every student left on Everyone, and
               two controls over three rows read as more machinery than board. */}
-          <select
-            aria-label="Period"
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            className={SELECT}
-          >
-            {PERIODS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <FilterSelect label="Period" value={period} options={PERIODS} onChange={setPeriod} />
         </div>
         <div className="mt-3">{body}</div>
       </div>

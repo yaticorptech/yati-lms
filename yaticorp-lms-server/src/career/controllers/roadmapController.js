@@ -1,12 +1,13 @@
 const Roadmap = require('../models/Roadmap');
 const Goal = require('../models/Goal');
-const { generateRoadmapFromAI } = require('../services/geminiService');
+const { generateRoadmapFromAI, completedStageIndices } = require('../services/geminiService');
 const { getStudentCourseContext } = require('../services/lmsContext');
 
 const Task = require('../models/Task');
 const SkillProgress = require('../models/SkillProgress');
 const PlannerContext = require('../models/PlannerContext');
 const Recommendation = require('../models/Recommendation');
+const MilestoneBadge = require('../models/MilestoneBadge');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // @desc    Generate a new roadmap for the user's goal
@@ -102,6 +103,70 @@ const generateRoadmap = async (req, res) => {
   }
 };
 
+/**
+ * Drop phases a saved roadmap should never have contained.
+ *
+ * The prompt now refuses to write them, but a roadmap generated before that
+ * is already in the database with the phase in it — an MCA Year 2 student
+ * carrying a "Postgraduate Year 1: MCA Advanced Specialisation" phase after
+ * their own final year, which is the degree they are two semesters from
+ * finishing. Regenerating would fix it and cost a Gemini call and every task,
+ * skill and badge the student has built against the roadmap they have. This
+ * repairs the record in place instead, the same way gaps in `completedPhases`
+ * are repaired above it.
+ *
+ * Phase indices are the roadmap's only identifier for a phase: progress is a
+ * list of them, and every milestone badge stores one. Removing a phase from
+ * the middle therefore has to shift both, or a student's finished phases and
+ * their badges quietly slide onto the wrong entries.
+ */
+const dropCompletedStages = async (roadmap, goal) => {
+  const phases = roadmap.roadmapData?.educationRoadmap;
+  const drop = completedStageIndices(phases, goal);
+  if (!drop.length) return false;
+
+  const dropped = new Set(drop);
+  // Where an index lands once the phases before it are gone.
+  const shift = (i) => i - drop.filter((d) => d < i).length;
+
+  roadmap.roadmapData = {
+    ...roadmap.roadmapData,
+    educationRoadmap: phases.filter((_, i) => !dropped.has(i))
+  };
+  // Mongoose cannot see a mutation inside a free-form Object field.
+  roadmap.markModified('roadmapData');
+  roadmap.completedPhases = (roadmap.completedPhases || [])
+    .filter((i) => !dropped.has(i))
+    .map(shift);
+  await roadmap.save();
+
+  // Badges for a phase that no longer exists go with it; the rest move down.
+  // Deleted first, and then shifted in ascending order, so each index a badge
+  // moves into has been vacated before the unique { userId, roadmapId,
+  // phaseIndex } index is asked to accept it.
+  await MilestoneBadge.deleteMany({
+    userId: roadmap.userId, roadmapId: roadmap._id, phaseIndex: { $in: drop }
+  });
+  const survivors = await MilestoneBadge
+    .find({ userId: roadmap.userId, roadmapId: roadmap._id })
+    .select('phaseIndex')
+    .sort({ phaseIndex: 1 })
+    .lean();
+  for (const badge of survivors) {
+    const moved = shift(badge.phaseIndex);
+    if (moved === badge.phaseIndex) continue;
+    // updateOne rather than save(): this touches one field, and re-validating
+    // the whole document would fail the repair on any badge written before a
+    // field became required — exactly the old records this exists to fix.
+    await MilestoneBadge.updateOne({ _id: badge._id }, { $set: { phaseIndex: moved } });
+  }
+
+  console.warn(
+    `Repaired roadmap ${roadmap._id}: removed ${drop.length} already-completed phase(s).`
+  );
+  return true;
+};
+
 // @desc    Get user's roadmap
 // @route   GET /api/roadmap
 // @access  Private
@@ -120,6 +185,12 @@ const getRoadmap = async (req, res) => {
       roadmap.completedPhases = repaired;
       await roadmap.save();
     }
+
+    // Likewise for a phase the student had already finished when the roadmap
+    // was written. Needs the goal, since what counts as already-finished is
+    // decided by where the student actually is.
+    const goal = await Goal.findOne({ userId: req.user._id }).select('educationLevel').lean();
+    if (goal) await dropCompletedStages(roadmap, goal);
 
     res.status(200).json(roadmap);
   } catch (error) {

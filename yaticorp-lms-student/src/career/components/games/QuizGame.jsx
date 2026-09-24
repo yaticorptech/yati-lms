@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import { Check, X, Lightbulb } from 'lucide-react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsFor, starsOn } from './levels';
+import useGameProgress, { between, ramp, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
+import { pickQuestions, remember, recordFor, keyOf } from './questionMemory';
 
 const shuffle = (list) => {
   const out = [...list];
@@ -57,29 +58,63 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
   /**
    * The questions for this level.
    *
-   * It used to shuffle the band's pool and take the first `count`. With a pool
-   * of five and a deck of five to twelve, that handed back the entire pool
-   * every single time: thirty levels of the same handful of questions in a
-   * different order, which is exactly what a student notices first.
+   * It used to deal a window that rotated with the level number —
+   * `pool[(levelNo * size) + i]`. That reads as though consecutive levels must
+   * differ, and over a single level they do, but the window wraps a fifteen-
+   * question band almost at once: measured across a full band, 94% of
+   * everything asked was a repeat, every question came round sixteen to
+   * eighteen times, and level four re-asked two of level one's. Answer
+   * something correctly and it was back within minutes.
    *
-   * The window now rotates with the level, so level 2 starts where level 1
-   * stopped and consecutive levels genuinely differ. The shuffle stays, but it
-   * only orders the questions that were chosen — it no longer chooses them.
+   * Now the deck is chosen from what this student has actually been asked:
+   * never-seen questions first, then the ones they have not got right, then
+   * whatever has waited longest. The whole band is exhausted before anything
+   * returns, and what returns first is what they still get wrong.
    *
-   * A pool smaller than the deck still repeats, because nothing can deal
-   * twelve distinct cards from a deck of five. That is a content problem, not
-   * a selection one, and it is fixed by writing more questions.
+   * The shuffle stays, and stays separate: `pickQuestions` decides WHICH
+   * questions, the shuffle decides what order they are shown in. Conflating
+   * those two is what the old window did wrong.
+   *
+   * Among questions the memory ranks equal, the ones whose difficulty best
+   * fits this level come first, so a band's easiest questions tend to arrive
+   * at its first levels and its hardest at its last.
+   *
+   * Repetition is reduced, not abolished. Thirty levels asking five to twelve
+   * questions need two hundred and fifty-five, and a hand-written band holds
+   * about forty — so a question can come round again late in a band, but
+   * never before everything else in the band and the band above has been
+   * asked, and never while it has just been answered correctly.
    */
   const deck = useMemo(() => {
-    const graded = questions.filter((q) => (q.level || 1) === progress.difficulty);
-    const pool = graded.length ? graded : questions;
+    const band = progress.difficulty;
+    const graded = questions.filter((q) => (q.level || 1) === band);
+    let pool = graded.length ? graded : questions;
     if (!pool.length) return [];
 
-    const size = Math.min(config.count, pool.length);
-    const offset = ((progress.levelNo - 1) * size) % pool.length;
-    const window = Array.from({ length: size }, (_, i) => pool[(offset + i) % pool.length]);
-    return shuffle(window);
-  }, [questions, progress.difficulty, progress.levelNo, config.count]);
+    // Once this band has nothing unseen left to fill a level, borrow from the
+    // band above — its easiest questions first, which is the natural next
+    // step anyway. The top band, having no band above, borrows the hardest
+    // of the band below. Borrowed questions are still fresh, and a fresh
+    // question beats a repeat.
+    if (graded.length) {
+      const record = recordFor(progress.gameId, band);
+      const unseen = graded.filter((q) => !record[keyOf(q)]).length;
+      if (unseen < config.count) {
+        const neighbour = band < 3 ? band + 1 : band - 1;
+        const shift = band < 3 ? 1 : -1;
+        const borrowed = questions
+          .filter((q) => (q.level || 1) === neighbour)
+          .map((q) => ({ ...q, tierShift: shift }));
+        pool = [...graded, ...borrowed];
+      }
+    }
+
+    return shuffle(pickQuestions(pool, config.count, progress.gameId, band, ramp(progress.levelNo)));
+    // No `attempt` dependency: QuizGame keys this component on level and
+    // attempt, so a retry remounts it and the record is re-read on the way in.
+    // The retry therefore leads with whatever was missed, without this memo
+    // having to watch for it.
+  }, [questions, progress.difficulty, progress.levelNo, progress.gameId, config.count]);
 
   const { seconds, over: timeUp } = useTimedRound(config.seconds, started);
   const current = deck[index];
@@ -96,8 +131,12 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
 
   const answer = (value) => {
     if (chosen !== null) return;
+    const right = value === current.answer;
     setChosen(value);
-    if (value === current.answer) setScore((s) => s + 1);
+    if (right) setScore((s) => s + 1);
+    // Recorded as it happens rather than at the end of the round, so a student
+    // who abandons a level half-way still keeps credit for what they answered.
+    remember(progress.gameId, progress.difficulty, current, right);
   };
 
   return (

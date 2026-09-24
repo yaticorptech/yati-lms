@@ -1009,6 +1009,282 @@
 .fp-press:active { transform: scale(0.94); transition-duration: 0.08s; }
 
 /* ---------------------------------------------------------------
+   Game cards (Games hub)
+
+   The look stays soft: the pastel wash, a pale rim, a lit disc under the
+   artwork. The interest is in the motion. Each card pops in on a short
+   stagger, the artwork bobs over a shadow that breathes with it, the
+   sparkles twinkle in turn, the play button's glow pulses, and under a
+   pointer the whole card tilts to follow it while the artwork floats a
+   little ahead of the surface (parallax).
+
+   The tilt is driven from the card: GameCard writes --fp-px / --fp-py
+   (each -1..1, the pointer's offset from the centre) and --fp-hover
+   (0 or 1) as inline custom properties; everything here is derived from
+   them, so the JS never touches a transform.
+
+   --fp-game-glow is the theme's accent at halo strength. Everything is
+   transform, opacity and box-shadow, so it all stays on the compositor.
+--------------------------------------------------------------- */
+.fp-game-stage { perspective: 1100px; }
+
+.fp-game-card {
+  --fp-game-glow: rgb(139 92 246 / 0.34);
+  --fp-px: 0;
+  --fp-py: 0;
+  --fp-hover: 0;
+  --fp-i: 0;
+  position: relative;
+  /* overflow:hidden on the card flattens any 3D context, so the depth the
+     children get from translateZ has to come from a perspective set here. */
+  perspective: 700px;
+  transform:
+    translateY(calc(var(--fp-hover) * -8px))
+    rotateX(calc(var(--fp-py) * -7deg))
+    rotateY(calc(var(--fp-px) * 8deg))
+    scale(calc(1 + var(--fp-hover) * 0.02));
+  box-shadow:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.95),
+    inset 0 -1px 0 rgb(255 255 255 / 0.5),
+    0 1px 2px rgb(16 24 40 / 0.05),
+    0 6px 14px -6px rgb(16 24 40 / 0.14),
+    0 18px 32px -18px var(--fp-game-glow);
+  transition:
+    transform 0.18s ease-out,
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  /* Pop in, one after the other. `backwards`, not `both`: a held final
+     keyframe would pin the transform and the tilt could never move it. */
+  animation: fp-game-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  animation-delay: calc(var(--fp-i) * 55ms);
+}
+@keyframes fp-game-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+/* When the pointer leaves, the card springs back rather than snapping. */
+.fp-game-card[data-settling='true'] {
+  transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease;
+}
+
+/* The gloss: a highlight that follows the pointer across the surface. */
+.fp-game-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(
+      120% 90% at calc(50% + var(--fp-px) * 40%) calc(40% + var(--fp-py) * 40%),
+      rgb(255 255 255 / 0.7) 0%,
+      rgb(255 255 255 / 0.25) 35%,
+      rgb(255 255 255 / 0) 70%);
+  opacity: calc(0.6 + var(--fp-hover) * 0.4);
+  transition: opacity 0.3s ease;
+}
+
+/* ---- The stage behind the artwork -------------------------------- */
+
+/* The disc the artwork floats over, lit from above. */
+.fp-game-disc {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6.5rem;
+  height: 6.5rem;
+  border-radius: 9999px;
+  transform: translate(-50%, -48%) scale(calc(1 + var(--fp-hover) * 0.08));
+  background:
+    radial-gradient(circle at 38% 30%, rgb(255 255 255 / 1), rgb(255 255 255 / 0.45) 55%, rgb(255 255 255 / 0) 74%);
+  box-shadow:
+    inset 0 -8px 14px rgb(23 58 99 / 0.06),
+    0 12px 26px -12px var(--fp-game-glow);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* The shadow the artwork throws on the floor. It breathes with the bob. */
+.fp-game-floor {
+  position: absolute;
+  left: 50%;
+  bottom: 0.5rem;
+  width: 4rem;
+  height: 0.9rem;
+  border-radius: 9999px;
+  background: radial-gradient(ellipse at center, rgb(23 58 99 / 0.28), rgb(23 58 99 / 0) 70%);
+  filter: blur(2px);
+  animation: fp-game-floor 2.8s ease-in-out infinite;
+}
+@keyframes fp-game-floor {
+  0%, 100% { transform: translateX(-50%) scaleX(1);    opacity: 1; }
+  50%      { transform: translateX(-50%) scaleX(0.8);  opacity: 0.55; }
+}
+
+/* The artwork sits on two layers: the outer one floats ahead of the card
+   and drifts against the tilt (parallax); the inner one bobs. */
+.fp-game-float {
+  position: relative;
+  transform:
+    translate(calc(var(--fp-px) * 9px), calc(var(--fp-py) * 9px))
+    translateZ(calc(var(--fp-hover) * 40px))
+    scale(calc(1 + var(--fp-hover) * 0.1));
+  transition: transform 0.18s ease-out;
+}
+.fp-game-card[data-settling='true'] .fp-game-float {
+  transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.fp-game-art {
+  filter: drop-shadow(0 10px 12px rgb(23 58 99 / 0.22)) drop-shadow(0 1px 1px rgb(23 58 99 / 0.12));
+  animation: fp-game-bob 2.8s ease-in-out infinite;
+}
+@keyframes fp-game-bob {
+  0%, 100% { transform: translateY(0)    rotate(0deg); }
+  50%      { transform: translateY(-6px) rotate(-2deg); }
+}
+
+/* Sparkles twinkle one after another. */
+.fp-game-spark {
+  animation: fp-twinkle 2.6s ease-in-out infinite;
+  animation-delay: calc(var(--fp-spark-i, 0) * 0.55s);
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* ---- Controls --------------------------------------------------- */
+
+.fp-game-pill {
+  z-index: 4;
+  transform: translateZ(calc(var(--fp-hover) * 24px));
+  transition: transform 0.25s ease-out;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 1),
+    0 1px 2px rgb(16 24 40 / 0.08),
+    0 6px 12px -6px rgb(16 24 40 / 0.22);
+}
+.fp-game-chip {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    inset 0 -1px 0 rgb(23 58 99 / 0.08),
+    0 2px 4px -2px rgb(23 58 99 / 0.18);
+}
+.fp-game-play {
+  position: relative;
+  transform: translateZ(calc(var(--fp-hover) * 30px)) scale(calc(1 + var(--fp-hover) * 0.05));
+  animation: fp-game-play-pulse 2.8s ease-out infinite;
+  transition: transform 0.25s ease-out, background-color 0.2s ease;
+}
+@keyframes fp-game-play-pulse {
+  0%   { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), inset 0 -3px 0 rgb(0 0 0 / 0.22), 0 6px 14px -4px var(--fp-game-glow), 0 0 0 0   var(--fp-game-glow); }
+  60%  { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), inset 0 -3px 0 rgb(0 0 0 / 0.22), 0 6px 14px -4px var(--fp-game-glow), 0 0 0 9px transparent; }
+  100% { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), inset 0 -3px 0 rgb(0 0 0 / 0.22), 0 6px 14px -4px var(--fp-game-glow), 0 0 0 0   transparent; }
+}
+.fp-game-play svg { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.fp-game-card:hover .fp-game-play svg { transform: translateX(2px); }
+
+/* ---- Hover (pointer only) ---------------------------------------- */
+
+@media (hover: hover) and (pointer: fine) {
+  .fp-game-card:hover {
+    box-shadow:
+      inset 0 1.5px 0 rgb(255 255 255 / 1),
+      inset 0 -1px 0 rgb(255 255 255 / 0.5),
+      0 2px 4px rgb(16 24 40 / 0.05),
+      0 16px 26px -12px rgb(16 24 40 / 0.18),
+      0 34px 56px -22px var(--fp-game-glow);
+  }
+  .fp-game-card:hover .fp-game-art { animation-play-state: paused; transform: translateY(-4px); }
+  .fp-game-card:hover .fp-game-floor { animation-play-state: paused; transform: translateX(-50%) scaleX(1.3); opacity: 0.5; }
+  .fp-game-card:hover .fp-game-play { animation-duration: 1.4s; }
+}
+
+/* ---- Press ------------------------------------------------------- */
+
+.fp-game-card:active {
+  transform:
+    translateY(calc(var(--fp-hover) * -4px))
+    rotateX(calc(var(--fp-py) * -7deg))
+    rotateY(calc(var(--fp-px) * 8deg))
+    scale(0.965);
+  transition-duration: 0.08s;
+}
+.fp-game-card:active .fp-game-play {
+  transform: translateZ(calc(var(--fp-hover) * 30px)) translateY(2px);
+  animation: none;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(0 0 0 / 0.2),
+    0 2px 6px -2px var(--fp-game-glow);
+}
+
+/* ---- The game played last ---------------------------------------
+   One card on the page. A ring in the card's own colour, a little more
+   glow underneath, and a tag that breathes so the eye finds it. */
+.fp-game-recent {
+  box-shadow:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.95),
+    inset 0 -1px 0 rgb(255 255 255 / 0.5),
+    0 0 0 2.5px color-mix(in srgb, var(--fp-game-glow) 90%, white),
+    0 0 0 6px color-mix(in srgb, var(--fp-game-glow) 35%, transparent),
+    0 1px 2px rgb(16 24 40 / 0.05),
+    0 8px 18px -6px rgb(16 24 40 / 0.16),
+    0 22px 40px -16px var(--fp-game-glow);
+}
+.fp-game-recent-tag {
+  box-shadow: 0 4px 10px -3px rgb(23 58 99 / 0.45), 0 0 0 0 rgb(23 58 99 / 0.35);
+  animation: fp-game-recent-tag 2.4s ease-out infinite;
+}
+@keyframes fp-game-recent-tag {
+  0%   { box-shadow: 0 4px 10px -3px rgb(23 58 99 / 0.45), 0 0 0 0   rgb(23 58 99 / 0.35); }
+  60%  { box-shadow: 0 4px 10px -3px rgb(23 58 99 / 0.45), 0 0 0 7px transparent; }
+  100% { box-shadow: 0 4px 10px -3px rgb(23 58 99 / 0.45), 0 0 0 0   transparent; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .fp-game-recent:hover {
+    box-shadow:
+      inset 0 1.5px 0 rgb(255 255 255 / 1),
+      inset 0 -1px 0 rgb(255 255 255 / 0.5),
+      0 0 0 2.5px color-mix(in srgb, var(--fp-game-glow) 90%, white),
+      0 0 0 6px color-mix(in srgb, var(--fp-game-glow) 35%, transparent),
+      0 2px 4px rgb(16 24 40 / 0.05),
+      0 16px 26px -12px rgb(16 24 40 / 0.18),
+      0 34px 56px -22px var(--fp-game-glow);
+  }
+}
+
+/* ---- Dark canvas ------------------------------------------------- */
+
+.dark .fp-game-card {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 14px 28px -12px rgb(0 0 0 / 0.6);
+}
+.dark .fp-game-card::before {
+  background:
+    radial-gradient(
+      120% 90% at calc(50% + var(--fp-px) * 40%) calc(40% + var(--fp-py) * 40%),
+      rgb(255 255 255 / 0.14) 0%,
+      rgb(255 255 255 / 0.04) 35%,
+      transparent 70%);
+}
+.dark .fp-game-disc {
+  background: radial-gradient(circle at 38% 30%, rgb(255 255 255 / 0.18), rgb(255 255 255 / 0.06) 55%, transparent 74%);
+  box-shadow: 0 12px 26px -12px rgb(0 0 0 / 0.6);
+}
+.dark .fp-game-floor { background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.6), transparent 70%); }
+.dark .fp-game-recent {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 0 0 2.5px color-mix(in srgb, var(--fp-game-glow) 90%, white),
+    0 0 0 6px color-mix(in srgb, var(--fp-game-glow) 35%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 14px 28px -12px rgb(0 0 0 / 0.6);
+}
+.dark .fp-game-recent-tag { background: #e8eefc; color: #173a63; }
+.dark .fp-game-pill { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 6px 12px -6px rgb(0 0 0 / 0.6); }
+.dark .fp-game-chip { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08); }
+
+/* ---------------------------------------------------------------
    Ambient motion
 
    All of it finite or slow. Nothing blinks, nothing demands attention twice.
@@ -1067,6 +1343,29 @@
   pointer-events: none;
 }
 
+/* ---- The skills page ----
+   The tracker's headline is one skill: the one closest to its next rung. Two
+   quiet signals mark it and nothing else on the page competes — a light
+   travelling along its bar, and the bar's own colour breathing under it. */
+.fp-bar-sheen { position: relative; overflow: hidden; }
+.fp-bar-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.65) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: fp-bar-sheen 3.4s ease-in-out 0.9s infinite;
+  pointer-events: none;
+}
+@keyframes fp-bar-sheen {
+  0%, 25%   { transform: translateX(-120%); }
+  70%, 100% { transform: translateX(120%); }
+}
+
+/* A skill tile, on hover: lifts and leans, like a card being picked up. */
+.fp-tile-hover { transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.28s ease; }
+.fp-tile-hover:hover { transform: translateY(-3px) rotate(-4deg) scale(1.06); }
+
 /* A bar filling from empty when its section arrives. */
 @keyframes fp-fill {
   from { transform: scaleX(0); }
@@ -1098,6 +1397,55 @@
    file already collapses every animation and transition inside `.futurepath`;
    these opt out of the decorative ones entirely rather than running them
    fast, because a blob that teleports is worse than one that never moved. */
+/* ---------------------------------------------------------------
+   TODAY'S PLAN — the header, and what a cleared day looks like
+   --------------------------------------------------------------- */
+
+/* The progress ring sweeping to the day's figure. The circle is drawn with a
+   full circumference of dash and revealed by pulling the offset back, so it
+   travels round from the top rather than growing into place. Slow enough to
+   be read as a measurement being taken, not as a loading spinner. */
+.fp-ring-draw {
+  transition: stroke-dashoffset 1.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The day is done: rings leaving the badge, instead of the violet breath that
+   means "still running". Opacity and scale only, so it costs one compositor
+   layer and never reflows the header around it. */
+@keyframes fp-ring-victory {
+  0%   { opacity: 0.6; transform: scale(0.95); }
+  70%  { opacity: 0;   transform: scale(1.42); }
+  100% { opacity: 0;   transform: scale(1.42); }
+}
+.fp-ring-victory { animation: fp-ring-victory 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+
+/* The word under the count changing from "done" to "cleared" — pressed on
+   like a stamp, once, at the moment it becomes true. */
+@keyframes fp-stamp-in {
+  0%   { opacity: 0; transform: scale(1.8) rotate(-7deg); }
+  55%  { opacity: 1; transform: scale(0.92) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.fp-stamp-in { animation: fp-stamp-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Confetti that never lands: slow motes rising behind a cleared header. Long
+   and offset per mote so they read as drift rather than as a burst on a
+   timer. */
+@keyframes fp-mote {
+  0%   { opacity: 0; transform: translate3d(0, 16px, 0) scale(0.6); }
+  15%  { opacity: 0.9; }
+  70%  { opacity: 0.5; }
+  100% { opacity: 0; transform: translate3d(6px, -70px, 0) scale(1.15); }
+}
+.fp-mote { animation: fp-mote 5.2s ease-out infinite; }
+
+/* One warm flash across the XP pill as its number lands. */
+@keyframes fp-xp-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(245 158 11 / 0); }
+  35%      { box-shadow: 0 0 0 6px rgb(245 158 11 / 0.22); }
+}
+.fp-xp-flash { animation: fp-xp-flash 1.6s ease-out 2 both; }
+
 @media (prefers-reduced-motion: reduce) {
   /* The entrance and reward utilities are global — ten LMS files outside this
      section use `.animate-fade-in` — but the block that honoured the OS
@@ -1133,6 +1481,7 @@
   .fp-confetti,
   .fp-blink,
   .fp-road-flow,
+  .fp-bar-sheen::after,
   .fp-pulse-ring,
   .fp-twinkle,
   .fp-glow-violet,
@@ -1146,7 +1495,15 @@
   .fp-tab-land,
   .fp-stripes::after,
   .fp-drift-icon,
+  .fp-ring-victory,
+  .fp-stamp-in,
+  .fp-mote,
+  .fp-xp-flash,
   .fp-fill { animation: none !important; }
+  /* The ring keeps its final value, it just arrives there without the sweep. */
+  .fp-ring-draw { transition: none !important; }
+  /* Frozen motes are just six emoji parked in the header, so they go. */
+  .fp-mote { display: none; }
   .fp-tab-ripple { display: none; }
   .fp-tab-slider { transition: none; }
   .fp-btn, .fp-btn::before, .fp-btn .fp-btn-arrow { transition: none; }
@@ -1155,5 +1512,17 @@
   .fp-sweep::after { display: none; }
   .fp-lift:hover,
   .fp-lift-strong:hover { transform: none; }
+  .fp-tile-hover { transition: none; }
+  .fp-tile-hover:hover { transform: none; }
+  /* Game cards: no pop-in, no tilt, no bobbing, no pulsing. The lift on
+     hover and the glow still say which card is under the pointer. */
+  .fp-game-card { animation: none; transition: box-shadow 0.2s ease; }
+  .fp-game-card, .fp-game-card:active { transform: translateY(calc(var(--fp-hover) * -4px)); }
+  .fp-game-float, .fp-game-pill, .fp-game-play { transform: none !important; transition: none; }
+  .fp-game-floor, .fp-game-art, .fp-game-spark, .fp-game-play, .fp-game-recent-tag { animation: none !important; }
+  .fp-game-spark { opacity: 0.7; }
+  .fp-game-card::before { opacity: 0.6; }
+  .fp-game-card:hover .fp-game-art { transform: none; }
+  .fp-game-card:hover .fp-game-floor { transform: translateX(-50%); opacity: 1; }
 }
 

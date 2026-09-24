@@ -422,11 +422,88 @@ const describeCurrentStage = (goal) => {
   return goal.currentClass ? `${level} — ${goal.currentClass}${suffix}` : `${level}${suffix}`;
 };
 
+/**
+ * Levels for which the undergraduate ladder is already behind the student.
+ *
+ * Someone reading for an MCA has finished a bachelor's and is *in* the
+ * postgraduate stage; a working professional is past both.
+ */
+const PAST_UNDERGRADUATE = ['Postgraduate', 'Working Professional'];
+
+/**
+ * Rules 5 and 6 — the internship phase and the postgraduate phases.
+ *
+ * These used to be stated unconditionally, in the words of an undergraduate's
+ * roadmap: "immediately after the final undergraduate year" and "you MUST
+ * ALWAYS include postgraduate phases". For a student already reading for a
+ * master's that contradicts Rule Zero, and the model resolved the
+ * contradiction the wrong way round — an MCA Year 2 student was handed a
+ * "Postgraduate Year 1: MCA Advanced Specialisation" phase AFTER their own
+ * final year, hedged in its own duration field as "already completed or
+ * integrated into current 2-year structure". A roadmap that sends someone
+ * back through a year they are finishing reads as broken, which is exactly
+ * what Rule Zero exists to prevent.
+ *
+ * So the ladder is now described from where the student actually stands.
+ */
+const describeLadderRules = (goal) => {
+  const level = goal.educationLevel || '';
+
+  if (level === 'Working Professional') {
+    return `5. This user is ALREADY WORKING. Do NOT add a school phase, a degree phase, or an "Internships & Industry Experience" phase — internships are for students, and every one of those stages is behind them. Their roadmap runs from their current role forward.
+6. Add a further qualification (M.Tech / MS / MBA / a certification) ONLY where it genuinely unlocks "${goal.careerGoal}" for someone already in the field, and say plainly why. Never include a degree they already hold. If no further degree is needed, say so and go straight to the on-the-job and hiring phases.`;
+  }
+
+  if (level === 'Postgraduate') {
+    const programme = goal.degree || 'their master\'s';
+    return `5. This user is ALREADY READING FOR A POSTGRADUATE DEGREE (${programme}). You MUST still include a distinct "Internships & Industry Experience" phase, but pitched at THEIR level and placed AFTER their remaining ${programme} years — not after an undergraduate year they finished long ago. It must:
+   - name specific, realistic programmes for this career goal at postgraduate level (e.g. Google STEP's senior equivalents, Microsoft Engage, Amazon SDE Internship, GSoC, research internships at IIT/IISc, industry-sponsored thesis projects),
+   - say when to apply and what the selection process involves,
+   - explain how to convert an internship into a full-time offer (PPO),
+   - cover the portfolio, GitHub, publications and interview preparation needed to get selected.
+   Keep it as its own entry in educationRoadmap.
+6. DO NOT ADD ANY PHASE ABOUT STARTING OR COMPLETING A POSTGRADUATE DEGREE. They are already in one. A phase titled "Postgraduate Year 1", or any phase about choosing a master's, sitting its entrance exams (GATE / NIMCET / CAT / GRE for admission), or picking a university for it, describes something this user has ALREADY DONE and is a serious error — the same error as opening a graduate's roadmap at Class 5. Cover only the ${programme} years they have LEFT, as year- or semester-phases, and then move on to work.
+   The one exception: if the career goal is genuinely research- or academia-oriented, a DOCTORAL (PhD) phase AFTER ${programme} is a real next step and may be included.`;
+  }
+
+  // School, Diploma and Undergraduate students: the full ladder is still ahead.
+  return `5. Immediately AFTER the final undergraduate year and BEFORE the postgraduate phases, you MUST include a distinct "Internships & Industry Experience" phase. This phase is MANDATORY and must:
+   - name specific, realistic programmes for this career goal (e.g. Google STEP, Microsoft Engage, Amazon SDE Internship, GSoC, research internships at IIT/IISc, startup internships via Internshala or Unstop),
+   - say when to apply and what the selection process involves,
+   - explain how to convert an internship into a full-time offer (PPO),
+   - cover the portfolio, GitHub, and interview preparation needed to get selected.
+   Keep it as its own entry in educationRoadmap - do NOT merge it into a college year or into the postgraduate phases.
+6. After that internship phase, you MUST ALWAYS include postgraduate phases in the educationRoadmap, broken down year-by-year.
+   Just like the college phases, you MUST offer MULTIPLE VIABLE POSTGRADUATE OPTIONS in the phase title rather than forcing a single degree - and each option must be ELIGIBLE for the undergraduate degrees you listed earlier. Eligibility matters:
+   - B.Tech / B.E. graduates -> M.Tech, MS (abroad), or M.Sc in Computer Science.
+   - BCA / B.Sc IT / B.Sc CS graduates -> MCA or M.Sc in Computer Science (they are usually NOT eligible for M.Tech directly).
+   So if the college phase offered "B.Tech CSE / BCA / B.Sc IT", the postgraduate phase MUST offer something like "M.Tech CSE / MCA / M.Sc CS (Human-Computer Interaction & Web Technologies)" and briefly say which undergraduate path leads to which postgraduate option.
+   Within those options, RECOMMEND A SUITABLE SPECIALISATION that genuinely advances THIS user's stated career goal. For example:
+   - Frontend / Web Developer -> specialise in Human-Computer Interaction (HCI), UI/UX, or Web Technologies; MS in HCI abroad (Georgia Tech, CMU, TU Delft) as the international option.
+   - Data Scientist -> Data Science, Artificial Intelligence, or Statistics.
+   - Leadership / product ambitions -> MBA in Product Management or Technology Management after 2-3 years of work experience.
+   Each postgraduate phase MUST cover:
+   - the specific programme and specialisation you recommend, and WHY it suits this exact career goal,
+   - the PG entrance exams required (e.g., GATE, GRE, TOEFL/IELTS, CAT, NET) and when to start preparing,
+   - research, thesis, publications, and assistantship opportunities,
+   - realistic universities for the user's location and budget (name actual institutions).
+   Also state plainly whether the degree is strictly REQUIRED to enter the career or whether it is a career ACCELERATOR that leads to senior, research, or architect-level roles - but recommend a concrete suitable programme either way. Never reduce this phase to "optional, you may skip it".`;
+};
+
 // A school phase: "Class 9", "Grade 10", "Std 8", "Class 11: PCMB Stream".
 const SCHOOL_PHASE_PATTERN = /^\s*(?:phase\s*\d+\s*[:-]\s*)?(?:class|grade|std\.?|standard)\s*\d+/i;
 
 // Levels that mean school is already behind the student.
 const PAST_SCHOOL = ['Diploma', 'Undergraduate', 'Postgraduate', 'Working Professional'];
+
+/**
+ * A phase about ENTERING postgraduate study: "Postgraduate Year 1", "PG Year
+ * 2", "Master's Year 1". Deliberately only the generic, ladder-shaped titles —
+ * a phase named for the student's own programme ("MCA Year 2 / Final Year") is
+ * where they actually are and must survive.
+ */
+const PG_ENTRY_PHASE_PATTERN =
+  /^\s*(?:phase\s*\d+\s*[:-]\s*)?(?:post[\s-]?grad(?:uate)?|pg|master'?s?)\s*(?:degree\s*)?(?:year|yr)\s*\d+/i;
 
 /**
  * Remove phases the student has demonstrably already completed.
@@ -440,23 +517,38 @@ const PAST_SCHOOL = ['Diploma', 'Undergraduate', 'Postgraduate', 'Working Profes
  * school. Guessing at which college years are done is far less clear-cut, and a
  * wrong guess would silently delete real phases.
  */
-const stripCompletedStages = (roadmap, goal) => {
-  const phases = roadmap?.educationRoadmap;
-  if (!Array.isArray(phases) || !PAST_SCHOOL.includes(goal.educationLevel)) return roadmap;
+const completedStageIndices = (phases, goal) => {
+  if (!Array.isArray(phases) || !PAST_SCHOOL.includes(goal?.educationLevel)) return [];
 
-  const kept = phases.filter((stage) => {
+  const pgEntry = goal.educationLevel === 'Postgraduate';
+
+  const drop = [];
+  phases.forEach((stage, i) => {
     const title = typeof stage === 'string' ? stage : stage?.phase || '';
-    return !SCHOOL_PHASE_PATTERN.test(title);
+    if (SCHOOL_PHASE_PATTERN.test(title)) {
+      drop.push(i);
+      return;
+    }
+    // A student already reading for a master's does not go back and start one.
+    // Never the first phase, which Rule Zero reserves for where they are now —
+    // a PG Year 1 student's own stage may legitimately be titled this way.
+    if (pgEntry && i > 0 && PG_ENTRY_PHASE_PATTERN.test(title)) drop.push(i);
   });
 
-  // Never hand back an empty roadmap: if the filter would remove everything the
-  // titles are shaped unexpectedly, and the original is the safer answer.
-  if (!kept.length || kept.length === phases.length) return roadmap;
+  // Never empty a roadmap: if the rules would remove every phase the titles are
+  // shaped unexpectedly, and keeping all of them is the safer answer.
+  return drop.length === phases.length ? [] : drop;
+};
+
+const stripCompletedStages = (roadmap, goal) => {
+  const phases = roadmap?.educationRoadmap;
+  const drop = new Set(completedStageIndices(phases, goal));
+  if (!drop.size) return roadmap;
 
   console.warn(
-    `Roadmap for a ${goal.educationLevel} student contained ${phases.length - kept.length} school phase(s); removed.`
+    `Roadmap for a ${goal.educationLevel} student contained ${drop.size} already-completed phase(s); removed.`
   );
-  roadmap.educationRoadmap = kept;
+  roadmap.educationRoadmap = phases.filter((_, i) => !drop.has(i));
   return roadmap;
 };
 
@@ -609,27 +701,7 @@ Follow these STRICT rules:
    - MCA / M.Tech / M.Sc / MBA / M.Com / LLM -> 2 years (4 semesters)
    - MS abroad -> 1 to 2 years depending on the country and programme
    A "Year 4" phase for a 3-year BCA, or a "Year 3" phase for a 2-year MCA, is a factual error. If you offer several degree options in one phase, say plainly that their lengths differ (e.g. "B.Tech takes 4 years, BCA and B.Sc take 3").
-5. Immediately AFTER the final undergraduate year and BEFORE the postgraduate phases, you MUST include a distinct "Internships & Industry Experience" phase. This phase is MANDATORY and must:
-   - name specific, realistic programmes for this career goal (e.g. Google STEP, Microsoft Engage, Amazon SDE Internship, GSoC, research internships at IIT/IISc, startup internships via Internshala or Unstop),
-   - say when to apply and what the selection process involves,
-   - explain how to convert an internship into a full-time offer (PPO),
-   - cover the portfolio, GitHub, and interview preparation needed to get selected.
-   Keep it as its own entry in educationRoadmap - do NOT merge it into a college year or into the postgraduate phases.
-6. After that internship phase, you MUST ALWAYS include postgraduate phases in the educationRoadmap, broken down year-by-year.
-   Just like the college phases, you MUST offer MULTIPLE VIABLE POSTGRADUATE OPTIONS in the phase title rather than forcing a single degree - and each option must be ELIGIBLE for the undergraduate degrees you listed earlier. Eligibility matters:
-   - B.Tech / B.E. graduates -> M.Tech, MS (abroad), or M.Sc in Computer Science.
-   - BCA / B.Sc IT / B.Sc CS graduates -> MCA or M.Sc in Computer Science (they are usually NOT eligible for M.Tech directly).
-   So if the college phase offered "B.Tech CSE / BCA / B.Sc IT", the postgraduate phase MUST offer something like "M.Tech CSE / MCA / M.Sc CS (Human-Computer Interaction & Web Technologies)" and briefly say which undergraduate path leads to which postgraduate option.
-   Within those options, RECOMMEND A SUITABLE SPECIALISATION that genuinely advances THIS user's stated career goal. For example:
-   - Frontend / Web Developer -> specialise in Human-Computer Interaction (HCI), UI/UX, or Web Technologies; MS in HCI abroad (Georgia Tech, CMU, TU Delft) as the international option.
-   - Data Scientist -> Data Science, Artificial Intelligence, or Statistics.
-   - Leadership / product ambitions -> MBA in Product Management or Technology Management after 2-3 years of work experience.
-   Each postgraduate phase MUST cover:
-   - the specific programme and specialisation you recommend, and WHY it suits this exact career goal,
-   - the PG entrance exams required (e.g., GATE, GRE, TOEFL/IELTS, CAT, NET) and when to start preparing,
-   - research, thesis, publications, and assistantship opportunities,
-   - realistic universities for the user's location and budget (name actual institutions).
-   Also state plainly whether the degree is strictly REQUIRED to enter the career or whether it is a career ACCELERATOR that leads to senior, research, or architect-level roles - but recommend a concrete suitable programme either way. Never reduce this phase to "optional, you may skip it".
+${describeLadderRules(goal)}
 7. If the career goal is research- or academia-oriented, also add a doctoral (PhD) phase after the postgraduate phases.
 7b. THE ROADMAP MUST NOT END AT GRADUATION. A degree is not the goal — the job is. After the final academic phase you MUST add these three phases, in this order, as separate entries in educationRoadmap:
 
@@ -794,7 +866,10 @@ Required JSON Structure:
     // The model intermittently stops the roadmap at the final undergraduate
     // year despite being told not to. Detect that and ask it for just the
     // missing postgraduate phases rather than regenerating the whole roadmap.
-    if (!hasPostgraduatePhase(roadmap)) {
+    // Only for students the postgraduate stage is still AHEAD of. Asking for
+    // "the missing postgraduate phases" on behalf of an MCA student appends a
+    // degree they are two semesters from finishing.
+    if (!PAST_UNDERGRADUATE.includes(goal.educationLevel) && !hasPostgraduatePhase(roadmap)) {
       console.warn('Roadmap came back without a postgraduate phase - requesting the missing phases.');
       try {
         const followUp = await generateWithRetry(ai, buildPostgraduatePrompt(goal, roadmap), { json: true, kind: 'roadmap-postgrad' });
@@ -1842,6 +1917,15 @@ module.exports = {
   // Exported for tests: it is pure, and it is the part of the mentor prompt
   // that can be checked without spending a Gemini call.
   buildMentorContext,
+  // Likewise: which ladder a student is told to climb, and the backstop that
+  // drops a stage they have already finished. Both decide the shape of a
+  // roadmap and neither needs a Gemini call to check.
+  describeLadderRules,
+  stripCompletedStages,
+  // The same rule, reporting WHICH phases to drop rather than dropping them:
+  // a roadmap already saved has progress and badges stored against phase
+  // indices, and those have to be shifted by the same amount.
+  completedStageIndices,
   generateStudyMaterialFromAI,
   generateDailyTasksFromAI,
   generateTaskStudyFromVideo,

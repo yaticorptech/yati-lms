@@ -4,6 +4,7 @@ const Roadmap = require('../models/Roadmap');
 const ScholarshipProfile = require('../models/ScholarshipProfile');
 const { generateScholarshipsFromAI } = require('../services/geminiService');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
+const { keepLinkedItems, asUrl } = require('../services/linkCheck');
 
 // @desc    The student's scholarship list, or an empty one if none is built yet
 // @route   GET /api/career/scholarships
@@ -15,8 +16,26 @@ const getScholarships = async (req, res) => {
       Goal.findOne({ userId: req.user._id }).select('careerGoal').lean(),
       ScholarshipProfile.findOne({ userId: req.user._id }).select('_id').lean()
     ]);
+
+    /*
+     * Lists built before the check above are already stored with unusable
+     * entries in them, and rebuilding costs a Gemini call, so the linkless
+     * ones are dropped here and the record tidied once.
+     *
+     * Only the linkless ones. Whether a link still RESOLVES is a network round
+     * trip per entry, which belongs on the rare build and not on a read that
+     * happens every time the page opens — a dead link that was stored before
+     * goes on the next rebuild.
+     */
+    let items = doc?.items || [];
+    const usable = items.filter((item) => asUrl(item?.link));
+    if (usable.length !== items.length) {
+      items = usable;
+      await Scholarship.updateOne({ userId: req.user._id }, { $set: { items } });
+    }
+
     res.status(200).json({
-      items: doc?.items || [],
+      items,
       generatedAt: doc?.generatedAt || null,
       builtFor: doc?.builtFor || '',
       hasGoal: !!goal,
@@ -50,7 +69,7 @@ const generateScholarships = async (req, res) => {
       ScholarshipProfile.findOne({ userId: req.user._id }).lean()
     ]);
     const data = await generateScholarshipsFromAI(goal, roadmap, profile);
-    const items = (Array.isArray(data?.scholarships) ? data.scholarships : [])
+    const shaped = (Array.isArray(data?.scholarships) ? data.scholarships : [])
       .filter((s) => s && s.name)
       .map((s) => ({
         name: String(s.name).trim(),
@@ -58,9 +77,30 @@ const generateScholarships = async (req, res) => {
         amount: s.amount ? String(s.amount).trim() : '',
         eligibility: s.eligibility ? String(s.eligibility).trim() : '',
         deadline: s.deadline ? String(s.deadline).trim() : '',
-        link: s.link && /^https?:\/\//i.test(String(s.link)) ? String(s.link).trim() : '',
+        link: asUrl(s.link) || '',
         why: s.why ? String(s.why).trim() : ''
       }));
+
+    /*
+     * Every entry on this page exists to be applied to, so an entry that
+     * cannot be applied to does not belong on it. The prompt tells the model
+     * to leave "link" empty rather than guess, and it obliges often enough
+     * that the list filled up with cards offering "search the name to find the
+     * application page" — which is the student doing the work the page was
+     * for. Guessed URLs that 404 read even worse: a real Apply button that
+     * goes nowhere.
+     *
+     * So the list is checked before it is stored, not on every read: it is
+     * built rarely, read constantly, and a student waiting for their list is
+     * already waiting on the model.
+     */
+    const items = await keepLinkedItems(shaped);
+    if (items.length < shaped.length) {
+      console.warn(
+        `Scholarships for ${req.user._id}: dropped ${shaped.length - items.length} of ` +
+          `${shaped.length} with a missing or dead application link.`
+      );
+    }
 
     const doc = await Scholarship.findOneAndUpdate(
       { userId: req.user._id },
