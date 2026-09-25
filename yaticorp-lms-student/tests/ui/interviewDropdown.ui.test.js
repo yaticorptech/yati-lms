@@ -16,7 +16,7 @@ const api = apiModule({});
 const entry = `
 import { createRoot } from 'react-dom/client';
 import { Briefcase } from 'lucide-react';
-import Dropdown from '${srcFile('interview/Dropdown.jsx')}';
+import Dropdown from '${srcFile('components/Dropdown.jsx')}';
 const OPTIONS = ['Full Stack Developer','Frontend Developer','Backend Developer','Data Analyst',
   'Data Scientist','Software Engineer','Business Analyst','UI/UX Designer','Digital Marketer',
   'Customer Support Executive','Other role…'].map((x) => ({ value: x, label: x }));
@@ -141,7 +141,7 @@ describe('the interview pickers', { skip: skipWithoutStyles }, () => {
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Briefcase } from 'lucide-react';
-import Dropdown from '${srcFile('interview/Dropdown.jsx')}';
+import Dropdown from '${srcFile('components/Dropdown.jsx')}';
 const OPTIONS = ['Full Stack Developer','Frontend Developer','Backend Developer','Data Analyst','Pilot'].map((x) => ({ value: x, label: x }));
 function Demo() {
   const [v, setV] = React.useState('Pilot');

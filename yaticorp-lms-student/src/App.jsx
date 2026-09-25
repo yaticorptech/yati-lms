@@ -98,11 +98,11 @@ const JobsGate = () => {
  */
 const CoursesCompleteGate = () => {
   const { loading, unlocked, total, percent, required } = useCourseCompletion();
-  // A developer working on the Jobs section can open the gate with
-  // VITE_JOBS_GATE_BYPASS=true in .env.local. It is honoured only in a dev
-  // build — a production bundle ignores the flag even if it is set.
-  const devBypass = import.meta.env.DEV && import.meta.env.VITE_JOBS_GATE_BYPASS === 'true';
-  if (devBypass) return <Outlet />;
+  // There used to be a VITE_JOBS_GATE_BYPASS flag here. It was read from the
+  // build, which meant it opened Jobs for every account that signed in on the
+  // machine that had it set, and opened nothing for those same accounts
+  // anywhere else. Exemptions are per account now and come from the server
+  // (JOBS_ALWAYS_OPEN), so they follow the person rather than the computer.
   if (loading) return <CareerFallback />;
   if (unlocked) return <Outlet />;
   return <JobsLockedNotice total={total} percent={percent} required={required} />;

@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Mic, MicOff, Volume2, VolumeX, Square, Check, RotateCcw, Keyboard, Bot, User, ArrowLeft, ArrowRight, Sparkles, Clock, MessageSquareText, ChevronDown, ChevronUp, ShieldCheck, Send, Loader2, AlertTriangle, Briefcase, Code2 } from 'lucide-react';
-import Dropdown from './Dropdown';
+import Dropdown from '../components/Dropdown';
 import { interviewApi, TYPE_META, DURATION, STAGE_LABEL, ROLES, ROLE_OTHER, announceProgress } from './api';
 import { BotScene, FeatureRow } from './IntroArt';
 import { createSpeaker, createListener, requestMicrophone, listenerErrorMessage } from './speech';

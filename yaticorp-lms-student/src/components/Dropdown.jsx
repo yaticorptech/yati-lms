@@ -1,5 +1,5 @@
 /**
- * The interview section's own dropdown.
+ * The app's own dropdown, shared by the interview, jobs and rewards sections.
  *
  * A native <select> can be styled shut but not open: the list is drawn by the
  * operating system, which is why these came out as a grey macOS menu on a
@@ -7,10 +7,20 @@
  * draws its own list, so it looks the same everywhere and can be sized for the
  * screen it is on.
  *
- * On a phone the list is a popup in the middle of the screen, over a dimmed
- * page — a sheet along the bottom edge sat behind the app's own thumb bar,
- * which hid its last option. From sm up it is a panel under the field. Either
- * way it caps its height and scrolls rather than running off the screen.
+ * Two placements, because two sections want different things:
+ *
+ *   'popup' (the default) — on a phone the list is a popup in the middle of
+ *   the screen over a dimmed page. A sheet along the bottom edge sat behind
+ *   the app's own thumb bar, which hid its last option. From sm up it is a
+ *   panel under the field.
+ *
+ *   'panel' — a panel under the field at every width, phone included. The job
+ *   search form's own Target role box already behaves that way, and a
+ *   neighbour answering with a full-screen popup reads as a different kind of
+ *   control on the same form.
+ *
+ * Either way it caps its height and scrolls rather than running off the
+ * screen.
  *
  * The list is portalled to document.body. Drawn inside the page it sat in the
  * card's stacking context, so on a laptop the cards and the Start button that
@@ -21,6 +31,17 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, X } from 'lucide-react';
+
+// The section's own accent. Written out in full: Tailwind cannot see a class
+// name assembled at runtime.
+const ACCENTS = {
+    violet: { icon: 'text-violet-500', on: 'bg-violet-50 text-violet-700', tick: 'text-violet-600', ring: 'focus-visible:ring-violet-500/50' },
+    indigo: { icon: 'text-indigo-500', on: 'bg-indigo-50 text-indigo-700', tick: 'text-indigo-600', ring: 'focus-visible:ring-indigo-500/50' }
+};
+
+// A panel narrower than this is hard to read — the leaderboard's period field
+// is 116px wide, and "This Month" in a 116px panel is not a menu.
+const MIN_PANEL_WIDTH = 176;
 
 const PHONE = '(max-width: 639px)';
 const MAX_PANEL = 288;   // the laptop panel's tallest, in px (was max-h-72)
@@ -40,8 +61,10 @@ const usePhone = () => {
 
 export default function Dropdown({
     value, options, onChange, disabled = false,
-    label, icon: Icon, className = '', panelClassName = ''
+    label, icon: Icon, className = '', panelClassName = '',
+    accent = 'violet', placement = 'popup'
 }) {
+    const tone = ACCENTS[accent] || ACCENTS.violet;
     const [open, setOpen] = useState(false);
     // Which row the keyboard is on. -1 until an arrow key is pressed, so
     // opening with the mouse does not paint a highlight nobody asked for.
@@ -51,7 +74,10 @@ export default function Dropdown({
     const panelRef = useRef(null);
     const listRef = useRef(null);
     const id = useId();
-    const phone = usePhone();
+    const onPhone = usePhone();
+    // 'panel' is placed against its field at every width, so the phone popup
+    // is only for the default placement.
+    const phone = onPhone && placement !== 'panel';
 
     const selected = options.find((o) => o.value === value);
     const close = () => { setOpen(false); setCursor(-1); };
@@ -62,11 +88,17 @@ export default function Dropdown({
         const box = rootRef.current?.getBoundingClientRect();
         if (!box) return;
         const gap = 8;
+        const edge = 8;
         const below = window.innerHeight - box.bottom - gap - 8;
         const above = box.top - gap - 8;
         const up = below < Math.min(MAX_PANEL, 200) && above > below;
+        // Wide enough to read, never wider than the screen, and nudged back
+        // inside it rather than hanging off an edge — a narrow field near one
+        // side would otherwise put half the panel out of reach.
+        const width = Math.min(Math.max(box.width, MIN_PANEL_WIDTH), window.innerWidth - edge * 2);
+        const left = Math.min(Math.max(box.left, edge), window.innerWidth - width - edge);
         setPlace({
-            left: box.left, width: box.width,
+            left, width,
             maxHeight: Math.min(MAX_PANEL, up ? above : below),
             ...(up ? { bottom: window.innerHeight - box.top + gap } : { top: box.bottom + gap })
         });
@@ -145,9 +177,9 @@ export default function Dropdown({
                         onMouseEnter={() => setCursor(i)}
                         onClick={() => pick(o.value)}
                         className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-3.5 py-3 text-sm font-semibold transition-colors sm:py-2.5 ${
-                            on ? 'bg-violet-50 text-violet-700' : cursor === i ? 'bg-slate-100 text-slate-800' : 'text-slate-700'
+                            on ? tone.on : cursor === i ? 'bg-slate-100 text-slate-800' : 'text-slate-700'
                         }`}>
-                        <Check size={15} aria-hidden="true" className={on ? 'shrink-0 text-violet-600' : 'shrink-0 text-transparent'} />
+                        <Check size={15} aria-hidden="true" className={on ? `shrink-0 ${tone.tick}` : 'shrink-0 text-transparent'} />
                         <span className="min-w-0 flex-1">{o.label}</span>
                     </li>
                 );
@@ -164,7 +196,7 @@ export default function Dropdown({
                 onKeyDown={onKeyDown}
                 className={className}
             >
-                {Icon && <Icon size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-violet-500" aria-hidden="true" />}
+                {Icon && <Icon size={17} className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 ${tone.icon}`} aria-hidden="true" />}
                 <span className="block truncate text-left">{selected ? selected.label : ''}</span>
                 <ChevronDown size={17} aria-hidden="true"
                     className={`pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -184,7 +216,7 @@ export default function Dropdown({
                             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
                                 <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</span>
                                 <button type="button" onClick={close} aria-label="Close"
-                                    className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50">
+                                    className={`-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 ${tone.ring}`}>
                                     <X size={18} aria-hidden="true" />
                                 </button>
                             </div>

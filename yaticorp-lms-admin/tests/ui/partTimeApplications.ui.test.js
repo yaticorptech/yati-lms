@@ -41,7 +41,7 @@ export default {
     return Promise.resolve({ data: { applications: rows, total: rows.length, counts } }); },
   post: () => Promise.resolve({ data: {} }),
   put: () => Promise.resolve({ data: {} }),
-  delete: () => Promise.resolve({ data: {} })
+  delete: (url) => { window.__calls.push(['DELETE', url]); return Promise.resolve({ data: { deleted: true } }); }
 };`;
 
 const entry = `
@@ -92,7 +92,10 @@ describe('the part-time applications panel', { skip: skipWithoutChrome }, () => 
         assert.ok(result.params.some((p) => p.status === 'declined'));
     });
 
-    test('an operator has nothing to press that would decide it', async () => {
+    test('nothing here can answer for a parent who has not answered', async () => {
+        // The rows in the fixture are waiting on a parent, or already settled.
+        // None of them is the operator's to decide, so none of them may offer
+        // a button that would.
         const { result } = await screen({
             entry, api: api(), script: `
                 await sleep(800);
@@ -102,7 +105,50 @@ describe('the part-time applications panel', { skip: skipWithoutChrome }, () => 
         // word boundary keeps the past tense out of it.
         const deciding = result.buttons.filter((b) => /\b(approve|decline|reject|accept)\b/i.test(b));
         assert.deepEqual(deciding, [], `nothing here may decide, found ${JSON.stringify(deciding)}`);
-        assert.match(result.body, /cannot be recorded here/, 'and the panel says so');
+        assert.match(result.body, /only once the parent has agreed/i,
+            'and the panel says when a row becomes theirs to answer');
+    });
+
+    test('a row the parent has approved is the operator\'s to sign off', async () => {
+        // canDecide comes from the server, which only sets it once a parent has
+        // agreed. This is the one state where buttons belong.
+        const waiting = [row('a4', 'Meera Rao', 'awaiting-admin', ['done', 'done', 'active', 'waiting'],
+            { decidedAt: '2026-09-12T09:00:00.000Z', canDecide: true })];
+        const { result } = await screen({
+            entry, api: api(waiting), script: `
+                await sleep(800);
+                return { buttons: $$('button').map((b) => b.innerText.replace(/\\s+/g, ' ').trim()).filter(Boolean),
+                         body: text(document.body) };` });
+        assert.ok(result.buttons.some((b) => /^Approve$/i.test(b)), `an Approve button, saw ${JSON.stringify(result.buttons)}`);
+        assert.ok(result.buttons.some((b) => /^Reject$/i.test(b)), 'and a Reject button');
+        assert.match(result.body, /Meera Rao/);
+    });
+
+    test('a request nobody has been told about can be withdrawn', async () => {
+        // canDelete comes from the server and means only one thing: no message
+        // has gone out, so there is nothing of the parent's to erase.
+        const unsent = [row('a5', 'Tejas Shetty', 'needs-guardian', ['waiting', 'waiting', 'waiting', 'waiting'],
+            { requestedAt: null, canDelete: true })];
+        const { result } = await screen({
+            entry, api: api(unsent), script: `
+                await sleep(800);
+                click(/^\\s*Delete\\s*$/); await sleep(200);
+                const asking = text(document.body);
+                click(/Yes, delete it/); await sleep(400);
+                return { asking, calls: window.__calls.filter((c) => c[0] === 'DELETE').map((c) => c[1]) };` });
+        assert.match(result.asking, /Yes, delete it/, 'it asks before it deletes');
+        assert.deepEqual(result.calls, ['/jobs/admin/opportunities/applications/a5']);
+    });
+
+    test('a request the parent has already seen offers no delete', async () => {
+        // Every row in the fixture has been sent; none of them carries
+        // canDelete, so the button must not be anywhere on the page.
+        const { result } = await screen({
+            entry, api: api(), script: `
+                await sleep(800);
+                return { buttons: $$('button').map((b) => b.innerText.replace(/\\s+/g, ' ').trim()) };` });
+        const removing = result.buttons.filter((b) => /^Delete$/i.test(b));
+        assert.deepEqual(removing, [], `no delete belongs here, found ${JSON.stringify(removing)}`);
     });
 
     test('an empty list says so rather than showing nothing', async () => {

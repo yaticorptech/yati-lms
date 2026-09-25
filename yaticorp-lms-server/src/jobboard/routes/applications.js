@@ -140,18 +140,32 @@ router.post('/', async (req, res, next) => {
         if (!profile) return res.status(400).json({ error: 'Tell us your dates and date of birth first.' });
 
         const age = ageFrom(profile.dateOfBirth);
-        const row = await Application.create({
-            userId: req.user._id,
-            opportunityId,
-            student: { name: user?.name || 'Student', age },
-            job: jobSnapshot(opp),
-            guardian: {
-                name: profile.guardian?.guardianName || '',
-                email: profile.guardian?.email || '',
-                phone: profile.guardian?.phone || ''
-            },
-            status: age != null && age >= GUARDIAN_AGE ? 'ready' : 'needs-guardian'
-        });
+        let row;
+        try {
+            row = await Application.create({
+                userId: req.user._id,
+                opportunityId,
+                student: { name: user?.name || 'Student', age },
+                job: jobSnapshot(opp),
+                guardian: {
+                    name: profile.guardian?.guardianName || '',
+                    email: profile.guardian?.email || '',
+                    phone: profile.guardian?.phone || ''
+                },
+                status: age != null && age >= GUARDIAN_AGE ? 'ready' : 'needs-guardian'
+            });
+        } catch (err) {
+            // One student, one application per job — a unique index says so.
+            // The check above misses the case where a second press arrives
+            // while the first is still inserting: both find nothing, both
+            // insert, and the loser was handing the driver's own words to a
+            // student. Pressing Apply twice means the same thing as pressing
+            // it once, so answer with the application that won.
+            if (err?.code !== 11000) throw err;
+            const won = await Application.findOne({ userId: req.user._id, opportunityId });
+            if (!won) throw err;
+            return res.json({ application: studentView(won) });
+        }
         res.status(201).json({ application: studentView(row) });
     } catch (err) { next(err); }
 });

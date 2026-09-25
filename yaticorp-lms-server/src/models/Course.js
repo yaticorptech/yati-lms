@@ -30,6 +30,16 @@ const courseSchema = new mongoose.Schema({
     price: {
         type: Number,
         default: 0
+    },
+    /**
+     * What the course costs in wallet points, as an alternative to the rupee
+     * price. Zero means it is not offered for points at all — the same meaning
+     * zero has for `price`.
+     */
+    pricePoints: {
+        type: Number,
+        default: 0,
+        min: [0, 'A course cannot cost a negative number of points']
     }
 }, { timestamps: true });
 
