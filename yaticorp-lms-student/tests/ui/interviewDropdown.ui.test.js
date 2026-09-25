@@ -57,16 +57,29 @@ const OPEN = `
     };`;
 
 describe('the interview pickers', { skip: skipWithoutStyles }, () => {
-    test('on a phone the list is a sheet that fits the screen', async () => {
+    test('on a phone the list is a popup in the middle of the screen', async () => {
+        // It used to be a sheet on the bottom edge, where the app's own thumb
+        // bar covered its last option.
         const { result, errors } = await screen({ entry, api, width: 500, height: 700, styles: true, script: OPEN });
         assert.deepEqual(errors, []);
         assert.ok(result.opened, 'the list opened');
-        assert.equal(result.left, 0, 'it reaches the left edge');
-        assert.equal(result.right, 0, 'and the right edge');
-        assert.ok(result.bottom <= 1, `it sits on the bottom edge, not ${result.bottom}px above it`);
-        assert.ok(result.top >= 0, `and its top is on screen, not at ${result.top}px`);
+        assert.ok(result.left > 0 && result.right > 0, `a margin at both sides, not ${result.left}/${result.right}px`);
+        assert.ok(Math.abs(result.top - result.bottom) <= 2, `centred: ${result.top}px above, ${result.bottom}px below`);
+        assert.ok(result.bottom >= 16, `clear of the bottom edge and its thumb bar, not ${result.bottom}px`);
         assert.ok(result.height <= result.vh, `the list is ${result.height}px in a ${result.vh}px screen`);
         assert.equal(result.pageWidens, false, 'and nothing pushed the page sideways');
+    });
+
+    test('a tap on the dimmed page beside the popup closes it', async () => {
+        const { result } = await screen({ entry, api, width: 500, height: 700, styles: true, script: `
+            await sleep(500);
+            $('button[aria-haspopup="listbox"]').click(); await sleep(300);
+            const layer = $('[role="listbox"]').parentElement.parentElement;
+            layer.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            await sleep(200);
+            return { closed: !$('[role="listbox"]'), picked: text($('#picked')) };` });
+        assert.ok(result.closed);
+        assert.equal(result.picked, 'Full Stack Developer', 'without changing the choice');
     });
 
     test('a long list scrolls instead of running off the screen', async () => {
@@ -121,5 +134,58 @@ describe('the interview pickers', { skip: skipWithoutStyles }, () => {
         assert.ok(result.left > 0 && result.right > 0, 'it sits under the field, inside the page');
         assert.ok(result.bottom > 1, 'and is not pinned to the bottom of the window');
         assert.equal(result.closerVisible, false, 'and it carries no close bar — clicking away is the exit here');
+    });
+    // The page as it is: the field inside a card that forms its own stacking
+    // layer, with the Start button and the next cards after it in the page.
+    const layered = (fieldTop) => `
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { Briefcase } from 'lucide-react';
+import Dropdown from '${srcFile('interview/Dropdown.jsx')}';
+const OPTIONS = ['Full Stack Developer','Frontend Developer','Backend Developer','Data Analyst','Pilot'].map((x) => ({ value: x, label: x }));
+function Demo() {
+  const [v, setV] = React.useState('Pilot');
+  return (
+    <div style={{ padding: 16, paddingTop: ${fieldTop} }}>
+      <p id="picked">{v}</p>
+      <div style={{ position: 'relative', transform: 'translateZ(0)', background: '#fff', padding: 12 }}>
+        <Dropdown label="Job role" icon={Briefcase} value={v} onChange={setV} options={OPTIONS}
+          className="relative w-full rounded-2xl border border-violet-100 bg-white py-3.5 pl-11 pr-10 text-sm font-semibold text-slate-800" />
+        <button id="start" style={{ position: 'relative', zIndex: 20, display: 'block', width: '100%', height: 56, marginTop: 16 }}>Start Mock Interview</button>
+      </div>
+      <div id="nextcard" style={{ position: 'relative', zIndex: 30, transform: 'translateZ(0)', height: 300, background: '#fef3c7' }}>Areas to improve</div>
+    </div>);
+}
+createRoot(document.getElementById('root')).render(<Demo />);`;
+
+    test('on a laptop the open list is on top of the Start button and the next card', async () => {
+        const { result, errors } = await screen({ entry: layered(40), api, width: 1280, height: 800, styles: true, script: `
+            await sleep(500);
+            const field = $('button[aria-haspopup="listbox"]');
+            field.click(); await sleep(300);
+            const rows = $$('[role="option"]');
+            // What is actually painted at the middle of each row.
+            const onTop = rows.map((r) => { const b = r.getBoundingClientRect(); const hit = document.elementFromPoint(b.left + 40, b.top + b.height / 2); return !!hit && r.contains(hit); });
+            const panel = $('[role="listbox"]').parentElement.getBoundingClientRect();
+            const f = field.getBoundingClientRect();
+            rows.find((r) => /Data Analyst/.test(r.innerText)).click(); await sleep(200);
+            return { onTop, under: panel.top >= f.bottom, aligned: Math.round(panel.left - f.left), picked: text($('#picked')), closed: !$('[role="listbox"]') };` });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result.onTop, [true, true, true, true, true], 'every option is painted above the button and the card');
+        assert.ok(result.under, 'it opens under the field');
+        assert.equal(result.aligned, 0, 'lined up with the field');
+        assert.equal(result.picked, 'Data Analyst', 'and choosing from it still works');
+        assert.ok(result.closed);
+    });
+
+    test('on a laptop, near the bottom of the window it opens upwards, still on screen', async () => {
+        const { result } = await screen({ entry: layered(640), api, width: 1280, height: 800, styles: true, script: `
+            await sleep(500);
+            const field = $('button[aria-haspopup="listbox"]');
+            field.click(); await sleep(300);
+            const panel = $('[role="listbox"]').parentElement.getBoundingClientRect();
+            return { above: panel.bottom <= field.getBoundingClientRect().top, top: panel.top };` });
+        assert.ok(result.above, 'it sits above the field');
+        assert.ok(result.top >= 0, 'and its top is on screen');
     });
 });

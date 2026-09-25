@@ -8,6 +8,7 @@ import { ArrowLeft, UploadCloud, Link as LinkIcon, Cloud, FileText, Upload, Plus
 import api from '../utils/api';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import Select from '../components/Select';
 
 const LessonEditor = () => {
     const { courseId, lessonId } = useParams();
@@ -587,7 +588,7 @@ const LessonEditor = () => {
                             <div className="space-y-6">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 mb-2">Video Provider</label>
-                                    <select
+                                    <Select
                                         className="w-full sm:w-1/2 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-medium text-slate-700 transition-all"
                                         value={lesson.videoSource || 'youtube'}
                                         onChange={(e) => setLesson({ ...lesson, videoSource: e.target.value })}
@@ -596,7 +597,7 @@ const LessonEditor = () => {
                                         <option value="bunny">Bunny.net (Upload from device)</option>
                                         <option value="youtube">YouTube</option>
                                         <option value="generic">Direct URL / Upload (HTML5)</option>
-                                    </select>
+                                    </Select>
                                 </div>
 
                                 <div>

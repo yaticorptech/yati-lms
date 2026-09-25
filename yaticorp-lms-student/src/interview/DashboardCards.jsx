@@ -6,9 +6,8 @@
 import { Link } from 'react-router-dom';
 import {
     Target, ArrowRight, ChevronRight, Star, User, Code2, Users, FolderOpen, MessageSquare,
-    Compass, Cloud, Sparkles, FileText, TrendingUp, Lightbulb, Trophy
+    Compass, Cloud, Sparkles, FileText, TrendingUp, Trophy
 } from 'lucide-react';
-import Illustration from './Illustration';
 import Sparkline from '../components/rewards/Sparkline';
 
 /* One palette, used everywhere, so a colour means the same thing on all three cards. */
@@ -98,11 +97,6 @@ export function TopicsCard({ topics = [] }) {
                 })}
                 {!topics.length && <li className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">Topics appear once you have started a course or a roadmap.</li>}
             </ul>
-            <Link to="/interview/practice" className="iv-card mt-3 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-violet-100 to-indigo-100 px-3 py-2.5">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 text-violet-600"><Lightbulb size={18} /></span>
-                <span className="min-w-0 flex-1 text-sm font-bold text-violet-800">Focus on these topics to boost your confidence!</span>
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-600 text-white shadow-sm"><ArrowRight size={15} /></span>
-            </Link>
         </CardShell>
     );
 }
@@ -112,25 +106,16 @@ const CATEGORY_ICON = { hr: Users, technical: Code2, project: FolderOpen, behavi
 export function PracticeCard({ practice }) {
     return (
         <CardShell icon={FileText} iconClass="bg-gradient-to-br from-sky-500 to-blue-600 shadow-sky-200"
-            title="Practice questions" hint={`${practice.practiced} of ${practice.total} practised · +5 XP each`}
+            title="Practice questions" hint={`${practice.total} question${practice.total === 1 ? '' : 's'} picked for you`}
             action={<HeadLink to="/interview/practice" tone="bg-sky-50 text-sky-700 hover:bg-sky-100">View all</HeadLink>}>
             <ul className="stagger space-y-2">
                 {practice.sample.map((q, i) => {
                     const Icon = CATEGORY_ICON[q.category] || Sparkles; const tone = toneFor(q.topic || q.category, i + 2);
-                    return <Row key={q.id} to="/interview/practice" tone={tone} tile={<Icon size={20} />} label={q.topic} title={q.question} />;
+                    // Straight to that question, opened, on the practice page.
+                    return <Row key={q.id} to={`/interview/practice#q-${encodeURIComponent(q.id)}`} tone={tone} tile={<Icon size={20} />} label={q.topic} title={q.question} />;
                 })}
-                {!practice.sample.length && <li className="rounded-2xl bg-emerald-50 px-3 py-4 text-center text-sm font-semibold text-emerald-800">You have practised every question. Take a mock interview!</li>}
+                {!practice.sample.length && <li className="rounded-2xl bg-emerald-50 px-3 py-4 text-center text-sm font-semibold text-emerald-800">Your questions are in the practice bank. Take a mock interview too!</li>}
             </ul>
-            <div className="@container relative mt-3 overflow-hidden rounded-2xl bg-gradient-to-br from-sky-100 to-indigo-100 p-4">
-                <div className="relative z-10 @[20rem]:max-w-[62%]">
-                    <p className="text-lg font-black leading-tight text-slate-900">More questions,<br />more confidence!</p>
-                    <p className="mt-1 text-xs text-slate-600">Open the practice bank and keep improving.</p>
-                    <Link to="/interview/practice" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-200 transition-transform hover:-translate-y-0.5">
-                        Open the practice bank <ArrowRight size={15} />
-                    </Link>
-                </div>
-                <span className="pointer-events-none absolute -bottom-2 right-1 hidden @[20rem]:block"><Illustration name="thinking" pose="thinking" height={124} /></span>
-            </div>
         </CardShell>
     );
 }

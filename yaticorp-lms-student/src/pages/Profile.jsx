@@ -6,6 +6,7 @@ import saveToDrive from '../integrations/google/saveToDrive';
 import CertificatesFrame from '../components/CertificatesFrame';
 import ResumeSection from '../components/ResumeSection';
 import AiKeySettings from '../components/AiKeySettings';
+import OrganizationButton from '../organization/OrganizationButton';
 import Cropper from 'react-easy-crop';
 import {
     CreditCard, Mail, Phone, Award, Loader2, Edit2, Check, X, Camera, ZoomIn, ZoomOut,
@@ -394,6 +395,11 @@ const Profile = () => {
                                     <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 ring-1 ring-white/25"><CreditCard size={13} /> <span className="font-mono">{user?.cardNumber}</span></span>
                                     <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 ring-1 ring-white/25"><Mail size={13} /> <span className="truncate">{user?.email || 'No email yet'}</span></span>
                                     <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 ring-1 ring-white/25"><Phone size={13} /> {user?.phone || 'No phone yet'}</span>
+                                    {/* A button, not a panel: it opens a popup and
+                                        shows the organization's name once there is
+                                        one. The other place this is offered is the
+                                        signup form. */}
+                                    <OrganizationButton />
                                 </div>
                             </>
                         ) : (

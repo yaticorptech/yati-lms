@@ -5,6 +5,7 @@
 const mongoose = require('mongoose');
 const Quiz = require('../models/Quiz');
 const GlobalQuestion = require('../models/GlobalQuestion');
+const { livePaper } = require('../services/globalQuizService');
 const Setting = require('../models/Setting');
 
 // @desc    Get quiz for a specific lesson (Student view - hides correct answers)
@@ -161,8 +162,8 @@ const submitQuizAnswers = async (req, res) => {
  * no reward activity.
  */
 
-const MAX_QUESTIONS = 25;
-const DEFAULT_QUESTIONS = 10;
+// The largest paper a quiz can be (see GlobalQuiz's size limit).
+const MAX_QUESTIONS = 50;
 
 const shuffle = (rows) => {
     const out = [...rows];
@@ -172,23 +173,26 @@ const shuffle = (rows) => {
 
 const quizConfig = async () => (await Setting.findOne().select('globalQuiz').lean())?.globalQuiz || {};
 
-// @desc    A general-knowledge paper from the global bank
-// @route   GET /api/user/quizzes/global?limit=10
+// @desc    The published Global Quiz, shuffled. The administrator decides the
+//          paper — its questions and how many — so every student gets all of
+//          it. A `limit` sent by an older client is not applied.
+// @route   GET /api/user/quizzes/global
 // @access  Private/User
 const getGlobalQuiz = async (req, res) => {
     try {
         const config = await quizConfig();
         if (config.enabled === false) return res.status(403).json({ code: 'GLOBAL_QUIZ_OFF', message: 'The global quiz is currently unavailable.' });
-        const fallback = Math.min(MAX_QUESTIONS, Math.max(3, Number(config.defaultLength) || DEFAULT_QUESTIONS));
-        const limit = Math.min(MAX_QUESTIONS, Math.max(3, Number(req.query.limit) || fallback));
-
-        const pool = await GlobalQuestion.find({ isPublished: { $ne: false } }).select('question options category difficulty').lean();
-        const picked = shuffle(pool).slice(0, limit);
+        // No published quiz: an empty paper, which the student app already
+        // shows as "No quiz questions yet".
+        const live = await livePaper();
+        const pool = live ? live.questions : [];
+        const picked = shuffle(pool).slice(0, MAX_QUESTIONS);
         res.json({
             // The answers stay on the server; the client sends the ids back to be marked.
             questions: picked.map((q) => ({ questionId: String(q._id), questionText: q.question, options: q.options, category: q.category || 'General', difficulty: q.difficulty || 'medium' })),
             available: pool.length,
-            categories: [...new Set(pool.map((q) => q.category || 'General'))]
+            categories: [...new Set(pool.map((q) => q.category || 'General'))],
+            quiz: live ? { title: live.quiz.title, description: live.quiz.description } : null
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });

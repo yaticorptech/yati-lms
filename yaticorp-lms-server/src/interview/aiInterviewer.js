@@ -206,12 +206,13 @@ const generateQuestions = async ({ context, userId }) => {
 PROFILE:
 ${profile(context)}
 
-Answer ONLY with JSON: {"topics": [5-6 of {"topic": string, "reason": "why it matters for them, under 12 words"}], "questions": [18-24 of {"category": "hr"|"technical"|"project"|"behavioral"|"situational", "topic": string, "question": string, "hint": "how to answer well, one sentence", "difficulty": "easy"|"medium"|"hard"}]}
-Mix: about 4 hr, 8-10 technical across their skills, 3-4 project, 3 behavioral, 2 situational.`;
+Answer ONLY with JSON: {"topics": [5-6 of {"topic": string, "reason": "why it matters for them, under 12 words"}], "questions": [30-40 of {"category": "hr"|"technical"|"project"|"behavioral"|"situational", "topic": string, "question": string, "hint": "how to answer well, one sentence", "difficulty": "easy"|"medium"|"hard"}]}
+Mix: about 6 hr, 12-15 technical across their skills, 5 project, 5 behavioral, 4 situational. Vary the difficulty, and never ask the same thing twice in different words.`;
     try {
-        const out = await call(prompt, { userId, kind: 'interview-bank', maxOutputTokens: 3000 });
+        // Room for 40 questions with their hints; 3000 tokens held about 24.
+        const out = await call(prompt, { userId, kind: 'interview-bank', maxOutputTokens: 7000 });
         const cats = ['hr', 'technical', 'project', 'behavioral', 'situational'];
-        const questions = (out.questions || []).filter((q) => q && q.question && cats.includes(q.category)).slice(0, 24)
+        const questions = (out.questions || []).filter((q) => q && q.question && cats.includes(q.category)).slice(0, 40)
             .map((q, i) => ({ id: `${q.category}-${i + 1}`, category: q.category, topic: String(q.topic || '').slice(0, 60), question: String(q.question).slice(0, 400), hint: String(q.hint || '').slice(0, 300), difficulty: ['easy', 'medium', 'hard'].includes(q.difficulty) ? q.difficulty : 'medium' }));
         if (questions.length < 8) throw new Error('too few questions');
         const topics = (out.topics || []).slice(0, 6).map((t) => ({ topic: String(t.topic || '').slice(0, 60), reason: String(t.reason || '').slice(0, 120) }));

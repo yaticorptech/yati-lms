@@ -4,7 +4,7 @@
  */
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 
@@ -99,6 +99,19 @@ const Login = () => {
                                 className="w-full py-3 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all">
                                 {loading ? 'Signing in...' : 'Sign In'}
                             </button>
+
+                            {/* An institution signing in for the first time has
+                                nothing to sign in with yet, so the way in has to
+                                be here rather than somewhere they never reach. */}
+                            <div className="pt-2 text-center">
+                                <p className="text-sm text-slate-400">
+                                    Are you a school, college or company?
+                                </p>
+                                <Link to="/register-organization"
+                                    className="mt-1 inline-block text-sm font-bold text-indigo-400 transition-colors hover:text-indigo-300">
+                                    Register Your Organization
+                                </Link>
+                            </div>
                         </form>
                     )}
 

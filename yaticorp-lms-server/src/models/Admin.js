@@ -1,6 +1,7 @@
 /**
  * @author Preethesh Kulal
- * @description Mongoose schema for organization admin accounts with bcrypt password hashing and 2FA support
+ * @description Mongoose schema for admin accounts (platform and per-organization)
+ *              with bcrypt password hashing and 2FA support
  */
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
@@ -18,10 +19,30 @@ const adminSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    /**
+     * superadmin — the whole platform, including organization approval
+     * admin      — the whole platform's content and students
+     * orgadmin   — one organization only, and nothing else; see
+     *              src/organizations/. An orgadmin token is deliberately
+     *              refused by protectAdmin, so /api/admin/* stays closed to it.
+     */
     role: {
         type: String,
-        enum: ['superadmin', 'admin'],
+        enum: ['superadmin', 'admin', 'orgadmin'],
         default: 'admin'
+    },
+    /**
+     * The organization an `orgadmin` speaks for. Null for platform admins.
+     *
+     * This — never a value from the request — is what organization queries are
+     * scoped by, so an organization admin cannot reach another organization's
+     * students by editing a URL or a payload.
+     */
+    organizationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization',
+        default: null,
+        index: true
     },
     twoFactorSecret: {
         type: String,
