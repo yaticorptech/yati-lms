@@ -11,11 +11,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Mic, MicOff, Volume2, VolumeX, Square, Check, RotateCcw, Keyboard, Bot, User, ArrowLeft, ArrowRight, Sparkles, Clock, MessageSquareText, ChevronDown, ChevronUp, ShieldCheck, Send, Loader2, AlertTriangle, Briefcase, Code2 } from 'lucide-react';
-import Dropdown from './Dropdown';
+import Dropdown from '../components/Dropdown';
 import { interviewApi, TYPE_META, DURATION, STAGE_LABEL, ROLES, ROLE_OTHER, announceProgress } from './api';
 import { BotScene, FeatureRow } from './IntroArt';
 import { createSpeaker, createListener, requestMicrophone, listenerErrorMessage } from './speech';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
+import { markReturn } from './scrollMemory';
 
 const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 const PHASE = {
@@ -71,7 +72,7 @@ function Intro({ session, onStart, starting, error }) {
     return (
         <div className="mx-auto max-w-3xl pb-12 animate-fade-in">
             <div className="flex items-center justify-between gap-3">
-                <Link to="/interview" className="group inline-flex items-center gap-2.5 text-base font-black text-slate-900">
+                <Link to="/interview" onClick={markReturn} className="group inline-flex items-center gap-2.5 text-base font-black text-slate-900">
                     <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors group-hover:border-violet-300 group-hover:text-violet-600"><ArrowLeft size={17} /></span>
                     Interview
                 </Link>

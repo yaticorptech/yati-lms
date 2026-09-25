@@ -307,6 +307,32 @@ const decideApplication = (verb) => async (req, res, next) => {
 router.post('/opportunities/applications/:id/approve', decideApplication('approve'));
 router.post('/opportunities/applications/:id/decline', decideApplication('decline'));
 
+/**
+ * DELETE /admin/opportunities/applications/:id
+ *
+ * Removes an application that never left the building: the student started it
+ * and no request was ever sent, so no parent has seen it and nothing was
+ * decided. That is the only case. Once a message has gone to a parent the row
+ * is a record of something that happened to somebody else — a request they
+ * received, an answer they gave — and an operator does not get to erase it.
+ */
+router.delete('/opportunities/applications/:id', async (req, res, next) => {
+  try {
+    const Application = require('../models/JobApplication');
+    const row = await Application.findById(req.params.id).catch(() => null);
+    if (!row) return res.status(404).json({ error: 'Application not found.' });
+
+    if (row.status !== 'needs-guardian' || row.mailSentAt || row.requestedAt) {
+      return res.status(409).json({
+        error: 'This request has already gone to the parent. It can no longer be deleted.'
+      });
+    }
+
+    await Application.deleteOne({ _id: row._id });
+    res.json({ deleted: true, id: String(row._id) });
+  } catch (err) { next(err); }
+});
+
 /* ── Opportunities: guardian decisions and safety reports ─────────────── */
 
 /**

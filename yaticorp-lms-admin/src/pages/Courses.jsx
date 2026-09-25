@@ -2,7 +2,7 @@
  * @author Preethesh Kulal
  * @description Admin course listing with status filters, search and course card management
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
@@ -21,7 +21,7 @@ const Courses = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [openDropdown, setOpenDropdown] = useState(null);
 
-    const [formData, setFormData] = useState({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, duration: 31 });
+    const [formData, setFormData] = useState({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, pricePoints: 0, duration: 31 });
     const [editId, setEditId] = useState(null);
     const [courseToDelete, setCourseToDelete] = useState(null);
     const [uploadingThumb, setUploadingThumb] = useState(false);
@@ -70,11 +70,19 @@ const Courses = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            // The two number boxes may be left empty; an empty box is zero, and
+            // this is the only place that decides it. Doing it on every
+            // keystroke put a 0 back the moment the box was cleared.
+            const payload = {
+                ...formData,
+                price: Number(formData.price) || 0,
+                pricePoints: Number(formData.pricePoints) || 0
+            };
             if (editId) {
-                await api.put(`/admin/courses/${editId}`, formData);
+                await api.put(`/admin/courses/${editId}`, payload);
                 fetchCourses();
             } else {
-                const newCourse = await api.post('/admin/courses', formData);
+                const newCourse = await api.post('/admin/courses', payload);
                 if (newCourse.data && newCourse.data._id) {
                     navigate(`/courses/${newCourse.data._id}`);
                 } else {
@@ -82,7 +90,7 @@ const Courses = () => {
                 }
             }
             setShowModal(false);
-            setFormData({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, duration: 31 });
+            setFormData({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, pricePoints: 0, duration: 31 });
         } catch (err) {
             console.error(err);
 
@@ -109,6 +117,21 @@ const Courses = () => {
         }
     };
 
+    // The ⋮ menu closes on any press outside it, and on Escape.
+    useEffect(() => {
+        if (!openDropdown) return undefined;
+        const onDown = (e) => { if (!e.target.closest?.('[data-course-menu]')) setOpenDropdown(null); };
+        const onKey = (e) => { if (e.key === 'Escape') setOpenDropdown(null); };
+        document.addEventListener('mousedown', onDown);
+        document.addEventListener('touchstart', onDown);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('mousedown', onDown);
+            document.removeEventListener('touchstart', onDown);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, [openDropdown]);
+
     const totalCourses = courses.length;
     const publishedCourses = courses.filter(c => c.isPublished).length;
     const unpublishedCourses = totalCourses - publishedCourses;
@@ -124,23 +147,22 @@ const Courses = () => {
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in relative z-0 max-w-7xl mx-auto pb-10">
             {/* Header section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <div>
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
                     <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 leading-tight">Courses</h1>
                     <p className="text-sm lg:text-base text-slate-500 mt-1">Manage and organize your LMS curriculum</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 md:mt-0">
-                    <button
-                        onClick={() => { setEditId(null); setFormData({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, duration: 31 }); setShowModal(true); }}
-                        className="w-full sm:w-auto flex items-center justify-center px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
-                    >
-                        <Plus size={18} className="mr-2" /> Create Course
-                    </button>
-                </div>
+                <button
+                    onClick={() => { setEditId(null); setFormData({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, pricePoints: 0, duration: 31 }); setShowModal(true); }}
+                    aria-label="Create Course"
+                    className="flex shrink-0 items-center justify-center gap-2 px-4 sm:px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
+                >
+                    <Plus size={18} /> <span className="hidden sm:inline">Create Course</span><span className="sm:hidden">New</span>
+                </button>
             </div>
 
             {/* Search and Filter */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div className="relative w-full lg:w-96">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                         <Filter size={18} className="text-slate-400" />
@@ -158,13 +180,14 @@ const Courses = () => {
                         </button>
                     )}
                 </div>
-                <div className="flex items-center gap-3 px-1 lg:px-0">
-                    <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+                <div className="flex items-stretch gap-2 sm:gap-3">
+                    <div className="flex flex-1 gap-1 bg-slate-100 p-1 rounded-xl lg:flex-none">
                         {['all', 'published', 'draft'].map(f => (
                             <button
                                 key={f}
                                 onClick={() => setStatusFilter(f)}
-                                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${statusFilter === f
+                                aria-pressed={statusFilter === f}
+                                className={`flex-1 px-3 sm:px-4 py-1.5 rounded-lg text-sm font-semibold transition-all lg:flex-none ${statusFilter === f
                                     ? 'bg-white text-indigo-600 shadow'
                                     : 'text-slate-500 hover:text-slate-700'
                                     }`}
@@ -175,112 +198,67 @@ const Courses = () => {
                     </div>
                     <button
                         onClick={() => setSortOrder(v => v === 'newest' ? 'oldest' : 'newest')}
-                        className={`text-sm font-bold flex items-center gap-2 border rounded-lg px-3 py-2.5 bg-white transition-colors ${sortOrder === 'oldest' ? 'border-indigo-400 text-indigo-600' : 'border-slate-200 text-slate-600 hover:text-indigo-600'}`}
+                        aria-label={sortOrder === 'newest' ? 'Sorted latest first' : 'Sorted oldest first'}
+                        className={`shrink-0 text-sm font-bold flex items-center gap-2 border rounded-xl px-3 bg-white transition-colors ${sortOrder === 'oldest' ? 'border-indigo-400 text-indigo-600' : 'border-slate-200 text-slate-600 hover:text-indigo-600'}`}
                     >
-                        <Calendar size={16} className="opacity-70" />
-                        {sortOrder === 'newest' ? 'Latest First' : 'Oldest First'}
+                        <ArrowUpDown size={16} className="opacity-70" />
+                        <span className="hidden sm:inline">{sortOrder === 'newest' ? 'Latest First' : 'Oldest First'}</span>
+                        <span className="sm:hidden">{sortOrder === 'newest' ? 'Latest' : 'Oldest'}</span>
                     </button>
                 </div>
             </div>
 
-            {/* Stats Dashboard */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 bg-gradient-to-br from-indigo-50 via-white to-purple-50 border border-indigo-100 rounded-2xl p-4 lg:p-6 mb-8 shadow-sm relative overflow-hidden">
+            {/* Stats: three across at every width, compact on a phone. */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6 bg-gradient-to-br from-indigo-50 via-white to-purple-50 border border-indigo-100 rounded-2xl p-2.5 sm:p-4 lg:p-6 shadow-sm relative overflow-hidden">
                 {/* Decorative blob shapes */}
                 <div className="absolute -top-20 -left-20 w-48 h-48 bg-indigo-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
                 <div className="absolute -bottom-20 -right-20 w-48 h-48 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
-                <div className="absolute top-1/2 left-1/2 w-48 h-48 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
 
-                <div className="relative z-10 flex flex-col items-center justify-center p-3 sm:p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white shadow-sm hover:shadow transition-all duration-300">
-                    <div className="text-3xl font-black text-slate-800 tracking-tight">{totalCourses}</div>
-                    <div className="text-[11px] font-bold tracking-widest text-slate-500 uppercase mt-2">Total Courses</div>
-                </div>
-                <div className="relative z-10 flex flex-col items-center justify-center p-3 sm:p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white shadow-sm hover:shadow transition-all duration-300">
-                    <div className="text-3xl font-black text-indigo-600 tracking-tight">{publishedCourses}</div>
-                    <div className="text-[11px] font-bold tracking-widest text-indigo-500 uppercase mt-2">Published Courses</div>
-                </div>
-                <div className="relative z-10 flex flex-col items-center justify-center p-3 sm:p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white shadow-sm hover:shadow transition-all duration-300">
-                    <div className="text-3xl font-black text-amber-500 tracking-tight">{unpublishedCourses}</div>
-                    <div className="text-[11px] font-bold tracking-widest text-amber-500 uppercase mt-2">Draft Courses</div>
-                </div>
+                {[
+                    { value: totalCourses, label: 'Total', long: 'Total Courses', tone: 'text-slate-800', sub: 'text-slate-500' },
+                    { value: publishedCourses, label: 'Published', long: 'Published Courses', tone: 'text-indigo-600', sub: 'text-indigo-500' },
+                    { value: unpublishedCourses, label: 'Drafts', long: 'Draft Courses', tone: 'text-amber-500', sub: 'text-amber-500' }
+                ].map((stat) => (
+                    <div key={stat.long} className="relative z-10 flex min-w-0 flex-col items-center justify-center rounded-xl border border-white bg-white/60 px-1 py-3 sm:p-4 shadow-sm backdrop-blur-sm">
+                        <div className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${stat.tone}`}>{stat.value}</div>
+                        <div className={`mt-1 sm:mt-2 max-w-full truncate text-[10px] sm:text-[11px] font-bold uppercase tracking-wider sm:tracking-widest ${stat.sub}`}>
+                            <span className="sm:hidden">{stat.label}</span><span className="hidden sm:inline">{stat.long}</span>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             {/* Course Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-20">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 pb-20">
                 {loading ? (
                     <div className="col-span-full py-12 text-center text-slate-500">Loading your courses...</div>
                 ) : filteredCourses.map(course => (
-                    <div key={course._id} className="bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100 overflow-visible hover:shadow-[0_12px_36px_-4px_rgba(0,0,0,0.1)] hover:-translate-y-1 transition-all duration-300 flex flex-col group relative">
-                        <div className="h-48 bg-slate-800 relative overflow-hidden flex items-center justify-center rounded-t-2xl">
+                    <div key={course._id} className="bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100 overflow-visible hover:shadow-[0_12px_36px_-4px_rgba(0,0,0,0.1)] lg:hover:-translate-y-1 transition-all duration-300 flex flex-col group relative">
+                        <Link to={`/courses/${course._id}`} aria-label={`Open ${course.title} in the builder`}
+                            className="h-36 sm:h-44 bg-gradient-to-br from-slate-800 to-indigo-900 relative overflow-hidden flex items-center justify-center rounded-t-2xl">
                             {course.thumbnail ? (
-                                <img src={course.thumbnail} alt={course.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                <img src={course.thumbnail} alt="" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                             ) : (
-                                <div className="text-white text-lg font-bold text-center z-10">{course.title}</div>
-                            )}
-
-                            {/* Dropdown Toggle Button */}
-                            <div className="absolute top-3 right-3 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <button
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        setOpenDropdown(openDropdown === course._id ? null : course._id);
-                                    }}
-                                    className="p-1.5 bg-white/90 backdrop-blur text-slate-700 rounded-lg shadow-sm hover:bg-white hover:text-indigo-600 transition-colors"
-                                >
-                                    <MoreVertical size={20} />
-                                </button>
-                            </div>
-
-                            {/* Dropdown Menu */}
-                            {openDropdown === course._id && (
-                                <div className="absolute top-12 right-3 z-40 w-48 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-fade-in flex flex-col">
-                                    <button
-                                        onClick={() => { setEditId(course._id); setFormData(course); setShowModal(true); setOpenDropdown(null); }}
-                                        className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 hover:text-indigo-600 font-medium transition-colors w-full text-left"
-                                    >
-                                        <Settings size={16} className="mr-3 text-slate-400" /> Edit Details
-                                    </button>
-                                    <button
-                                        onClick={() => handleTogglePublish(course)}
-                                        className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 hover:text-indigo-600 font-medium transition-colors border-t border-slate-50 w-full text-left"
-                                    >
-                                        {course.isPublished ? (
-                                            <><EyeOff size={16} className="mr-3 text-slate-400" /> Unpublish</>
-                                        ) : (
-                                            <><Eye size={16} className="mr-3 text-slate-400" /> Publish</>
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={() => { confirmDelete(course); setOpenDropdown(null); }}
-                                        className="flex items-center px-4 py-3 text-sm text-red-600 hover:bg-red-50 font-medium transition-colors border-t border-slate-50 w-full text-left"
-                                    >
-                                        <Trash2 size={16} className="mr-3 flex-shrink-0" /> Delete Course
-                                    </button>
+                                <div className="z-10 flex flex-col items-center gap-2 px-6 text-center text-white">
+                                    <BookOpen size={28} className="text-indigo-300" />
+                                    <span className="line-clamp-2 text-base font-bold">{course.title}</span>
                                 </div>
                             )}
+                            <span className={`absolute left-3 top-3 rounded-md px-2 py-0.5 text-[11px] font-bold shadow-sm ${course.isPublished ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-amber-950'}`}>
+                                {course.isPublished ? 'Published' : 'Draft'}
+                            </span>
+                        </Link>
 
-                            {/* Overlay Builder Action (on hover, bottom left) */}
-                            <div className="absolute bottom-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm z-20">
-                                <Link to={`/courses/${course._id}`} className="px-4 py-2 bg-indigo-600/90 text-white text-sm font-bold rounded-lg hover:bg-indigo-600 transition-colors shadow-lg flex items-center shadow-indigo-500/30" title="Course Builder">
-                                    <LayoutList size={16} className="mr-2" /> Builder
-                                </Link>
-                            </div>
-                        </div>
 
-                        <div className="p-6 flex-1 flex flex-col">
+                        <div className="p-4 sm:p-5 flex-1 flex flex-col">
 
-                            {/* ROW 1 → Title + ID */}
-                            <div className="flex items-center justify-between gap-3">
-                                <h3
-                                    className="font-bold text-lg text-slate-900 line-clamp-1 leading-snug"
-                                    title={course.title}
-                                >
-                                    {course.title}
-                                </h3>
-
-                                <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded whitespace-nowrap">
-                                    ID: {course._id}
-                                </span>
-                            </div>
+                            {/* ROW 1 → Title, and the ID under it */}
+                            <h3 className="font-bold text-lg text-slate-900 line-clamp-2 leading-snug" title={course.title}>
+                                {course.title}
+                            </h3>
+                            <span className="mt-1 w-fit max-w-full truncate text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                ID: {course._id}
+                            </span>
 
                             {/* ROW 2 → Lessons + Date */}
                             <div className="flex items-center justify-between mt-3">
@@ -300,20 +278,49 @@ const Courses = () => {
                                 </div>
                             </div>
 
-                            {/* ROW 3 → Price + Status */}
-                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                                <span className="text-lg font-bold text-slate-900">
-                                    ₹ {course.price || '5,000'}
+                            {/* ROW 3 → Price, and the actions — always visible, since a
+                                touchscreen has no hover to reveal them. */}
+                            <div className="mt-auto flex items-center gap-2 pt-3">
+                                <span className="mr-auto text-lg font-bold text-slate-900 tabular-nums">
+                                    {Number(course.price) > 0 ? `₹ ${Number(course.price).toLocaleString('en-IN')}` : 'Free'}
                                 </span>
-
-                                <span
-                                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md tracking-wide ${course.isPublished
-                                            ? 'bg-emerald-50 text-emerald-600'
-                                            : 'bg-red-50 text-red-500'
-                                        }`}
-                                >
-                                    {course.isPublished ? 'Published' : 'Unpublished'}
-                                </span>
+                                <Link to={`/courses/${course._id}`} title="Course Builder"
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
+                                    <LayoutList size={16} /> Builder
+                                </Link>
+                                <div className="relative" data-course-menu>
+                                    <button
+                                        onClick={() => setOpenDropdown(openDropdown === course._id ? null : course._id)}
+                                        aria-label={`More actions for ${course.title}`} aria-haspopup="menu" aria-expanded={openDropdown === course._id}
+                                        className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 hover:text-indigo-600"
+                                    >
+                                        <MoreVertical size={18} />
+                                    </button>
+                                    {openDropdown === course._id && (
+                                        <div role="menu" className="absolute bottom-full right-0 z-40 mb-2 w-48 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl animate-fade-in">
+                                            <button role="menuitem"
+                                                onClick={() => { setEditId(course._id); setFormData(course); setShowModal(true); setOpenDropdown(null); }}
+                                                className="flex w-full items-center px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600"
+                                            >
+                                                <Settings size={16} className="mr-3 text-slate-400" /> Edit Details
+                                            </button>
+                                            <button role="menuitem"
+                                                onClick={() => handleTogglePublish(course)}
+                                                className="flex w-full items-center border-t border-slate-50 px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600"
+                                            >
+                                                {course.isPublished
+                                                    ? <><EyeOff size={16} className="mr-3 text-slate-400" /> Unpublish</>
+                                                    : <><Eye size={16} className="mr-3 text-slate-400" /> Publish</>}
+                                            </button>
+                                            <button role="menuitem"
+                                                onClick={() => { confirmDelete(course); setOpenDropdown(null); }}
+                                                className="flex w-full items-center border-t border-slate-50 px-4 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+                                            >
+                                                <Trash2 size={16} className="mr-3 flex-shrink-0" /> Delete Course
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                         </div>
@@ -325,13 +332,13 @@ const Courses = () => {
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in text-left">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-                        <div className="flex justify-between items-center p-6 border-b border-slate-200 bg-slate-50 flex-shrink-0">
+                        <div className="flex justify-between items-center p-4 sm:p-6 border-b border-slate-200 bg-slate-50 flex-shrink-0">
                             <h2 className="text-xl font-bold text-slate-800">
                                 {editId ? 'Edit Course Settings' : 'Create New Course'}
                             </h2>
                             <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
                         </div>
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+                        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-1">
                                     Course Title <span className="text-red-500">*</span>
@@ -397,13 +404,26 @@ const Courses = () => {
                                 />
                                 <label htmlFor="isPublished" className="text-sm font-semibold text-slate-700 cursor-pointer">Published to Students</label>
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Price (₹)</label>
-                                <input
-                                    type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: Number(e.target.value) })}
-                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="0"
-                                />
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Price (₹)</label>
+                                    <input
+                                        type="number" min="0" value={formData.price ?? ''}
+                                        onChange={e => setFormData({ ...formData, price: e.target.value === '' ? '' : Number(e.target.value) })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Wallet points</label>
+                                    <input
+                                        type="number" min="0" step="1"
+                                        value={formData.pricePoints ?? ''}
+                                        onChange={e => setFormData({ ...formData, pricePoints: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="0"
+                                    />
+                                </div>
                             </div>
 
                             <div className="pt-4 border-t border-slate-100 flex justify-end space-x-3">

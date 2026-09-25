@@ -1,12 +1,37 @@
 /**
  * @author Preethesh Kulal
- * @description Handles admin login, 2FA setup and verification
+ * @description Handles admin login, 2FA setup and verification, for platform
+ *              administrators and organization administrators alike
  */
 const Admin = require('../models/Admin');
 const generateToken = require('../utils/generateToken');
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const { validatePasswordStrength } = require('../middleware/validatePassword');
+
+/**
+ * What an organization administrator's sign-in has to carry beyond the usual
+ * fields, so the admin app knows to send them to their own dashboard rather
+ * than the platform one, and can show an application still under review.
+ *
+ * Returns {} for a platform admin, so the login response is byte-for-byte what
+ * it was before organizations existed.
+ */
+const organizationContext = async (admin) => {
+    if (admin.role !== 'orgadmin' || !admin.organizationId) return {};
+    const Organization = require('../organizations/models/Organization');
+    const organization = await Organization.findById(admin.organizationId)
+        .select('name orgCode status statusReason')
+        .lean();
+    if (!organization) return { organizationStatus: 'missing' };
+    return {
+        organizationId: String(organization._id),
+        organizationName: organization.name,
+        orgCode: organization.orgCode,
+        organizationStatus: organization.status,
+        organizationStatusReason: organization.statusReason || ''
+    };
+};
 
 // @desc    Auth admin & get 2FA prompt or token
 // @route   POST /api/admin/login
@@ -32,6 +57,7 @@ const loginAdmin = async (req, res) => {
                 email: admin.email,
                 role: admin.role,
                 requires2FA: false,
+                ...(await organizationContext(admin)),
                 token: generateToken(admin._id, admin.role)
             });
         } else {
@@ -67,6 +93,7 @@ const verify2FA = async (req, res) => {
                 name: admin.name,
                 email: admin.email,
                 role: admin.role,
+                ...(await organizationContext(admin)),
                 token: generateToken(admin._id, admin.role)
             });
         } else {

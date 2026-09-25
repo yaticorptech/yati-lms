@@ -7,6 +7,7 @@ import Sparkline from '../components/rewards/Sparkline';
 import { Section, ErrorBox, Analyzing, Empty, Btn } from '../learningbio/ui';
 import { CountUp, ScoreRing } from './ui';
 import { useNavigate } from 'react-router-dom';
+import { markReturn } from './scrollMemory';
 
 export default function InterviewHistory() {
     const navigate = useNavigate();
@@ -21,7 +22,7 @@ export default function InterviewHistory() {
     const first = series[0]; const last = series[series.length - 1];
     return (
         <div className="mx-auto max-w-4xl space-y-5 pb-12 animate-fade-in">
-            <Link to="/interview" className="inline-flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-indigo-600"><ArrowLeft size={15} /> Interview</Link>
+            <Link to="/interview" onClick={markReturn} className="inline-flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-indigo-600"><ArrowLeft size={15} /> Interview</Link>
             {rows.length > 1 && (
                 <Section icon={TrendingUp} title="Your progress" hint={last > first ? `Up ${last - first} points since your first interview.` : 'Keep practising — the next one can be your best.'}>
                     <div className="flex flex-wrap items-center gap-5">

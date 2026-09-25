@@ -320,7 +320,13 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                       below, and the half above the top can never be reached —
                       which is how the title came to be sliced along its middle.
                       Anchored to the top, any overflow goes downward only. */}
-                  <div className="flex h-full items-stretch justify-center pt-16 pb-[7.5rem] sm:items-start sm:p-6">
+                  {/* The backdrop covers the window, but the card is placed in
+                      the content area — clear of the 16rem sidebar and the 4rem
+                      header. Centred on the window it sat 150px left of where
+                      the page's own centre is, and its top edge tucked under
+                      the header bar. Gutters come from padding rather than a
+                      narrower card, which would squeeze the two columns. */}
+                  <div className="flex h-full items-stretch justify-center pt-16 pb-[7.5rem] sm:items-start sm:px-6 sm:py-6 md:pl-[17.5rem] md:pr-6 md:pt-[5.5rem] md:pb-6 lg:pr-10 lg:pb-8">
                     <div className="relative flex max-h-full w-full max-w-5xl">
                         <ProfileOnboarding vocab={vocab} initial={data.profile} onSaved={onSaved} onCancel={hasProfile ? () => setEditing(false) : undefined} />
                     </div>

@@ -9,6 +9,7 @@
  * on a row appear.
  */
 import { useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import api from '../utils/api';
 
 const FILTERS = [
@@ -97,6 +98,62 @@ const Decide = ({ row, onDone }) => {
                 <button type="button" disabled={!!busy} onClick={() => send('decline')}
                     className="min-h-10 flex-1 rounded-xl border border-rose-200 bg-white px-4 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-60 sm:flex-none">
                     {busy === 'decline' ? 'Rejecting…' : 'Reject'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Removing an application that never left the building.
+ *
+ * Offered only where nothing has gone to a parent — no message sent, no answer
+ * given. Anything further on is a record of something that happened to someone
+ * else, and is not an operator's to erase; the route refuses those as well, so
+ * this button appearing is never what decides it.
+ */
+const Delete = ({ row, onDone }) => {
+    const [asking, setAsking] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+
+    const remove = () => {
+        setBusy(true); setError('');
+        api.delete(`/jobs/admin/opportunities/applications/${row.id}`)
+            .then(() => onDone())
+            .catch((e) => setError(e.response?.data?.error || 'Could not delete it. Try again.'))
+            .finally(() => setBusy(false));
+    };
+
+    if (!asking) {
+        return (
+            <div className="mt-3">
+                <button type="button" onClick={() => setAsking(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600">
+                    <Trash2 size={13} /> Delete
+                </button>
+                {error && <p className="mt-2 text-xs font-semibold text-rose-600">{error}</p>}
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50/60 p-3">
+            <p className="text-xs font-bold text-rose-900">
+                Delete {row.student?.name || 'this student'}&apos;s application for {row.job?.title || 'this job'}?
+            </p>
+            <p className="mt-1 text-xs text-rose-800/80">
+                Nothing was sent to a parent, so nobody else has seen it. The student can apply again.
+            </p>
+            {error && <p className="mt-2 text-xs font-semibold text-rose-700">{error}</p>}
+            <div className="mt-2.5 flex flex-wrap gap-2">
+                <button type="button" onClick={remove} disabled={busy}
+                    className="min-h-9 rounded-lg bg-rose-600 px-3 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-60">
+                    {busy ? 'Deleting…' : 'Yes, delete it'}
+                </button>
+                <button type="button" onClick={() => { setAsking(false); setError(''); }}
+                    className="min-h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                    Keep it
                 </button>
             </div>
         </div>
@@ -238,6 +295,7 @@ export default function PartTimeApplicationsPanel() {
                                 </dl>
                             )}
                             {row.canDecide && <Decide row={row} onDone={load} />}
+                            {row.canDelete && <Delete row={row} onDone={load} />}
                         </div>
                     </li>
                 ))}

@@ -3,6 +3,7 @@
  * @description Axios instance for student API calls with auth token interceptor
  */
 import axios from 'axios';
+import { clearCareerCache } from '../career/services/api';
 
 const apiBaseURL = import.meta.env.VITE_API_URL;
 
@@ -22,7 +23,18 @@ api.interceptors.request.use(config => {
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
+    // A save anywhere in the LMS (a finished lesson, a redeemed reward) can
+    // change what Career Path shows, so its cached reads are dropped.
+    if ((config.method || 'get').toLowerCase() !== 'get') clearCareerCache();
     return config;
 });
+
+const clearAfterSave = (config) => {
+    if (config && (config.method || 'get').toLowerCase() !== 'get') clearCareerCache();
+};
+api.interceptors.response.use(
+    (response) => { clearAfterSave(response.config); return response; },
+    (error) => { clearAfterSave(error.config); return Promise.reject(error); }
+);
 
 export default api;

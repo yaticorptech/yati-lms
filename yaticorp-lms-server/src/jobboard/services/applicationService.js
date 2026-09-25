@@ -136,6 +136,9 @@ const adminView = (row) => ({
     // The only state an operator may act on. Before the guardian has answered
     // there is nothing here to press, which is the point.
     canDecide: row.status === 'awaiting-admin',
+    // Nothing has gone to the parent, so there is nothing of theirs to erase.
+    // The route checks this again; this is only so the button knows to appear.
+    canDelete: row.status === 'needs-guardian' && !row.mailSentAt && !row.requestedAt,
     waitingOn: WAITING_ON[row.status] || '',
     updatedAt: row.updatedAt
 });

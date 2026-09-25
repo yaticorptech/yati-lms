@@ -4,11 +4,12 @@
  * adds the rows around the student.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Trophy, ChevronDown, ArrowUp, ArrowDown, Minus, ArrowRight } from 'lucide-react';
+import { Trophy, ArrowUp, ArrowDown, Minus, ArrowRight } from 'lucide-react';
 import api from '../../utils/api';
 import { num } from './format';
 import LeaderboardCelebration from './LeaderboardCelebration';
 import LeaderboardPodium, { Avatar } from './LeaderboardPodium';
+import Dropdown from '../Dropdown';
 
 const PERIODS = [['daily', 'Today'], ['weekly', 'This Week'], ['monthly', 'This Month'], ['all', 'All Time']];
 const Change = ({ m }) => m == null || m === 0
@@ -103,12 +104,16 @@ export default function LeaderboardCard() {
                     <h2 className="flex items-center gap-2.5 text-xl font-black text-slate-900"><Trophy size={22} className="shrink-0 text-amber-500" /> Leaderboard</h2>
                     <p className="text-sm text-slate-500">Compete with learners and climb the ranks</p>
                 </div>
-                <label className="relative shrink-0">
-                    <select value={period} onChange={(e) => setPeriod(e.target.value)} className="appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none">
-                        {PERIODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                    </select>
-                    <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                </label>
+                <div className="relative shrink-0">
+                    <Dropdown
+                        label="Period" accent="indigo" placement="panel"
+                        value={period}
+                        options={PERIODS.map(([v, l]) => ({ value: v, label: l }))}
+                        onChange={setPeriod}
+                        className="relative rounded-xl border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
+                        panelClassName="left-auto right-0 w-40"
+                    />
+                </div>
             </div>
 
             {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">{error}</div>}

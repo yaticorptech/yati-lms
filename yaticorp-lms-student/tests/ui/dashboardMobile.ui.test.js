@@ -90,6 +90,59 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
         }
     });
 
+    test('the tabs are one scrolling line, not three wrapped ones', async () => {
+        const { result, errors } = await screen({
+            entry, api, width: PHONE, styles: true, script: `
+                await sleep(900);
+                const strip = $('[role="tablist"]');
+                const tabs = $$('[role="tab"]');
+                const tops = [...new Set(tabs.map((t) => Math.round(t.getBoundingClientRect().top)))];
+                return {
+                    rows: tops.length,
+                    count: tabs.length,
+                    scrollable: strip.scrollWidth > strip.clientWidth,
+                    pageScrollsSideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+                    barHeight: strip.offsetHeight - strip.clientHeight,
+                    moreRight: strip.parentElement.dataset.moreRight,
+                    moreLeft: strip.parentElement.dataset.moreLeft
+                };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.count, 6, 'all six tabs are there');
+        assert.equal(result.rows, 1, `they sit on one line, found ${result.rows}`);
+        assert.equal(result.scrollable, true, 'and that line scrolls, since six do not fit a phone');
+        assert.equal(result.pageScrollsSideways, false, 'the page itself stays put');
+        assert.equal(result.barHeight, 0, 'no scrollbar is drawn under the tabs');
+        assert.equal(result.moreRight, 'true', 'the right edge fades, to say there is more that way');
+        assert.equal(result.moreLeft, 'false', 'and the left does not, since it starts at the start');
+    });
+
+    test('choosing a tab off the edge brings it into view', async () => {
+        // The reason this strip used to wrap: a tab past the edge was a tab
+        // nobody found. Scrolling is only acceptable if the chosen one comes
+        // to the front.
+        const { result, errors } = await screen({
+            entry, api, width: PHONE, styles: true, budget: 20_000, script: `
+                await sleep(900);
+                const strip = $('[role="tablist"]');
+                const last = $$('[role="tab"]').find((t) => /Weekly activity/.test(t.innerText));
+                const before = { left: Math.round(strip.scrollLeft),
+                                 visible: last.getBoundingClientRect().right <= strip.getBoundingClientRect().right + 1 };
+                last.click();
+                await sleep(500);
+                const s = strip.getBoundingClientRect(), l = last.getBoundingClientRect();
+                return { before,
+                         after: { left: Math.round(strip.scrollLeft),
+                                  visible: l.left >= s.left - 1 && l.right <= s.right + 1 },
+                         moreLeft: strip.parentElement.dataset.moreLeft,
+                         moreRight: strip.parentElement.dataset.moreRight };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.before.visible, false, 'the last tab starts off the edge');
+        assert.equal(result.after.visible, true, 'and choosing it scrolls it fully into view');
+        assert.ok(result.after.left > result.before.left, 'the strip really moved');
+        assert.equal(result.moreLeft, 'true', 'now the left edge fades instead');
+        assert.equal(result.moreRight, 'false', 'and the right does not, at the end of the strip');
+    });
+
     test('the continue row keeps a readable title, instead of being crushed', async () => {
         const { result } = await screen({
             entry, api, width: PHONE, styles: true, script: `

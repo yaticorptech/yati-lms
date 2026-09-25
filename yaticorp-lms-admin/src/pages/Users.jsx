@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 import { Html5Qrcode } from 'html5-qrcode';
 import useAutoRefresh from '../hooks/useAutoRefresh';
+import Select from '../components/Select';
 
 const Users = () => {
     const [users, setUsers] = useState([]);
@@ -22,6 +23,11 @@ const Users = () => {
     const [selectedAssignId, setSelectedAssignId] = useState('');
 
     const [search, setSearch] = useState('');
+    // Every organization on the platform, for the filter dropdown, plus which
+    // one is selected. '' is all of them, 'none' is the students who belong to
+    // no organization.
+    const [organizations, setOrganizations] = useState([]);
+    const [orgFilter, setOrgFilter] = useState('');
 
     // invalid entry interactive popup 
     const [showAlert, setShowAlert] = useState(false);
@@ -106,6 +112,13 @@ const Users = () => {
                 setBundles(publishedBundles);
             })
             .catch(console.error);
+
+        // The organizations, for the filter dropdown. Silent on failure: the
+        // dropdown simply does not render, and student management — which has
+        // nothing to do with organizations — keeps working exactly as before.
+        api.get('/organizations/admin/options')
+            .then(res => setOrganizations(res.data.organizations || []))
+            .catch(() => {});
 
     }, []);
 
@@ -470,12 +483,23 @@ const Users = () => {
     };
 
     const query = search.trim().toLowerCase();
-    const filteredUsers = users.filter(user =>
-        !query ||
-        user.name?.toLowerCase().includes(query) ||
-        user.email?.toLowerCase().includes(query) ||
-        String(user.cardNumber ?? '').toLowerCase().includes(query)
-    );
+    const filteredUsers = users.filter(user => {
+        const matchesQuery = !query ||
+            user.name?.toLowerCase().includes(query) ||
+            user.email?.toLowerCase().includes(query) ||
+            String(user.cardNumber ?? '').toLowerCase().includes(query) ||
+            user.organization?.name?.toLowerCase().includes(query) ||
+            user.organization?.orgCode?.toLowerCase().includes(query);
+
+        // Filtered here rather than by refetching: this page already loads every
+        // student, and the shared auto-refresh hook holds its first fetch
+        // function for the life of the page, so a server-side filter would be
+        // undone by the next 30-second tick.
+        const matchesOrg = !orgFilter
+            || (orgFilter === 'none' ? !user.organizationId : String(user.organizationId) === orgFilter);
+
+        return matchesQuery && matchesOrg;
+    });
 
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in relative z-0 pb-10">
@@ -495,6 +519,20 @@ const Users = () => {
                         />
                         <UserSearch className="absolute left-3.5 top-3 text-slate-400" size={18} />
                     </div>
+                    {organizations.length > 0 && (
+                        <Select
+                            value={orgFilter}
+                            onChange={(e) => setOrgFilter(e.target.value)}
+                            aria-label="Filter students by organization"
+                            className="w-full sm:w-52 px-4 py-2.5 border border-slate-300 rounded-xl bg-white text-sm shadow-sm focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 transition-all"
+                        >
+                            <option value="">All Organizations</option>
+                            <option value="none">No organization</option>
+                            {organizations.map(org => (
+                                <option key={org._id} value={org._id}>{org.name}</option>
+                            ))}
+                        </Select>
+                    )}
                     <button
                         onClick={downloadTemplate}
                         className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap"
@@ -524,11 +562,12 @@ const Users = () => {
                     <div className="p-8 text-center text-slate-500">Loading users...</div>
                 ) : (
                     <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse min-w-[720px]">
+                    <table className="w-full text-left border-collapse min-w-[860px]">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase">
                                 <th className="px-6 py-4 font-semibold">User Details</th>
                                 <th className="px-6 py-4 font-semibold">Card Number</th>
+                                <th className="px-6 py-4 font-semibold">Organization</th>
                                 <th className="px-6 py-4 font-semibold">Status</th>
                                 <th className="px-6 py-4 font-semibold text-right">Actions</th>
                             </tr>
@@ -541,6 +580,16 @@ const Users = () => {
                                         <div className="text-sm text-slate-500">{user.email}</div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-600 font-mono text-sm">{user.cardNumber}</td>
+                                    <td className="px-6 py-4">
+                                        {user.organization ? (
+                                            <>
+                                                <div className="text-sm font-medium text-slate-700">{user.organization.name}</div>
+                                                <div className="font-mono text-xs text-slate-400">{user.organization.orgCode}</div>
+                                            </>
+                                        ) : (
+                                            <span className="text-sm text-slate-400">—</span>
+                                        )}
+                                    </td>
                                     <td className="px-6 py-4">
                                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
                                             {user.status}
@@ -642,7 +691,7 @@ const Users = () => {
                                 <div className="flex flex-wrap items-center gap-3">
 
                                     {/* TYPE SELECT */}
-                                    <select
+                                    <Select
                                         value={selectedAssignType}
                                         onChange={(e) => {
                                             setSelectedAssignType(e.target.value);
@@ -653,10 +702,10 @@ const Users = () => {
                                     >
                                         <option value="Course">Course</option>
                                         <option value="Bundle">Bundle</option>
-                                    </select>
+                                    </Select>
 
                                     {/* COURSE SELECT */}
-                                    <select
+                                    <Select
                                         value={selectedAssignId}
                                         onChange={(e) => setSelectedAssignId(e.target.value)}
                                         className="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm w-52 focus:ring-2 focus:ring-indigo-500"
@@ -675,7 +724,7 @@ const Users = () => {
                                                 </option>
                                             ))
                                         }
-                                    </select>
+                                    </Select>
 
                                     {/* BUTTON */}
                                     <button
@@ -1165,7 +1214,7 @@ const Users = () => {
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 mb-1">Phone Number *</label>
                                         <div className="flex gap-2">
-                                            <select
+                                            <Select
                                                 value={newUser.phoneCode || '+91'}
                                                 onChange={e => setNewUser({ ...newUser, phoneCode: e.target.value })}
                                                 className="px-2 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm w-24"
@@ -1177,7 +1226,7 @@ const Users = () => {
                                                 <option value="+61">🇦🇺 +61</option>
                                                 <option value="+65">🇸🇬 +65</option>
                                                 <option value="+60">🇲🇾 +60</option>
-                                            </select>
+                                            </Select>
                                             <input type="tel" required placeholder="Phone number"
                                                 value={newUser.phone}
                                                 onChange={e => setNewUser({ ...newUser, phone: e.target.value.replace(/\D/g, '') })} pattern="\d{10}" maxLength={10}
@@ -1227,7 +1276,7 @@ const Users = () => {
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-1">Phone Number *</label>
                                     <div className="flex gap-2">
-                                        <select
+                                        <Select
                                             value={editUserForm.phoneCode || '+91'}
                                             onChange={e => setEditUserForm({ ...editUserForm, phoneCode: e.target.value })}
                                             className="px-2 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm w-24"
@@ -1239,7 +1288,7 @@ const Users = () => {
                                             <option value="+61">🇦🇺 +61</option>
                                             <option value="+65">🇸🇬 +65</option>
                                             <option value="+60">🇲🇾 +60</option>
-                                        </select>
+                                        </Select>
                                         <input
                                             type="tel"
                                             required
@@ -1257,21 +1306,21 @@ const Users = () => {
                                     <div className="col-span-2 text-[11px] font-black uppercase tracking-wider text-slate-400 pt-2">Rewards &amp; wallet</div>
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 mb-1">Account type</label>
-                                        <select value={editUserForm.accountType || 'school_student'} onChange={e => setEditUserForm({ ...editUserForm, accountType: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+                                        <Select value={editUserForm.accountType || 'school_student'} onChange={e => setEditUserForm({ ...editUserForm, accountType: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
                                             <option value="school_student">School student</option>
                                             <option value="college_student">College student</option>
                                             <option value="adult">Adult</option>
                                             <option value="professional">Professional</option>
                                             <option value="instructor">Instructor</option>
-                                        </select>
+                                        </Select>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 mb-1">Cash rewards</label>
-                                        <select value={editUserForm.walletAccess || 'default'} onChange={e => setEditUserForm({ ...editUserForm, walletAccess: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
+                                        <Select value={editUserForm.walletAccess || 'default'} onChange={e => setEditUserForm({ ...editUserForm, walletAccess: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
                                             <option value="default">By account type (default)</option>
                                             <option value="enabled">Always enabled</option>
                                             <option value="disabled">Always disabled</option>
-                                        </select>
+                                        </Select>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 mb-1">Institution</label>

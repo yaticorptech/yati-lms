@@ -1,6 +1,7 @@
 /**
  * @author Preethesh Kulal
- * @description Student registration flow: QR validation, card verification and account creation
+ * @description Student registration flow: QR validation, card verification, account
+ *              creation and an optional organization join request
  */
 const User = require('../models/User');
 const Card = require('../models/Card');
@@ -10,6 +11,49 @@ const Enrollment = require('../models/Enrollment');
 const generateToken = require('../utils/generateToken');
 const { validatePasswordStrength } = require('../middleware/validatePassword');
 const { findUserByCardNumber } = require('../utils/cardNumber');
+const Organization = require('../organizations/models/Organization');
+const OrgJoinRequest = require('../organizations/models/JoinRequest');
+const { normalizeOrgCode, isValidOrgCodeFormat } = require('../organizations/services/orgCode');
+
+/**
+ * The optional Organization ID a student may type while signing up.
+ *
+ * Handled here rather than by the student calling the organization API, because
+ * at this point there is no account and therefore no token. It is the only place
+ * a join request is created without a signed-in student, and it still creates
+ * nothing more than a request — the organization's own admin decides, exactly as
+ * it does from the dashboard.
+ *
+ * Every failure is soft and reported rather than thrown. The field is optional,
+ * so a mistyped or unrecognised code must never cost someone their account; they
+ * are told what happened and can try again from the dashboard.
+ */
+const requestOrganizationAtSignup = async (userId, rawCode) => {
+    const orgCode = normalizeOrgCode(rawCode);
+    if (!orgCode) return null;
+
+    if (!isValidOrgCodeFormat(orgCode)) {
+        return { requested: false, orgCode, message: `"${rawCode}" does not look like an Organization ID. They start with your organization's name, like ABC-2026-0001. You can add yours later from your dashboard.` };
+    }
+
+    try {
+        const organization = await Organization.findOne({ orgCode, status: 'active' }).select('name orgCode').lean();
+        if (!organization) {
+            return { requested: false, orgCode, message: `We could not find an active organization with the ID ${orgCode}. Your account is ready — you can add the right ID later from your dashboard.` };
+        }
+
+        await OrgJoinRequest.create({ userId, organizationId: organization._id, status: 'pending' });
+        return {
+            requested: true,
+            orgCode: organization.orgCode,
+            name: organization.name,
+            message: `Your request to join ${organization.name} has been sent. They will be asked to approve you.`
+        };
+    } catch (error) {
+        console.error('[registration] could not record the organization request:', error.message);
+        return { requested: false, orgCode, message: 'Your account is ready, but we could not send your organization request. You can try again from your dashboard.' };
+    }
+};
 
 // @desc    Validate QR Code and return card details (read-only)
 // @route   POST /api/auth/validate-qr
@@ -155,7 +199,7 @@ const getPublishedContent = async (req, res) => {
 // @access  Public
 const registerStudent = async (req, res) => {
     try {
-        const { name, email, phone, CardNumber, CVV, qrCodeNumber, password, courseId, contentType } = req.body;
+        const { name, email, phone, CardNumber, CVV, qrCodeNumber, password, courseId, contentType, orgCode } = req.body;
 
         // courseId/contentType are optional: a student may register before any
         // content is published and enrol later from the dashboard.
@@ -212,11 +256,16 @@ const registerStudent = async (req, res) => {
         card.status = 'used';
         await card.save();
 
+        // Optional, and last, so nothing about it can affect the account that has
+        // just been created. `organization` is null when the field was left blank.
+        const organization = await requestOrganizationAtSignup(user._id, orgCode);
+
         res.status(201).json({
             _id: user._id,
             name: user.name,
             email: user.email,
             cardNumber: user.cardNumber,
+            organization,
             token: generateToken(user._id)
         });
 

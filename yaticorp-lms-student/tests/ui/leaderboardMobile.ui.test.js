@@ -72,7 +72,7 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
             entry: entry(320), api, width: PHONE_VIEWPORT, styles: true, script: `
                 await sleep(900);
                 const heading = $$('h2').find((h) => /Leaderboard/.test(h.innerText));
-                const picker = $('select');
+                const picker = $('button[aria-haspopup="listbox"]');
                 return {
                     headingFits: heading.scrollWidth <= heading.clientWidth + 1,
                     heading: text(heading),
@@ -88,7 +88,7 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
             entry: entry("'100%'"), api, width: 1280, styles: true, script: `
                 await sleep(900);
                 const heading = $$('h2').find((h) => /Leaderboard/.test(h.innerText));
-                const picker = $('select');
+                const picker = $('button[aria-haspopup="listbox"]');
                 return { sameLine: picker.getBoundingClientRect().top < heading.getBoundingClientRect().bottom };` });
         assert.ok(result.sameLine, 'one line again when there is room');
     });
@@ -126,6 +126,52 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
         assert.equal(result.tableVisible, true);
         assert.deepEqual(result.headers, ['Rank', 'Learner', 'Level', 'XP', 'Streak', 'Badge', 'Change']);
         assert.equal(result.stackedVisible, 0, 'only one of the two is ever on screen');
+    });
+
+    test('the period picker opens the app\'s own panel, not a system menu', async () => {
+        // This was a native <select>. macOS drew its open list itself — a grey
+        // menu with no relation to the card around it — and no CSS can reach
+        // it, because the list belongs to the operating system.
+        const { result, errors } = await screen({
+            entry: entry(360), api, width: PHONE_VIEWPORT, styles: true, script: `
+                await sleep(900);
+                const btn = $('button[aria-haspopup="listbox"]');
+                const f = btn.getBoundingClientRect();
+                btn.click(); await sleep(400);
+                const panel = $('ul[role="listbox"]').parentElement;
+                const p = panel.getBoundingClientRect();
+                const box = $('#box').getBoundingClientRect();
+                return {
+                    bg: String(getComputedStyle(panel).backgroundColor),
+                    gap: Math.round(p.top - f.bottom),
+                    width: Math.round(p.width),
+                    offScreen: Math.round(Math.max(0, p.right - window.innerWidth) + Math.max(0, -p.left)),
+                    insideCardish: p.left >= box.left - 8,
+                    labels: $$('li[role="option"]').map((r) => r.innerText.trim())
+                };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.bg, 'rgb(255, 255, 255)', 'the list is the app\'s white panel');
+        // The panel is portalled to <body> and placed from the field's
+        // measured box, so what matters is where it lands, not which CSS
+        // position property put it there.
+        assert.ok(result.width >= 170, `and wide enough to read a period in, was ${result.width}px`);
+        assert.ok(result.gap >= 0 && result.gap <= 8, `just under the field, gap was ${result.gap}px`);
+        assert.equal(result.offScreen, 0, 'no part of it is off the screen');
+        assert.equal(result.insideCardish, true, 'and it is not hanging off the left of the card');
+        assert.deepEqual(result.labels, ['Today', 'This Week', 'This Month', 'All Time']);
+    });
+
+    test('choosing a period asks the server for that period', async () => {
+        const { result, errors } = await screen({
+            entry: entry(360), api, width: PHONE_VIEWPORT, styles: true, script: `
+                await sleep(900);
+                $('button[aria-haspopup="listbox"]').click(); await sleep(400);
+                $$('li[role="option"]')[2].click(); await sleep(600);
+                return { closed: text($('button[aria-haspopup="listbox"]')),
+                         asked: window.__calls.filter((c) => /leaderboard/.test(c[1])).map((c) => c[2] && c[2].period) };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.closed, 'This Month', 'the field shows the choice');
+        assert.equal(result.asked.at(-1), 'monthly', 'and the board is refetched for it');
     });
 
     test('the two shapes list exactly the same people', async () => {

@@ -13,13 +13,14 @@ import {
     MessageCircle, Code2, Heart, BookOpen, Users, Crown, Briefcase, ChevronDown, FolderOpen,
     MessageSquare, Star, Gauge
 } from 'lucide-react';
-import Dropdown from './Dropdown';
+import Dropdown from '../components/Dropdown';
 import { interviewApi, TYPE_META, fmtDate, ROLES, ROLE_OTHER as OTHER } from './api';
 import Illustration from './Illustration';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
 import { TopicsCard, PracticeCard, ImproveCard } from './DashboardCards';
 import { ScoreRing, CountUp } from './ui';
 import { TIPS } from './tips';
+import { useReturnScroll } from './scrollMemory';
 
 /* Each part of readiness gets its own colour, so the row is read at a glance. */
 const PARTS = {
@@ -96,6 +97,8 @@ export default function InterviewDashboard() {
 
     const load = useCallback(() => interviewApi.dashboard().then((d) => { setData(d); setRole((r) => r || d.student.goal || ROLES[0]); setError(null); }).catch((e) => { setError(e); setData(null); }), []);
     useEffect(() => { load(); }, [load]);
+    // Back from a practice, report or history page lands where the student left off.
+    const rootRef = useReturnScroll(Boolean(data));
 
     const roleOptions = useMemo(() => {
         const goal = data?.student.goal?.trim();
@@ -116,7 +119,7 @@ export default function InterviewDashboard() {
             : ['🏆', 'Keep going!', "You're doing great!"];
 
     return (
-        <div className="mx-auto max-w-6xl space-y-5 pb-12 animate-fade-in">
+        <div ref={rootRef} className="mx-auto max-w-6xl space-y-5 pb-12 animate-fade-in">
             {/* ── Welcome ─────────────────────────────────────────── */}
             <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-100 via-indigo-50 to-sky-100 p-5 shadow-sm ring-1 ring-indigo-100 sm:p-7">
                 <span aria-hidden="true" className="pointer-events-none absolute -right-10 top-10 h-56 w-56 rounded-full bg-white/50 blur-3xl" />
@@ -175,7 +178,7 @@ export default function InterviewDashboard() {
                     <CardHead icon={BarChart3} tint="bg-indigo-100 text-indigo-600" title="Your Readiness">Based on your courses, skills, assessments, projects and past interviews.</CardHead>
                     <div className="space-y-3.5">{r.breakdown.map((b) => <PartRow key={b.key} part={b.key} label={b.label} value={b.value} />)}</div>
                     <div className="stagger mt-5 grid grid-cols-3 gap-2">
-                        <StatTile icon={BookOpen} tone="text-indigo-500" value={<><CountUp value={r.prep.practiced} />/{r.prep.total}</>} label="Practised" />
+                        <StatTile icon={BookOpen} tone="text-indigo-500" value={<CountUp value={r.prep.total} />} label="Practice questions" />
                         <StatTile icon={Users} tone="text-violet-500" value={<CountUp value={r.prep.mocks} />} label="Mock interviews" />
                         <StatTile icon={Crown} tone="text-amber-500" value={r.best ? <CountUp value={r.best} suffix="%" /> : '—'} label="Best score" />
                     </div>

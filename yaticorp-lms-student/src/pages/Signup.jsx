@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
-import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, QrCode, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard } from 'lucide-react';
+import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, QrCode, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 // Password strength validator
@@ -109,6 +109,16 @@ const Signup = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [passwordFocused, setPasswordFocused] = useState(false);
+    /**
+     * What the server did with the optional Organization ID, or null when the
+     * field was left blank.
+     *
+     * A student who typed an ID has to be told whether it worked — a valid-looking
+     * code for an organization that does not exist would otherwise vanish without
+     * a word. A student who left it blank sees nothing extra and goes straight to
+     * the dashboard, so this costs the common case nothing.
+     */
+    const [signupOutcome, setSignupOutcome] = useState(null);
 
     // QR validation state
     const [qrCodeNumber, setQrCodeNumber] = useState('');
@@ -131,7 +141,10 @@ const Signup = () => {
         email: '',
         phone: '',
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        // Optional. A student with no school, college or company leaves it blank
+        // and nothing about their account is different.
+        orgCode: ''
     });
 
     const stopScanner = () => {
@@ -209,6 +222,14 @@ const Signup = () => {
             return setError('Only @gmail.com email addresses are allowed.');
         }
 
+        // The Organization ID is optional, so an empty box is fine. A filled one
+        // has to look like an ID: the shape is worth checking now, while the
+        // field is still on screen to correct.
+        const typedOrgCode = formData.orgCode.trim();
+        if (typedOrgCode && !/^[A-Za-z]+-\d{4}-\d{3,}$/.test(typedOrgCode.replace(/\s+/g, ''))) {
+            return setError('That Organization ID does not look right. They start with your organization\'s name, like ABC-2026-0001, or you can leave it blank.');
+        }
+
         setStep(3);
     };
 
@@ -232,13 +253,21 @@ const Signup = () => {
                 CardNumber: cardDetails.CardNumber,
                 CVV: cardDetails.CVV,
                 qrCodeNumber: qrCodeNumber.trim(),
-                password: formData.password
+                password: formData.password,
+                // Optional; the server looks it up and, if it is an active
+                // organization, records a join request for them to approve.
+                orgCode: formData.orgCode.trim()
             });
 
             localStorage.setItem('studentToken', res.data.token);
             localStorage.setItem('studentData', JSON.stringify(res.data));
             setUser(res.data);
-            navigate('/');
+
+            if (res.data.organization) {
+                setSignupOutcome(res.data.organization);
+            } else {
+                navigate('/');
+            }
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
             setStep(1);
@@ -303,6 +332,7 @@ const Signup = () => {
                 {/* ── Right: the sign-up card ──────────────────────────── */}
                 <section className="relative bg-white px-5 py-8 sm:px-10 sm:py-10">
                     <div className="mx-auto max-w-md">
+                        {!signupOutcome && (
                         <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
                             <span className="lg-float flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 ring-1 ring-indigo-100">
                                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300"><UserPlus size={18} /></span>
@@ -318,6 +348,7 @@ const Signup = () => {
                                 <span className="ml-1 text-xs font-bold uppercase tracking-wider text-slate-400">Step {step} of 3</span>
                             </div>
                         </div>
+                        )}
 
                         {/* Step 1: card QR */}
                         {step === 1 && (
@@ -442,6 +473,31 @@ const Signup = () => {
                                     </div>
                                 </div>
 
+                                {/* Optional, and said so twice: in the label and
+                                    under the box. A student with no institution
+                                    should not feel they are missing a step. */}
+                                <div>
+                                    <label htmlFor="signup-org-code" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                                        <Building2 size={15} className="text-slate-500" /> Organization ID
+                                        <span className="font-normal text-slate-400">(optional)</span>
+                                    </label>
+                                    <input
+                                        id="signup-org-code"
+                                        type="text"
+                                        name="orgCode"
+                                        value={formData.orgCode}
+                                        onChange={handleInputChange}
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        className={`${inputClass} font-mono uppercase tracking-wide`}
+                                        placeholder="ABC-2026-0001"
+                                    />
+                                    <p className="mt-1.5 text-xs text-slate-500">
+                                        Only if your school, college or company gave you one. They will be asked to approve
+                                        you, and can then follow your progress. You can add it later instead.
+                                    </p>
+                                </div>
+
                                 <div className="flex gap-3">
                                     <button type="button" onClick={() => { setError(null); setStep(1); setQrValidated(false); }} className={backBtn}><ArrowLeft size={15} /> Back</button>
                                     <button type="submit" className={primaryBtn}>
@@ -453,7 +509,7 @@ const Signup = () => {
                         )}
 
                         {/* Step 3: password */}
-                        {step === 3 && (
+                        {step === 3 && !signupOutcome && (
                             <form className="lg-rise mt-6 space-y-5" onSubmit={handleRegistrationSubmit} style={{ animationDelay: '0.2s' }}>
                                 {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">{error}</div>}
 
@@ -525,6 +581,34 @@ const Signup = () => {
                             </form>
                         )}
 
+                        {/* The optional Organization ID, answered. Only ever shown
+                            to someone who filled that field in. */}
+                        {signupOutcome && (
+                            <div className="lg-rise mt-2 space-y-5 text-center" style={{ animationDelay: '0.1s' }}>
+                                <span className={`lg-float mx-auto flex h-16 w-16 items-center justify-center rounded-full ring-1 ${signupOutcome.requested ? 'bg-emerald-50 ring-emerald-100' : 'bg-amber-50 ring-amber-100'}`}>
+                                    <span className={`flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-md ${signupOutcome.requested ? 'bg-emerald-600 shadow-emerald-300' : 'bg-amber-500 shadow-amber-300'}`}>
+                                        {signupOutcome.requested ? <CheckCircle2 size={18} /> : <Building2 size={18} />}
+                                    </span>
+                                </span>
+                                <div>
+                                    <h2 className="text-2xl font-black tracking-tight text-slate-900">Your account is ready</h2>
+                                    <p className="mt-2 text-sm text-slate-600">{signupOutcome.message}</p>
+                                </div>
+                                {!signupOutcome.requested && (
+                                    <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs text-slate-500">
+                                        Your dashboard has an <strong>Add organization</strong> button — you can enter the
+                                        right ID there whenever you have it.
+                                    </p>
+                                )}
+                                <button type="button" onClick={() => navigate('/')} className={primaryBtn}>
+                                    Go to my dashboard
+                                    <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>
+                                </button>
+                            </div>
+                        )}
+
+                        {!signupOutcome && (
+                            <>
                         <button type="button" onClick={() => setShowContact(true)}
                             className="lg-rise mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50" style={{ animationDelay: '0.3s' }}>
                             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600"><MessageCircleQuestion size={16} /></span>
@@ -535,6 +619,8 @@ const Signup = () => {
                         <p className="mt-5 text-center text-xs text-slate-500">
                             Already have an account? <Link to="/login" className="font-bold text-indigo-600 hover:underline">Sign in here</Link>
                         </p>
+                            </>
+                        )}
                     </div>
                 </section>
             </div>

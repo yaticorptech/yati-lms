@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Info, Loader2, ShieldCheck, X } from 'lucide-react';
 import api from '../career/services/api';
+import Select from './Select';
 
 /**
  * The details scholarship schemes ask for, which the career goal does not
@@ -149,11 +150,12 @@ export default function ScholarshipProfileForm({ onSaved, onClose, gated = false
       <div className="space-y-4 px-5 py-4">
         <div className="grid gap-4 sm:grid-cols-2">
           {FIELDS.map((f) => (
-            <label key={f.key} className="block">
+            <div key={f.key}>
               <span className="block text-xs font-bold text-slate-700">{f.label}</span>
-              <select
+              <Select
                 value={form[f.key]}
                 onChange={(e) => set(f.key)(e.target.value)}
+                aria-label={f.label}
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400"
               >
                 <option value="">Prefer not to say</option>
@@ -162,9 +164,9 @@ export default function ScholarshipProfileForm({ onSaved, onClose, gated = false
                     {o}
                   </option>
                 ))}
-              </select>
+              </Select>
               <span className="mt-1 block text-[0.7rem] leading-relaxed text-slate-400">{f.why}</span>
-            </label>
+            </div>
           ))}
 
           <label className="block">

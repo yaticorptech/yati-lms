@@ -49,8 +49,12 @@ Base URL: `http://localhost:5000/api`
 - `userRoutes` (`/api/user`)
   - profile/settings/password, course access, progress, quiz attempt
   - tickets, certificates, announcements, search
-- `platformRoutes` (`/api/platform`)
-  - organization CRUD + platform analytics + org admin management
+- `organizations` (`/api/organizations`)
+  - public organization registration; superadmin approve/reject/suspend
+  - organization admin dashboard, students, join requests, settings
+  - student join-by-organization-ID, request status, leave
+  - the optional `orgCode` on `POST /auth/register` also creates a join request,
+    since a student signing up has no token yet
 - `communityRoutes` (`/api/community`)
   - student post/comment CRUD and admin moderation actions
 - `vdoCipherRoutes` (`/api/vdocipher`)

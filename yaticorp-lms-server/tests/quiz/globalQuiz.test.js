@@ -1,7 +1,7 @@
 /**
- * The Global Quiz as students meet it: a general-knowledge paper drawn from
- * the bank an administrator writes, never from the quizzes inside courses.
- * Builds its own bank and removes it.
+ * The Global Quiz as students meet it: the quiz an administrator has
+ * published, never the quizzes inside courses. Builds its own published quiz
+ * and a draft beside it, and puts back whichever quiz was published before.
  */
 const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
@@ -9,12 +9,10 @@ const mongoose = require('mongoose');
 const { connect, makeUser, startApp, cleanup } = require('../helpers');
 
 const TAG = `test-bank-${Date.now()}`;
-let app, me, api, made = [], original;
+let app, me, api, original, live, draft, wasPublished = [];
 
-const add = async (question, options, correctAnswerIndex, extra = {}) => {
-    const row = await require('../../src/models/GlobalQuestion').create({ question, options, correctAnswerIndex, category: TAG, ...extra });
-    made.push(row._id); return row;
-};
+const add = (quiz, question, options, correctAnswerIndex, extra = {}) =>
+    require('../../src/models/GlobalQuestion').create({ question, options, correctAnswerIndex, category: TAG, quizId: quiz._id, ...extra });
 
 before(async () => {
     await connect();
@@ -23,17 +21,27 @@ before(async () => {
     const Setting = require('../../src/models/Setting');
     original = (await Setting.findOne().lean())?.globalQuiz;
     await Setting.updateOne({}, { $set: { globalQuiz: { enabled: true, defaultLength: 10 } } }, { upsert: true });
-    // Everything the bank must survive: a plain question, one with an
-    // explanation, one held back as a draft.
-    await add('What is 2 + 2?', ['3', '4', '5'], 1, { explanation: 'Two and two make four.' });
-    await add('Which is a colour?', ['Blue', 'Chair'], 0, { explanation: 'Blue is a colour.' });
-    await add('Capital of France?', ['Rome', 'Paris'], 1);
-    for (const n of [4, 5, 6]) await add(`Filler question ${n}`, ['a', 'b'], n % 2);
-    await add('A draft nobody should see', ['a', 'b'], 0, { isPublished: false });
+    // Real questions from before quizzes existed are moved into a quiz first,
+    // so the one published here is the only one — and the real one comes back.
+    await require('../../src/services/globalQuizService').ensureMigrated();
+    const GlobalQuiz = require('../../src/models/GlobalQuiz');
+    wasPublished = (await GlobalQuiz.find({ status: 'published' }).select('_id publishedAt').lean());
+    await GlobalQuiz.updateMany({ status: 'published' }, { $set: { status: 'draft' } });
+    live = await GlobalQuiz.create({ title: `${TAG} live`, size: 6, status: 'published', publishedAt: new Date() });
+    draft = await GlobalQuiz.create({ title: `${TAG} draft`, size: 3 });
+    // A plain question, and some with explanations; and one in a draft quiz.
+    await add(live, 'What is 2 + 2?', ['3', '4', '5'], 1, { explanation: 'Two and two make four.' });
+    await add(live, 'Which is a colour?', ['Blue', 'Chair'], 0, { explanation: 'Blue is a colour.' });
+    await add(live, 'Capital of France?', ['Rome', 'Paris'], 1);
+    for (const n of [4, 5, 6]) await add(live, `Filler question ${n}`, ['a', 'b'], n % 2);
+    await add(draft, 'A draft nobody should see', ['a', 'b'], 0);
 });
 
 after(async () => {
-    await require('../../src/models/GlobalQuestion').deleteMany({ _id: { $in: made } });
+    const GlobalQuiz = require('../../src/models/GlobalQuiz');
+    await require('../../src/models/GlobalQuestion').deleteMany({ quizId: { $in: [live._id, draft._id] } });
+    await GlobalQuiz.deleteMany({ _id: { $in: [live._id, draft._id] } });
+    for (const q of wasPublished) await GlobalQuiz.updateOne({ _id: q._id }, { $set: { status: 'published', publishedAt: q.publishedAt } });
     await require('../../src/models/Setting').updateOne({}, original ? { $set: { globalQuiz: original } } : { $unset: { globalQuiz: 1 } });
     await cleanup([me.user], app.server);
 });
@@ -47,7 +55,7 @@ describe('drawing the paper', () => {
         const r = await api('GET', '/quizzes/global?limit=25');
         assert.equal(r.status, 200);
         const rows = mine(r.body.questions);
-        assert.equal(rows.length, 6, 'the six published questions, and not the draft');
+        assert.equal(rows.length, 6, "the published quiz's six questions, and not the draft quiz's");
         for (const q of rows) {
             assert.ok(q.questionId && q.questionText && Array.isArray(q.options));
             assert.equal(q.correctAnswerIndex, undefined);
@@ -58,15 +66,27 @@ describe('drawing the paper', () => {
         assert.ok(r.body.categories.includes(TAG));
     });
 
-    test('a draft is never asked', async () => {
+    test('a draft quiz is never asked', async () => {
         const r = await api('GET', '/quizzes/global?limit=25');
         assert.ok(!r.body.questions.some((q) => q.questionText.includes('draft nobody should see')));
     });
 
-    test('the length is honoured, floored and capped', async () => {
-        assert.equal((await api('GET', '/quizzes/global?limit=4')).body.questions.length, 4);
-        assert.equal((await api('GET', '/quizzes/global?limit=1')).body.questions.length, 3, 'three is the floor');
-        assert.ok((await api('GET', '/quizzes/global?limit=999')).body.questions.length <= 25, 'twenty-five is the cap');
+    test('every student gets the whole published quiz, whatever length they ask for', async () => {
+        for (const limit of [1, 4, 10, 999]) {
+            const r = await api('GET', `/quizzes/global?limit=${limit}`);
+            assert.equal(r.body.questions.length, 6, `limit=${limit}`);
+            assert.equal(r.body.quiz.title, `${TAG} live`);
+        }
+    });
+
+    test('with no quiz published there is no paper, and the student app says so', async () => {
+        const GlobalQuiz = require('../../src/models/GlobalQuiz');
+        await GlobalQuiz.updateOne({ _id: live._id }, { $set: { status: 'draft' } });
+        const r = await api('GET', '/quizzes/global');
+        await GlobalQuiz.updateOne({ _id: live._id }, { $set: { status: 'published' } });
+        assert.equal(r.status, 200);
+        assert.deepEqual(r.body.questions, []);
+        assert.equal(r.body.quiz, null);
     });
 
     test('the paper is shuffled between draws', async () => {

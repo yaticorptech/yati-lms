@@ -384,3 +384,40 @@
 .iv-card { transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.2s ease; }
 .iv-card:hover { transform: translateY(-3px) scale(1.01); }
 @media (prefers-reduced-motion: reduce) { .iv-ring-draw { transition: none; } .iv-confetti, .iv-check-pop, .iv-toast, .iv-shimmer { animation: none; } .iv-card:hover { transform: none; } }
+
+/* A strip of tabs that scrolls sideways on a narrow screen.
+
+   The scrollbar itself is hidden — a 15px system bar under a row of tabs looks
+   like a fault, and the strip is dragged, not dragged by its bar. What replaces
+   it is scroll-snap, so a tab never comes to rest half cut off, and a fade on
+   whichever edge still has tabs beyond it (set from JS, which is the only thing
+   that knows how far it has been scrolled). */
+.tab-scroll {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+}
+.tab-scroll::-webkit-scrollbar { display: none; }
+.tab-scroll > * { scroll-snap-align: start; }
+
+/* The fades sit on the wrapper, not the scroller, so they do not scroll away.
+   `mask-image` would clip the tabs themselves; a gradient overlay only tints
+   what is under it, and pointer-events stay with the strip. */
+.tab-scroll-wrap::before,
+.tab-scroll-wrap::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 1px;
+    width: 1.75rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 1;
+}
+.tab-scroll-wrap::before { left: 0; background: linear-gradient(to right, var(--tab-fade, #fff), transparent); }
+.tab-scroll-wrap::after { right: 0; background: linear-gradient(to left, var(--tab-fade, #fff), transparent); }
+.tab-scroll-wrap[data-more-left='true']::before { opacity: 1; }
+.tab-scroll-wrap[data-more-right='true']::after { opacity: 1; }
