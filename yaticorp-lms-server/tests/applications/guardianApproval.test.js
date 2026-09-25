@@ -108,6 +108,38 @@ describe('the age check', () => {
         assert.equal(rows, 1);
     });
 
+    test('two presses at the same instant make one application, not an error', async () => {
+        // The check for an existing row and the insert are two separate trips.
+        // A double-tap puts both requests in the air together: each finds
+        // nothing and each inserts, and the unique index refuses the loser.
+        // That refusal used to reach the student as the driver's own sentence,
+        // "E11000 duplicate key error collection...".
+        const starts = new Date(); starts.setDate(starts.getDate() + 5);
+        const second = await Opportunity.create({
+            slug: `race-${Date.now()}`, title: 'Weekend Stall Helper',
+            organization: { name: 'ABC Company', verified: true },
+            category: 'events', opportunityType: 'event-support',
+            startsAt: starts, endsAt: starts, hoursPerSession: '2-4',
+            minimumAge: 13, location: { area: 'Whitefield', city: 'Bengaluru' },
+            compensation: { label: '₹600' }, safetyClassification: 'supervised',
+            status: 'open', guardianApprovalRequired: true
+        });
+
+        const pressed = await Promise.all([0, 1, 2, 3].map(() => apply(api, String(second._id))));
+
+        for (const r of pressed) {
+            assert.ok(r.status === 200 || r.status === 201, `every press is answered, got ${r.status}`);
+            assert.equal(/E11000|duplicate key/i.test(JSON.stringify(r.body)), false,
+                'and none of them shows the database talking');
+            assert.equal(r.body.application.status, 'needs-guardian');
+        }
+        assert.equal(await Application.countDocuments({ userId: young.user._id, opportunityId: String(second._id) }), 1,
+            'one application, however many times it was pressed');
+
+        await Application.deleteMany({ opportunityId: String(second._id) });
+        await Opportunity.deleteOne({ _id: second._id });
+    });
+
     test('a student of fifteen or over carries straight on', async () => {
         const elder = startApp({ mount: '/api/jobs', router: require('../../src/jobboard') });
         const r = await elder.call(older.token)('POST', '/opportunities/applications', { opportunityId: String(job._id) });
@@ -432,6 +464,55 @@ describe('what an operator sees', () => {
         assert.equal(row.underAge, true);
         assert.match(row.guardian.email, /•/, 'the address stays masked for operators too');
         assert.ok(Array.isArray(row.steps) && row.steps.length === 4);
+    });
+
+    test('an application nobody was told about can be deleted', async () => {
+        // Started and never sent: no parent has seen it, nothing was decided.
+        const made = await Application.create({
+            userId: young.user._id, opportunityId: 'del-1',
+            student: { name: 'Sowndarya Student', age: 13 },
+            job: { title: 'A job nobody was asked about' },
+            guardian: { name: 'Devaki', email: 'devaki.rao@example.com' },
+            status: 'needs-guardian'
+        });
+
+        const listed = await adminApi('GET', '/admin/opportunities/applications');
+        const seen = listed.body.applications.find((a) => a.id === String(made._id));
+        assert.equal(seen.canDelete, true, 'the row offers a delete');
+
+        const r = await adminApi('DELETE', `/admin/opportunities/applications/${made._id}`);
+        assert.equal(r.status, 200);
+        assert.equal(await Application.countDocuments({ _id: made._id }), 0, 'and it is gone');
+    });
+
+    test('once a parent has been written to, it cannot be deleted', async () => {
+        // The row the suite has already sent a request for.
+        const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) }).lean();
+        assert.notEqual(row.status, 'needs-guardian', 'this one really has been sent');
+
+        const listed = await adminApi('GET', '/admin/opportunities/applications');
+        const seen = listed.body.applications.find((a) => a.id === String(row._id));
+        assert.equal(seen.canDelete, false, 'no delete is offered');
+
+        const r = await adminApi('DELETE', `/admin/opportunities/applications/${row._id}`);
+        assert.equal(r.status, 409, 'and the route refuses it even if asked directly');
+        assert.match(r.body.error, /already gone to the parent/i);
+        assert.equal(await Application.countDocuments({ _id: row._id }), 1, 'the record survives');
+    });
+
+    test('a request that was sent but never delivered still cannot be deleted', async () => {
+        // mailSentAt is null after a refused send, but requestedAt is set — the
+        // link exists and the parent may yet open it.
+        const made = await Application.create({
+            userId: young.user._id, opportunityId: 'del-2',
+            student: { name: 'Sowndarya Student', age: 13 },
+            job: { title: 'A job whose email bounced' },
+            guardian: { name: 'Devaki', email: 'devaki.rao@example.com' },
+            status: 'awaiting-guardian', requestedAt: new Date()
+        });
+        const r = await adminApi('DELETE', `/admin/opportunities/applications/${made._id}`);
+        assert.equal(r.status, 409);
+        await Application.deleteOne({ _id: made._id });
     });
 
     test('the Approved tab keeps an application the student has carried on with', async () => {

@@ -20,7 +20,7 @@ export const JOBS_UNLOCK_PERCENT = 25;
 export default function useCourseCompletion() {
     // One piece of state, set once when the answer arrives, so nothing is
     // written synchronously inside the effect.
-    const [state, setState] = useState({ loading: true, courses: [], failed: false });
+    const [state, setState] = useState({ loading: true, courses: [], failed: false, alwaysOpen: false });
 
     useEffect(() => {
         let alive = true;
@@ -28,15 +28,18 @@ export default function useCourseCompletion() {
             .then((r) => {
                 if (!alive) return;
                 const courses = Array.isArray(r.data?.courses) ? r.data.courses : [];
-                setState({ loading: false, courses, failed: false });
+                // The server says whether this account is exempt from the rule.
+                // It is answered per account, so it follows the person to any
+                // machine — and no other account on that machine inherits it.
+                setState({ loading: false, courses, failed: false, alwaysOpen: r.data?.jobsAlwaysOpen === true });
             })
             .catch(() => {
-                if (alive) setState({ loading: false, courses: [], failed: true });
+                if (alive) setState({ loading: false, courses: [], failed: true, alwaysOpen: false });
             });
         return () => { alive = false; };
     }, []);
 
-    const { courses, loading, failed } = state;
+    const { courses, loading, failed, alwaysOpen } = state;
     const progressOf = (c) => Math.max(0, Math.min(100, Math.round(Number(c?.progress) || 0)));
     const total = courses.length;
     // Averaged across everything they enrolled in, so one finished course out
@@ -50,7 +53,9 @@ export default function useCourseCompletion() {
         completed,
         percent,
         required: JOBS_UNLOCK_PERCENT,
+        /** True for an account the server exempts, whatever its progress. */
+        alwaysOpen,
         /** A quarter of the way through, with at least one course enrolled. */
-        unlocked: failed || (total > 0 && percent >= JOBS_UNLOCK_PERCENT)
+        unlocked: alwaysOpen || failed || (total > 0 && percent >= JOBS_UNLOCK_PERCENT)
     };
 }

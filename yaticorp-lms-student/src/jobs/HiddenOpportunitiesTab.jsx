@@ -39,7 +39,7 @@ export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location 
     const [learned, setLearned] = useState(null);
     useEffect(() => { learnerSkills().then(setLearned); }, [profile?.parsedAt]);
     const skills = useMemo(
-        () => [...new Set([...(profile?.skills || []), ...(learned?.bySource.course || []), ...(learned?.bySource.career || [])])],
+        () => [...new Set([...(profile?.skills || []), ...(learned?.bySource?.course || []), ...(learned?.bySource?.career || [])])],
         [profile?.skills, learned]
     );
     const pastRoles = useMemo(() => profile?.pastRoles || [], [profile?.pastRoles]);
@@ -85,7 +85,11 @@ export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location 
         );
     }
 
-    const edu = profile.education || {};
+    // A resume is not required to be here. Skills also arrive from finished
+    // courses and from Career Path, and a student with those but no resume
+    // stored has profile === null — reading through it unmounted the section
+    // and left the page blank.
+    const edu = profile?.education || {};
     const qualification = [edu.degree, edu.specialization, edu.level].filter(Boolean).join(' · ');
 
     return (
@@ -98,8 +102,8 @@ export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location 
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs font-semibold">
                         {qualification && <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-violet-700"><GraduationCap size={13} /> {qualification}</span>}
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700"><Briefcase size={13} /> {profile.seniority || 'Fresher'}{profile.experienceYears ? ` · ${profile.experienceYears} yr${profile.experienceYears === 1 ? '' : 's'}` : ''}</span>
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-emerald-700"><Sparkles size={13} /> {skills.length} skills{learned?.bySource.course.length ? ` · ${learned.bySource.course.length} from your courses` : ''}</span>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-slate-700"><Briefcase size={13} /> {profile?.seniority || 'Fresher'}{profile?.experienceYears ? ` · ${profile.experienceYears} yr${profile.experienceYears === 1 ? '' : 's'}` : ''}</span>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-emerald-700"><Sparkles size={13} /> {skills.length} skills{learned?.bySource?.course?.length ? ` · ${learned.bySource.course.length} from your courses` : ''}</span>
                     </div>
                 </div>
                 {picks.length > 0 && (

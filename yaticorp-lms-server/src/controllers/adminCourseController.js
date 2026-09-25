@@ -82,7 +82,7 @@ const getCourseById = async (req, res) => {
 
 const createCourse = async (req, res) => {
     try {
-        const { title, description, thumbnail, instructor, isPublished, price } = req.body;
+        const { title, description, thumbnail, instructor, isPublished, price, pricePoints } = req.body;
 
 
         // 🔴 CHECK DUPLICATE TITLE
@@ -100,7 +100,9 @@ const createCourse = async (req, res) => {
             thumbnail,
             instructor,
             isPublished,
-            price
+            price,
+            // Blank in the form means "not sold for points", not NaN.
+            pricePoints: Number(pricePoints) || 0
         });
 
         res.status(201).json(course);

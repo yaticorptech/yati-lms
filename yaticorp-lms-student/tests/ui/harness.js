@@ -49,6 +49,10 @@ const run = (cmd, args) => new Promise((resolve, reject) =>
  * @param {string} o.script  browser code, its return value comes back as `result`
  * @param {number} [o.width] viewport width
  * @param {object} [o.files] extra files to serve, keyed by url path
+ * @param {object} [o.modules] extra modules to stand in for real ones, keyed
+ *                 by the tail of the import path (e.g. 'integrations/google/api').
+ *                 Needed for a module that builds its own HTTP client rather
+ *                 than using the shared one, which the `api` stub cannot reach.
  * @param {boolean} [o.styles] serve the app's real stylesheet, for a test that
  *                 measures layout rather than text. Needs `npx vite build` to
  *                 have produced dist/; without it the test is skipped, because
@@ -58,13 +62,25 @@ const run = (cmd, args) => new Promise((resolve, reject) =>
  *                 ceiling on the clock the page sees, not on how long the test
  *                 takes. Raise it for a screen that waits on a long timeout.
  */
-export const screen = async ({ entry, api, script, width = 1400, height = 1400, budget = 12000, styles = false, files = {} }) => {
+export const screen = async ({ entry, api, script, width = 1400, height = 1400, budget = 12000, styles = false, files = {}, modules = {} }) => {
     const cache = path.join(ROOT, 'node_modules', '.cache');
     await mkdir(cache, { recursive: true });
     const dir = await mkdtemp(path.join(cache, 'ui-test-'));
     let server;
     try {
         await writeFile(path.join(dir, 'api.js'), api);
+        // esbuild matches the import *as written* — './api' — not where it
+        // resolves to, so a name like 'integrations/google/api' is split: the
+        // last segment is the filter, and the rest has to match the directory
+        // doing the importing.
+        const stubbed = [];
+        for (const [name, source] of Object.entries(modules)) {
+            const file = path.join(dir, `stub-${name.replace(/[^\w]/g, '_')}.js`);
+            await writeFile(file, source);
+            const parts = name.split('/');
+            const base = parts.pop();
+            stubbed.push({ file, base, dir: parts.join('/') });
+        }
         await writeFile(path.join(dir, 'entry.jsx'), entry);
         await build({
             entryPoints: [path.join(dir, 'entry.jsx')],
@@ -76,6 +92,11 @@ export const screen = async ({ entry, api, script, width = 1400, height = 1400, 
                 name: 'test-stubs',
                 setup(b) {
                     b.onResolve({ filter: /utils\/api$/ }, () => ({ path: path.join(dir, 'api.js') }));
+                    for (const { file, base, dir: from } of stubbed) {
+                        b.onResolve({ filter: new RegExp(`(^|/)${base}(\\.jsx?)?$`) }, (a) => (
+                            !from || a.resolveDir.replace(/\\/g, '/').endsWith(from) ? { path: file } : undefined
+                        ));
+                    }
                     b.onResolve({ filter: /\.css$/ }, (a) => ({ path: a.path, namespace: 'blank-css' }));
                     b.onLoad({ filter: /.*/, namespace: 'blank-css' }, () => ({ contents: '' }));
                 }

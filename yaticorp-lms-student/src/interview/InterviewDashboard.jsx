@@ -13,7 +13,7 @@ import {
     MessageCircle, Code2, Heart, BookOpen, Users, Crown, Briefcase, ChevronDown, FolderOpen,
     MessageSquare, Star, Gauge
 } from 'lucide-react';
-import Dropdown from './Dropdown';
+import Dropdown from '../components/Dropdown';
 import { interviewApi, TYPE_META, fmtDate, ROLES, ROLE_OTHER as OTHER } from './api';
 import Illustration from './Illustration';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';

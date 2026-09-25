@@ -126,7 +126,14 @@ const getMyCourses = async (req, res) => {
             progress: bundleProgress(bundle, progressByCourse)
         }));
 
-        res.json({ courses: coursesWithProgress, bundles: bundlesWithProgress });
+        // Whether this account skips the 25% rule for the Jobs section. Decided
+        // here, on the account, so it travels with the person to any machine.
+        const { jobsAlwaysOpen } = require('../services/jobsAccess');
+        res.json({
+            courses: coursesWithProgress,
+            bundles: bundlesWithProgress,
+            jobsAlwaysOpen: jobsAlwaysOpen(req.user)
+        });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }

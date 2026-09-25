@@ -10,7 +10,7 @@
  * props: the page owns useDashboard, because the "continue learning" card
  * higher up the page reads from the same list.
  */
-import React, { useContext, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import CourseCard from '../components/course/CourseCard';
 import GlobalQuiz from '../components/GlobalQuiz';
@@ -223,6 +223,33 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
     const { isGlobalQuizEnabled } = useContext(AuthContext);
     const tabs = TABS.filter((t) => t.key !== 'quiz' || isGlobalQuizEnabled !== false);
     const [selectedBundle, setSelectedBundle] = useState(null);
+
+    /* The tab strip scrolls sideways rather than wrapping. Two things make a
+       scrolling strip usable, and both need to know where it has been
+       scrolled to, which only the DOM knows: a fade on whichever edge still
+       has tabs beyond it, and bringing the chosen tab into view. Both are
+       written straight to the node — they are readings of what the browser
+       did, and feeding them back through a render only to measure again is
+       the cascade the effect rules warn about. */
+    const stripRef = useRef(null);
+    const markEdges = useCallback(() => {
+        const el = stripRef.current;
+        if (!el?.parentElement) return;
+        const slack = 4;
+        el.parentElement.dataset.moreLeft = String(el.scrollLeft > slack);
+        el.parentElement.dataset.moreRight = String(el.scrollLeft + el.clientWidth < el.scrollWidth - slack);
+    }, []);
+    useEffect(() => {
+        markEdges();
+        window.addEventListener('resize', markEdges);
+        return () => window.removeEventListener('resize', markEdges);
+    }, [markEdges, tabs.length]);
+    useEffect(() => {
+        // 'nearest' on both axes: the strip scrolls, the page does not.
+        stripRef.current?.querySelector('[data-active="true"]')
+            ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        markEdges();
+    }, [activeTab, markEdges]);
     const [enrollModal, setEnrollModal] = useState(null); // { _id, title }
     const [enrolling, setEnrolling] = useState(false);
 
@@ -273,29 +300,45 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
     return (
         <section className="space-y-6">
             {/* My Learning Tabs */}
-            {/* Six tabs do not fit a phone at reading size. They used to scroll
-                sideways, which hid whichever tab was off the edge; they wrap
-                onto a second line instead, so every tab is always in view.
-                The strip once bled to the screen edges with a negative margin,
-                which widened the page by that margin on a phone and set every
-                section scrolling sideways; it now stays inside its column. */}
-            <div className="flex flex-wrap items-center gap-x-4 border-b border-slate-200 sm:gap-x-5 lg:gap-x-7">
-                {tabs.map(({ key, label, icon: Icon }) => (
-                    <button
-                        key={key}
-                        onClick={() => setActiveTab(key)}
-                        className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap px-1 pb-3 pt-1 text-sm font-bold transition-colors lg:text-base ${activeTab === key ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+            {/* Six tabs do not fit a phone at reading size, so the strip
+                scrolls sideways in one line. The two things that used to make
+                that a bad trade are handled: a tab past the edge is announced
+                by a fade on that side, and whichever tab is chosen is brought
+                into view. The strip once bled to the screen edges with a
+                negative margin, which widened the page by that margin on a
+                phone and set every section scrolling sideways; it stays inside
+                its column. The XP pill sits outside the scroller so it stays
+                put rather than sliding away with the tabs. */}
+            <div className="flex items-end gap-3 border-b border-slate-200">
+                <div className="tab-scroll-wrap relative min-w-0 flex-1">
+                    <div
+                        ref={stripRef}
+                        onScroll={markEdges}
+                        role="tablist"
+                        aria-label="My learning"
+                        className="tab-scroll flex items-center gap-x-4 sm:gap-x-5 lg:gap-x-7"
                     >
-                        <Icon size={18} strokeWidth={1.8} className={activeTab === key ? 'text-indigo-500' : 'text-slate-400'} />
-                        {label}
-                        {key === 'completed' && completedCount > 0 && (
-                            <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-black text-emerald-700">{completedCount}</span>
-                        )}
-                        {activeTab === key && <div className="absolute inset-x-0 -bottom-px h-0.5 rounded-t-full bg-indigo-600"></div>}
-                    </button>
-                ))}
+                        {tabs.map(({ key, label, icon: Icon }) => (
+                            <button
+                                key={key}
+                                role="tab"
+                                aria-selected={activeTab === key}
+                                data-active={activeTab === key ? 'true' : 'false'}
+                                onClick={() => setActiveTab(key)}
+                                className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap px-1 pb-3 pt-1 text-sm font-bold transition-colors lg:text-base ${activeTab === key ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <Icon size={18} strokeWidth={1.8} className={activeTab === key ? 'text-indigo-500' : 'text-slate-400'} />
+                                {label}
+                                {key === 'completed' && completedCount > 0 && (
+                                    <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-black text-emerald-700">{completedCount}</span>
+                                )}
+                                {activeTab === key && <div className="absolute inset-x-0 -bottom-px h-0.5 rounded-t-full bg-indigo-600"></div>}
+                            </button>
+                        ))}
+                    </div>
+                </div>
                 {rewards && (
-                    <span className="ml-auto mb-2 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-indigo-100 bg-white px-3 py-1.5 text-xs font-bold text-indigo-600 shadow-sm">
+                    <span className="mb-2 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-indigo-100 bg-white px-3 py-1.5 text-xs font-bold text-indigo-600 shadow-sm">
                         <Star size={14} className="fill-orange-300 text-orange-400" /> {Number(rewards.xp || 0).toLocaleString('en-IN')} XP
                     </span>
                 )}

@@ -21,7 +21,7 @@ const Courses = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [openDropdown, setOpenDropdown] = useState(null);
 
-    const [formData, setFormData] = useState({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, duration: 31 });
+    const [formData, setFormData] = useState({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, pricePoints: 0, duration: 31 });
     const [editId, setEditId] = useState(null);
     const [courseToDelete, setCourseToDelete] = useState(null);
     const [uploadingThumb, setUploadingThumb] = useState(false);
@@ -70,11 +70,19 @@ const Courses = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            // The two number boxes may be left empty; an empty box is zero, and
+            // this is the only place that decides it. Doing it on every
+            // keystroke put a 0 back the moment the box was cleared.
+            const payload = {
+                ...formData,
+                price: Number(formData.price) || 0,
+                pricePoints: Number(formData.pricePoints) || 0
+            };
             if (editId) {
-                await api.put(`/admin/courses/${editId}`, formData);
+                await api.put(`/admin/courses/${editId}`, payload);
                 fetchCourses();
             } else {
-                const newCourse = await api.post('/admin/courses', formData);
+                const newCourse = await api.post('/admin/courses', payload);
                 if (newCourse.data && newCourse.data._id) {
                     navigate(`/courses/${newCourse.data._id}`);
                 } else {
@@ -82,7 +90,7 @@ const Courses = () => {
                 }
             }
             setShowModal(false);
-            setFormData({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, duration: 31 });
+            setFormData({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, pricePoints: 0, duration: 31 });
         } catch (err) {
             console.error(err);
 
@@ -145,7 +153,7 @@ const Courses = () => {
                     <p className="text-sm lg:text-base text-slate-500 mt-1">Manage and organize your LMS curriculum</p>
                 </div>
                 <button
-                    onClick={() => { setEditId(null); setFormData({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, duration: 31 }); setShowModal(true); }}
+                    onClick={() => { setEditId(null); setFormData({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, pricePoints: 0, duration: 31 }); setShowModal(true); }}
                     aria-label="Create Course"
                     className="flex shrink-0 items-center justify-center gap-2 px-4 sm:px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
                 >
@@ -396,13 +404,26 @@ const Courses = () => {
                                 />
                                 <label htmlFor="isPublished" className="text-sm font-semibold text-slate-700 cursor-pointer">Published to Students</label>
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Price (₹)</label>
-                                <input
-                                    type="number" value={formData.price} onChange={e => setFormData({ ...formData, price: Number(e.target.value) })}
-                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="0"
-                                />
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Price (₹)</label>
+                                    <input
+                                        type="number" min="0" value={formData.price ?? ''}
+                                        onChange={e => setFormData({ ...formData, price: e.target.value === '' ? '' : Number(e.target.value) })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Wallet points</label>
+                                    <input
+                                        type="number" min="0" step="1"
+                                        value={formData.pricePoints ?? ''}
+                                        onChange={e => setFormData({ ...formData, pricePoints: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
+                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="0"
+                                    />
+                                </div>
                             </div>
 
                             <div className="pt-4 border-t border-slate-100 flex justify-end space-x-3">
