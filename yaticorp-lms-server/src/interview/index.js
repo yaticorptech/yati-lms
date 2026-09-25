@@ -72,13 +72,19 @@ const publicSession = (s, { withContext = false } = {}) => ({
 
 /* ── Practice bank ────────────────────────────────────────────────────── */
 
+// Bumped when the bank itself changes shape, so every student's bank is
+// rebuilt once. v2: 30-40 questions instead of about 20.
+const BANK_VERSION = 'v2';
+
 const ensurePrep = async (userId, context) => {
     let prep = await InterviewPrep.findOne({ userId });
     if (!prep) prep = new InterviewPrep({ userId });
-    // Regenerate when the learning data has moved on: new skills or projects mean new questions.
-    if (!prep.questions.length || prep.generatedFrom !== context.hash) {
+    // Regenerate when the learning data has moved on (new skills or projects
+    // mean new questions) or when the bank's version has.
+    const source = `${context.hash}:${BANK_VERSION}`;
+    if (!prep.questions.length || prep.generatedFrom !== source) {
         const out = await ai.generateQuestions({ context, userId });
-        prep.questions = out.questions; prep.topics = out.topics; prep.generatedAt = new Date(); prep.generatedFrom = context.hash; prep.role = context.goal || '';
+        prep.questions = out.questions; prep.topics = out.topics; prep.generatedAt = new Date(); prep.generatedFrom = source; prep.role = context.goal || '';
         await prep.save();
     }
     return prep;

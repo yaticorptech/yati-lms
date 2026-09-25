@@ -98,6 +98,11 @@ app.use('/api/jobs', require('./src/jobboard'));
 app.use('/api/rewards', require('./src/rewards'));
 // My Learning Bio — the AI-written, data-backed profile on the dashboard.
 app.use('/api/learning-bio', require('./src/learningbio'));
+// Organizations — schools, colleges and companies that bring their own students.
+// One mount; the module's own router fans out to the public registration form,
+// the superadmin's approval queue, the organization admin's dashboard and the
+// student's "join an organization" endpoints, each behind its own guard.
+app.use('/api/organizations', require('./src/organizations'));
 
 // Connecting a student's own Google account, so the work they do here lands in
 // their Drive and their calendar rather than only in this database. Off unless

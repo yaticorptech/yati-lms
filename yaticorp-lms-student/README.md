@@ -77,3 +77,14 @@ VITE_API_URL=http://localhost:5000/api
 - Uses token-based protected routes with `ProtectedRoute`.
 - Course player and quiz/community data depend on `/api/user/*` and `/api/community/*` APIs.
 - Preview route supports public pre-enrollment content views.
+- Joining an organization (`src/organization/`) is offered in two places, and the
+  dashboard is not a panel in either of them:
+  - the signup form takes an **optional** Organization ID, sent with
+    `POST /auth/register`. Leaving it blank changes nothing about signing up.
+  - the dashboard hero carries an **Add organization** button beside the card,
+    email and phone pills. It opens a popup and shows the organization's name once
+    there is one.
+  Entering an ID only looks the institution up; that organization's own admin
+  approves the request. A student cannot leave on their own — ending a membership
+  belongs to the organization, and there is no endpoint for it either. They can
+  still withdraw a request nobody has answered yet.

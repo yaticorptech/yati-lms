@@ -1,19 +1,15 @@
 /**
- * `true` while `loading` is true OR for at least `minMs` after mount.
+ * `true` while `loading` is true — and no longer.
  *
- * A loader that appears for 80ms is a flicker, not a moment: the page
- * blinks grey and lands before the eye has settled. Holding it briefly
- * turns the wait into the small piece of theatre it is meant to be — the
- * mascot, the line, the bar — without ever hiding data that took longer.
+ * This used to hold the loader for a fixed 900ms even when the data had
+ * already arrived, which made every tab switch feel slow. The flicker that
+ * hold was guarding against is now handled by YatiLoader itself: it fades in
+ * only after a short delay, so a fast request never shows it at all and a
+ * slow one still gets the full mascot.
+ *
+ * Kept as a hook, rather than inlining `loading`, so the pages that use it
+ * need no change and there is one place to tune this again.
  */
-import { useEffect, useState } from 'react';
-
-export default function useMinimumLoading(loading, minMs = 900) {
-  const [held, setHeld] = useState(true);
-  useEffect(() => {
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const t = setTimeout(() => setHeld(false), reduce ? 0 : minMs);
-    return () => clearTimeout(t);
-  }, [minMs]);
-  return loading || held;
+export default function useMinimumLoading(loading) {
+  return loading;
 }

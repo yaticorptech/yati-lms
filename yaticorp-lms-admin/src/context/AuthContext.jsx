@@ -1,6 +1,7 @@
 /**
  * @author Preethesh Kulal
- * @description Admin authentication context: login, logout, 2FA, org-scoped session management
+ * @description Admin authentication context: login, logout, 2FA, and routing a
+ *              platform administrator or an organization administrator to their own panel
  */
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useContext } from 'react';
@@ -10,6 +11,15 @@ import { useNavigate } from 'react-router-dom';
 const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
+
+/**
+ * Where a signed-in administrator belongs.
+ *
+ * One sign-in form now serves two panels, so the landing page depends on who
+ * just signed in. An organization administrator sent to '/' would be bounced
+ * straight back out by the platform route guard, which reads as a flicker.
+ */
+const homeFor = (adminData) => (adminData?.role === 'orgadmin' ? '/organization' : '/');
 
 export const AuthProvider = ({ children }) => {
     // The stored session is available synchronously, so seed it at first render
@@ -48,7 +58,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('adminData', JSON.stringify(adminData));
 
         setAdmin(adminData);
-        navigate('/');
+        navigate(homeFor(adminData));
 
         return { success: true };
     } catch (err) {
@@ -66,7 +76,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('adminData', JSON.stringify(adminData));
 
         setAdmin(adminData);
-        navigate('/');
+        navigate(homeFor(adminData));
 
         return { success: true };
     } catch (err) {

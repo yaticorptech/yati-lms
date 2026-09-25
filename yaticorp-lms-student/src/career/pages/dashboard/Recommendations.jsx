@@ -143,10 +143,13 @@ function CategoryDialog({ title, categories, onClose }) {
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="futurepath-portal fixed inset-0 z-[110] flex items-end justify-center sm:items-center sm:p-4"
+      // Centred at every width — on a phone too, where a sheet pinned to the
+      // bottom edge sat behind the thumb bar and read as part of the page.
+      className="futurepath-portal fixed inset-0 z-[110] flex items-center justify-center p-4"
     >
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="animate-scale-in relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl bg-surface shadow-[0_30px_80px_-20px_rgba(15,23,42,0.55)] ring-1 ring-line-200 sm:max-h-[86vh] sm:rounded-3xl">
+      {/* The page behind is dimmed, so the dialog clearly sits on top of it. */}
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
+      <div className="animate-scale-in relative flex max-h-[min(78dvh,40rem)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-surface shadow-[0_30px_80px_-20px_rgba(15,23,42,0.55)] ring-1 ring-line-200 sm:max-h-[86vh]">
         <div className="flex shrink-0 items-center gap-3 border-b border-line-100 px-5 py-4 sm:px-6">
           {Icon && (
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-journey-50 text-journey-600 ring-1 ring-journey-100 ring-inset">

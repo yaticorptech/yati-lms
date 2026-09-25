@@ -30,23 +30,31 @@ export function DeliveryCard({ communication }) {
     const c = communication;
     const notes = c?.notes || [];
     const warns = notes.filter((n) => n.tone === 'warn');
-    // An overall word for the delivery, from how many of its parts fell short.
-    const verdict = !notes.length ? null : warns.length === 0 ? ['Excellent', 'bg-emerald-100 text-emerald-700']
-        : warns.length <= 2 ? ['Good', 'bg-emerald-100 text-emerald-700']
-            : warns.length === 3 ? ['Fair', 'bg-amber-100 text-amber-700'] : ['Needs work', 'bg-rose-100 text-rose-600'];
+    // An overall word for the delivery, from the SHARE of what was measured
+    // that fell short. It used to count problems — up to two was "Good" — so
+    // three measurements with two of them short (a very slow pace and very
+    // short answers) read "Good" above the notes saying otherwise. Typed
+    // interviews measure nothing (their only note is "info"), so no verdict.
+    const measured = notes.filter((n) => n.tone === 'good' || n.tone === 'warn').length;
+    const share = measured ? warns.length / measured : 0;
+    const verdict = !measured ? null
+        : warns.length === 0 ? ['Excellent', 'bg-emerald-100 text-emerald-700']
+            : share <= 1 / 3 ? ['Good', 'bg-emerald-100 text-emerald-700']
+                : share <= 1 / 2 ? ['Fair', 'bg-amber-100 text-amber-700']
+                    : ['Needs work', 'bg-rose-100 text-rose-600'];
     const tips = warns.map((n) => TIP_FOR[n.kind]).filter(Boolean).slice(0, 2);
 
     return (
         <section className="@container flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm animate-fade-in-up sm:p-6">
-            <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-600"><Mic size={22} /></span>
-                    <div>
-                        <h2 className="text-xl font-black text-slate-900">How you sounded</h2>
-                        <p className="mt-0.5 max-w-sm text-xs leading-snug text-slate-500">Measured from your spoken answers: pace, pauses, filler words and length. No guesses about mood or personality.</p>
-                    </div>
+            {/* The verdict sits under the title, not beside it: beside it, it
+                squeezed the title and the line under it into a narrow column. */}
+            <div className="mb-4 flex items-start gap-3">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-600"><Mic size={22} /></span>
+                <div className="min-w-0 flex-1">
+                    <h2 className="text-xl font-black text-slate-900">How you sounded</h2>
+                    <p className="mt-0.5 text-xs leading-snug text-slate-500">Measured from your spoken answers: pace, pauses, filler words and length. No guesses about mood or personality.</p>
+                    {verdict && <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${verdict[1]}`}><AudioLines size={13} /> Overall: {verdict[0]}</span>}
                 </div>
-                {verdict && <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-black ${verdict[1]}`}><AudioLines size={13} /> Overall: {verdict[0]}</span>}
             </div>
 
             {c ? (

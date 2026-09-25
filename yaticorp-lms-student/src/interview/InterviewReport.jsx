@@ -8,6 +8,7 @@ import Illustration from './Illustration';
 import { Section, Btn, ErrorBox, Analyzing } from '../learningbio/ui';
 import { ScoreRing, Celebration } from './ui';
 import { DeliveryCard, RecommendationCard } from './ReportCards';
+import { markReturn } from './scrollMemory';
 
 /**
  * The six dimensions: what to call each one, the colour it wears, and the one
@@ -94,7 +95,7 @@ export default function InterviewReport() {
         <div className="mx-auto max-w-5xl space-y-5 pb-12 animate-fade-in">
             {/* ── Where you are, and a way straight back to practice ── */}
             <div className="flex items-center justify-between gap-3">
-                <Link to="/interview" className="inline-flex items-center gap-2.5 text-lg font-black text-slate-900 hover:text-indigo-600">
+                <Link to="/interview" onClick={markReturn} className="inline-flex items-center gap-2.5 text-lg font-black text-slate-900 hover:text-indigo-600">
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm ring-1 ring-slate-200"><ArrowLeft size={17} /></span>
                     Interview
                 </Link>
