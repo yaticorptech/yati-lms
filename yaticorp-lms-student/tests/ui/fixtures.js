@@ -72,7 +72,9 @@ const pick = (url) => { const key = Object.keys(routes).find((k) => url.includes
 const handlePost = ${postSource || 'null'};
 window.__calls = [];
 export default {
-  get: (url) => { window.__calls.push(['GET', url]); return Promise.resolve({ data: pick(url) }); },
+  // The params go in the third slot, where a POST keeps its body: a test that
+  // cares which query a screen asked has nowhere else to read it from.
+  get: (url, config) => { window.__calls.push(['GET', url, config && config.params]); return Promise.resolve({ data: pick(url) }); },
   // Resolved through a promise so a handler that throws rejects the call,
   // which is what axios does — never a synchronous throw at the call site.
   post: (url, body) => { window.__calls.push(['POST', url, body]);

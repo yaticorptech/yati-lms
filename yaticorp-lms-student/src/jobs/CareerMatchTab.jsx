@@ -60,10 +60,10 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
     const [learned, setLearned] = useState(null);
     useEffect(() => { learnerSkills().then(setLearned); }, [profile?.parsedAt]);
     const skills = useMemo(
-        () => [...new Set([...(profile?.skills || []), ...(learned?.bySource.course || []), ...(learned?.bySource.career || [])])],
+        () => [...new Set([...(profile?.skills || []), ...(learned?.bySource?.course || []), ...(learned?.bySource?.career || [])])],
         [profile?.skills, learned]
     );
-    const fromCourses = learned?.bySource.course?.length || 0;
+    const fromCourses = learned?.bySource?.course?.length || 0;
     const skillsKey = skills.join('|');
 
     // Once a resume is chosen, ask the ranker for what fits it. The answer is
@@ -105,8 +105,18 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
     /* ── Step 1: which resume? ─────────────────────────────────────── */
     if (!source) {
         // A student who has finished courses here can match on those alone,
-        // even before they upload anything.
+        // even before they upload anything. When that is all they have there
+        // is no profile to read a filename off, and calling it a "profile
+        // resume" would name a document they never uploaded — so the second
+        // card describes whichever of the two it actually has.
         const hasProfileResume = skills.length > 0;
+        const onFile = profile ? profile.filename || 'Your resume' : '';
+        const readyLabel = onFile ? 'Continue with profile resume' : 'Continue with your course skills';
+        const readyHint = hasProfileResume
+            ? (onFile
+                ? `${onFile} · ${skills.length} skills${fromCourses ? `, ${fromCourses} from your courses` : ''}`
+                : `${skills.length} skill${skills.length === 1 ? '' : 's'} from your courses`)
+            : profile ? 'No skills could be read from it yet' : 'No resume yet — finish a course, or upload one';
         return (
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
                 <div className="mx-auto max-w-2xl text-center">
@@ -124,8 +134,8 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
                     <button type="button" onClick={() => setSource('profile')} disabled={!hasProfileResume}
                         className="group flex flex-col items-center rounded-2xl border-2 border-emerald-200 bg-emerald-50/50 p-6 text-center transition-all hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50">
                         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm"><FileText size={22} /></span>
-                        <span className="mt-3 text-base font-bold text-slate-900">Continue with profile resume</span>
-                        <span className="mt-1 text-xs text-slate-500">{hasProfileResume ? `${profile.filename || 'Your resume'} · ${skills.length} skills${fromCourses ? `, ${fromCourses} from your courses` : ''}` : profile ? 'No skills could be read from it yet' : 'No resume on your profile yet'}</span>
+                        <span className="mt-3 text-base font-bold text-slate-900">{readyLabel}</span>
+                        <span className="mt-1 text-xs text-slate-500">{readyHint}</span>
                     </button>
                 </div>
                 <input ref={inputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
@@ -141,8 +151,8 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
                 <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600"><FileText size={18} /></span>
                     <div>
-                        <p className="text-sm font-bold text-slate-900">Matching against {source === 'upload' ? 'your uploaded resume' : 'your profile resume'}</p>
-                        <p className="text-xs text-slate-500">{profile?.filename || 'Resume'}{fromCourses > 0 ? ` + ${fromCourses} skill${fromCourses === 1 ? '' : 's'} from your courses` : ''} · {skills.slice(0, 6).join(', ')}{skills.length > 6 ? ` +${skills.length - 6} more` : ''}{location ? ` · near ${location}` : ''}</p>
+                        <p className="text-sm font-bold text-slate-900">Matching against {source === 'upload' ? 'your uploaded resume' : profile ? 'your profile resume' : 'your course skills'}</p>
+                        <p className="text-xs text-slate-500">{profile?.filename || (source === 'upload' ? 'Resume' : 'Your courses')}{fromCourses > 0 && profile ? ` + ${fromCourses} skill${fromCourses === 1 ? '' : 's'} from your courses` : ''} · {skills.slice(0, 6).join(', ')}{skills.length > 6 ? ` +${skills.length - 6} more` : ''}{location ? ` · near ${location}` : ''}</p>
                     </div>
                 </div>
                 <div className="flex gap-2">
@@ -151,14 +161,14 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
                 </div>
             </div>
 
-            {!skills.length && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">No skills could be read from this resume. Upload a text-based PDF, or search jobs by hand.</p>}
+            {!skills.length && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{profile || source === 'upload' ? 'No skills could be read from this resume. Upload a text-based PDF, or search jobs by hand.' : 'Nothing to match on yet. Finish a course, upload a resume, or search jobs by hand.'}</p>}
             {(error || fetchError) && <p className="flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-700"><AlertCircle size={15} /> {error || fetchError}</p>}
             {loading && <div className="grid gap-4 xl:grid-cols-2">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-52 rounded-2xl" />)}</div>}
 
             {!loading && results && (
                 results.length ? (
                     <>
-                        <p className="text-sm text-slate-500"><strong className="text-slate-800">{results.length}</strong> job{results.length === 1 ? '' : 's'} match your resume, best fit first.</p>
+                        <p className="text-sm text-slate-500"><strong className="text-slate-800">{results.length}</strong> job{results.length === 1 ? ' matches' : 's match'} {profile || source === 'upload' ? 'your resume' : 'your skills'}, best fit first.</p>
                         <div className="grid gap-4 xl:grid-cols-2">{results.map((job) => <MatchCard key={job.id} job={job} />)}</div>
                     </>
                 ) : (

@@ -96,11 +96,25 @@ router.use((req, res) => {
 // The ported routes call next(err); without this they would fall through to the
 // LMS's own handler, which answers {message} where this section's client reads
 // {error}.
+//
+// Outside production the message is passed through, which is what makes a
+// failing call debuggable. But a database driver's own words are not a
+// message: "E11000 duplicate key error collection..." was reaching a student
+// mid-application. Anything thrown by the driver is given a sentence instead,
+// and the original still goes to the log above, where it is of use.
+const DRIVER_MESSAGES = {
+  11000: 'You have already done this — refresh the page to see where it stands.'
+};
+
 // eslint-disable-next-line no-unused-vars
 router.use((err, _req, res, _next) => {
   console.error('[jobs]', err);
+  const driver = DRIVER_MESSAGES[err?.code];
+  if (driver) return res.status(409).json({ error: driver });
   res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production' ? 'Internal server error.' : err.message
+    error: process.env.NODE_ENV === 'production' || /^E\d{4,} /.test(err?.message || '')
+      ? 'Internal server error.'
+      : err.message
   });
 });
 

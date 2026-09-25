@@ -21,7 +21,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { useSearchParams } from 'react-router-dom';
 import {
     Briefcase, MapPin, Loader2, RotateCcw, Search, AlertCircle, Crosshair,
-    Bookmark, Sparkles, Compass, Globe, Clock, Check, X, ChevronDown, Info
+    Bookmark, Sparkles, Compass, Globe, Clock, Check, X, Info
 , GraduationCap } from 'lucide-react';
 
 import { AuthContext } from '../context/AuthContext';
@@ -38,6 +38,7 @@ import JobsTabs from '../jobs/JobsTabs';
 import OpportunitiesTab from '../opportunities/OpportunitiesTab';
 import CareerMatchTab from '../jobs/CareerMatchTab';
 import HiddenOpportunitiesTab from '../jobs/HiddenOpportunitiesTab';
+import Dropdown from '../components/Dropdown';
 import { opportunitiesApi } from '../opportunities/api';
 
 const JOB_TYPES = ['Any', 'Full-time', 'Part-time', 'Internship', 'Contract'];
@@ -761,15 +762,14 @@ export default function Jobs() {
                     />
 
                     <div>
-                        <label htmlFor="job-type" className={FIELD_LABEL}>Job type</label>
-                        <select
-                            id="job-type"
+                        <span className={FIELD_LABEL}>Job type</span>
+                        <Dropdown
+                            label="Job type" accent="indigo" placement="panel"
                             value={form.jobType}
-                            onChange={(e) => onToggle({ jobType: e.target.value })}
-                            className={`${FIELD_INPUT} ${FIELD_OK}`}
-                        >
-                            {JOB_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                        </select>
+                            options={JOB_TYPES.map((t) => ({ value: t, label: t }))}
+                            onChange={(jobType) => onToggle({ jobType })}
+                            className={`relative ${FIELD_INPUT} ${FIELD_OK} pr-10 text-left`}
+                        />
                     </div>
 
                     <div>
@@ -810,14 +810,14 @@ export default function Jobs() {
                                 placeholder={`e.g. ${money.example}`}
                                 className={`${FIELD_INPUT} flex-1 min-w-0 ${errors.salary ? FIELD_BAD : FIELD_OK}`}
                             />
-                            <select
+                            <Dropdown
+                                label="Currency" accent="indigo" placement="panel"
                                 value={form.currency}
-                                onChange={(e) => update({ currency: e.target.value })}
-                                aria-label="Currency"
-                                className="shrink-0 px-2 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                            >
-                                {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
-                            </select>
+                                options={CURRENCIES.map((c) => ({ value: c.code, label: c.code }))}
+                                onChange={(currency) => update({ currency })}
+                                className="relative shrink-0 rounded-xl border border-slate-300 bg-white py-2.5 pl-3 pr-8 text-left text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                                panelClassName="left-auto right-0 w-32"
+                            />
                         </div>
                         {errors.salary
                             ? <p className="mt-1.5 text-xs text-rose-600">{errors.salary}</p>
@@ -946,19 +946,19 @@ export default function Jobs() {
                                         className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-[11px] font-bold tracking-wider text-slate-500">
                                         SORT
                                     </label>
-                                    <div className="relative">
-                                        <select
-                                            id="job-sort" value={form.sortBy}
-                                            onChange={(e) => { update({ sortBy: e.target.value }); if (data) search({ sortBy: e.target.value }); }}
-                                            className="appearance-none bg-white py-2 pl-3 pr-8 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500/40"
-                                        >
-                                            <option value="relevance">Best match</option>
-                                            <option value="skills">Skill overlap</option>
-                                            <option value="recent">Most recent</option>
-                                            {form.coords && <option value="distance">Nearest</option>}
-                                        </select>
-                                        <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                                    </div>
+                                    <Dropdown
+                                        label="Sort" accent="indigo" placement="panel"
+                                        value={form.sortBy}
+                                        options={[
+                                            { value: 'relevance', label: 'Best match' },
+                                            { value: 'skills', label: 'Skill overlap' },
+                                            { value: 'recent', label: 'Most recent' },
+                                            ...(form.coords ? [{ value: 'distance', label: 'Nearest' }] : [])
+                                        ]}
+                                        onChange={(sortBy) => { update({ sortBy }); if (data) search({ sortBy }); }}
+                                        className="relative bg-white py-2 pl-3 pr-8 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500/40"
+                                        panelClassName="left-auto right-0 w-44"
+                                    />
                                 </div>
                             )}
                         </div>

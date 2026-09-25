@@ -26,6 +26,14 @@ const userSchema = new mongoose.Schema({
         // Imported records held this as a number; keep every new write as text.
         set: (v) => (v == null ? v : String(v).trim())
     },
+    /**
+     * Opens the Jobs section for this account without the 25% course progress.
+     *
+     * Stored on the account rather than in a server's .env so it follows the
+     * card to whichever machine it signs in on, and so any server pointed at
+     * this database honours it without its own configuration.
+     */
+    jobsAlwaysOpen: { type: Boolean, default: false },
     serialNumber: {
         type: String
     },

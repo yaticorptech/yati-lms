@@ -2,12 +2,111 @@
  * @author Preethesh Kulal
  * @description Admin dashboard with stat cards, top courses and quick summary
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { Users, BookOpen, Layers, UserPlus, Activity, Award, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { Users, BookOpen, Layers, UserPlus, Activity, Award, TrendingUp, CheckCircle2, Zap, Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from "../context/AuthContext";
 import useAutoRefresh from '../hooks/useAutoRefresh';
+
+/** The conversion as numbers plus the currency symbol to print it with. */
+const rateOf = (cfg) => {
+    const points = Number(cfg?.conversion?.pointsPerUnit);
+    const value = Number(cfg?.conversion?.unitValue);
+    if (!points || value == null || Number.isNaN(value)) return null;
+    return { points, value, symbol: cfg.conversion.currency === 'INR' ? '₹' : `${cfg.conversion.currency} ` };
+};
+
+/** "100 XP = ₹10". */
+const rateText = (r) => `${r.points.toLocaleString('en-IN')} XP = ${r.symbol}${r.value.toLocaleString('en-IN')}`;
+
+/**
+ * What XP is worth, changed here rather than on the Rewards page.
+ *
+ * The same setting, not a copy: read from and written to the rewards config,
+ * so the two screens cannot drift apart. Only the two numbers are sent, and
+ * the server merges what it is given — the currency, the minimum redemption
+ * and the withdrawal caps are left exactly as they are.
+ */
+const XpValueCard = () => {
+    const [state, setState] = useState({ loading: true, rate: null, error: '' });
+    const [edit, setEdit] = useState(null);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        let alive = true;
+        api.get('/rewards/admin/config')
+            .then((r) => alive && setState({ loading: false, rate: rateOf(r.data), error: '' }))
+            .catch(() => alive && setState({ loading: false, rate: null, error: 'Could not load' }));
+        return () => { alive = false; };
+    }, []);
+
+    const save = () => {
+        // The server wants at least 1 XP per unit; a blank or zero box would be
+        // refused, so it is corrected here rather than bounced back.
+        const points = Math.max(1, Math.round(Number(edit.points) || 0));
+        const value = Math.max(0, Number(edit.value) || 0);
+        setSaving(true);
+        api.put('/rewards/admin/config', { conversion: { pointsPerUnit: points, unitValue: value } })
+            .then((r) => {
+                setState((v) => ({ ...v, rate: rateOf(r.data) ?? v.rate, error: '' }));
+                setEdit(null);
+            })
+            .catch((e) => setState((v) => ({ ...v, error: e.response?.data?.message || 'Could not save' })))
+            .finally(() => setSaving(false));
+    };
+
+    return (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+            <div className="flex justify-between items-start">
+                <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">XP value</p>
+
+                    {state.loading ? (
+                        <div className="animate-pulse h-9 w-32 bg-slate-100 rounded-xl mt-2" />
+                    ) : !state.rate ? (
+                        <p className="mt-2 text-sm text-slate-400">Not set</p>
+                    ) : edit ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm font-bold text-amber-700">
+                            <input
+                                type="number" min="1" step="1" autoFocus value={edit.points}
+                                onChange={(e) => setEdit({ ...edit, points: e.target.value })}
+                                onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEdit(null); }}
+                                className="w-20 rounded-md border border-amber-300 px-2 py-1 outline-none focus:ring-2 focus:ring-amber-500/30"
+                            />
+                            <span>XP =</span>
+                            <span>{state.rate.symbol}</span>
+                            <input
+                                type="number" min="0" step="0.01" value={edit.value}
+                                onChange={(e) => setEdit({ ...edit, value: e.target.value })}
+                                onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEdit(null); }}
+                                className="w-20 rounded-md border border-amber-300 px-2 py-1 outline-none focus:ring-2 focus:ring-amber-500/30"
+                            />
+                            <button type="button" onClick={save} disabled={saving}
+                                className="rounded-md bg-amber-500 px-2.5 py-1 text-white hover:bg-amber-600 disabled:opacity-60">
+                                {saving ? 'Saving…' : 'Save'}
+                            </button>
+                            <button type="button" onClick={() => setEdit(null)}
+                                className="rounded-md px-1.5 py-1 text-slate-500 hover:bg-slate-100">Cancel</button>
+                        </div>
+                    ) : (
+                        <button type="button"
+                            onClick={() => setEdit({ points: String(state.rate.points), value: String(state.rate.value) })}
+                            className="group mt-2 flex items-center gap-2 text-left">
+                            <span className="text-2xl font-bold text-slate-900">{rateText(state.rate)}</span>
+                            <Pencil size={14} className="text-slate-300 transition-colors group-hover:text-amber-500" />
+                        </button>
+                    )}
+
+                    {state.error && <p className="mt-1 text-xs font-semibold text-rose-600">{state.error}</p>}
+                </div>
+                <div className="p-3 rounded-xl bg-amber-500">
+                    <Zap size={24} className="text-white" />
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const StatCard = ({ title, value, icon, colorClass, loading }) => {
     const Icon = icon;
@@ -72,10 +171,11 @@ const Dashboard = () => {
             </div>
 
             {/* Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
                 <StatCard loading={loading} title="Total Students" value={analytics?.totalStudents} icon={Users} colorClass="bg-blue-500" />
                 <StatCard loading={loading} title="Total Enrollments" value={analytics?.totalEnrollments} icon={UserPlus} colorClass="bg-emerald-500" />
                 <StatCard loading={loading} title="Active This Week" value={analytics?.activeThisWeek ?? 0} icon={Activity} colorClass="bg-indigo-500" />
+                <XpValueCard />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">

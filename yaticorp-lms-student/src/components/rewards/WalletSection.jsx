@@ -48,34 +48,44 @@ export default function WalletSection({ initialTab = 'overview' }) {
 
     return (
         <section id="wallet" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-2.5 border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-5">
                 <div>
-                    <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><Wallet size={18} className="text-emerald-500" /> Wallet</h2>
-                    <p className="text-sm text-slate-500">Everything you have earned inside the LMS, tracked to its source.</p>
+                    <h2 className="flex items-center gap-2 text-base font-bold text-slate-900 sm:text-lg"><Wallet size={17} className="text-emerald-500" /> Wallet</h2>
+                    <p className="text-[13px] leading-snug text-slate-500 sm:text-sm">Everything you have earned inside the LMS, tracked to its source.</p>
                 </div>
                 {data && (
-                    <div className="flex items-center gap-4">
-                        <div className="text-right">
-                            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Balance</p>
-                            <p className="text-2xl font-black tabular-nums text-slate-900">{money(balance(data.wallet.available), currency)}</p>
+                    // On a phone the two figures are a pair of equal cells that
+                    // fill the width, so the labels and the numbers each line
+                    // up with one another. Right-aligning them in a loose row —
+                    // which is what a wide header wants — left them ragged,
+                    // with nothing sharing an edge.
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-4">
+                        <div className="min-w-0 rounded-xl bg-white/70 px-2.5 py-1.5 sm:bg-transparent sm:px-0 sm:py-0 sm:text-right">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 sm:text-[11px]">Balance</p>
+                            <p className="truncate text-base font-black tabular-nums text-slate-900 sm:text-2xl">{money(balance(data.wallet.available), currency)}</p>
                         </div>
-                        <div className="text-right">
-                            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Reward points</p>
-                            <p className="text-2xl font-black tabular-nums text-pink-600">{num(data.wallet.rewardPoints)}</p>
+                        <div className="min-w-0 rounded-xl bg-white/70 px-2.5 py-1.5 sm:bg-transparent sm:px-0 sm:py-0 sm:text-right">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 sm:text-[11px]">Reward points</p>
+                            <p className="truncate text-base font-black tabular-nums text-pink-600 sm:text-2xl">{num(data.wallet.rewardPoints)}</p>
                         </div>
                     </div>
                 )}
             </div>
 
-            <div className="flex gap-1 overflow-x-auto border-b border-slate-100 px-3 pt-2">
+            {/* Three tabs in a row need 401px, which no phone has, so the strip
+                scrolled sideways and showed a scrollbar across the popup. A
+                grid of three fits them instead: each cell takes a third and the
+                name sits under its icon where the cell is too narrow to hold
+                both side by side. */}
+            <div className="grid grid-cols-3 border-b border-slate-100 px-2 pt-2 sm:flex sm:gap-1 sm:px-3">
                 {TABS.map((t) => (
-                    <button key={t.id} onClick={() => setTab(t.id)} className={`flex shrink-0 items-center gap-1.5 rounded-t-xl border-b-2 px-3 py-2.5 text-[13px] font-bold transition-colors ${tab === t.id ? 'border-indigo-600 bg-indigo-50/60 text-indigo-700' : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}>
-                        <t.icon size={14} /> {t.label}
+                    <button key={t.id} onClick={() => setTab(t.id)} className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-t-xl border-b-2 px-1.5 py-2 text-[12px] font-bold leading-tight transition-colors sm:flex-row sm:gap-1.5 sm:px-3 sm:py-2.5 sm:text-[13px] ${tab === t.id ? 'border-indigo-600 bg-indigo-50/60 text-indigo-700' : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}>
+                        <t.icon size={14} className="shrink-0" /> <span className="min-w-0 truncate">{t.label}</span>
                     </button>
                 ))}
             </div>
 
-            <div className="p-5">
+            <div className="p-4 sm:p-5">
                 {error && <Notice kind="error">{error}</Notice>}
                 {!data && !error && <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-16 rounded-2xl" />)}</div>}
                 {data && tab === 'overview' && <Overview data={data} currency={currency} reload={load} celebrate={celebrate} />}
@@ -114,27 +124,27 @@ function Overview({ data, currency, reload, celebrate }) {
     };
 
     return (
-        <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="space-y-4 sm:space-y-5">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
                 {[
                     { label: 'Balance', value: money(balance(wallet.available), currency), cls: 'from-emerald-50 to-teal-50 border-emerald-200', tone: 'text-emerald-700' },
                     { label: 'Total earned', value: money(wallet.totalEarned, currency), cls: 'from-sky-50 to-indigo-50 border-sky-200', tone: 'text-sky-700' },
                     { label: 'Total spent', value: money(wallet.totalSpent, currency), cls: 'from-slate-50 to-slate-100 border-slate-200', tone: 'text-slate-700', sub: 'On courses and rewards' },
                     { label: 'Points value', value: money(rewardPointsValue, currency), cls: 'from-pink-50 to-rose-50 border-pink-200', tone: 'text-pink-700', sub: `${num(wallet.rewardPoints)} reward points` }
                 ].map((c) => (
-                    <div key={c.label} className={`rounded-2xl border bg-gradient-to-br p-4 ${c.cls}`}>
-                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">{c.label}</p>
-                        <p className={`mt-1 text-2xl font-black tabular-nums ${c.tone}`}>{c.value}</p>
-                        {c.sub && <p className="text-[11px] text-slate-500">{c.sub}</p>}
+                    <div key={c.label} className={`rounded-2xl border bg-gradient-to-br p-3 sm:p-4 ${c.cls}`}>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 sm:text-[11px]">{c.label}</p>
+                        <p className={`mt-0.5 truncate text-lg font-black tabular-nums sm:mt-1 sm:text-2xl ${c.tone}`}>{c.value}</p>
+                        {c.sub && <p className="truncate text-[10px] text-slate-500 sm:text-[11px]">{c.sub}</p>}
                     </div>
                 ))}
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 p-4">
-                    <p className="text-sm font-bold text-slate-800">Where it came from</p>
+            <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 p-3 sm:p-4">
+                    <p className="text-[13px] font-bold text-slate-800 sm:text-sm">Where it came from</p>
                     {sources.length === 0 ? (
-                        <p className="mt-2 text-sm text-slate-500">Nothing yet. Reward points you redeem, and any earnings an administrator adds, show up here by source.</p>
+                        <p className="mt-1.5 text-[13px] leading-snug text-slate-500 sm:mt-2 sm:text-sm">Nothing yet. Reward points you redeem, and any earnings an administrator adds, show up here by source.</p>
                     ) : (
                         <ul className="mt-3 space-y-2">
                             {sources.map(([k, v]) => (
@@ -148,12 +158,12 @@ function Overview({ data, currency, reload, celebrate }) {
                     )}
                 </div>
 
-                <div className="rounded-2xl border border-pink-200 bg-gradient-to-br from-pink-50 to-rose-50 p-4">
+                <div className="rounded-2xl border border-pink-200 bg-gradient-to-br from-pink-50 to-rose-50 p-3 sm:p-4">
                     <div className="flex items-start justify-between gap-3">
                         <div>
-                            <p className="flex items-center gap-1.5 text-sm font-bold text-slate-800"><Gift size={15} className="text-pink-500" /> Reward points</p>
-                            <p className="text-3xl font-black tabular-nums text-pink-600">{num(wallet.rewardPoints)}</p>
-                            <p className="text-xs text-slate-500">{num(unit)} points = {money(conversion.unitValue, currency)} · ≈ {money(rewardPointsValue, currency)} value</p>
+                            <p className="flex items-center gap-1.5 text-[13px] font-bold text-slate-800 sm:text-sm"><Gift size={14} className="text-pink-500" /> Reward points</p>
+                            <p className="text-xl font-black tabular-nums text-pink-600 sm:text-3xl">{num(wallet.rewardPoints)}</p>
+                            <p className="text-[11px] text-slate-500 sm:text-xs">{num(unit)} points = {money(conversion.unitValue, currency)} · ≈ {money(rewardPointsValue, currency)} value</p>
                         </div>
                     </div>
                     {monetaryEnabled ? (
@@ -171,8 +181,8 @@ function Overview({ data, currency, reload, celebrate }) {
                             </button>
                         </form>
                     ) : (
-                        <div className="mt-3 flex items-start gap-2 rounded-xl bg-white/80 p-3 text-xs text-slate-600 ring-1 ring-pink-100">
-                            <Lock size={14} className="mt-0.5 shrink-0 text-pink-500" />
+                        <div className="mt-2.5 flex items-start gap-2 rounded-xl bg-white/80 p-2.5 text-[11px] leading-snug text-slate-600 ring-1 ring-pink-100 sm:mt-3 sm:p-3 sm:text-xs">
+                            <Lock size={13} className="mt-0.5 shrink-0 text-pink-500" />
                             <span>Your account earns learning rewards: XP, badges and reward points. Converting points into wallet balance is switched on by an administrator for eligible account types.</span>
                         </div>
                     )}

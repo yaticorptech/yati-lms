@@ -184,10 +184,19 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
         assert.ok(phone.closeVisible, 'with the close button on screen');
         assert.equal(phone.sideways, false, 'and nothing pushed the page sideways');
 
+        // On a wide screen the card is centred on the CONTENT area, not on the
+        // window: the 16rem sidebar is not space the card may use. Centred on
+        // the window it sat ~150px left of where the page's own centre is.
         const desk = (await screen({ entry: shellEntry, api: shellApi, width: 1200, height: 900, styles: true, budget: 25_000, script: BOX })).result;
-        assert.ok(desk.left > 16 && desk.left === desk.right,
-            `a wide screen keeps an even-gutter card, saw ${desk.left}px and ${desk.right}px`);
-        assert.ok(desk.top > 0, 'floating, not flush to the top');
+        const SIDEBAR = 256, HEADER = 64;
+        const cardCentre = desk.left + (1200 - desk.left - desk.right) / 2;
+        const contentCentre = SIDEBAR + (1200 - SIDEBAR) / 2;
+        assert.ok(Math.abs(cardCentre - contentCentre) <= 12,
+            `the card centres at ${Math.round(cardCentre)}px; the content area centres at ${contentCentre}px`);
+        assert.ok(desk.left > SIDEBAR,
+            `the card starts at ${desk.left}px, over the ${SIDEBAR}px sidebar`);
+        assert.ok(desk.top >= HEADER,
+            `the card starts at ${desk.top}px, under the ${HEADER}px header bar`);
     });
 
     test('the Save button clears the floating bottom nav', async () => {
