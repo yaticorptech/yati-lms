@@ -143,15 +143,18 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
                 const box = $('#box').getBoundingClientRect();
                 return {
                     bg: String(getComputedStyle(panel).backgroundColor),
-                    position: String(getComputedStyle(panel).position),
                     gap: Math.round(p.top - f.bottom),
+                    width: Math.round(p.width),
                     offScreen: Math.round(Math.max(0, p.right - window.innerWidth) + Math.max(0, -p.left)),
                     insideCardish: p.left >= box.left - 8,
                     labels: $$('li[role="option"]').map((r) => r.innerText.trim())
                 };` });
         assert.deepEqual(errors, []);
         assert.equal(result.bg, 'rgb(255, 255, 255)', 'the list is the app\'s white panel');
-        assert.equal(result.position, 'absolute', 'placed against its field');
+        // The panel is portalled to <body> and placed from the field's
+        // measured box, so what matters is where it lands, not which CSS
+        // position property put it there.
+        assert.ok(result.width >= 170, `and wide enough to read a period in, was ${result.width}px`);
         assert.ok(result.gap >= 0 && result.gap <= 8, `just under the field, gap was ${result.gap}px`);
         assert.equal(result.offScreen, 0, 'no part of it is off the screen');
         assert.equal(result.insideCardish, true, 'and it is not hanging off the left of the card');

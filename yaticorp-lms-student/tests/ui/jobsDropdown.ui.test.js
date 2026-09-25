@@ -107,8 +107,8 @@ describe('the job search dropdowns', { skip: skipWithoutStyles }, () => {
                 const panel = $('ul[role="listbox"]').parentElement;
                 const p = panel.getBoundingClientRect();
                 return {
-                    position: String(getComputedStyle(panel).position),
                     bg: String(getComputedStyle(panel).backgroundColor),
+                    onScreen: p.left >= 0 && p.right <= window.innerWidth,
                     gap: Math.round(p.top - f.bottom),
                     leftOff: Math.round(p.left - f.left), rightOff: Math.round(p.right - f.right),
                     bottomOfScreen: Math.round(window.innerHeight - p.bottom),
@@ -116,8 +116,11 @@ describe('the job search dropdowns', { skip: skipWithoutStyles }, () => {
                     hasBackdrop: !!$$('div.fixed.inset-0').length
                 };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.position, 'absolute', 'it is placed against the field, not the viewport');
+        // Placed against its field. The panel is portalled to <body> and
+        // positioned from the field's measured box, so the test asks where it
+        // landed rather than which CSS position property got it there.
         assert.equal(result.bg, 'rgb(255, 255, 255)');
+        assert.equal(result.onScreen, true, 'and all of it is on the screen');
         assert.ok(result.gap >= 0 && result.gap <= 8, `it sits just under the field, gap was ${result.gap}px`);
         assert.equal(result.leftOff, 0, 'left edges line up with the field');
         assert.equal(result.rightOff, 0, 'and so do the right');
@@ -126,19 +129,27 @@ describe('the job search dropdowns', { skip: skipWithoutStyles }, () => {
         assert.equal(result.hasBackdrop, false, 'and dims nothing behind it');
     });
 
-    test('the sheet is still available for the sections that use it', async () => {
-        // The interview pickers were built as sheets on purpose and tested as
-        // such; changing the default here would have undone that.
+    test('the default placement is the centred popup, which this form does not use', async () => {
+        // The interview pickers open as a popup over a dimmed page: a sheet on
+        // the bottom edge sat behind the app's own thumb bar and hid its last
+        // option. That is the default; the job form asks for 'panel' instead,
+        // and this pins the difference so neither section quietly gets the
+        // other's behaviour.
         const { result, errors } = await screen({
-            entry: entry('sheet'), api: 'export default {};', styles: true, width: 500, script: `
+            entry: entry('popup'), api: 'export default {};', styles: true, width: 500, script: `
                 await sleep(300);
-                $('button[aria-haspopup="listbox"]').click(); await sleep(400);
+                const btn = $('button[aria-haspopup="listbox"]');
+                const f = btn.getBoundingClientRect();
+                btn.click(); await sleep(400);
                 const p = $('ul[role="listbox"]').parentElement.getBoundingClientRect();
-                return { bottomOfScreen: Math.round(window.innerHeight - p.bottom),
+                return { startsBelowField: p.top > f.bottom + 40,
+                         centred: Math.abs((p.left + p.right) / 2 - window.innerWidth / 2) < 4,
+                         onBottomEdge: Math.round(window.innerHeight - p.bottom) === 0,
                          hasCloseX: !!$$('button[aria-label="Close"]').length };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.bottomOfScreen, 0, 'the sheet still sits on the bottom edge');
-        assert.equal(result.hasCloseX, true, 'and still carries its X');
+        assert.equal(result.centred, true, 'the popup is centred on the screen');
+        assert.equal(result.onBottomEdge, false, 'not pinned to the bottom edge, where the thumb bar is');
+        assert.equal(result.hasCloseX, true, 'and it carries its own way out');
     });
 });
 
