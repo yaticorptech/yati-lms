@@ -11,6 +11,7 @@ import {
     Gift, Settings2, Award, Wallet, ReceiptText, ArrowDownToLine, ShieldCheck, Lock, Unlock, Loader2, Plus, Trash2, Save, Search,
     RefreshCw, CheckCircle2, XCircle, AlertTriangle, Flame, Trophy, Coins, Users, ChevronRight, X
 } from 'lucide-react';
+import Select from '../components/Select';
 
 const INPUT = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40';
 const LABEL = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500';
@@ -341,7 +342,7 @@ function Badges() {
                             <div><label className={LABEL}>Emoji</label><input value={edit.emoji} onChange={(e) => setEdit({ ...edit, emoji: e.target.value })} className={INPUT} /></div>
                             <div className="sm:col-span-2"><label className={LABEL}>Title</label><input value={edit.title} onChange={(e) => setEdit({ ...edit, title: e.target.value })} className={INPUT} required /></div>
                             <div className="sm:col-span-2"><label className={LABEL}>Description</label><input value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} className={INPUT} /></div>
-                            <div><label className={LABEL}>Metric</label><select value={edit.metric} onChange={(e) => setEdit({ ...edit, metric: e.target.value })} className={INPUT}>{data.metrics.map((m) => <option key={m} value={m}>{METRIC_LABEL[m] || m}</option>)}</select></div>
+                            <div><label className={LABEL}>Metric</label><Select value={edit.metric} onChange={(e) => setEdit({ ...edit, metric: e.target.value })} className={INPUT}>{data.metrics.map((m) => <option key={m} value={m}>{METRIC_LABEL[m] || m}</option>)}</Select></div>
                             <div><label className={LABEL}>Target</label><input type="number" min="1" value={edit.target} onChange={(e) => setEdit({ ...edit, target: Number(e.target.value) })} className={INPUT} required /></div>
                             <div><label className={LABEL}>Reward points</label><input type="number" min="0" value={edit.rewardPoints} onChange={(e) => setEdit({ ...edit, rewardPoints: Number(e.target.value) })} className={INPUT} /></div>
                             <div><label className={LABEL}>Order</label><input type="number" value={edit.order} onChange={(e) => setEdit({ ...edit, order: Number(e.target.value) })} className={INPUT} /></div>
@@ -398,9 +399,9 @@ function Transactions({ onOpenUser }) {
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
-                <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className={`${INPUT} w-auto`}><option value="">All types</option><option value="credit">Credits</option><option value="debit">Debits</option></select>
-                <select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })} className={`${INPUT} w-auto`}><option value="">All sources</option>{(data?.sources || []).map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}</select>
-                <select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} className={`${INPUT} w-auto`}><option value="">All statuses</option>{(data?.statuses || []).map((s) => <option key={s} value={s}>{s}</option>)}</select>
+                <Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className={`${INPUT} w-auto`}><option value="">All types</option><option value="credit">Credits</option><option value="debit">Debits</option></Select>
+                <Select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })} className={`${INPUT} w-auto`}><option value="">All sources</option>{(data?.sources || []).map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}</Select>
+                <Select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} className={`${INPUT} w-auto`}><option value="">All statuses</option>{(data?.statuses || []).map((s) => <option key={s} value={s}>{s}</option>)}</Select>
                 {data && <span className="self-center text-sm text-slate-500">{num(data.total)} transactions</span>}
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -560,10 +561,10 @@ function UserDrawer({ userId, onClose }) {
                         </div>
                         {!d.audit.ok && <Banner kind="error">This wallet does not reconcile with its ledger: stored {JSON.stringify(d.audit.stored)} vs computed {JSON.stringify(d.audit.computed)}.</Banner>}
                         <form onSubmit={submit} className="rounded-2xl border border-slate-200 p-4 grid sm:grid-cols-[auto_1fr_1fr_2fr_auto] gap-3 items-end bg-slate-50/50">
-                            <div><label className={LABEL}>Adjust</label><select value={adj.kind} onChange={(e) => setAdj({ ...adj, kind: e.target.value, source: e.target.value === 'money' ? 'admin_adjustment' : 'admin' })} className={INPUT}><option value="points">Reward points</option><option value="money">Wallet money</option><option value="xp">XP</option></select></div>
+                            <div><label className={LABEL}>Adjust</label><Select value={adj.kind} onChange={(e) => setAdj({ ...adj, kind: e.target.value, source: e.target.value === 'money' ? 'admin_adjustment' : 'admin' })} className={INPUT}><option value="points">Reward points</option><option value="money">Wallet money</option><option value="xp">XP</option></Select></div>
                             <div><label className={LABEL}>Source</label>
-                                {adj.kind === 'points' && <select value={adj.source} onChange={(e) => setAdj({ ...adj, source: e.target.value })} className={INPUT}><option value="admin">Bonus</option><option value="campaign">Campaign</option><option value="referral">Referral</option></select>}
-                                {adj.kind === 'money' && <select value={adj.source} onChange={(e) => setAdj({ ...adj, source: e.target.value })} className={INPUT}><option value="admin_adjustment">Adjustment</option><option value="job_earning">Job earning</option><option value="referral_reward">Referral reward</option><option value="learning_reward">Learning reward</option><option value="leaderboard_reward">Leaderboard reward</option><option value="purchase">Purchase (debit)</option></select>}
+                                {adj.kind === 'points' && <Select value={adj.source} onChange={(e) => setAdj({ ...adj, source: e.target.value })} className={INPUT}><option value="admin">Bonus</option><option value="campaign">Campaign</option><option value="referral">Referral</option></Select>}
+                                {adj.kind === 'money' && <Select value={adj.source} onChange={(e) => setAdj({ ...adj, source: e.target.value })} className={INPUT}><option value="admin_adjustment">Adjustment</option><option value="job_earning">Job earning</option><option value="referral_reward">Referral reward</option><option value="learning_reward">Learning reward</option><option value="leaderboard_reward">Leaderboard reward</option><option value="purchase">Purchase (debit)</option></Select>}
                                 {adj.kind === 'xp' && <input disabled value="Admin" className={INPUT} />}
                             </div>
                             <div><label className={LABEL}>Amount {adj.kind === 'money' ? `(${cur}, − to debit)` : adj.kind === 'points' ? '(− to remove)' : ''}</label><input type="number" step={adj.kind === 'money' ? '0.01' : '1'} value={adj.amount} onChange={(e) => setAdj({ ...adj, amount: e.target.value })} className={INPUT} required /></div>

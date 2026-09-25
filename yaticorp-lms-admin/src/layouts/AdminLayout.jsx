@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Layers, LogOut,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe } from 'lucide-react';
+    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 
@@ -156,6 +156,9 @@ const AdminLayout = () => {
                     </Link>
                     <Link to="/enrollments" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/enrollments') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                         <Network size={20} /> <span className="font-medium">Enrollments</span>
+                    </Link>
+                    <Link to="/organizations" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/organizations') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                        <Building2 size={20} /> <span className="font-medium">Organizations</span>
                     </Link>
                     <Link to="/tickets" className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${isActive('/tickets') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                         <div className="flex items-center space-x-3">

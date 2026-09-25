@@ -62,7 +62,7 @@ const readiness = async (userId, context) => {
         technical: `Deepen ${context.learningSkills[0] || 'your core skills'} with the practice questions and a course.`,
         problemSolving: 'Walk through problems step by step — practise the situational questions.',
         confidence: 'Take a mock interview: confidence grows with every one you complete.',
-        practice: 'Practise a few questions a day and take a mock interview this week.'
+        practice: 'Take a mock interview this week — every one you finish lifts this score.'
     }[b.key]));
     // The last report's own improvement notes come first: they are specific.
     const lastReport = sessions[0]?.report;

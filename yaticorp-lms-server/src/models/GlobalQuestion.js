@@ -1,9 +1,10 @@
 /**
  * @description A question in the Global Quiz bank.
  *
- * These belong to no course and no lesson. An administrator writes them, and
- * every student draws from the same bank, which is what makes the Global Quiz
- * general knowledge rather than a re-run of the quizzes inside their courses.
+ * These belong to no course and no lesson. An administrator writes them into
+ * a quiz (see GlobalQuiz); the published quiz is what every student is asked,
+ * which is what makes the Global Quiz general knowledge rather than a re-run of
+ * the quizzes inside their courses.
  */
 const mongoose = require('mongoose');
 
@@ -20,7 +21,11 @@ const globalQuestionSchema = new mongoose.Schema({
     // "Aptitude", "Current Affairs", "Reasoning".
     category: { type: String, default: 'General', trim: true },
     difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
-    // Drafts stay out of the students' papers until they are ready.
+    // The quiz this question belongs to. Questions written before quizzes
+    // existed have none until globalQuizService moves them into one.
+    quizId: { type: mongoose.Schema.Types.ObjectId, ref: 'GlobalQuiz', default: null, index: true },
+    // Kept for questions from before quizzes; a quiz's own status now decides
+    // what students see.
     isPublished: { type: Boolean, default: true, index: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null }
 }, { timestamps: true });

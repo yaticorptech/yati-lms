@@ -2,6 +2,7 @@
  * @author Preethesh Kulal
  * @description Admin CRUD for student accounts including bulk upload and QR card assignment
  */
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Enrollment = require('../models/Enrollment');
 const Progress = require('../models/Progress');
@@ -9,14 +10,59 @@ const { sendEmail } = require('../utils/emailService');
 const XLSX = require('xlsx');
 const Card = require('../models/Card');
 const Course = require('../models/Course');
+/**
+ * Required for its side effect: registering the Organization model.
+ *
+ * `User.organizationId` declares `ref: 'Organization'`, and the two reads below
+ * populate it. Mongoose resolves a ref by looking the model up on the connection
+ * at query time, so if nothing has required it yet the populate throws
+ * MissingSchemaError. The running server happens to mount src/organizations
+ * before this, but a test — or any future entry point — that loads only the
+ * admin routes would not, and the student list would 500. Naming the dependency
+ * here makes it true wherever this controller is loaded.
+ */
+require('../organizations/models/Organization');
 
-// @desc    Get all users
-// @route   GET /api/admin/users
-// @access  Private/Admin
+/**
+ * @desc    Get all users
+ * @route   GET /api/admin/users
+ * @access  Private/Admin
+ *
+ * Still answers with a plain array, as it always has, so the admin student list
+ * keeps working untouched. What is new is `organization` on each row — the name
+ * and code of the institution the student belongs to, or null for the majority
+ * who joined on their own — and an optional `?organizationId=` filter behind it.
+ *
+ * `organizationId=none` asks for the students who belong to no organization,
+ * which is a real thing to want to see and cannot be expressed by an id.
+ */
 const getUsers = async (req, res) => {
     try {
-        const users = await User.find({}).select('-password');
-        res.json(users);
+        const { organizationId } = req.query;
+        const filter = {};
+
+        if (organizationId === 'none') {
+            filter.organizationId = null;
+        } else if (organizationId) {
+            // A malformed id should read as "no students", not as a 500.
+            if (!mongoose.Types.ObjectId.isValid(organizationId)) return res.json([]);
+            filter.organizationId = organizationId;
+        }
+
+        const users = await User.find(filter)
+            .select('-password')
+            .populate('organizationId', 'name orgCode status')
+            .lean();
+
+        res.json(users.map(({ organizationId: organization, ...user }) => ({
+            ...user,
+            // Kept flat and named as the client reads it, rather than leaving a
+            // populated document under the id's own key.
+            organizationId: organization?._id || null,
+            organization: organization
+                ? { _id: organization._id, name: organization.name, orgCode: organization.orgCode, status: organization.status }
+                : null
+        })));
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -30,11 +76,25 @@ const getUsers = async (req, res) => {
 // @access  Private/Admin
 const getUserById = async (req, res) => {
     try {
-        const user = await User.findById(req.params.id).select('-password');
+        const user = await User.findById(req.params.id)
+            .select('-password')
+            .populate('organizationId', 'name orgCode status');
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
+
+        // The institution this student belongs to, or null. Read off the
+        // populated reference before it is flattened back to an id below, so the
+        // shape the admin panel already consumes does not change.
+        const organization = user.organizationId
+            ? {
+                _id: user.organizationId._id,
+                name: user.organizationId.name,
+                orgCode: user.organizationId.orgCode,
+                status: user.organizationId.status
+            }
+            : null;
 
         // ✅ FIX: Safe Card lookup (keep capital CardNumber)
         const card = await Card.findOne({
@@ -44,7 +104,9 @@ const getUserById = async (req, res) => {
         // ✅ FIX: Prefer user.qrNumber first (important)
         const userWithQR = {
             ...user.toObject(),
-            qrNumber: user.qrNumber || card?.qrCodeNumber || 'N/A'
+            qrNumber: user.qrNumber || card?.qrCodeNumber || 'N/A',
+            organizationId: organization?._id || null,
+            organization
         };
 
         // 🔽 ENROLLMENTS — populate and filter out orphans (deleted course/bundle)

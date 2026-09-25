@@ -29,9 +29,14 @@ Defined in `src/App.jsx`:
 
 - Public
   - `/login`
-  - `/platform/login`
-  - `/platform`
-- Protected (inside `AdminLayout`)
+  - `/register-organization` (an institution applies for access)
+- Organization admin only (inside `OrgAdminLayout`, role `orgadmin`)
+  - `/organization` (dashboard)
+  - `/organization/students`
+  - `/organization/students/:studentId`
+  - `/organization/requests`
+  - `/organization/settings`
+- Platform admin only (inside `AdminLayout`)
   - `/` (dashboard)
   - `/users`
   - `/courses`
@@ -44,6 +49,7 @@ Defined in `src/App.jsx`:
   - `/community`
   - `/analytics`
   - `/announcements`
+  - `/organizations` (superadmin: the approval queue and every institution)
 
 ## Environment
 

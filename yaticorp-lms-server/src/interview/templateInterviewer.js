@@ -189,9 +189,22 @@ const generateQuestions = (context) => {
     add('hr', 'Motivation', `Why do you want to work as a ${context.goal || 'professional in this field'}?`, 'Connect your courses and projects to the role. Be specific about what excites you.');
     add('hr', 'Strengths', 'What are your greatest strengths?', `Pick two, and back each with an example${context.strongSkills[0] ? ` — ${context.strongSkills[0]} is a natural one` : ''}.`);
     add('hr', 'Weaknesses', 'What is a weakness you are working on?', 'Choose a real one, then show what you are doing about it.');
+    add('hr', 'Goals', 'Where do you see yourself in five years?', 'Show ambition that fits the role: the skills you want and the responsibility you hope to take on.', 'easy');
+    add('hr', 'Fit', 'Why should we choose you over other candidates?', 'Three reasons, each backed by something you have actually done.');
+    add('hr', 'Research', `What do you know about the work of a ${context.goal || 'professional in this field'}?`, 'Name the day-to-day tasks and one current challenge in the field — it shows you did your homework.', 'easy');
     for (const s of context.skills.slice(0, 6)) {
         add('technical', s.name, `Explain the core concepts of ${s.name} and where you have applied them.`, 'Define it in one sentence, then give a concrete use from a course or project.', s.status === 'Advanced' ? 'hard' : 'medium');
         add('technical', s.name, `What is a common mistake people make with ${s.name}, and how do you avoid it?`, 'Interviewers love this: it shows depth beyond the basics.', 'medium');
+        add('technical', s.name, `How would you explain ${s.name} to someone who has never heard of it?`, 'Start from what they already know, use one everyday comparison, and skip the jargon.', 'easy');
+    }
+    // No skills recorded yet: general questions about the field instead, so
+    // a new student's bank is not left with no technical questions at all.
+    if (!context.skills.length) {
+        const field = context.goal || 'your chosen field';
+        add('technical', 'Fundamentals', `What are the core skills someone needs to succeed as a ${field}?`, 'Name three, and say how you are building each one.', 'easy');
+        add('technical', 'Fundamentals', `Which tools or methods are used most in ${field}?`, 'Mention what you have tried yourself, even in a course exercise.');
+        add('technical', 'Problem solving', 'Walk me through how you would approach a problem you have never seen before.', 'Break it down, check what you know, try the simplest step, and test it.');
+        add('technical', 'Learning', 'How do you keep your knowledge up to date?', 'Name real sources — courses, communities, practice — and something recent you learned.', 'easy');
     }
     for (const p of context.projects.slice(0, 3)) {
         add('project', p.name, `Walk me through "${p.name}". What problem did it solve?`, 'Goal, your role, the approach, the result. Mention the tools you used.');
@@ -201,8 +214,13 @@ const generateQuestions = (context) => {
     add('behavioral', 'Learning', 'Tell me about a time you had to learn something quickly.', 'Use STAR: Situation, Task, Action, Result.');
     add('behavioral', 'Teamwork', 'Describe a time you worked in a team and something went wrong.', 'Focus on what you did to fix it, not on blaming others.');
     add('behavioral', 'Feedback', 'Tell me about feedback that changed how you work.', 'Show that you listened and changed something concrete.');
+    add('behavioral', 'Mistakes', 'Tell me about a mistake you made and what you learned from it.', 'Own it plainly, say how you fixed it, and what you now do differently.');
+    add('behavioral', 'Pressure', 'Describe a time you had to work under pressure.', 'Use STAR, and say how you kept quality up while moving fast.', 'hard');
     add('situational', 'Deadlines', 'Your deadline is tomorrow and you discover a serious bug. What do you do?', 'Prioritise, communicate early, propose options.');
     add('situational', 'Ambiguity', 'You are given a vague task. How do you make progress?', 'Ask clarifying questions, state assumptions, deliver a first version.');
+    add('situational', 'Disagreement', 'You disagree with your manager about how to do a task. What do you do?', 'Raise it privately with reasons and data, listen, then commit to the decision.', 'hard');
+    add('situational', 'Teamwork', 'A teammate is not doing their share and the deadline is close. How do you handle it?', 'Talk to them first, offer help, and escalate only with facts if nothing changes.');
+    add('situational', 'Priorities', 'You are given three urgent tasks at once. How do you decide what to do first?', 'Weigh impact and deadline, confirm priorities with whoever set them, and say what will slip.');
     return out;
 };
 

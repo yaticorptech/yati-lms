@@ -160,7 +160,13 @@ router.route('/settings').get(protectAdmin, settingsCtrl.getSettings).put(protec
 
 // Global Quiz — the general-knowledge bank every student draws from.
 const globalQuizCtrl = require('../controllers/adminGlobalQuizController');
-router.route('/global-quiz').get(protectAdmin, globalQuizCtrl.listQuestions).post(protectAdmin, globalQuizCtrl.createQuestion);
+// Quizzes first: '/global-quiz/quizzes' must not be read as a question id.
+router.route('/global-quiz/quizzes').get(protectAdmin, globalQuizCtrl.listQuizzes).post(protectAdmin, globalQuizCtrl.createQuiz);
+router.route('/global-quiz/quizzes/:quizId').put(protectAdmin, globalQuizCtrl.updateQuiz).delete(protectAdmin, globalQuizCtrl.deleteQuiz);
+router.post('/global-quiz/quizzes/:quizId/publish', protectAdmin, globalQuizCtrl.publishQuiz);
+router.post('/global-quiz/quizzes/:quizId/unpublish', protectAdmin, globalQuizCtrl.unpublishQuiz);
+router.post('/global-quiz/quizzes/:quizId/duplicate', protectAdmin, globalQuizCtrl.duplicateQuiz);
+router.route('/global-quiz/quizzes/:quizId/questions').get(protectAdmin, globalQuizCtrl.listQuestions).post(protectAdmin, globalQuizCtrl.createQuestion).delete(protectAdmin, globalQuizCtrl.deleteQuestions);
 router.route('/global-quiz/:id').put(protectAdmin, globalQuizCtrl.updateQuestion).delete(protectAdmin, globalQuizCtrl.deleteQuestion);
 
 // Analytics Routes

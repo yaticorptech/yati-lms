@@ -1,6 +1,7 @@
 /**
  * @author Preethesh Kulal
- * @description Mongoose schema for student accounts with card number, QR and org scoping
+ * @description Mongoose schema for student accounts with card number, QR and
+ *              optional organization membership
  */
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
@@ -59,6 +60,28 @@ const userSchema = new mongoose.Schema({
     },
     resetPasswordToken: { type: String },
     resetPasswordExpiry: { type: Date },
+
+    // ─── Organization membership ─────────────────────────────────────────────
+    // The institution this student belongs to, or null for someone who signed
+    // up on their own. Null is the default and the overwhelming majority: every
+    // account that existed before organizations, and every account created by
+    // card registration, admin entry, bulk upload or website sync, reads as
+    // unaffiliated and behaves exactly as it did before.
+    //
+    // It is only ever set by an organization admin approving a join request
+    // (src/organizations/), and clearing it removes the membership and nothing
+    // else — courses, progress, XP, certificates and Career Path data are the
+    // student's own and survive leaving.
+    organizationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization',
+        default: null,
+        index: true
+    },
+    organizationJoinedAt: {
+        type: Date,
+        default: null
+    },
 
     // ─── Career Path (FuturePath) ────────────────────────────────────────────
     // The AI career-roadmap section keeps its own collections (career_*), but

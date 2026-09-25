@@ -10,8 +10,10 @@
   - `Authorization: Bearer <token>`
 - Token types:
   - Student token for `/user/*` protected endpoints
-  - Admin token for `/admin/*` and `/community/admin/*`
-  - Platform token for `/platform/*`
+  - Admin token for `/admin/*` and `/community/admin/*`. An `orgadmin` token is
+    refused here with `403 ORG_ADMIN_SCOPE`
+  - Organization admin token for `/organizations/me/*`
+  - Superadmin token for `/admin/admins` and `/organizations/admin/*`
 - Content type:
   - `Content-Type: application/json` for JSON requests
   - `multipart/form-data` for file uploads (`/admin/users/bulk`, `/user/profile/picture`)
@@ -25,17 +27,20 @@
 | GET | `/auth/published-content` | Public | Get published content summary |
 | POST | `/auth/validate-qr` | Public | Validate QR data |
 | POST | `/auth/verify-card` | Public | Verify activation card details |
-| POST | `/auth/register` | Public | Register student |
+| POST | `/auth/register` | Public | Register student; optional `orgCode` sends a join request |
 | POST | `/auth/student/login` | Public | Student login |
 | POST | `/auth/student/forgot-password` | Public | Send reset password link |
 | POST | `/auth/student/reset-password` | Public | Reset student password |
-| POST | `/auth/admin/verify-org` | Public | Validate organization before admin login |
-| POST | `/auth/admin/login` | Public | Admin login |
+| POST | `/auth/admin/login` | Public | Admin login — platform admins and organization admins alike |
 | POST | `/auth/admin/verify-2fa` | Public | Verify admin TOTP |
 | POST | `/auth/admin/setup-2fa` | Admin | Generate QR/secret for 2FA setup |
 | POST | `/auth/admin/enable-2fa` | Admin | Enable admin 2FA |
-| POST | `/auth/platform/verify-secret` | Public | Validate platform secret |
-| POST | `/auth/platform/login` | Public | Platform admin login |
+
+One login serves every kind of administrator. The response carries `role`; when
+that is `orgadmin` it also carries `organizationId`, `orgCode`,
+`organizationName`, `organizationStatus` and `organizationStatusReason`, so the
+admin app knows to open the organization panel and can show an application still
+under review. For a platform admin the response is unchanged.
 
 ---
 
@@ -142,20 +147,113 @@
 
 ---
 
-## Platform Endpoints (`/platform`)
+## Organization Endpoints (`/organizations`)
+
+Schools, colleges and companies that bring their own students. Three audiences
+share the mount, each behind its own guard.
+
+The organization a request may touch is always read from the authenticated
+account, never from the URL or the body. An organization admin asking for
+`/organizations/me/students/:studentId` with another organization's student id
+gets a 404 — the lookup includes the organization, so it matches nothing.
+
+### Public
 
 | Method | Endpoint | Auth | Purpose |
 |---|---|---|---|
-| GET | `/platform/orgs` | Platform | List organizations |
-| POST | `/platform/orgs` | Platform | Create organization |
-| GET | `/platform/orgs/:orgId` | Platform | Get organization |
-| PUT | `/platform/orgs/:orgId` | Platform | Update org status |
-| DELETE | `/platform/orgs/:orgId` | Platform | Delete organization |
-| POST | `/platform/orgs/:orgId/admins` | Platform | Add org admin |
-| PUT | `/platform/orgs/:orgId/admins/:adminId` | Platform | Update org admin |
-| DELETE | `/platform/orgs/:orgId/admins/:adminId` | Platform | Delete org admin |
-| GET | `/platform/orgs/:orgId/students` | Platform | List org students |
-| GET | `/platform/analytics` | Platform | Platform analytics |
+| GET | `/organizations/types` | Public | The organization types the form offers |
+| POST | `/organizations/register` | Public | Register an organization; creates it `pending` plus its `orgadmin` account |
+
+### Superadmin
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/organizations/admin/options` | Admin | Every organization, for a filter dropdown |
+| GET | `/organizations/admin` | SuperAdmin | List, with `?status=`, `?type=`, `?search=` |
+| POST | `/organizations/admin` | SuperAdmin | Create an organization and its administrator (opens `active`) |
+| GET | `/organizations/admin/:id` | SuperAdmin | One organization, with its admins and status history |
+| PUT | `/organizations/admin/:id` | SuperAdmin | Edit details (never `orgCode`, never `status`) |
+| PUT | `/organizations/admin/:id/status` | SuperAdmin | `{ status, reason }` — approve, reject, suspend, reinstate |
+| GET | `/organizations/admin/:id/students` | SuperAdmin | Its students, with progress |
+| GET | `/organizations/admin/:id/assignable` | SuperAdmin | Students who could be put into it, `?search=`, capped at 50 |
+| POST | `/organizations/admin/:id/students` | SuperAdmin | `{ studentId }` — put a student into it, moving them if needed; refused (400) while it is pending |
+| DELETE | `/organizations/admin/:id/students/:studentId` | SuperAdmin | Take a student out of it |
+| GET | `/organizations/admin/students/:studentId` | SuperAdmin | Any student's full learning record |
+
+A pending organization cannot be assigned students — it has to be approved
+first, and the admin panel hides "Assign student" for it. Other statuses are not
+gated (a suspended organization can still be stocked). The response carries
+`organizationStatus` and says so in its message, because until the organization
+is active its administrator cannot sign in to see those students. Students still cannot *find* a
+non-active organization themselves — the student lookup returns active ones only.
+
+`status` accepts `active`, `rejected`, `suspended`, `inactive`. `pending` is
+refused — nothing returns to the queue it has left. A rejection requires a
+`reason`, which the organization is shown. No status change ever deletes an
+organization, a membership, or a student's progress.
+
+### Organization admin
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/organizations/me/status` | OrgAdmin | Where my application stands — the only route open before approval |
+| GET | `/organizations/me` | OrgAdmin | My organization |
+| PUT | `/organizations/me` | OrgAdmin | Edit name, logo, contact, email, phone, address, website |
+| PUT | `/organizations/me/password` | OrgAdmin | `{ currentPassword, newPassword }` — change the sign-in password |
+| GET | `/organizations/me/dashboard` | OrgAdmin | Headline numbers and recent student activity |
+| GET | `/organizations/me/students` | OrgAdmin | My students, with progress |
+| GET | `/organizations/me/students/:studentId` | OrgAdmin | One of my students, in full |
+| DELETE | `/organizations/me/students/:studentId` | OrgAdmin | Remove from my organization (the account is untouched) |
+| GET | `/organizations/me/requests` | OrgAdmin | Join requests, `?status=pending\|approved\|rejected` |
+| PUT | `/organizations/me/requests/:requestId` | OrgAdmin | `{ decision: 'approve'\|'reject', reason }` |
+
+Everything but `/me/status` is behind an active-organization gate. A pending,
+rejected, suspended or inactive organization gets `403` with
+`code: 'ORGANIZATION_NOT_ACTIVE'` and its own status.
+
+### Student
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| GET | `/organizations/student/me` | Student | My organization, or my latest request |
+| GET | `/organizations/student/lookup/:code` | Student | Find an **active** organization by its ID |
+| POST | `/organizations/student/requests` | Student | `{ orgCode }` — ask to join |
+| DELETE | `/organizations/student/requests/:requestId` | Student | Withdraw my pending request |
+
+One student belongs to one organization and may have one request in flight.
+Only active organizations can be found or joined. Looking a code up never joins
+anything — the organization's own admin decides.
+
+There is deliberately no endpoint for a student to leave. Membership is the
+institution's record of who its students are, so ending it belongs to that
+organization (`DELETE /organizations/me/students/:studentId`) or to a superadmin
+(`DELETE /organizations/admin/:id/students/:studentId`). Withdrawing a request
+nobody has answered is still the student's own to do — that is their request,
+not a membership. Removing a student, however it happens, clears the membership
+and nothing else: the account, courses, progress, XP and certificates are theirs
+and are untouched.
+
+A student is offered this in exactly two places: the optional `orgCode` field on
+the signup form, and the "Add organization" button on their dashboard. The signup
+field is handled by `POST /auth/register` rather than by these endpoints, because
+at that point there is no account and therefore no token. It is the one place a
+join request is created without a signed-in student, and it still creates nothing
+more than a request. Every failure there is soft and reported in the response's
+`organization` field — an unrecognised or misshapen ID never costs someone their
+account, and `organization` is `null` when the field was left blank.
+
+### Organization IDs
+
+`orgCode` is the public identifier: `<NAME>-<year>-<0001>`, where `<NAME>` is the
+organization's own first word, uppercased and stripped of punctuation — so
+"ABC College" gives `ABC-2026-0001`. A first word with no letters is skipped, and
+a prefix is capped at 12 characters.
+
+It is generated once at creation from an atomic counter, marked immutable on the
+schema, and never read from a request body. Renaming an organization does not
+change it, because students may already be holding the old one. Codes issued
+under the earlier fixed `ORG-` shape remain valid. The database `_id` is never
+shown as the organization's ID.
 
 ---
 

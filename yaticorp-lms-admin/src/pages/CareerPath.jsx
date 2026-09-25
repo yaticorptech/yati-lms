@@ -19,7 +19,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import {
-    Compass, Users, Map, CheckCircle2, MessageSquare, Award,
+    Compass, Users, Map, CheckCircle2, Award,
     Sparkles, AlertTriangle, TrendingUp, RefreshCw, Lock, Unlock
 } from 'lucide-react';
 
@@ -220,9 +220,7 @@ const CareerPath = () => {
                       sub="Finished a task in the last 7 days" tone="emerald" />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <Stat icon={MessageSquare} label="Used the mentor" value={overview?.mentorUsers ?? 0}
-                      sub="Students who have asked at least once" tone="slate" />
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <Stat icon={Award} label="Milestone badges" value={overview?.milestoneBadges ?? 0}
                       sub="Roadmap phases completed and shared" tone="amber" />
                 <Stat icon={Sparkles} label="AI calls today" value={spendToday}
