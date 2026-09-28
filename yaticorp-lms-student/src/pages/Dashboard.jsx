@@ -18,6 +18,7 @@ import { Link } from 'react-router-dom';
 import { BookOpen, Award, PlayCircle, Clock, X, Compass, ArrowRight, GraduationCap, Layers, CheckCircle2, Bookmark, Star, Target, Briefcase, CalendarDays, Globe } from 'lucide-react';
 import { useRewards } from '../context/useRewards';
 import { ProgressRing } from '../components/ProfileWidgets';
+import Portal from '../components/Portal';
 
 
 const getInitials = (title = '') => title.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
@@ -697,122 +698,126 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
 
             {/* Enroll Confirmation Modal */}
             {enrollModal && (
-                <div className="fixed inset-0 z-50 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-8 flex flex-col items-center text-center">
-                        <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
-                            <BookOpen size={28} className="text-indigo-600" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-slate-800 mb-2">Enroll in Course</h2>
-                        <p className="text-slate-500 mb-1">You're about to enroll in:</p>
-                        <p className="font-bold text-slate-800 text-lg mb-6">{enrollModal.title}</p>
-                        <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6 text-left space-y-2">
-                            <p className="text-sm font-semibold text-slate-600">Order Summary</p>
-                            <div className="flex justify-between text-sm text-slate-700">
-                                <span>{enrollModal.title}</span>
-                                <span className="font-bold text-emerald-600">{enrollModal.price > 0 ? `₹${enrollModal.price}` : 'Free'}</span>
+                <Portal>
+                    <div className="fixed inset-0 z-50 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+                        <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-8 flex flex-col items-center text-center">
+                            <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
+                                <BookOpen size={28} className="text-indigo-600" />
                             </div>
-                            <div className="border-t border-slate-200 pt-2 flex justify-between text-sm font-bold text-slate-800">
-                                <span>Total</span>
-                                <span className="text-emerald-600">{enrollModal.price > 0 ? `₹${enrollModal.price}` : 'Free'}</span>
+                            <h2 className="text-2xl font-bold text-slate-800 mb-2">Enroll in Course</h2>
+                            <p className="text-slate-500 mb-1">You're about to enroll in:</p>
+                            <p className="font-bold text-slate-800 text-lg mb-6">{enrollModal.title}</p>
+                            <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6 text-left space-y-2">
+                                <p className="text-sm font-semibold text-slate-600">Order Summary</p>
+                                <div className="flex justify-between text-sm text-slate-700">
+                                    <span>{enrollModal.title}</span>
+                                    <span className="font-bold text-emerald-600">{enrollModal.price > 0 ? `₹${enrollModal.price}` : 'Free'}</span>
+                                </div>
+                                <div className="border-t border-slate-200 pt-2 flex justify-between text-sm font-bold text-slate-800">
+                                    <span>Total</span>
+                                    <span className="text-emerald-600">{enrollModal.price > 0 ? `₹${enrollModal.price}` : 'Free'}</span>
+                                </div>
                             </div>
-                        </div>
-                        <div className="flex w-full space-x-3">
-                            <button
-                                onClick={() => setEnrollModal(null)}
-                                className="flex-1 py-3 border border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleConfirmEnroll}
-                                disabled={enrolling}
-                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors"
-                            >
-                                {enrolling ? 'Enrolling...' : 'Confirm Enroll'}
-                            </button>
+                            <div className="flex w-full space-x-3">
+                                <button
+                                    onClick={() => setEnrollModal(null)}
+                                    className="flex-1 py-3 border border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleConfirmEnroll}
+                                    disabled={enrolling}
+                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors"
+                                >
+                                    {enrolling ? 'Enrolling...' : 'Confirm Enroll'}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Portal>
             )}
 
             {/* Bundle View Overlay Modal */}
             {
                 selectedBundle && (
-                    <div className="fixed inset-0 z-50 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
-                        <div className="bg-white rounded-3xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto flex flex-col">
-                            <div className="sticky top-0 bg-white/90 backdrop-blur pb-4 pt-6 px-8 border-b border-slate-100 z-10 flex justify-between items-start">
-                                <div className="flex items-center space-x-4">
-                                    <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl">
-                                        <Award size={28} />
+                    <Portal>
+                        <div className="fixed inset-0 z-50 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+                            <div className="bg-white rounded-3xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto flex flex-col">
+                                <div className="sticky top-0 bg-white/90 backdrop-blur pb-4 pt-6 px-8 border-b border-slate-100 z-10 flex justify-between items-start">
+                                    <div className="flex items-center space-x-4">
+                                        <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl">
+                                            <Award size={28} />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-slate-800">{selectedBundle.title}</h2>
+                                            <p className="text-slate-500 font-medium">Included Courses in this Bundle</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-slate-800">{selectedBundle.title}</h2>
-                                        <p className="text-slate-500 font-medium">Included Courses in this Bundle</p>
-                                    </div>
+                                    <button
+                                        onClick={() => setSelectedBundle(null)}
+                                        className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
+                                    >
+                                        <X size={24} />
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => setSelectedBundle(null)}
-                                    className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
-                                >
-                                    <X size={24} />
-                                </button>
-                            </div>
-                            <div className="p-8">
-                                <div className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {selectedBundle.courses && selectedBundle.courses.length > 0 ? (
-                                        selectedBundle.courses.map(bc => {
-                                            // Attempt to match bundle sub-course with full course object from primary courses array
-                                            const fullCourse = courses.find(c => c._id === bc._id) || bc;
-                                            const progress = getProgressVal(bc._id);
-                                            return (
-                                                <div key={bc._id} className="lift bg-white rounded-2xl border border-slate-200 overflow-hidden transition-shadow duration-300 group flex flex-col">
-                                                    <div className="h-40 bg-slate-100 relative overflow-hidden">
-                                                        {fullCourse.thumbnail || bc.thumbnail ? (
-                                                            <img src={fullCourse.thumbnail || bc.thumbnail} alt={bc.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex justify-center items-center bg-indigo-50 text-indigo-200">
-                                                                <BookOpen size={40} />
+                                <div className="p-8">
+                                    <div className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {selectedBundle.courses && selectedBundle.courses.length > 0 ? (
+                                            selectedBundle.courses.map(bc => {
+                                                // Attempt to match bundle sub-course with full course object from primary courses array
+                                                const fullCourse = courses.find(c => c._id === bc._id) || bc;
+                                                const progress = getProgressVal(bc._id);
+                                                return (
+                                                    <div key={bc._id} className="lift bg-white rounded-2xl border border-slate-200 overflow-hidden transition-shadow duration-300 group flex flex-col">
+                                                        <div className="h-40 bg-slate-100 relative overflow-hidden">
+                                                            {fullCourse.thumbnail || bc.thumbnail ? (
+                                                                <img src={fullCourse.thumbnail || bc.thumbnail} alt={bc.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex justify-center items-center bg-indigo-50 text-indigo-200">
+                                                                    <BookOpen size={40} />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="p-5 flex-1 flex flex-col">
+                                                            <h3 className="font-bold text-md text-slate-800 line-clamp-2 min-h-[48px] mb-2 group-hover:text-indigo-600 transition-colors">
+                                                                {bc.title}
+                                                            </h3>
+                                                            <div className="mt-auto pt-4">
+                                                                <div className="flex justify-between items-end mb-2">
+                                                                    <span className="text-xs font-semibold text-slate-500 flex items-center">
+                                                                        <Clock size={12} className="mr-1" /> Progress
+                                                                    </span>
+                                                                    <span className="text-xs font-bold text-indigo-600">{progress}%</span>
+                                                                </div>
+                                                                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                                                    <div
+                                                                        className="bg-indigo-600 h-1.5 rounded-full transition-all duration-1000 ease-out"
+                                                                        style={{ width: `${progress}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                                <Link
+                                                                    to={`/learn/${bc._id}`}
+                                                                    className="mt-4 w-full flex justify-center items-center space-x-2 py-2.5 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold text-sm rounded-lg transition-colors border border-slate-200 hover:border-indigo-200"
+                                                                >
+                                                                    <span>{progress > 0 ? 'Resume Course' : 'Start Course'}</span>
+                                                                    <PlayCircle size={16} />
+                                                                </Link>
                                                             </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="p-5 flex-1 flex flex-col">
-                                                        <h3 className="font-bold text-md text-slate-800 line-clamp-2 min-h-[48px] mb-2 group-hover:text-indigo-600 transition-colors">
-                                                            {bc.title}
-                                                        </h3>
-                                                        <div className="mt-auto pt-4">
-                                                            <div className="flex justify-between items-end mb-2">
-                                                                <span className="text-xs font-semibold text-slate-500 flex items-center">
-                                                                    <Clock size={12} className="mr-1" /> Progress
-                                                                </span>
-                                                                <span className="text-xs font-bold text-indigo-600">{progress}%</span>
-                                                            </div>
-                                                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                                                <div
-                                                                    className="bg-indigo-600 h-1.5 rounded-full transition-all duration-1000 ease-out"
-                                                                    style={{ width: `${progress}%` }}
-                                                                ></div>
-                                                            </div>
-                                                            <Link
-                                                                to={`/learn/${bc._id}`}
-                                                                className="mt-4 w-full flex justify-center items-center space-x-2 py-2.5 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold text-sm rounded-lg transition-colors border border-slate-200 hover:border-indigo-200"
-                                                            >
-                                                                <span>{progress > 0 ? 'Resume Course' : 'Start Course'}</span>
-                                                                <PlayCircle size={16} />
-                                                            </Link>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="col-span-full py-12 text-center bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
-                                            <p className="text-slate-500 font-medium">This bundle does not contain any published courses yet.</p>
-                                        </div>
-                                    )}
+                                                );
+                                            })
+                                        ) : (
+                                            <div className="col-span-full py-12 text-center bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
+                                                <p className="text-slate-500 font-medium">This bundle does not contain any published courses yet.</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </Portal>
                 )
             }
         </section>

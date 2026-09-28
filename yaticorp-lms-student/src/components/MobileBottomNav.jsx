@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, GraduationCap, Mic } from 'lucide-react';
+import { User, LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, GraduationCap, Mic } from 'lucide-react';
 import './mobileBottomNav.css';
 
 /**
@@ -11,9 +11,11 @@ import './mobileBottomNav.css';
  * destinations sit under the thumb here, and the drawer keeps what does not
  * belong in a nav bar — support and sign-out.
  *
- * Labels are shortened to one word each so seven of them sit on one line
+ * Labels are shortened to one word each so eight of them sit on one line
  * under their icons; the sidebar's full name stays on the accessible label,
- * so a screen reader still hears "Enrolled Courses".
+ * so a screen reader still hears "Enrolled Courses". "Community" became
+ * "Forum" when My Profile joined the bar: eight cells on a 344px phone are
+ * 41px each, and "Community" was cut to "Commu…" even at seven.
  *
  * Jobs and Career Path come and go with the admin switches, exactly
  * as they do in the sidebar, so the bar never offers a section the student
@@ -25,11 +27,13 @@ import './mobileBottomNav.css';
  * is something the thumb can watch rather than a colour that changes.
  */
 // `label` is the sidebar's own name and goes on the accessible label; `short`
-// is what fits under an icon in one line when seven of them share a phone.
+// is what fits under an icon in one line when eight of them share a phone.
+// My Profile leads, as it does in the sidebar.
 const ITEMS = [
+  { to: '/profile', label: 'My Profile', short: 'Profile', icon: User, exact: true },
   { to: '/', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
   { to: '/enrolled-courses', label: 'Enrolled Courses', short: 'Courses', icon: BookOpen },
-  { to: '/community', label: 'Community', short: 'Community', icon: MessageSquare },
+  { to: '/community', label: 'Community', short: 'Forum', icon: MessageSquare },
   { to: '/jobs', label: 'Jobs', short: 'Jobs', icon: Briefcase, flag: 'jobs' },
   { to: '/scholarships', label: 'Scholarships', short: 'Grants', icon: GraduationCap, flag: 'career' },
   { to: '/career', label: 'Career Path', short: 'Career', icon: Compass, flag: 'career' },
@@ -72,7 +76,7 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
   return (
     <nav
       aria-label="Main sections"
-      className="mbn-in fixed inset-x-1.5 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 lg:hidden"
+      className="mbn-in fixed inset-x-1.5 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 sidebar:hidden"
     >
       <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-[0_18px_40px_-16px_rgba(15,23,42,0.8)] backdrop-blur-xl supports-[backdrop-filter]:bg-slate-900/90">
         {/* A faint sheen across the top edge, so the bar reads as glass. */}
@@ -100,14 +104,17 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
                 <span
                   data-active-icon={active || undefined}
                   key={active ? `${item.to}-on` : `${item.to}-off`}
-                  className={`flex h-10 w-11 shrink-0 items-center justify-center rounded-full transition-colors duration-300 ${
+                  className={`flex h-10 w-full max-w-11 shrink-0 items-center justify-center rounded-full transition-colors duration-300 ${
                     active ? 'mbn-icon-active text-white' : 'text-slate-400'
                   }`}
                 >
                   <item.icon size={20} strokeWidth={active ? 2.5 : 2} />
                 </span>
 
-                <span className="w-full truncate px-px text-center leading-none">{item.short}</span>
+                {/* Whole, never cut: on a 344px phone "Interview" is 44px in a
+                    41px cell and runs 1.5px past each edge — into the gap its
+                    neighbour's shorter label leaves, not into the label. */}
+                <span className="whitespace-nowrap text-center leading-none">{item.short}</span>
 
                 {active && <span aria-hidden className="mbn-dot absolute bottom-0 h-1 w-1 rounded-full bg-indigo-300" />}
               </Link>

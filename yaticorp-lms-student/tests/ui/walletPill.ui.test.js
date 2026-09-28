@@ -66,7 +66,7 @@ createRoot(document.getElementById('root')).render(
 
 const MEASURE = `
     await sleep(900);
-    const bar = $$('div').find((d) => String(d.className).includes('md:hidden')
+    const bar = $$('div').find((d) => d.hasAttribute('data-mobile-header')
         && String(d.className).includes('fixed') && String(d.className).includes('top-0'));
     const pill = $$('a').find((a) => (a.getAttribute('aria-label') || '').startsWith('Wallet balance'));
     const menu = $$('button').find((b) => b.querySelector('svg.lucide-menu'));

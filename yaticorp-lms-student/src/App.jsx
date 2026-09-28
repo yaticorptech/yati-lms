@@ -135,7 +135,10 @@ function App() {
       {/* RewardsProvider sits inside the auth guard so every page in the
           shell can show XP toasts and milestone celebrations. */}
       <Route path="/" element={<ProtectedRoute><RewardsProvider><StudentLayout /></RewardsProvider></ProtectedRoute>}>
-        <Route index element={<Profile />} />
+        {/* Two routes, one component: see pages/Profile.jsx. The keys make each
+            its own page — without them React would keep one instance across the
+            switch, and an edit form left open on one would reappear on the other. */}
+        <Route index element={<Profile key="dashboard" />} />
         <Route path="enrolled-courses" element={<EnrolledCourses />} />
         <Route path="learning-bio" element={<React.Suspense fallback={<CareerFallback />}><LearningBioPage /></React.Suspense>} />
         <Route path="interview" element={<React.Suspense fallback={<CareerFallback />}><InterviewDashboard /></React.Suspense>} />
@@ -144,8 +147,7 @@ function App() {
         <Route path="interview/report/:id" element={<React.Suspense fallback={<CareerFallback />}><InterviewReport /></React.Suspense>} />
         <Route path="interview/report/:id/questions" element={<React.Suspense fallback={<CareerFallback />}><QuestionReview /></React.Suspense>} />
         <Route path="interview/history" element={<React.Suspense fallback={<CareerFallback />}><InterviewHistory /></React.Suspense>} />
-        {/* Dashboard and My Profile are one page now; the old address still lands there. */}
-        <Route path="profile" element={<Navigate to="/" replace />} />
+        <Route path="profile" element={<Profile key="profile" view="profile" />} />
         <Route path="learn/:courseId" element={<CoursePlayer />} />
         <Route path="community" element={<Community />} />
         <Route path="community/:postId" element={<PostDetail />} />

@@ -124,7 +124,11 @@ export default function InterviewDashboard() {
             <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-100 via-indigo-50 to-sky-100 p-5 shadow-sm ring-1 ring-indigo-100 sm:p-7">
                 <span aria-hidden="true" className="pointer-events-none absolute -right-10 top-10 h-56 w-56 rounded-full bg-white/50 blur-3xl" />
                 <span aria-hidden="true" className="pointer-events-none absolute -left-16 -bottom-16 h-56 w-56 rounded-full bg-violet-200/40 blur-3xl" />
-                <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_auto_320px]">
+                {/* Three columns — greeting, mascot, readiness — from xl, not lg:
+                    at 1024 the sidebar leaves about 700px, and the greeting was
+                    squeezed to a word per line with "Developer" cut off behind
+                    the mascot. Below xl it stacks, as it does on a tablet. */}
+                <div className="relative grid items-center gap-6 xl:grid-cols-[minmax(0,1fr)_auto_320px]">
                     <div>
                         <h1 className="text-2xl font-black leading-tight text-slate-900 sm:text-[2rem]">
                             Hi {data.student.firstName},<br />Let&apos;s get you interview-ready{data.student.goal ? <><br />for <span className="text-violet-600">{data.student.goal}!</span></> : '!'}
@@ -136,7 +140,7 @@ export default function InterviewDashboard() {
                         </p>
                     </div>
 
-                    <div className="hidden items-end gap-1 lg:flex">
+                    <div className="hidden items-end gap-1 xl:flex">
                         <p className="lb-script mb-6 text-lg leading-tight text-indigo-500/90">Practice<br />Improve<br />Succeed</p>
                         <Illustration name="thumbs-up" pose="thumbs" height={168} />
                     </div>
