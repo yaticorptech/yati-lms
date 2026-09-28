@@ -125,9 +125,9 @@ const Tickets = () => {
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in max-w-7xl mx-auto pb-10">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 lg:p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div>
-                    <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">Support Tickets</h1>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div className="min-w-0">
+                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">Support Tickets</h1>
                     <p className="text-sm lg:text-base text-slate-500 mt-1">Manage and resolve student support requests</p>
                 </div>
             </div>
@@ -203,43 +203,46 @@ const Tickets = () => {
                     </div>
                 ) : tickets.map(ticket => (
                     <div key={ticket._id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        {/* Ticket Header */}
+                        {/* Ticket Header. On a phone the status sits above the
+                            subject and the date moves under it, so the subject
+                            gets the card's full width. */}
                         <button onClick={() => setExpandedId(expandedId === ticket._id ? null : ticket._id)}
-                            className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-50 transition-colors">
-                            <div className="flex items-start space-x-4 flex-1 min-w-0">
+                            className="w-full flex items-start sm:items-center justify-between gap-3 p-4 sm:p-5 text-left hover:bg-slate-50 transition-colors">
+                            <div className="flex flex-col sm:flex-row items-start gap-2 sm:gap-4 flex-1 min-w-0">
                                 <div className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold flex-shrink-0 ${statusColors[ticket.status]}`}>
                                     {statusIcons[ticket.status]}
                                     <span>{ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1).replace('-', ' ')}</span>
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                    <p className="font-bold text-slate-800 truncate">{ticket.subject}</p>
-                                    <p className="text-sm text-slate-500 mt-0.5">
+                                <div className="min-w-0 flex-1 w-full">
+                                    <p className="font-bold text-slate-800 truncate" title={ticket.subject}>{ticket.subject}</p>
+                                    <p className="text-sm text-slate-500 mt-0.5 break-words [overflow-wrap:anywhere]">
                                         <span className="font-medium text-slate-600">{ticket.name}</span>
                                         {' · '}{ticket.email}
                                         {ticket.cardNumber && ` · Card: ${ticket.cardNumber}`}
-                                        {' · '}<span className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">{pageLabels[ticket.page] || ticket.page}</span>
+                                        {' · '}<span className="text-xs bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">{pageLabels[ticket.page] || ticket.page}</span>
                                     </p>
+                                    <p className="sm:hidden mt-1 text-xs text-slate-400">{new Date(ticket.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center space-x-3 flex-shrink-0 ml-4">
-                                <span className="text-xs text-slate-400">{new Date(ticket.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                            <div className="flex items-center space-x-3 flex-shrink-0">
+                                <span className="hidden sm:inline text-xs text-slate-400 whitespace-nowrap">{new Date(ticket.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                                 <ChevronDown size={18} className={`text-slate-400 transition-transform ${expandedId === ticket._id ? 'rotate-180' : ''}`} />
                             </div>
                         </button>
 
                         {/* Expanded Details */}
                         {expandedId === ticket._id && (
-                            <div className="px-5 pb-5 border-t border-slate-100 pt-4 space-y-4">
+                            <div className="px-4 sm:px-5 pb-5 border-t border-slate-100 pt-4 space-y-4">
                                 <div className="bg-slate-50 rounded-xl p-4">
                                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Message</p>
-                                    <p className="text-slate-700 text-sm whitespace-pre-wrap">{ticket.message}</p>
+                                    <p className="text-slate-700 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">{ticket.message}</p>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Admin Notes</label>
 
                                     {/*  changed this line — show saved note above textarea with dashed purple border */}
                                     {(savedNotes[ticket._id] || ticket.adminNotes) && (
-                                        <div className="border border-dashed border-indigo-300 bg-indigo-50/40 rounded-lg px-3 py-2 text-sm mb-2">
+                                        <div className="border border-dashed border-indigo-300 bg-indigo-50/40 rounded-lg px-3 py-2 text-sm mb-2 [overflow-wrap:anywhere]">
                                             <span className="text-xs font-bold text-indigo-500 uppercase tracking-wider">Saved Note · </span>
                                             <span className="text-slate-600">{savedNotes[ticket._id] || ticket.adminNotes}</span>
                                         </div>
@@ -255,7 +258,7 @@ const Tickets = () => {
 
                                     {/* ✅ Beautiful inline success / error message */}
                                     {successMessage?.id === ticket._id && (
-                                        <div className={`flex items-center gap-2 mt-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all ${
+                                        <div className={`flex items-center gap-2 mt-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all break-words ${
                                             successMessage.isError
                                                 ? 'bg-red-50 border-red-200 text-red-600'
                                                 : 'bg-emerald-50 border-emerald-200 text-emerald-700'
@@ -269,7 +272,7 @@ const Tickets = () => {
                                     )}
 
                                     {/* Save Note & Send Note Buttons */}
-                                    <div className="flex items-center justify-end gap-2 mt-2">
+                                    <div className="flex flex-wrap items-center justify-end gap-2 mt-2">
                                         <button
                                             onClick={() => saveNote(ticket._id)}
                                             disabled={savingNoteId === ticket._id}
@@ -288,7 +291,7 @@ const Tickets = () => {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <span className="text-xs font-semibold text-slate-500 mr-1">Set Status:</span>
                                     {['open', 'in-progress', 'resolved'].map(s => (
                                         <button key={s} disabled={updatingId === ticket._id || ticket.status === s}
@@ -297,7 +300,7 @@ const Tickets = () => {
                                             {s.charAt(0).toUpperCase() + s.slice(1).replace('-', ' ')}
                                         </button>
                                     ))}
-                                    {updatingId === ticket._id && <span className="text-xs text-slate-400 ml-2">Saving...</span>}
+                                    {updatingId === ticket._id && <span className="text-xs text-slate-400 sm:ml-2">Saving...</span>}
                                 </div>
                             </div>
                         )}

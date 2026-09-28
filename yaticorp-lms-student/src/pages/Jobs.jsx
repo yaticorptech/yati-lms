@@ -211,7 +211,7 @@ const Chip = ({ label, value, onRemove }) => (
         <span className="font-semibold text-indigo-500">{label}</span>
         <span className="font-semibold text-indigo-900">{value}</span>
         <button type="button" onClick={onRemove} aria-label={`Remove ${label} ${value}`}
-            className="rounded-full p-1 text-indigo-400 transition-colors hover:bg-indigo-100 hover:text-indigo-700">
+            className="relative after:absolute after:-inset-2 after:content-[''] rounded-full p-1 text-indigo-400 transition-colors hover:bg-indigo-100 hover:text-indigo-700">
             <X size={13} />
         </button>
     </span>

@@ -294,7 +294,11 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
           <p className="text-[0.68rem] font-black tracking-[0.2em] text-journey-600 uppercase">
             Build your skills
           </p>
-          <h1 className="mt-1.5 text-[1.75rem] leading-tight font-black text-ink-900 sm:text-[2rem] lg:whitespace-nowrap xl:text-[2.25rem]">
+          {/* It wraps rather than being told not to: where it fits it is one
+              line anyway, and where it does not — the banner beside the
+              progress card at 1024px, its text column half of that — a
+              no-wrap heading was cut to "Big dre". */}
+          <h1 className="mt-1.5 text-[1.75rem] leading-tight font-black text-ink-900 sm:text-[2rem] xl:text-[2.25rem]">
             Small steps.{' '}
             <span className="bg-gradient-to-r from-journey-600 to-indigo-600 bg-clip-text text-transparent">
               Big dreams.

@@ -49,15 +49,16 @@ const Login = () => {
         setLoading(false);
     };
 
+    // px-4 on a phone keeps the card off the screen edge: a card, not a full-bleed panel.
     return (
-        <div className="min-h-screen bg-slate-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+        <div className="min-h-screen bg-slate-900 flex flex-col justify-center py-10 sm:py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-600/20 blur-[100px]"></div>
                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-600/20 blur-[100px]"></div>
             </div>
 
-            <div className="sm:mx-auto sm:w-full sm:max-w-md z-10 text-center">
-                <h2 className="mt-6 text-3xl font-extrabold text-white tracking-tight">
+            <div className="mx-auto w-full max-w-md z-10 text-center">
+                <h2 className="mt-2 sm:mt-6 text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
                     YATICORP <span className="text-indigo-400">LMS-ADMIN</span>
                 </h2>
                 <p className="mt-2 text-sm text-slate-400">
@@ -65,8 +66,8 @@ const Login = () => {
                 </p>
             </div>
 
-            <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md z-10">
-                <div className="bg-slate-800/80 backdrop-blur-xl py-8 px-4 shadow-2xl sm:rounded-2xl sm:px-10 border border-slate-700">
+            <div className="mt-6 sm:mt-8 mx-auto w-full max-w-md z-10">
+                <div className="bg-slate-800/80 backdrop-blur-xl py-7 sm:py-8 px-5 shadow-2xl rounded-2xl sm:px-10 border border-slate-700">
 
                     {/* Credentials */}
                     {!needs2FA && (
@@ -129,7 +130,7 @@ const Login = () => {
                             </div>
                             {error && <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm text-center">{error}</div>}
                             <input type="text" required maxLength="6" value={token} onChange={e => setToken(e.target.value)}
-                                className="appearance-none block w-full px-4 py-4 text-center tracking-[0.5em] text-2xl font-mono border border-slate-600 rounded-xl bg-slate-900/50 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                                className="appearance-none block w-full px-4 py-4 text-center tracking-[0.35em] sm:tracking-[0.5em] text-2xl font-mono border border-slate-600 rounded-xl bg-slate-900/50 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                                 placeholder="000000" />
                             <button type="submit" disabled={loading}
                                 className="w-full flex justify-center py-3 px-4 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all">

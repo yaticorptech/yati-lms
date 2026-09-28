@@ -115,7 +115,7 @@ const UNDER_HEADER = `
   await sleep(1500);
   const dialog = $('[role="dialog"][aria-modal="true"]');
   if (!dialog) return { noDialog: true };
-  const header = $$('div').find((d) => d.className && String(d.className).includes('md:hidden')
+  const header = $$('div').find((d) => d.hasAttribute('data-mobile-header')
         && String(d.className).includes('fixed') && String(d.className).includes('top-0'));
   if (!header) return { noHeader: true };
   const h = header.getBoundingClientRect();
@@ -139,7 +139,7 @@ describe("a popup and the app's fixed chrome", { skip: skipWithoutStyles }, () =
             await sleep(1200);
             const overlay = $('[aria-label="Job application"]');
             if (!overlay) return { noOverlay: true };
-            const header = $$('div').find((d) => d.className && String(d.className).includes('md:hidden')
+            const header = $$('div').find((d) => d.hasAttribute('data-mobile-header')
                 && String(d.className).includes('fixed') && String(d.className).includes('top-0'));
             const h = header.getBoundingClientRect();
             const card = overlay.querySelector('section > div');

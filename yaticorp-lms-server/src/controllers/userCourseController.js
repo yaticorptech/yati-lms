@@ -8,6 +8,7 @@ const Lesson = require('../models/Lesson');
 const Enrollment = require('../models/Enrollment');
 const Bundle = require('../models/Bundle');
 const Progress = require('../models/Progress');
+const { canAccessCourse, visibleCoursesFilter } = require('../services/courseAccess');
 
 /**
  * Every published bundle, with only its published courses attached.
@@ -111,7 +112,11 @@ const getMyCourses = async (req, res) => {
             progressDocs.map(p => [p.courseId.toString(), Math.min(100, p.percentage)])
         );
 
-        const coursesWithProgress = courses.map(course => {
+        // An organization's own course shows only while the student is still
+        // its member. Hidden, not deleted: the enrollment and progress stay,
+        // and come back if they rejoin — which is why this is after the orphan
+        // clean-up above rather than in the query.
+        const coursesWithProgress = courses.filter(course => canAccessCourse(req.user, course)).map(course => {
             const prog = progressDocs.find(p => p.courseId.toString() === course._id.toString());
             return {
                 ...course.toObject(),
@@ -156,6 +161,10 @@ const getCourseContent = async (req, res) => {
             console.log(`[getCourseContent] Course ${courseId} is currently unpublished.`);
             return res.status(404).json({ message: 'This course is currently unpublished and unavailable.' });
         }
+
+        // An organization's own course opens only for its members; to anyone
+        // else it does not exist.
+        if (!canAccessCourse(req.user, course)) return res.status(404).json({ message: 'Course not found' });
 
         // Content dripping: modules unlock N days after the student's enrollment.
         const enrollment = await Enrollment.findOne({ userId: req.user._id, courseId });
@@ -205,6 +214,9 @@ const getCourseContent = async (req, res) => {
 const updateProgress = async (req, res) => {
     try {
         const { courseId, lessonId } = req.body;
+
+        const target = courseId ? await Course.findById(courseId).select('organizationId').lean() : null;
+        if (!target || !canAccessCourse(req.user, target)) return res.status(404).json({ message: 'Course not found' });
 
         let progress = await Progress.findOne({ userId: req.user._id, courseId });
         if (!progress) {
@@ -289,12 +301,58 @@ const getAvailableCourses = async (req, res) => {
             });
         }
 
+        // Platform courses, and the student's own organization's courses.
         const availableCourses = await Course.find({
             isPublished: true,
-            _id: { $nin: Array.from(enrolledCourseIds) }
+            _id: { $nin: Array.from(enrolledCourseIds) },
+            ...visibleCoursesFilter(req.user)
         });
 
         res.json({ availableCourses });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    The student's own organization's published courses, with their progress
+// @route   GET /api/user/courses/organization
+// @access  Private/User
+//
+// Every course the organization has published, enrolled in or not, so the
+// student can find them in one place. Nothing for a student without an
+// organization. `enrolled` says whether it is in their My courses yet; an
+// organization course is always free, so starting one just enrols them.
+const getOrganizationCourses = async (req, res) => {
+    try {
+        const orgId = req.user.organizationId;
+        if (!orgId) return res.json({ organization: null, courses: [] });
+
+        const Organization = require('../organizations/models/Organization');
+        const [organization, courses] = await Promise.all([
+            Organization.findById(orgId).select('name logo').lean(),
+            Course.find({ organizationId: orgId, isPublished: true })
+                .select('title description thumbnail instructor lessonsCount createdAt organizationId')
+                .sort({ createdAt: -1 })
+                .lean()
+        ]);
+        if (!organization) return res.json({ organization: null, courses: [] });
+
+        const ids = courses.map(c => c._id);
+        const [enrollments, progressDocs] = await Promise.all([
+            Enrollment.find({ userId: req.user._id, type: 'Course', courseId: { $in: ids } }).select('courseId').lean(),
+            Progress.find({ userId: req.user._id, courseId: { $in: ids } }).select('courseId percentage').lean()
+        ]);
+        const enrolled = new Set(enrollments.map(e => String(e.courseId)));
+        const progress = new Map(progressDocs.map(p => [String(p.courseId), Math.min(100, p.percentage || 0)]));
+
+        res.json({
+            organization: { _id: organization._id, name: organization.name, logo: organization.logo || null },
+            courses: courses.map(c => ({
+                ...c,
+                enrolled: enrolled.has(String(c._id)),
+                progress: progress.get(String(c._id)) || 0
+            }))
+        });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -308,7 +366,7 @@ const enrollCourse = async (req, res) => {
         const courseId = req.params.id;
         const course = await Course.findById(courseId);
 
-        if (!course || !course.isPublished) {
+        if (!course || !course.isPublished || !canAccessCourse(req.user, course)) {
             return res.status(404).json({ message: 'Course not found or unavailable' });
         }
 
@@ -428,11 +486,14 @@ const searchContent = async (req, res) => {
         const courses = await Course.find({
             _id: { $in: courseIdsArr },
             isPublished: true,
-            title: regex
+            title: regex,
+            ...visibleCoursesFilter(req.user)
         }).select('title thumbnail _id').lean();
 
-        // Search lessons by title in enrolled courses
-        const modules = await Module.find({ courseId: { $in: courseIdsArr } }, '_id courseId').lean();
+        // Search lessons by title in enrolled courses the student can still
+        // open (an organization's course only while they are its member).
+        const visibleIds = await Course.find({ _id: { $in: courseIdsArr }, ...visibleCoursesFilter(req.user) }).distinct('_id');
+        const modules = await Module.find({ courseId: { $in: visibleIds } }, '_id courseId').lean();
         const moduleIds = modules.map(m => m._id);
         const lessons = await Lesson.find({
             moduleId: { $in: moduleIds },
@@ -461,6 +522,7 @@ module.exports = {
     getCourseContent,
     updateProgress,
     getAvailableCourses,
+    getOrganizationCourses,
     enrollCourse,
     searchContent
 };

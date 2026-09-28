@@ -7,12 +7,28 @@ const Quiz = require('../models/Quiz');
 const GlobalQuestion = require('../models/GlobalQuestion');
 const { livePaper } = require('../services/globalQuizService');
 const Setting = require('../models/Setting');
+const { canAccessCourse } = require('../services/courseAccess');
+
+/**
+ * Whether the student may use this lesson's quiz: the lesson's course must be
+ * one they can open. An organization's own course is its members' alone.
+ */
+const lessonOpenTo = async (user, lessonId) => {
+    if (!mongoose.isValidObjectId(lessonId)) return false;
+    const lesson = await require('../models/Lesson').findById(lessonId).select('moduleId').lean();
+    if (!lesson) return false;
+    const mod = await require('../models/Module').findById(lesson.moduleId).select('courseId').lean();
+    if (!mod) return false;
+    const course = await require('../models/Course').findById(mod.courseId).select('organizationId').lean();
+    return canAccessCourse(user, course);
+};
 
 // @desc    Get quiz for a specific lesson (Student view - hides correct answers)
 // @route   GET /api/user/lessons/:lessonId/quiz
 // @access  Private/User
 const getQuizForStudent = async (req, res) => {
     try {
+        if (!(await lessonOpenTo(req.user, req.params.lessonId))) return res.status(404).json({ message: 'Quiz not found for this lesson' });
         const quiz = await Quiz.findOne({ lessonId: req.params.lessonId }).lean();
         if (!quiz) {
             return res.status(404).json({ message: 'Quiz not found for this lesson' });
@@ -42,6 +58,7 @@ const getQuizForStudent = async (req, res) => {
 const submitQuizAnswers = async (req, res) => {
     try {
         const { answers } = req.body; // Array of selected indices matching question order
+        if (!(await lessonOpenTo(req.user, req.params.lessonId))) return res.status(404).json({ message: 'Quiz not found for this lesson' });
         const quiz = await Quiz.findOne({ lessonId: req.params.lessonId });
 
         if (!quiz) {

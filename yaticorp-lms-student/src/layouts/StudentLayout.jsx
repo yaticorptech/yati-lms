@@ -306,6 +306,9 @@ const StudentLayout = () => {
     // remounting on every parent render.
     const renderNavLinks = (onClick) => (
         <>
+            <Link to="/profile" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/profile') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                <User size={20} /> <span>My Profile</span>
+            </Link>
             <Link to="/" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
                 <LayoutDashboard size={20} /> <span>Dashboard</span>
             </Link>
@@ -346,6 +349,7 @@ const StudentLayout = () => {
     <div ref={notifRef} className="relative">
         <button
             onClick={openNotif}
+            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
             className="p-2 text-slate-600 md:text-slate-600 hover:bg-slate-100 rounded-full transition-colors relative"
         >
             <Bell size={22} className={location.pathname === '/' ? 'text-indigo-600' : ''} />
@@ -356,8 +360,12 @@ const StudentLayout = () => {
             )}
         </button>
 
+        {/* On the phone layout the panel spans the screen under the top bar:
+            a 320px box hung off the bell ran past the left edge of a 344px
+            Fold, the bell being 60px in from the right. With the sidebar it
+            is the dropdown it always was. */}
         {showNotif && (
-            <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] max-h-80 overflow-y-auto animate-in fade-in zoom-in duration-200 origin-top-right">
+            <div className="fixed inset-x-3 top-[4.25rem] z-[60] max-h-[min(20rem,calc(100dvh-6rem))] overflow-y-auto rounded-2xl border border-slate-100 bg-white shadow-2xl animate-in fade-in zoom-in duration-200 origin-top-right sidebar:absolute sidebar:inset-x-auto sidebar:right-0 sidebar:top-12 sidebar:w-80 sidebar:max-h-80">
 
                 {/* ✅ HEADER */}
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
@@ -444,7 +452,7 @@ const StudentLayout = () => {
     </div>
 );
     return (
-        <div className="flex h-screen bg-slate-50 text-slate-900 font-sans">
+        <div className="flex h-visible bg-slate-50 text-slate-900 font-sans">
             {/* Raised whenever something wants to write to a student's own
                 Google account. Mounted once so the explanation they read is
                 written in exactly one place. */}
@@ -493,7 +501,7 @@ const StudentLayout = () => {
                 looks like empty space to it. This marks the navigation as
                 somewhere it may not stand. Read only by the mascot; nothing
                 about this sidebar changes. */}
-            <aside data-mascot-clear className="hidden md:flex w-64 bg-slate-900 text-white flex-col z-10 shadow-xl">
+            <aside data-mascot-clear className="hidden sidebar:flex w-64 bg-slate-900 text-white flex-col z-10 shadow-xl">
                 <div className="p-6 flex items-center justify-center border-b border-slate-800 bg-slate-900">
                     <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
                 </div>
@@ -529,7 +537,8 @@ const StudentLayout = () => {
                 it walked up behind it. */}
             <div
                 data-mascot-avoid
-                className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4"
+                data-mobile-header
+                className="sidebar:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4"
             >
                 <div className="flex min-w-0 shrink items-center">
                     <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-8 max-w-full object-contain" />
@@ -558,8 +567,8 @@ const StudentLayout = () => {
                     <div className="shrink-0 [&_button]:text-emerald-400 [&_button:hover]:bg-white/10 [&_svg]:text-emerald-400">
                         {renderNotificationBell()}
                     </div>
-                    <button onClick={() => setMobileMenuOpen(true)} className="shrink-0 p-2 text-white">
-                        <Menu size={24} />
+                    <button onClick={() => setMobileMenuOpen(true)} aria-label="Open menu" className="shrink-0 p-2 text-white">
+                        <Menu size={24} aria-hidden="true" />
                     </button>
                 </div>
             </div>
@@ -570,35 +579,46 @@ const StudentLayout = () => {
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
-                <div className="md:hidden fixed inset-0 z-50 flex">
+                <div className="sidebar:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Menu">
                     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
-                    <div className="relative w-4/5 max-w-sm bg-slate-900 text-white h-full flex flex-col shadow-2xl animate-fade-in border-r border-slate-800">
-                        <div className="p-4 flex items-center justify-between border-b border-slate-800">
+                    {/* The whole drawer scrolls, not the menu inside it. On a phone
+                        turned sideways — 384px tall — the logo above and the card,
+                        Contact Support and Logout below left the menu its own
+                        scrolling strip about two items high. The close button stays
+                        pinned at the top while the rest moves. */}
+                    <div className="relative w-4/5 max-w-sm bg-slate-900 text-white h-full flex flex-col overflow-y-auto shadow-2xl animate-fade-in border-r border-slate-800">
+                        <div className="sticky top-0 z-10 p-4 flex items-center justify-between border-b border-slate-800 bg-slate-900">
                             <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-8 object-contain" />
-                            <button onClick={() => setMobileMenuOpen(false)} className="p-2 text-slate-400 hover:text-white">
-                                <X size={24} />
+                            <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu" className="p-2 text-slate-400 hover:text-white">
+                                <X size={24} aria-hidden="true" />
                             </button>
                         </div>
-                        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                        <nav className="flex-1 p-4 space-y-2">
                             {renderNavLinks(() => setMobileMenuOpen(false))}
-
-                            {/* Logging out belongs with the places you can go,
-                                at the end of them. It used to sit below the
-                                profile card and Contact Support, off the bottom
-                                of a phone screen unless you went looking. */}
-                            <div className="!mt-4 border-t border-slate-800 pt-4">
+                        </nav>
+                        <div className="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
+                            {/* Logout sits in this pinned footer, beside
+                                Contact Support, so it is always on screen. At
+                                the end of the scrolling nav it was hidden below
+                                the fold, and nothing hinted the list scrolled. */}
+                            <div className="mb-3 grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => { setMobileMenuOpen(false); setShowContact(true); }}
+                                    className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
+                                >
+                                    <MessageCircleQuestion size={20} /> <span>Support</span>
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-                                    className="flex w-full items-center space-x-3 rounded-lg p-2.5 font-medium text-rose-300 transition-colors duration-200 hover:bg-rose-500/10 hover:text-rose-200"
+                                    className="flex items-center justify-center space-x-2 bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
                                 >
                                     <LogOut size={20} /> <span>Logout</span>
                                 </button>
                             </div>
-                        </nav>
-                        <div className="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
                             {/* Profile card in mobile drawer */}
-                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 mb-4">
+                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                                 <div className="flex justify-between items-start mb-1">
                                     <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Student</p>
                                     {isCreditSystemEnabled && (
@@ -611,31 +631,15 @@ const StudentLayout = () => {
                                 <p className="font-bold text-white truncate">{user?.name}</p>
                                 <p className="text-xs text-slate-400 font-mono mt-1">{user?.cardNumber}</p>
                             </div>
-
-                            {isCareerPathEnabled && (
-                                <div className="mb-4">
-                                    <SidebarProgressCard
-                                        user={progressUser || user}
-                                        onNavigate={() => setMobileMenuOpen(false)}
-                                    />
-                                </div>
-                            )}
-
-                            <button
-                                onClick={() => { setMobileMenuOpen(false); setShowContact(true); }}
-                                className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
-                            >
-                                <MessageCircleQuestion size={20} /> <span>Contact Support</span>
-                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-auto bg-slate-50 md:pt-0 pt-16 relative">
+            <main className="flex-1 overflow-auto bg-slate-50 sidebar:pt-0 pt-16 relative">
                 {/* Desktop Header */}
-                <header className="hidden md:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-8 sticky top-0 z-30">
+                <header className="hidden sidebar:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-8 sticky top-0 z-30">
                     {/* Left side kept empty so the pills and profile stay on the right. */}
                     <div className="flex flex-1 items-center" />
 
@@ -649,7 +653,7 @@ const StudentLayout = () => {
                                 {streak > 0 && (
                                     <Link
                                         to="/career"
-                                        className="hidden lg:inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3.5 py-2 text-sm font-bold text-orange-700 transition-colors hover:bg-orange-100"
+                                        className="hidden lg:inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-orange-200 bg-orange-50 px-3.5 py-2 text-sm font-bold text-orange-700 transition-colors hover:bg-orange-100"
                                     >
                                         <span aria-hidden>🔥</span>
                                         {streak} day streak
@@ -657,7 +661,7 @@ const StudentLayout = () => {
                                 )}
                                 <Link
                                     to="/career/badges"
-                                    className="hidden lg:inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                                    className="hidden lg:inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
                                 >
                                     <span aria-hidden>⭐</span>
                                     {(progressUser || user)?.xp || 0} XP
@@ -672,10 +676,13 @@ const StudentLayout = () => {
                             <Link
                                 to="/#wallet"
                                 aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}`}
-                                className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                                className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
                             >
                                 <Wallet size={16} />
-                                <span className="hidden lg:inline text-xs font-semibold text-emerald-600">Wallet Balance</span>
+                                {/* The label waits for xl: at 1024 the header beside the
+                                    sidebar is 768px, and with the streak and XP pills
+                                    beside it every pill wrapped onto two lines. */}
+                                <span className="hidden xl:inline text-xs font-semibold text-emerald-600">Wallet Balance</span>
                                 <span className="tabular-nums">{money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}</span>
                             </Link>
                         )}
@@ -729,7 +736,7 @@ const StudentLayout = () => {
                                     {/* Menu items */}
                                     <div className="p-2">
                                         <Link
-                                            to="/"
+                                            to="/profile"
                                             onClick={() => setProfileDropdownOpen(false)}
                                             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
                                         >
@@ -758,7 +765,7 @@ const StudentLayout = () => {
                     it and the padding landed mid-page instead of after the
                     last card — which is why the end of long pages sat under
                     the bar. `min-h` keeps short pages filling the screen. */}
-                <div className="mx-auto min-h-[calc(100vh-4rem)] max-w-7xl p-4 pb-[7.5rem] md:p-8 md:pb-8">
+                <div className="mx-auto min-h-[calc(100vh-4rem)] max-w-7xl p-4 pb-[7.5rem] sidebar:p-8 sidebar:pb-8">
                     <Outlet />
                 </div>
             </main>

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { Tile, Feature, Artwork } from './profileBlocks';
+import Portal from './Portal';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
@@ -118,79 +119,81 @@ const UploadDialog = ({ onClose, onDone }) => {
     const label = 'mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500';
 
     return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
-            <form role="dialog" aria-modal="true" aria-labelledby="cert-upload-title" onSubmit={submit} onClick={(e) => e.stopPropagation()}
-                className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up">
-                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-5">
-                    <h3 id="cert-upload-title" className="flex items-center gap-2 font-bold text-slate-800"><Upload size={17} className="text-indigo-600" /> Add a certificate to your frame</h3>
-                    <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
-                </div>
-                <div className="space-y-4 overflow-y-auto p-5">
-                    <div
-                        role="button" tabIndex={0}
-                        onClick={() => inputRef.current?.click()}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
-                        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-                        onDragLeave={() => setDragging(false)}
-                        onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]); }}
-                        className={`cursor-pointer rounded-2xl border-2 border-dashed px-4 py-6 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${dragging ? 'border-indigo-500 bg-indigo-50' : 'border-indigo-200 bg-indigo-50/30 hover:border-indigo-400 hover:bg-indigo-50/60'}`}
-                    >
-                        {file ? (
-                            <div className="flex items-center justify-center gap-3 text-left">
-                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">{file.type === 'application/pdf' ? <FileText size={22} /> : <ImageIcon size={22} />}</span>
-                                <div className="min-w-0">
-                                    <p className="truncate font-semibold text-slate-800">{file.name}</p>
-                                    <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(1)} MB · tap to change</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100"><Upload size={22} /></div>
-                                <p className="font-bold text-slate-800">Drop your certificate here</p>
-                                <p className="text-sm text-slate-500">or choose a file from your computer</p>
-                                <div className="mt-2 flex items-center justify-center gap-2 text-[10px] font-bold tracking-wider">
-                                    <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-600">PDF</span>
-                                    <span className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-sky-700">IMAGE</span>
-                                    <span className="text-xs font-semibold tracking-normal text-slate-400">Max 10 MB</span>
-                                </div>
-                            </>
-                        )}
+        <Portal>
+            <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
+                <form role="dialog" aria-modal="true" aria-labelledby="cert-upload-title" onSubmit={submit} onClick={(e) => e.stopPropagation()}
+                    className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up">
+                    <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-5">
+                        <h3 id="cert-upload-title" className="flex items-center gap-2 font-bold text-slate-800"><Upload size={17} className="text-indigo-600" /> Add a certificate to your frame</h3>
+                        <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
                     </div>
-                    <input ref={inputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+                    <div className="space-y-4 overflow-y-auto p-5">
+                        <div
+                            role="button" tabIndex={0}
+                            onClick={() => inputRef.current?.click()}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click(); } }}
+                            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                            onDragLeave={() => setDragging(false)}
+                            onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]); }}
+                            className={`cursor-pointer rounded-2xl border-2 border-dashed px-4 py-6 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${dragging ? 'border-indigo-500 bg-indigo-50' : 'border-indigo-200 bg-indigo-50/30 hover:border-indigo-400 hover:bg-indigo-50/60'}`}
+                        >
+                            {file ? (
+                                <div className="flex items-center justify-center gap-3 text-left">
+                                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-sm">{file.type === 'application/pdf' ? <FileText size={22} /> : <ImageIcon size={22} />}</span>
+                                    <div className="min-w-0">
+                                        <p className="truncate font-semibold text-slate-800">{file.name}</p>
+                                        <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(1)} MB · tap to change</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100"><Upload size={22} /></div>
+                                    <p className="font-bold text-slate-800">Drop your certificate here</p>
+                                    <p className="text-sm text-slate-500">or choose a file from your computer</p>
+                                    <div className="mt-2 flex items-center justify-center gap-2 text-[10px] font-bold tracking-wider">
+                                        <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-rose-600">PDF</span>
+                                        <span className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-sky-700">IMAGE</span>
+                                        <span className="text-xs font-semibold tracking-normal text-slate-400">Max 10 MB</span>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <input ref={inputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
 
-                    <div>
-                        <label htmlFor="cert-title" className={label}>Title</label>
-                        <input id="cert-title" value={title} onChange={(e) => setTitle(e.target.value)} className={input} placeholder="e.g. State-level Science Fair — 1st place" maxLength={120} required />
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
                         <div>
-                            <label htmlFor="cert-issuer" className={label}>Issued by <span className="font-medium normal-case tracking-normal text-slate-400">(optional)</span></label>
-                            <input id="cert-issuer" value={issuer} onChange={(e) => setIssuer(e.target.value)} className={input} placeholder="School, organisation…" maxLength={120} />
+                            <label htmlFor="cert-title" className={label}>Title</label>
+                            <input id="cert-title" value={title} onChange={(e) => setTitle(e.target.value)} className={input} placeholder="e.g. State-level Science Fair — 1st place" maxLength={120} required />
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <label htmlFor="cert-issuer" className={label}>Issued by <span className="font-medium normal-case tracking-normal text-slate-400">(optional)</span></label>
+                                <input id="cert-issuer" value={issuer} onChange={(e) => setIssuer(e.target.value)} className={input} placeholder="School, organisation…" maxLength={120} />
+                            </div>
+                            <div>
+                                <label htmlFor="cert-date" className={label}>Date <span className="font-medium normal-case tracking-normal text-slate-400">(optional)</span></label>
+                                <input id="cert-date" type="date" value={issuedOn} onChange={(e) => setIssuedOn(e.target.value)} className={input} max={new Date().toISOString().slice(0, 10)} />
+                            </div>
                         </div>
                         <div>
-                            <label htmlFor="cert-date" className={label}>Date <span className="font-medium normal-case tracking-normal text-slate-400">(optional)</span></label>
-                            <input id="cert-date" type="date" value={issuedOn} onChange={(e) => setIssuedOn(e.target.value)} className={input} max={new Date().toISOString().slice(0, 10)} />
+                            <span className={label}>Type</span>
+                            <div className="flex gap-2">
+                                {[['certificate', 'Certificate'], ['award', 'Award'], ['other', 'Other']].map(([id, l]) => (
+                                    <button key={id} type="button" onClick={() => setKind(id)} aria-pressed={kind === id}
+                                        className={`min-h-10 flex-1 rounded-xl border text-sm font-semibold ${kind === id ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'}`}>{l}</button>
+                                ))}
+                            </div>
                         </div>
+                        {error && <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
                     </div>
-                    <div>
-                        <span className={label}>Type</span>
-                        <div className="flex gap-2">
-                            {[['certificate', 'Certificate'], ['award', 'Award'], ['other', 'Other']].map(([id, l]) => (
-                                <button key={id} type="button" onClick={() => setKind(id)} aria-pressed={kind === id}
-                                    className={`min-h-10 flex-1 rounded-xl border text-sm font-semibold ${kind === id ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'}`}>{l}</button>
-                            ))}
-                        </div>
+                    <div className="flex justify-end gap-2 border-t border-slate-100 p-4">
+                        <button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>
+                        <button type="submit" disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+                            {busy ? <><Loader2 size={15} className="animate-spin" /> Uploading…</> : <><Frame size={15} /> Add to my frame</>}
+                        </button>
                     </div>
-                    {error && <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
-                </div>
-                <div className="flex justify-end gap-2 border-t border-slate-100 p-4">
-                    <button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>
-                    <button type="submit" disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
-                        {busy ? <><Loader2 size={15} className="animate-spin" /> Uploading…</> : <><Frame size={15} /> Add to my frame</>}
-                    </button>
-                </div>
-            </form>
-        </div>
+                </form>
+            </div>
+        </Portal>
     );
 };
 
@@ -345,25 +348,27 @@ export default function CertificatesFrame({ certificates, loading, certError, do
             </div>
 
             {showAbout && (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setShowAbout(false)}>
-                    <div role="dialog" aria-modal="true" aria-labelledby="certs-about-title" onClick={(e) => e.stopPropagation()}
-                        className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up">
-                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
-                            <h3 id="certs-about-title" className="flex items-center gap-2 font-bold text-slate-800"><Award size={17} className="text-indigo-600" /> About your certificate frame</h3>
-                            <button type="button" onClick={() => setShowAbout(false)} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
-                        </div>
-                        <div className="grid gap-4 p-5 sm:grid-cols-2">
-                            <Feature icon={BadgeCheck} tone="bg-gradient-to-br from-emerald-400 to-green-600" title="Verified by YATICORP">Certificates the LMS issues carry a verification ribbon and their own certificate number.</Feature>
-                            <Feature icon={Award} tone="bg-gradient-to-br from-violet-500 to-indigo-600" title="Earned Automatically">Finish every lesson in a course and its certificate appears here on its own.</Feature>
-                            <Feature icon={Upload} tone="bg-gradient-to-br from-sky-400 to-blue-600" title="Add Your Own">Certificates from school, competitions or other platforms can be uploaded so everything sits in one frame.</Feature>
-                            <Feature icon={Briefcase} tone="bg-gradient-to-br from-amber-400 to-orange-500" title="Counts Towards Jobs">What you have earned feeds your ATS resume and the jobs matched to your skills.</Feature>
-                        </div>
-                        <div className="border-t border-slate-100 px-5 py-4 text-right">
-                            <button type="button" onClick={() => setShowAbout(false)}
-                                className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700">Got it</button>
+                <Portal>
+                    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setShowAbout(false)}>
+                        <div role="dialog" aria-modal="true" aria-labelledby="certs-about-title" onClick={(e) => e.stopPropagation()}
+                            className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up">
+                            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
+                                <h3 id="certs-about-title" className="flex items-center gap-2 font-bold text-slate-800"><Award size={17} className="text-indigo-600" /> About your certificate frame</h3>
+                                <button type="button" onClick={() => setShowAbout(false)} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
+                            </div>
+                            <div className="grid gap-4 p-5 sm:grid-cols-2">
+                                <Feature icon={BadgeCheck} tone="bg-gradient-to-br from-emerald-400 to-green-600" title="Verified by YATICORP">Certificates the LMS issues carry a verification ribbon and their own certificate number.</Feature>
+                                <Feature icon={Award} tone="bg-gradient-to-br from-violet-500 to-indigo-600" title="Earned Automatically">Finish every lesson in a course and its certificate appears here on its own.</Feature>
+                                <Feature icon={Upload} tone="bg-gradient-to-br from-sky-400 to-blue-600" title="Add Your Own">Certificates from school, competitions or other platforms can be uploaded so everything sits in one frame.</Feature>
+                                <Feature icon={Briefcase} tone="bg-gradient-to-br from-amber-400 to-orange-500" title="Counts Towards Jobs">What you have earned feeds your ATS resume and the jobs matched to your skills.</Feature>
+                            </div>
+                            <div className="border-t border-slate-100 px-5 py-4 text-right">
+                                <button type="button" onClick={() => setShowAbout(false)}
+                                    className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700">Got it</button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Portal>
             )}
 
             {uploading && (

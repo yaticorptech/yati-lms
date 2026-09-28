@@ -13,18 +13,20 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, CheckCircle2, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Building2, CheckCircle2, Loader2, ArrowLeft, AlertCircle, Copy, Check } from 'lucide-react';
 import api from '../utils/api';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 import PasswordField from '../components/PasswordField';
 import Select from '../components/Select';
+import OrgCodeField from '../components/OrgCodeField';
+import { orgCodeProblem } from '../utils/orgCode';
 
 const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40';
 const INPUT_BAD = 'w-full rounded-xl border border-red-400 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400/40';
 const LABEL = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500';
 
 const EMPTY = {
-    name: '', organizationType: '', contactPerson: '', email: '', phone: '',
+    name: '', orgCode: '', organizationType: '', contactPerson: '', email: '', phone: '',
     address: '', website: '', expectedStudents: '', password: '', confirmPassword: ''
 };
 
@@ -32,9 +34,12 @@ const EMPTY = {
  * Checked here as well as on the server, so someone gets told about a typo
  * before they wait on a request. The server's copy is the one that decides.
  */
-const check = (form) => {
+const check = (form, codeStatus) => {
     const problems = {};
     if (!form.name.trim() || form.name.trim().length < 2) problems.name = 'Enter your organization name.';
+    const codeProblem = orgCodeProblem(form.orgCode);
+    if (codeProblem) problems.orgCode = codeProblem;
+    else if (codeStatus.state === 'taken') problems.orgCode = codeStatus.message;
     if (!form.organizationType) problems.organizationType = 'Choose the kind of organization.';
     if (!form.contactPerson.trim()) problems.contactPerson = 'Who should we contact?';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) problems.email = 'Enter a valid email address.';
@@ -64,6 +69,17 @@ const RegisterOrganization = () => {
     const [error, setError] = useState('');
     const [done, setDone] = useState(null);   // { orgCode, name }
     const [pwFocused, setPwFocused] = useState(false);
+    // What the ID box last found out: free, taken, still checking…
+    const [codeStatus, setCodeStatus] = useState({ state: '' });
+    const [copied, setCopied] = useState(false);
+
+    const copyCode = async () => {
+        try {
+            await navigator.clipboard.writeText(done.orgCode);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1800);
+        } catch { /* refused over plain HTTP; the ID is on screen to copy by hand */ }
+    };
 
     useEffect(() => {
         api.get('/organizations/types')
@@ -79,7 +95,7 @@ const RegisterOrganization = () => {
 
     const submit = async (e) => {
         e.preventDefault();
-        const found = check(form);
+        const found = check(form, codeStatus);
         setProblems(found);
         if (Object.values(found).some(Boolean)) return;
 
@@ -88,7 +104,10 @@ const RegisterOrganization = () => {
             const res = await api.post('/organizations/register', form);
             setDone(res.data.organization);
         } catch (err) {
-            setError(err.response?.data?.message || 'Registration failed. Please try again.');
+            const data = err.response?.data;
+            // "Already exists" belongs under the ID box, not in a banner.
+            if (data?.field === 'orgCode') setProblems((p) => ({ ...p, orgCode: data.message }));
+            else setError(data?.message || 'Registration failed. Please try again.');
         } finally {
             setBusy(false);
         }
@@ -107,7 +126,13 @@ const RegisterOrganization = () => {
                     </p>
                     <div className="mt-5 rounded-xl bg-slate-50 p-4 text-left">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Your organization ID</p>
-                        <p className="mt-1 font-mono text-lg font-bold text-slate-900">{done.orgCode}</p>
+                        <div className="mt-1 flex items-center justify-between gap-3">
+                            <p className="min-w-0 truncate font-mono text-lg font-bold text-slate-900">{done.orgCode}</p>
+                            <button type="button" onClick={copyCode} aria-label={`Copy organization ID ${done.orgCode}`}
+                                className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${copied ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'}`}>
+                                {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                            </button>
+                        </div>
                         <p className="mt-2 text-xs text-slate-500">
                             Keep this. Once you are approved, your students use it to ask to join {done.name}.
                         </p>
@@ -150,6 +175,13 @@ const RegisterOrganization = () => {
                         <Field label="Organization name" id="reg-name" error={problems.name} required>
                             <input id="reg-name" value={form.name} onChange={set('name')} autoComplete="organization"
                                 className={problems.name ? INPUT_BAD : INPUT} />
+                        </Field>
+
+                        {/* Chosen here, never generated. */}
+                        <Field label="Organization ID" id="reg-code" required>
+                            <OrgCodeField id="reg-code" value={form.orgCode} name={form.name} error={problems.orgCode}
+                                onChange={(code) => { setForm((f) => ({ ...f, orgCode: code })); setProblems((p) => (p.orgCode ? { ...p, orgCode: undefined } : p)); }}
+                                onStatus={setCodeStatus} />
                         </Field>
 
                         <div className="grid gap-5 sm:grid-cols-2">

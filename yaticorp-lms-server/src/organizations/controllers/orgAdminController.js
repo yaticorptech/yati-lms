@@ -96,6 +96,23 @@ const updateMyOrganization = async (req, res) => {
     }
 };
 
+// @desc    Upload my institution's logo
+// @route   POST /api/organizations/me/logo
+// @access  Private/OrgAdmin
+const uploadLogo = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'Choose an image of your logo.' });
+        const { uploadToBunny } = require('../../utils/bunnyStorage');
+        const url = await uploadToBunny(req.file.buffer, req.file.originalname, 'organization-logos');
+        req.organization.logo = url;
+        await req.organization.save();
+        res.json({ message: 'Your logo was saved.', logo: url, organization: shape(req.organization) });
+    } catch (error) {
+        console.error('[organizations] logo upload failed:', error);
+        res.status(500).json({ message: 'Could not upload the logo. Please try again.' });
+    }
+};
+
 /**
  * @desc    Change my own sign-in password
  * @route   PUT /api/organizations/me/password
@@ -406,6 +423,7 @@ const decideRequest = async (req, res) => {
 };
 
 module.exports = {
+    uploadLogo,
     getMyOrganization,
     updateMyOrganization,
     changeMyPassword,

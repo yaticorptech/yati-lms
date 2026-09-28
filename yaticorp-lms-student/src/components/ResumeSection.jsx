@@ -17,6 +17,7 @@ import api from '../utils/api';
 import { Tile, Feature, Artwork } from './profileBlocks';
 import BioPopup from '../learningbio/BioPopup';
 import { Sparkles as BioSparkles } from 'lucide-react';
+import Portal from './Portal';
 
 const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
@@ -165,7 +166,7 @@ export default function ResumeSection() {
         : '';
 
     return (
-        <section aria-labelledby="your-resume-title" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
+        <section id="your-resume" aria-labelledby="your-resume-title" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
             {/* ── Header ───────────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-3">
@@ -258,25 +259,27 @@ export default function ResumeSection() {
             </div>
 
             {showAbout && (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setShowAbout(false)}>
-                    <div role="dialog" aria-modal="true" aria-labelledby="resume-about-title" onClick={(e) => e.stopPropagation()}
-                        className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up">
-                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
-                            <h3 id="resume-about-title" className="flex items-center gap-2 font-bold text-slate-800"><FileText size={17} className="text-indigo-600" /> About your ATS resume</h3>
-                            <button type="button" onClick={() => setShowAbout(false)} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
-                        </div>
-                        <div className="grid gap-4 p-5 sm:grid-cols-2">
-                            <Feature icon={ShieldCheck} tone="bg-gradient-to-br from-violet-500 to-indigo-600" title="ATS Friendly">Built in a single-column format that works with all ATS systems.</Feature>
-                            <Feature icon={Zap} tone="bg-gradient-to-br from-emerald-400 to-green-600" title="Auto Skills">Skills from your courses are added automatically — even ones you&apos;ve only half finished.</Feature>
-                            <Feature icon={RefreshCw} tone="bg-gradient-to-br from-sky-400 to-blue-600" title="Stay Updated">Every download is rebuilt from your latest progress, so it is never out of date.</Feature>
-                            <Feature icon={Lock} tone="bg-gradient-to-br from-amber-400 to-orange-500" title="Secure &amp; Private">We keep your data secure and private at all times.</Feature>
-                        </div>
-                        <div className="border-t border-slate-100 px-5 py-4 text-right">
-                            <button type="button" onClick={() => setShowAbout(false)}
-                                className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700">Got it</button>
+                <Portal>
+                    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={() => setShowAbout(false)}>
+                        <div role="dialog" aria-modal="true" aria-labelledby="resume-about-title" onClick={(e) => e.stopPropagation()}
+                            className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl animate-fade-in-up">
+                            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
+                                <h3 id="resume-about-title" className="flex items-center gap-2 font-bold text-slate-800"><FileText size={17} className="text-indigo-600" /> About your ATS resume</h3>
+                                <button type="button" onClick={() => setShowAbout(false)} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
+                            </div>
+                            <div className="grid gap-4 p-5 sm:grid-cols-2">
+                                <Feature icon={ShieldCheck} tone="bg-gradient-to-br from-violet-500 to-indigo-600" title="ATS Friendly">Built in a single-column format that works with all ATS systems.</Feature>
+                                <Feature icon={Zap} tone="bg-gradient-to-br from-emerald-400 to-green-600" title="Auto Skills">Skills from your courses are added automatically — even ones you&apos;ve only half finished.</Feature>
+                                <Feature icon={RefreshCw} tone="bg-gradient-to-br from-sky-400 to-blue-600" title="Stay Updated">Every download is rebuilt from your latest progress, so it is never out of date.</Feature>
+                                <Feature icon={Lock} tone="bg-gradient-to-br from-amber-400 to-orange-500" title="Secure &amp; Private">We keep your data secure and private at all times.</Feature>
+                            </div>
+                            <div className="border-t border-slate-100 px-5 py-4 text-right">
+                                <button type="button" onClick={() => setShowAbout(false)}
+                                    className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700">Got it</button>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Portal>
             )}
             {showBio && <BioPopup onClose={() => setShowBio(false)} />}
         </section>

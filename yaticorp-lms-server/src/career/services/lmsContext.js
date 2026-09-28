@@ -87,7 +87,10 @@ const getEnrolledCourses = async (userId) => {
  */
 const getCatalogue = async (userId) => {
   const mine = new Set(await enrolledCourseIds(userId));
-  const courses = await Course.find({ isPublished: true }).select('title description').lean();
+  // Platform courses and the student's own organization's — never another's.
+  const user = await require('../../models/User').findById(userId).select('organizationId').lean();
+  const { visibleCoursesFilter } = require('../../services/courseAccess');
+  const courses = await Course.find({ isPublished: true, ...visibleCoursesFilter(user) }).select('title description').lean();
   return courses
     .filter((c) => !mine.has(String(c._id)))
     .slice(0, MAX_CATALOGUE)

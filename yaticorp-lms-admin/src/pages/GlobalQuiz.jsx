@@ -64,11 +64,11 @@ const Dialog = ({ label, onClose, children, footer, wide }) => (
         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
         <div className={`flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl ${wide ? 'sm:max-w-3xl' : 'sm:max-w-2xl'}`}>
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-                <h2 className="font-bold text-slate-800">{label}</h2>
-                <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={20} /></button>
+                <h2 className="min-w-0 font-bold text-slate-800 [overflow-wrap:anywhere]">{label}</h2>
+                <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={20} /></button>
             </div>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">{children}</div>
-            {footer && <div className="flex shrink-0 gap-2 border-t border-slate-100 px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:justify-end sm:px-6 sm:pb-4">{footer}</div>}
+            {footer && <div className="flex shrink-0 flex-wrap gap-2 border-t border-slate-100 px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:justify-end sm:px-6 sm:pb-4">{footer}</div>}
         </div>
     </div>
 );
@@ -228,11 +228,11 @@ function Preview({ quiz, questions, onClose }) {
                 {questions.map((q, i) => (
                     <li key={q._id} className="rounded-2xl border border-slate-200 p-4">
                         <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600">Question {i + 1} · {categoryOf(q)}</p>
-                        <p className="mt-1 font-bold text-slate-900">{q.question}</p>
+                        <p className="mt-1 font-bold text-slate-900 [overflow-wrap:anywhere]">{q.question}</p>
                         <ul className="mt-3 grid gap-2 sm:grid-cols-2">
                             {q.options.map((o, k) => (
                                 <li key={k} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${k === q.correctAnswerIndex ? 'border-emerald-300 bg-emerald-50 font-semibold text-emerald-800' : 'border-slate-200 text-slate-700'}`}>
-                                    <span className="font-black text-slate-400">{String.fromCharCode(65 + k)}</span> {o}
+                                    <span className="font-black text-slate-400">{String.fromCharCode(65 + k)}</span> <span className="min-w-0 [overflow-wrap:anywhere]">{o}</span>
                                     {k === q.correctAnswerIndex && <CheckCircle2 size={15} className="ml-auto shrink-0 text-emerald-600" aria-label="Correct answer" />}
                                 </li>
                             ))}
@@ -283,7 +283,7 @@ function QuizList({ quizzes, settings, onOpen, onNew, onAction, onSetting, savin
                         <span className="mt-0.5 rounded-xl bg-emerald-100 p-2 text-emerald-700"><Radio size={18} /></span>
                         <div className="min-w-0">
                             <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Live for students</p>
-                            <p className="truncate font-bold text-slate-900">{live.title}</p>
+                            <p className="truncate font-bold text-slate-900" title={live.title}>{live.title}</p>
                             <p className="text-xs text-emerald-800">{live.questionCount} question{live.questionCount === 1 ? '' : 's'} · published {fmtDate(live.publishedAt)}{!enabled ? ' · but the Global Quiz is switched off below' : ''}</p>
                         </div>
                     </div>
@@ -318,15 +318,15 @@ function QuizList({ quizzes, settings, onOpen, onNew, onAction, onSetting, savin
                         <button onClick={onNew} className={`${BTN} mt-4`}><Plus size={18} /> New quiz</button>
                     </div>
                 ) : (
-                    <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {quizzes.map((q) => {
                             const reason = notReady(q);
                             return (
-                                <li key={q._id} aria-label={`Quiz: ${q.title}`} className={`flex flex-col rounded-2xl border bg-white p-5 shadow-sm ${q.status === 'published' ? 'border-emerald-300 ring-1 ring-emerald-100' : 'border-slate-200'}`}>
+                                <li key={q._id} aria-label={`Quiz: ${q.title}`} className={`flex min-w-0 flex-col rounded-2xl border bg-white p-5 shadow-sm ${q.status === 'published' ? 'border-emerald-300 ring-1 ring-emerald-100' : 'border-slate-200'}`}>
                                     <div className="flex items-start justify-between gap-3">
                                         <button onClick={() => onOpen(q._id)} className="min-w-0 text-left">
-                                            <p className="truncate font-bold text-slate-900 hover:text-indigo-700">{q.title}</p>
-                                            {q.description && <p className="mt-0.5 line-clamp-2 text-sm text-slate-500">{q.description}</p>}
+                                            <p className="truncate font-bold text-slate-900 hover:text-indigo-700" title={q.title}>{q.title}</p>
+                                            {q.description && <p className="mt-0.5 line-clamp-2 text-sm text-slate-500 [overflow-wrap:anywhere]" title={q.description}>{q.description}</p>}
                                         </button>
                                         <StatusPill status={q.status} />
                                     </div>
@@ -427,8 +427,8 @@ function QuizDetail({ quizId, onBack, onAction, onEditQuiz, reloadKey }) {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2"><StatusPill status={quiz.status} />{quiz.status === 'published' && <span className="text-xs text-emerald-700">Students are taking this quiz · since {fmtDate(quiz.publishedAt)}</span>}</div>
-                        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">{quiz.title}</h1>
-                        {quiz.description && <p className="mt-1 max-w-2xl text-sm text-slate-500">{quiz.description}</p>}
+                        <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl [overflow-wrap:anywhere]">{quiz.title}</h1>
+                        {quiz.description && <p className="mt-1 max-w-2xl text-sm text-slate-500 [overflow-wrap:anywhere]">{quiz.description}</p>}
                         <div className="mt-3"><Meter count={held} size={quiz.size} /></div>
                     </div>
                     <div className="flex flex-wrap gap-2 lg:shrink-0">
@@ -487,8 +487,8 @@ function QuizDetail({ quizId, onBack, onAction, onEditQuiz, reloadKey }) {
                                     <div className="flex items-start justify-between gap-3 sm:gap-4">
                                         <div className="min-w-0">
                                             <span className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold ${DIFFICULTY[q.difficulty] || DIFFICULTY.medium}`}>{q.difficulty || 'medium'}</span>
-                                            <p className="break-words font-semibold text-slate-800">{q.question}</p>
-                                            <p className="mt-1 break-words text-sm text-slate-500">
+                                            <p className="font-semibold text-slate-800 [overflow-wrap:anywhere]">{q.question}</p>
+                                            <p className="mt-1 text-sm text-slate-500 [overflow-wrap:anywhere]">
                                                 <CheckCircle2 size={13} className="-mt-0.5 mr-1 inline text-emerald-500" />
                                                 {q.options[q.correctAnswerIndex]}
                                                 <span className="text-slate-400"> &middot; {q.options.length} answers</span>

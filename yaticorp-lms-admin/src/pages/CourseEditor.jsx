@@ -9,8 +9,11 @@ import api from '../utils/api';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { Plus, Edit2, Trash2, ArrowLeft, GripVertical, Video, FileText, CheckSquare, Briefcase, ChevronDown, ChevronRight, Settings, ArrowUpDown, UploadCloud, Search, EyeOff, Eye, Book, HelpCircle, Clock, PlayCircle, PenTool, Layout, CheckCircle2, ExternalLink, X } from 'lucide-react';
 import AddLessonModal from '../components/AddLessonModal';
+import { useCourseScope } from '../utils/courseScope';
 
 const CourseEditor = () => {
+    // Platform courses, or an organization's own — see utils/courseScope.js.
+    const S = useCourseScope();
     const { id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
@@ -47,7 +50,7 @@ const CourseEditor = () => {
 
     const fetchCourseData = async () => {
         try {
-            const res = await api.get(`/admin/courses/${id}`);
+            const res = await api.get(`${S.api}/courses/${id}`);
             setCourse(res.data.course);
             // Sort modules locally just mapping order safely
             const mods = res.data.modules.sort((a, b) => a.order - b.order);
@@ -83,7 +86,7 @@ const CourseEditor = () => {
             setModules(updatedModules);
 
             // Save to server
-            await api.put('/admin/modules/reorder', {
+            await api.put(`${S.api}/modules/reorder`, {
                 orderData: updatedModules.map(m => ({ id: m._id, order: m.order }))
             });
         }
@@ -101,7 +104,7 @@ const CourseEditor = () => {
             newModules[moduleIndex].lessons = updatedLessons;
             setModules(newModules);
 
-            await api.put('/admin/lessons/reorder', {
+            await api.put(`${S.api}/lessons/reorder`, {
                 orderData: updatedLessons.map(l => ({ id: l._id, order: l.order }))
             });
         }
@@ -112,9 +115,9 @@ const CourseEditor = () => {
         e.preventDefault();
         try {
             if (modModal.editId) {
-                await api.put(`/admin/modules/${modModal.editId}`, modModal.data);
+                await api.put(`${S.api}/modules/${modModal.editId}`, modModal.data);
             } else {
-                await api.post('/admin/modules', { ...modModal.data, courseId: id });
+                await api.post(`${S.api}/modules`, { ...modModal.data, courseId: id });
             }
 
             setSessionError(''); // clear error
@@ -137,7 +140,7 @@ const CourseEditor = () => {
 
     const executeDeleteModule = async () => {
         if (!deleteModalState.item) return;
-        await api.delete(`/admin/modules/${deleteModalState.item._id}`);
+        await api.delete(`${S.api}/modules/${deleteModalState.item._id}`);
         fetchCourseData();
         setDeleteModalState({ show: false, type: '', item: null });
     };
@@ -146,16 +149,16 @@ const CourseEditor = () => {
     const saveLesson = async (modalData) => {
         try {
             if (lessModal.editId) {
-                await api.put(`/admin/lessons/${lessModal.editId}`, { ...lessModal.data, ...modalData });
+                await api.put(`${S.api}/lessons/${lessModal.editId}`, { ...lessModal.data, ...modalData });
             } else {
-                const res = await api.post('/admin/lessons', {
+                const res = await api.post(`${S.api}/lessons`, {
                     ...lessModal.data,
                     ...modalData,
                     moduleId: lessModal.moduleId
                 });
 
                 if (res.data?._id) {
-                    navigate(`/courses/${id}/lessons/${res.data._id}`);
+                    navigate(`${S.base}/courses/${id}/lessons/${res.data._id}`);
                 }
             }
 
@@ -178,7 +181,7 @@ const CourseEditor = () => {
 
     const executeDeleteLesson = async () => {
         if (!deleteModalState.item) return;
-        await api.delete(`/admin/lessons/${deleteModalState.item._id}`);
+        await api.delete(`${S.api}/lessons/${deleteModalState.item._id}`);
         fetchCourseData();
         setDeleteModalState({ show: false, type: '', item: null });
     };
@@ -195,7 +198,7 @@ const CourseEditor = () => {
         try {
             const fd = new FormData();
             fd.append('image', file);
-            const res = await api.post('/admin/courses/thumbnail', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const res = await api.post(`${S.api}/courses/thumbnail`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
             setCourseModal(prev => ({ ...prev, data: { ...prev.data, thumbnail: res.data.url } }));
         } catch (err) {
             setThumbError(err.response?.data?.message || 'Upload failed');
@@ -219,7 +222,7 @@ const CourseEditor = () => {
 
     const handleTogglePublish = async () => {
         try {
-            await api.put(`/admin/courses/${id}`, { ...course, isPublished: !course.isPublished });
+            await api.put(`${S.api}/courses/${id}`, { ...course, isPublished: !course.isPublished });
             fetchCourseData();
             setSettingsDropdown(false);
         } catch (err) {
@@ -235,8 +238,8 @@ const CourseEditor = () => {
     const executeDeleteCourse = async () => {
         if (!deleteModalState.item) return;
         try {
-            await api.delete(`/admin/courses/${id}`);
-            navigate('/courses');
+            await api.delete(`${S.api}/courses/${id}`);
+            navigate(`${S.base}/courses`);
         } catch (err) {
             console.error('Failed to delete course:', err);
         }
@@ -245,7 +248,7 @@ const CourseEditor = () => {
     const saveCourseDetails = async (e) => {
         e.preventDefault();
         try {
-            await api.put(`/admin/courses/${id}`, courseModal.data);
+            await api.put(`${S.api}/courses/${id}`, courseModal.data);
             setCourseModal({ ...courseModal, show: false });
             fetchCourseData();
         } catch (err) {
@@ -277,7 +280,7 @@ const CourseEditor = () => {
             )}
             {/* Header top row */}
             <div className="flex items-center space-x-2 text-slate-500 mb-4 group cursor-pointer w-max">
-                <Link to="/courses" className="flex items-center hover:text-slate-800 transition-colors">
+                <Link to={`${S.base}/courses`} className="flex items-center hover:text-slate-800 transition-colors">
                     <ArrowLeft size={16} className="mr-1 group-hover:-translate-x-1 transition-transform" /> <span className="font-semibold text-sm">Back</span>
                 </Link>
             </div>
@@ -289,12 +292,13 @@ const CourseEditor = () => {
                 </span>
             </div>
 
-            {/* Title & Action Buttons Row */}
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-8 space-y-4 sm:space-y-0">
-                <div>
-                    <h1 className="text-[28px] font-bold text-slate-800 leading-tight">{course.title}</h1>
+            {/* Title & Action Buttons Row — stacked until there is room for a long
+                title beside all four buttons; the buttons wrap rather than overflow. */}
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 mb-8">
+                <div className="min-w-0">
+                    <h1 className="text-2xl sm:text-[28px] font-bold text-slate-800 leading-tight wrap-anywhere">{course.title}</h1>
                 </div>
-                <div className="flex items-center space-x-3">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:shrink-0 lg:flex-nowrap">
 
                     {/* Preview Button */}
                     <button
@@ -355,7 +359,7 @@ const CourseEditor = () => {
 
                     <button
                         onClick={() => setReorderMode(v => !v)}
-                        className={`flex items-center px-4 py-2 border rounded-lg text-sm font-semibold transition-colors shadow-sm hidden sm:flex ${reorderMode ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'}`}
+                        className={`flex items-center px-4 py-2 border rounded-lg text-sm font-semibold transition-colors shadow-sm ${reorderMode ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'}`}
                     >
                         <ArrowUpDown size={16} className="mr-2" /> {reorderMode ? 'Done' : 'Reorder'}
                     </button>
@@ -416,9 +420,9 @@ const CourseEditor = () => {
                                                         className="p-4 flex flex-col sm:flex-row sm:justify-between sm:items-center group cursor-pointer hover:bg-slate-50 transition-colors"
                                                         onClick={() => toggleModule(module._id)}
                                                     >
-                                                        <div className="flex items-center space-x-4 mb-3 sm:mb-0 w-full sm:w-auto">
+                                                        <div className="flex items-center gap-2 sm:gap-4 mb-3 sm:mb-0 w-full sm:w-auto min-w-0 sm:flex-1">
                                                             <button
-                                                                className="text-slate-600 hover:text-slate-900 transition-colors p-2 -ml-2 rounded-lg hover:bg-slate-200"
+                                                                className="shrink-0 text-slate-600 hover:text-slate-900 transition-colors p-2 -ml-2 rounded-lg hover:bg-slate-200"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     toggleModule(module._id);
@@ -426,22 +430,22 @@ const CourseEditor = () => {
                                                             >
                                                                 {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                                                             </button>
-                                                            <span className="font-bold text-slate-800 text-[15px] w-4">{mIndex + 1}</span>
+                                                            <span className="shrink-0 font-bold text-slate-800 text-[15px] w-4">{mIndex + 1}</span>
                                                             <h3
-                                                                className={`font-bold text-[15px] hover:text-indigo-600 transition-colors py-1 ${hasMatch ? 'text-indigo-700' : 'text-slate-800'}`}
+                                                                className={`min-w-0 wrap-anywhere font-bold text-[15px] hover:text-indigo-600 transition-colors py-1 ${hasMatch ? 'text-indigo-700' : 'text-slate-800'}`}
                                                             >
                                                                 {module.title}
                                                                 {hasMatch && <span className="ml-2 text-[10px] font-bold bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full uppercase tracking-wide">match</span>}
                                                             </h3>
                                                         </div>
 
-                                                        <div className="flex items-center justify-between sm:justify-end sm:space-x-6 w-full sm:w-auto pl-10 sm:pl-0">
-                                                            <span className="text-[13px] text-slate-500 font-medium">
+                                                        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-6 w-full sm:w-auto sm:shrink-0 sm:pl-4 pl-10">
+                                                            <span className="min-w-0 text-[13px] text-slate-500 font-medium sm:whitespace-nowrap">
                                                                 {module.lessons.length} Lessons • {module.lessons.filter(l => l.quizId).length} Quizzes
                                                             </span>
 
                                                             {/* Module Actions */}
-                                                            <div className={`flex items-center space-x-1 transition-opacity ${reorderMode ? 'opacity-100' : 'sm:opacity-0 group-hover:opacity-100'}`} onClick={e => e.stopPropagation()}>
+                                                            <div className={`flex items-center space-x-1 transition-opacity ${reorderMode ? 'opacity-100' : 'sm:pointer-fine:opacity-0 group-hover:opacity-100 focus-within:opacity-100'}`} onClick={e => e.stopPropagation()}>
                                                                 <div
                                                                     {...(reorderMode ? provided.dragHandleProps : {})}
                                                                     className={`p-1.5 rounded transition-colors ${reorderMode ? 'text-indigo-500 cursor-grab' : 'text-slate-200 cursor-not-allowed'}`}
@@ -472,19 +476,19 @@ const CourseEditor = () => {
                                                                                         >
                                                                                             {/* Left side info */}
                                                                                             <div
-                                                                                                className={`flex items-center space-x-4 sm:pl-8 mb-2 sm:mb-0 cursor-pointer group/title ${lesson.isPublished === false ? 'opacity-60 grayscale' : ''}`}
-                                                                                                onClick={() => navigate(`/courses/${id}/lessons/${lesson._id}`)}
+                                                                                                className={`flex items-center gap-3 sm:gap-4 sm:pl-8 mb-2 sm:mb-0 min-w-0 sm:flex-1 cursor-pointer group/title ${lesson.isPublished === false ? 'opacity-60 grayscale' : ''}`}
+                                                                                                onClick={() => navigate(`${S.base}/courses/${id}/lessons/${lesson._id}`)}
                                                                                             >
-                                                                                                <span className="text-[13px] font-semibold text-slate-500 w-4">{lIndex + 1}</span>
+                                                                                                <span className="shrink-0 text-[13px] font-semibold text-slate-500 w-4">{lIndex + 1}</span>
 
                                                                                                 {/* Colored Icons Based on Learnyst Type */}
-                                                                                                {(lesson.videoUrl || lesson.videoId) ? <PlayCircle size={18} className="text-[#2e7d32]" /> :
-                                                                                                    lesson.pdfUrl ? <FileText size={18} className="text-[#d32f2f]" /> :
-                                                                                                        lesson.quizId ? <HelpCircle size={18} className="text-[#7b1fa2]" /> :
-                                                                                                            lesson.assignmentId ? <PenTool size={18} className="text-[#1976d2]" /> :
-                                                                                                                <Layout size={18} className="text-slate-400" />}
+                                                                                                {(lesson.videoUrl || lesson.videoId) ? <PlayCircle size={18} className="shrink-0 text-[#2e7d32]" /> :
+                                                                                                    lesson.pdfUrl ? <FileText size={18} className="shrink-0 text-[#d32f2f]" /> :
+                                                                                                        lesson.quizId ? <HelpCircle size={18} className="shrink-0 text-[#7b1fa2]" /> :
+                                                                                                            lesson.assignmentId ? <PenTool size={18} className="shrink-0 text-[#1976d2]" /> :
+                                                                                                                <Layout size={18} className="shrink-0 text-slate-400" />}
 
-                                                                                                <span className="font-bold text-[14px] text-slate-700 group-hover/title:text-indigo-600 transition-colors">
+                                                                                                <span className="min-w-0 wrap-anywhere font-bold text-[14px] text-slate-700 group-hover/title:text-indigo-600 transition-colors">
                                                                                                     {searchTerm ? (() => {
                                                                                                         const idx = lesson.title.toLowerCase().indexOf(searchTerm.toLowerCase());
                                                                                                         if (idx === -1) return lesson.title;
@@ -498,13 +502,13 @@ const CourseEditor = () => {
                                                                                             </div>
 
                                                                                             {/* Right side info */}
-                                                                                            <div className="flex items-center justify-between sm:justify-end sm:space-x-4 pl-12 sm:pl-0 w-full sm:w-auto">
+                                                                                            <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 pl-12 sm:pl-4 w-full sm:w-auto sm:shrink-0">
                                                                                                 {lesson.isPublished === false ? (
                                                                                                     <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Hidden</span>
                                                                                                 ) : (
-                                                                                                    <span className="text-[11px] font-bold text-[#2e7d32] sm:opacity-0 group-hover:opacity-100 transition-opacity">Published</span>
+                                                                                                    <span className="text-[11px] font-bold text-[#2e7d32] sm:pointer-fine:opacity-0 group-hover:opacity-100 transition-opacity">Published</span>
                                                                                                 )}
-                                                                                                <div className={`flex items-center space-x-1 transition-opacity ${reorderMode ? 'opacity-100' : 'sm:opacity-0 group-hover:opacity-100'}`}>
+                                                                                                <div className={`flex items-center space-x-1 transition-opacity ${reorderMode ? 'opacity-100' : 'sm:pointer-fine:opacity-0 group-hover:opacity-100 focus-within:opacity-100'}`}>
                                                                                                     <div
                                                                                                         {...(reorderMode ? provided.dragHandleProps : {})}
                                                                                                         className={`p-1.5 rounded transition-colors ${reorderMode ? 'text-indigo-500 cursor-grab' : 'text-slate-200 cursor-not-allowed'}`}
@@ -512,7 +516,7 @@ const CourseEditor = () => {
                                                                                                     >
                                                                                                         <ArrowUpDown size={16} />
                                                                                                     </div>
-                                                                                                    <button onClick={() => navigate(`/courses/${id}/lessons/${lesson._id}`)} className="p-1.5 text-slate-400 hover:text-slate-700 rounded"><Edit2 size={16} /></button>
+                                                                                                    <button onClick={() => navigate(`${S.base}/courses/${id}/lessons/${lesson._id}`)} className="p-1.5 text-slate-400 hover:text-slate-700 rounded"><Edit2 size={16} /></button>
                                                                                                     <button onClick={() => confirmDeleteLesson(lesson)} className="p-1.5 text-slate-400 hover:text-red-600 rounded"><Trash2 size={16} /></button>
                                                                                                 </div>
                                                                                             </div>
@@ -550,11 +554,11 @@ const CourseEditor = () => {
             {courseModal.show && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 text-left">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh] animate-fade-in">
-                        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50/50 flex-shrink-0">
-                            <h2 className="text-xl font-bold text-slate-800 tracking-tight">Edit Course Details</h2>
+                        <div className="flex justify-between items-center gap-3 p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50 flex-shrink-0">
+                            <h2 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">Edit Course Details</h2>
                             <button onClick={() => setCourseModal({ ...courseModal, show: false })} className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-full hover:bg-slate-100"><X size={20} /></button>
                         </div>
-                        <form onSubmit={saveCourseDetails} className="p-6 space-y-5 overflow-y-auto flex-1">
+                        <form onSubmit={saveCourseDetails} className="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1">
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Course Title <span className="text-red-500">*</span></label>
                                 <input type="text" required maxLength={100} value={courseModal.data.title} onChange={e => setCourseModal(prev => ({ ...prev, data: { ...prev.data, title: e.target.value } }))} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium text-slate-800" placeholder="e.g., Complete UI/UX Design Course" />
@@ -583,6 +587,8 @@ const CourseEditor = () => {
                                 </label>
                                 {thumbError && <p className="text-xs text-red-500 mt-1">{thumbError}</p>}
                             </div>
+                            {/* An organization's course is free for its students: no price, no credit cost. */}
+                            {!S.organization && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Price (₹) <span className="text-slate-400 font-normal text-xs">— 0 = Free</span></label>
@@ -593,11 +599,12 @@ const CourseEditor = () => {
                                     <input type="number" min="0" value={courseModal.data.creditCost ?? 0} onChange={e => setCourseModal(prev => ({ ...prev, data: { ...prev.data, creditCost: e.target.value === '' ? 0 : Number(e.target.value) } }))} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium text-slate-800" placeholder="0" />
                                 </div>
                             </div>
+                            )}
                             <div className="flex items-center gap-3 pt-1">
                                 <input type="checkbox" id="editIsPublished" checked={courseModal.data.isPublished} onChange={e => setCourseModal(prev => ({ ...prev, data: { ...prev.data, isPublished: e.target.checked } }))} className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                                 <label htmlFor="editIsPublished" className="text-sm font-semibold text-slate-700 cursor-pointer">Published to Students</label>
                             </div>
-                            <div className="pt-4 border-t border-slate-100 flex justify-end space-x-3">
+                            <div className="pt-4 border-t border-slate-100 flex flex-wrap justify-end gap-3">
                                 <button type="button" onClick={() => setCourseModal({ ...courseModal, show: false })} className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors">Cancel</button>
                                 <button type="submit" className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm shadow-indigo-200">Save Changes</button>
                             </div>
@@ -608,9 +615,9 @@ const CourseEditor = () => {
 
             {modModal.show && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 text-left">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-                        <div className="p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg">{modModal.editId ? 'Edit Section' : 'Add Section'}</div>
-                        <form onSubmit={saveModule} className="p-6 space-y-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-4 sm:p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg flex-shrink-0">{modModal.editId ? 'Edit Section' : 'Add Section'}</div>
+                        <form onSubmit={saveModule} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-1">
                                     Title
@@ -649,7 +656,7 @@ const CourseEditor = () => {
                                 />
                                 <p className="text-xs text-slate-400 mt-1">Days after a student enrolls before this section unlocks. 0 = available immediately.</p>
                             </div>
-                            <div className="flex justify-end space-x-3"><button type="button" onClick={() => setModModal({ ...modModal, show: false })} className="px-4 py-2 text-slate-600 font-semibold">Cancel</button>
+                            <div className="flex flex-wrap justify-end gap-3"><button type="button" onClick={() => setModModal({ ...modModal, show: false })} className="px-4 py-2 text-slate-600 font-semibold">Cancel</button>
                                 <button
                                     type="submit"
                                     disabled={!!sessionError}

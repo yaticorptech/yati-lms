@@ -46,7 +46,7 @@ export default function LearningBioPage() {
 
     return (
         <div className="mx-auto max-w-5xl space-y-5 pb-12 animate-fade-in">
-            <Link to="/#learning-bio" className="inline-flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-indigo-600"><ArrowLeft size={15} /> Dashboard</Link>
+            <Link to="/profile#your-resume" className="inline-flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-indigo-600"><ArrowLeft size={15} /> My Profile</Link>
 
             {/* ── Header ───────────────────────────────────────────── */}
             <header className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-500 p-6 text-white shadow-lg shadow-indigo-200 sm:p-8">
@@ -80,7 +80,7 @@ export default function LearningBioPage() {
                             <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-100 to-violet-100 shadow-md ring-1 ring-indigo-100">
                                 {data.user.avatar
                                     ? <img src={data.user.avatar} alt={data.user.name} className="h-full w-full object-cover" />
-                                    : <div className="flex h-full w-full flex-col items-center justify-center text-indigo-400"><Avatar name={data.user.name} size="h-24 w-24" /><Link to="/" className="mt-3 text-xs font-bold text-indigo-600 hover:underline">Add a photo on your profile</Link></div>}
+                                    : <div className="flex h-full w-full flex-col items-center justify-center text-indigo-400"><Avatar name={data.user.name} size="h-24 w-24" /><Link to="/profile" className="mt-3 text-xs font-bold text-indigo-600 hover:underline">Add a photo on your profile</Link></div>}
                             </div>
                         </div>
                         <div className="min-w-0">
