@@ -1,0 +1,12 @@
+{
+  "name": "yati-lms",
+  "private": true,
+  "description": "Local development only: starts the three apps from the repo root. Each app keeps its own package.json, and deployment builds each from its own folder (see DEPLOYMENT.md), so nothing here reaches production. Ports are pinned because FRONTEND_URL (5173) goes into emails such as the guardian approval link, and two Vite servers started together would otherwise race for it.",
+  "scripts": {
+    "dev": "npm run dev:server & npm run dev:student & npm run dev:admin & wait",
+    "dev:server": "npm run dev --prefix yaticorp-lms-server",
+    "dev:student": "npm run dev --prefix yaticorp-lms-student -- --port 5173 --strictPort",
+    "dev:admin": "npm run dev --prefix yaticorp-lms-admin -- --port 5174 --strictPort",
+    "install:all": "npm install --prefix yaticorp-lms-server && npm install --prefix yaticorp-lms-student && npm install --prefix yaticorp-lms-admin"
+  }
+}

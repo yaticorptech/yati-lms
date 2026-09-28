@@ -9,6 +9,7 @@ import { AuthContext } from '../context/AuthContext';
 import { bioApi } from './api';
 import BioText from './BioText';
 import { ErrorBox } from './ui';
+import Portal from '../components/Portal';
 
 /** The photo on its blob, with the two little accents from the design. */
 const Portrait = ({ avatar, name }) => (
@@ -47,34 +48,36 @@ export default function BioPopup({ onClose }) {
     const first = name.split(' ')[0] || '';
 
     return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
-            <div role="dialog" aria-modal="true" aria-labelledby="bio-popup-title" onClick={(e) => e.stopPropagation()} className="rw-pop flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] bg-gradient-to-br from-white via-white to-violet-50/60 shadow-2xl">
-                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-indigo-100/70 bg-indigo-50/70 px-4 py-3 sm:px-6 sm:py-4">
-                    <h3 id="bio-popup-title" className="flex items-center gap-2 text-lg font-black tracking-tight text-slate-900 sm:gap-3 sm:text-2xl"><Sparkles size={20} className="shrink-0 text-violet-600 sm:h-[26px] sm:w-[26px]" /> My Bio</h3>
-                    <div className="flex items-center gap-2">
-                        <button type="button" onClick={download} disabled={downloading || !data}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-white px-3 py-1.5 text-sm font-bold text-violet-700 transition-colors hover:bg-violet-50 disabled:opacity-60">
-                            {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download
-                        </button>
-                        <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"><X size={22} /></button>
+        <Portal>
+            <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
+                <div role="dialog" aria-modal="true" aria-labelledby="bio-popup-title" onClick={(e) => e.stopPropagation()} className="rw-pop flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] bg-gradient-to-br from-white via-white to-violet-50/60 shadow-2xl">
+                    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-indigo-100/70 bg-indigo-50/70 px-4 py-3 sm:px-6 sm:py-4">
+                        <h3 id="bio-popup-title" className="flex items-center gap-2 text-lg font-black tracking-tight text-slate-900 sm:gap-3 sm:text-2xl"><Sparkles size={20} className="shrink-0 text-violet-600 sm:h-[26px] sm:w-[26px]" /> My Bio</h3>
+                        <div className="flex items-center gap-2">
+                            <button type="button" onClick={download} disabled={downloading || !data}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-white px-3 py-1.5 text-sm font-bold text-violet-700 transition-colors hover:bg-violet-50 disabled:opacity-60">
+                                {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download
+                            </button>
+                            <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"><X size={22} /></button>
+                        </div>
                     </div>
-                </div>
 
-                <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-5 py-5 sm:gap-8 sm:px-10 sm:py-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:items-center">
-                    <Portrait avatar={avatar} name={name} />
-                    <div className="min-w-0">
-                        <p className="text-xl font-light text-slate-700 sm:text-3xl">Hi, I&apos;m</p>
-                        <h4 className="text-2xl font-black tracking-tight text-slate-900 sm:text-4xl md:text-5xl">{first}<span className="text-violet-500">.</span></h4>
-                        <span aria-hidden="true" className="mt-2.5 block h-1 w-14 rounded-full bg-violet-500 sm:mt-4 sm:w-20" />
-                        <div className="mt-4 sm:mt-6">
-                            {data === undefined ? (
-                                <div className="space-y-3" aria-busy="true"><div className="skeleton h-4 w-full rounded" /><div className="skeleton h-4 w-11/12 rounded" /><div className="skeleton h-4 w-4/5 rounded" /><div className="skeleton h-4 w-2/3 rounded" /></div>
-                            ) : !data ? <ErrorBox error={error} onRetry={load} />
-                                : <BioText text={data.bio.bio} className="space-y-3 [&>p]:text-[14px] [&>p]:leading-relaxed [&>p]:text-slate-700 sm:space-y-5 sm:[&>p]:text-[17px] md:[&>p]:text-lg" />}
+                    <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-5 py-5 sm:gap-8 sm:px-10 sm:py-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:items-center">
+                        <Portrait avatar={avatar} name={name} />
+                        <div className="min-w-0">
+                            <p className="text-xl font-light text-slate-700 sm:text-3xl">Hi, I&apos;m</p>
+                            <h4 className="text-2xl font-black tracking-tight text-slate-900 sm:text-4xl md:text-5xl">{first}<span className="text-violet-500">.</span></h4>
+                            <span aria-hidden="true" className="mt-2.5 block h-1 w-14 rounded-full bg-violet-500 sm:mt-4 sm:w-20" />
+                            <div className="mt-4 sm:mt-6">
+                                {data === undefined ? (
+                                    <div className="space-y-3" aria-busy="true"><div className="skeleton h-4 w-full rounded" /><div className="skeleton h-4 w-11/12 rounded" /><div className="skeleton h-4 w-4/5 rounded" /><div className="skeleton h-4 w-2/3 rounded" /></div>
+                                ) : !data ? <ErrorBox error={error} onRetry={load} />
+                                    : <BioText text={data.bio.bio} className="space-y-3 [&>p]:text-[14px] [&>p]:leading-relaxed [&>p]:text-slate-700 sm:space-y-5 sm:[&>p]:text-[17px] md:[&>p]:text-lg" />}
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </Portal>
     );
 }

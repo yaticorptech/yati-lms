@@ -140,7 +140,7 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
             if (open) open.click();
             await sleep(800);
             const dialog = $('[role="dialog"][aria-modal="true"]');
-            const header = $('.md\\\\:hidden.fixed.top-0');
+            const header = $('[data-mobile-header]');
             const topEl = document.elementFromPoint(Math.round(innerWidth / 2), 8);
             return {
                 headerZ: header ? Number(getComputedStyle(header).zIndex) : null,

@@ -174,6 +174,70 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
         assert.equal(result.asked.at(-1), 'monthly', 'and the board is refetched for it');
     });
 
+    // A class of 25: everything past the podium goes in the ranks card.
+    const crowd = {
+        ...board, total: 25,
+        entries: Array.from({ length: 25 }, (_, i) => person(i + 1, i === 0 ? 'You' : `Learner ${i + 1}`, 500 - i * 10, 1, null, 0, i === 0)),
+        me: person(1, 'You', 500, 1, null, 0, true)
+    };
+    const crowdApi = apiModule({ '/rewards/leaderboard': crowd, '/rewards/summary': { xp: 500, level: 3, streak: 1 } });
+    const RANKS = `
+        await sleep(900);
+        const card = $('[data-ranks]');
+        const view = [...card.children].find((c) => getComputedStyle(c).display !== 'none');
+        return { height: Math.round(card.getBoundingClientRect().height),
+                 scrolls: view.scrollHeight > view.clientHeight + 1,
+                 uncapped: view.scrollHeight,
+                 border: getComputedStyle(card).borderTopWidth };`;
+
+    for (const [name, width] of [['a desktop', 1280], ['a phone', PHONE_VIEWPORT]]) {
+        test(`on ${name}, a growing class scrolls inside one card instead of lengthening the page`, async () => {
+            const box = width === 1280 ? "'100%'" : 360;
+            const few = await screen({ entry: entry(box), api, width, styles: true, script: RANKS });
+            const many = await screen({ entry: entry(box), api: crowdApi, width, styles: true, script: RANKS });
+            assert.deepEqual(many.errors, []);
+            assert.notEqual(many.result.border, '0px', 'the ranks sit in a card of their own');
+            assert.equal(many.result.scrolls, true, '22 ranks scroll inside it');
+            assert.ok(many.result.height <= 360, `the card is capped, was ${many.result.height}px`);
+            // Left to grow, 22 ranks would stand this tall; the card holds them in a fraction of it.
+            assert.ok(many.result.uncapped > many.result.height * 2,
+                `22 ranks would need ${many.result.uncapped}px; the card holds them in ${many.result.height}px`);
+            assert.ok(few.result.height <= many.result.height, 'and a short list is not padded out to the full height');
+        });
+    }
+
+    for (const [name, width] of [['a desktop', 1280], ['a phone', PHONE_VIEWPORT]]) {
+        test(`on ${name}, the ranks card is the same height for 6 students, 7 or 25 — the extra scroll inside`, async () => {
+            // Six students is three rows below the podium, and that is the
+            // card's height from then on: more students scroll, the card
+            // never gets taller and the page never gets longer.
+            const classOf = (n) => apiModule({ '/rewards/summary': { xp: 500, level: 3, streak: 1 }, '/rewards/leaderboard': {
+                ...board, total: n, entries: Array.from({ length: n }, (_, i) => person(i + 1, i === 0 ? 'You' : `Learner ${i + 1}`, 500 - i * 10, 1, null, 0, i === 0)),
+                me: person(1, 'You', 500, 1, null, 0, true) } });
+            const box = width === 1280 ? "'100%'" : 360;
+            const at = async (n) => (await screen({ entry: entry(box), api: classOf(n), width, styles: true, script: RANKS })).result;
+            const six = await at(6), seven = await at(7), many = await at(25);
+            assert.equal(six.scrolls, false, 'six students fit: nothing to scroll');
+            assert.equal(seven.scrolls, true, 'the seventh scrolls inside');
+            assert.equal(many.scrolls, true, 'and so do twenty-five');
+            assert.ok(Math.abs(seven.height - six.height) <= 1, `7 students: same height as 6 (${six.height}px → ${seven.height}px)`);
+            assert.ok(Math.abs(many.height - six.height) <= 1, `25 students: same height as 6 (${six.height}px → ${many.height}px)`);
+        });
+    }
+
+    test('on a desktop the column names stay put while the ranks scroll', async () => {
+        const { result, errors } = await screen({
+            entry: entry("'100%'"), api: crowdApi, width: 1280, styles: true, script: `
+                await sleep(900);
+                const view = [...$('[data-ranks]').children].find((c) => getComputedStyle(c).display !== 'none');
+                view.scrollTop = 400; await sleep(200);
+                const head = view.querySelector('thead').getBoundingClientRect();
+                return { moved: view.scrollTop > 0, headAtTop: Math.abs(head.top - view.getBoundingClientRect().top) <= 1 };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.moved, true, 'the list scrolled');
+        assert.equal(result.headAtTop, true, 'and Rank, Learner, Level… are still at the top of the card');
+    });
+
     test('the two shapes list exactly the same people', async () => {
         const { result } = await screen({
             entry: entry("'100%'"), api, width: 1280, styles: true, script: `

@@ -9,6 +9,16 @@
    the rest of the student panel. */
 @import "./career/career.css";
 
+/* When the shell shows its sidebar rather than the phone's top bar and bottom
+   navigation. Width alone (md) put a phone turned sideways — 832 × 384 — into
+   the sidebar layout: a third of the width gone to a menu that showed four of
+   its eight sections, the rest scrolled out of sight under Contact Support.
+   A landscape phone keeps the phone layout instead, where every section fits
+   in the bottom bar. Tablets, laptops, foldables open and the Nest Hub are all
+   taller than 30rem, so for them this is exactly md. Use it only for what
+   depends on which navigation is showing; page layouts stay on width. */
+@custom-variant sidebar (@media (min-width: 48rem) and (min-height: 30rem));
+
 /* ---------------------------------------------------------------------------
    Dashboard welcome panel
 
@@ -421,3 +431,29 @@
 .tab-scroll-wrap::after { right: 0; background: linear-gradient(to left, var(--tab-fade, #fff), transparent); }
 .tab-scroll-wrap[data-more-left='true']::before { opacity: 1; }
 .tab-scroll-wrap[data-more-right='true']::after { opacity: 1; }
+
+/* A shadow along whichever edge of a scrolling list still has rows beyond it,
+   and none when there are none — so a list that stops exactly on a row still
+   says it scrolls. Pure CSS: the two white "covers" scroll with the content
+   (attachment: local) and hide the shadows once an end is reached. */
+.scroll-fade {
+    background:
+        linear-gradient(#fff 30%, rgb(255 255 255 / 0)) top,
+        linear-gradient(rgb(255 255 255 / 0), #fff 70%) bottom,
+        radial-gradient(farthest-side at 50% 0, rgb(15 23 42 / 0.14), transparent) top,
+        radial-gradient(farthest-side at 50% 100%, rgb(15 23 42 / 0.14), transparent) bottom;
+    background-repeat: no-repeat;
+    background-size: 100% 40px, 100% 40px, 100% 14px, 100% 14px;
+    background-attachment: local, local, scroll, scroll;
+    background-color: #fff;
+}
+
+/* The height of what is actually visible. 100vh on a phone is the height with
+   the browser's address bar hidden, so a 100vh shell runs underneath the bar
+   whenever it is showing and the end of the page cannot be reached. 100dvh
+   follows the bar; the 100vh line is for browsers that predate dvh, which
+   ignore the second declaration and keep the first. */
+.h-visible {
+    height: 100vh;
+    height: 100dvh;
+}
