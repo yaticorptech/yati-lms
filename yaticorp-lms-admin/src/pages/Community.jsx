@@ -99,7 +99,7 @@ const Community = () => {
                         <p className="text-sm text-slate-500 mt-0.5">Moderate and reply to platform discussions.</p>
                     </div>
                 </div>
-                <div className="text-xs font-bold text-slate-400 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 uppercase tracking-widest">
+                <div className="self-start md:self-auto shrink-0 text-xs font-bold text-slate-400 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 uppercase tracking-widest">
                     {posts.length} {posts.length === 1 ? 'Discussion' : 'Discussions'}
                 </div>
             </div>
@@ -122,18 +122,20 @@ const Community = () => {
                     <div key={post._id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
                         {/* Post Header */}
-                        <div className="flex items-start justify-between p-5">
+                        <div className="flex items-start justify-between p-4 sm:p-5">
                             <div className="flex items-start gap-3 flex-1 min-w-0">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm uppercase flex-shrink-0">
+                                {/* The avatar gives its width to the post on phones */}
+                                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 hidden sm:flex items-center justify-center font-bold text-sm uppercase flex-shrink-0">
                                     {post.author?.name?.charAt(0) || '?'}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <p className="font-bold text-slate-900">{post.title}</p>
-                                    <p className="text-sm text-slate-600 mt-1">{post.content}</p>
-                                    <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-400">
+                                    <p className="font-bold text-slate-900 break-words">{post.title}</p>
+                                    <p className="text-sm text-slate-600 mt-1 break-words">{post.content}</p>
+                                    {/* Wraps onto more lines on a phone instead of running off the card */}
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1.5 text-xs text-slate-400">
                                         <span className="font-semibold text-slate-600">{post.author?.name || 'Unknown'}</span>
                                         <span>·</span>
-                                        <span>{post.author?.email}</span>
+                                        <span className="truncate max-w-full" title={post.author?.email}>{post.author?.email}</span>
                                         <span>·</span>
                                         <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                                         <span>·</span>
@@ -141,16 +143,16 @@ const Community = () => {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 ml-2 sm:ml-3">
                                 <button
                                     onClick={() => setExpandedPostId(expandedPostId === post._id ? null : post._id)}
-                                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                    className="p-2.5 sm:p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
                                 >
                                     {expandedPostId === post._id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                 </button>
                                 <button
                                     onClick={() => { setSelectedPostId(post._id); setShowDeleteModal(true); }}
-                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                    className="p-2.5 sm:p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
                                 >
                                     <Trash2 size={18} />
                                 </button>
@@ -163,7 +165,7 @@ const Community = () => {
 
                                 {/* Existing comments */}
                                 {post.comments && post.comments.length > 0 && (
-                                    <div className="px-5 pt-4 space-y-3">
+                                    <div className="px-4 sm:px-5 pt-4 space-y-3">
                                         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                                             {post.comments.length} {post.comments.length === 1 ? 'Reply' : 'Replies'}
                                         </p>
@@ -176,8 +178,8 @@ const Community = () => {
                                                     {comment.isAdminReply ? <Shield size={14} /> : (comment.author?.name?.charAt(0) || '?')}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-xs font-bold text-slate-700">
+                                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-1">
+                                                        <span className="text-xs font-bold text-slate-700 break-words min-w-0">
                                                             {comment.isAdminReply ? 'Admin' : (comment.author?.name || 'Unknown')}
                                                         </span>
                                                         {comment.isAdminReply && (
@@ -185,11 +187,11 @@ const Community = () => {
                                                         )}
                                                         <span className="text-xs text-slate-400">{new Date(comment.createdAt).toLocaleDateString()}</span>
                                                     </div>
-                                                    <p className="text-sm text-slate-700">{comment.content}</p>
+                                                    <p className="text-sm text-slate-700 break-words">{comment.content}</p>
                                                 </div>
                                                 <button
                                                     onClick={() => handleDeleteComment(comment._id)}
-                                                    className="p-1 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
+                                                    className="p-2 -m-1 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0"
                                                     title="Delete comment"
                                                 >
                                                     <Trash2 size={14} />
@@ -200,7 +202,7 @@ const Community = () => {
                                 )}
 
                                 {/* Admin reply box */}
-                                <div className="px-5 py-4 space-y-2">
+                                <div className="px-4 sm:px-5 py-4 space-y-2">
                                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Post Admin Reply</p>
                                     <textarea
                                         rows="3"
@@ -233,8 +235,8 @@ const Community = () => {
 
             {/* Delete Modal */}
             {showDeleteModal && (
-                <div className="fixed inset-0 backdrop-blur-md bg-white/20 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[350px] mx-4">
+                <div className="fixed inset-0 backdrop-blur-md bg-white/20 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[350px]">
                         <h2 className="text-lg font-bold text-slate-800 mb-2">Delete Post?</h2>
                         <p className="text-sm text-slate-500 mb-6">This will permanently delete the post and all its replies.</p>
                         <div className="flex justify-end gap-3">

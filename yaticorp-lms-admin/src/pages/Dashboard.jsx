@@ -57,8 +57,8 @@ const XpValueCard = () => {
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
-            <div className="flex justify-between items-start">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:p-6 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+            <div className="flex justify-between items-start gap-3">
                 <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">XP value</p>
 
@@ -72,7 +72,7 @@ const XpValueCard = () => {
                                 type="number" min="1" step="1" autoFocus value={edit.points}
                                 onChange={(e) => setEdit({ ...edit, points: e.target.value })}
                                 onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEdit(null); }}
-                                className="w-20 rounded-md border border-amber-300 px-2 py-1 outline-none focus:ring-2 focus:ring-amber-500/30"
+                                className="w-24 rounded-md border border-amber-300 px-2 py-1 outline-none focus:ring-2 focus:ring-amber-500/30"
                             />
                             <span>XP =</span>
                             <span>{state.rate.symbol}</span>
@@ -80,7 +80,7 @@ const XpValueCard = () => {
                                 type="number" min="0" step="0.01" value={edit.value}
                                 onChange={(e) => setEdit({ ...edit, value: e.target.value })}
                                 onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEdit(null); }}
-                                className="w-20 rounded-md border border-amber-300 px-2 py-1 outline-none focus:ring-2 focus:ring-amber-500/30"
+                                className="w-24 rounded-md border border-amber-300 px-2 py-1 outline-none focus:ring-2 focus:ring-amber-500/30"
                             />
                             <button type="button" onClick={save} disabled={saving}
                                 className="rounded-md bg-amber-500 px-2.5 py-1 text-white hover:bg-amber-600 disabled:opacity-60">
@@ -92,15 +92,16 @@ const XpValueCard = () => {
                     ) : (
                         <button type="button"
                             onClick={() => setEdit({ points: String(state.rate.points), value: String(state.rate.value) })}
-                            className="group mt-2 flex items-center gap-2 text-left">
-                            <span className="text-2xl font-bold text-slate-900">{rateText(state.rate)}</span>
+                            className="group mt-2 flex max-w-full items-center gap-2 text-left">
+                            {/* A step smaller at xl, where four cards share the row */}
+                            <span className="min-w-0 break-words text-2xl xl:text-xl 2xl:text-2xl font-bold text-slate-900">{rateText(state.rate)}</span>
                             <Pencil size={14} className="text-slate-300 transition-colors group-hover:text-amber-500" />
                         </button>
                     )}
 
                     {state.error && <p className="mt-1 text-xs font-semibold text-rose-600">{state.error}</p>}
                 </div>
-                <div className="p-3 rounded-xl bg-amber-500">
+                <div className="p-3 rounded-xl bg-amber-500 shrink-0">
                     <Zap size={24} className="text-white" />
                 </div>
             </div>
@@ -111,9 +112,9 @@ const XpValueCard = () => {
 const StatCard = ({ title, value, icon, colorClass, loading }) => {
     const Icon = icon;
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
-            <div className="flex justify-between items-start">
-                <div>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:p-6 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+            <div className="flex justify-between items-start gap-3">
+                <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{title}</p>
                     {loading ? (
                         <div className="animate-pulse h-9 w-20 bg-slate-100 rounded-xl mt-2" />
@@ -121,7 +122,7 @@ const StatCard = ({ title, value, icon, colorClass, loading }) => {
                         <p className="text-3xl font-bold text-slate-900 mt-2">{value ?? '—'}</p>
                     )}
                 </div>
-                <div className={`p-3 rounded-xl ${colorClass}`}>
+                <div className={`p-3 rounded-xl shrink-0 ${colorClass}`}>
                     {Icon && <Icon size={24} className="text-white" />}
                 </div>
             </div>
@@ -161,29 +162,30 @@ const Dashboard = () => {
     return (
         <div className="space-y-6 lg:space-y-8 animate-fade-in pb-10">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">{getGreeting()}, {userName}! 👋</h1>
+                <div className="min-w-0">
+                    <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight break-words">{getGreeting()}, {userName}! 👋</h1>
                     <p className="text-sm lg:text-base text-slate-500 mt-1">Here's what's happening with YATICORP LMS today.</p>
                 </div>
-                <Link to="/analytics" className="text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
+                <Link to="/analytics" className="self-start sm:self-auto shrink-0 py-1 text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
                     <TrendingUp size={16} /> Full Analytics →
                 </Link>
             </div>
 
-            {/* Stat Cards */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+            {/* Stat Cards: four across only once each has room for its label and number */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 lg:gap-6">
                 <StatCard loading={loading} title="Total Students" value={analytics?.totalStudents} icon={Users} colorClass="bg-blue-500" />
                 <StatCard loading={loading} title="Total Enrollments" value={analytics?.totalEnrollments} icon={UserPlus} colorClass="bg-emerald-500" />
                 <StatCard loading={loading} title="Active This Week" value={analytics?.activeThisWeek ?? 0} icon={Activity} colorClass="bg-indigo-500" />
                 <XpValueCard />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+            {/* Side by side from xl: at lg the sidebar leaves the summary column too narrow */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
                 {/* Top Courses */}
-                <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:p-6 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between mb-5">
+                <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:p-6 hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between gap-3 mb-5">
                         <h2 className="text-lg font-bold text-slate-900">Top Courses by Enrollment</h2>
-                        <Link to="/analytics" className="text-xs font-bold text-indigo-600 hover:underline">View all</Link>
+                        <Link to="/analytics" className="shrink-0 py-1 text-xs font-bold text-indigo-600 hover:underline">View all</Link>
                     </div>
                     {loading ? (
                         <div className="space-y-3">
@@ -198,10 +200,10 @@ const Dashboard = () => {
                     ) : (
                         <div className="space-y-3">
                             {topCourses.map(c => (
-                                <div key={c._id.toString()} className="flex items-center gap-4">
+                                <div key={c._id.toString()} className="flex items-center gap-3 sm:gap-4">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between mb-1">
-                                            <span className="text-sm font-semibold text-slate-800 truncate max-w-[200px]" title={c.title}>{c.title}</span>
+                                            <span className="text-sm font-semibold text-slate-800 truncate min-w-0" title={c.title}>{c.title}</span>
                                             <span className="text-xs text-slate-500 ml-2 flex-shrink-0">{c.enrolledCount} enrolled</span>
                                         </div>
                                         <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -234,8 +236,8 @@ const Dashboard = () => {
                                 { label: 'Published', value: analytics?.courseStats?.filter(c => c.isPublished).length ?? 0, icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50' },
                                 { label: 'Active This Week', value: analytics?.activeThisWeek ?? 0, icon: Activity, color: 'text-blue-600 bg-blue-50' },
                             ].map(item => (
-                                <div key={item.label} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                                    <div className="flex items-center gap-3">
+                                <div key={item.label} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                    <div className="flex items-center gap-3 min-w-0">
                                         <div className={`p-2 rounded-lg ${item.color}`}>
                                             <item.icon size={16} />
                                         </div>

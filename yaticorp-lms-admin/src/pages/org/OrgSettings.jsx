@@ -12,7 +12,7 @@
  * something has actually changed, so the page cannot be saved by accident.
  */
 import React, { useState, useEffect } from 'react';
-import { Building2, Pencil, Lock, Loader2, Check, Copy, KeyRound } from 'lucide-react';
+import { Building2, Pencil, Lock, Loader2, Check, Copy, KeyRound, ImagePlus } from 'lucide-react';
 import api from '../../utils/api';
 import { CARD, INPUT, LABEL, BTN, BTN2, Banner, PageHeader } from '../../components/orgUi';
 import PasswordField from '../../components/PasswordField';
@@ -20,7 +20,8 @@ import PasswordStrengthChecker from '../../components/PasswordStrengthChecker';
 import { formatDate } from '../../utils/dates';
 
 /** The fields this page owns. Anything else the server sends is left alone. */
-const FIELDS = ['name', 'contactPerson', 'email', 'phone', 'address', 'website', 'logo'];
+// The logo is not among them: it has its own card, uploaded as an image.
+const FIELDS = ['name', 'contactPerson', 'email', 'phone', 'address', 'website'];
 const EMPTY = Object.fromEntries(FIELDS.map((f) => [f, '']));
 const pick = (organization) => Object.fromEntries(FIELDS.map((f) => [f, organization?.[f] ?? '']));
 
@@ -32,6 +33,48 @@ const Field = ({ label, id, hint, error, children }) => (
             : hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </div>
 );
+
+/** The organization's logo, changed by uploading an image. */
+const LogoCard = ({ organization, onSaved, onError }) => {
+    const [busy, setBusy] = useState(false);
+    const upload = async (file) => {
+        if (!file) return;
+        if (!file.type.startsWith('image/')) return onError('Choose an image file for your logo.');
+        if (file.size > 5 * 1024 * 1024) return onError('That image is over 5 MB. Choose a smaller one.');
+        setBusy(true);
+        try {
+            const fd = new FormData();
+            fd.append('image', file);
+            const res = await api.post('/organizations/me/logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            onSaved(res.data.organization);
+        } catch (err) {
+            onError(err.response?.data?.message || 'Could not upload the logo.');
+        } finally {
+            setBusy(false);
+        }
+    };
+    return (
+        <div className={`${CARD} flex flex-col gap-4 p-5 sm:flex-row sm:items-center lg:p-6`}>
+            {organization.logo ? (
+                <img src={organization.logo} alt={`${organization.name} logo`} className="h-16 w-16 shrink-0 rounded-2xl bg-white object-contain p-1 ring-1 ring-slate-200" />
+            ) : (
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-slate-300 ring-1 ring-slate-200"><ImagePlus size={26} /></span>
+            )}
+            <div className="min-w-0 flex-1">
+                <p className="font-semibold text-slate-900">Logo</p>
+                <p className="text-sm text-slate-500">
+                    {organization.logo ? 'Shown to your students on your courses, and across this panel.' : 'Needed before you can add or publish courses.'}
+                </p>
+            </div>
+            <label className={`${BTN2} cursor-pointer whitespace-nowrap ${busy ? 'pointer-events-none opacity-60' : ''}`}>
+                {busy ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
+                {organization.logo ? 'Change logo' : 'Upload logo'}
+                <input type="file" accept="image/*" className="hidden" aria-label="Logo image"
+                    onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+        </div>
+    );
+};
 
 const OrgSettings = () => {
     const [organization, setOrganization] = useState(null);
@@ -121,6 +164,14 @@ const OrgSettings = () => {
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             {error && <Banner onClose={() => setError('')}>{error}</Banner>}
 
+            {/* ── The logo: shown to students on its courses, and across this panel ── */}
+            <LogoCard organization={organization} onSaved={(org) => {
+                setOrganization(org);
+                window.dispatchEvent(new CustomEvent('organization-logo', { detail: org.logo }));
+                setNotice('Your logo was saved.');
+                setTimeout(() => setNotice(''), 5000);
+            }} onError={setError} />
+
             {/* ── The parts nobody can change ──────────────────────────────── */}
             <div className={`${CARD} p-5 lg:p-6`}>
                 <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
@@ -185,17 +236,6 @@ const OrgSettings = () => {
                         <textarea id="set-address" rows={2} value={form.address} onChange={set('address')} disabled={!editing} className={INPUT} />
                     </Field>
 
-                    <Field label="Logo URL" id="set-logo" hint="A link to your logo image. Leave blank if you do not have one.">
-                        <input id="set-logo" value={form.logo} onChange={set('logo')} disabled={!editing} placeholder="https://…" className={INPUT} />
-                    </Field>
-
-                    {form.logo && (
-                        <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-                            <img src={form.logo} alt="" className="h-12 w-12 rounded-lg object-contain"
-                                onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                            <span className="text-xs text-slate-500">Logo preview</span>
-                        </div>
-                    )}
                 </div>
 
                 {editing && (

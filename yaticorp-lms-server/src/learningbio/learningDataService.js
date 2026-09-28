@@ -81,7 +81,7 @@ const collect = async (userId) => {
         safe(CareerTask.find({ userId, status: 'Completed' }).select('title description skill completedAt updatedAt').lean(), []),
         safe(MilestoneBadge.find({ userId }).sort({ createdAt: -1 }).lean(), []),
         safe(CareerAchievement.find({ userId }).sort({ unlockedAt: -1 }).lean(), []),
-        safe(Course.find({ isPublished: true }).select('title description').lean(), [])
+        safe(Course.find({ isPublished: true }).select('title description organizationId').lean(), [])
     ]);
     if (!user) return null;
 
@@ -100,7 +100,8 @@ const collect = async (userId) => {
     const completedCourses = courses.filter((c) => c.completed);
     const ongoingCourses = courses.filter((c) => !c.completed);
     const enrolledIds = new Set(courses.map((c) => c.id));
-    const recommendedCourses = published.filter((c) => !enrolledIds.has(String(c._id))).slice(0, 4).map((c) => ({ id: String(c._id), title: c.title }));
+    // Never another organization's own course.
+    const recommendedCourses = published.filter((c) => require('../services/courseAccess').canAccessCourse(user, c) && !enrolledIds.has(String(c._id))).slice(0, 4).map((c) => ({ id: String(c._id), title: c.title }));
 
     /* Assessments — quiz passes and scores from the rewards ledger. */
     const quizPasses = activities.filter((a) => a.type === 'quiz_pass');

@@ -14,9 +14,18 @@ const { uploadToBunny, uploadStreamToBunny } = require('../utils/bunnyStorage');
 // COURSE OPERATIONS
 // ==========================
 
+/**
+ * Whose courses a request works on. The platform admin's routes leave
+ * `req.organization` unset and work on platform courses (no organizationId);
+ * an organization admin's routes set it and work on that organization's own.
+ * Each side sees only its own list and checks titles only against its own.
+ */
+const ownerOf = (req) => req.organization?._id || null;
+const titlePattern = (title) => new RegExp(`^${String(title).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
 const getCourses = async (req, res) => {
     try {
-        const courses = await Course.find({}).sort('-createdAt').lean();
+        const courses = await Course.find({ organizationId: ownerOf(req) }).sort('-createdAt').lean();
 
         // Attach lessonsCount to each course via Module → Lesson join
         const courseIds = courses.map(c => c._id);
@@ -49,6 +58,13 @@ const getCourses = async (req, res) => {
             ...c,
             lessonsCount: countMap[c._id.toString()] || 0
         }));
+
+        // An organization also sees, per course, how many of its current
+        // students are taking it and how many have finished it.
+        if (ownerOf(req)) {
+            const stats = await require('../organizations/services/courseStats').learnerStats(ownerOf(req), courseIds);
+            return res.json(coursesWithCount.map(c => ({ ...c, ...(stats.get(String(c._id)) || { learners: 0, completed: 0 }) })));
+        }
 
         res.json(coursesWithCount);
     } catch (error) {
@@ -83,12 +99,11 @@ const getCourseById = async (req, res) => {
 const createCourse = async (req, res) => {
     try {
         const { title, description, thumbnail, instructor, isPublished, price, pricePoints } = req.body;
+        if (!title || !String(title).trim()) return res.status(400).json({ message: 'Give the course a title' });
+        const owner = ownerOf(req);
 
-
-        // 🔴 CHECK DUPLICATE TITLE
-        const existingCourse = await Course.findOne({
-            title: { $regex: `^${title.trim()}$`, $options: 'i' }
-        });
+        // A duplicate title only counts among the same owner's courses.
+        const existingCourse = await Course.findOne({ organizationId: owner, title: titlePattern(title) });
 
         if (existingCourse) {
             return res.status(400).json({ message: 'Course with this title already exists' });
@@ -98,11 +113,14 @@ const createCourse = async (req, res) => {
             title: title.trim(),
             description,
             thumbnail,
-            instructor,
+            // An organization's course is taught by that organization.
+            instructor: owner ? (instructor || req.organization.name) : instructor,
             isPublished,
-            price,
+            organizationId: owner,
+            // An organization's course is free for its students: never priced.
+            price: owner ? 0 : price,
             // Blank in the form means "not sold for points", not NaN.
-            pricePoints: Number(pricePoints) || 0
+            pricePoints: owner ? 0 : (Number(pricePoints) || 0)
         });
 
         res.status(201).json(course);
@@ -113,11 +131,15 @@ const createCourse = async (req, res) => {
 
 const updateCourse = async (req, res) => {
     try {
-        const { title } = req.body;
+        // Who owns a course is never changed by editing it.
+        const { title, organizationId: _owner, _id: _id, ...rest } = req.body;
+        const current = await Course.findById(req.params.id).select('organizationId').lean();
+        if (!current) return res.status(404).json({ message: 'Course not found' });
 
         if (title) {
             const existingCourse = await Course.findOne({
-                title: { $regex: `^${title.trim()}$`, $options: 'i' },
+                organizationId: current.organizationId || null,
+                title: titlePattern(title),
                 _id: { $ne: req.params.id }
             });
 
@@ -126,9 +148,13 @@ const updateCourse = async (req, res) => {
             }
         }
 
+        // An organization's course stays free, whatever an edit sends.
+        if (current.organizationId) {
+            delete rest.price; delete rest.pricePoints; delete rest.creditCost;
+        }
         const course = await Course.findByIdAndUpdate(
             req.params.id,
-            { ...req.body, title: title?.trim() },
+            { ...rest, ...(title ? { title: title.trim() } : {}) },
             { new: true }
         );
 

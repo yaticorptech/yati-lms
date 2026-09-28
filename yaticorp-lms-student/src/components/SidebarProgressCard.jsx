@@ -27,9 +27,8 @@ const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 function LevelRing({ level, percent, nextLevel }) {
-  // Gradients are referenced by id, and this card renders twice on a phone
-  // (the drawer and the rail), so a hardcoded id would have the second copy
-  // painting with the first one's fill.
+  // Gradients are referenced by id, so a hardcoded one would have any second
+  // copy of this card painting with the first one's fill.
   const gradientId = `${useId()}-ring`;
 
   return (

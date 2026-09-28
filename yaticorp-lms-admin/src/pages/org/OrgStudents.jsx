@@ -10,7 +10,8 @@
  * 360-pixel screen is a horizontal scroll nobody uses.
  */
 import React, { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import OrgCertificateProgress from './OrgCertificateProgress';
 import { Users, Search, ChevronRight, Award, Download, UserMinus, Loader2 } from 'lucide-react';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
@@ -23,7 +24,7 @@ const SORTS = [
     ['active', 'Last active']
 ];
 
-const OrgStudents = () => {
+const StudentList = () => {
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -278,6 +279,28 @@ const OrgStudents = () => {
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+const VIEWS = [
+    ['students', 'All students'],
+    ['certificates', 'Certificate progress']
+];
+
+/**
+ * The Students section: the student list, and each student's certificate
+ * progress on the organization's own courses. The open tab lives in the
+ * address (?view=certificates), so it survives a refresh and can be linked to.
+ */
+const OrgStudents = () => {
+    const [params, setParams] = useSearchParams();
+    const view = params.get('view') === 'certificates' ? 'certificates' : 'students';
+    return (
+        // Certificate progress is a narrower view, centred — tabs and all.
+        <div className={`space-y-4 lg:space-y-6 ${view === 'certificates' ? 'mx-auto max-w-5xl' : ''}`}>
+            <Segmented options={VIEWS} value={view} onChange={(v) => setParams(v === 'students' ? {} : { view: v })} />
+            {view === 'students' ? <StudentList /> : <OrgCertificateProgress />}
         </div>
     );
 };

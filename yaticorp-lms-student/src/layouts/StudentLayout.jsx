@@ -493,7 +493,7 @@ const StudentLayout = () => {
                 looks like empty space to it. This marks the navigation as
                 somewhere it may not stand. Read only by the mascot; nothing
                 about this sidebar changes. */}
-            <aside data-mascot-clear className="hidden md:flex w-64 bg-slate-900 text-white flex-col z-10 shadow-xl">
+            <aside data-mascot-clear className="hidden lg:flex w-64 bg-slate-900 text-white flex-col z-10 shadow-xl">
                 <div className="p-6 flex items-center justify-center border-b border-slate-800 bg-slate-900">
                     <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
                 </div>
@@ -529,7 +529,7 @@ const StudentLayout = () => {
                 it walked up behind it. */}
             <div
                 data-mascot-avoid
-                className="md:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4"
+                className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4"
             >
                 <div className="flex min-w-0 shrink items-center">
                     <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-8 max-w-full object-contain" />
@@ -570,7 +570,7 @@ const StudentLayout = () => {
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
-                <div className="md:hidden fixed inset-0 z-50 flex">
+                <div className="lg:hidden fixed inset-0 z-50 flex">
                     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
                     <div className="relative w-4/5 max-w-sm bg-slate-900 text-white h-full flex flex-col shadow-2xl animate-fade-in border-r border-slate-800">
                         <div className="p-4 flex items-center justify-between border-b border-slate-800">
@@ -581,24 +581,30 @@ const StudentLayout = () => {
                         </div>
                         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                             {renderNavLinks(() => setMobileMenuOpen(false))}
-
-                            {/* Logging out belongs with the places you can go,
-                                at the end of them. It used to sit below the
-                                profile card and Contact Support, off the bottom
-                                of a phone screen unless you went looking. */}
-                            <div className="!mt-4 border-t border-slate-800 pt-4">
+                        </nav>
+                        <div className="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
+                            {/* Logout sits in this pinned footer, beside
+                                Contact Support, so it is always on screen. At
+                                the end of the scrolling nav it was hidden below
+                                the fold, and nothing hinted the list scrolled. */}
+                            <div className="mb-3 grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => { setMobileMenuOpen(false); setShowContact(true); }}
+                                    className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
+                                >
+                                    <MessageCircleQuestion size={20} /> <span>Support</span>
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-                                    className="flex w-full items-center space-x-3 rounded-lg p-2.5 font-medium text-rose-300 transition-colors duration-200 hover:bg-rose-500/10 hover:text-rose-200"
+                                    className="flex items-center justify-center space-x-2 bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
                                 >
                                     <LogOut size={20} /> <span>Logout</span>
                                 </button>
                             </div>
-                        </nav>
-                        <div className="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
                             {/* Profile card in mobile drawer */}
-                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 mb-4">
+                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                                 <div className="flex justify-between items-start mb-1">
                                     <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Student</p>
                                     {isCreditSystemEnabled && (
@@ -611,31 +617,15 @@ const StudentLayout = () => {
                                 <p className="font-bold text-white truncate">{user?.name}</p>
                                 <p className="text-xs text-slate-400 font-mono mt-1">{user?.cardNumber}</p>
                             </div>
-
-                            {isCareerPathEnabled && (
-                                <div className="mb-4">
-                                    <SidebarProgressCard
-                                        user={progressUser || user}
-                                        onNavigate={() => setMobileMenuOpen(false)}
-                                    />
-                                </div>
-                            )}
-
-                            <button
-                                onClick={() => { setMobileMenuOpen(false); setShowContact(true); }}
-                                className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
-                            >
-                                <MessageCircleQuestion size={20} /> <span>Contact Support</span>
-                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-auto bg-slate-50 md:pt-0 pt-16 relative">
+            <main className="flex-1 overflow-auto bg-slate-50 lg:pt-0 pt-16 relative">
                 {/* Desktop Header */}
-                <header className="hidden md:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-8 sticky top-0 z-30">
+                <header className="hidden lg:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-8 sticky top-0 z-30">
                     {/* Left side kept empty so the pills and profile stay on the right. */}
                     <div className="flex flex-1 items-center" />
 
@@ -758,7 +748,7 @@ const StudentLayout = () => {
                     it and the padding landed mid-page instead of after the
                     last card — which is why the end of long pages sat under
                     the bar. `min-h` keeps short pages filling the screen. */}
-                <div className="mx-auto min-h-[calc(100vh-4rem)] max-w-7xl p-4 pb-[7.5rem] md:p-8 md:pb-8">
+                <div className="mx-auto min-h-[calc(100vh-4rem)] max-w-7xl p-4 pb-[7.5rem] lg:p-8 lg:pb-8">
                     <Outlet />
                 </div>
             </main>

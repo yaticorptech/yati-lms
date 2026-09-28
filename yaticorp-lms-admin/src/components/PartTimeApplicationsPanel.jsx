@@ -198,7 +198,7 @@ export default function PartTimeApplicationsPanel() {
     }, []);
 
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1 basis-56">
                     <h2 className="text-lg font-bold text-slate-800">Part-time applications</h2>
@@ -213,10 +213,12 @@ export default function PartTimeApplicationsPanel() {
                 </button>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            {/* One row that scrolls sideways on a phone, bled to the card's edges;
+                from sm up there is room for the filters to wrap instead. */}
+            <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto overscroll-x-contain px-4 no-scrollbar sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
                 {FILTERS.map(([value, label]) => (
-                    <button key={label} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                    <button key={label} type="button" onClick={(e) => { setFilter(value); e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }} aria-pressed={filter === value}
+                        className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
                             filter === value ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}>
                         {label}{state.counts[value] ? ` (${state.counts[value]})` : ''}
@@ -246,7 +248,7 @@ export default function PartTimeApplicationsPanel() {
                                         </span>
                                     )}
                                 </p>
-                                <p className="mt-0.5 text-sm text-slate-600">{row.job.title}{row.job.company ? ` · ${row.job.company}` : ''}</p>
+                                <p className="mt-0.5 break-words text-sm text-slate-600">{row.job.title}{row.job.company ? ` · ${row.job.company}` : ''}</p>
                                 <p className="mt-0.5 text-xs text-slate-500">
                                     Guardian: <span className="font-semibold text-slate-700">{row.guardian.name || '—'}</span>
                                     {row.guardian.phone ? ` · ${row.guardian.phone}` : ''}

@@ -85,6 +85,29 @@ describe('the dashboard organization button', { skip: skipWithoutChrome }, () =>
         assert.ok(!/Organization ID/i.test(result.body), 'the dashboard says nothing about IDs');
     });
 
+    test('inside a white-text banner, what is typed can still be read, and a chosen ID is looked up', { skip: skipWithoutStyles }, async () => {
+        // The Profile banner it sits in sets white text; the box must not inherit it.
+        const banner = entry.replace('<div className="bg-indigo-600 p-6">', '<div className="bg-indigo-600 p-6 text-white">');
+        const { result, errors } = await screen({
+            entry: banner, api: stub(NOT_A_MEMBER), styles: true,
+            script: `${TYPE}
+                await sleep(500);
+                click(/Add organization/); await sleep(300);
+                type('#org-code', 'nation_world');
+                const box = $('#org-code');
+                const colour = getComputedStyle(box).color;
+                const inBody = box.closest('[role="dialog"]').parentElement === document.body;
+                $('#org-code').closest('form').requestSubmit(); await sleep(400);
+                return { colour, inBody, value: box.value, asked: window.__calls.filter((c) => c[1].includes('/lookup/')).map((c) => c[1]) };
+                `
+        });
+        assert.deepEqual(errors, []);
+        assert.notEqual(result.colour, 'rgb(255, 255, 255)', 'typed text is not white on white');
+        assert.ok(result.inBody, 'the popup is not inside the banner');
+        assert.equal(result.value, 'nation_world');
+        assert.deepEqual(result.asked, ['/organizations/student/lookup/nation_world']);
+    });
+
     test('pressing it opens the popup with the ID field', async () => {
         const { result, errors } = await screen({
             entry, api: stub(NOT_A_MEMBER),
@@ -104,7 +127,7 @@ describe('the dashboard organization button', { skip: skipWithoutChrome }, () =>
         assert.deepEqual(errors, []);
         assert.ok(result.opened);
         assert.ok(result.hasInput, 'there is somewhere to type the ID');
-        assert.equal(result.placeholder, 'ABC-2026-0001', 'and the shape of it is shown');
+        assert.equal(result.placeholder, 'xx_xxxx_xxx', 'and the shape of it is shown');
         assert.match(result.popupText, /school, college or company/i);
     });
 

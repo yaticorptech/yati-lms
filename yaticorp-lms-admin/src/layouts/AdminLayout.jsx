@@ -202,17 +202,21 @@ const AdminLayout = () => {
             {/* Main Content */}
             <main className="flex-1 flex flex-col min-w-0 bg-slate-50 overflow-hidden">
                 {/* Top Bar */}
-                <header className="h-16 lg:h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 shrink-0 relative z-30">
-                    {/* Mobile hamburger */}
-                    <div className="flex items-center lg:hidden">
-                        <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg">
+                <header className="h-16 lg:h-20 bg-white border-b border-slate-200 flex items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 shrink-0 relative z-30">
+                    {/* Mobile hamburger, with the logo the hidden sidebar would otherwise show */}
+                    <div className="flex items-center gap-2 min-w-0 lg:hidden">
+                        <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg" aria-label="Open menu">
                             <Menu size={24} />
                         </button>
+                        {/* The logo is white artwork, so it keeps the sidebar's dark ground */}
+                        <Link to="/" className="flex items-center min-w-0 bg-slate-900 rounded-lg px-2.5 py-1.5">
+                            <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-5 sm:h-6 w-auto max-w-full object-contain" />
+                        </Link>
                     </div>
 
                     <div className="hidden lg:block flex-1" />
 
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center gap-3 shrink-0">
                         {/* Refresh button */}
                         <button
                             onClick={() => window.location.reload()}
@@ -237,7 +241,8 @@ const AdminLayout = () => {
 
                             {/* Dropdown panel */}
                             {profileDropdownOpen && (
-                                <div className="absolute right-0 top-13 mt-1 w-60 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] overflow-hidden">
+                                // Capped to the screen so a long name or email cannot push it off a phone
+                                <div className="absolute right-0 top-13 mt-1 w-60 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] overflow-hidden">
                                     {/* Admin info header */}
                                     <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col items-center gap-2 text-center">
                                         <div className="w-14 h-14 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg overflow-hidden">
@@ -247,9 +252,9 @@ const AdminLayout = () => {
                                                 getInitials(admin?.name)
                                             )}
                                         </div>
-                                        <div>
-                                            <p className="font-bold text-slate-800 text-sm">{admin?.name}</p>
-                                            <p className="text-xs text-slate-400">{admin?.email}</p>
+                                        <div className="w-full min-w-0">
+                                            <p className="font-bold text-slate-800 text-sm break-words">{admin?.name}</p>
+                                            <p className="text-xs text-slate-400 truncate" title={admin?.email}>{admin?.email}</p>
                                         </div>
                                         <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-xs font-bold">
                                             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
@@ -281,7 +286,7 @@ const AdminLayout = () => {
                 </header>
 
                 {/* Page Content Area */}
-                <div className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
                     <div className="max-w-7xl mx-auto w-full">
                         <Outlet />
                     </div>

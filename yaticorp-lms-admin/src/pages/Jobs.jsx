@@ -28,12 +28,12 @@ const Stat = ({ icon: Icon, label, value, sub, tone = 'indigo' }) => {
         slate: 'bg-slate-100 text-slate-600'
     };
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+        <div className="min-w-0 bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
                 <span className={`p-1.5 rounded-lg ${tones[tone]}`}><Icon size={15} /></span>
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</p>
             </div>
-            <p className="text-3xl font-bold text-slate-800 tabular-nums">{value}</p>
+            <p className="text-3xl font-bold text-slate-800 tabular-nums break-words">{value}</p>
             {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
         </div>
     );
@@ -43,7 +43,9 @@ const Stat = ({ icon: Icon, label, value, sub, tone = 'indigo' }) => {
 const RankedBars = ({ title, subtitle, rows, empty }) => {
     const max = Math.max(1, ...rows.map(r => r.count));
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+        // min-w-0: the truncated names are nowrap, and without it this card
+        // would size its grid column to the longest one and run off a phone.
+        <div className="min-w-0 bg-white rounded-2xl border border-slate-100 p-4 sm:p-6 shadow-sm">
             <h2 className="font-bold text-slate-800">{title}</h2>
             {subtitle && <p className="text-xs text-slate-500 mt-0.5 mb-4">{subtitle}</p>}
             {rows.length === 0 ? (
@@ -53,7 +55,7 @@ const RankedBars = ({ title, subtitle, rows, empty }) => {
                     {rows.map((r) => (
                         <li key={r.name}>
                             <div className="flex justify-between items-baseline gap-3 mb-1">
-                                <span className="text-sm font-medium text-slate-700 truncate">{r.name}</span>
+                                <span className="min-w-0 text-sm font-medium text-slate-700 truncate" title={r.name}>{r.name}</span>
                                 <span className="text-sm font-bold text-slate-800 tabular-nums shrink-0">{r.count}</span>
                             </div>
                             <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -147,7 +149,7 @@ const Jobs = () => {
             )}
 
             <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
+                <div className="min-w-0">
                     <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                         <span className="bg-indigo-100 text-indigo-600 p-2 rounded-lg"><Briefcase size={20} /></span>
                         Jobs
@@ -184,7 +186,7 @@ const Jobs = () => {
             <PartTimeApplicationsPanel />
 
             {/* ── Index health ─────────────────────────────────────────── */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <Stat icon={Database} label="Active listings" value={(idx.active ?? 0).toLocaleString()}
                     sub={`${(idx.total ?? 0).toLocaleString()} stored in total`} />
                 <Stat icon={MapPin} label="Distance-rankable" value={`${locatedPct}%`}
@@ -206,7 +208,7 @@ const Jobs = () => {
             </div>
 
             {/* ── Demand ───────────────────────────────────────────────── */}
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <RankedBars
                     title="Roles students search for"
                     subtitle="Last 30 days. A role that keeps appearing here and matches no course is a course waiting to be built."
@@ -221,7 +223,7 @@ const Jobs = () => {
                 />
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <RankedBars
                     title="Where they are searching"
                     subtitle="Locations as typed into searches, last 30 days."
@@ -230,7 +232,7 @@ const Jobs = () => {
                 />
 
                 {/* ── Provider spend ───────────────────────────────────── */}
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+                <div className="min-w-0 bg-white rounded-2xl border border-slate-100 p-4 sm:p-6 shadow-sm">
                     <h2 className="font-bold text-slate-800">Metered providers</h2>
                     <p className="text-xs text-slate-500 mt-0.5 mb-4">
                         This month&apos;s requests against the paid-tier sources. Keyless boards are unmetered.
@@ -242,8 +244,8 @@ const Jobs = () => {
                     ) : (
                         <ul className="divide-y divide-slate-100">
                             {providers.map((p) => (
-                                <li key={p.provider} className="flex justify-between items-baseline py-2.5">
-                                    <span className="text-sm font-medium text-slate-700">{p.provider}</span>
+                                <li key={p.provider} className="flex flex-wrap justify-between items-baseline gap-x-3 gap-y-0.5 py-2.5">
+                                    <span className="min-w-0 break-all text-sm font-medium text-slate-700">{p.provider}</span>
                                     <span className="text-sm font-bold text-slate-800 tabular-nums">
                                         {p.calls} request{p.calls === 1 ? '' : 's'} in {p.month}
                                     </span>

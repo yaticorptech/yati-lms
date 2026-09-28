@@ -9,7 +9,7 @@ const { protectUser } = require('../middleware/authMiddleware');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { updatePassword } = require('../controllers/userPasswordController');
 const { upload } = require('../middleware/uploadMiddleware');
-const { getMyCourses, getBundles, getBundleContent, getCourseContent, updateProgress, getAvailableCourses, enrollCourse, searchContent } = require('../controllers/userCourseController');
+const { getMyCourses, getBundles, getBundleContent, getCourseContent, updateProgress, getAvailableCourses, getOrganizationCourses, enrollCourse, searchContent } = require('../controllers/userCourseController');
 const { createTicket, getMyTickets } = require('../controllers/ticketController');
 const { getMyCertificates } = require('../controllers/certificateController');
 const { getAnnouncementsForUser, clearUserNotifications } = require('../controllers/announcementController');
@@ -24,6 +24,7 @@ router.post('/profile/picture', protectUser, upload.single('profilePicture'), up
 // Course and Progress Routes
 router.get('/courses', protectUser, getMyCourses);
 router.get('/courses/available', protectUser, getAvailableCourses);
+router.get('/courses/organization', protectUser, getOrganizationCourses);
 router.get('/courses/:id', protectUser, getCourseContent);
 router.post('/courses/:id/enroll', protectUser, enrollCourse);
 router.post('/progress/update', protectUser, updateProgress);

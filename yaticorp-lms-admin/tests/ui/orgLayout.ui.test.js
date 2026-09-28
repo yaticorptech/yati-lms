@@ -92,7 +92,8 @@ describe('the organization shell', { skip: skipWithoutStyles }, () => {
         assert.deepEqual(errors, []);
         assert.ok(result.bottomShown, 'the bottom bar is on screen');
         assert.ok(!result.sidebarShown, 'the sidebar is not');
-        assert.equal(result.tabs.length, 4);
+        assert.equal(result.tabs.length, 5);
+        assert.match(result.tabs[3], /Courses/, 'the organization\'s own courses');
         assert.match(result.tabs[0], /Home/);
         assert.match(result.tabs[2], /Requests/);
         assert.match(result.tabs[2], /3/, 'the waiting count rides on the Requests tab');

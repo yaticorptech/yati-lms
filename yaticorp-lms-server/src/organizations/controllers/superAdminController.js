@@ -14,7 +14,8 @@ const Organization = require('../models/Organization');
 const JoinRequest = require('../models/JoinRequest');
 const Admin = require('../../models/Admin');
 const User = require('../../models/User');
-const { createWithOrgCode } = require('../services/orgCode');
+const Course = require('../../models/Course');
+const { checkNewOrgCode, isDuplicateOrgCode } = require('../services/orgCode');
 const { validatePasswordStrength } = require('../../middleware/validatePassword');
 const { withSummaries, studentDetail } = require('../services/studentProgress');
 const { sendEmail } = require('../../utils/emailService');
@@ -66,7 +67,11 @@ const listOrganizations = async (req, res) => {
             .lean();
 
         const ids = organizations.map((o) => o._id);
-        const [students, pending] = await Promise.all([studentCounts(ids), pendingCounts(ids)]);
+        const [students, pending, courses] = await Promise.all([
+            studentCounts(ids), pendingCounts(ids),
+            Course.aggregate([{ $match: { organizationId: { $in: ids } } }, { $group: { _id: '$organizationId', count: { $sum: 1 } } }])
+                .then((rows) => new Map(rows.map((r) => [String(r._id), r.count])))
+        ]);
 
         // Counts across everything, not across the filtered set, so the status
         // chips show how many are waiting even while a filter is applied.
@@ -79,7 +84,10 @@ const listOrganizations = async (req, res) => {
                 ...o,
                 typeLabel: Organization.TYPE_LABELS[o.organizationType] || 'Other',
                 studentCount: students.get(String(o._id)) || 0,
-                pendingRequests: pending.get(String(o._id)) || 0
+                pendingRequests: pending.get(String(o._id)) || 0,
+                // Whether it may publish its own courses, and how many it has.
+                courseAccess: { enabled: Boolean(o.courseAccess?.enabled), limit: o.courseAccess?.limit || 5 },
+                courseCount: courses.get(String(o._id)) || 0
             })),
             totals: Organization.STATUSES.reduce((acc, s) => {
                 acc[s] = totals.find((t) => t._id === s)?.count || 0;
@@ -101,22 +109,63 @@ const getOrganization = async (req, res) => {
         const organization = await Organization.findById(req.params.id).lean();
         if (!organization) return res.status(404).json({ message: 'Organization not found' });
 
-        const [admins, studentCount, pendingRequests] = await Promise.all([
+        const [admins, studentCount, pendingRequests, courseCount] = await Promise.all([
             Admin.find({ organizationId: organization._id })
                 .select('name email role isTwoFactorEnabled createdAt')
                 .lean(),
             User.countDocuments({ organizationId: organization._id }),
-            JoinRequest.countDocuments({ organizationId: organization._id, status: 'pending' })
+            JoinRequest.countDocuments({ organizationId: organization._id, status: 'pending' }),
+            Course.countDocuments({ organizationId: organization._id })
         ]);
 
         res.json({
             organization: {
                 ...organization,
-                typeLabel: Organization.TYPE_LABELS[organization.organizationType] || 'Other'
+                typeLabel: Organization.TYPE_LABELS[organization.organizationType] || 'Other',
+                courseAccess: { enabled: Boolean(organization.courseAccess?.enabled), limit: organization.courseAccess?.limit || 5 }
             },
             admins,
             studentCount,
-            pendingRequests
+            pendingRequests,
+            courseCount
+        });
+    } catch (error) {
+        if (error.name === 'CastError') return res.status(404).json({ message: 'Organization not found' });
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    Let an organization publish its own courses, and how many
+// @route   PUT /api/organizations/admin/:id/course-access
+// @access  Private/SuperAdmin
+//
+// Switching it off hides nothing and deletes nothing: the organization's
+// courses stay with their students, but its administrator cannot add or edit
+// courses until it is switched back on. A limit below the courses already
+// made is allowed — it simply stops new ones — so a superadmin can cap an
+// organization without deleting its work.
+const setCourseAccess = async (req, res) => {
+    try {
+        const organization = await Organization.findById(req.params.id);
+        if (!organization) return res.status(404).json({ message: 'Organization not found' });
+        const { enabled, limit } = req.body || {};
+        if (enabled !== undefined && typeof enabled !== 'boolean') return res.status(400).json({ message: 'Say whether courses are on or off.' });
+        if (limit !== undefined && (!Number.isInteger(Number(limit)) || Number(limit) < 1 || Number(limit) > 500)) {
+            return res.status(400).json({ message: 'The course limit must be a whole number from 1 to 500.' });
+        }
+        const current = organization.courseAccess || {};
+        organization.courseAccess = {
+            enabled: enabled !== undefined ? enabled : Boolean(current.enabled),
+            limit: limit !== undefined ? Number(limit) : (current.limit || 5)
+        };
+        await organization.save();
+        const courseCount = await Course.countDocuments({ organizationId: organization._id });
+        res.json({
+            message: organization.courseAccess.enabled
+                ? `${organization.name} can now have up to ${organization.courseAccess.limit} course${organization.courseAccess.limit === 1 ? '' : 's'}.`
+                : `Courses are switched off for ${organization.name}.`,
+            courseAccess: organization.courseAccess,
+            courseCount
         });
     } catch (error) {
         if (error.name === 'CastError') return res.status(404).json({ message: 'Organization not found' });
@@ -142,6 +191,10 @@ const createOrganization = async (req, res) => {
         const passwordError = validatePasswordStrength(password);
         if (passwordError) return res.status(400).json({ message: passwordError });
 
+        // Typed by the superadmin, as the organization would choose it — never generated.
+        const chosen = await checkNewOrgCode(req.body.orgCode);
+        if (chosen.error) return res.status(chosen.taken ? 409 : 400).json({ message: chosen.error, field: 'orgCode' });
+
         const cleanEmail = String(email).trim().toLowerCase();
         if (await Organization.findOne({ email: cleanEmail })) {
             return res.status(400).json({ message: 'An organization is already registered with that email address.' });
@@ -152,8 +205,8 @@ const createOrganization = async (req, res) => {
 
         // A superadmin creating an organization by hand has already decided to
         // admit it, so it opens active rather than waiting for its own approval.
-        const organization = await createWithOrgCode(String(name).trim(), (orgCode) => Organization.create({
-            orgCode,
+        const organization = await Organization.create({
+            orgCode: chosen.code,
             name: String(name).trim(),
             organizationType,
             email: cleanEmail,
@@ -171,7 +224,7 @@ const createOrganization = async (req, res) => {
                 byAdminId: req.admin._id,
                 byName: req.admin.name
             }]
-        }));
+        });
 
         try {
             await Admin.create({
@@ -192,6 +245,7 @@ const createOrganization = async (req, res) => {
         });
     } catch (error) {
         console.error('[organizations] create failed:', error);
+        if (isDuplicateOrgCode(error)) return res.status(409).json({ message: 'That organization ID already exists. Try another.', field: 'orgCode' });
         if (error.code === 11000) return res.status(400).json({ message: 'That email address is already in use.' });
         res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -564,6 +618,7 @@ const getOrganizationOptions = async (req, res) => {
 module.exports = {
     listOrganizations,
     getOrganization,
+    setCourseAccess,
     createOrganization,
     updateOrganization,
     setOrganizationStatus,

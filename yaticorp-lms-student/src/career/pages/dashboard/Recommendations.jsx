@@ -335,6 +335,11 @@ export default function Recommendations() {
     visibleRoadmap.reduce((n, c) => n + c.count, 0) +
     visibleCurated.reduce((n, c) => n + c.count, 0);
 
+  // The hero's shortcuts: whichever categories hold the most right now.
+  const quickPicks = [...visibleRoadmap, ...visibleCurated]
+    .sort((x, y) => y.count - x.count)
+    .slice(0, 4);
+
   const hasRoadmapMaterial = roadmapDefs.some((d) => d.groups.some(([, items]) => items?.length > 0));
   const nothingAtAll = !data && !hasRoadmapMaterial;
 
@@ -365,76 +370,124 @@ export default function Recommendations() {
   return (
     <div className="fp-enter space-y-6">
       {/* ---- Hero ------------------------------------------------------- */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-100 via-indigo-50 to-amber-50 p-5 shadow-float ring-1 ring-violet-200/70 ring-inset sm:p-7">
-        <span aria-hidden className="fp-float pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-journey-300/40 blur-3xl" />
-        <span aria-hidden className="fp-float-slow pointer-events-none absolute -right-20 -bottom-28 h-72 w-72 rounded-full bg-amber-200/60 blur-3xl" />
-        <span aria-hidden className="fp-float-settle pointer-events-none absolute top-1/2 left-1/2 h-48 w-48 rounded-full bg-pink-200/40 blur-3xl" />
-        <span aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
-        {/* The scene bleeds to the right edge rather than sitting in a
-            column of its own: boxed, it read as a picture pasted onto the
-            banner instead of as the banner itself. `data-mascot-clear` keeps
-            the companion off it — it has the idea list below to point at, and
-            a character standing on the bulb is the one place it must not
-            stop. */}
-        <div
-          aria-hidden
-          data-mascot-clear
-          className="ih-frame pointer-events-none absolute inset-y-0 right-0 hidden w-[44%] max-w-[520px] [mask-image:linear-gradient(to_right,transparent,black_12%)] lg:block"
-        >
-          <IdeasHeroArt />
-        </div>
+      {/* One deep violet banner, the same family as the Enrolled Courses hero,
+          with the bulb glowing on it rather than boxed in a pale panel of its
+          own: a lit idea reads best against the dark. The words, the search
+          and the shortcuts sit in one column so nothing floats apart. */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-violet-700 to-fuchsia-700 px-5 py-6 text-white shadow-float sm:px-7 sm:py-6 lg:py-5">
+        {/* A faint dot grid and two soft glows give the colour some depth. */}
+        <span aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.12)_1px,transparent_1px)] [background-size:18px_18px] [mask-image:linear-gradient(to_right,black,transparent_75%)]" />
+        <span aria-hidden className="fp-float pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-fuchsia-400/30 blur-3xl" />
+        <span aria-hidden className="fp-float-slow pointer-events-none absolute -right-10 -bottom-24 h-72 w-72 rounded-full bg-amber-300/30 blur-3xl" />
+        <span aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent" />
 
-        <div className="relative lg:min-h-[212px] lg:max-w-[58%]">
+        {/* Phones and tablets get the idea as a small glowing badge instead of
+            the full scene, which needs the width of a laptop. */}
+        <span aria-hidden className="fp-bob-soft absolute top-5 right-5 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-300 to-orange-500 shadow-[0_0_32px_rgb(251_191_36/0.6)] sm:top-6 sm:right-6 lg:hidden">
+          <Lightbulb className="h-5 w-5 text-white" strokeWidth={2.4} />
+        </span>
+
+        <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,23rem)]">
           <div data-mascot-clear className="min-w-0">
-            <p className="text-[0.7rem] font-black tracking-[0.11em] text-journey-700 uppercase">
+            <p className="inline-flex items-center gap-2 pr-16 text-[0.7rem] font-black tracking-[0.14em] text-amber-200 uppercase lg:pr-0">
+              <Sparkles aria-hidden className="h-3.5 w-3.5" strokeWidth={2.5} />
               Ideas &amp; Resources
             </p>
-            <h1 className="mt-2 text-3xl leading-tight font-black text-ink-900 sm:text-4xl">
+
+            <h1 className="mt-2 text-2xl leading-[1.1] font-black tracking-tight sm:text-3xl xl:text-4xl">
               Fuel your{' '}
-              <span className="fp-text-shimmer relative bg-gradient-to-r from-journey-600 via-fuchsia-600 to-orange-500 bg-clip-text whitespace-nowrap text-transparent">
+              <span className="relative bg-gradient-to-r from-amber-200 via-amber-300 to-orange-300 bg-clip-text whitespace-nowrap text-transparent">
                 future
                 <svg
                   aria-hidden
                   viewBox="0 0 120 10"
                   preserveAspectRatio="none"
-                  className="absolute -bottom-1 left-0 h-2 w-full text-amber-400"
+                  className="absolute -bottom-1.5 left-0 h-2.5 w-full text-amber-300"
                 >
                   <path d="M2 7 C30 2, 90 2, 118 6" stroke="currentColor" strokeWidth="3.5" fill="none" strokeLinecap="round" />
                 </svg>
-              </span>{' '}
-              <Sparkles aria-hidden className="fp-bob-soft inline h-7 w-7 text-amber-400" />
+              </span>
             </h1>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-ink-600">
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-violet-100">
               Explore handpicked resources to level up your skills, knowledge &amp; career.
             </p>
 
             {!nothingAtAll && (
-              <div className="mt-5 flex flex-wrap items-center gap-2.5">
-                <div className="relative min-w-0 flex-1 basis-64">
-                  <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-ink-400" />
+              <>
+                <div className="relative mt-4 max-w-xl">
+                  <Search className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-violet-500" />
                   <input
                     type="search"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search every resource…"
                     aria-label="Search resources"
-                    className="min-h-11 w-full rounded-xl border border-line-200 bg-surface py-2.5 pr-10 pl-10 text-sm text-ink-900 shadow-card transition-colors placeholder:text-ink-400 focus:border-journey-400 focus:outline-none"
+                    className="min-h-11 w-full rounded-2xl border-0 bg-white py-2.5 pr-32 pl-12 text-sm text-ink-900 shadow-[0_12px_30px_-10px_rgb(30_27_75/0.55)] transition-shadow placeholder:text-ink-400 focus:ring-4 focus:ring-amber-300/60 focus:outline-none"
                   />
-                  {searching && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      aria-label="Clear search"
-                      className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-1 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
+                  {/* What the box is searching through, or how much it found. */}
+                  <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
+                    {searching ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700 tabular-nums">
+                          {matchCount} {matchCount === 1 ? 'match' : 'matches'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          aria-label="Clear search"
+                          className="pointer-events-auto rounded-md p-1 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 tabular-nums">
+                        {matchCount} ideas
+                      </span>
+                    )}
+                  </span>
                 </div>
-              </div>
+
+                {/* The biggest categories, straight into their dialog. One
+                    row: it scrolls sideways on a phone instead of wrapping a
+                    lone chip onto a line of its own. They follow the search,
+                    so while typing they show where the matches are. */}
+                {quickPicks.length > 0 && (
+                  <div className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+                    {quickPicks.map((c) => {
+                      const t = TONES[c.tone] || TONES.violet;
+                      const Icon = c.icon;
+                      return (
+                        <button
+                          key={c.title}
+                          type="button"
+                          onClick={() => setDialog({ title: c.title, categories: [c] })}
+                          aria-haspopup="dialog"
+                          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/12 py-1 pr-3.5 pl-1 text-xs font-bold whitespace-nowrap text-white ring-1 ring-white/25 backdrop-blur-sm transition-all ring-inset hover:-translate-y-0.5 hover:bg-white/20"
+                        >
+                          <span className={`flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br shadow-sm ${t.icon}`}>
+                            <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
+                          </span>
+                          {c.title}
+                          <span className="rounded-full bg-white/20 px-1.5 text-[0.68rem] tabular-nums">{c.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
+          {/* The scene, glowing on the banner. `data-mascot-clear` keeps the
+              companion off it: a character standing on the bulb is the one
+              place it must not stop. */}
+          <div aria-hidden data-mascot-clear className="pointer-events-none relative hidden lg:block">
+            <span className="absolute inset-[18%] rounded-full bg-amber-300/40 blur-3xl" />
+            <div className="relative">
+              <IdeasHeroArt />
+            </div>
+          </div>
         </div>
       </section>
 
