@@ -12,7 +12,7 @@ export default function InterestTags({ interests = [], onChange, busy }) {
                     <span key={i.label} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-semibold ${i.source === 'manual' ? 'border-violet-200 bg-violet-50 text-violet-800' : 'border-indigo-200 bg-indigo-50 text-indigo-800'}`}>
                         <span aria-hidden="true">{i.emoji}</span>{i.label}
                         {i.source === 'auto' && <Sparkles size={11} className="text-indigo-400" aria-label="Detected from your learning" />}
-                        {onChange && <button type="button" onClick={() => onChange({ remove: [i.label] })} disabled={busy} aria-label={`Remove ${i.label}`} className="ml-0.5 rounded p-0.5 text-slate-400 hover:bg-white hover:text-rose-600"><X size={12} /></button>}
+                        {onChange && <button type="button" onClick={() => onChange({ remove: [i.label] })} disabled={busy} aria-label={`Remove ${i.label}`} className="relative after:absolute after:-inset-2 after:content-[''] ml-0.5 rounded p-0.5 text-slate-400 hover:bg-white hover:text-rose-600"><X size={12} /></button>}
                     </span>
                 ))}
                 {!interests.length && <p className="text-sm text-slate-500">Interests appear as you take courses and set goals. Add your own below.</p>}

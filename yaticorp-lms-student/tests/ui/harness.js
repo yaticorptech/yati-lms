@@ -14,7 +14,9 @@ import { build } from 'esbuild';
 import http from 'node:http';
 import { existsSync, readdirSync } from 'node:fs';
 import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { Buffer } from 'node:buffer';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -57,29 +59,38 @@ const run = (cmd, args) => new Promise((resolve, reject) =>
  *                 measures layout rather than text. Needs `npx vite build` to
  *                 have produced dist/; without it the test is skipped, because
  *                 measuring an unstyled page would pass on anything.
+ * @param {object} [o.device] a real device's screen: { width, height, dpr, mobile }.
+ *                 Headless Chrome will not open a window under 500px, and every
+ *                 phone this app is used on is narrower. With `device`, Chrome
+ *                 is driven through its DevTools protocol instead, which sets
+ *                 that exact screen, pixel density and touch — so a test can
+ *                 say "a 344px Galaxy Z Fold 6" and mean it. Page time is then
+ *                 real time, and `budget` is how long to wait for a result.
+ * @param {string} [o.screenshot] with `device`: a PNG path to save the screen
+ *                 to once the result is in — cropped to `result.clip` if the
+ *                 script returns one. For a person to look at; not asserted on.
  * @param {number} [o.budget] milliseconds of page time before Chrome gives up.
  *                 Timers run as fast as they can inside it, so this is a
  *                 ceiling on the clock the page sees, not on how long the test
  *                 takes. Raise it for a screen that waits on a long timeout.
  */
-export const screen = async ({ entry, api, script, width = 1400, height = 1400, budget = 12000, styles = false, files = {}, modules = {} }) => {
+export const screen = async ({ entry, api, script, width = 1400, height = 1400, budget = 12000, styles = false, files = {}, modules = {}, device = null, screenshot = null }) => {
     const cache = path.join(ROOT, 'node_modules', '.cache');
     await mkdir(cache, { recursive: true });
     const dir = await mkdtemp(path.join(cache, 'ui-test-'));
     let server;
     try {
         await writeFile(path.join(dir, 'api.js'), api);
-        // esbuild matches the import *as written* — './api' — not where it
-        // resolves to, so a name like 'integrations/google/api' is split: the
-        // last segment is the filter, and the rest has to match the directory
-        // doing the importing.
+        // esbuild matches the import *as written* — './api' from one file,
+        // '../integrations/google/saveToDrive' from another — so the filter is
+        // only the last segment, and the import is then resolved against the
+        // directory doing the importing to see whether it lands on the named
+        // module. Bare package imports never match: they have no ./ or ../.
         const stubbed = [];
         for (const [name, source] of Object.entries(modules)) {
             const file = path.join(dir, `stub-${name.replace(/[^\w]/g, '_')}.js`);
             await writeFile(file, source);
-            const parts = name.split('/');
-            const base = parts.pop();
-            stubbed.push({ file, base, dir: parts.join('/') });
+            stubbed.push({ file, name, base: name.split('/').pop() });
         }
         await writeFile(path.join(dir, 'entry.jsx'), entry);
         await build({
@@ -92,10 +103,12 @@ export const screen = async ({ entry, api, script, width = 1400, height = 1400, 
                 name: 'test-stubs',
                 setup(b) {
                     b.onResolve({ filter: /utils\/api$/ }, () => ({ path: path.join(dir, 'api.js') }));
-                    for (const { file, base, dir: from } of stubbed) {
-                        b.onResolve({ filter: new RegExp(`(^|/)${base}(\\.jsx?)?$`) }, (a) => (
-                            !from || a.resolveDir.replace(/\\/g, '/').endsWith(from) ? { path: file } : undefined
-                        ));
+                    for (const { file, name, base } of stubbed) {
+                        b.onResolve({ filter: new RegExp(`(^|/)${base}(\\.jsx?)?$`) }, (a) => {
+                            if (!a.path.startsWith('.')) return undefined;
+                            const lands = path.resolve(a.resolveDir, a.path).replace(/\\/g, '/').replace(/\.jsx?$/, '');
+                            return lands.endsWith(`/${name}`) ? { path: file } : undefined;
+                        });
                     }
                     b.onResolve({ filter: /\.css$/ }, (a) => ({ path: a.path, namespace: 'blank-css' }));
                     b.onLoad({ filter: /.*/, namespace: 'blank-css' }, () => ({ contents: '' }));
@@ -107,7 +120,10 @@ export const screen = async ({ entry, api, script, width = 1400, height = 1400, 
         // the built stylesheet is asked for. Only a layout test needs it.
         const sheet = styles ? `<link rel="stylesheet" href="/app.css">` : '';
         await writeFile(path.join(dir, 'index.html'), `<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">${sheet}</head><body>
+<meta name="viewport" content="width=device-width, initial-scale=1">${sheet}
+<style>/* The result is read, never looked at: one long line of JSON would
+otherwise widen a phone-sized page and throw off a device screenshot. */
+#out{position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}</style></head><body>
 <div id="root"></div>
 <script>window.__errors = [];
 window.addEventListener('error', (e) => window.__errors.push(String(e.message)));
@@ -154,6 +170,7 @@ window.addEventListener('unhandledrejection', (e) => window.__errors.push('rejec
         await new Promise((r) => server.listen(0, '127.0.0.1', r));
         const url = `http://127.0.0.1:${server.address().port}/index.html`;
 
+        if (device) return await viaDevTools(url, device, budget + 10000, screenshot);
         const dom = await run(CHROME, ['--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run', '--disable-extensions',
             `--window-size=${width},${height}`, `--virtual-time-budget=${budget}`, '--dump-dom', url]);
         const m = dom.match(/<pre id="out">([\s\S]*?)<\/pre>/);
@@ -164,6 +181,70 @@ window.addEventListener('unhandledrejection', (e) => window.__errors.push('rejec
         if (server) await new Promise((r) => server.close(r));
         await rm(dir, { recursive: true, force: true });
     }
+};
+
+/**
+ * Opens `url` on an emulated device and waits for the page to write its result.
+ * Talks to Chrome over its DevTools protocol (Node's own WebSocket), because
+ * that is the only way to get a screen narrower than headless Chrome's 500px.
+ */
+const viaDevTools = async (url, { width, height, dpr = 3, mobile = true }, timeoutMs, screenshot) => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const port = 9300 + Math.floor(Math.random() * 600);
+    const profile = await mkdtemp(path.join(tmpdir(), 'ui-device-'));
+    const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${port}`, '--no-first-run', '--no-default-browser-check',
+        '--disable-gpu', '--no-sandbox', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+    let ws;
+    try {
+        let target;
+        for (let i = 0; i < 80 && !target; i++) {
+            await sleep(100);
+            try { target = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((t) => t.type === 'page'); } catch { /* not listening yet */ }
+        }
+        if (!target) throw new Error('Chrome did not open its debugging port');
+        ws = new WebSocket(target.webSocketDebuggerUrl);
+        await new Promise((resolve, reject) => { ws.addEventListener('open', resolve, { once: true }); ws.addEventListener('error', reject, { once: true }); });
+        let id = 0; const pending = new Map();
+        ws.addEventListener('message', (m) => { const msg = JSON.parse(m.data); if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); } });
+        const send = (method, params = {}) => new Promise((resolve) => { const n = ++id; pending.set(n, resolve); ws.send(JSON.stringify({ id: n, method, params })); });
+
+        await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: dpr, mobile, screenWidth: width, screenHeight: height });
+        await send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 1 });
+        await send('Page.navigate', { url });
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            await sleep(150);
+            const r = await send('Runtime.evaluate', { expression: "(document.getElementById('out') || {}).textContent || ''", returnByValue: true });
+            const text = r.result?.result?.value;
+            if (text) {
+                const out = JSON.parse(text);
+                // For looking, not asserting: a PNG of the screen, or of the box
+                // the page's result names as `clip: { x, y, width, height }`.
+                if (screenshot) {
+                    const clip = out.result?.clip;
+                    // captureBeyondViewport lets a clip reach below the fold.
+                    const shot = await send('Page.captureScreenshot', { format: 'png', ...(clip ? { clip: { ...clip, scale: 1 }, captureBeyondViewport: true } : {}) });
+                    await writeFile(screenshot, Buffer.from(shot.result.data, 'base64'));
+                }
+                return out;
+            }
+        }
+        throw new Error('the page never finished: no result was written');
+    } finally {
+        try { ws?.close(); } catch { /* already closed */ }
+        chrome.kill();
+        await rm(profile, { recursive: true, force: true }).catch(() => {});
+    }
+};
+
+/** Real devices' screens in CSS pixels, for `screen({ device })`. */
+export const DEVICES = {
+    galaxyZFold6Folded: { width: 344, height: 882, dpr: 2.8 },
+    galaxyA55: { width: 384, height: 832, dpr: 2.8125 },
+    pixel9: { width: 412, height: 923, dpr: 2.625 },
+    iPhone16ProMax: { width: 440, height: 956, dpr: 3 },
+    galaxyA55Landscape: { width: 832, height: 384, dpr: 2.8125 },
+    iPadMini: { width: 768, height: 1024, dpr: 2 }
 };
 
 /** The wrappers most screens need: a router and a signed-in student. */

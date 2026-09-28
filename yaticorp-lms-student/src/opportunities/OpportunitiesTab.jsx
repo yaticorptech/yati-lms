@@ -326,7 +326,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                       the page's own centre is, and its top edge tucked under
                       the header bar. Gutters come from padding rather than a
                       narrower card, which would squeeze the two columns. */}
-                  <div className="flex h-full items-stretch justify-center pt-16 pb-[7.5rem] sm:items-start sm:px-6 sm:py-6 md:pl-[17.5rem] md:pr-6 md:pt-[5.5rem] md:pb-6 lg:pr-10 lg:pb-8">
+                  <div className="flex h-full items-stretch justify-center pt-16 pb-[7.5rem] sm:items-start sm:px-6 sm:py-6 sidebar:pl-[17.5rem] md:pr-6 sidebar:pt-[5.5rem] sidebar:pb-6 lg:pr-10 sidebar:lg:pb-8">
                     <div className="relative flex max-h-full w-full max-w-5xl">
                         <ProfileOnboarding vocab={vocab} initial={data.profile} onSaved={onSaved} onCancel={hasProfile ? () => setEditing(false) : undefined} />
                     </div>

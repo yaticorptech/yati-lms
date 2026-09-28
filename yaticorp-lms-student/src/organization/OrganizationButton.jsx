@@ -30,6 +30,7 @@ import {
     Copy, Check, ExternalLink, X, ChevronRight
 } from 'lucide-react';
 import organizationApi from './api';
+import Portal from '../components/Portal';
 
 const INPUT = 'w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-mono uppercase tracking-wide focus:ring-2 focus:ring-indigo-500 outline-none';
 
@@ -69,7 +70,23 @@ const Code = ({ code, className = '' }) => {
     );
 };
 
-const OrganizationButton = () => {
+/**
+ * variant 'pill'  — the solid button described above.
+ * variant 'plain' — the same control drawn as a value: the organization's name
+ *   as text, for My Profile's Personal Information list, where it sits among
+ *   Full Name, Email and the rest. It still opens the same popup, so linking
+ *   an organization works from there too.
+ */
+// No size or weight of its own: it takes the value styling of wherever it sits.
+const PLAIN = 'group inline-flex max-w-full items-center gap-1.5 rounded text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
+const PLAIN_TONE = {
+    add: 'text-indigo-600 hover:text-indigo-700',
+    pending: 'text-amber-700 hover:text-amber-800',
+    member: 'text-slate-900 hover:text-indigo-600'
+};
+
+const OrganizationButton = ({ variant = 'pill' }) => {
+    const plain = variant === 'plain';
     const [state, setState] = useState(null);      // { member, organization, request }
     const [loading, setLoading] = useState(true);
     const [open, setOpen] = useState(false);
@@ -156,6 +173,7 @@ const OrganizationButton = () => {
     /* ── The button ───────────────────────────────────────────────────────── */
 
     if (loading) {
+        if (plain) return <span className="inline-block h-4 w-28 animate-pulse rounded bg-slate-200" aria-hidden="true" />;
         // A placeholder of roughly the right size, so the pill row does not jump
         // when the answer arrives.
         return (
@@ -176,201 +194,205 @@ const OrganizationButton = () => {
             <button
                 type="button"
                 onClick={() => { setOpen(true); setNotice(null); }}
-                className={`${BUTTON} ${state.member ? TONE.member : pending ? TONE.pending : TONE.add}`}
+                className={plain
+                    ? `${PLAIN} ${state.member ? PLAIN_TONE.member : pending ? PLAIN_TONE.pending : PLAIN_TONE.add}`
+                    : `${BUTTON} ${state.member ? TONE.member : pending ? TONE.pending : TONE.add}`}
                 aria-label={state.member ? `Your organization: ${state.organization.name}` : pending ? 'Your organization request' : 'Add your organization'}
                 title={state.member ? `${state.organization.name} · ${state.organization.orgCode}` : 'Join your school, college or company'}
             >
                 {state.member ? (
-                    <Building2 size={15} className="shrink-0 text-indigo-500" />
+                    !plain && <Building2 size={15} className="shrink-0 text-indigo-500" />
                 ) : pending ? (
                     <Clock size={15} className="shrink-0" />
                 ) : (
                     // A filled dot around the plus, so the button reads as "add
                     // something" at a glance rather than needing its label read.
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white">
-                        <Plus size={13} strokeWidth={3} />
+                    <span className={`flex shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white ${plain ? 'h-4 w-4' : 'h-5 w-5'}`}>
+                        <Plus size={plain ? 11 : 13} strokeWidth={3} />
                     </span>
                 )}
                 <span className="truncate">{label}</span>
-                <ChevronRight size={15} className="-mr-1 shrink-0 opacity-50 transition-transform group-hover:translate-x-0.5" />
+                {!plain && <ChevronRight size={15} className="-mr-1 shrink-0 opacity-50 transition-transform group-hover:translate-x-0.5" />}
             </button>
 
             {/* ── The popup ────────────────────────────────────────────────── */}
             {open && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4"
-                    role="dialog" aria-modal="true" aria-labelledby="organization-popup-title">
-                    <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl max-h-[calc(100dvh-1.5rem)]">
-                        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
-                            <div className="flex items-center gap-3 min-w-0">
-                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                                    <Building2 size={18} />
-                                </span>
-                                <h2 id="organization-popup-title" className="truncate font-bold text-slate-800">
-                                    {state.member ? 'Your organization' : pending ? 'Your request' : 'Add organization'}
-                                </h2>
+                <Portal>
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4"
+                        role="dialog" aria-modal="true" aria-labelledby="organization-popup-title">
+                        <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl max-h-[calc(100dvh-1.5rem)]">
+                            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                                        <Building2 size={18} />
+                                    </span>
+                                    <h2 id="organization-popup-title" className="truncate font-bold text-slate-800">
+                                        {state.member ? 'Your organization' : pending ? 'Your request' : 'Add organization'}
+                                    </h2>
+                                </div>
+                                <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600" aria-label="Close">
+                                    <X size={18} />
+                                </button>
                             </div>
-                            <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600" aria-label="Close">
-                                <X size={18} />
-                            </button>
-                        </div>
 
-                        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-5">
-                            {/* ── A member ─────────────────────────────────── */}
-                            {state.member ? (
-                                <>
-                                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
-                                        <div className="flex items-start gap-3">
-                                            <CheckCircle2 className="mt-0.5 shrink-0 text-emerald-600" size={20} />
-                                            <div className="min-w-0">
-                                                <p className="font-semibold text-emerald-800">{state.organization.name}</p>
-                                                <Code code={state.organization.orgCode} className="mt-0.5 text-emerald-700" />
-                                                <p className="mt-1 text-xs font-semibold text-emerald-700">
-                                                    Active member
-                                                    {state.organization.joinedAt && (
-                                                        <span className="ml-1 font-normal text-emerald-600">
-                                                            since {new Date(state.organization.joinedAt).toLocaleDateString()}
-                                                        </span>
-                                                    )}
-                                                </p>
-                                                {state.organization.website && (
-                                                    <a href={/^https?:\/\//i.test(state.organization.website) ? state.organization.website : `https://${state.organization.website}`}
-                                                        target="_blank" rel="noreferrer"
-                                                        className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-700 hover:underline">
-                                                        {state.organization.website}<ExternalLink size={11} />
-                                                    </a>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {state.organization.accessNote && (
-                                        <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                                            <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                                            <span>{state.organization.accessNote} Your courses and progress are unaffected.</span>
-                                        </p>
-                                    )}
-
-                                    <p className="text-xs text-slate-500">
-                                        Your organization can see your learning progress. They cannot change your account or your work.
-                                    </p>
-                                    <p className="text-xs text-slate-500">
-                                        To be taken out of {state.organization.name}, ask them — an organization manages its
-                                        own list of students.
-                                    </p>
-                                </>
-
-                            /* ── Waiting for a decision ───────────────────── */
-                            ) : pending ? (
-                                <>
-                                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
-                                        <div className="flex items-start gap-3">
-                                            <Clock className="mt-0.5 shrink-0 text-amber-600" size={20} />
-                                            <div className="min-w-0">
-                                                <p className="font-semibold text-amber-800">
-                                                    Waiting for {request.organization?.name || 'the organization'} to approve you
-                                                </p>
-                                                {request.organization?.orgCode && (
-                                                    <Code code={request.organization.orgCode} className="mt-0.5 text-amber-700" />
-                                                )}
-                                                <p className="mt-1 text-xs text-amber-700">
-                                                    Requested {new Date(request.requestedAt).toLocaleDateString()}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-slate-500">
-                                        You can only have one request at a time. Withdraw this one if you need to join a different organization.
-                                    </p>
-                                    <button onClick={withdraw} disabled={busy}
-                                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50">
-                                        {busy ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
-                                        Withdraw request
-                                    </button>
-                                </>
-
-                            /* ── Not a member: find one ───────────────────── */
-                            ) : (
-                                <>
-                                    {rejected ? (
-                                        <p className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                                            <XCircle size={16} className="mt-0.5 shrink-0" />
-                                            <span>
-                                                {request.organization?.name || 'That organization'} did not approve your request.
-                                                {request.decisionReason && <> They said: “{request.decisionReason}”</>}
-                                                {' '}You can try a different Organization ID.
-                                            </span>
-                                        </p>
-                                    ) : (
-                                        <p className="text-sm text-slate-500">
-                                            If your school, college or company uses this platform, they will have given you an
-                                            Organization ID. Enter it and they can follow your progress.
-                                        </p>
-                                    )}
-
-                                    <form onSubmit={search} className="space-y-2">
-                                        <label htmlFor="org-code" className="mb-1 block text-xs font-bold text-slate-600">
-                                            Organization ID
-                                        </label>
-                                        <div className="flex flex-col gap-2 sm:flex-row">
-                                            <input
-                                                id="org-code"
-                                                value={code}
-                                                onChange={(e) => { setCode(e.target.value); setFound(null); }}
-                                                placeholder="ABC-2026-0001"
-                                                autoComplete="off"
-                                                spellCheck={false}
-                                                className={INPUT}
-                                            />
-                                            <button type="submit" disabled={searching || !code.trim()}
-                                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
-                                                {searching
-                                                    ? <><Loader2 size={16} className="animate-spin" />Looking…</>
-                                                    : <><Search size={16} />Find</>}
-                                            </button>
-                                        </div>
-                                    </form>
-
-                                    {found && (
-                                        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
-                                            <p className="text-xs font-bold uppercase tracking-wider text-indigo-500">Organization found</p>
-                                            <p className="mt-1 font-bold text-slate-900">{found.organization.name}</p>
-                                            <Code code={found.organization.orgCode} className="mt-0.5 text-sm text-slate-600" />
-                                            <p className="mt-0.5 text-xs text-slate-500">{found.organization.typeLabel}</p>
-
-                                            {found.alreadyMember ? (
-                                                <p className="mt-3 text-sm font-semibold text-emerald-700">You are already a member of this organization.</p>
-                                            ) : found.hasPendingRequest ? (
-                                                <p className="mt-3 text-sm text-amber-700">
-                                                    {found.pendingElsewhere
-                                                        ? 'You already have a request waiting with another organization. Withdraw it first.'
-                                                        : 'You have already asked to join this organization.'}
-                                                </p>
-                                            ) : (
-                                                <>
-                                                    <button onClick={join} disabled={joining}
-                                                        className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
-                                                        {joining && <Loader2 size={16} className="animate-spin" />}
-                                                        Send Join Request
-                                                    </button>
-                                                    <p className="mt-2 text-xs text-slate-500">
-                                                        They will be asked to approve you. Nothing changes on your account until they do.
+                            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-5">
+                                {/* ── A member ─────────────────────────────────── */}
+                                {state.member ? (
+                                    <>
+                                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
+                                            <div className="flex items-start gap-3">
+                                                <CheckCircle2 className="mt-0.5 shrink-0 text-emerald-600" size={20} />
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-emerald-800">{state.organization.name}</p>
+                                                    <Code code={state.organization.orgCode} className="mt-0.5 text-emerald-700" />
+                                                    <p className="mt-1 text-xs font-semibold text-emerald-700">
+                                                        Active member
+                                                        {state.organization.joinedAt && (
+                                                            <span className="ml-1 font-normal text-emerald-600">
+                                                                since {new Date(state.organization.joinedAt).toLocaleDateString()}
+                                                            </span>
+                                                        )}
                                                     </p>
-                                                </>
-                                            )}
+                                                    {state.organization.website && (
+                                                        <a href={/^https?:\/\//i.test(state.organization.website) ? state.organization.website : `https://${state.organization.website}`}
+                                                            target="_blank" rel="noreferrer"
+                                                            className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-700 hover:underline">
+                                                            {state.organization.website}<ExternalLink size={11} />
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
-                                </>
-                            )}
 
-                            {notice && (
-                                <p className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2 border ${notice.type === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'}`}>
-                                    {notice.type === 'ok' ? <CheckCircle2 size={16} className="shrink-0 mt-0.5" /> : <AlertCircle size={16} className="shrink-0 mt-0.5" />}
-                                    <span>{notice.text}</span>
-                                </p>
-                            )}
+                                        {state.organization.accessNote && (
+                                            <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                                                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                                                <span>{state.organization.accessNote} Your courses and progress are unaffected.</span>
+                                            </p>
+                                        )}
+
+                                        <p className="text-xs text-slate-500">
+                                            Your organization can see your learning progress. They cannot change your account or your work.
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            To be taken out of {state.organization.name}, ask them — an organization manages its
+                                            own list of students.
+                                        </p>
+                                    </>
+
+                                /* ── Waiting for a decision ───────────────────── */
+                                ) : pending ? (
+                                    <>
+                                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+                                            <div className="flex items-start gap-3">
+                                                <Clock className="mt-0.5 shrink-0 text-amber-600" size={20} />
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-amber-800">
+                                                        Waiting for {request.organization?.name || 'the organization'} to approve you
+                                                    </p>
+                                                    {request.organization?.orgCode && (
+                                                        <Code code={request.organization.orgCode} className="mt-0.5 text-amber-700" />
+                                                    )}
+                                                    <p className="mt-1 text-xs text-amber-700">
+                                                        Requested {new Date(request.requestedAt).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-slate-500">
+                                            You can only have one request at a time. Withdraw this one if you need to join a different organization.
+                                        </p>
+                                        <button onClick={withdraw} disabled={busy}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50">
+                                            {busy ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                                            Withdraw request
+                                        </button>
+                                    </>
+
+                                /* ── Not a member: find one ───────────────────── */
+                                ) : (
+                                    <>
+                                        {rejected ? (
+                                            <p className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                                                <XCircle size={16} className="mt-0.5 shrink-0" />
+                                                <span>
+                                                    {request.organization?.name || 'That organization'} did not approve your request.
+                                                    {request.decisionReason && <> They said: “{request.decisionReason}”</>}
+                                                    {' '}You can try a different Organization ID.
+                                                </span>
+                                            </p>
+                                        ) : (
+                                            <p className="text-sm text-slate-500">
+                                                If your school, college or company uses this platform, they will have given you an
+                                                Organization ID. Enter it and they can follow your progress.
+                                            </p>
+                                        )}
+
+                                        <form onSubmit={search} className="space-y-2">
+                                            <label htmlFor="org-code" className="mb-1 block text-xs font-bold text-slate-600">
+                                                Organization ID
+                                            </label>
+                                            <div className="flex flex-col gap-2 sm:flex-row">
+                                                <input
+                                                    id="org-code"
+                                                    value={code}
+                                                    onChange={(e) => { setCode(e.target.value); setFound(null); }}
+                                                    placeholder="ABC-2026-0001"
+                                                    autoComplete="off"
+                                                    spellCheck={false}
+                                                    className={INPUT}
+                                                />
+                                                <button type="submit" disabled={searching || !code.trim()}
+                                                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                                                    {searching
+                                                        ? <><Loader2 size={16} className="animate-spin" />Looking…</>
+                                                        : <><Search size={16} />Find</>}
+                                                </button>
+                                            </div>
+                                        </form>
+
+                                        {found && (
+                                            <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                                                <p className="text-xs font-bold uppercase tracking-wider text-indigo-500">Organization found</p>
+                                                <p className="mt-1 font-bold text-slate-900">{found.organization.name}</p>
+                                                <Code code={found.organization.orgCode} className="mt-0.5 text-sm text-slate-600" />
+                                                <p className="mt-0.5 text-xs text-slate-500">{found.organization.typeLabel}</p>
+
+                                                {found.alreadyMember ? (
+                                                    <p className="mt-3 text-sm font-semibold text-emerald-700">You are already a member of this organization.</p>
+                                                ) : found.hasPendingRequest ? (
+                                                    <p className="mt-3 text-sm text-amber-700">
+                                                        {found.pendingElsewhere
+                                                            ? 'You already have a request waiting with another organization. Withdraw it first.'
+                                                            : 'You have already asked to join this organization.'}
+                                                    </p>
+                                                ) : (
+                                                    <>
+                                                        <button onClick={join} disabled={joining}
+                                                            className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
+                                                            {joining && <Loader2 size={16} className="animate-spin" />}
+                                                            Send Join Request
+                                                        </button>
+                                                        <p className="mt-2 text-xs text-slate-500">
+                                                            They will be asked to approve you. Nothing changes on your account until they do.
+                                                        </p>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {notice && (
+                                    <p className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2 border ${notice.type === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                                        {notice.type === 'ok' ? <CheckCircle2 size={16} className="shrink-0 mt-0.5" /> : <AlertCircle size={16} className="shrink-0 mt-0.5" />}
+                                        <span>{notice.text}</span>
+                                    </p>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Portal>
             )}
 
         </>

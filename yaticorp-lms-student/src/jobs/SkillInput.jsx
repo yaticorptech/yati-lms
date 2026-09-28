@@ -65,7 +65,7 @@ export default function SkillInput({ value = [], options = [], popular = [], onC
                         <span key={skill} className="inline-flex min-h-10 items-center gap-1.5 bg-indigo-50/70 text-indigo-800 border border-indigo-200 rounded-xl pl-3.5 pr-1.5 py-2 text-sm font-semibold">
                             {skill}
                             <button type="button" onClick={() => remove(skill)} aria-label={`Remove ${skill}`}
-                                className="p-0.5 rounded hover:bg-indigo-100 text-indigo-400 hover:text-indigo-700 transition-colors">
+                                className="relative after:absolute after:-inset-2 after:content-[''] p-0.5 rounded hover:bg-indigo-100 text-indigo-400 hover:text-indigo-700 transition-colors">
                                 <X size={13} />
                             </button>
                         </span>

@@ -107,7 +107,7 @@ const AiKeySettings = () => {
                                 spellCheck={false}
                                 className="w-full border border-slate-300 rounded-lg px-3 py-2.5 pr-10 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
                             />
-                            <button type="button" onClick={() => setShow((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" aria-label={show ? 'Hide key' : 'Show key'}>
+                            <button type="button" onClick={() => setShow((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 after:absolute after:-inset-2 after:content-['']" aria-label={show ? 'Hide key' : 'Show key'}>
                                 {show ? <EyeOff size={16} /> : <Eye size={16} />}
                             </button>
                         </div>

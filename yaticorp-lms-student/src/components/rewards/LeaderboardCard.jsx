@@ -132,19 +132,26 @@ export default function LeaderboardCard() {
             )}
 
             {board && listRows.length > 0 && (
-                <>
+                // One card, a fixed height, scrolling inside: as the class
+                // grows the list scrolls, and the card never gets taller.
+                // The cap is exactly three rows — what a class of six shows
+                // below the podium — so a seventh student does not move the
+                // card by a single pixel: the table's 36px header and three
+                // 57px rows (207px), or three 68px stacked rows (204px).
+                <div data-ranks className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                     {/* Seven columns need 520px, which no phone has; there the
                         same rows are stacked instead, so nothing scrolls
                         sideways. The table returns as soon as it fits. */}
-                    <ul className="mt-4 divide-y divide-slate-100 sm:hidden">
+                    <ul className="scroll-fade max-h-[204px] divide-y divide-slate-100 overflow-y-auto px-3 sm:hidden">
                         {listRows.map(({ key, e, gap }) => (gap
                             ? <li key={key} className="py-1 text-center text-[11px] font-bold text-slate-400">· · ·</li>
                             : <StackedRow key={key} e={e} />))}
                     </ul>
-                    <div className="mt-4 hidden overflow-x-auto sm:block">
+                    <div className="scroll-fade hidden max-h-[207px] overflow-auto sm:block">
                         <table className="w-full min-w-[520px] text-left text-sm">
-                            <thead>
-                                <tr className="text-xs font-semibold text-slate-500">
+                            {/* The column names stay put while the rows scroll. */}
+                            <thead className="sticky top-0 z-10 bg-white">
+                                <tr className="text-xs font-semibold text-slate-500 [&>th]:pt-3">
                                     <th className="px-2 pb-2 font-semibold">Rank</th><th className="px-2 pb-2 font-semibold">Learner</th><th className="px-2 pb-2 font-semibold">Level</th><th className="px-2 pb-2 text-right font-semibold">XP</th><th className="px-2 pb-2 font-semibold">Streak</th><th className="px-2 pb-2 font-semibold">Badge</th><th className="px-2 pb-2 text-right font-semibold">Change</th>
                                 </tr>
                             </thead>
@@ -155,7 +162,7 @@ export default function LeaderboardCard() {
                             </tbody>
                         </table>
                     </div>
-                </>
+                </div>
             )}
 
             {board && me && !me.rank && board.entries.length > 0 && (
@@ -202,8 +209,8 @@ const Row = ({ e }) => (
     <tr className={e.isMe ? 'rounded-xl bg-indigo-50/80' : ''}>
         <td className="px-2 py-3 font-bold tabular-nums text-slate-700">{e.rank}</td>
         <td className="px-2 py-3"><div className="flex items-center gap-2"><Avatar e={e} size="h-8 w-8" ring={e.isMe ? 'ring-2 ring-rose-300' : ''} /><span className={`truncate font-semibold ${e.isMe ? 'font-black text-slate-900' : 'text-slate-800'}`}>{e.isMe ? 'You' : e.name}</span></div></td>
-        <td className="px-2 py-3"><span className="rounded-lg bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700">Lv. {e.level}</span></td>
-        <td className="px-2 py-3 text-right font-bold tabular-nums text-slate-800">{num(e.xp)} XP</td>
+        <td className="px-2 py-3 whitespace-nowrap"><span className="rounded-lg bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700">Lv. {e.level}</span></td>
+        <td className="px-2 py-3 whitespace-nowrap text-right font-bold tabular-nums text-slate-800">{num(e.xp)} XP</td>
         <td className="px-2 py-3 whitespace-nowrap text-slate-700">🔥 {e.streak} days</td>
         <td className="px-2 py-3 text-base">{e.badge ? <span title={`${e.badge.title}${e.badge.count > 1 ? ` +${e.badge.count - 1}` : ''}`}>{e.badge.emoji}</span> : <span className="text-slate-300">—</span>}</td>
         <td className="px-2 py-3 text-right"><Change m={e.movement} /></td>
