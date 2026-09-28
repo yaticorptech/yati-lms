@@ -1,147 +1,101 @@
 /**
- * @description Minting and reading the public organization identifier.
+ * @description The public organization identifier: rules, tidying and lookup.
  *
- * Shape: <NAME>-<year>-<four digits>, e.g. ABC-2026-0001 for "ABC College".
- * The prefix is the organization's own first word, so a student reading the ID
- * off a handout can tell at a glance whose it is — which a fixed "ORG" on every
- * organization could not.
+ * An organization chooses its own ID when it registers (or a superadmin types
+ * one when creating it), in the style of an Instagram handle: st_agnes_college,
+ * abc.school2026. Nothing is generated. Lowercase letters, numbers, underscores
+ * and full stops, 3 to 30 characters, at least one letter; a full stop cannot
+ * start or end it, or sit next to another. It is stored lowercase, so however
+ * a student types it, it finds the same organization.
  *
- * It is generated once at registration and never regenerated. Renaming an
- * organization does not change it: students may already be holding the old one,
- * and a code that quietly stopped working would be worse than one that no longer
- * matches the name. The schema marks it immutable for the same reason.
+ * It is set once and never changed. Renaming an organization does not change
+ * it: students may already be holding the old one. The schema marks it
+ * immutable for the same reason.
  *
- * Organizations created before this shape keep their ORG-… codes. They are still
- * valid: the pattern below accepts any letter prefix, so nothing that was ever
- * issued stops being recognised.
+ * Organizations registered before this keep the IDs they were given
+ * (ABC-2026-0001). Those are still recognised everywhere a student can type
+ * an ID, so nothing that was ever handed out stops working. A new ID can never
+ * collide with one of them: they contain hyphens, which a new ID cannot.
  */
-const Counter = require('../models/Counter');
 const Organization = require('../models/Organization');
 
-const PAD = 4;
-/** Long enough to be recognisable, short enough to read out. */
-const MAX_PREFIX = 12;
-/** When a name yields no letters at all. */
-const FALLBACK_PREFIX = 'ORG';
+const MIN_LENGTH = 3;
+const MAX_LENGTH = 30;
 
-/** ABC-2026-0001 → matches. Also accepts lowercase and stray spaces. */
-const CODE_PATTERN = /^[A-Z]+-\d{4}-\d{3,}$/;
+/** st_agnes_college, abc.school2026 */
+const HANDLE_PATTERN = /^[a-z0-9._]+$/;
+/** The generated IDs of old: ABC-2026-0001. Recognised, never issued. */
+const LEGACY_PATTERN = /^[A-Z]+-\d{4}-\d{3,}$/;
+
+/** IDs that would read as the platform's own. */
+const RESERVED = new Set(['admin', 'administrator', 'superadmin', 'support', 'help', 'yaticorp', 'yati', 'organization', 'organizations', 'student', 'students', 'system', 'root', 'null', 'undefined']);
 
 /**
- * The letters an organization's ID starts with: its first word, uppercased.
+ * Tidy whatever was typed into the stored form before checking or looking it up.
  *
- * The first word that contains any letters, rather than strictly the first: a
- * name like "123 Training Centre" starts with a word that has none, and would
- * otherwise yield an empty prefix. Punctuation is dropped on the way, so
- * "St. Mary's School" gives ST and "ABC College" gives ABC.
- *
- * Two organizations whose names start with the same word share a prefix, which
- * is fine: the year and the running number keep the whole code unique, and the
- * unique index is what actually guarantees it.
+ * People paste IDs with spaces around them, put an @ in front as they would a
+ * handle, type in capitals, and copy old IDs out of documents that turn the
+ * hyphen into a dash. None of that should read as "no such organization".
  */
-const prefixFromName = (name) => {
-    const words = String(name || '').trim().split(/\s+/);
-    for (const word of words) {
-        const letters = word.replace(/[^A-Za-z]/g, '').toUpperCase();
-        if (letters) return letters.slice(0, MAX_PREFIX);
-    }
-    return FALLBACK_PREFIX;
+const normalizeOrgCode = (input) => {
+    const raw = String(input || '').trim().replace(/^@+/, '');
+    // An old generated ID keeps its capitals, and forgives stray spaces and
+    // dashes inside it (en/em dashes → hyphen), as it always did.
+    const legacy = raw.replace(/[‐-―]/g, '-').replace(/\s+/g, '').toUpperCase();
+    if (LEGACY_PATTERN.test(legacy)) return legacy;
+    // A chosen ID is lowercase. A space inside one is left in, so it is refused
+    // rather than quietly turned into a different ID.
+    return raw.toLowerCase();
 };
 
 /**
- * Tidy whatever the student typed into the canonical form before looking it up.
- *
- * People paste codes with trailing spaces, type them in lower case, and copy
- * them out of documents that turn the hyphen into an en dash. None of that
- * should read as "no such organization".
+ * Why `code` cannot be a new organization's ID, or null if it can.
+ * `code` should already be normalized.
  */
-const normalizeOrgCode = (input) => String(input || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[‐-―]/g, '-')   // en/em dashes → hyphen
-    .replace(/\s+/g, '');
-
-const isValidOrgCodeFormat = (input) => CODE_PATTERN.test(normalizeOrgCode(input));
-
-/**
- * The next unused code for this organization, in this year.
- *
- * The running number is shared across every organization in the year rather than
- * kept per prefix. One counter is one atomic increment; a counter per prefix
- * would be a second document to keep in step for no gain, since the number only
- * has to make the code unique, not count anything.
- *
- * The counter can still fall behind the collection — a database restored without
- * `org_counters` brings organizations without their counter — so the caller
- * retries, and each retry asks for the next number rather than the same one.
- */
-const nextOrgCode = async (name, year = new Date().getFullYear()) => {
-    const counter = await Counter.findOneAndUpdate(
-        { _id: `org-${year}` },
-        { $inc: { seq: 1 } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-    return `${prefixFromName(name)}-${year}-${String(counter.seq).padStart(PAD, '0')}`;
+const orgCodeProblem = (code) => {
+    if (!code) return 'Choose an organization ID.';
+    if (code.length < MIN_LENGTH) return `An organization ID needs at least ${MIN_LENGTH} characters.`;
+    if (code.length > MAX_LENGTH) return `An organization ID can be at most ${MAX_LENGTH} characters.`;
+    if (!HANDLE_PATTERN.test(code)) return 'Use only letters, numbers, underscores (_) and full stops (.).';
+    if (!/[a-z]/.test(code)) return 'An organization ID needs at least one letter.';
+    if (code.startsWith('.') || code.endsWith('.')) return 'An organization ID cannot start or end with a full stop.';
+    if (code.includes('..')) return 'An organization ID cannot have two full stops in a row.';
+    if (RESERVED.has(code.replace(/[._]/g, ''))) return 'That organization ID is reserved. Try another.';
+    return null;
 };
 
-/**
- * Run `create` with a freshly minted code, retrying on the duplicate-key error
- * that a counter out of step with the collection produces.
- *
- * Retries are bounded: a genuine duplicate on some other unique field (the
- * organization's email) must surface as itself, not spin here.
- */
-const createWithOrgCode = async (name, create, attempts = 5) => {
-    let lastError;
-    for (let attempt = 0; attempt < attempts; attempt++) {
-        const orgCode = await nextOrgCode(name);
-        try {
-            return await create(orgCode);
-        } catch (error) {
-            const duplicateOrgCode = error?.code === 11000
-                && Object.keys(error.keyPattern || error.keyValue || {}).includes('orgCode');
-            if (!duplicateOrgCode) throw error;
-            lastError = error;
-        }
-    }
-    throw lastError;
+/** True for any ID a student might hold: a chosen one, or an old generated one. */
+const isValidOrgCodeFormat = (input) => {
+    const code = normalizeOrgCode(input);
+    return LEGACY_PATTERN.test(code) || !orgCodeProblem(code);
 };
 
+/** True when an organization already has this ID. */
+const isOrgCodeTaken = async (code) => Boolean(await Organization.exists({ orgCode: code }));
+
 /**
- * Bring the counter up to at least the highest number already issued this year.
- *
- * Called once at startup. Without it, a database restored without its
- * `org_counters` collection would reissue 0001 and lean on the retry loop for
- * every registration until the counter caught up.
- *
- * The highest number is computed rather than sorted for: codes now start with
- * different words, so sorting by `orgCode` would order them alphabetically and
- * hand back whichever organization's name happens to sort last.
+ * Check an ID offered for a new organization.
+ * Resolves to { code, error } — `error` is null when it is free to use.
  */
-const syncCounterFromExisting = async (year = new Date().getFullYear()) => {
-    const thisYear = await Organization
-        .find({ orgCode: new RegExp(`-${year}-\\d+$`) })
-        .select('orgCode')
-        .lean();
-    if (!thisYear.length) return;
-
-    const numbers = thisYear
-        .map((o) => Number(String(o.orgCode).split('-').pop()))
-        .filter(Number.isFinite);
-    if (!numbers.length) return;
-
-    const highest = Math.max(...numbers);
-    const counter = await Counter.findById(`org-${year}`).lean();
-    if ((counter?.seq ?? 0) >= highest) return;
-
-    await Counter.updateOne({ _id: `org-${year}` }, { $set: { seq: highest } }, { upsert: true });
+const checkNewOrgCode = async (input) => {
+    const code = normalizeOrgCode(input);
+    const problem = orgCodeProblem(code);
+    if (problem) return { code, error: problem };
+    if (await isOrgCodeTaken(code)) return { code, error: 'That organization ID already exists. Try another.', taken: true };
+    return { code, error: null };
 };
+
+/** True when a failed insert failed on the organization ID, i.e. someone took it first. */
+const isDuplicateOrgCode = (error) => error?.code === 11000
+    && Object.keys(error.keyPattern || error.keyValue || {}).includes('orgCode');
 
 module.exports = {
-    prefixFromName,
-    nextOrgCode,
-    createWithOrgCode,
+    MIN_LENGTH,
+    MAX_LENGTH,
     normalizeOrgCode,
+    orgCodeProblem,
     isValidOrgCodeFormat,
-    syncCounterFromExisting
+    isOrgCodeTaken,
+    checkNewOrgCode,
+    isDuplicateOrgCode
 };

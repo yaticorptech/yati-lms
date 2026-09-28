@@ -165,27 +165,27 @@ const Enrollments = () => {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] tracking-widest text-slate-500 uppercase font-bold">
-                                    <th className="px-6 py-4">Student Details</th>
-                                    <th className="px-6 py-4">Content Type</th>
-                                    <th className="px-6 py-4">Assigned Content</th>
-                                    <th className="px-6 py-4">Enrollment Date</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
+                                    <th className="px-4 lg:px-6 py-4">Student Details</th>
+                                    <th className="px-4 lg:px-6 py-4">Content Type</th>
+                                    <th className="px-4 lg:px-6 py-4">Assigned Content</th>
+                                    <th className="px-4 lg:px-6 py-4">Enrollment Date</th>
+                                    <th className="sticky right-0 bg-slate-50 px-4 lg:px-6 py-4 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {filtered.map(enr => (
                                     <tr key={enr._id} className="hover:bg-indigo-50/30 transition-colors group">
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 lg:px-6 py-4">
                                             <div className="font-bold text-slate-900">{enr.userId?.name || <span className="italic font-medium text-slate-400">Deleted student</span>}</div>
                                             <div className="text-xs text-slate-500 mt-0.5 break-all">{enr.userId?.email}</div>
                                         </td>
-                                        <td className="px-6 py-4"><TypeTag type={enr.type} /></td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 lg:px-6 py-4"><TypeTag type={enr.type} /></td>
+                                        <td className="px-4 lg:px-6 py-4">
                                             <div className="font-semibold text-slate-700 max-w-xs truncate" title={contentTitle(enr)}>
                                                 {contentTitle(enr)}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 lg:px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-slate-600">
                                                 {new Date(enr.createdAt).toLocaleDateString()}
                                             </div>
@@ -193,7 +193,7 @@ const Enrollments = () => {
                                                 {new Date(enr.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="sticky right-0 bg-white group-hover:bg-[color-mix(in_oklab,var(--color-indigo-50)_30%,white)] transition-colors px-4 lg:px-6 py-4 text-right">
                                             <button
                                                 onClick={() => askRevoke(enr._id)}
                                                 className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
@@ -240,9 +240,9 @@ const Enrollments = () => {
                 )}
             </div>
             {showDeleteModal && (
-                <div className="fixed inset-0 backdrop-blur-md bg-white/20 flex items-center justify-center z-50">
+                <div className="fixed inset-0 backdrop-blur-md bg-white/20 flex items-center justify-center p-4 z-50">
 
-                    <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[350px] mx-4 animate-fade-in">
+                    <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[350px] animate-fade-in">
 
                         <h2 className="text-lg font-bold text-slate-800 mb-2">
                             Revoke Enrollment?
@@ -252,7 +252,7 @@ const Enrollments = () => {
                             The user will lose access immediately. This action cannot be undone.
                         </p>
 
-                        <div className="flex justify-end gap-3">
+                        <div className="flex flex-wrap justify-end gap-3">
 
                             <button
                                 onClick={() => setShowDeleteModal(false)}

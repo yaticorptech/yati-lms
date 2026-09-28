@@ -12,6 +12,42 @@ import { Html5Qrcode } from 'html5-qrcode';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import Select from '../components/Select';
 
+// The same four actions on the table row and on the phone card.
+const UserActions = ({ user, onManage, onEdit, onToggle, onDelete }) => (
+    <>
+        <button
+            onClick={() => onManage(user)}
+            className="text-indigo-600 hover:text-indigo-900 font-medium text-sm transition-colors"
+        >
+            Manage
+        </button>
+        <button
+            onClick={() => onEdit(user)}
+            className="text-slate-500 hover:text-indigo-600 font-medium text-sm transition-colors"
+        >
+            Edit
+        </button>
+        <button
+            onClick={() => onToggle(user)}
+            className={`${user.status === 'active' ? 'text-orange-500 hover:text-orange-700' : 'text-emerald-500 hover:text-emerald-700'} font-medium text-sm transition-colors`}
+        >
+            {user.status === 'active' ? 'Block' : 'Unblock'}
+        </button>
+        <button
+            onClick={() => onDelete(user)}
+            className="text-red-500 hover:text-red-700 font-medium text-sm transition-colors"
+        >
+            Delete
+        </button>
+    </>
+);
+
+const StatusBadge = ({ status }) => (
+    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+        {status}
+    </span>
+);
+
 const Users = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -503,13 +539,16 @@ const Users = () => {
 
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in relative z-0 pb-10">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 lg:p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800 tracking-tight">User Management</h1>
+            {/* Title above the toolbar at every width: search, filter and three
+                buttons need about 960px on their own, more than the content
+                area has beside a title until well past a laptop screen. */}
+            <div className="flex flex-col gap-4 bg-white p-4 sm:p-5 lg:p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div className="min-w-0">
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">User Management</h1>
                     <p className="text-sm text-slate-500 mt-1">Manage platform students, roles, and course enrollments.</p>
                 </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    <div className="relative">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
+                    <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[16rem]">
                         <input
                             type="text"
                             placeholder="Search by name, email or card number..."
@@ -533,6 +572,9 @@ const Users = () => {
                             ))}
                         </Select>
                     )}
+                    {/* The buttons wrap as one group; on a phone, two up with
+                        Add Student full width beneath. */}
+                    <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
                     <button
                         onClick={downloadTemplate}
                         className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-5 py-2.5 rounded-xl font-semibold shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap"
@@ -549,11 +591,12 @@ const Users = () => {
                     </button>
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+                        className="col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 whitespace-nowrap"
                     >
                         <UserCheck size={18} />
                         <span>Add Student</span>
                     </button>
+                    </div>
                 </div>
             </div>
 
@@ -561,101 +604,123 @@ const Users = () => {
                 {loading ? (
                     <div className="p-8 text-center text-slate-500">Loading users...</div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <>
+                    {/* Tablet and up: the table. It scrolls sideways where it
+                        must, with the actions pinned to the right edge so they
+                        never fall off the end. */}
+                    <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[860px]">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase">
-                                <th className="px-6 py-4 font-semibold">User Details</th>
-                                <th className="px-6 py-4 font-semibold">Card Number</th>
-                                <th className="px-6 py-4 font-semibold">Organization</th>
-                                <th className="px-6 py-4 font-semibold">Status</th>
-                                <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                                <th className="px-4 2xl:px-6 py-4 font-semibold">User Details</th>
+                                <th className="px-4 2xl:px-6 py-4 font-semibold">Card Number</th>
+                                <th className="px-4 2xl:px-6 py-4 font-semibold">Organization</th>
+                                <th className="px-4 2xl:px-6 py-4 font-semibold">Status</th>
+                                <th className="sticky right-0 bg-slate-50 px-4 2xl:px-6 py-4 font-semibold text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {filteredUsers.map(user => (
-                                <tr key={user._id} onClick={() => openUserModal(user)} className="hover:bg-slate-50/50 transition-colors cursor-pointer">
-                                    <td className="px-6 py-4">
-                                        <div className="font-medium text-slate-800">{user.name}</div>
-                                        <div className="text-sm text-slate-500">{user.email}</div>
+                                <tr key={user._id} onClick={() => openUserModal(user)} className="group hover:bg-slate-50 transition-colors cursor-pointer">
+                                    <td className="px-4 2xl:px-6 py-4">
+                                        {/* Capped so one long name or email cannot push the
+                                            actions off a laptop screen: the name wraps, the
+                                            email is cut short with the full one on hover. */}
+                                        <div className="max-w-[14rem]">
+                                            <div className="font-medium text-slate-800 break-words">{user.name}</div>
+                                            <div className="text-sm text-slate-500 truncate" title={user.email}>{user.email}</div>
+                                        </div>
                                     </td>
-                                    <td className="px-6 py-4 text-slate-600 font-mono text-sm">{user.cardNumber}</td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-4 2xl:px-6 py-4 text-slate-600 font-mono text-sm whitespace-nowrap">{user.cardNumber}</td>
+                                    <td className="px-4 2xl:px-6 py-4">
                                         {user.organization ? (
-                                            <>
-                                                <div className="text-sm font-medium text-slate-700">{user.organization.name}</div>
+                                            <div className="max-w-[12rem]">
+                                                <div className="text-sm font-medium text-slate-700 truncate" title={user.organization.name}>{user.organization.name}</div>
                                                 <div className="font-mono text-xs text-slate-400">{user.organization.orgCode}</div>
-                                            </>
+                                            </div>
                                         ) : (
                                             <span className="text-sm text-slate-400">—</span>
                                         )}
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                                            {user.status}
-                                        </span>
+                                    <td className="px-4 2xl:px-6 py-4">
+                                        <StatusBadge status={user.status} />
                                     </td>
-                                    <td className="px-6 py-4 text-right space-x-3" onClick={(e) => e.stopPropagation()}>
-                                        <button
-                                            onClick={() => openUserModal(user)}
-                                            className="text-indigo-600 hover:text-indigo-900 font-medium text-sm transition-colors"
-                                        >
-                                            Manage
-                                        </button>
-                                        <button
-                                            onClick={() => openEditModal(user)}
-                                            className="text-slate-500 hover:text-indigo-600 font-medium text-sm transition-colors"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            onClick={() => toggleStatus(user)}
-                                            className={`${user.status === 'active' ? 'text-orange-500 hover:text-orange-700' : 'text-emerald-500 hover:text-emerald-700'} font-medium text-sm transition-colors`}
-                                        >
-                                            {user.status === 'active' ? 'Block' : 'Unblock'}
-                                        </button>
-                                        <button
-                                            onClick={() => confirmDeleteUser(user)}
-                                            className="text-red-500 hover:text-red-700 font-medium text-sm transition-colors"
-                                        >
-                                            Delete
-                                        </button>
+                                    <td className="sticky right-0 bg-white group-hover:bg-slate-50 transition-colors px-4 2xl:px-6 py-4 text-right whitespace-nowrap space-x-3" onClick={(e) => e.stopPropagation()}>
+                                        <UserActions user={user} onManage={openUserModal} onEdit={openEditModal} onToggle={toggleStatus} onDelete={confirmDeleteUser} />
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                     </div>
+
+                    {/* Phones: one card per student, same information and actions. */}
+                    <ul className="divide-y divide-slate-100 md:hidden">
+                        {filteredUsers.map(user => (
+                            <li key={user._id} onClick={() => openUserModal(user)} className="p-4 cursor-pointer active:bg-slate-50">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="font-medium text-slate-800 break-words">{user.name}</p>
+                                        <p className="text-sm text-slate-500 break-all">{user.email}</p>
+                                    </div>
+                                    <span className="shrink-0"><StatusBadge status={user.status} /></span>
+                                </div>
+                                <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                                    <div className="min-w-0">
+                                        <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Card Number</dt>
+                                        <dd className="font-mono text-slate-600 break-all">{user.cardNumber || '—'}</dd>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Organization</dt>
+                                        {user.organization ? (
+                                            <dd>
+                                                <span className="block truncate font-medium text-slate-700" title={user.organization.name}>{user.organization.name}</span>
+                                                <span className="block font-mono text-xs text-slate-400">{user.organization.orgCode}</span>
+                                            </dd>
+                                        ) : (
+                                            <dd className="text-slate-400">—</dd>
+                                        )}
+                                    </div>
+                                </dl>
+                                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2" onClick={(e) => e.stopPropagation()}>
+                                    <UserActions user={user} onManage={openUserModal} onEdit={openEditModal} onToggle={toggleStatus} onDelete={confirmDeleteUser} />
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                    </>
                 )}
             </div>
 
             {/* User Management Modal */}
             {
                 selectedUser && (
-                    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm pt-15 animate-fade-in text-left overflow-y-auto">
-                        <div className="relative top-8 md:top-10 bg-white rounded-1xl shadow-xl border border-slate-200 w-full max-w-4xl flex flex-col max-h-[calc(100vh-8rem)] mb-4">
-                            <div className="flex justify-between items-center p-6 border-b border-slate-200 bg-slate-50">
-                                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                    <UserCheck size={24} className="text-indigo-600" />
-                                    {selectedUser.name}'s Profile
+                    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:pt-15 animate-fade-in text-left overflow-y-auto">
+                        {/* Scrolls inside itself, never taller than the screen
+                            less the backdrop's padding. */}
+                        <div className="relative sm:top-8 md:top-10 bg-white rounded-1xl shadow-xl border border-slate-200 w-full max-w-4xl flex flex-col max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100vh-8rem)] sm:mb-4">
+                            <div className="flex justify-between items-center gap-3 p-4 sm:p-6 border-b border-slate-200 bg-slate-50">
+                                <h2 className="min-w-0 text-lg sm:text-xl font-bold text-slate-800 flex items-center gap-2">
+                                    <UserCheck size={24} className="shrink-0 text-indigo-600" />
+                                    <span className="truncate" title={`${selectedUser.name}'s Profile`}>{selectedUser.name}'s Profile</span>
                                 </h2>
                                 <button
                                     onClick={closeUserModal}
-                                    className="text-slate-400 hover:text-slate-600"
+                                    className="shrink-0 text-slate-400 hover:text-slate-600"
                                 >
                                     ✕
                                 </button>
                             </div>
 
                             {/* <div className="p-5 overflow-y-auto space-y-6"> */}
-                            <div className="p-6 overflow-y-auto space-y-8 flex-1 scrollbar-thin scrollbar-thumb-slate-300">
+                            <div className="p-4 sm:p-6 overflow-y-auto space-y-6 sm:space-y-8 flex-1 min-h-0 scrollbar-thin scrollbar-thumb-slate-300">
                                 <div>
                                     <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">User Details</h3>
                                     {userDetails ? (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                            <div>
+                                            <div className="min-w-0">
                                                 <p className="text-xs text-slate-400 font-semibold uppercase">Email</p>
-                                                <p className="font-medium text-slate-800">{userDetails.user.email}</p>
+                                                <p className="font-medium text-slate-800 break-all">{userDetails.user.email}</p>
                                             </div>
                                             <div>
                                                 <p className="text-xs text-slate-400 font-semibold uppercase">Phone</p>
@@ -667,7 +732,7 @@ const Users = () => {
                                             </div>
                                             <div>
                                                 <p className="text-xs text-slate-400 font-semibold uppercase">Serial Number</p>
-                                                <p className="font-mono text-slate-800">{userDetails.user.serialNumber || 'N/A'}</p>
+                                                <p className="font-mono text-slate-800 break-all">{userDetails.user.serialNumber || 'N/A'}</p>
                                             </div>
                                             <div>
                                                 <p className="text-xs text-slate-400 font-semibold uppercase">Joined</p>
@@ -678,7 +743,7 @@ const Users = () => {
                                                     QR NUMBER
                                                 </p>
 
-                                                <p className="font-mono text-sm text-slate-800 mt-0.5">
+                                                <p className="font-mono text-sm text-slate-800 mt-0.5 break-all">
                                                     {userDetails?.user?.qrNumber || "N/A"}
                                                 </p>
                                             </div>
@@ -688,7 +753,8 @@ const Users = () => {
                                     )}
                                 </div>
 
-                                <div className="flex flex-wrap items-center gap-3">
+                                {/* Stacked full width on a phone, one row from sm up. */}
+                                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
 
                                     {/* TYPE SELECT */}
                                     <Select
@@ -698,7 +764,7 @@ const Users = () => {
                                             setSelectedAssignId('');
                                             setShowAlert(false); // ✅ clear previous popup
                                         }}
-                                        className="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm w-40 focus:ring-2 focus:ring-indigo-500"
+                                        className="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm w-full sm:w-40 focus:ring-2 focus:ring-indigo-500"
                                     >
                                         <option value="Course">Course</option>
                                         <option value="Bundle">Bundle</option>
@@ -708,7 +774,7 @@ const Users = () => {
                                     <Select
                                         value={selectedAssignId}
                                         onChange={(e) => setSelectedAssignId(e.target.value)}
-                                        className="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm w-52 focus:ring-2 focus:ring-indigo-500"
+                                        className="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm w-full sm:w-52 focus:ring-2 focus:ring-indigo-500"
                                     >
                                         <option value="">Select</option>
 
@@ -742,14 +808,14 @@ const Users = () => {
                                         userDetails.enrollments.length > 0 ? (
                                             <div className="grid gap-4 mt-2">
                                                 {userDetails.enrollments.map(enr => (
-                                                    <div key={enr._id} className="flex justify-between items-center p-4 border border-slate-200 rounded-xl hover:border-indigo-300 transition-colors bg-white shadow-sm">
-                                                        <div>
+                                                    <div key={enr._id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 p-4 border border-slate-200 rounded-xl hover:border-indigo-300 transition-colors bg-white shadow-sm">
+                                                        <div className="min-w-0 break-words">
                                                             <span className="text-xs font-bold px-2 py-1 bg-slate-100 rounded text-slate-600 mr-2">{enr.type.toUpperCase()}</span>
                                                             <span className="font-medium text-slate-800">
                                                                 {enr.type === 'Course' ? (enr.courseId?.title || 'Untitled Course') : (enr.bundleId?.title || 'Untitled Bundle')}
                                                             </span>
                                                         </div>
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex flex-wrap items-center gap-2 shrink-0">
                                                             {enr.type === 'Course' && (
                                                                 <button
                                                                     onClick={() => confirmResetProgress(enr)}
@@ -793,9 +859,9 @@ const Users = () => {
                                         <div className="space-y-3">
                                             {userDetails.progressSummary.map(prog => (
                                                 <div key={prog.courseId} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                                                    <div className="flex items-center justify-between gap-2 mb-2">
-                                                        <div className="min-w-0">
-                                                            <p className="font-semibold text-slate-800 text-sm truncate max-w-full sm:max-w-[220px]" title={prog.courseTitle}>{prog.courseTitle}</p>
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="font-semibold text-slate-800 text-sm truncate" title={prog.courseTitle}>{prog.courseTitle}</p>
                                                             {prog.via && prog.via !== 'Course' && (
                                                                 <p className="text-[11px] text-slate-400 truncate" title={prog.via}>via {prog.via}</p>
                                                             )}
@@ -818,7 +884,7 @@ const Users = () => {
                                                             style={{ width: `${prog.percentage}%` }}
                                                         />
                                                     </div>
-                                                    <div className="flex items-center gap-4 text-xs text-slate-500">
+                                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                                                         <span>📗 {prog.completedLessons} lessons done</span>
                                                         <span>🏆 {prog.passedQuizzes} quizzes passed</span>
                                                         {prog.lastActivity && (
@@ -845,7 +911,7 @@ const Users = () => {
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
                         <div className="p-5 border-b border-slate-100">
                             <h3 className="text-base font-bold text-slate-800">Set Course Progress</h3>
-                            <p className="text-sm text-slate-500 mt-1">
+                            <p className="text-sm text-slate-500 mt-1 break-words">
                                 <span className="font-semibold text-slate-700">{selectedUser?.name}</span>
                                 {progressDetail && <> · <span className="font-semibold text-slate-700">{progressDetail.course.title}</span></>}
                             </p>
@@ -862,7 +928,7 @@ const Users = () => {
 
                             {progressDetail && (
                                 <>
-                                    <div className="flex items-center gap-4 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
                                         <span>Current: <b className="text-slate-700">{progressDetail.percentage}%</b></span>
                                         <span>📗 {progressDetail.completedCount}/{progressDetail.totalLessons} lessons</span>
                                         <span>🏆 {progressDetail.passedQuizzes} quizzes</span>
@@ -941,7 +1007,7 @@ const Users = () => {
                                                                 onChange={() => toggleProgressModule(module)}
                                                                 disabled={ids.length === 0}
                                                             />
-                                                            <span className="text-sm font-semibold text-slate-700 flex-1 truncate">{module.title}</span>
+                                                            <span className="text-sm font-semibold text-slate-700 flex-1 min-w-0 truncate" title={module.title}>{module.title}</span>
                                                             <span className="text-xs text-slate-400">{doneCount}/{ids.length}</span>
                                                         </label>
                                                         {module.lessons.length === 0 ? (
@@ -954,7 +1020,7 @@ const Users = () => {
                                                                     checked={progressLessons.includes(lesson._id)}
                                                                     onChange={() => toggleProgressLesson(lesson._id)}
                                                                 />
-                                                                <span className="text-sm text-slate-700 flex-1 truncate">{lesson.title}</span>
+                                                                <span className="text-sm text-slate-700 flex-1 min-w-0 truncate" title={lesson.title}>{lesson.title}</span>
                                                                 <span className="text-[10px] uppercase tracking-wide text-slate-400">{lesson.type}</span>
                                                             </label>
                                                         ))}
@@ -971,7 +1037,7 @@ const Users = () => {
                             )}
                         </div>
 
-                        <div className="flex justify-end gap-3 px-5 py-4 bg-slate-50 border-t border-slate-100">
+                        <div className="flex flex-wrap justify-end gap-3 px-5 py-4 bg-slate-50 border-t border-slate-100">
                             <button
                                 onClick={closeProgressModal}
                                 className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors text-sm"
@@ -996,13 +1062,13 @@ const Users = () => {
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
                         <div className="p-6 border-b border-slate-100">
                             <h3 className="text-base font-bold text-slate-800">Reset Course Progress?</h3>
-                            <p className="text-sm text-slate-500 mt-2">
+                            <p className="text-sm text-slate-500 mt-2 break-words">
                                 This will wipe all progress for <span className="font-semibold text-slate-700">{enrollmentToReset.courseId?.title}</span> for{' '}
                                 <span className="font-semibold text-slate-700">{selectedUser?.name}</span>. They will start the course from 0%.
                             </p>
                             <p className="text-xs text-amber-600 mt-2 font-semibold">This action cannot be undone.</p>
                         </div>
-                        <div className="flex justify-end gap-3 px-6 py-4 bg-slate-50">
+                        <div className="flex flex-wrap justify-end gap-3 px-6 py-4 bg-slate-50">
                             <button
                                 onClick={() => { setShowResetModal(false); setEnrollmentToReset(null); }}
                                 className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors text-sm"
@@ -1023,16 +1089,16 @@ const Users = () => {
 
             {/* Bulk Upload Modal */}
             {showBulkModal && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-6 pt-50 animate-fade-in text-left overflow-y-auto"> {/* new changes */}
+                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 sm:pt-50 animate-fade-in text-left overflow-y-auto"> {/* new changes; the deep top offset only from sm, a phone has no room for it */}
                     <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col">
-                        <div className="p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg flex justify-between">
+                        <div className="p-4 sm:p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg flex justify-between gap-3">
                             <div className="flex items-center gap-2">
                                 <Upload size={20} className="text-emerald-600" />
                                 <span>Bulk Create Students</span>
                             </div>
                             <button onClick={() => { setShowBulkModal(false); setBulkResults(null); setBulkFile(null); }} className="text-slate-400 hover:text-slate-600">✕</button>
                         </div>
-                        <div className="p-6 space-y-5">
+                        <div className="p-4 sm:p-6 space-y-5">
                             {!bulkResults ? (
                                 <>
                                     <p className="text-sm text-slate-600">
@@ -1051,7 +1117,7 @@ const Users = () => {
                                     >
                                         <Upload size={28} className="mx-auto mb-2 text-slate-400" />
                                         {bulkFile ? (
-                                            <p className="text-sm font-semibold text-emerald-700">{bulkFile.name}</p>
+                                            <p className="text-sm font-semibold text-emerald-700 break-all">{bulkFile.name}</p>
                                         ) : (
                                             <p className="text-sm text-slate-500">Click to select an Excel file (.xlsx)</p>
                                         )}
@@ -1063,7 +1129,7 @@ const Users = () => {
                                             onChange={(e) => setBulkFile(e.target.files[0] || null)}
                                         />
                                     </div>
-                                    <div className="flex justify-end gap-3 pt-2">
+                                    <div className="flex flex-wrap justify-end gap-3 pt-2">
                                         <button
                                             onClick={() => { setShowBulkModal(false); setBulkFile(null); }}
                                             className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors"
@@ -1096,7 +1162,7 @@ const Users = () => {
                                             <p className="text-sm font-semibold text-slate-700 mb-2">Errors:</p>
                                             <div className="max-h-52 overflow-y-auto space-y-2">
                                                 {bulkResults.errors.map((err, idx) => (
-                                                    <div key={idx} className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm">
+                                                    <div key={idx} className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm break-words">
                                                         <span className="font-semibold text-red-700">Row {err.row} ({err.email}):</span>{' '}
                                                         <span className="text-red-600">{err.message}</span>
                                                     </div>
@@ -1104,7 +1170,7 @@ const Users = () => {
                                             </div>
                                         </div>
                                     )}
-                                    <div className="flex justify-end gap-3 pt-2">
+                                    <div className="flex flex-wrap justify-end gap-3 pt-2">
                                         <button
                                             onClick={() => { setBulkResults(null); setBulkFile(null); }}
                                             className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors"
@@ -1127,13 +1193,13 @@ const Users = () => {
 
             {/* Add New User Modal */}
             {showAddModal && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-6 pt-16 animate-fade-in text-left overflow-y-auto">
+                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 sm:pt-16 animate-fade-in text-left overflow-y-auto">
                     <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col">
-                        <div className="p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg flex justify-between">
+                        <div className="p-4 sm:p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg flex justify-between gap-3">
                             <span>Add New Student</span>
                             <button onClick={resetAddModal} className="text-slate-400 hover:text-slate-600">✕</button>
                         </div>
-                        <form onSubmit={handleAddUser} className="p-6 space-y-4">
+                        <form onSubmit={handleAddUser} className="p-4 sm:p-6 space-y-4">
 
                             {/* QR Code Section */}
                             <div className="space-y-3">
@@ -1169,7 +1235,7 @@ const Users = () => {
                                             placeholder="Enter QR Code"
                                             value={addQrCode}
                                             onChange={e => { setAddQrCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')); setAddQrValidated(false); }}
-                                            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+                                            className="flex-1 min-w-0 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
                                         />
                                         <button
                                             type="button"
@@ -1188,7 +1254,7 @@ const Users = () => {
                                         <Lock size={13} className="text-emerald-600 flex-shrink-0" />
                                         <div>
                                             <p className="text-xs font-semibold text-emerald-700">QR Code Valid ✓</p>
-                                            <p className="text-xs font-mono text-emerald-800">Card: {addCardDetails.CardNumber}</p>
+                                            <p className="text-xs font-mono text-emerald-800 break-all">Card: {addCardDetails.CardNumber}</p>
                                         </div>
                                     </div>
                                 )}
@@ -1217,7 +1283,7 @@ const Users = () => {
                                             <Select
                                                 value={newUser.phoneCode || '+91'}
                                                 onChange={e => setNewUser({ ...newUser, phoneCode: e.target.value })}
-                                                className="px-2 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm w-24"
+                                                className="shrink-0 px-2 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm w-24"
                                             >
                                                 <option value="+91">🇮🇳 +91</option>
                                                 <option value="+1">🇺🇸 +1</option>
@@ -1230,7 +1296,7 @@ const Users = () => {
                                             <input type="tel" required placeholder="Phone number"
                                                 value={newUser.phone}
                                                 onChange={e => setNewUser({ ...newUser, phone: e.target.value.replace(/\D/g, '') })} pattern="\d{10}" maxLength={10}
-                                                className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                                                className="flex-1 min-w-0 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
                                         </div>
                                     </div>
                                     <div>
@@ -1244,7 +1310,7 @@ const Users = () => {
                                 </>
                             )}
 
-                            <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                            <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-slate-100">
                                 <button type="button" onClick={resetAddModal} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
                                 <button type="submit" disabled={!addQrValidated} className="px-5 py-2.5 bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-40">
                                     Create Student
@@ -1258,13 +1324,13 @@ const Users = () => {
             {/* Edit User Modal */}
             {
                 showEditModal && (
-                    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-6 pt-25 animate-fade-in text-left overflow-y-auto"> {/* new changes */}
+                    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 sm:pt-25 animate-fade-in text-left overflow-y-auto"> {/* new changes */}
                         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col">
-                            <div className="p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg flex justify-between">
+                            <div className="p-4 sm:p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg flex justify-between gap-3">
                                 <span>Edit Student Profile</span>
                                 <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
                             </div>
-                            <form onSubmit={handleEditUser} className="p-6 space-y-4">
+                            <form onSubmit={handleEditUser} className="p-4 sm:p-6 space-y-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-1">Full Name</label>
                                     <input type="text" required placeholder="Enter full name" value={editUserForm.name} onChange={(e) => { const value = e.target.value.replace(/[^A-Za-z\s]/g, ''); setEditUserForm({ ...editUserForm, name: value }); }} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
@@ -1279,7 +1345,7 @@ const Users = () => {
                                         <Select
                                             value={editUserForm.phoneCode || '+91'}
                                             onChange={e => setEditUserForm({ ...editUserForm, phoneCode: e.target.value })}
-                                            className="px-2 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm w-24"
+                                            className="shrink-0 px-2 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm w-24"
                                         >
                                             <option value="+91">🇮🇳 +91</option>
                                             <option value="+1">🇺🇸 +1</option>
@@ -1298,12 +1364,13 @@ const Users = () => {
                                                 const digits = e.target.value.replace(/\D/g, '');
                                                 setEditUserForm({ ...editUserForm, phone: digits });
                                             }}
-                                            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                            className="flex-1 min-w-0 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                         />
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                                    <div className="col-span-2 text-[11px] font-black uppercase tracking-wider text-slate-400 pt-2">Rewards &amp; wallet</div>
+                                {/* One column on a phone: two would leave each dropdown too narrow to read. */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                                    <div className="sm:col-span-2 text-[11px] font-black uppercase tracking-wider text-slate-400 pt-2">Rewards &amp; wallet</div>
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 mb-1">Account type</label>
                                         <Select value={editUserForm.accountType || 'school_student'} onChange={e => setEditUserForm({ ...editUserForm, accountType: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm">
@@ -1344,7 +1411,7 @@ const Users = () => {
                                     />
                                     <PasswordStrengthChecker password={editUserForm.password} focused={editPwFocused} />
                                 </div>
-                                <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                                <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-slate-100">
                                     <button type="button" onClick={() => setShowEditModal(false)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
                                     <button type="submit" className="px-5 py-2.5 bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-lg transition-colors">Save Changes</button>
                                 </div>
@@ -1355,7 +1422,7 @@ const Users = () => {
             }
             {
                 showAlert && (
-                    <div className="fixed inset-0 backdrop-blur-md bg-white/20 flex items-center justify-center z-[100]">
+                    <div className="fixed inset-0 backdrop-blur-md bg-white/20 flex items-center justify-center p-4 z-[100]">
                         <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
 
                             {/* ✅ Dynamic Title */}
@@ -1365,7 +1432,7 @@ const Users = () => {
                             </h2>
 
                             {/* ✅ Message */}
-                            <p className="text-sm text-slate-600 mb-5">
+                            <p className="text-sm text-slate-600 mb-5 break-words">
                                 {alertMessage}
                             </p>
 

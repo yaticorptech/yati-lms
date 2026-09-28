@@ -10,7 +10,7 @@
  */
 const Organization = require('../models/Organization');
 const Admin = require('../../models/Admin');
-const { createWithOrgCode } = require('../services/orgCode');
+const { checkNewOrgCode, isDuplicateOrgCode } = require('../services/orgCode');
 const { validatePasswordStrength } = require('../../middleware/validatePassword');
 const { sendEmail } = require('../../utils/emailService');
 
@@ -105,6 +105,11 @@ const registerOrganization = async (req, res) => {
         const invalid = validate(req.body);
         if (invalid) return res.status(400).json({ message: invalid });
 
+        // The organization's own chosen ID. `field` lets the form put the
+        // message under the right box.
+        const chosen = await checkNewOrgCode(req.body.orgCode);
+        if (chosen.error) return res.status(chosen.taken ? 409 : 400).json({ message: chosen.error, field: 'orgCode' });
+
         const passwordError = validatePasswordStrength(password);
         if (passwordError) return res.status(400).json({ message: passwordError });
         if (password !== confirmPassword) {
@@ -122,8 +127,8 @@ const registerOrganization = async (req, res) => {
             return res.status(400).json({ message: 'That email address is already in use on this platform.' });
         }
 
-        const organization = await createWithOrgCode(String(name).trim(), (orgCode) => Organization.create({
-            orgCode,
+        const organization = await Organization.create({
+            orgCode: chosen.code,
             name: String(name).trim(),
             organizationType,
             email: cleanEmail,
@@ -136,7 +141,7 @@ const registerOrganization = async (req, res) => {
                 : Number(expectedStudents),
             status: 'pending',
             statusHistory: [{ status: 'pending', reason: 'Registered through the public form', at: new Date() }]
-        }));
+        });
 
         try {
             await Admin.create({
@@ -169,10 +174,27 @@ const registerOrganization = async (req, res) => {
         });
     } catch (error) {
         console.error('[organizations] registration failed:', error);
+        // Someone registered the same ID between the check and the insert.
+        if (isDuplicateOrgCode(error)) {
+            return res.status(409).json({ message: 'That organization ID already exists. Try another.', field: 'orgCode' });
+        }
         if (error.code === 11000) {
             return res.status(400).json({ message: 'That email address is already in use on this platform.' });
         }
         return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    Whether an organization ID is free, for the form to say as it is typed
+// @route   GET /api/organizations/code-available?code=
+// @access  Public
+const checkOrgCodeAvailable = async (req, res) => {
+    try {
+        const { code, error } = await checkNewOrgCode(req.query.code);
+        res.json({ code, available: !error, message: error || 'This organization ID is available.' });
+    } catch (error) {
+        console.error('[organizations] ID check failed:', error.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
@@ -185,4 +207,5 @@ const getOrganizationTypes = (req, res) => {
     });
 };
 
-module.exports = { registerOrganization, getOrganizationTypes };
+module.exports = {
+    checkOrgCodeAvailable, registerOrganization, getOrganizationTypes };

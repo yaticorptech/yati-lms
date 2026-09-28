@@ -225,9 +225,13 @@ const Signup = () => {
         // The Organization ID is optional, so an empty box is fine. A filled one
         // has to look like an ID: the shape is worth checking now, while the
         // field is still on screen to correct.
-        const typedOrgCode = formData.orgCode.trim();
-        if (typedOrgCode && !/^[A-Za-z]+-\d{4}-\d{3,}$/.test(typedOrgCode.replace(/\s+/g, ''))) {
-            return setError('That Organization ID does not look right. They start with your organization\'s name, like ABC-2026-0001, or you can leave it blank.');
+        // Either an ID the organization chose (st_agnes_college) or an older,
+        // generated one (ABC-2026-0001). Whether it exists is the server's call.
+        const typedOrgCode = formData.orgCode.trim().replace(/^@+/, '');
+        const chosen = /^[a-z0-9._]{3,30}$/i.test(typedOrgCode) && /[a-z]/i.test(typedOrgCode);
+        const older = /^[A-Za-z]+-\d{4}-\d{3,}$/.test(typedOrgCode.replace(/\s+/g, ''));
+        if (typedOrgCode && !chosen && !older) {
+            return setError('That Organization ID does not look right. Ask your organization for it (like st_agnes_college), or leave it blank.');
         }
 
         setStep(3);
@@ -489,8 +493,9 @@ const Signup = () => {
                                         onChange={handleInputChange}
                                         autoComplete="off"
                                         spellCheck={false}
-                                        className={`${inputClass} font-mono uppercase tracking-wide`}
-                                        placeholder="ABC-2026-0001"
+                                        autoCapitalize="none"
+                                        className={`${inputClass} font-mono`}
+                                        placeholder="xx_xxxx_xxx"
                                     />
                                     <p className="mt-1.5 text-xs text-slate-500">
                                         Only if your school, college or company gave you one. They will be asked to approve

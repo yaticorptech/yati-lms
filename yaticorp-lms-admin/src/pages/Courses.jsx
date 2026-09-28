@@ -6,11 +6,17 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
-import { Plus, Edit2, Trash2, LayoutList, FilePlus, ArrowUpDown, Filter, Calendar, Info, X, MoreVertical, Settings, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit2, Trash2, LayoutList, FilePlus, ArrowUpDown, Filter, Calendar, Info, X, MoreVertical, Settings, Eye, EyeOff, Lock, Users, Award } from 'lucide-react';
 import useAutoRefresh from '../hooks/useAutoRefresh';
+import { useCourseScope } from '../utils/courseScope';
+import OrgLogoStep from '../components/OrgLogoStep';
 const Courses = () => {
+    // Platform courses, or an organization's own — see utils/courseScope.js.
+    const S = useCourseScope();
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(true);
+    // For an organization: whether courses are switched on, and its limit.
+    const [access, setAccess] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [titleError, setTitleError] = useState('');
 
@@ -34,7 +40,7 @@ const Courses = () => {
         try {
             const fd = new FormData();
             fd.append('image', file);
-            const res = await api.post('/admin/courses/thumbnail', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const res = await api.post(`${S.api}/courses/thumbnail`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
             setFormData(prev => ({ ...prev, thumbnail: res.data.url }));
         } catch (err) {
             setThumbError(err.response?.data?.message || 'Upload failed');
@@ -45,7 +51,7 @@ const Courses = () => {
 
     const handleTogglePublish = async (course) => {
         try {
-            await api.put(`/admin/courses/${course._id}`, { ...course, isPublished: !course.isPublished });
+            await api.put(`${S.api}/courses/${course._id}`, { ...course, isPublished: !course.isPublished });
             fetchCourses();
             setOpenDropdown(null);
         } catch (err) {
@@ -55,7 +61,13 @@ const Courses = () => {
 
     const fetchCourses = async () => {
         try {
-            const res = await api.get('/admin/courses');
+            if (S.organization) {
+                const a = await api.get(`${S.api}/course-access`);
+                setAccess(a.data);
+                // Switched off by the platform, or no logo yet: nothing to list or build.
+                if (!a.data.enabled || !a.data.hasLogo) return;
+            }
+            const res = await api.get(`${S.api}/courses`);
             setCourses(res.data);
         } catch (err) {
             console.error(err);
@@ -79,12 +91,12 @@ const Courses = () => {
                 pricePoints: Number(formData.pricePoints) || 0
             };
             if (editId) {
-                await api.put(`/admin/courses/${editId}`, payload);
+                await api.put(`${S.api}/courses/${editId}`, payload);
                 fetchCourses();
             } else {
-                const newCourse = await api.post('/admin/courses', payload);
+                const newCourse = await api.post(`${S.api}/courses`, payload);
                 if (newCourse.data && newCourse.data._id) {
-                    navigate(`/courses/${newCourse.data._id}`);
+                    navigate(`${S.base}/courses/${newCourse.data._id}`);
                 } else {
                     fetchCourses();
                 }
@@ -96,6 +108,9 @@ const Courses = () => {
 
             if (err.response?.data?.message?.toLowerCase().includes('exists')) {
                 setTitleError('Title is already created');
+            } else if (err.response?.data?.message) {
+                // The course limit, or anything else the server refused.
+                setTitleError(err.response.data.message);
             }
         }
     };
@@ -108,7 +123,7 @@ const Courses = () => {
     const executeDelete = async () => {
         if (!courseToDelete) return;
         try {
-            await api.delete(`/admin/courses/${courseToDelete._id}`);
+            await api.delete(`${S.api}/courses/${courseToDelete._id}`);
             fetchCourses();
             setCourseToDelete(null);
             setShowDeleteModal(false); // Close modal after successful delete
@@ -144,22 +159,62 @@ const Courses = () => {
         .filter(c => statusFilter === 'published' ? c.isPublished : statusFilter === 'draft' ? !c.isPublished : true)
         .sort((a, b) => sortOrder === 'newest' ? new Date(b.createdAt) - new Date(a.createdAt) : new Date(a.createdAt) - new Date(b.createdAt));
 
+    // An organization may have only as many courses as the platform allows.
+    const atLimit = Boolean(S.organization && access && courses.length >= access.limit);
+
+    if (S.organization && access && !access.enabled) {
+        return (
+            <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm animate-fade-in" role="status">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600"><Lock size={26} /></div>
+                <h1 className="text-xl font-bold text-slate-900">Courses are not switched on yet</h1>
+                <p className="mt-2 text-sm text-slate-600">
+                    Your organization can publish its own courses once the platform administrator switches this on and sets how many you may have.
+                    Please contact them to ask for access.
+                </p>
+            </div>
+        );
+    }
+
+    // Switched on, but the logo comes first — asked for once, before the first course.
+    if (S.organization && access && !access.hasLogo) {
+        return <OrgLogoStep onDone={() => { setLoading(true); fetchCourses(); }} />;
+    }
+
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in relative z-0 max-w-7xl mx-auto pb-10">
             {/* Header section */}
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 leading-tight">Courses</h1>
-                    <p className="text-sm lg:text-base text-slate-500 mt-1">Manage and organize your LMS curriculum</p>
+                    <p className="text-sm lg:text-base text-slate-500 mt-1">
+                        {S.organization ? "Your organization's own courses — only your students can see and take them." : 'Manage and organize your LMS curriculum'}
+                    </p>
                 </div>
                 <button
                     onClick={() => { setEditId(null); setFormData({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, pricePoints: 0, duration: 31 }); setShowModal(true); }}
                     aria-label="Create Course"
-                    className="flex shrink-0 items-center justify-center gap-2 px-4 sm:px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
+                    disabled={atLimit}
+                    title={atLimit ? `Your organization can have ${access.limit} course${access.limit === 1 ? '' : 's'}. Delete one, or ask the platform administrator for more.` : undefined}
+                    className="flex shrink-0 items-center justify-center gap-2 px-4 sm:px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                 >
                     <Plus size={18} /> <span className="hidden sm:inline">Create Course</span><span className="sm:hidden">New</span>
                 </button>
             </div>
+
+            {/* How many of its allowed courses the organization has used. */}
+            {S.organization && access && (
+                <div className={`flex flex-col gap-2 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${atLimit ? 'border-amber-200 bg-amber-50' : 'border-indigo-100 bg-indigo-50/60'}`} aria-label="Course limit">
+                    <div className="flex items-center gap-3">
+                        <div className="h-2 w-32 overflow-hidden rounded-full bg-white sm:w-44">
+                            <div className={`h-full rounded-full ${atLimit ? 'bg-amber-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(100, (courses.length / Math.max(1, access.limit)) * 100)}%` }} />
+                        </div>
+                        <p className={`text-sm font-bold tabular-nums ${atLimit ? 'text-amber-800' : 'text-indigo-800'}`}>{courses.length} of {access.limit} courses</p>
+                    </div>
+                    <p className={`text-xs ${atLimit ? 'text-amber-800' : 'text-slate-500'}`}>
+                        {atLimit ? 'You have reached your limit. Delete a course, or ask the platform administrator for a higher limit.' : `You can add ${access.limit - courses.length} more.`}
+                    </p>
+                </div>
+            )}
 
             {/* Search and Filter */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -228,20 +283,20 @@ const Courses = () => {
                 ))}
             </div>
 
-            {/* Course Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 pb-20">
+            {/* Course Grid: two up once a card has ~290px, four on a wide desktop. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6 pb-20">
                 {loading ? (
                     <div className="col-span-full py-12 text-center text-slate-500">Loading your courses...</div>
                 ) : filteredCourses.map(course => (
                     <div key={course._id} className="bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100 overflow-visible hover:shadow-[0_12px_36px_-4px_rgba(0,0,0,0.1)] lg:hover:-translate-y-1 transition-all duration-300 flex flex-col group relative">
-                        <Link to={`/courses/${course._id}`} aria-label={`Open ${course.title} in the builder`}
+                        <Link to={`${S.base}/courses/${course._id}`} aria-label={`Open ${course.title} in the builder`}
                             className="h-36 sm:h-44 bg-gradient-to-br from-slate-800 to-indigo-900 relative overflow-hidden flex items-center justify-center rounded-t-2xl">
                             {course.thumbnail ? (
                                 <img src={course.thumbnail} alt="" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                             ) : (
-                                <div className="z-10 flex flex-col items-center gap-2 px-6 text-center text-white">
+                                <div className="z-10 flex max-w-full min-w-0 flex-col items-center gap-2 px-6 text-center text-white">
                                     <BookOpen size={28} className="text-indigo-300" />
-                                    <span className="line-clamp-2 text-base font-bold">{course.title}</span>
+                                    <span className="line-clamp-2 max-w-full text-base font-bold wrap-anywhere">{course.title}</span>
                                 </div>
                             )}
                             <span className={`absolute left-3 top-3 rounded-md px-2 py-0.5 text-[11px] font-bold shadow-sm ${course.isPublished ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-amber-950'}`}>
@@ -253,7 +308,7 @@ const Courses = () => {
                         <div className="p-4 sm:p-5 flex-1 flex flex-col">
 
                             {/* ROW 1 → Title, and the ID under it */}
-                            <h3 className="font-bold text-lg text-slate-900 line-clamp-2 leading-snug" title={course.title}>
+                            <h3 className="font-bold text-lg text-slate-900 line-clamp-2 leading-snug wrap-anywhere" title={course.title}>
                                 {course.title}
                             </h3>
                             <span className="mt-1 w-fit max-w-full truncate text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
@@ -261,7 +316,7 @@ const Courses = () => {
                             </span>
 
                             {/* ROW 2 → Lessons + Date */}
-                            <div className="flex items-center justify-between mt-3">
+                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-3">
                                 <span className="text-[13px] text-slate-500 font-medium">
                                     {course.lessonsCount || 0} {course.lessonsCount === 1 ? 'Lesson' : 'Lessons'}
                                 </span>
@@ -278,13 +333,29 @@ const Courses = () => {
                                 </div>
                             </div>
 
+                            {/* For an organization: how many of its students are
+                                taking this course, and how many have finished it. */}
+                            {S.organization && (
+                                <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Students on this course">
+                                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700">
+                                        <Users size={13} /> {course.learners || 0} student{course.learners === 1 ? '' : 's'}
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                                        <Award size={13} /> {course.completed || 0} completed
+                                    </span>
+                                </div>
+                            )}
+
                             {/* ROW 3 → Price, and the actions — always visible, since a
                                 touchscreen has no hover to reveal them. */}
                             <div className="mt-auto flex items-center gap-2 pt-3">
-                                <span className="mr-auto text-lg font-bold text-slate-900 tabular-nums">
-                                    {Number(course.price) > 0 ? `₹ ${Number(course.price).toLocaleString('en-IN')}` : 'Free'}
-                                </span>
-                                <Link to={`/courses/${course._id}`} title="Course Builder"
+                                {/* An organization's course has no price: its students take it free. */}
+                                {S.organization ? <span className="mr-auto" /> : (
+                                    <span className="mr-auto text-lg font-bold text-slate-900 tabular-nums">
+                                        {Number(course.price) > 0 ? `₹ ${Number(course.price).toLocaleString('en-IN')}` : 'Free'}
+                                    </span>
+                                )}
+                                <Link to={`${S.base}/courses/${course._id}`} title="Course Builder"
                                     className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
                                     <LayoutList size={16} /> Builder
                                 </Link>
@@ -333,7 +404,7 @@ const Courses = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in text-left">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
                         <div className="flex justify-between items-center p-4 sm:p-6 border-b border-slate-200 bg-slate-50 flex-shrink-0">
-                            <h2 className="text-xl font-bold text-slate-800">
+                            <h2 className="text-lg sm:text-xl font-bold text-slate-800">
                                 {editId ? 'Edit Course Settings' : 'Create New Course'}
                             </h2>
                             <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
@@ -404,6 +475,7 @@ const Courses = () => {
                                 />
                                 <label htmlFor="isPublished" className="text-sm font-semibold text-slate-700 cursor-pointer">Published to Students</label>
                             </div>
+                            {!S.organization && (
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-1">Price (₹)</label>
@@ -425,8 +497,9 @@ const Courses = () => {
                                     />
                                 </div>
                             </div>
+                            )}
 
-                            <div className="pt-4 border-t border-slate-100 flex justify-end space-x-3">
+                            <div className="pt-4 border-t border-slate-100 flex flex-wrap justify-end gap-3">
                                 <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
                                 <button
                                     type="submit"

@@ -14,16 +14,23 @@
  * format to keep in step.
  */
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const Admin = require('../../models/Admin');
 const Organization = require('../models/Organization');
+
+/** The header a superadmin sends to look at one organization's own panel. */
+const VIEW_HEADER = 'x-view-organization';
 
 /**
  * Authenticate an organization administrator and attach their organization.
  *
- * Deliberately refuses platform admins and superadmins too. They read
- * organization data through /api/organizations/admin/*, which is scoped by an
- * explicit id and guarded by superAdminOnly; letting them in here as well would
- * mean two code paths deciding what "my organization" means.
+ * Platform admins are refused. A superadmin is let in for one purpose: to see
+ * an organization's panel exactly as that organization does, without its
+ * password. They name the organization in the X-View-Organization header —
+ * the only case where the organization comes from the request, and only for
+ * an account that can already read every organization through
+ * /api/organizations/admin/*. It is look, don't touch: anything but a read is
+ * refused, so nothing is ever done in an organization's name by someone else.
  */
 const protectOrgAdmin = async (req, res, next) => {
     const header = req.headers.authorization;
@@ -38,6 +45,22 @@ const protectOrgAdmin = async (req, res, next) => {
 
         if (!admin) {
             return res.status(401).json({ message: 'Not authorized, admin not found' });
+        }
+        if (admin.role === 'superadmin' && req.headers[VIEW_HEADER]) {
+            const viewed = String(req.headers[VIEW_HEADER]);
+            if (!mongoose.isValidObjectId(viewed)) return res.status(404).json({ message: 'Organization not found' });
+            const organization = await Organization.findById(viewed);
+            if (!organization) return res.status(404).json({ message: 'Organization not found' });
+            if (!['GET', 'HEAD'].includes(req.method)) {
+                return res.status(403).json({
+                    code: 'READ_ONLY_VIEW',
+                    message: `You are viewing ${organization.name} as the platform administrator. Changes can only be made by the organization itself.`
+                });
+            }
+            req.admin = admin;
+            req.organization = organization;
+            req.viewingAsSuperAdmin = true;
+            return next();
         }
         if (admin.role !== 'orgadmin') {
             return res.status(403).json({ message: 'Not authorized as an organization administrator' });

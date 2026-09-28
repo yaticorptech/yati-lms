@@ -152,13 +152,14 @@ const Bundles = () => {
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Bundle Management</h1>
                     <p className="text-sm text-slate-500 mt-1">Group multiple courses into sellable packages.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+                {/* Filters and New Bundle share a row, and wrap on a narrow phone. */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-1 sm:flex-none gap-1.5 bg-slate-100 p-1 rounded-xl">
                         {['all', 'published', 'draft'].map(f => (
                             <button
                                 key={f}
                                 onClick={() => setStatusFilter(f)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statusFilter === f ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statusFilter === f ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 {f.charAt(0).toUpperCase() + f.slice(1)}
                             </button>
@@ -166,14 +167,14 @@ const Bundles = () => {
                     </div>
                     <button
                         onClick={openCreateModal}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl flex items-center justify-center space-x-2 font-bold shadow-lg shadow-indigo-600/20 transition-all"
+                        className="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white px-4 sm:px-6 py-2.5 rounded-xl flex items-center justify-center space-x-2 font-bold shadow-lg shadow-indigo-600/20 transition-all whitespace-nowrap"
                     >
                         <Plus size={20} /> <span>New Bundle</span>
                     </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 lg:gap-6">
                 {loading ? (
                     <div className="col-span-full p-12 text-center text-slate-400">
                         <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
@@ -189,9 +190,9 @@ const Bundles = () => {
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
 
-                            <div className="relative z-10 p-6 text-center">
+                            <div className="relative z-10 p-6 text-center max-w-full min-w-0">
                                 <Layers size={32} className="text-indigo-400 mx-auto mb-2 opacity-50" />
-                                <h3 className="font-bold text-lg text-white drop-shadow-md line-clamp-2">{bundle.title}</h3>
+                                <h3 className="font-bold text-lg text-white drop-shadow-md line-clamp-2 wrap-anywhere" title={bundle.title}>{bundle.title}</h3>
                             </div>
 
                             <div className="absolute top-4 right-4 z-10">
@@ -202,15 +203,15 @@ const Bundles = () => {
                         </div>
                         <div className="p-5 flex-1 flex flex-col">
                             <div className="mb-4">
-                                <div className="mb-3 flex items-center justify-between">
+                                <div className="mb-3 flex items-center justify-between gap-2">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Included Courses ({bundle.courses.length})</p>
-                                    <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100" title="Bundle ID">ID: {bundle._id.slice(-6)}</span>
+                                    <span className="shrink-0 text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100" title="Bundle ID">ID: {bundle._id.slice(-6)}</span>
                                 </div>
                                 <div className="space-y-1.5">
                                     {bundle.courses.slice(0, 3).map(c => (
                                         <div key={c._id} className="flex items-center text-sm text-slate-600 font-medium">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 mr-2.5"></div>
-                                            <span className="truncate">{c.title}</span>
+                                            <div className="w-1.5 h-1.5 shrink-0 rounded-full bg-indigo-400 mr-2.5"></div>
+                                            <span className="truncate" title={c.title}>{c.title}</span>
                                         </div>
                                     ))}
                                     {bundle.courses.length > 3 && (
@@ -222,7 +223,7 @@ const Bundles = () => {
                                 </div>
                             </div>
 
-                            <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
+                            <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between gap-2">
                                 <div className="text-xs text-slate-400">
                                     Created {new Date(bundle.createdAt).toLocaleDateString()}
                                 </div>
@@ -252,15 +253,15 @@ const Bundles = () => {
                 // MY CHANGES — items-start + pt-20 + overflow-y-auto fixes modal hidden behind header
                 <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-4 pt-25 overflow-y-auto animate-fade-in text-left">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col my-auto">
-                        <div className="flex justify-between items-center p-6 border-b border-slate-200 bg-slate-50">
-                            <h2 className="text-xl font-bold text-slate-800">
+                        <div className="flex justify-between items-center gap-3 p-4 sm:p-6 border-b border-slate-200 bg-slate-50">
+                            <h2 className="text-lg sm:text-xl font-bold text-slate-800">
                                 {editId ? 'Edit Bundle' : 'Create New Bundle'}
                             </h2>
                             <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
                         </div>
 
                         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-                            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                            <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1">
 
                                 {/* MY CHANGES — red inline error banner (shows backend errors like duplicate name) */}
                                 {formError && (
@@ -279,21 +280,21 @@ const Bundles = () => {
                                 )}
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div className="col-span-2">
+                                    <div className="sm:col-span-2">
                                         <label className="block text-sm font-semibold text-slate-700 mb-1">Bundle Title</label>
                                         <input
                                             type="text" required  maxLength={50} /* ✅ NEW CHANGE*/ value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })}
                                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                         />
                                     </div>
-                                    <div className="col-span-2">
+                                    <div className="sm:col-span-2">
                                         <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
                                         <textarea 
                                             rows="2" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })}
                                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                         ></textarea>
                                     </div>
-                                    <div className="col-span-2">
+                                    <div className="sm:col-span-2">
                                         <label className="block text-sm font-semibold text-slate-700 mb-1">Thumbnail</label>
                                         {formData.thumbnail && (
                                             <div className="mb-2 relative w-full h-40 rounded-lg overflow-hidden border border-slate-200">
@@ -325,10 +326,10 @@ const Bundles = () => {
                                                     onClick={() => toggleCourseInBundle(course._id)}
                                                     className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${isSelected ? 'border-indigo-500 bg-indigo-50 text-indigo-900' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}
                                                 >
-                                                    <div className={`w-5 h-5 rounded flex items-center justify-center mr-3 border ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
+                                                    <div className={`w-5 h-5 shrink-0 rounded flex items-center justify-center mr-3 border ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
                                                         {isSelected && <Check size={14} className="text-white" />}
                                                     </div>
-                                                    <span className="text-sm font-medium line-clamp-1 flex-1">{course.title}</span>
+                                                    <span className="text-sm font-medium line-clamp-1 wrap-anywhere flex-1 min-w-0" title={course.title}>{course.title}</span>
                                                 </div>
                                             );
                                         })}
@@ -357,7 +358,7 @@ const Bundles = () => {
 </div>
                             </div>
 
-                            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+                            <div className="p-4 border-t border-slate-100 bg-slate-50 flex flex-wrap justify-end gap-3">
                                 <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors">Cancel</button>
                                 <button type="submit" className="px-5 py-2.5 bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-lg shadow transition-colors">Save Bundle</button>
                             </div>

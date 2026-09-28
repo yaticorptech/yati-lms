@@ -21,6 +21,8 @@ const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers'
 
 const STAMP = `${Date.now()}${Math.floor(Math.random() * 1e4)}`;
 const email = (label) => `org-test-${label}-${STAMP}@example.com`;
+/** A chosen organization ID for this run, handle style: t_<label>_<stamp>. */
+const handle = (label) => `t_${String(label).replace(/[^a-z0-9]/gi, '').slice(0, 8)}_${STAMP}`.toLowerCase();
 const GOOD_PASSWORD = 'Passw0rd!x';
 
 /** A complete, valid registration payload. */
@@ -35,6 +37,7 @@ const registration = (label, overrides = {}) => ({
     expectedStudents: 250,
     password: GOOD_PASSWORD,
     confirmPassword: GOOD_PASSWORD,
+    orgCode: handle(label),
     ...overrides
 });
 
@@ -83,8 +86,6 @@ after(async () => {
     await JoinRequest.deleteMany({ organizationId: { $in: ids } });
     await Admin.deleteMany({ organizationId: { $in: ids } });
     await Organization.deleteMany({ _id: { $in: ids } });
-    // The counter is shared platform state; leaving it advanced is correct —
-    // codes this run minted must never be handed out again.
 
     for (const app of [adminApp, authApp, userApp]) await new Promise((r) => app.server.close(r));
     await cleanup([alice.user, bob.user, loner.user], orgApp.server, [boss.admin, plainAdmin.admin]);
@@ -99,12 +100,13 @@ describe('registering an organization', () => {
         assert.ok(r.body.types.some((t) => t.value === 'college' && t.label === 'College'));
     });
 
-    test('a valid registration is stored as pending, with a readable ID', async () => {
-        const r = await asPublic('POST', '/register', registration('a'));
+    test('a valid registration is stored as pending, under the ID it chose', async () => {
+        // Typed with capitals and an @, as people type handles: stored tidy.
+        const r = await asPublic('POST', '/register', registration('a', { orgCode: `@${handle('a').toUpperCase()}` }));
         assert.equal(r.status, 201);
         assert.match(r.body.message, /submitted/i);
         assert.equal(r.body.organization.status, 'pending');
-        assert.match(r.body.organization.orgCode, /^[A-Z]+-\d{4}-\d{4}$/, '<NAME>-<year>-<0001>');
+        assert.equal(r.body.organization.orgCode, handle('a'), 'its own ID, lowercase — nothing generated');
 
         const Organization = require('../../src/organizations/models/Organization');
         schoolA = await Organization.findOne({ orgCode: r.body.organization.orgCode }).lean();
@@ -112,28 +114,55 @@ describe('registering an organization', () => {
         assert.equal(schoolA.approvedAt, null, 'nothing is approved by registering');
     });
 
-    test('the ID starts with the organization\'s own first word', async () => {
-        const { prefixFromName } = require('../../src/organizations/services/orgCode');
+    test('an ID that already exists is refused, and says so', async () => {
+        const r = await asPublic('POST', '/register', registration('a2', { orgCode: handle('a') }));
+        assert.equal(r.status, 409);
+        assert.equal(r.body.field, 'orgCode');
+        assert.match(r.body.message, /already exists/i);
 
-        // Read off the organization that was just registered, so this is the
-        // real generated code rather than the helper talking to itself.
-        assert.equal(schoolA.orgCode.split('-')[0], prefixFromName(schoolA.name));
-        assert.equal(schoolA.orgCode.split('-')[1], String(new Date().getFullYear()));
-
-        // And the rule that prefix follows, including the awkward names.
-        assert.equal(prefixFromName('ABC College'), 'ABC');
-        assert.equal(prefixFromName("St. Mary's School"), 'ST', 'punctuation is dropped');
-        assert.equal(prefixFromName('123 Training Centre'), 'TRAINING', 'a first word with no letters is skipped');
-        assert.equal(prefixFromName('Averyverylongsinglewordname Academy').length, 12, 'and long words are cut');
-        assert.equal(prefixFromName('!!!'), 'ORG', 'a name with no letters at all still gets a code');
+        const Organization = require('../../src/organizations/models/Organization');
+        assert.equal(await Organization.countDocuments({ email: email('a2') }), 0, 'and nothing was created');
     });
 
-    test('a code issued under the old fixed-ORG shape is still recognised', async () => {
-        const { isValidOrgCodeFormat } = require('../../src/organizations/services/orgCode');
+    test('the form can ask whether an ID is free as it is typed', async () => {
+        const taken = await asPublic('GET', `/code-available?code=${encodeURIComponent(handle('a').toUpperCase())}`);
+        assert.equal(taken.status, 200);
+        assert.equal(taken.body.available, false);
+        assert.match(taken.body.message, /already exists/i);
+
+        const free = await asPublic('GET', `/code-available?code=${handle('free')}`);
+        assert.deepEqual([free.body.available, free.body.code], [true, handle('free')]);
+
+        const bad = await asPublic('GET', '/code-available?code=no%20spaces!');
+        assert.equal(bad.body.available, false);
+        assert.match(bad.body.message, /letters, numbers, underscores/i);
+    });
+
+    test('an ID follows the handle rules', async () => {
+        const { orgCodeProblem, isValidOrgCodeFormat } = require('../../src/organizations/services/orgCode');
+        for (const ok of ['st_agnes_college', 'abc.school2026', 'mit', 'a_1']) assert.equal(orgCodeProblem(ok), null, ok);
+        const refused = [
+            ['', /choose/i], ['ab', /at least 3/i], ['x'.repeat(31), /at most 30/i],
+            ['abc-college', /letters, numbers, underscores/i], ['st agnes', /letters, numbers, underscores/i],
+            ['12345', /one letter/i], ['.abc', /start or end/i], ['abc.', /start or end/i],
+            ['a..b', /two full stops/i], ['admin', /reserved/i], ['yati_corp', /reserved/i]
+        ];
+        for (const [code, why] of refused) assert.match(orgCodeProblem(code) || '', why, JSON.stringify(code));
+        for (const [code] of refused.slice(0, 10)) {
+            const r = await asPublic('POST', '/register', registration(`r${Math.random()}`, { orgCode: code }));
+            assert.equal(r.status, 400, JSON.stringify(code));
+            assert.equal(r.body.field, 'orgCode');
+        }
+        assert.equal(isValidOrgCodeFormat('st_agnes_college'), true);
+    });
+
+    test('an ID from before, generated, is still recognised', async () => {
+        const { isValidOrgCodeFormat, normalizeOrgCode } = require('../../src/organizations/services/orgCode');
         assert.equal(isValidOrgCodeFormat('ORG-2026-0016'), true, 'organizations registered earlier keep working');
-        assert.equal(isValidOrgCodeFormat('ABC-2026-0001'), true);
-        assert.equal(isValidOrgCodeFormat('AB1-2026-0001'), false, 'the prefix is letters only');
-        assert.equal(isValidOrgCodeFormat('nonsense'), false);
+        assert.equal(isValidOrgCodeFormat('abc-2026-0001'), true, 'however it is typed');
+        assert.equal(normalizeOrgCode(' abc–2026–0001 '), 'ABC-2026-0001', 'and it keeps its capitals');
+        assert.equal(isValidOrgCodeFormat('AB1-2026-0001'), false);
+        assert.equal(isValidOrgCodeFormat('no spaces!'), false);
     });
 
     test('it creates an orgadmin account tied to that organization, and nothing more', async () => {
@@ -146,10 +175,10 @@ describe('registering an organization', () => {
         assert.notEqual(account.password, GOOD_PASSWORD, 'and not stored in the clear');
     });
 
-    test('a second organization gets a different ID', async () => {
+    test('a second organization registers under its own ID', async () => {
         const r = await asPublic('POST', '/register', registration('b'));
         assert.equal(r.status, 201);
-        assert.notEqual(r.body.organization.orgCode, schoolA.orgCode);
+        assert.equal(r.body.organization.orgCode, handle('b'));
 
         const Organization = require('../../src/organizations/models/Organization');
         schoolB = await Organization.findOne({ orgCode: r.body.organization.orgCode }).lean();
@@ -329,6 +358,27 @@ describe('the superadmin queue', () => {
         assert.match(longName.body.message, /too long/i);
     });
 
+    test('a superadmin creating an organization types its ID too; a taken one is refused', async () => {
+        const body = (label, orgCode) => ({ name: `${label} Academy ${STAMP}`, organizationType: 'college', email: email(label), password: GOOD_PASSWORD, orgCode });
+        const none = await asSuper('POST', '/admin', body('sa0'));
+        assert.equal(none.status, 400, 'nothing is generated when it is left out');
+        assert.equal(none.body.field, 'orgCode');
+
+        const taken = await asSuper('POST', '/admin', body('sa1', schoolA.orgCode));
+        assert.equal(taken.status, 409);
+        assert.match(taken.body.message, /already exists/i);
+
+        const made = await asSuper('POST', '/admin', body('sa2', handle('sa2').toUpperCase()));
+        assert.equal(made.status, 201);
+        assert.equal(made.body.organization.orgCode, handle('sa2'));
+        assert.equal(made.body.organization.status, 'active');
+
+        // Removed again, so the counts the tests below check are not moved by it.
+        const Organization = require('../../src/organizations/models/Organization');
+        await require('../../src/models/Admin').deleteMany({ organizationId: made.body.organization._id });
+        await Organization.deleteOne({ _id: made.body.organization._id });
+    });
+
     test('a missing organization is a 404, not a crash', async () => {
         assert.equal((await asSuper('GET', `/admin/${new mongoose.Types.ObjectId()}`)).status, 404);
         assert.equal((await asSuper('GET', '/admin/not-an-id')).status, 404);
@@ -337,7 +387,7 @@ describe('the superadmin queue', () => {
 
 describe('a student finding an organization', () => {
     test('an active organization is found by its ID, however it is typed', async () => {
-        for (const typed of [schoolA.orgCode, schoolA.orgCode.toLowerCase(), ` ${schoolA.orgCode} `]) {
+        for (const typed of [schoolA.orgCode, schoolA.orgCode.toUpperCase(), ` @${schoolA.orgCode} `]) {
             const r = await asAlice('GET', `/student/lookup/${encodeURIComponent(typed)}`);
             assert.equal(r.status, 200, `typed as "${typed}"`);
             assert.equal(r.body.organization.orgCode, schoolA.orgCode);
@@ -359,7 +409,7 @@ describe('a student finding an organization', () => {
     });
 
     test('nonsense is refused, and a sign-in is required', async () => {
-        assert.equal((await asAlice('GET', '/student/lookup/hello')).status, 400);
+        assert.equal((await asAlice('GET', `/student/lookup/${encodeURIComponent('hello there!')}`)).status, 400);
         assert.equal((await asPublic('GET', `/student/lookup/${schoolA.orgCode}`)).status, 401);
     });
 
@@ -403,7 +453,7 @@ describe('asking to join', () => {
 
     test('a request to a rejected or unknown organization goes nowhere', async () => {
         assert.equal((await asBob('POST', '/student/requests', { orgCode: 'ORG-1999-0001' })).status, 404);
-        assert.equal((await asBob('POST', '/student/requests', { orgCode: 'rubbish' })).status, 400);
+        assert.equal((await asBob('POST', '/student/requests', { orgCode: 'rub bish!' })).status, 400);
     });
 
     test('a student can withdraw their own request, and only their own', async () => {

@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { Video, Headphones, FileText, MonitorPlay, Users, File, Box, CheckSquare, PenTool, Code, UploadCloud, X } from 'lucide-react';
 import api from '../utils/api';
+import { useCourseScope } from '../utils/courseScope';
 
 const lessonTypes = [
     { id: 'video', label: 'Video', icon: Video, color: 'text-emerald-500', bg: 'bg-emerald-50', active: true },
@@ -20,6 +21,8 @@ const lessonTypes = [
 ];
 
 const AddLessonModal = ({ isOpen, onClose, onSave, initialData }) => {
+    // Platform courses, or an organization's own — see utils/courseScope.js.
+    const S = useCourseScope();
     const [title, setTitle] = useState('');
     const [type, setType] = useState('video');
     const [url, setUrl] = useState(''); // video/pdf URL (from upload or pasted)
@@ -53,7 +56,7 @@ const AddLessonModal = ({ isOpen, onClose, onSave, initialData }) => {
         try {
             const fd = new FormData();
             fd.append('file', file);
-            const res = await api.post('/admin/lessons/upload', fd, {
+            const res = await api.post(`${S.api}/lessons/upload`, fd, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 onUploadProgress: (e) => { if (e.total) setProgress(Math.round((e.loaded * 100) / e.total)); },
             });
@@ -78,12 +81,12 @@ const AddLessonModal = ({ isOpen, onClose, onSave, initialData }) => {
     return (
         <div className="fixed inset-0 z-50 flex mt-10 justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto pt-10">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl h-fit overflow-hidden mb-10 border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
-                <div className="px-6 py-4 flex justify-between items-center border-b border-slate-100">
-                    <h2 className="text-xl font-bold text-slate-800">Add lesson / Quiz</h2>
+                <div className="px-4 sm:px-6 py-4 flex justify-between items-center gap-3 border-b border-slate-100">
+                    <h2 className="text-lg sm:text-xl font-bold text-slate-800">Add lesson / Quiz</h2>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-2xl font-light hover:bg-slate-50 w-8 h-8 rounded-full flex items-center justify-center transition-colors">×</button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-8 space-y-8">
+                <form onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-6 sm:space-y-8">
                     {/* Title Input */}
                     <div>
                         <div className="flex justify-between items-center mb-2">
@@ -104,20 +107,20 @@ const AddLessonModal = ({ isOpen, onClose, onSave, initialData }) => {
                     {/* Lesson Type Grid */}
                     <div>
                         <label className="block text-[15px] font-bold text-slate-800 mb-4">Select Lesson Type</label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
                             {lessonTypes.map(lt => (
                                 <div
                                     key={lt.id}
                                     onClick={() => lt.active && setType(lt.id)}
-                                    className={`flex items-center space-x-3 p-3 rounded-xl border-2 transition-all 
+                                    className={`flex min-w-0 items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl border-2 transition-all 
                                         ${lt.active ? 'cursor-pointer' : 'cursor-not-allowed opacity-40 grayscale'} 
                                         ${type === lt.id && lt.active ? 'border-emerald-500 bg-emerald-50/50 shadow-sm' :
                                             lt.active ? 'border-slate-100 hover:border-slate-200 bg-white hover:bg-slate-50' : 'border-slate-100 bg-slate-50'}`}
                                 >
-                                    <div className={`p-2 rounded-lg ${lt.bg} ${lt.color}`}>
+                                    <div className={`shrink-0 p-2 rounded-lg ${lt.bg} ${lt.color}`}>
                                         <lt.icon size={20} />
                                     </div>
-                                    <span className="font-bold text-slate-700 text-[13px]">{lt.label}</span>
+                                    <span className="min-w-0 wrap-anywhere font-bold text-slate-700 text-[13px] leading-tight">{lt.label}</span>
                                 </div>
                             ))}
                         </div>
@@ -179,7 +182,7 @@ const AddLessonModal = ({ isOpen, onClose, onSave, initialData }) => {
                     )}
 
                     {/* Footer Actions */}
-                    <div className="flex justify-end space-x-4 pt-6 border-t border-slate-100">
+                    <div className="flex flex-wrap justify-end gap-3 sm:gap-4 pt-6 border-t border-slate-100">
                         <button type="button" onClick={onClose} className="px-6 py-2.5 text-slate-600 font-bold border-2 border-slate-200 rounded-full hover:bg-slate-50 transition-colors">Cancel</button>
                         <button type="submit" disabled={uploading} className="px-8 py-2.5 bg-slate-900 text-white font-bold rounded-full hover:bg-slate-800 transition-colors shadow-md transform hover:scale-105 duration-200 disabled:opacity-50 disabled:hover:scale-100">Continue</button>
                     </div>

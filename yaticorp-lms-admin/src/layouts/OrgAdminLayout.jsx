@@ -12,22 +12,24 @@
  * The check is a read, not the security boundary: the server enforces it.
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    LayoutDashboard, Users, UserPlus, Settings, LogOut, RefreshCw,
-    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink
+    LayoutDashboard, Users, UserPlus, BookOpen, Settings, LogOut, RefreshCw,
+    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft
 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from '../utils/useAutoLogout';
 import initials from '../utils/initials';
 import OrgBottomNav from '../components/OrgBottomNav';
+import { getViewedOrganization, stopViewingOrganization } from '../utils/viewOrganization';
 
 // `short` is the bottom bar's label on a phone, where four full labels do not fit.
 const NAV = [
     { to: '/organization', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
     { to: '/organization/students', label: 'Students', short: 'Students', icon: Users },
     { to: '/organization/requests', label: 'Student Requests', short: 'Requests', icon: UserPlus, badge: 'pendingRequests' },
+    { to: '/organization/courses', label: 'Courses', short: 'Courses', icon: BookOpen },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
 
@@ -38,12 +40,14 @@ const linkClass = (active) =>
 
 const MENU_ITEM = 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors';
 
-/** The organization's initials on a gradient square — its mark in the sidebar and header. */
-const OrgBadge = ({ name, small }) => (
+/** The organization's logo — or, until it has one, its initials on a gradient square. */
+const OrgBadge = ({ name, logo, small }) => (logo ? (
+    <img src={logo} alt="" className={`shrink-0 rounded-xl bg-white object-contain p-0.5 shadow-lg ring-1 ring-slate-200 ${small ? 'h-9 w-9' : 'h-11 w-11'}`} />
+) : (
     <span aria-hidden className={`flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 font-black text-white shadow-lg shadow-indigo-600/30 ${small ? 'h-9 w-9 text-xs' : 'h-11 w-11 text-sm'}`}>
         {initials(name)}
     </span>
-);
+));
 
 /** The ID an organization reads out to its students, one tap to copy. */
 const OrgCode = ({ code }) => {
@@ -93,7 +97,7 @@ const STATUS_SCREEN = {
     }
 };
 
-const StatusScreen = ({ organization, onLogout }) => {
+const StatusScreen = ({ organization, onLogout, viewing }) => {
     const screen = STATUS_SCREEN[organization.status] || STATUS_SCREEN.pending;
     const Icon = screen.icon;
 
@@ -125,7 +129,7 @@ const StatusScreen = ({ organization, onLogout }) => {
 
                 <button onClick={onLogout}
                     className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50">
-                    <LogOut size={16} />Sign out
+                    {viewing ? <><ArrowLeft size={16} />Back to Organizations</> : <><LogOut size={16} />Sign out</>}
                 </button>
             </div>
         </div>
@@ -136,6 +140,13 @@ const OrgAdminLayout = () => {
     const { showSessionModal, confirmLogout } = useAutoLogout();
     const { admin, logout } = useAuth();
     const location = useLocation();
+    const navigate = useNavigate();
+
+    // A superadmin looking at this organization's panel, read-only. "Exit"
+    // takes them back to Organizations; there is nothing to sign out of here.
+    const viewing = admin?.role === 'superadmin' ? getViewedOrganization() : null;
+    const exitView = () => { stopViewingOrganization(); navigate('/organizations'); };
+    const leave = viewing ? exitView : logout;
 
     const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -162,6 +173,13 @@ const OrgAdminLayout = () => {
             .then((res) => setOrganization(res.data.organization))
             .catch((err) => setFailed(err.response?.data?.message || 'Could not reach your organization.'))
             .finally(() => setLoading(false));
+    }, []);
+
+    // A logo uploaded from a page (the Courses logo step, Settings) shows here at once.
+    useEffect(() => {
+        const onLogo = (e) => setOrganization((o) => (o ? { ...o, logo: e.detail } : o));
+        window.addEventListener('organization-logo', onLogo);
+        return () => window.removeEventListener('organization-logo', onLogo);
     }, []);
 
     // The waiting-requests badge, refreshed on navigation like the support
@@ -208,10 +226,10 @@ const OrgAdminLayout = () => {
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
                         <XCircle size={24} className="text-red-600" />
                     </div>
-                    <h1 className="text-lg font-bold text-slate-900">We could not open your organization</h1>
+                    <h1 className="text-lg font-bold text-slate-900">We could not open {viewing ? viewing.name : 'your organization'}</h1>
                     <p className="mt-2 text-sm text-slate-600">{failed || 'Please try signing in again.'}</p>
-                    <button onClick={logout} className="mt-5 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">
-                        Sign out
+                    <button onClick={leave} className="mt-5 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">
+                        {viewing ? 'Back to Organizations' : 'Sign out'}
                     </button>
                 </div>
             </div>
@@ -219,7 +237,7 @@ const OrgAdminLayout = () => {
     }
 
     if (organization.status !== 'active') {
-        return <StatusScreen organization={organization} onLogout={logout} />;
+        return <StatusScreen organization={organization} onLogout={leave} viewing={Boolean(viewing)} />;
     }
 
     return (
@@ -269,7 +287,7 @@ const OrgAdminLayout = () => {
             <aside className="hidden w-64 shrink-0 flex-col bg-slate-900 text-white shadow-2xl lg:flex">
                 <div className="border-b border-slate-800 p-5">
                     <div className="flex items-center gap-3">
-                        <OrgBadge name={organization.name} />
+                        <OrgBadge name={organization.name} logo={organization.logo} />
                         <div className="min-w-0">
                             <p className="truncate font-bold text-white" title={organization.name}>{organization.name}</p>
                             <OrgCode code={organization.orgCode} />
@@ -306,11 +324,23 @@ const OrgAdminLayout = () => {
             </aside>
 
             <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
+                {viewing && (
+                    <div role="status" className="flex shrink-0 items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 lg:px-8">
+                        <Eye size={16} className="shrink-0 text-amber-600" />
+                        <p className="min-w-0 flex-1">
+                            <span className="font-semibold">Viewing {organization.name}</span>
+                            <span className="hidden sm:inline"> as the platform administrator</span> · read-only
+                        </p>
+                        <button onClick={exitView} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100">
+                            <ArrowLeft size={14} /> Exit
+                        </button>
+                    </div>
+                )}
                 <header className="relative z-30 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 lg:h-20 lg:px-8">
                     <div className="flex min-w-0 items-center gap-3">
                         {/* On a phone the sidebar is gone, so the header carries
                             whose panel this is. */}
-                        <span className="lg:hidden"><OrgBadge name={organization.name} small /></span>
+                        <span className="lg:hidden"><OrgBadge name={organization.name} logo={organization.logo} small /></span>
                         <div className="min-w-0">
                             <p className="truncate text-base font-bold text-slate-900 lg:text-xl">{pageTitle}</p>
                             <p className="truncate text-xs text-slate-500 lg:hidden">{organization.name}</p>
@@ -344,7 +374,7 @@ const OrgAdminLayout = () => {
                                         </div>
                                         <div className="flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-600">
                                             <div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-                                            Organization Admin
+                                            {viewing ? 'Super Admin · viewing' : 'Organization Admin'}
                                         </div>
                                     </div>
                                     <div className="p-2">
@@ -359,10 +389,17 @@ const OrgAdminLayout = () => {
                                             <RefreshCw size={16} className="text-slate-400" /> Refresh data
                                         </button>
                                         <div className="my-1 h-px bg-slate-100" />
-                                        <button onClick={() => { setProfileDropdownOpen(false); setShowLogoutConfirm(true); }}
-                                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-50 hover:text-red-600">
-                                            <LogOut size={16} className="text-red-400" /> Log out
-                                        </button>
+                                        {viewing ? (
+                                            <button onClick={() => { setProfileDropdownOpen(false); exitView(); }}
+                                                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50">
+                                                <ArrowLeft size={16} className="text-slate-400" /> Back to Organizations
+                                            </button>
+                                        ) : (
+                                            <button onClick={() => { setProfileDropdownOpen(false); setShowLogoutConfirm(true); }}
+                                                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-50 hover:text-red-600">
+                                                <LogOut size={16} className="text-red-400" /> Log out
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             )}

@@ -6,6 +6,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { getViewedOrganization } from './utils/viewOrganization';
 import AdminLayout from './layouts/AdminLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -30,11 +31,15 @@ const PlatformRoute = ({ children }) => {
   return children;
 };
 
-/** The organization panel, which only an organization administrator can use. */
+/**
+ * The organization panel: an organization administrator's own, or — read-only —
+ * a superadmin looking at one organization they opened from Organizations.
+ */
 const OrgRoute = ({ children }) => {
   const { admin, loading } = useAuth();
   if (loading) return <div>Loading...</div>;
   if (!admin) return <Navigate to="/login" replace />;
+  if (admin.role === 'superadmin' && getViewedOrganization()) return children;
   if (admin.role !== 'orgadmin') return <Navigate to="/" replace />;
   return children;
 };
@@ -63,6 +68,10 @@ import OrgStudents from './pages/org/OrgStudents';
 import OrgStudentDetail from './pages/org/OrgStudentDetail';
 import OrgRequests from './pages/org/OrgRequests';
 import OrgSettings from './pages/org/OrgSettings';
+import { CourseScope, ORGANIZATION_SCOPE } from './utils/courseScope';
+
+/** The platform's course pages, working on this organization's own courses. */
+const OrgCourses = ({ children }) => <CourseScope.Provider value={ORGANIZATION_SCOPE}>{children}</CourseScope.Provider>;
 
 function App() {
   return (
@@ -79,6 +88,9 @@ function App() {
         <Route path="students" element={<OrgStudents />} />
         <Route path="students/:studentId" element={<OrgStudentDetail />} />
         <Route path="requests" element={<OrgRequests />} />
+        <Route path="courses" element={<OrgCourses><Courses /></OrgCourses>} />
+        <Route path="courses/:id" element={<OrgCourses><CourseEditor /></OrgCourses>} />
+        <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
         <Route path="settings" element={<OrgSettings />} />
       </Route>
 

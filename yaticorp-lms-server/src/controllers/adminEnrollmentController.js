@@ -33,6 +33,15 @@ const createEnrollment = async (req, res) => {
         const userExists = await User.findById(userId);
         if (!userExists) return res.status(404).json({ message: 'User not found' });
 
+        // An organization's own course is for its members only.
+        if (type === 'Course') {
+            const course = await require('../models/Course').findById(courseId).select('organizationId').lean();
+            if (!course) return res.status(404).json({ message: 'Course not found' });
+            if (!require('../services/courseAccess').canAccessCourse(userExists, course)) {
+                return res.status(400).json({ message: "That course belongs to an organization this student is not in, so it is only for that organization's students." });
+            }
+        }
+
         // Idempotency check
         const query = { userId, type };
         if (type === 'Course') query.courseId = courseId;

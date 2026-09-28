@@ -8,10 +8,10 @@
  * `organizationId` pointing here, so there is one set of credentials, one login
  * endpoint and one token format for every kind of administrator.
  *
- * `orgCode` — not `_id` — is the identifier people see, type and print. It is
- * generated once (see ../services/orgCode.js), marked immutable, and never
- * accepted from a request body, because students who already hold a code on a
- * handout cannot be told it has changed.
+ * `orgCode` — not `_id` — is the identifier people see, type and print. The
+ * organization chooses it once, when it registers (see ../services/orgCode.js);
+ * after that it is immutable and never accepted from an edit, because students
+ * who already hold it on a handout cannot be told it has changed.
  */
 const mongoose = require('mongoose');
 
@@ -49,14 +49,14 @@ const ORGANIZATION_TYPE_LABELS = {
 const ORGANIZATION_STATUSES = ['pending', 'active', 'rejected', 'suspended', 'inactive'];
 
 const organizationSchema = new mongoose.Schema({
-    // The public, human-readable identifier: ABC-2026-0001, built from the
-    // organization's own first word. See ../services/orgCode.js.
+    // The public identifier people see, type and print, chosen by the
+    // organization itself: st_agnes_college. Older ones were generated
+    // (ABC-2026-0001) and keep their capitals. See ../services/orgCode.js.
     orgCode: {
         type: String,
         required: true,
         unique: true,
         immutable: true,
-        uppercase: true,
         trim: true
     },
     name: {
@@ -145,6 +145,12 @@ const organizationSchema = new mongoose.Schema({
     approvedAt: {
         type: Date,
         default: null
+    },
+    // Whether this organization may publish its own courses, and how many.
+    // Only a superadmin changes it. Off until they switch it on.
+    courseAccess: {
+        enabled: { type: Boolean, default: false },
+        limit: { type: Number, default: 5, min: 1, max: 500 }
     }
 }, { timestamps: true });
 

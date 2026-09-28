@@ -10,7 +10,7 @@ const NotFound = () => {
     const navigate = useNavigate();
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-4 py-10 sm:p-6 text-center">
             {/* Background Decoration */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/5 rounded-full blur-[120px]"></div>
@@ -19,8 +19,8 @@ const NotFound = () => {
 
             <div className="relative z-10 max-w-xl w-full">
                 {/* Error Code */}
-                <div className="mb-8 relative inline-block">
-                    <h1 className="text-9xl font-black text-slate-200 tracking-tighter animate-pulse">404</h1>
+                <div className="mb-6 sm:mb-8 relative inline-block">
+                    <h1 className="text-8xl sm:text-9xl font-black text-slate-200 tracking-tighter animate-pulse">404</h1>
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="p-4 bg-white rounded-3xl shadow-xl border border-slate-100 animate-bounce">
                             <AlertCircle size={48} className="text-indigo-600" />
@@ -29,10 +29,10 @@ const NotFound = () => {
                 </div>
 
                 {/* Content */}
-                <h2 className="text-3xl font-extrabold text-slate-900 mb-4 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-4 tracking-tight">
                     Page Not Found
                 </h2>
-                <p className="text-slate-500 mb-10 text-lg leading-relaxed">
+                <p className="text-slate-500 mb-8 sm:mb-10 text-base sm:text-lg leading-relaxed">
                     Oops! The page you're looking for doesn't exist or has been moved.
                     Let's get you back on track.
                 </p>
@@ -56,7 +56,7 @@ const NotFound = () => {
                 </div>
 
                 {/* Footer Insight */}
-                <div className="mt-16 pt-8 border-t border-slate-200 flex items-center justify-center gap-6 opacity-40 grayscale">
+                <div className="mt-12 sm:mt-16 pt-8 border-t border-slate-200 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 opacity-40 grayscale">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">YATICORP LMS</span>
                     <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Admin Portal</span>

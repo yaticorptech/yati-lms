@@ -1,6 +1,11 @@
 /**
  * @author Preethesh Kulal
- * @description Mongoose schema for LMS courses scoped by organization
+ * @description Mongoose schema for LMS courses.
+ *
+ * A course with no `organizationId` is a platform course, written by the
+ * platform's own administrators. One with an `organizationId` belongs to that
+ * organization: its administrator writes it, and only its own students can
+ * see, enroll in or open it.
  */
 const mongoose = require('mongoose');
 
@@ -40,6 +45,12 @@ const courseSchema = new mongoose.Schema({
         type: Number,
         default: 0,
         min: [0, 'A course cannot cost a negative number of points']
+    },
+    organizationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization',
+        default: null,
+        index: true
     }
 }, { timestamps: true });
 

@@ -4,6 +4,7 @@
  *
  *   Public
  *     GET    /types                      the kinds of organization the form offers
+ *     GET    /code-available?code=       whether an organization ID is free
  *     POST   /register                   register an organization (creates it `pending`)
  *
  *   Superadmin (protectAdmin + superAdminOnly)
@@ -24,6 +25,7 @@
  *     PUT    /me                         edit my details
  *     PUT    /me/password                change my own sign-in password
  *     GET    /me/dashboard               headline numbers and recent activity
+ *     POST   /me/logo                    upload my institution's logo
  *     GET    /me/students                my students
  *     GET    /me/students/:studentId     one of my students, in full
  *     DELETE /me/students/:studentId     remove them from my organization
@@ -56,14 +58,10 @@ const orgCtrl = require('./controllers/orgAdminController');
 const studentCtrl = require('./controllers/studentController');
 const Organization = require('./models/Organization');
 
-// Bring the code counter up to whatever is already stored, so a database
-// restored without its counter does not start reissuing 0001. Runs
-// once, in the background; a failure here only costs a retry per registration.
-require('./services/orgCode').syncCounterFromExisting()
-    .catch((error) => console.error('[organizations] could not sync the ID counter:', error.message));
-
 // ── Public ──────────────────────────────────────────────────────────────────
 router.get('/types', publicCtrl.getOrganizationTypes);
+// Asked as the organization ID is typed, on the public form and the superadmin's.
+router.get('/code-available', publicCtrl.checkOrgCodeAvailable);
 // Rate-limited with the same limiter as the other public credential-creating
 // endpoints, because this one creates an account.
 router.post('/register', authLimiter, publicCtrl.registerOrganization);
@@ -79,6 +77,7 @@ router.route('/admin').get(superCtrl.listOrganizations).post(superCtrl.createOrg
 router.get('/admin/students/:studentId', superCtrl.getAnyStudentProgress);
 router.route('/admin/:id').get(superCtrl.getOrganization).put(superCtrl.updateOrganization);
 router.put('/admin/:id/status', superCtrl.setOrganizationStatus);
+router.put('/admin/:id/course-access', superCtrl.setCourseAccess);
 router.get('/admin/:id/students', superCtrl.getOrganizationStudents);
 // Putting a student into an organization directly, and taking them back out.
 // Ahead of nothing else, but note the assignable list is a literal segment.
@@ -101,6 +100,7 @@ router.get('/me/status', (req, res) => {
         organization: {
             orgCode: req.organization.orgCode,
             name: req.organization.name,
+            logo: req.organization.logo || '',
             status: req.organization.status,
             statusReason: req.organization.statusReason || '',
             typeLabel: Organization.TYPE_LABELS[req.organization.organizationType] || 'Other',
@@ -117,6 +117,66 @@ router.route('/me/students/:studentId').get(orgCtrl.getStudent).delete(orgCtrl.r
 router.put('/me/password', orgCtrl.changeMyPassword);
 router.get('/me/requests', orgCtrl.getRequests);
 router.put('/me/requests/:requestId', orgCtrl.decideRequest);
+
+// ── Organization admin: its own courses ─────────────────────────────────────
+// The platform's course-building code, fenced: courses must be switched on by
+// a superadmin, new ones count against their limit, and every course, module,
+// lesson and quiz touched must be this organization's own (see
+// controllers/orgCourseController.js). Literal segments come before ':id'.
+const courseCtrl = require('../controllers/adminCourseController');
+const quizCtrl = require('../controllers/adminQuizController');
+const vdoCipherController = require('../controllers/vdoCipherController');
+const orgCourse = require('./controllers/orgCourseController');
+const { upload: imageUpload } = require('../middleware/uploadMiddleware');
+const { lessonUpload, attachmentUpload, tagUploadLimit, tagAttachmentLimit } = require('../middleware/lessonUploadMiddleware');
+
+router.get('/me/course-access', orgCourse.getCourseAccess);
+// The institution's logo: asked for before its first course, shown across its panel.
+router.post('/me/logo', imageUpload.single('image'), orgCtrl.uploadLogo);
+// Each student's progress on the organization's own courses, and the courses
+// they have completed. Readable whether or not course building is switched on,
+// so an organization keeps seeing how its students did.
+router.get('/me/certificate-progress', async (req, res) => {
+    try {
+        res.json(await require('./services/courseStats').certificateProgress(req.organization._id));
+    } catch (error) {
+        console.error('[organizations] certificate progress failed:', error.message);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+router.use(['/me/courses', '/me/modules', '/me/lessons', '/me/vdocipher'], orgCourse.requireCourseAccess);
+
+router.route('/me/courses').get(courseCtrl.getCourses).post(orgCourse.requireLogo, orgCourse.withinCourseLimit, courseCtrl.createCourse);
+router.post('/me/courses/thumbnail', imageUpload.single('image'), courseCtrl.uploadThumbnail);
+router.route('/me/courses/:id')
+    .get(orgCourse.ownsCourseParam(), courseCtrl.getCourseById)
+    .put(orgCourse.ownsCourseParam(), orgCourse.requireLogo, courseCtrl.updateCourse)
+    .delete(orgCourse.ownsCourseParam(), courseCtrl.deleteCourse);
+
+router.post('/me/modules', orgCourse.ownsBodyCourse(true), courseCtrl.addModule);
+router.put('/me/modules/reorder', orgCourse.ownsAllModules, courseCtrl.reorderModules);
+router.route('/me/modules/:id')
+    .put(orgCourse.ownsModuleParam, orgCourse.ownsBodyCourse(false), courseCtrl.updateModule)
+    .delete(orgCourse.ownsModuleParam, courseCtrl.deleteModule);
+
+router.post('/me/lessons', orgCourse.ownsBodyModule(true), courseCtrl.addLesson);
+router.put('/me/lessons/reorder', orgCourse.ownsAllLessons, courseCtrl.reorderLessons);
+router.post('/me/lessons/upload', tagUploadLimit, lessonUpload.single('file'), courseCtrl.uploadLessonFile);
+router.post('/me/lessons/attachments', tagAttachmentLimit, attachmentUpload.single('file'), courseCtrl.uploadLessonAttachment);
+router.route('/me/lessons/:lessonId/quiz')
+    .get(orgCourse.ownsLessonParam('lessonId'), quizCtrl.getQuizByLesson)
+    .post(orgCourse.ownsLessonParam('lessonId'), quizCtrl.saveQuiz);
+router.route('/me/lessons/:id')
+    .put(orgCourse.ownsLessonParam(), orgCourse.ownsBodyModule(false), courseCtrl.updateLesson)
+    .delete(orgCourse.ownsLessonParam(), courseCtrl.deleteLesson);
+
+router.post('/me/vdocipher/upload-credentials', vdoCipherController.getUploadCredentials);
+router.get('/me/vdocipher/status/:videoId', orgCourse.ownsVideo, vdoCipherController.getVideoStatus);
+router.delete('/me/vdocipher/video/:videoId', orgCourse.ownsVideo, async (req, res) => {
+    const success = await vdoCipherController.deleteVideo(req.params.videoId);
+    if (success) res.status(200).json({ message: 'Video deleted' });
+    else res.status(500).json({ message: 'Failed to delete video' });
+});
 
 // ── Student ─────────────────────────────────────────────────────────────────
 router.use('/student', protectUser);

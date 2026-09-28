@@ -89,7 +89,7 @@ const lookupOrganization = async (req, res) => {
         if (!code) return res.status(400).json({ message: 'Enter an Organization ID.' });
         if (!isValidOrgCodeFormat(code)) {
             return res.status(400).json({
-                message: 'That does not look like an Organization ID. They start with your organization\'s name, like ABC-2026-0001.'
+                message: 'That does not look like an Organization ID. Ask your organization for it, like st_agnes_college.'
             });
         }
 
@@ -129,7 +129,7 @@ const createRequest = async (req, res) => {
     try {
         const code = normalizeOrgCode(req.body.orgCode);
         if (!isValidOrgCodeFormat(code)) {
-            return res.status(400).json({ message: 'Enter a valid Organization ID, such as ABC-2026-0001.' });
+            return res.status(400).json({ message: 'Enter a valid Organization ID, such as st_agnes_college.' });
         }
 
         const organization = await Organization.findOne({ orgCode: code, status: 'active' }).lean();

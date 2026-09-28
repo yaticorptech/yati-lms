@@ -33,17 +33,21 @@ const num = (n) => Number(n || 0).toLocaleString('en-IN');
 const when = (d) => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const STATUS = { completed: 'bg-emerald-100 text-emerald-700', pending: 'bg-amber-100 text-amber-700', approved: 'bg-sky-100 text-sky-700', paid: 'bg-emerald-100 text-emerald-700', failed: 'bg-red-100 text-red-700', cancelled: 'bg-slate-100 text-slate-600', rejected: 'bg-red-100 text-red-700', reversed: 'bg-slate-100 text-slate-600' };
 const Pill = ({ s }) => <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${STATUS[s] || 'bg-slate-100 text-slate-600'}`}>{s}</span>;
+// Table cells: a little tighter until xl, so the tables fit a tablet or a laptop beside the sidebar.
+const TH = 'px-4 xl:px-6 py-4 font-semibold';
+const TD = 'px-4 xl:px-6 py-4';
 const TYPE_LABEL = { school_student: 'School student', college_student: 'College student', adult: 'Adult', professional: 'Professional', instructor: 'Instructor' };
 
 const Stat = ({ icon: Icon, label, value, sub, tone = 'indigo' }) => {
     const tones = { indigo: 'bg-indigo-100 text-indigo-600', emerald: 'bg-emerald-100 text-emerald-600', amber: 'bg-amber-100 text-amber-600', slate: 'bg-slate-100 text-slate-600', rose: 'bg-rose-100 text-rose-600' };
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+        <div className="min-w-0 bg-white rounded-2xl border border-slate-100 p-4 sm:p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
-                <span className={`p-1.5 rounded-lg ${tones[tone]}`}><Icon size={15} /></span>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</p>
+                <span className={`shrink-0 p-1.5 rounded-lg ${tones[tone]}`}><Icon size={15} /></span>
+                <p className="min-w-0 text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</p>
             </div>
-            <p className="text-3xl font-bold text-slate-800 tabular-nums">{value}</p>
+            {/* A lakh-sized rupee figure is wider than a quarter-width card; it may break rather than spill. */}
+            <p className="text-2xl 2xl:text-3xl font-bold text-slate-800 tabular-nums [overflow-wrap:anywhere]">{value}</p>
             {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
         </div>
     );
@@ -52,8 +56,8 @@ const Stat = ({ icon: Icon, label, value, sub, tone = 'indigo' }) => {
 const Banner = ({ kind, children, onClose }) => (
     <div className={`flex items-start gap-2 rounded-xl border p-3 text-sm font-medium ${kind === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
         {kind === 'error' ? <XCircle size={16} className="mt-0.5 shrink-0" /> : <CheckCircle2 size={16} className="mt-0.5 shrink-0" />}
-        <span className="flex-1">{children}</span>
-        {onClose && <button onClick={onClose}><X size={14} /></button>}
+        <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{children}</span>
+        {onClose && <button onClick={onClose} className="shrink-0"><X size={14} /></button>}
     </div>
 );
 
@@ -118,18 +122,18 @@ function Overview() {
     const [err, setErr] = useState(null);
     useEffect(() => { api.get('/rewards/admin/overview').then((r) => setD(r.data)).catch((e) => setErr(e.response?.data?.message || 'Failed to load')); }, []);
     if (err) return <Banner kind="error">{err}</Banner>;
-    if (!d) return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{[0, 1, 2, 3].map((i) => <div key={i} className="animate-pulse h-28 bg-slate-100 rounded-2xl" />)}</div>;
+    if (!d) return <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">{[0, 1, 2, 3].map((i) => <div key={i} className="animate-pulse h-28 bg-slate-100 rounded-2xl" />)}</div>;
     const max = Math.max(1, ...d.activityByDay.map((a) => a.n));
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <Stat icon={Wallet} label="Wallet liability" value={money(d.wallets.available + d.wallets.pending)} sub={`${money(d.wallets.pending)} on hold · ${num(d.wallets.count)} wallets`} tone="emerald" />
                 <Stat icon={ArrowDownToLine} label="Pending withdrawals" value={num(d.pendingWithdrawals)} sub={`${money(d.pendingWithdrawalAmount)} requested`} tone="amber" />
                 <Stat icon={Coins} label="Reward points outstanding" value={num(d.wallets.points)} sub={`${money(d.wallets.withdrawn)} paid out to date`} tone="rose" />
                 <Stat icon={Flame} label="Active streaks" value={num(d.activeStreaks)} sub={`${num(d.badgesUnlocked)} badges unlocked · ${num(d.xpLast7Days.xp)} XP this week`} tone="indigo" />
             </div>
-            <div className="grid gap-4 lg:grid-cols-2">
-                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div className="grid gap-4 xl:grid-cols-2">
+                <div className="min-w-0 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
                     <p className="font-bold text-slate-800 mb-1">Learning activity — last 14 days</p>
                     <p className="text-xs text-slate-500 mb-4">Lessons, quizzes, courses, certificates and tasks that counted.</p>
                     <div className="flex items-end gap-1 h-32">
@@ -142,16 +146,16 @@ function Overview() {
                         ))}
                     </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <div className="min-w-0 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
                     <p className="font-bold text-slate-800 mb-1">Reward points issued, by source</p>
                     <p className="text-xs text-slate-500 mb-4">Every point traces back to a claim.</p>
                     {d.pointsIssuedBySource.length === 0 ? <p className="text-sm text-slate-400 italic">Nothing issued yet.</p> : (
                         <ul className="space-y-2">
                             {d.pointsIssuedBySource.sort((a, b) => b.points - a.points).map((s) => (
-                                <li key={s._id} className="flex items-center gap-3 text-sm">
-                                    <span className="w-36 font-semibold text-slate-600 capitalize">{s._id.replace(/_/g, ' ')}</span>
-                                    <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-pink-500 rounded-full" style={{ width: `${(s.points / Math.max(1, d.pointsIssuedBySource[0].points)) * 100}%` }} /></div>
-                                    <span className="w-24 text-right font-bold tabular-nums">{num(s.points)} <span className="text-xs text-slate-400">({s.n})</span></span>
+                                <li key={s._id} className="flex items-center gap-2 sm:gap-3 text-sm">
+                                    <span className="w-24 sm:w-36 shrink-0 truncate font-semibold text-slate-600 capitalize" title={s._id.replace(/_/g, ' ')}>{s._id.replace(/_/g, ' ')}</span>
+                                    <div className="min-w-8 flex-1 h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-pink-500 rounded-full" style={{ width: `${(s.points / Math.max(1, d.pointsIssuedBySource[0].points)) * 100}%` }} /></div>
+                                    <span className="shrink-0 text-right font-bold tabular-nums">{num(s.points)} <span className="text-xs text-slate-400">({s.n})</span></span>
                                 </li>
                             ))}
                         </ul>
@@ -183,11 +187,11 @@ function Rules() {
     };
     const Card = ({ icon: Icon, title, sub, children, tone = 'indigo' }) => (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
-                <div className={`p-2 rounded-lg bg-${tone}-100 text-${tone}-600`}><Icon size={18} /></div>
-                <div><h2 className="font-bold text-slate-800">{title}</h2><p className="text-xs text-slate-500">{sub}</p></div>
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
+                <div className={`shrink-0 p-2 rounded-lg bg-${tone}-100 text-${tone}-600`}><Icon size={18} /></div>
+                <div className="min-w-0"><h2 className="font-bold text-slate-800">{title}</h2><p className="text-xs text-slate-500">{sub}</p></div>
             </div>
-            <div className="p-5">{children}</div>
+            <div className="p-4 sm:p-5">{children}</div>
         </div>
     );
     const cur = cfg.conversion.currency;
@@ -195,7 +199,7 @@ function Rules() {
     return (
         <div className="space-y-5">
             {msg && <Banner kind={msg.kind === 'error' ? 'error' : 'ok'} onClose={() => setMsg(null)}>{msg.text}</Banner>}
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid gap-5 xl:grid-cols-2">
                 <Card icon={Coins} title="XP rules" sub="XP is learning progress. It drives levels, the leaderboard and badges — never money.">
                     <div className="grid sm:grid-cols-2 gap-3">
                         {Object.keys(XP_LABELS).map((k) => (
@@ -209,7 +213,7 @@ function Rules() {
                             <div key={i}><label className={LABEL}>Level {i + 1}</label><input type="number" min="0" disabled={i === 0} value={t} onChange={(e) => set(`levelThresholds.${i}`, Number(e.target.value))} className={INPUT} /></div>
                         ))}
                     </div>
-                    <div className="flex gap-2 mt-3">
+                    <div className="flex flex-wrap gap-2 mt-3">
                         <button className={BTN2} onClick={() => set('levelThresholds', [...cfg.levelThresholds, cfg.levelThresholds[cfg.levelThresholds.length - 1] + Math.max(100, cfg.levelThresholds[cfg.levelThresholds.length - 1] - cfg.levelThresholds[cfg.levelThresholds.length - 2])])}><Plus size={14} /> Add level</button>
                         <button className={BTN2} disabled={cfg.levelThresholds.length <= 2} onClick={() => set('levelThresholds', cfg.levelThresholds.slice(0, -1))}><Trash2 size={14} /> Remove last</button>
                     </div>
@@ -218,11 +222,11 @@ function Rules() {
                 <Card icon={Flame} title="Streak milestones" sub="Reached by consecutive days with a meaningful activity. Each pays reward points and XP once per run." tone="amber">
                     <div className="space-y-2">
                         {cfg.streakMilestones.map((m, i) => (
-                            <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+                            <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end rounded-xl border border-slate-100 p-2 sm:border-0 sm:p-0">
                                 <div><label className={LABEL}>Days</label><input type="number" min="1" value={m.days} onChange={(e) => set(`streakMilestones.${i}.days`, Number(e.target.value))} className={INPUT} /></div>
                                 <div><label className={LABEL}>Reward points</label><input type="number" min="0" value={m.rewardPoints} onChange={(e) => set(`streakMilestones.${i}.rewardPoints`, Number(e.target.value))} className={INPUT} /></div>
                                 <div><label className={LABEL}>XP</label><input type="number" min="0" value={m.xp} onChange={(e) => set(`streakMilestones.${i}.xp`, Number(e.target.value))} className={INPUT} /></div>
-                                <button className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" onClick={() => set('streakMilestones', cfg.streakMilestones.filter((_, j) => j !== i))} title="Remove"><Trash2 size={15} /></button>
+                                <button className="col-span-2 justify-self-end sm:col-span-1 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" onClick={() => set('streakMilestones', cfg.streakMilestones.filter((_, j) => j !== i))} title="Remove"><Trash2 size={15} /></button>
                             </div>
                         ))}
                         <button className={BTN2} onClick={() => set('streakMilestones', [...cfg.streakMilestones, { days: (cfg.streakMilestones.at(-1)?.days || 0) + 30, rewardPoints: 0, xp: 0 }])}><Plus size={14} /> Add milestone</button>
@@ -262,7 +266,7 @@ function Rules() {
                 <Card icon={Users} title="Who can cash out" sub="Account types allowed to redeem points for money and request withdrawals. Others keep XP, badges and points. Override one student from Users → Edit." tone="indigo">
                     <div className="space-y-2">
                         {cfg.accountTypes.map((t) => (
-                            <label key={t} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                            <label key={t} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">
                                 <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-indigo-600" checked={cfg.walletAccess.allowedAccountTypes.includes(t)} onChange={(e) => set('walletAccess.allowedAccountTypes', e.target.checked ? [...cfg.walletAccess.allowedAccountTypes, t] : cfg.walletAccess.allowedAccountTypes.filter((x) => x !== t))} />
                                 {TYPE_LABEL[t]}
                                 {!cfg.walletAccess.allowedAccountTypes.includes(t) && <span className="ml-auto text-[10px] font-black uppercase tracking-wider text-slate-400">Learning rewards only</span>}
@@ -277,6 +281,8 @@ function Rules() {
         </div>
     );
 }
+
+const BadgeStatus = ({ active }) => <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{active ? 'active' : 'inactive'}</span>;
 
 // ── Badges ──────────────────────────────────────────────────────────────────
 const METRIC_LABEL = { lessons: 'Lessons completed', quizzes: 'Quizzes completed', perfect_quizzes: 'Perfect quizzes', courses: 'Courses completed', certificates: 'Certificates earned', xp: 'Total XP', longest_streak: 'Longest streak (days)', current_streak: 'Current streak (days)', top10_weeks: 'Weeks in the top 10', level: 'Level reached' };
@@ -305,25 +311,25 @@ function Badges() {
     return (
         <div className="space-y-4">
             {msg && <Banner kind={msg.kind === 'error' ? 'error' : 'ok'} onClose={() => setMsg(null)}>{msg.text}</Banner>}
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-slate-500">{data.badges.length} badges · a badge unlocks when its metric reaches the target and pays its points once.</p>
-                <button className={BTN} onClick={() => setEdit({ ...EMPTY_BADGE })}><Plus size={15} /> New badge</button>
+                <button className={`${BTN} shrink-0 self-start sm:self-auto`} onClick={() => setEdit({ ...EMPTY_BADGE })}><Plus size={15} /> New badge</button>
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse min-w-[720px]">
+                <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[680px]">
                         <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase">
-                            <th className="px-6 py-4 font-semibold">Badge</th><th className="px-6 py-4 font-semibold">Unlocks when</th><th className="px-6 py-4 font-semibold">Points</th><th className="px-6 py-4 font-semibold">Unlocked by</th><th className="px-6 py-4 font-semibold">Status</th><th className="px-6 py-4 font-semibold text-right">Actions</th>
+                            <th className={TH}>Badge</th><th className={TH}>Unlocks when</th><th className={TH}>Points</th><th className={TH}>Unlocked by</th><th className={TH}>Status</th><th className={`${TH} text-right`}>Actions</th>
                         </tr></thead>
                         <tbody className="divide-y divide-slate-100">
                             {data.badges.map((b) => (
                                 <tr key={b._id} className="hover:bg-slate-50/50">
-                                    <td className="px-6 py-4"><div className="flex items-center gap-3"><span className="text-2xl">{b.emoji}</span><div><div className="font-medium text-slate-800">{b.title}</div><div className="text-xs text-slate-500">{b.description}</div><div className="text-[10px] font-mono text-slate-400">{b.key}</div></div></div></td>
-                                    <td className="px-6 py-4 text-sm text-slate-600">{METRIC_LABEL[b.metric] || b.metric} ≥ <strong>{num(b.target)}</strong></td>
-                                    <td className="px-6 py-4 text-sm font-bold text-pink-600">{b.rewardPoints ? `+${num(b.rewardPoints)}` : '—'}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600">{num(b.unlockedCount)} students</td>
-                                    <td className="px-6 py-4"><span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${b.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{b.isActive ? 'active' : 'inactive'}</span></td>
-                                    <td className="px-6 py-4 text-right space-x-3">
+                                    <td className={TD}><div className="flex items-center gap-3"><span className="text-2xl">{b.emoji}</span><div className="min-w-0"><div className="font-medium text-slate-800">{b.title}</div><div className="text-xs text-slate-500">{b.description}</div><div className="text-[10px] font-mono text-slate-400 break-all">{b.key}</div></div></div></td>
+                                    <td className={`${TD} text-sm text-slate-600`}>{METRIC_LABEL[b.metric] || b.metric} ≥ <strong>{num(b.target)}</strong></td>
+                                    <td className={`${TD} text-sm font-bold text-pink-600`}>{b.rewardPoints ? `+${num(b.rewardPoints)}` : '—'}</td>
+                                    <td className={`${TD} text-sm text-slate-600`}>{num(b.unlockedCount)} students</td>
+                                    <td className={TD}><BadgeStatus active={b.isActive} /></td>
+                                    <td className={`${TD} text-right space-x-3 whitespace-nowrap`}>
                                         <button onClick={() => setEdit({ ...b })} className="text-indigo-600 hover:text-indigo-900 font-medium text-sm">Edit</button>
                                         {b.isActive && <button onClick={() => deactivate(b)} className="text-red-500 hover:text-red-700 font-medium text-sm">Deactivate</button>}
                                     </td>
@@ -332,12 +338,33 @@ function Badges() {
                         </tbody>
                     </table>
                 </div>
+                {/* Phones: one card per badge, same information. */}
+                <ul className="divide-y divide-slate-100 md:hidden">
+                    {data.badges.map((b) => (
+                        <li key={b._id} className="p-4">
+                            <div className="flex items-start gap-3">
+                                <span className="text-2xl">{b.emoji}</span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="font-medium text-slate-800 break-words">{b.title}</p>
+                                    {b.description && <p className="text-xs text-slate-500">{b.description}</p>}
+                                    <p className="text-[10px] font-mono text-slate-400 break-all">{b.key}</p>
+                                </div>
+                                <span className="shrink-0"><BadgeStatus active={b.isActive} /></span>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-600">{METRIC_LABEL[b.metric] || b.metric} ≥ <strong>{num(b.target)}</strong> · <span className="font-bold text-pink-600">{b.rewardPoints ? `+${num(b.rewardPoints)}` : '—'}</span> · {num(b.unlockedCount)} students</p>
+                            <div className="mt-2 flex gap-4">
+                                <button onClick={() => setEdit({ ...b })} className="text-indigo-600 hover:text-indigo-900 font-medium text-sm">Edit</button>
+                                {b.isActive && <button onClick={() => deactivate(b)} className="text-red-500 hover:text-red-700 font-medium text-sm">Deactivate</button>}
+                            </div>
+                        </li>
+                    ))}
+                </ul>
             </div>
             {edit && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-6 pt-20 overflow-y-auto" onClick={() => setEdit(null)}>
-                    <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden" role="dialog" aria-modal="true">
-                        <div className="p-5 border-b border-slate-200 bg-slate-50 font-bold text-lg flex justify-between"><span>{edit._id ? 'Edit badge' : 'New badge'}</span><button type="button" onClick={() => setEdit(null)} className="text-slate-400 hover:text-slate-600">✕</button></div>
-                        <div className="p-5 grid sm:grid-cols-2 gap-3">
+                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 sm:pt-20 overflow-y-auto" onClick={() => setEdit(null)}>
+                    <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-6.5rem)]" role="dialog" aria-modal="true">
+                        <div className="shrink-0 p-4 sm:p-5 border-b border-slate-200 bg-slate-50 font-bold text-lg flex justify-between"><span>{edit._id ? 'Edit badge' : 'New badge'}</span><button type="button" onClick={() => setEdit(null)} className="text-slate-400 hover:text-slate-600">✕</button></div>
+                        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 grid sm:grid-cols-2 gap-3">
                             <div><label className={LABEL}>Key</label><input value={edit.key} disabled={!!edit._id} onChange={(e) => setEdit({ ...edit, key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })} className={INPUT} placeholder="quiz_master" required /></div>
                             <div><label className={LABEL}>Emoji</label><input value={edit.emoji} onChange={(e) => setEdit({ ...edit, emoji: e.target.value })} className={INPUT} /></div>
                             <div className="sm:col-span-2"><label className={LABEL}>Title</label><input value={edit.title} onChange={(e) => setEdit({ ...edit, title: e.target.value })} className={INPUT} required /></div>
@@ -348,7 +375,7 @@ function Badges() {
                             <div><label className={LABEL}>Order</label><input type="number" value={edit.order} onChange={(e) => setEdit({ ...edit, order: Number(e.target.value) })} className={INPUT} /></div>
                             <label className="sm:col-span-2 flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-indigo-600" checked={edit.isActive !== false} onChange={(e) => setEdit({ ...edit, isActive: e.target.checked })} /> Active</label>
                         </div>
-                        <div className="flex justify-end space-x-3 p-5 pt-0"><button type="button" onClick={() => setEdit(null)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancel</button><button type="submit" disabled={busy} className={BTN}>{busy && <Loader2 size={14} className="animate-spin" />} Save</button></div>
+                        <div className="shrink-0 flex flex-wrap justify-end gap-3 p-4 sm:p-5 border-t border-slate-100"><button type="button" onClick={() => setEdit(null)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancel</button><button type="submit" disabled={busy} className={BTN}>{busy && <Loader2 size={14} className="animate-spin" />} Save</button></div>
                     </form>
                 </div>
             )}
@@ -366,23 +393,47 @@ function Wallets({ onOpenUser }) {
             <div className="relative max-w-md"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, email or card number…" className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 text-sm shadow-sm" /><Search className="absolute left-3.5 top-3 text-slate-400" size={18} /></div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 {!data ? <div className="p-8 text-center text-slate-500">Loading…</div> : (
-                    <div className="overflow-x-auto"><table className="w-full text-left border-collapse min-w-[860px]">
-                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className="px-6 py-4 font-semibold">Student</th><th className="px-6 py-4 font-semibold">Type</th><th className="px-6 py-4 font-semibold">Available</th><th className="px-6 py-4 font-semibold">Pending</th><th className="px-6 py-4 font-semibold">Points</th><th className="px-6 py-4 font-semibold">Earned</th><th className="px-6 py-4 font-semibold text-right"></th></tr></thead>
+                    <>
+                    <div className="hidden md:block overflow-x-auto"><table className="w-full text-left border-collapse min-w-[700px]">
+                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className={TH}>Student</th><th className={TH}>Type</th><th className={TH}>Available</th><th className={TH}>Pending</th><th className={TH}>Points</th><th className={TH}>Earned</th><th className={`${TH} text-right`}></th></tr></thead>
                         <tbody className="divide-y divide-slate-100">
                             {data.rows.length === 0 && <tr><td colSpan="7" className="px-6 py-12 text-center text-slate-400 italic">No wallets yet.</td></tr>}
                             {data.rows.map((w) => (
                                 <tr key={w._id} onClick={() => w.userId && onOpenUser(w.userId._id)} className="hover:bg-slate-50/50 cursor-pointer">
-                                    <td className="px-6 py-4"><div className="font-medium text-slate-800">{w.userId?.name || 'Deleted user'}</div><div className="text-sm text-slate-500">{w.userId?.email}</div></td>
-                                    <td className="px-6 py-4 text-sm text-slate-600">{TYPE_LABEL[w.userId?.accountType] || 'School student'}{w.userId?.walletAccess && w.userId.walletAccess !== 'default' && <span className="ml-1 text-[10px] font-black uppercase text-indigo-600">· {w.userId.walletAccess}</span>}</td>
-                                    <td className="px-6 py-4 font-bold tabular-nums text-emerald-700">{money(w.available, w.currency)}</td>
-                                    <td className="px-6 py-4 tabular-nums text-amber-700">{money(w.pending, w.currency)}</td>
-                                    <td className="px-6 py-4 tabular-nums font-bold text-pink-600">{num(w.rewardPoints)}</td>
-                                    <td className="px-6 py-4 tabular-nums text-slate-600">{money(w.totalEarned, w.currency)}</td>
-                                    <td className="px-6 py-4 text-right"><ChevronRight size={16} className="inline text-slate-400" /></td>
+                                    <td className={TD}><div className="font-medium text-slate-800">{w.userId?.name || 'Deleted user'}</div><div className="text-sm text-slate-500 break-all">{w.userId?.email}</div></td>
+                                    <td className={`${TD} text-sm text-slate-600`}>{TYPE_LABEL[w.userId?.accountType] || 'School student'}{w.userId?.walletAccess && w.userId.walletAccess !== 'default' && <span className="ml-1 text-[10px] font-black uppercase text-indigo-600">· {w.userId.walletAccess}</span>}</td>
+                                    <td className={`${TD} font-bold tabular-nums text-emerald-700 whitespace-nowrap`}>{money(w.available, w.currency)}</td>
+                                    <td className={`${TD} tabular-nums text-amber-700 whitespace-nowrap`}>{money(w.pending, w.currency)}</td>
+                                    <td className={`${TD} tabular-nums font-bold text-pink-600`}>{num(w.rewardPoints)}</td>
+                                    <td className={`${TD} tabular-nums text-slate-600 whitespace-nowrap`}>{money(w.totalEarned, w.currency)}</td>
+                                    <td className={`${TD} text-right`}><ChevronRight size={16} className="inline text-slate-400" /></td>
                                 </tr>
                             ))}
                         </tbody>
                     </table></div>
+                    {/* Phones: one card per wallet; the whole card opens the student. */}
+                    <ul className="divide-y divide-slate-100 md:hidden">
+                        {data.rows.length === 0 && <li className="px-4 py-12 text-center text-slate-400 italic">No wallets yet.</li>}
+                        {data.rows.map((w) => (
+                            <li key={w._id} onClick={() => w.userId && onOpenUser(w.userId._id)} className="p-4 hover:bg-slate-50/50 cursor-pointer">
+                                <div className="flex items-start gap-3">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="font-medium text-slate-800 break-words">{w.userId?.name || 'Deleted user'}</p>
+                                        <p className="text-sm text-slate-500 break-all">{w.userId?.email}</p>
+                                        <p className="text-xs text-slate-500">{TYPE_LABEL[w.userId?.accountType] || 'School student'}{w.userId?.walletAccess && w.userId.walletAccess !== 'default' && <span className="ml-1 text-[10px] font-black uppercase text-indigo-600">· {w.userId.walletAccess}</span>}</p>
+                                    </div>
+                                    <ChevronRight size={16} className="mt-1 shrink-0 text-slate-400" />
+                                </div>
+                                <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-slate-50 p-3 text-sm ring-1 ring-slate-100">
+                                    <div className="min-w-0"><dt className={LABEL}>Available</dt><dd className="font-bold tabular-nums text-emerald-700 break-words">{money(w.available, w.currency)}</dd></div>
+                                    <div className="min-w-0"><dt className={LABEL}>Pending</dt><dd className="tabular-nums text-amber-700 break-words">{money(w.pending, w.currency)}</dd></div>
+                                    <div className="min-w-0"><dt className={LABEL}>Points</dt><dd className="tabular-nums font-bold text-pink-600">{num(w.rewardPoints)}</dd></div>
+                                    <div className="min-w-0"><dt className={LABEL}>Earned</dt><dd className="tabular-nums text-slate-600 break-words">{money(w.totalEarned, w.currency)}</dd></div>
+                                </dl>
+                            </li>
+                        ))}
+                    </ul>
+                    </>
                 )}
             </div>
         </div>
@@ -399,29 +450,52 @@ function Transactions({ onOpenUser }) {
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
-                <Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className={`${INPUT} w-auto`}><option value="">All types</option><option value="credit">Credits</option><option value="debit">Debits</option></Select>
-                <Select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })} className={`${INPUT} w-auto`}><option value="">All sources</option>{(data?.sources || []).map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}</Select>
-                <Select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} className={`${INPUT} w-auto`}><option value="">All statuses</option>{(data?.statuses || []).map((s) => <option key={s} value={s}>{s}</option>)}</Select>
+                {/* Phones: each filter takes a full row; wider screens: side by side. */}
+                <Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className={`${INPUT} sm:w-auto`}><option value="">All types</option><option value="credit">Credits</option><option value="debit">Debits</option></Select>
+                <Select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })} className={`${INPUT} sm:w-auto`}><option value="">All sources</option>{(data?.sources || []).map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}</Select>
+                <Select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} className={`${INPUT} sm:w-auto`}><option value="">All statuses</option>{(data?.statuses || []).map((s) => <option key={s} value={s}>{s}</option>)}</Select>
                 {data && <span className="self-center text-sm text-slate-500">{num(data.total)} transactions</span>}
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 {!data ? <div className="p-8 text-center text-slate-500">Loading…</div> : (
-                    <div className="overflow-x-auto"><table className="w-full text-left border-collapse min-w-[960px]">
-                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className="px-6 py-4 font-semibold">Transaction</th><th className="px-6 py-4 font-semibold">Student</th><th className="px-6 py-4 font-semibold">Source</th><th className="px-6 py-4 font-semibold">Amount</th><th className="px-6 py-4 font-semibold">Status</th><th className="px-6 py-4 font-semibold">When</th></tr></thead>
+                    <>
+                    <div className="hidden md:block overflow-x-auto"><table className="w-full text-left border-collapse min-w-[760px]">
+                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className={TH}>Transaction</th><th className={TH}>Student</th><th className={TH}>Source</th><th className={TH}>Amount</th><th className={TH}>Status</th><th className={TH}>When</th></tr></thead>
                         <tbody className="divide-y divide-slate-100">
                             {data.rows.length === 0 && <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400 italic">No transactions match.</td></tr>}
                             {data.rows.map((t) => (
                                 <tr key={t._id} className="hover:bg-slate-50/50">
-                                    <td className="px-6 py-4"><div className="font-medium text-slate-800">{t.description || '—'}</div><div className="text-[11px] font-mono text-slate-400">{t.txnId}{t.referenceKey ? ` · ${t.referenceKey}` : ''}</div></td>
-                                    <td className="px-6 py-4"><button onClick={() => t.userId && onOpenUser(t.userId._id)} className="text-indigo-600 hover:underline text-sm font-medium">{t.userId?.name || 'Deleted user'}</button><div className="text-xs text-slate-500">{t.userId?.cardNumber}</div></td>
-                                    <td className="px-6 py-4 text-sm text-slate-600 capitalize">{t.source.replace(/_/g, ' ')}</td>
-                                    <td className={`px-6 py-4 font-bold tabular-nums ${t.type === 'credit' ? 'text-emerald-700' : 'text-slate-800'}`}>{t.type === 'credit' ? '+' : '−'}{money(t.amount, t.currency)}<div className="text-[10px] text-slate-400 font-normal">bal {t.balanceAfter != null ? money(t.balanceAfter, t.currency) : '—'}</div></td>
-                                    <td className="px-6 py-4"><Pill s={t.status} /></td>
-                                    <td className="px-6 py-4 text-sm text-slate-500">{when(t.createdAt)}</td>
+                                    <td className={TD}><div className="font-medium text-slate-800">{t.description || '—'}</div><div className="text-[11px] font-mono text-slate-400 break-all">{t.txnId}{t.referenceKey ? ` · ${t.referenceKey}` : ''}</div></td>
+                                    <td className={TD}><button onClick={() => t.userId && onOpenUser(t.userId._id)} className="text-indigo-600 hover:underline text-sm font-medium text-left">{t.userId?.name || 'Deleted user'}</button><div className="text-xs text-slate-500">{t.userId?.cardNumber}</div></td>
+                                    <td className={`${TD} text-sm text-slate-600 capitalize`}>{t.source.replace(/_/g, ' ')}</td>
+                                    <td className={`${TD} font-bold tabular-nums whitespace-nowrap ${t.type === 'credit' ? 'text-emerald-700' : 'text-slate-800'}`}>{t.type === 'credit' ? '+' : '−'}{money(t.amount, t.currency)}<div className="text-[10px] text-slate-400 font-normal">bal {t.balanceAfter != null ? money(t.balanceAfter, t.currency) : '—'}</div></td>
+                                    <td className={TD}><Pill s={t.status} /></td>
+                                    <td className={`${TD} text-sm text-slate-500`}>{when(t.createdAt)}</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table></div>
+                    {/* Phones: one card per transaction — what, how much, who, when. */}
+                    <ul className="divide-y divide-slate-100 md:hidden">
+                        {data.rows.length === 0 && <li className="px-4 py-12 text-center text-slate-400 italic">No transactions match.</li>}
+                        {data.rows.map((t) => (
+                            <li key={t._id} className="p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <p className="min-w-0 font-medium text-slate-800 break-words">{t.description || '—'}</p>
+                                    <div className={`shrink-0 text-right font-bold tabular-nums ${t.type === 'credit' ? 'text-emerald-700' : 'text-slate-800'}`}>{t.type === 'credit' ? '+' : '−'}{money(t.amount, t.currency)}<div className="text-[10px] text-slate-400 font-normal">bal {t.balanceAfter != null ? money(t.balanceAfter, t.currency) : '—'}</div></div>
+                                </div>
+                                <p className="mt-1 text-[11px] font-mono text-slate-400 break-all">{t.txnId}{t.referenceKey ? ` · ${t.referenceKey}` : ''}</p>
+                                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                                    <Pill s={t.status} />
+                                    <span className="capitalize">{t.source.replace(/_/g, ' ')}</span>
+                                    <span>·</span>
+                                    <span>{when(t.createdAt)}</span>
+                                </div>
+                                <p className="mt-1 text-sm"><button onClick={() => t.userId && onOpenUser(t.userId._id)} className="text-indigo-600 hover:underline font-medium text-left break-words">{t.userId?.name || 'Deleted user'}</button> <span className="text-xs text-slate-500">{t.userId?.cardNumber}</span></p>
+                            </li>
+                        ))}
+                    </ul>
+                    </>
                 )}
             </div>
         </div>
@@ -429,6 +503,17 @@ function Transactions({ onOpenUser }) {
 }
 
 // ── Withdrawals ─────────────────────────────────────────────────────────────
+// Shared by the table row and the phone card.
+const PayTo = ({ m }) => (m?.type === 'upi' ? <span className="font-mono">{m.upiId}</span> : <span>{m?.accountName}<br /><span className="font-mono text-xs">{m?.accountNumber} · {m?.ifsc}</span></span>);
+const Requested = ({ w }) => <>{when(w.createdAt)}{w.processedAt && <div className="text-xs">processed {when(w.processedAt)}{w.processedBy?.name ? ` by ${w.processedBy.name}` : ''}</div>}{w.adminNote && <div className="text-xs italic">{w.adminNote}</div>}{w.payoutReference && <div className="text-xs font-mono">ref {w.payoutReference}</div>}</>;
+const Decide = ({ w, busy, decide }) => (busy === w._id ? <Loader2 size={16} className="inline animate-spin text-slate-400" /> : (
+    <>
+        {w.status === 'pending' && <button onClick={() => decide(w, 'approved')} className="text-sky-600 hover:text-sky-800 font-medium text-sm">Approve</button>}
+        {['pending', 'approved'].includes(w.status) && <button onClick={() => decide(w, 'paid')} className="text-emerald-600 hover:text-emerald-800 font-medium text-sm">Mark paid</button>}
+        {['pending', 'approved'].includes(w.status) && <button onClick={() => decide(w, 'rejected')} className="text-red-500 hover:text-red-700 font-medium text-sm">Reject</button>}
+    </>
+));
+
 function Withdrawals({ onOpenUser }) {
     const [status, setStatus] = useState('pending');
     const [data, setData] = useState(null);
@@ -456,30 +541,46 @@ function Withdrawals({ onOpenUser }) {
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 {!data ? <div className="p-8 text-center text-slate-500">Loading…</div> : (
-                    <div className="overflow-x-auto"><table className="w-full text-left border-collapse min-w-[960px]">
-                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className="px-6 py-4 font-semibold">Student</th><th className="px-6 py-4 font-semibold">Amount</th><th className="px-6 py-4 font-semibold">Pay to</th><th className="px-6 py-4 font-semibold">Requested</th><th className="px-6 py-4 font-semibold">Status</th><th className="px-6 py-4 font-semibold text-right">Actions</th></tr></thead>
+                    <>
+                    <div className="hidden md:block overflow-x-auto"><table className="w-full text-left border-collapse min-w-[760px]">
+                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className={TH}>Student</th><th className={TH}>Amount</th><th className={TH}>Pay to</th><th className={TH}>Requested</th><th className={TH}>Status</th><th className={`${TH} text-right sticky right-0 bg-slate-50`}>Actions</th></tr></thead>
                         <tbody className="divide-y divide-slate-100">
                             {data.rows.length === 0 && <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400 italic">No withdrawal requests.</td></tr>}
                             {data.rows.map((w) => (
-                                <tr key={w._id} className="hover:bg-slate-50/50">
-                                    <td className="px-6 py-4"><button onClick={() => w.userId && onOpenUser(w.userId._id)} className="font-medium text-indigo-600 hover:underline">{w.userId?.name || 'Deleted user'}</button><div className="text-xs text-slate-500">{w.userId?.email} · {w.userId?.phone} · {TYPE_LABEL[w.userId?.accountType] || 'School student'}</div></td>
-                                    <td className="px-6 py-4 font-bold tabular-nums text-slate-800">{money(w.amount, w.currency)}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600">{w.method?.type === 'upi' ? <span className="font-mono">{w.method.upiId}</span> : <span>{w.method?.accountName}<br /><span className="font-mono text-xs">{w.method?.accountNumber} · {w.method?.ifsc}</span></span>}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-500">{when(w.createdAt)}{w.processedAt && <div className="text-xs">processed {when(w.processedAt)}{w.processedBy?.name ? ` by ${w.processedBy.name}` : ''}</div>}{w.adminNote && <div className="text-xs italic">{w.adminNote}</div>}{w.payoutReference && <div className="text-xs font-mono">ref {w.payoutReference}</div>}</td>
-                                    <td className="px-6 py-4"><Pill s={w.status} /></td>
-                                    <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
-                                        {busy === w._id ? <Loader2 size={16} className="inline animate-spin text-slate-400" /> : (
-                                            <>
-                                                {w.status === 'pending' && <button onClick={() => decide(w, 'approved')} className="text-sky-600 hover:text-sky-800 font-medium text-sm">Approve</button>}
-                                                {['pending', 'approved'].includes(w.status) && <button onClick={() => decide(w, 'paid')} className="text-emerald-600 hover:text-emerald-800 font-medium text-sm">Mark paid</button>}
-                                                {['pending', 'approved'].includes(w.status) && <button onClick={() => decide(w, 'rejected')} className="text-red-500 hover:text-red-700 font-medium text-sm">Reject</button>}
-                                            </>
-                                        )}
+                                <tr key={w._id} className="group hover:bg-slate-50/50">
+                                    <td className={TD}><button onClick={() => w.userId && onOpenUser(w.userId._id)} className="font-medium text-indigo-600 hover:underline text-left">{w.userId?.name || 'Deleted user'}</button><div className="text-xs text-slate-500 break-all">{w.userId?.email} · {w.userId?.phone} · {TYPE_LABEL[w.userId?.accountType] || 'School student'}</div></td>
+                                    <td className={`${TD} font-bold tabular-nums text-slate-800 whitespace-nowrap`}>{money(w.amount, w.currency)}</td>
+                                    <td className={`${TD} text-sm text-slate-600 break-all`}><PayTo m={w.method} /></td>
+                                    <td className={`${TD} text-sm text-slate-500`}><Requested w={w} /></td>
+                                    <td className={TD}><Pill s={w.status} /></td>
+                                    {/* Pinned to the right edge, so the decision stays in reach when a narrow screen scrolls the table. */}
+                                    <td className={`${TD} text-right space-x-3 whitespace-nowrap sticky right-0 bg-white group-hover:bg-slate-50`}>
+                                        <Decide w={w} busy={busy} decide={decide} />
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table></div>
+                    {/* Phones: one card per request, the decision buttons at the bottom. */}
+                    <ul className="divide-y divide-slate-100 md:hidden">
+                        {data.rows.length === 0 && <li className="px-4 py-12 text-center text-slate-400 italic">No withdrawal requests.</li>}
+                        {data.rows.map((w) => (
+                            <li key={w._id} className="p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <button onClick={() => w.userId && onOpenUser(w.userId._id)} className="min-w-0 font-medium text-indigo-600 hover:underline text-left break-words">{w.userId?.name || 'Deleted user'}</button>
+                                    <span className="shrink-0 font-bold tabular-nums text-slate-800">{money(w.amount, w.currency)}</span>
+                                </div>
+                                <p className="text-xs text-slate-500 break-all">{w.userId?.email} · {w.userId?.phone} · {TYPE_LABEL[w.userId?.accountType] || 'School student'}</p>
+                                <div className="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600 ring-1 ring-slate-100 break-all"><PayTo m={w.method} /></div>
+                                <div className="mt-2 flex items-start justify-between gap-3 text-sm text-slate-500">
+                                    <div className="min-w-0 break-words"><Requested w={w} /></div>
+                                    <span className="shrink-0"><Pill s={w.status} /></span>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1"><Decide w={w} busy={busy} decide={decide} /></div>
+                            </li>
+                        ))}
+                    </ul>
+                    </>
                 )}
             </div>
         </div>
@@ -496,27 +597,27 @@ function Audit({ onOpenUser }) {
     if (!d) return <div className="animate-pulse h-48 bg-slate-100 rounded-2xl" />;
     if (d.error) return <Banner kind="error">{d.error}</Banner>;
     const Section = ({ title, rows, render }) => (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+        <div className="min-w-0 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
             <p className="font-bold text-slate-800 flex items-center gap-2">{rows.length ? <AlertTriangle size={16} className="text-amber-500" /> : <CheckCircle2 size={16} className="text-emerald-500" />} {title} <span className="text-xs font-semibold text-slate-400">({rows.length})</span></p>
-            {rows.length > 0 && <ul className="mt-3 space-y-1 text-sm text-slate-600">{rows.map((r, i) => <li key={i}>{render(r)}</li>)}</ul>}
+            {rows.length > 0 && <ul className="mt-3 space-y-1 text-sm text-slate-600 [overflow-wrap:anywhere]">{rows.map((r, i) => <li key={i}>{render(r)}</li>)}</ul>}
         </div>
     );
     return (
         <div className="space-y-4">
-            <div className={`rounded-xl p-4 border font-medium text-sm flex items-center justify-between gap-3 ${d.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+            <div className={`rounded-xl p-4 border font-medium text-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${d.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                 <span>{d.ok ? `All clear — no duplicate rewards, no duplicate wallet references, and every one of ${num(d.walletsChecked)} wallets reconciles with its ledger.` : 'Something needs a look.'}</span>
-                <div className="flex gap-2"><button onClick={run} className={BTN2}><RefreshCw size={14} /> Re-run</button><button onClick={runJobs} disabled={busy} className={BTN2}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Trophy size={14} />} Run leaderboard payouts now</button></div>
+                <div className="flex flex-wrap gap-2 sm:shrink-0"><button onClick={run} className={BTN2}><RefreshCw size={14} /> Re-run</button><button onClick={runJobs} disabled={busy} className={BTN2}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Trophy size={14} />} Run leaderboard payouts now</button></div>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
                 <Section title="Duplicate learning activities" rows={d.duplicateActivities} render={(r) => `${r._id.t} ${r._id.r} × ${r.n}`} />
                 <Section title="Duplicate reward claims" rows={d.duplicateClaims} render={(r) => `${r._id.k} × ${r.n}`} />
                 <Section title="Duplicate wallet references" rows={d.duplicateReferences} render={(r) => `${r._id.k} × ${r.n}`} />
-                <Section title="Wallets that do not match their ledger" rows={d.walletMismatches} render={(r) => <button onClick={() => onOpenUser(r.userId)} className="text-indigo-600 hover:underline">{String(r.userId)} — stored {JSON.stringify(r.stored)} vs ledger {JSON.stringify(r.computed)}</button>} />
+                <Section title="Wallets that do not match their ledger" rows={d.walletMismatches} render={(r) => <button onClick={() => onOpenUser(r.userId)} className="text-indigo-600 hover:underline text-left [overflow-wrap:anywhere]">{String(r.userId)} — stored {JSON.stringify(r.stored)} vs ledger {JSON.stringify(r.computed)}</button>} />
             </div>
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
                 <p className="font-bold text-slate-800 mb-2">Recent scheduled runs</p>
                 {d.recentJobs.length === 0 ? <p className="text-sm text-slate-400 italic">No payouts have run yet. The first weekly payout happens after the current week closes.</p> : (
-                    <ul className="text-sm text-slate-600 space-y-1">{d.recentJobs.map((j) => <li key={j._id}><span className="font-mono">{j.key}</span> · {when(j.createdAt)} · ranked {j.result?.ranked ?? '—'}, paid {j.result?.paid?.length ?? 0}</li>)}</ul>
+                    <ul className="text-sm text-slate-600 space-y-1">{d.recentJobs.map((j) => <li key={j._id}><span className="font-mono break-all">{j.key}</span> · {when(j.createdAt)} · ranked {j.result?.ranked ?? '—'}, paid {j.result?.paid?.length ?? 0}</li>)}</ul>
                 )}
             </div>
         </div>
@@ -542,25 +643,25 @@ function UserDrawer({ userId, onClose }) {
     const cur = d?.wallet?.currency || 'INR';
     return (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-4xl flex flex-col max-h-[calc(100vh-3rem)]" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-                <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-start">
-                    <div>
-                        <p className="font-bold text-lg text-slate-800">{d?.user?.name || 'Student'}</p>
-                        {d && <p className="text-sm text-slate-500">{d.user.email} · {d.user.cardNumber} · {TYPE_LABEL[d.user.accountType] || 'School student'} · <span className={d.monetaryEnabled ? 'text-emerald-600 font-semibold' : 'text-slate-500'}>{d.monetaryEnabled ? 'cash rewards enabled' : 'learning rewards only'}</span> · <Link to="/users" className="text-indigo-600 hover:underline">edit account</Link></p>}
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-4xl flex flex-col max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+                <div className="shrink-0 p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-start gap-3">
+                    <div className="min-w-0">
+                        <p className="font-bold text-lg text-slate-800 break-words">{d?.user?.name || 'Student'}</p>
+                        {d && <p className="text-sm text-slate-500 [overflow-wrap:anywhere]">{d.user.email} · {d.user.cardNumber} · {TYPE_LABEL[d.user.accountType] || 'School student'} · <span className={d.monetaryEnabled ? 'text-emerald-600 font-semibold' : 'text-slate-500'}>{d.monetaryEnabled ? 'cash rewards enabled' : 'learning rewards only'}</span> · <Link to="/users" className="text-indigo-600 hover:underline">edit account</Link></p>}
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
+                    <button onClick={onClose} className="shrink-0 text-slate-400 hover:text-slate-600">✕</button>
                 </div>
                 {!d ? <div className="p-8 text-center text-slate-500">Loading…</div> : (
-                    <div className="p-5 overflow-y-auto space-y-5 flex-1">
+                    <div className="p-4 sm:p-5 overflow-y-auto space-y-5 flex-1 min-h-0">
                         {msg && <Banner kind={msg.kind === 'error' ? 'error' : 'ok'} onClose={() => setMsg(null)}>{msg.text}</Banner>}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3">
                             <Stat icon={Coins} label="XP · level" value={`${num(d.user.xp)} · L${d.level.level}`} sub={`${num(d.level.remaining)} XP to level ${d.level.nextLevel}`} />
                             <Stat icon={Flame} label="Streak" value={num(d.streak?.current || 0)} sub={`longest ${num(d.streak?.longest || 0)} · best weekly rank ${d.streak?.bestWeeklyRank ? `#${d.streak.bestWeeklyRank}` : '—'}`} tone="amber" />
                             <Stat icon={Wallet} label="Wallet" value={money(d.wallet?.available || 0, cur)} sub={`${money(d.wallet?.pending || 0, cur)} pending · ${money(d.wallet?.totalWithdrawn || 0, cur)} withdrawn`} tone="emerald" />
                             <Stat icon={Gift} label="Reward points" value={num(d.wallet?.rewardPoints || 0)} sub={`${num(d.badges.length)} badges`} tone="rose" />
                         </div>
                         {!d.audit.ok && <Banner kind="error">This wallet does not reconcile with its ledger: stored {JSON.stringify(d.audit.stored)} vs computed {JSON.stringify(d.audit.computed)}.</Banner>}
-                        <form onSubmit={submit} className="rounded-2xl border border-slate-200 p-4 grid sm:grid-cols-[auto_1fr_1fr_2fr_auto] gap-3 items-end bg-slate-50/50">
+                        <form onSubmit={submit} className="rounded-2xl border border-slate-200 p-4 grid sm:grid-cols-2 lg:grid-cols-[auto_1fr_1fr_2fr_auto] gap-3 items-end bg-slate-50/50">
                             <div><label className={LABEL}>Adjust</label><Select value={adj.kind} onChange={(e) => setAdj({ ...adj, kind: e.target.value, source: e.target.value === 'money' ? 'admin_adjustment' : 'admin' })} className={INPUT}><option value="points">Reward points</option><option value="money">Wallet money</option><option value="xp">XP</option></Select></div>
                             <div><label className={LABEL}>Source</label>
                                 {adj.kind === 'points' && <Select value={adj.source} onChange={(e) => setAdj({ ...adj, source: e.target.value })} className={INPUT}><option value="admin">Bonus</option><option value="campaign">Campaign</option><option value="referral">Referral</option></Select>}
@@ -568,21 +669,21 @@ function UserDrawer({ userId, onClose }) {
                                 {adj.kind === 'xp' && <input disabled value="Admin" className={INPUT} />}
                             </div>
                             <div><label className={LABEL}>Amount {adj.kind === 'money' ? `(${cur}, − to debit)` : adj.kind === 'points' ? '(− to remove)' : ''}</label><input type="number" step={adj.kind === 'money' ? '0.01' : '1'} value={adj.amount} onChange={(e) => setAdj({ ...adj, amount: e.target.value })} className={INPUT} required /></div>
-                            <div><label className={LABEL}>Reason (shown to the student)</label><input value={adj.reason} onChange={(e) => setAdj({ ...adj, reason: e.target.value })} className={INPUT} required placeholder="e.g. Referral bonus — March campaign" /></div>
-                            <button type="submit" disabled={busy} className={BTN}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Apply</button>
+                            <div className="sm:col-span-2 lg:col-span-1"><label className={LABEL}>Reason (shown to the student)</label><input value={adj.reason} onChange={(e) => setAdj({ ...adj, reason: e.target.value })} className={INPUT} required placeholder="e.g. Referral bonus — March campaign" /></div>
+                            <button type="submit" disabled={busy} className={`${BTN} justify-center sm:col-span-2 lg:col-span-1`}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Apply</button>
                         </form>
-                        <div className="flex gap-1 border-b border-slate-200">
+                        <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
                             {[['money', 'Wallet ledger'], ['points', 'Reward points'], ['xp', 'XP'], ['activity', 'Activity'], ['withdrawals', 'Withdrawals'], ['badges', 'Badges']].map(([v, l]) => (
-                                <button key={v} onClick={() => setView(v)} className={`px-3 py-2 text-[13px] font-bold border-b-2 ${view === v ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>{l}</button>
+                                <button key={v} onClick={() => setView(v)} className={`shrink-0 whitespace-nowrap px-3 py-2 text-[13px] font-bold border-b-2 ${view === v ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>{l}</button>
                             ))}
                         </div>
                         <ul className="divide-y divide-slate-100 text-sm">
-                            {view === 'money' && (d.money.length ? d.money.map((t) => <li key={t._id} className="py-2 flex justify-between gap-3"><span><span className="font-medium text-slate-800">{t.description || t.source}</span> <span className="text-xs text-slate-400">{t.source.replace(/_/g, ' ')} · {t.txnId} · {when(t.createdAt)}</span></span><span className="flex items-center gap-2 whitespace-nowrap"><span className={`font-bold tabular-nums ${t.type === 'credit' ? 'text-emerald-700' : 'text-slate-800'}`}>{t.type === 'credit' ? '+' : '−'}{money(t.amount, cur)}</span><Pill s={t.status} /></span></li>) : <li className="py-6 text-center text-slate-400 italic">No wallet transactions.</li>)}
-                            {view === 'points' && (d.points.length ? d.points.map((t) => <li key={t._id} className="py-2 flex justify-between gap-3"><span><span className="font-medium text-slate-800">{t.description || t.source}</span> <span className="text-xs text-slate-400">{t.claimKey} · {when(t.createdAt)}</span></span><span className={`font-bold tabular-nums ${t.points > 0 ? 'text-pink-600' : 'text-slate-700'}`}>{t.points > 0 ? '+' : ''}{num(t.points)}</span></li>) : <li className="py-6 text-center text-slate-400 italic">No reward points yet.</li>)}
-                            {view === 'xp' && (d.xp.length ? d.xp.map((t) => <li key={t._id} className="py-2 flex justify-between gap-3"><span><span className="font-medium text-slate-800">{t.description || t.source}</span> <span className="text-xs text-slate-400">{t.source} · {when(t.createdAt)}</span></span><span className="font-bold tabular-nums text-amber-600">+{num(t.amount)} XP</span></li>) : <li className="py-6 text-center text-slate-400 italic">No XP yet.</li>)}
-                            {view === 'activity' && (d.activity.length ? d.activity.map((a) => <li key={a._id} className="py-2 flex justify-between gap-3"><span className="font-medium text-slate-800">{a.type.replace(/_/g, ' ')} <span className="text-xs text-slate-400 font-mono">{a.refId}</span></span><span className="text-xs text-slate-500">{a.day} · +{a.xpAwarded} XP</span></li>) : <li className="py-6 text-center text-slate-400 italic">No activity recorded.</li>)}
-                            {view === 'withdrawals' && (d.withdrawals.length ? d.withdrawals.map((w) => <li key={w._id} className="py-2 flex justify-between gap-3"><span className="font-medium text-slate-800">{money(w.amount, cur)} · {w.method?.type} <span className="text-xs text-slate-400">{when(w.createdAt)}{w.adminNote ? ` · ${w.adminNote}` : ''}</span></span><Pill s={w.status} /></li>) : <li className="py-6 text-center text-slate-400 italic">No withdrawals.</li>)}
-                            {view === 'badges' && (d.badges.length ? d.badges.map((b) => <li key={b._id} className="py-2 flex justify-between"><span className="font-medium text-slate-800">{b.badgeKey}</span><span className="text-xs text-slate-500">{when(b.unlockedAt)}</span></li>) : <li className="py-6 text-center text-slate-400 italic">No badges yet.</li>)}
+                            {view === 'money' && (d.money.length ? d.money.map((t) => <li key={t._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 [overflow-wrap:anywhere]"><span className="font-medium text-slate-800">{t.description || t.source}</span> <span className="text-xs text-slate-400">{t.source.replace(/_/g, ' ')} · {t.txnId} · {when(t.createdAt)}</span></span><span className="flex items-center gap-2 whitespace-nowrap"><span className={`font-bold tabular-nums ${t.type === 'credit' ? 'text-emerald-700' : 'text-slate-800'}`}>{t.type === 'credit' ? '+' : '−'}{money(t.amount, cur)}</span><Pill s={t.status} /></span></li>) : <li className="py-6 text-center text-slate-400 italic">No wallet transactions.</li>)}
+                            {view === 'points' && (d.points.length ? d.points.map((t) => <li key={t._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 [overflow-wrap:anywhere]"><span className="font-medium text-slate-800">{t.description || t.source}</span> <span className="text-xs text-slate-400">{t.claimKey} · {when(t.createdAt)}</span></span><span className={`shrink-0 font-bold tabular-nums ${t.points > 0 ? 'text-pink-600' : 'text-slate-700'}`}>{t.points > 0 ? '+' : ''}{num(t.points)}</span></li>) : <li className="py-6 text-center text-slate-400 italic">No reward points yet.</li>)}
+                            {view === 'xp' && (d.xp.length ? d.xp.map((t) => <li key={t._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 [overflow-wrap:anywhere]"><span className="font-medium text-slate-800">{t.description || t.source}</span> <span className="text-xs text-slate-400">{t.source} · {when(t.createdAt)}</span></span><span className="shrink-0 font-bold tabular-nums text-amber-600">+{num(t.amount)} XP</span></li>) : <li className="py-6 text-center text-slate-400 italic">No XP yet.</li>)}
+                            {view === 'activity' && (d.activity.length ? d.activity.map((a) => <li key={a._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 font-medium text-slate-800 [overflow-wrap:anywhere]">{a.type.replace(/_/g, ' ')} <span className="text-xs text-slate-400 font-mono">{a.refId}</span></span><span className="shrink-0 text-xs text-slate-500">{a.day} · +{a.xpAwarded} XP</span></li>) : <li className="py-6 text-center text-slate-400 italic">No activity recorded.</li>)}
+                            {view === 'withdrawals' && (d.withdrawals.length ? d.withdrawals.map((w) => <li key={w._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 font-medium text-slate-800 [overflow-wrap:anywhere]">{money(w.amount, cur)} · {w.method?.type} <span className="text-xs text-slate-400">{when(w.createdAt)}{w.adminNote ? ` · ${w.adminNote}` : ''}</span></span><Pill s={w.status} /></li>) : <li className="py-6 text-center text-slate-400 italic">No withdrawals.</li>)}
+                            {view === 'badges' && (d.badges.length ? d.badges.map((b) => <li key={b._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 font-medium text-slate-800 [overflow-wrap:anywhere]">{b.badgeKey}</span><span className="shrink-0 text-xs text-slate-500">{when(b.unlockedAt)}</span></li>) : <li className="py-6 text-center text-slate-400 italic">No badges yet.</li>)}
                         </ul>
                     </div>
                 )}

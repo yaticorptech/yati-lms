@@ -32,7 +32,9 @@ import {
 import organizationApi from './api';
 import Portal from '../components/Portal';
 
-const INPUT = 'w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-mono uppercase tracking-wide focus:ring-2 focus:ring-indigo-500 outline-none';
+// Its own colours: the button lives in a banner with white text, and a box that
+// inherited it would show what is typed as white on white.
+const INPUT = 'w-full border border-slate-300 rounded-lg bg-white px-3 py-2.5 text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500 outline-none';
 
 /**
  * Solid, not translucent — this is the one thing in that row you can press.
@@ -215,10 +217,12 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                 {!plain && <ChevronRight size={15} className="-mr-1 shrink-0 opacity-50 transition-transform group-hover:translate-x-0.5" />}
             </button>
 
-            {/* ── The popup ────────────────────────────────────────────────── */}
+            {/* ── The popup ──────────────────────────────────────────────────
+                On <body>, not inside the banner the button sits in, so nothing
+                there — its white text, its animations — reaches it. */}
             {open && (
                 <Portal>
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4"
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 text-left text-slate-800 sm:p-4"
                         role="dialog" aria-modal="true" aria-labelledby="organization-popup-title">
                         <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl max-h-[calc(100dvh-1.5rem)]">
                             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -337,7 +341,8 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                                                     id="org-code"
                                                     value={code}
                                                     onChange={(e) => { setCode(e.target.value); setFound(null); }}
-                                                    placeholder="ABC-2026-0001"
+                                                    placeholder="xx_xxxx_xxx"
+                                                    autoCapitalize="none"
                                                     autoComplete="off"
                                                     spellCheck={false}
                                                     className={INPUT}
