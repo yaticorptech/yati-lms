@@ -100,7 +100,7 @@ describe('the optional Organization ID on signup', { skip: skipWithoutChrome }, 
         assert.match(result.labelText, /Organization ID/i);
         assert.match(result.labelText, /optional/i, 'the label says so');
         assert.ok(result.hint, 'and so does the hint under it');
-        assert.equal(result.placeholder, 'ABC-2026-0001');
+        assert.equal(result.placeholder, 'xx_xxxx_xxx');
     });
 
     test('left blank, signing up is exactly as it was', async () => {
@@ -142,6 +142,20 @@ describe('the optional Organization ID on signup', { skip: skipWithoutChrome }, 
         assert.match(result.body, /Your account is ready/i);
         assert.match(result.body, /request to join ABC College has been sent/i, 'the student is told what happened');
         assert.ok(result.reachedDashboard, 'and can carry on to the dashboard');
+    });
+
+    test('an ID the organization chose (handle style) is accepted and sent', async () => {
+        const { result, errors } = await screen({
+            entry,
+            api: stub({ requested: true, orgCode: 'st_agnes_college', name: 'St Agnes College', message: 'Your request to join St Agnes College has been sent. They will be asked to approve you.' }),
+            script: `${FILL('st_agnes_college')}${FINISH}
+                const register = window.__calls.find(([m, url]) => m === 'POST' && url.includes('/auth/register'));
+                return { sentOrgCode: register ? register[2].orgCode : undefined, body: document.body.innerText.replace(/\\s+/g, ' ').trim() };
+                `
+        });
+        assert.deepEqual(errors, []);
+        assert.equal(result.sentOrgCode, 'st_agnes_college');
+        assert.match(result.body, /request to join St Agnes College has been sent/i);
     });
 
     test('an unrecognised ID still creates the account, and points at the dashboard button', async () => {

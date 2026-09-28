@@ -9,8 +9,11 @@ import api from '../utils/api';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import Select from '../components/Select';
+import { useCourseScope } from '../utils/courseScope';
 
 const LessonEditor = () => {
+    // Platform courses, or an organization's own — see utils/courseScope.js.
+    const S = useCourseScope();
     const { courseId, lessonId } = useParams();
     const navigate = useNavigate();
     const [lesson, setLesson] = useState(null);
@@ -209,7 +212,7 @@ const LessonEditor = () => {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            const { data } = await api.post('/admin/lessons/upload', formData, {
+            const { data } = await api.post(`${S.api}/lessons/upload`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 onUploadProgress: (evt) => { if (evt.total) setUploadProgress(Math.round((evt.loaded * 100) / evt.total)); }
             });
@@ -232,7 +235,7 @@ const LessonEditor = () => {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            const { data } = await api.post('/admin/lessons/attachments', formData, {
+            const { data } = await api.post(`${S.api}/lessons/attachments`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 onUploadProgress: (evt) => { if (evt.total) setAttachmentProgress(Math.round((evt.loaded * 100) / evt.total)); }
             });
@@ -285,10 +288,10 @@ const LessonEditor = () => {
                 payload.pdfUrl = lesson.pdfUrl;
             }
 
-            await api.put(`/admin/lessons/${lessonId}`, payload);
+            await api.put(`${S.api}/lessons/${lessonId}`, payload);
 
             if (lessonType === 'quiz') {
-                await api.post(`/admin/lessons/${lessonId}/quiz`, {
+                await api.post(`${S.api}/lessons/${lessonId}/quiz`, {
                     passingScore: quizData.passingScore,
                     questions: quizData.questions
                 });
@@ -296,7 +299,7 @@ const LessonEditor = () => {
 
             setSaved(true);
             // Navigate immediately — toast will show on the builder page
-            navigate(`/courses/${courseId}`, { state: { lessonSaved: true } });
+            navigate(`${S.base}/courses/${courseId}`, { state: { lessonSaved: true } });
         } catch (err) {
             console.error('Failed to save lesson:', err);
             alert('Failed to save lesson.');
@@ -314,7 +317,7 @@ const LessonEditor = () => {
 
         try {
             // 1. Get credentials from our backend (which calls dev.vdocipher.com/api/videos)
-            const { data } = await api.post('/vdocipher/upload-credentials', { title: lesson.title || file.name });
+            const { data } = await api.post(`${S.video}/upload-credentials`, { title: lesson.title || file.name });
             const { clientPayload, videoId } = data;
 
             if (!clientPayload) throw new Error("No clientPayload returned from VdoCipher");
@@ -358,7 +361,7 @@ const LessonEditor = () => {
             try {
                 // Since there is no single-lesson GET endpoint right now, we can fetch all courses and find it, or wait... wait, we don't have a single lesson endpoint?
                 // For UI purposes, we just extract what we need from course modules.
-                const res = await api.get(`/admin/courses/${courseId}`);
+                const res = await api.get(`${S.api}/courses/${courseId}`);
                 let foundLesson = null;
                 for (const m of res.data.modules) {
                     const match = m.lessons.find(l => l._id === lessonId);
@@ -380,7 +383,7 @@ const LessonEditor = () => {
 
                     if (savedType === 'quiz') {
                         try {
-                            const quizRes = await api.get(`/admin/lessons/${lessonId}/quiz`);
+                            const quizRes = await api.get(`${S.api}/lessons/${lessonId}/quiz`);
                             if (quizRes.data) {
                                 setQuizData({ passingScore: quizRes.data.passingScore, questions: quizRes.data.questions || [] });
                             }
@@ -397,7 +400,7 @@ const LessonEditor = () => {
             }
         };
         fetchContext();
-    }, [courseId, lessonId]);
+    }, [courseId, lessonId, S.api]);
 
     // Polling Vdocipher Status
     useEffect(() => {
@@ -408,13 +411,13 @@ const LessonEditor = () => {
             if (lesson.vdocipherStatus === 'ready') return; // Stop polling if already ready
 
             try {
-                const { data } = await api.get(`/vdocipher/status/${lesson.videoId}`);
+                const { data } = await api.get(`${S.video}/status/${lesson.videoId}`);
                 const currentStatus = data.status; // e.g., 'pre-upload', 'queued', 'ready'
 
                 if (currentStatus !== lesson.vdocipherStatus) {
                     setLesson(prev => ({ ...prev, vdocipherStatus: currentStatus }));
                     // Optional: If you want it to auto-save to DB when it flips to ready
-                    // await api.put(`/admin/lessons/${lessonId}`, { ...lesson, vdocipherStatus: currentStatus });
+                    // await api.put(`${S.api}/lessons/${lessonId}`, { ...lesson, vdocipherStatus: currentStatus });
                 }
             } catch (err) {
                 console.error("Failed to check VdoCipher status", err);
@@ -430,7 +433,7 @@ const LessonEditor = () => {
         return () => {
             if (intervalId) clearInterval(intervalId);
         };
-    }, [lesson?.videoId, lesson?.vdocipherStatus, lesson?.videoSource, lessonId]);
+    }, [lesson?.videoId, lesson?.vdocipherStatus, lesson?.videoSource, lessonId, S.video]);
 
     if (loading) return <div className="p-10 text-center text-slate-500 font-medium">Loading Lesson Editor...</div>;
 
@@ -449,16 +452,16 @@ const LessonEditor = () => {
                     {/* Left: breadcrumb */}
                     <div className="flex items-center gap-2 text-sm font-semibold text-slate-500 min-w-0">
                         <button
-                            onClick={() => navigate(`/courses/${courseId}`)}
+                            onClick={() => navigate(`${S.base}/courses/${courseId}`)}
                             className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors flex-shrink-0"
                         >
                             <ArrowLeft size={16} />
                         </button>
-                        <span className="hidden sm:inline text-slate-400 hover:text-slate-700 cursor-pointer truncate max-w-[120px]" onClick={() => navigate(`/courses/${courseId}`)}>
+                        <span className="hidden sm:inline text-slate-400 hover:text-slate-700 cursor-pointer truncate max-w-[120px]" onClick={() => navigate(`${S.base}/courses/${courseId}`)}>
                             Course Builder
                         </span>
                         <span className="hidden sm:inline text-slate-300">/</span>
-                        <span className="text-slate-700 font-bold truncate max-w-[160px] sm:max-w-xs">{lesson.title}</span>
+                        <span className="text-slate-700 font-bold truncate max-w-[160px] sm:max-w-xs" title={lesson.title}>{lesson.title}</span>
                     </div>
 
                     {/* Right: actions */}
@@ -467,7 +470,7 @@ const LessonEditor = () => {
                         <button
                             onClick={handleSave}
                             disabled={saving}
-                            className="flex items-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors text-sm shadow-sm disabled:opacity-50"
+                            className="flex items-center gap-1.5 px-4 sm:px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors text-sm shadow-sm whitespace-nowrap disabled:opacity-50"
                         >
                             {saving ? (
                                 <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving...</>
@@ -479,9 +482,9 @@ const LessonEditor = () => {
                 </div>
             </div>
 
-            {/* ── Lesson Header Card ── */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-2">
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4">
+            {/* ── Lesson Header Card ── (no side padding on a phone: the panel's own padding frames it) */}
+            <div className="max-w-7xl mx-auto sm:px-6 pt-6 pb-2">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-4 sm:px-6 sm:py-5 flex flex-col sm:flex-row sm:items-center gap-4">
                     {/* Lesson type icon */}
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
                         lessonType === 'quiz' ? 'bg-purple-100' :
@@ -558,7 +561,7 @@ const LessonEditor = () => {
                 </div>
             )}
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 gap-6">
+            <div className="max-w-7xl mx-auto sm:px-6 py-6 grid grid-cols-1 gap-6">
                 <div className="animate-fade-in">
                     {/* Tabs */}
                     <div className="flex border-b border-slate-200 mb-6 overflow-x-auto gap-1">
@@ -579,9 +582,9 @@ const LessonEditor = () => {
 
                     {/* Video Source Configuration Section */}
                     {activeTab === 'video' && (
-                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-8 sm:p-12 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-5 sm:p-8 lg:p-12 animate-in fade-in slide-in-from-bottom-2 duration-300">
 
-                            <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center">
+                            <h3 className="text-lg sm:text-xl font-black text-slate-800 mb-6 flex items-center">
                                 <MonitorPlay className="mr-3 text-indigo-600" size={24} /> Video Source Configuration
                             </h3>
 
@@ -612,7 +615,7 @@ const LessonEditor = () => {
                                         <div className="space-y-4">
                                             {/* Dropzone / Upload Button */}
                                             {!lesson.videoId && !uploading && (
-                                                <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50">
+                                                <div className="border-2 border-dashed border-slate-300 rounded-xl p-5 sm:p-8 text-center hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50">
                                                     <input
                                                         type="file"
                                                         accept="video/*"
@@ -646,8 +649,8 @@ const LessonEditor = () => {
                                                         lesson.vdocipherStatus === 'deleted' ? 'bg-red-50 border-red-200' :
                                                             'bg-orange-50 border-orange-200'
                                                         }`}>
-                                                        <div>
-                                                            <div className="flex items-center space-x-2 mb-1">
+                                                        <div className="min-w-0">
+                                                            <div className="flex flex-wrap items-center gap-2 mb-1">
                                                                 {lesson.vdocipherStatus === 'ready' ? (
                                                                     <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider rounded">Ready</span>
                                                                 ) : lesson.vdocipherStatus === 'deleted' ? (
@@ -664,7 +667,7 @@ const LessonEditor = () => {
                                                                             'Encoding on VdoCipher'}
                                                                 </p>
                                                             </div>
-                                                            <p className={`font-mono font-medium text-sm ${lesson.vdocipherStatus === 'ready' ? 'text-emerald-900' :
+                                                            <p className={`font-mono font-medium text-sm break-all ${lesson.vdocipherStatus === 'ready' ? 'text-emerald-900' :
                                                                 lesson.vdocipherStatus === 'deleted' ? 'text-red-900 line-through opacity-50' :
                                                                     'text-orange-900'
                                                                 }`}>{lesson.videoId}</p>
@@ -711,7 +714,7 @@ const LessonEditor = () => {
                                         <div className="space-y-4">
                                             {/* Dropzone / Upload Button */}
                                             {!lesson.videoId && !uploading && (
-                                                <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50">
+                                                <div className="border-2 border-dashed border-slate-300 rounded-xl p-5 sm:p-8 text-center hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50">
                                                     <input
                                                         type="file"
                                                         accept="video/*"
@@ -740,7 +743,7 @@ const LessonEditor = () => {
 
                                             {/* ID Readout & Manual Override */}
                                             {lesson.videoId && !uploading && (
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-emerald-50 p-6 rounded-xl border border-emerald-200">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-emerald-50 p-4 sm:p-6 rounded-xl border border-emerald-200">
                                                     <div>
                                                         <label className="text-xs font-bold text-emerald-700 mb-2 block uppercase tracking-wider">Bunny Video ID</label>
                                                         <input
@@ -775,7 +778,7 @@ const LessonEditor = () => {
                                             {(!lesson.videoSource || lesson.videoSource === 'generic') && (
                                                 <div className="mb-4">
                                                     {!lesson.videoUrl && !uploading && (
-                                                        <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50">
+                                                        <div className="border-2 border-dashed border-slate-300 rounded-xl p-5 sm:p-8 text-center hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50">
                                                             <input
                                                                 type="file"
                                                                 accept="video/*"
@@ -829,7 +832,7 @@ const LessonEditor = () => {
 
                             {/* Lesson Attachments */}
                             <div className="mt-10 pt-8 border-t border-slate-100">
-                                <h3 className="text-xl font-black text-slate-800 mb-1 flex items-center">
+                                <h3 className="text-lg sm:text-xl font-black text-slate-800 mb-1 flex items-center">
                                     <Paperclip className="mr-3 text-indigo-600" size={22} /> Attachments
                                 </h3>
                                 <p className="text-xs text-slate-500 font-medium mb-6">
@@ -840,10 +843,10 @@ const LessonEditor = () => {
                                     <div className="space-y-2 mb-4">
                                         {attachments.map((att, idx) => (
                                             <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                                                <div className="flex items-center min-w-0">
+                                                <div className="flex items-center min-w-0 flex-1">
                                                     <FileText size={16} className="text-indigo-500 mr-3 flex-shrink-0" />
                                                     <div className="min-w-0">
-                                                        <p className="text-sm font-bold text-slate-700 truncate">{att.name || 'Attachment'}</p>
+                                                        <p className="text-sm font-bold text-slate-700 truncate" title={att.name || 'Attachment'}>{att.name || 'Attachment'}</p>
                                                         <a href={att.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline truncate block">
                                                             {att.url}
                                                         </a>
@@ -862,7 +865,7 @@ const LessonEditor = () => {
 
                                 {/* Upload dropzone */}
                                 {!attachmentUploading ? (
-                                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50">
+                                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-5 sm:p-6 text-center hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50">
                                         <input
                                             type="file"
                                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -916,8 +919,8 @@ const LessonEditor = () => {
 
                     {/* PDF Configuration Section */}
                     {activeTab === 'pdf' && (
-                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-8 sm:p-12 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center">
+                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-5 sm:p-8 lg:p-12 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <h3 className="text-lg sm:text-xl font-black text-slate-800 mb-6 flex items-center">
                                 <FileText className="mr-3 text-red-500" size={24} /> PDF Document Configuration
                             </h3>
 
@@ -927,7 +930,7 @@ const LessonEditor = () => {
 
                                     {/* Upload Dropzone */}
                                     {!lesson.pdfUrl && !uploading && (
-                                        <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-red-400 hover:bg-red-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50 mb-4">
+                                        <div className="border-2 border-dashed border-slate-300 rounded-xl p-5 sm:p-8 text-center hover:border-red-400 hover:bg-red-50/30 transition-all flex flex-col items-center justify-center relative bg-slate-50 mb-4">
                                             <input
                                                 type="file"
                                                 accept="application/pdf"
@@ -942,7 +945,7 @@ const LessonEditor = () => {
                                                     try {
                                                         const formData = new FormData();
                                                         formData.append('file', file);
-                                                        const res = await api.post('/admin/lessons/upload', formData, {
+                                                        const res = await api.post(`${S.api}/lessons/upload`, formData, {
                                                             headers: { 'Content-Type': 'multipart/form-data' },
                                                             onUploadProgress: (progressEvent) => {
                                                                 if (progressEvent.total) setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
@@ -983,10 +986,10 @@ const LessonEditor = () => {
                                     <label className="text-xs font-bold text-slate-500 mb-2 block">
                                         {lesson.pdfUrl ? 'Uploaded PDF URL:' : 'Or paste an existing PDF URL:'}
                                     </label>
-                                    <div className="flex space-x-2">
+                                    <div className="flex gap-2">
                                         <input
                                             type="url"
-                                            className={`w-full p-4 border rounded-xl outline-none font-medium transition-all text-sm ${lesson.pdfUrl ? 'bg-red-50 border-red-200 text-red-900 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'bg-white border-slate-200 text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+                                            className={`w-full min-w-0 p-3 sm:p-4 border rounded-xl outline-none font-medium transition-all text-sm ${lesson.pdfUrl ? 'bg-red-50 border-red-200 text-red-900 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'bg-white border-slate-200 text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
                                                 }`}
                                             placeholder="e.g. https://s3.amazonaws.com/bucket/document.pdf"
                                             value={lesson.pdfUrl || ''}
@@ -1011,12 +1014,12 @@ const LessonEditor = () => {
 
                     {/* Quiz Builder Configuration Section */}
                     {activeTab === 'quiz' && (
-                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-8 sm:p-12 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-xl font-black text-slate-800 flex items-center">
+                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-5 sm:p-8 lg:p-12 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+                                <h3 className="text-lg sm:text-xl font-black text-slate-800 flex items-center">
                                     <HelpCircle className="mr-3 text-emerald-500" size={24} /> Quiz Builder
                                 </h3>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center gap-2">
                                     <label className="text-sm font-bold text-slate-700">Passing Score (%)</label>
                                     <input
                                         type="number"
@@ -1040,9 +1043,10 @@ const LessonEditor = () => {
                                             {quizData.questions.map((q, idx) => (
                                                 <div key={idx} className="p-4 border border-slate-200 rounded-xl hover:border-indigo-300 transition-colors bg-white group relative">
                                                     <div className="flex justify-between items-start mb-2">
-                                                        <span className="font-black text-slate-400 mr-3">Q{idx + 1}.</span>
-                                                        <h4 className="font-bold text-slate-800 flex-1">{q.questionText}</h4>
-                                                        <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <span className="shrink-0 font-black text-slate-400 mr-3">Q{idx + 1}.</span>
+                                                        <h4 className="font-bold text-slate-800 flex-1 min-w-0 wrap-anywhere">{q.questionText}</h4>
+                                                        {/* Hidden until hover only where there is a mouse; a touchscreen always shows them. */}
+                                                        <div className="flex shrink-0 space-x-2 ml-2 pointer-fine:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                                             <button onClick={() => handleEditQuestion(idx)} className="p-1.5 text-slate-400 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 rounded-lg">
                                                                 <Eye size={16} />
                                                             </button>
@@ -1051,10 +1055,10 @@ const LessonEditor = () => {
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="pl-8 grid grid-cols-2 gap-2 mt-3">
+                                                    <div className="sm:pl-8 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                                                         {q.options.map((opt, oIdx) => (
-                                                            <div key={oIdx} className={`text-sm py-1.5 px-3 rounded-lg border flex items-center ${q.correctAnswerIndex === oIdx ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
-                                                                {q.correctAnswerIndex === oIdx && <CheckCircle size={14} className="mr-2 text-emerald-500" />}
+                                                            <div key={oIdx} className={`text-sm py-1.5 px-3 rounded-lg border flex items-center min-w-0 wrap-anywhere ${q.correctAnswerIndex === oIdx ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
+                                                                {q.correctAnswerIndex === oIdx && <CheckCircle size={14} className="mr-2 shrink-0 text-emerald-500" />}
                                                                 {opt}
                                                             </div>
                                                         ))}
@@ -1095,7 +1099,7 @@ const LessonEditor = () => {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-6 bg-slate-50 p-6 rounded-xl border border-slate-200">
+                                <div className="space-y-6 bg-slate-50 p-4 sm:p-6 rounded-xl border border-slate-200">
                                     <div className="flex justify-between items-center mb-4">
                                         <h4 className="font-bold text-slate-800 text-lg">
                                             {editingQuestionIndex >= 0 ? `Edit Question ${editingQuestionIndex + 1}` : 'New Question'}
@@ -1123,11 +1127,11 @@ const LessonEditor = () => {
                                                         name="correctAnswer"
                                                         checked={currentQuestion.correctAnswerIndex === idx}
                                                         onChange={() => setCurrentQuestion({ ...currentQuestion, correctAnswerIndex: idx })}
-                                                        className="w-5 h-5 mx-4 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                        className="w-5 h-5 mx-2 sm:mx-4 shrink-0 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                                                     />
                                                     <input
                                                         type="text"
-                                                        className="flex-1 bg-transparent outline-none font-medium text-slate-700"
+                                                        className="flex-1 min-w-0 bg-transparent outline-none font-medium text-slate-700"
                                                         placeholder={`Option ${idx + 1}`}
                                                         value={opt}
                                                         onChange={(e) => {
@@ -1138,7 +1142,7 @@ const LessonEditor = () => {
                                                     />
                                                     <button
                                                         onClick={() => handleRemoveOption(idx)}
-                                                        className="p-2 text-slate-400 hover:text-red-500 mx-2"
+                                                        className="p-2 shrink-0 text-slate-400 hover:text-red-500 mx-1 sm:mx-2"
                                                     >
                                                         <Trash2 size={16} />
                                                     </button>
@@ -1153,7 +1157,7 @@ const LessonEditor = () => {
                                         </button>
                                     </div>
 
-                                    <div className="pt-4 mt-6 border-t border-slate-200 flex justify-end space-x-3">
+                                    <div className="pt-4 mt-6 border-t border-slate-200 flex flex-wrap justify-end gap-3">
                                         <button
                                             onClick={() => {
                                                 setShowQuestionForm(false);
@@ -1178,23 +1182,23 @@ const LessonEditor = () => {
 
                     {/* Security Tab */}
                     {activeTab === 'security' && (
-                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-8 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-5 sm:p-8 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <h3 className="text-xl font-black text-slate-800">Security Settings</h3>
-                            <div className="flex justify-between items-center py-4 border-b border-slate-100">
-                                <div>
+                            <div className="flex justify-between items-center gap-4 py-4 border-b border-slate-100">
+                                <div className="min-w-0">
                                     <p className="font-bold text-slate-800">Enable DRM Protection</p>
                                     <p className="text-xs text-slate-500 mt-0.5">Prevent unauthorized copying of video content</p>
                                 </div>
-                                <button onClick={() => setSecuritySettings(p => ({ ...p, enableDRM: !p.enableDRM }))}>
+                                <button className="shrink-0" onClick={() => setSecuritySettings(p => ({ ...p, enableDRM: !p.enableDRM }))}>
                                     {securitySettings.enableDRM ? <ToggleRight size={36} className="text-emerald-500" strokeWidth={1.5} /> : <ToggleLeft size={36} className="text-slate-300" strokeWidth={1.5} />}
                                 </button>
                             </div>
-                            <div className="flex justify-between items-center py-4 border-b border-slate-100">
-                                <div>
+                            <div className="flex justify-between items-center gap-4 py-4 border-b border-slate-100">
+                                <div className="min-w-0">
                                     <p className="font-bold text-slate-800">Disable Screen Capture</p>
                                     <p className="text-xs text-slate-500 mt-0.5">Block screenshots and screen recording</p>
                                 </div>
-                                <button onClick={() => setSecuritySettings(p => ({ ...p, disableScreenCapture: !p.disableScreenCapture }))}>
+                                <button className="shrink-0" onClick={() => setSecuritySettings(p => ({ ...p, disableScreenCapture: !p.disableScreenCapture }))}>
                                     {securitySettings.disableScreenCapture ? <ToggleRight size={36} className="text-emerald-500" strokeWidth={1.5} /> : <ToggleLeft size={36} className="text-slate-300" strokeWidth={1.5} />}
                                 </button>
                             </div>
@@ -1214,7 +1218,7 @@ const LessonEditor = () => {
 
                     {/* Thumbnails Tab */}
                     {activeTab === 'thumbnails' && (
-                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-8 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-5 sm:p-8 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <h3 className="text-xl font-black text-slate-800">Lesson Thumbnail</h3>
                             {thumbnailUrl && (
                                 <div className="relative rounded-xl overflow-hidden border border-slate-200">
@@ -1235,7 +1239,7 @@ const LessonEditor = () => {
                                     onChange={e => setThumbnailUrl(e.target.value)}
                                 />
                             </div>
-                            <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center bg-slate-50">
+                            <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-5 sm:p-8 text-center hover:border-indigo-400 hover:bg-indigo-50/30 transition-all flex flex-col items-center justify-center bg-slate-50">
                                 <input
                                     type="file"
                                     accept="image/*"
@@ -1246,7 +1250,7 @@ const LessonEditor = () => {
                                         try {
                                             const fd = new FormData();
                                             fd.append('image', file);
-                                            const res = await api.post('/admin/courses/thumbnail', fd, {
+                                            const res = await api.post(`${S.api}/courses/thumbnail`, fd, {
                                                 headers: { 'Content-Type': 'multipart/form-data' }
                                             });
                                             setThumbnailUrl(res.data.url);
@@ -1264,7 +1268,7 @@ const LessonEditor = () => {
 
                     {/* Player Options Tab */}
                     {activeTab === 'player' && (
-                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-8 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] border border-slate-200 p-5 sm:p-8 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <h3 className="text-xl font-black text-slate-800">Player Options</h3>
                             {[
                                 { key: 'autoplay', label: 'Autoplay', desc: 'Start playing automatically when opened' },
@@ -1272,12 +1276,12 @@ const LessonEditor = () => {
                                 { key: 'loop', label: 'Loop Video', desc: 'Replay automatically when finished' },
                                 { key: 'muted', label: 'Start Muted', desc: 'Begin playback with audio muted' },
                             ].map(({ key, label, desc }) => (
-                                <div key={key} className="flex justify-between items-center py-4 border-b border-slate-100 last:border-0">
-                                    <div>
+                                <div key={key} className="flex justify-between items-center gap-4 py-4 border-b border-slate-100 last:border-0">
+                                    <div className="min-w-0">
                                         <p className="font-bold text-slate-800">{label}</p>
                                         <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
                                     </div>
-                                    <button onClick={() => setPlayerSettings(p => ({ ...p, [key]: !p[key] }))}>
+                                    <button className="shrink-0" onClick={() => setPlayerSettings(p => ({ ...p, [key]: !p[key] }))}>
                                         {playerSettings[key] ? <ToggleRight size={36} className="text-emerald-500" strokeWidth={1.5} /> : <ToggleLeft size={36} className="text-slate-300" strokeWidth={1.5} />}
                                     </button>
                                 </div>
@@ -1292,14 +1296,14 @@ const LessonEditor = () => {
             {/* Custom Delete Confirmation Modal */}
             {showDeleteConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+                        <div className="p-4 sm:p-6">
                             <h3 className="text-xl font-bold text-slate-900 mb-2">Delete Video?</h3>
                             <p className="text-slate-600 font-medium">
                                 Are you sure you want to permanently remove and physically delete this video from VdoCipher? This action cannot be undone.
                             </p>
                         </div>
-                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end space-x-3">
+                        <div className="px-4 sm:px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-wrap justify-end gap-3">
                             <button
                                 onClick={() => setShowDeleteConfirm(false)}
                                 className="px-5 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200 bg-slate-100 rounded-lg transition-colors"
@@ -1311,7 +1315,7 @@ const LessonEditor = () => {
                                     setShowDeleteConfirm(false);
                                     if (lesson.videoId && lesson.videoSource === 'vdocipher' && lesson.vdocipherStatus !== 'deleted') {
                                         try {
-                                            await api.delete(`/vdocipher/video/${lesson.videoId}`);
+                                            await api.delete(`${S.video}/video/${lesson.videoId}`);
                                         } catch (e) {
                                             console.error("Could not delete from vdocipher", e);
                                         }

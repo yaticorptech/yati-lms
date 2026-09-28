@@ -3,8 +3,8 @@
  * @description Student enrolled courses and bundles listing with progress bars
  */
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { PlayCircle, Clock, BookOpen, Award, X, Compass, Layers, CheckCircle2, TrendingUp, Sparkles } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { PlayCircle, Clock, BookOpen, Award, X, Compass, Layers, CheckCircle2, TrendingUp, Sparkles, Building2, Loader2 } from 'lucide-react';
 import { CoursesArt, NoBundlesArt, NoCoursesArt } from '../components/PageArt';
 import api from '../utils/api';
 import useAutoRefresh from '../hooks/useAutoRefresh';
@@ -15,20 +15,53 @@ const EnrolledCourses = () => {
     const [courses, setCourses] = useState([]);
     const [bundles, setBundles] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('courses');
+    // The open tab lives in the address (?tab=organization), so it survives a
+    // refresh and the back button returns to it.
+    const [params, setParams] = useSearchParams();
+    const activeTab = ['bundles', 'organization'].includes(params.get('tab')) ? params.get('tab') : 'courses';
+    const setActiveTab = (tab) => setParams(tab === 'courses' ? {} : { tab }, { replace: true });
     const [selectedBundle, setSelectedBundle] = useState(null);
+    // The student's organization and every course it has published — null for
+    // a student who is not in one, and then the tab is not shown at all.
+    const [org, setOrg] = useState({ organization: null, courses: [] });
+    const [startingId, setStartingId] = useState(null);
+    const [startError, setStartError] = useState('');
+    const navigate = useNavigate();
 
     const fetchMyCourses = async () => {
             try {
-                const res = await api.get('/user/courses');
-                setCourses(res.data.courses);
+                const [res, orgRes] = await Promise.all([
+                    api.get('/user/courses'),
+                    // Its own failure must not take My courses down with it.
+                    api.get('/user/courses/organization').catch(() => null)
+                ]);
+                // My courses is the platform's courses only. The organization's
+                // own courses have their own section, even once enrolled in.
+                setCourses((res.data.courses || []).filter((c) => !c.organizationId));
                 setBundles(res.data.bundles || []);
+                if (orgRes) setOrg({ organization: orgRes.data.organization, courses: orgRes.data.courses || [] });
             } catch (err) {
                 console.error('Failed to fetch courses:', err);
             } finally {
                 setLoading(false);
             }
         };
+
+    // An organization course is free: starting one enrols the student and
+    // opens it straight away.
+    const startOrgCourse = async (course) => {
+        setStartingId(course._id);
+        setStartError('');
+        try {
+            await api.post(`/user/courses/${course._id}/enroll`);
+            navigate(`/learn/${course._id}`);
+        } catch (err) {
+            // Enrolled already (another tab, or an admin did it): just open it.
+            if (err.response?.status === 400) return navigate(`/learn/${course._id}`);
+            setStartError(err.response?.data?.message || 'Could not start this course. Please try again.');
+            setStartingId(null);
+        }
+    };
 
     useAutoRefresh(fetchMyCourses, 30000);
     // The same loader as Career Path: the mascot, a line, a bar — held for a
@@ -134,7 +167,8 @@ const EnrolledCourses = () => {
                 <div className="lms-rise mt-6 mb-6 inline-flex w-full gap-1 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200 sm:w-auto" style={{ animationDelay: '0.15s' }}>
                     {[
                         ['courses', 'My courses', BookOpen, courses.length],
-                        ['bundles', 'Bundles', Layers, bundles.length]
+                        ['bundles', 'Bundles', Layers, bundles.length],
+                        ...(org.organization ? [['organization', 'Organization', Building2, org.courses.length]] : [])
                     ].map(([key, label, Icon, count]) => {
                         const on = activeTab === key;
                         return (
@@ -143,13 +177,13 @@ const EnrolledCourses = () => {
                                 type="button"
                                 onClick={() => setActiveTab(key)}
                                 aria-pressed={on}
-                                className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black whitespace-nowrap transition-all sm:flex-none ${
+                                className={`inline-flex min-h-10 flex-auto items-center justify-center gap-1 rounded-xl px-2 text-[12.5px] font-black whitespace-nowrap transition-all sm:flex-none sm:gap-2 sm:px-4 sm:text-sm ${
                                     on
                                         ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/25'
                                         : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                                 }`}
                             >
-                                <Icon size={16} />
+                                <Icon size={16} className="hidden shrink-0 min-[400px]:block" />
                                 {label}
                                 <span className={`rounded-full px-1.5 py-0.5 text-[0.68rem] tabular-nums ${on ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                     {count}
@@ -270,6 +304,8 @@ const EnrolledCourses = () => {
                             </div>
                         </div>
                     )
+                ) : activeTab === 'organization' ? (
+                    <OrganizationCourses org={org} startingId={startingId} startError={startError} onStart={startOrgCourse} />
                 ) : (
                     bundles.length > 0 ? (
                         <div className="lms-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -418,6 +454,102 @@ const EnrolledCourses = () => {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+/**
+ * The Organization tab: every course the student's own organization has
+ * published, for its students only and always free. One they have not started
+ * yet enrols them and opens with a single click; one they have is resumed.
+ */
+const OrganizationCourses = ({ org, startingId, startError, onStart }) => {
+    const { organization, courses } = org;
+    return (
+        <div className="space-y-5">
+            <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                {organization.logo ? (
+                    <img src={organization.logo} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" />
+                ) : (
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Building2 size={22} /></span>
+                )}
+                <div className="min-w-0">
+                    <p className="truncate font-black text-slate-900">{organization.name}</p>
+                    <p className="text-sm text-slate-500">Courses from your organization, only for its students. All free.</p>
+                </div>
+            </div>
+
+            {startError && (
+                <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 ring-1 ring-rose-200">{startError}</p>
+            )}
+
+            {courses.length === 0 ? (
+                <div className="animate-fade-in-up relative overflow-hidden bg-gradient-to-br from-white to-indigo-50/60 rounded-3xl border border-indigo-100 p-8 sm:p-12 text-center flex flex-col items-center">
+                    <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600"><Building2 size={30} /></span>
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-2">No courses yet</h3>
+                    <p className="text-slate-500 max-w-sm">{organization.name} hasn't published any courses yet. They'll show up here as soon as it does.</p>
+                </div>
+            ) : (
+                <div className="lms-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {courses.map((course) => {
+                        const progress = course.progress || 0;
+                        const done = progress >= 100;
+                        const starting = startingId === course._id;
+                        const button = `mt-5 w-full flex justify-center items-center gap-2 py-3 font-black rounded-xl transition-all ${
+                            done
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                : 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/25 hover:-translate-y-0.5 hover:shadow-lg'
+                        }`;
+                        return (
+                            <div key={course._id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:-translate-y-1 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 group flex flex-col">
+                                <div className="h-44 bg-slate-100 relative overflow-hidden">
+                                    {course.thumbnail ? (
+                                        <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                    ) : (
+                                        <div className="w-full h-full flex justify-center items-center bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white/80">
+                                            <BookOpen size={44} />
+                                        </div>
+                                    )}
+                                    <span className="absolute top-3 right-3 rounded-full bg-emerald-500 px-2.5 py-1 text-[0.68rem] font-black text-white shadow-md">Free</span>
+                                    {course.enrolled && (
+                                        <span className={`absolute top-3 left-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.68rem] font-black shadow-md tabular-nums ${done ? 'bg-emerald-500 text-white' : 'bg-white/90 text-indigo-700 backdrop-blur'}`}>
+                                            {done ? <><CheckCircle2 size={12} strokeWidth={3} /> Finished</> : progress > 0 ? `${progress}% done` : 'Enrolled'}
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="p-5 flex-1 flex flex-col">
+                                    <h3 className="font-bold text-lg text-slate-800 line-clamp-2 min-h-[56px] mb-1.5 group-hover:text-indigo-600 transition-colors">{course.title}</h3>
+                                    <p className="line-clamp-2 text-sm text-slate-500">{course.description || `A course from ${organization.name}.`}</p>
+
+                                    <div className="mt-auto pt-4">
+                                        {course.enrolled && (
+                                            <>
+                                                <div className="flex justify-between items-end mb-2">
+                                                    <span className="text-sm font-semibold text-slate-500 flex items-center"><Clock size={14} className="mr-1.5" /> Progress</span>
+                                                    <span className="text-sm font-bold text-indigo-600">{progress}%</span>
+                                                </div>
+                                                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                                                    <div className={`h-2.5 rounded-full ${done ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500'}`} style={{ width: `${progress}%` }} />
+                                                </div>
+                                            </>
+                                        )}
+                                        {course.enrolled ? (
+                                            <Link to={`/learn/${course._id}`} className={button}>
+                                                {done ? <>Review course <CheckCircle2 size={18} /></> : progress > 0 ? <>Resume course <PlayCircle size={18} /></> : <>Start course <PlayCircle size={18} /></>}
+                                            </Link>
+                                        ) : (
+                                            <button type="button" onClick={() => onStart(course)} disabled={Boolean(startingId)} className={`${button} disabled:cursor-wait disabled:opacity-70`}>
+                                                {starting ? <><Loader2 size={18} className="animate-spin" /> Starting…</> : <>Start course <PlayCircle size={18} /></>}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </div>

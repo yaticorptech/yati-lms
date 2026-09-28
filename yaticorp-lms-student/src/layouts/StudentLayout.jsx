@@ -595,24 +595,30 @@ const StudentLayout = () => {
                         </div>
                         <nav className="flex-1 p-4 space-y-2">
                             {renderNavLinks(() => setMobileMenuOpen(false))}
-
-                            {/* Logging out belongs with the places you can go,
-                                at the end of them. It used to sit below the
-                                profile card and Contact Support, off the bottom
-                                of a phone screen unless you went looking. */}
-                            <div className="!mt-4 border-t border-slate-800 pt-4">
+                        </nav>
+                        <div className="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
+                            {/* Logout sits in this pinned footer, beside
+                                Contact Support, so it is always on screen. At
+                                the end of the scrolling nav it was hidden below
+                                the fold, and nothing hinted the list scrolled. */}
+                            <div className="mb-3 grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => { setMobileMenuOpen(false); setShowContact(true); }}
+                                    className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
+                                >
+                                    <MessageCircleQuestion size={20} /> <span>Support</span>
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-                                    className="flex w-full items-center space-x-3 rounded-lg p-2.5 font-medium text-rose-300 transition-colors duration-200 hover:bg-rose-500/10 hover:text-rose-200"
+                                    className="flex items-center justify-center space-x-2 bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
                                 >
                                     <LogOut size={20} /> <span>Logout</span>
                                 </button>
                             </div>
-                        </nav>
-                        <div className="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
                             {/* Profile card in mobile drawer */}
-                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 mb-4">
+                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                                 <div className="flex justify-between items-start mb-1">
                                     <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Student</p>
                                     {isCreditSystemEnabled && (
@@ -625,22 +631,6 @@ const StudentLayout = () => {
                                 <p className="font-bold text-white truncate">{user?.name}</p>
                                 <p className="text-xs text-slate-400 font-mono mt-1">{user?.cardNumber}</p>
                             </div>
-
-                            {isCareerPathEnabled && (
-                                <div className="mb-4">
-                                    <SidebarProgressCard
-                                        user={progressUser || user}
-                                        onNavigate={() => setMobileMenuOpen(false)}
-                                    />
-                                </div>
-                            )}
-
-                            <button
-                                onClick={() => { setMobileMenuOpen(false); setShowContact(true); }}
-                                className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
-                            >
-                                <MessageCircleQuestion size={20} /> <span>Contact Support</span>
-                            </button>
                         </div>
                     </div>
                 </div>

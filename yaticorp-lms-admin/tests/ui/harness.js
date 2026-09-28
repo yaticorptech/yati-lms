@@ -30,7 +30,9 @@ export const skipWithoutChrome = CHROME ? false : 'no Chrome on this machine';
 
 /** The app's built stylesheet, or null when the app has not been built. */
 export const builtStylesheet = () => {
-    const assets = path.join(ROOT, 'dist', 'assets');
+    // UI_DIST points at a build made with `vite build --outDir`, so runs that
+    // build side by side do not overwrite one another's stylesheet.
+    const assets = path.join(process.env.UI_DIST || path.join(ROOT, 'dist'), 'assets');
     if (!existsSync(assets)) return null;
     const name = readdirSync(assets).find((f) => f.startsWith('index-') && f.endsWith('.css'));
     return name ? path.join(assets, name) : null;

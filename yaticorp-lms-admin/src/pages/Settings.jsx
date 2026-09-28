@@ -18,12 +18,12 @@ import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
  */
 const FeatureRow = ({ icon: Icon, title, description, enabled, saving, onToggle }) => (
     <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3">
             <span className={`p-2 rounded-lg shrink-0 ${enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                 <Icon size={18} />
             </span>
-            <div>
-                <div className="flex items-center gap-2">
+            <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-bold text-slate-800">{title}</h3>
                     <span className={`text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded ${enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                         {enabled ? 'Unlocked' : 'Locked'}
@@ -41,7 +41,7 @@ const FeatureRow = ({ icon: Icon, title, description, enabled, saving, onToggle 
         <button
             onClick={() => onToggle(!enabled)}
             disabled={saving}
-            className={`shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 ${
+            className={`shrink-0 inline-flex w-full items-center justify-center gap-2 px-5 py-2.5 rounded-lg sm:w-auto font-medium transition-colors disabled:opacity-50 ${
                 enabled
                     ? 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
                     : 'bg-indigo-600 text-white hover:bg-indigo-700'
@@ -213,7 +213,7 @@ const Settings = () => {
                 that changes what students see, so it should not be mistaken for
                 one of the admin-account settings beside it. */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 flex items-center space-x-3 bg-slate-50">
+                <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center space-x-3 bg-slate-50">
                     <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><Compass size={20} /></div>
                     <div>
                         <h2 className="text-lg font-bold text-slate-800">Student Features</h2>
@@ -221,7 +221,7 @@ const Settings = () => {
                     </div>
                 </div>
 
-                <div className="p-6">
+                <div className="p-4 sm:p-6">
                     {features === null ? (
                         <div className="text-slate-500 text-sm">Loading settings…</div>
                     ) : (
@@ -261,15 +261,15 @@ const Settings = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
 
                 {/* Security & 2FA Section */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-slate-100 flex items-center space-x-3 bg-slate-50">
-                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><Key size={20} /></div>
+                    <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center space-x-3 bg-slate-50">
+                        <div className="p-2 shrink-0 bg-indigo-100 text-indigo-600 rounded-lg"><Key size={20} /></div>
                         <h2 className="text-lg font-bold text-slate-800">Two-Factor Authentication (2FA)</h2>
                     </div>
-                    <div className="p-6 flex-1 flex flex-col justify-center items-center text-center space-y-4">
+                    <div className="p-4 sm:p-6 flex-1 flex flex-col justify-center items-center text-center space-y-4">
                         {setupStep === 0 && (
                             <>
                                 <Smartphone size={48} className="text-slate-300 mx-auto mb-2" />
@@ -324,14 +324,14 @@ const Settings = () => {
                 {/* Superadmin Management */}
                 {isSuperAdmin ? (
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <div className="flex items-center space-x-3">
+                        <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center gap-3 bg-slate-50">
+                            <div className="flex min-w-0 items-center space-x-3">
                                 <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Shield size={20} /></div>
                                 <h2 className="text-lg font-bold text-slate-800">Admin Accounts</h2>
                             </div>
                             <button
                                 onClick={() => setShowAdminModal(true)}
-                                className="text-sm font-medium bg-white border border-slate-300 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors flex items-center shadow-sm"
+                                className="shrink-0 text-sm font-medium bg-white border border-slate-300 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors flex items-center shadow-sm"
                             >
                                 <Plus size={16} className="mr-1" /> Add
                             </button>
@@ -342,16 +342,16 @@ const Settings = () => {
                             ) : (
                                 <ul className="divide-y divide-slate-100">
                                     {admins.map(a => (
-                                        <li key={a._id} className="p-6 flex justify-between items-center hover:bg-slate-50 transition-colors">
-                                            <div>
-                                                <div className="font-bold text-slate-800 flex items-center">
+                                        <li key={a._id} className="p-4 sm:p-6 flex justify-between items-center gap-3 hover:bg-slate-50 transition-colors">
+                                            <div className="min-w-0">
+                                                <div className="font-bold text-slate-800 flex flex-wrap items-center break-words">
                                                     {a.name}
                                                     {a.role === 'superadmin' && <span className="ml-2 text-[10px] uppercase font-black tracking-wider bg-purple-100 text-purple-700 px-2 py-0.5 rounded shadow-sm">Super</span>}
                                                 </div>
-                                                <div className="text-sm text-slate-500">{a.email}</div>
+                                                <div className="text-sm text-slate-500 break-all">{a.email}</div>
                                             </div>
                                             {a._id !== admin.adminId && a.role !== 'superadmin' && ( // Cannot delete self or another superadmin usually, but based on your backend rules
-                                                <div className="flex items-center space-x-2">
+                                                <div className="flex shrink-0 items-center space-x-2">
                                                     <button onClick={() => openEditModal(a)} className="text-slate-400 hover:text-indigo-600 p-2 rounded transition-colors text-sm font-medium">
                                                         Edit
                                                     </button>
@@ -376,10 +376,11 @@ const Settings = () => {
             </div>
 
             {showAdminModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in text-left">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
-                        <div className="p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg">Create New Administrator</div>
-                        <form onSubmit={handleCreateAdmin} className="p-6 space-y-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in text-left" role="dialog" aria-modal="true" aria-label="Create New Administrator">
+                    {/* Capped to the screen; the form scrolls inside so the header stays put on a short phone. */}
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col">
+                        <div className="shrink-0 p-4 sm:p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg">Create New Administrator</div>
+                        <form onSubmit={handleCreateAdmin} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
                             <div><label className="block text-sm font-semibold text-slate-700 mb-1">Full Name</label><input type="text" required value={newAdmin.name}  onChange={e => {
       const value = e.target.value;
       // allow only letters and spaces
@@ -417,7 +418,7 @@ const Settings = () => {
                                     className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-gray-100"
                                 />
                             </div>
-                            <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                            <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-slate-100">
                                 <button type="button" onClick={() => setShowAdminModal(false)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
                                 <button type="submit" className="px-5 py-2.5 bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-lg transition-colors">Create Admin</button>
                             </div>
@@ -428,10 +429,11 @@ const Settings = () => {
 
             {/* Edit Admin Modal */}
             {showEditAdminModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in text-left">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
-                        <div className="p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg">Edit Administrator</div>
-                        <form onSubmit={handleEditAdmin} className="p-6 space-y-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in text-left" role="dialog" aria-modal="true" aria-label="Edit Administrator">
+                    {/* Capped to the screen; the form scrolls inside so the header stays put on a short phone. */}
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col">
+                        <div className="shrink-0 p-4 sm:p-6 border-b border-slate-200 bg-slate-50 font-bold text-lg">Edit Administrator</div>
+                        <form onSubmit={handleEditAdmin} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
                             <div><label className="block text-sm font-semibold text-slate-700 mb-1">Full Name</label><input type="text" required value={editAdminForm.name} onChange={e => setEditAdminForm({ ...editAdminForm, name: e.target.value })} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
                             <div><label className="block text-sm font-semibold text-slate-700 mb-1">Email</label><input type="email" required value={editAdminForm.email} onChange={e => setEditAdminForm({ ...editAdminForm, email: e.target.value })} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500" /></div>
 <div className="relative">
@@ -463,7 +465,7 @@ const Settings = () => {
                                     className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-gray-100"
                                 />
                             </div>
-                            <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                            <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-slate-100">
                                 <button type="button" onClick={() => setShowEditAdminModal(false)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
                                 <button type="submit" className="px-5 py-2.5 bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-lg transition-colors">Save Changes</button>
                             </div>

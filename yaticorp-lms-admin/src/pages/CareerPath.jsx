@@ -31,12 +31,12 @@ const Stat = ({ icon: Icon, label, value, sub, tone = 'indigo' }) => {
         slate: 'bg-slate-100 text-slate-600'
     };
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+        <div className="min-w-0 bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
                 <span className={`p-1.5 rounded-lg ${tones[tone]}`}><Icon size={15} /></span>
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</p>
             </div>
-            <p className="text-3xl font-bold text-slate-800 tabular-nums">{value}</p>
+            <p className="text-3xl font-bold text-slate-800 tabular-nums break-words">{value}</p>
             {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
         </div>
     );
@@ -52,7 +52,9 @@ const RankedBars = ({ title, subtitle, rows, empty, tone = 'indigo' }) => {
     const max = Math.max(1, ...rows.map(r => r.count));
     const bar = tone === 'amber' ? 'bg-amber-500' : 'bg-indigo-500';
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+        // min-w-0: the truncated names are nowrap, and without it this card
+        // would size its grid column to the longest one and run off a phone.
+        <div className="min-w-0 bg-white rounded-2xl border border-slate-100 p-4 sm:p-6 shadow-sm">
             <h2 className="font-bold text-slate-800">{title}</h2>
             {subtitle && <p className="text-xs text-slate-500 mt-0.5 mb-4">{subtitle}</p>}
             {rows.length === 0 ? (
@@ -62,7 +64,7 @@ const RankedBars = ({ title, subtitle, rows, empty, tone = 'indigo' }) => {
                     {rows.map((r) => (
                         <li key={r.name}>
                             <div className="flex justify-between items-baseline gap-3 mb-1">
-                                <span className="text-sm font-medium text-slate-700 truncate">{r.name}</span>
+                                <span className="min-w-0 text-sm font-medium text-slate-700 truncate" title={r.name}>{r.name}</span>
                                 <span className="text-sm font-bold text-slate-800 tabular-nums shrink-0">{r.count}</span>
                             </div>
                             <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -170,7 +172,7 @@ const CareerPath = () => {
             )}
 
             <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
+                <div className="min-w-0">
                     <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                         <span className="bg-indigo-100 text-indigo-600 p-2 rounded-lg"><Compass size={20} /></span>
                         Career Path
@@ -209,7 +211,7 @@ const CareerPath = () => {
             </div>
 
             {/* ── Adoption ─────────────────────────────────────────────── */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <Stat icon={Users} label="Onboarded" value={overview?.onboarded ?? 0}
                       sub="Students who set a career goal" />
                 <Stat icon={Map} label="Roadmaps" value={overview?.roadmaps ?? 0}
@@ -220,7 +222,7 @@ const CareerPath = () => {
                       sub="Finished a task in the last 7 days" tone="emerald" />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <Stat icon={Award} label="Milestone badges" value={overview?.milestoneBadges ?? 0}
                       sub="Roadmap phases completed and shared" tone="amber" />
                 <Stat icon={Sparkles} label="AI calls today" value={spendToday}
@@ -238,14 +240,14 @@ const CareerPath = () => {
                         <strong className="font-bold">{atCap}</strong> student{atCap === 1 ? ' has' : 's have'} used
                         their full daily AI allowance ({usage?.limits?.perStudent}/day). They can still read
                         everything already generated — only new generation is paused until midnight. Raise
-                        <code className="mx-1 px-1.5 py-0.5 bg-amber-100 rounded text-xs">CAREER_AI_DAILY_PER_STUDENT</code>
+                        <code className="mx-1 px-1.5 py-0.5 bg-amber-100 rounded text-xs break-all">CAREER_AI_DAILY_PER_STUDENT</code>
                         if this is happening to students doing normal work.
                     </p>
                 </div>
             )}
 
             {/* ── The course-planning signal ───────────────────────────── */}
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <RankedBars
                     title="What students want to become"
                     subtitle="Typed in during onboarding. The clearest signal you have about which course to build next."
@@ -272,7 +274,7 @@ const CareerPath = () => {
             </div>
 
             {/* ── AI spend ─────────────────────────────────────────────── */}
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <RankedBars
                     title="Today's AI calls by feature"
                     subtitle="Where the day's Gemini quota is going."
@@ -280,7 +282,7 @@ const CareerPath = () => {
                     empty="No AI calls today."
                     tone="amber"
                 />
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+                <div className="min-w-0 bg-white rounded-2xl border border-slate-100 p-4 sm:p-6 shadow-sm">
                     <h2 className="font-bold text-slate-800">AI calls, last 14 days</h2>
                     <p className="text-xs text-slate-500 mt-0.5 mb-5">Failed calls do not consume the provider&apos;s quota.</p>
                     {(usage?.byDay || []).length === 0 ? (
@@ -305,17 +307,17 @@ const CareerPath = () => {
             </div>
 
             {(usage?.topSpenders || []).length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+                <div className="bg-white rounded-2xl border border-slate-100 p-4 sm:p-6 shadow-sm">
                     <h2 className="font-bold text-slate-800">Heaviest AI users today</h2>
                     <p className="text-xs text-slate-500 mt-0.5 mb-4">
                         Useful for spotting a stuck retry loop, not for judging students.
                     </p>
                     <ul className="divide-y divide-slate-50">
                         {usage.topSpenders.map((s, i) => (
-                            <li key={i} className="flex items-center justify-between py-2.5">
+                            <li key={i} className="flex items-center justify-between gap-3 py-2.5">
                                 <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-slate-800 truncate">{s.name}</p>
-                                    {s.cardNumber && <p className="text-xs text-slate-400 font-mono">{s.cardNumber}</p>}
+                                    <p className="text-sm font-semibold text-slate-800 truncate" title={s.name}>{s.name}</p>
+                                    {s.cardNumber && <p className="text-xs text-slate-400 font-mono break-all">{s.cardNumber}</p>}
                                 </div>
                                 <span className={`text-sm font-bold tabular-nums shrink-0 ${
                                     s.count >= (usage?.limits?.perStudent || Infinity) ? 'text-amber-600' : 'text-slate-700'

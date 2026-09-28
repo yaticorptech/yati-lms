@@ -11,7 +11,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { screen, wrap, skipWithoutChrome, skipWithoutStyles } from './harness.js';
+import { screen, wrap, srcFile, skipWithoutChrome, skipWithoutStyles } from './harness.js';
 
 const PENDING = {
     _id: 'p1', orgCode: 'ORG-2026-0002', name: 'XYZ Institute', organizationType: 'training_institute',
@@ -94,7 +94,7 @@ describe('the superadmin organizations page', { skip: skipWithoutChrome }, () =>
                 return { pending: actions('XYZ Institute'), active: actions('ABC College') };` });
         assert.deepEqual(errors, []);
         assert.deepEqual(result.pending, ['Review', 'Approve', 'Reject']);
-        assert.deepEqual(result.active, ['View', 'Suspend'], 'an approved organization is not approved again');
+        assert.deepEqual(result.active, ['View', 'Dashboard', 'Suspend'], 'an approved organization is not approved again');
     });
 
     test('approving asks first, and sends nothing until it is confirmed', async () => {
@@ -578,5 +578,36 @@ export default {
             'the empty state warns before the picker is even opened');
         assert.match(result.pickerText, /is suspended/i, 'and the picker repeats it where the decision is made');
         assert.equal(result.candidates, 1, 'with candidates to choose from');
+    });
+});
+
+describe('popups over the app bar', { skip: skipWithoutStyles }, () => {
+    // The page inside a shell like the real one: a z-30 top bar, and the page
+    // in its own layer below it. The popups used to open under that bar, with
+    // their top (name, ID, close) hidden on a phone.
+    const shell = `
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import Organizations from '${srcFile('pages/Organizations.jsx')}';
+createRoot(document.getElementById('root')).render(
+    <MemoryRouter initialEntries={['/organizations']}>
+      <div className="flex h-screen flex-col">
+        <header id="appbar" className="relative z-30 h-16 shrink-0 bg-white">bar</header>
+        <main className="flex-1 overflow-y-auto p-4"><Routes><Route path="/organizations" element={<Organizations />} /></Routes></main>
+      </div>
+    </MemoryRouter>);`;
+
+    test('an organization opened on a phone shows its top, above the app bar', async () => {
+        const { result, errors } = await screen({ entry: shell, api, styles: true, width: 500, height: 900, script: `
+            await sleep(600);
+            [...document.querySelectorAll('button')].find((b) => /^(View|Review)$/.test(b.innerText.trim())).click();
+            await sleep(600);
+            const dialog = $('[role="dialog"]');
+            const panel = dialog.firstElementChild.getBoundingClientRect();
+            const top = document.elementFromPoint(panel.left + 30, panel.top + 20);
+            return { onTop: dialog.contains(top), inBody: dialog.parentElement === document.body };` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.inBody, 'the popup is on <body>');
+        assert.ok(result.onTop, 'and its top row is what is seen, not the app bar');
     });
 });

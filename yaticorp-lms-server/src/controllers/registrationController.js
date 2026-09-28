@@ -33,7 +33,7 @@ const requestOrganizationAtSignup = async (userId, rawCode) => {
     if (!orgCode) return null;
 
     if (!isValidOrgCodeFormat(orgCode)) {
-        return { requested: false, orgCode, message: `"${rawCode}" does not look like an Organization ID. They start with your organization's name, like ABC-2026-0001. You can add yours later from your dashboard.` };
+        return { requested: false, orgCode, message: `"${rawCode}" does not look like an Organization ID (like st_agnes_college). You can add yours later from your dashboard.` };
     }
 
     try {
@@ -185,7 +185,8 @@ const verifyCard = async (req, res) => {
 // @access  Public
 const getPublishedContent = async (req, res) => {
     try {
-        const courses = await Course.find({ isPublished: true }).select('_id title thumbnail');
+        // Public, so platform courses only — an organization's own are for its members.
+        const courses = await Course.find({ isPublished: true, organizationId: null }).select('_id title thumbnail');
         const bundles = await Bundle.find({ isPublished: true }).select('_id title thumbnail');
 
         res.json({ courses, bundles });

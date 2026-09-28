@@ -3,6 +3,7 @@
  * @description Axios instance for admin API calls with auth token interceptor and 401 redirect
  */
 import axios from 'axios';
+import { getViewedOrganization } from './viewOrganization';
 
 const apiBaseURL = import.meta.env.VITE_API_URL;
 
@@ -23,6 +24,12 @@ api.interceptors.request.use(config => {
     const token = localStorage.getItem('adminToken');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+    }
+    // A superadmin looking at an organization's panel: say which one, on that
+    // panel's own requests only. See utils/viewOrganization.js.
+    const viewed = getViewedOrganization();
+    if (viewed && String(config.url || '').startsWith('/organizations/me')) {
+        config.headers['X-View-Organization'] = viewed.id;
     }
     return config;
 });
