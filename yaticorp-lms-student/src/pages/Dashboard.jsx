@@ -1,83 +1,27 @@
 /**
  * @author Preethesh Kulal
- * @description The student's courses — enrolled, bundles, completed, available —
- *              as the tabbed section of the merged Dashboard / My Profile page.
+ * @description The student's courses — bundles, completed, available — as the
+ *              tabbed "My Learning" section of the Dashboard.
  *
  * This used to be a page of its own with a greeting and three stat cards.
  * The profile already greets the student and counts their courses in "Your
  * Progress", so those went, and what was left — the course tabs, the bundle
  * view and the enrol dialog — became this section. The data comes in as
- * props: the page owns useDashboard, because the "continue learning" card
- * higher up the page reads from the same list.
+ * props: the page owns useDashboard, because other cards on the page read
+ * from the same list.
+ *
+ * There is no "My Courses" tab: the courses a student is enrolled in have a
+ * page of their own, Enrolled Courses, and the Dashboard does not repeat it.
  */
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import CourseCard from '../components/course/CourseCard';
 import GlobalQuiz from '../components/GlobalQuiz';
-import { Link } from 'react-router-dom';
-import { BookOpen, Award, PlayCircle, Clock, X, Compass, ArrowRight, GraduationCap, Layers, CheckCircle2, Bookmark, Star, Target, Briefcase, CalendarDays, Globe } from 'lucide-react';
-import { useRewards } from '../context/useRewards';
-import { ProgressRing } from '../components/ProfileWidgets';
+import { Link, useNavigate } from 'react-router-dom';
+import { BookOpen, Award, PlayCircle, Clock, X, ArrowRight, Layers, CheckCircle2, Bookmark, CalendarDays, Globe } from 'lucide-react';
 import Portal from '../components/Portal';
 
 
 const getInitials = (title = '') => title.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
-
-/** The open box of the empty state: a course card, a badge and a cap rising
- *  out of it on a glow. Pure SVG so it scales with the panel and needs no file. */
-const LearningArt = () => (
-    <svg viewBox="0 0 420 340" className="h-full w-full" aria-hidden="true">
-        <defs>
-            <linearGradient id="la-glow" x1="0" y1="1" x2="0" y2="0">
-                <stop offset="0" stopColor="#fde68a" stopOpacity="0.9" />
-                <stop offset="1" stopColor="#fde68a" stopOpacity="0" />
-            </linearGradient>
-            <linearGradient id="la-box" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#8b7cf6" />
-                <stop offset="1" stopColor="#6d5ce7" />
-            </linearGradient>
-            <linearGradient id="la-cap" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#7c6cf2" />
-                <stop offset="1" stopColor="#5b4bd6" />
-            </linearGradient>
-        </defs>
-        <path d="M20 250 C 90 200, 140 300, 230 240 S 380 180, 410 260" fill="none" stroke="#c7d2fe" strokeWidth="2" strokeDasharray="6 8" />
-        <path d="M165 225 L 210 110 L 255 225 Z" fill="url(#la-glow)" opacity="0.8" />
-        {/* box */}
-        <path d="M130 215 L 210 250 L 290 215 L 290 300 L 210 335 L 130 300 Z" fill="url(#la-box)" />
-        <path d="M210 250 L 210 335 L 130 300 L 130 215 Z" fill="#7b6cf0" />
-        <path d="M130 215 L 90 190 L 170 160 L 210 185 Z" fill="#a89cf7" />
-        <path d="M290 215 L 330 190 L 250 160 L 210 185 Z" fill="#9486f3" />
-        <path d="M172 268 c 8 -6 18 -6 26 0 v 30 c -8 -6 -18 -6 -26 0 z M 198 268 c 8 -6 18 -6 26 0 v 30 c -8 -6 -18 -6 -26 0 z" fill="none" stroke="#e0e7ff" strokeWidth="3" strokeLinejoin="round" />
-        {/* course card */}
-        <g className="drift">
-            <rect x="60" y="70" width="90" height="100" rx="14" fill="#fff" stroke="#e0e7ff" />
-            <circle cx="105" cy="108" r="20" fill="#7c6cf2" />
-            <path d="M99 98 L 116 108 L 99 118 Z" fill="#fff" />
-            <rect x="76" y="140" width="58" height="6" rx="3" fill="#e5e7eb" />
-            <rect x="76" y="140" width="34" height="6" rx="3" fill="#34d399" />
-        </g>
-        {/* badge card */}
-        <g className="drift" style={{ animationDelay: '1.2s' }}>
-            <rect x="290" y="135" width="86" height="86" rx="14" fill="#fff" stroke="#e0e7ff" transform="rotate(8 333 178)" />
-            <circle cx="333" cy="176" r="22" fill="#8b7cf6" />
-            <path d="M333 164 l 4 8 l 9 1 l -6.5 6 l 1.5 9 l -8 -4.5 l -8 4.5 l 1.5 -9 l -6.5 -6 l 9 -1 z" fill="#fff" />
-        </g>
-        {/* graduation cap */}
-        <g className="drift" style={{ animationDelay: '0.6s' }}>
-            <path d="M270 78 L 342 52 L 374 66 L 302 92 Z" fill="url(#la-cap)" />
-            <path d="M288 86 v 16 c 12 10 44 10 56 0 v -18" fill="#5b4bd6" />
-            <path d="M362 64 v 26" stroke="#f59e0b" strokeWidth="3" />
-            <circle cx="362" cy="94" r="4" fill="#fbbf24" />
-        </g>
-        {/* sparkles */}
-        <path d="M60 40 l 3 8 l 8 3 l -8 3 l -3 8 l -3 -8 l -8 -3 l 8 -3 z" fill="#fbbf24" />
-        <path d="M250 40 l 2 5 l 5 2 l -5 2 l -2 5 l -2 -5 l -5 -2 l 5 -2 z" fill="#fde68a" />
-        <path d="M380 240 l 2 5 l 5 2 l -5 2 l -2 5 l -2 -5 l -5 -2 l 5 -2 z" fill="#c7d2fe" />
-        <circle cx="40" cy="150" r="5" fill="#c7d2fe" />
-        <circle cx="395" cy="150" r="4" fill="#ddd6fe" />
-    </svg>
-);
 
 /** The bundles empty state: a lavender box with a ribbon badge rising out of
  *  it on a dashed orbit — drawn to the mock, no words on the frame itself. */
@@ -202,24 +146,17 @@ const AvailableArt = () => (
     </svg>
 );
 
-const PERKS = [
-    { icon: Target, tone: 'bg-gradient-to-br from-indigo-400 to-violet-500 shadow-indigo-200', title: 'Learn', sub: 'Build skills that matter' },
-    { icon: Star, tone: 'bg-gradient-to-br from-emerald-300 to-emerald-500 shadow-emerald-200', title: 'Earn XP', sub: 'Complete courses & grow' },
-    { icon: Briefcase, tone: 'bg-gradient-to-br from-amber-300 to-orange-400 shadow-orange-200', title: 'Unlock Opportunities', sub: 'Access jobs & career paths' }
-];
-
 const TABS = [
-    { key: 'courses', label: 'My Courses', icon: GraduationCap },
-    { key: 'bundles', label: 'Bundles', icon: Layers },
-    { key: 'completed', label: 'Completed', icon: CheckCircle2 },
     { key: 'available', label: 'Available Courses', icon: Bookmark },
+    { key: 'completed', label: 'Completed', icon: CheckCircle2 },
+    { key: 'bundles', label: 'Bundles', icon: Layers },
     { key: 'quiz', label: 'Global Quiz', icon: Globe },
     { key: 'activity', label: 'Weekly activity', icon: CalendarDays }
 ];
 
 const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, buyingCourseId, enrollCourse, refresh, weeklyActivity }) => {
-    const [activeTab, setActiveTab] = useState('courses');
-    const { summary: rewards } = useRewards();
+    const [activeTab, setActiveTab] = useState('available');
+    const navigate = useNavigate();
     // An administrator can take the Global Quiz away; its tab goes with it.
     const { isGlobalQuizEnabled } = useContext(AuthContext);
     const tabs = TABS.filter((t) => t.key !== 'quiz' || isGlobalQuizEnabled !== false);
@@ -246,9 +183,22 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
         return () => window.removeEventListener('resize', markEdges);
     }, [markEdges, tabs.length]);
     useEffect(() => {
-        // 'nearest' on both axes: the strip scrolls, the page does not.
-        stripRef.current?.querySelector('[data-active="true"]')
-            ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        // The chosen tab moves to the front of the strip, so the tabs after it
+        // come into view. Scrolled only far enough to be seen, it stayed where
+        // it was and the next tab sat cut off under the right-hand fade until
+        // the strip was swiped. It stops the strip's scroll padding short of
+        // the edge — the width of the left-hand fade — so the fade never lies
+        // over it. The first tab takes the strip back to the start; the last
+        // ones go as far as the strip goes. Only the strip scrolls, never the
+        // page.
+        const strip = stripRef.current;
+        const tab = strip?.querySelector('[data-active="true"]');
+        if (tab) {
+            const pad = parseFloat(getComputedStyle(strip).scrollPaddingInlineStart) || 0;
+            const left = strip.scrollLeft + tab.getBoundingClientRect().left - strip.getBoundingClientRect().left - pad;
+            const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+            strip.scrollTo({ left: Math.max(0, left), behavior: still ? 'auto' : 'smooth' });
+        }
         markEdges();
     }, [activeTab, markEdges]);
     const [enrollModal, setEnrollModal] = useState(null); // { _id, title }
@@ -270,14 +220,6 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
     const completedCourses = activeCourses.filter(c => getProgressVal(c._id) === 100);
     const completedCount = completedCourses.length;
 
-    // "Course progress": the three courses taken furthest, for the card at the
-    // top of My Courses. Uses the same progress values as the cards below it.
-    const inProgress = activeCourses
-        .filter(c => { const p = getProgressVal(c._id); return p > 0 && p < 100; })
-        .sort((a, b) => getProgressVal(b._id) - getProgressVal(a._id))
-        .slice(0, 3)
-        .map(c => ({ ...c, progress: getProgressVal(c._id) }));
-
     const handleRetry = refresh;
 
     const handleEnrollClick = (course) => {
@@ -290,7 +232,8 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
         try {
             await enrollCourse(enrollModal._id);
             setEnrollModal(null);
-            setActiveTab('courses');
+            // To the new course, on the page that lists what they are enrolled in.
+            navigate('/enrolled-courses');
         } catch (error) {
             alert(error.response?.data?.message || 'Enrollment failed');
         } finally {
@@ -301,23 +244,24 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
     return (
         <section className="space-y-6">
             {/* My Learning Tabs */}
-            {/* Six tabs do not fit a phone at reading size, so the strip
+            {/* Five tabs do not fit a phone at reading size, so the strip
                 scrolls sideways in one line. The two things that used to make
                 that a bad trade are handled: a tab past the edge is announced
-                by a fade on that side, and whichever tab is chosen is brought
-                into view. The strip once bled to the screen edges with a
+                by a fade on that side, and whichever tab is chosen moves to the
+                front, bringing the ones after it into view. The strip once bled to the screen edges with a
                 negative margin, which widened the page by that margin on a
                 phone and set every section scrolling sideways; it stays inside
-                its column. The XP pill sits outside the scroller so it stays
-                put rather than sliding away with the tabs. */}
+                its column. */}
             <div className="flex items-end gap-3 border-b border-slate-200">
-                <div className="tab-scroll-wrap relative min-w-0 flex-1">
+                {/* The fades are drawn in the page's own grey, so they blend
+                    into it instead of showing as white blocks at the edges. */}
+                <div className="tab-scroll-wrap relative min-w-0 flex-1 [--tab-fade:var(--color-slate-50)]">
                     <div
                         ref={stripRef}
                         onScroll={markEdges}
                         role="tablist"
                         aria-label="My learning"
-                        className="tab-scroll flex items-center gap-x-4 sm:gap-x-5 lg:gap-x-7"
+                        className="tab-scroll flex scroll-ps-7 items-center gap-x-4 sm:gap-x-5 lg:gap-x-7"
                     >
                         {tabs.map(({ key, label, icon: Icon }) => (
                             <button
@@ -338,11 +282,6 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                         ))}
                     </div>
                 </div>
-                {rewards && (
-                    <span className="mb-2 inline-flex shrink-0 items-center gap-1.5 rounded-full border border-indigo-100 bg-white px-3 py-1.5 text-xs font-bold text-indigo-600 shadow-sm">
-                        <Star size={14} className="fill-orange-300 text-orange-400" /> {Number(rewards.xp || 0).toLocaleString('en-IN')} XP
-                    </span>
-                )}
             </div>
 
             {/* My Learning Content */}
@@ -378,125 +317,6 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                             Try Again
                         </button>
                     </div>
-                ) : activeTab === 'courses' ? (
-                    courses.length === 0 ? (
-                        /* The empty state, drawn to the mock: copy and actions on
-                           the left, the open box on the right, perks along the foot. */
-                        <div className="animate-fade-in-up relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 via-white to-violet-100/60 p-5 sm:p-7">
-                            <div className="pointer-events-none absolute -right-20 top-10 h-72 w-72 rounded-full bg-violet-200/40 blur-3xl"></div>
-                            <div className="pointer-events-none absolute -bottom-16 left-1/3 h-56 w-56 rounded-full bg-indigo-200/40 blur-3xl"></div>
-                            <div className="relative grid items-center gap-6 lg:grid-cols-[1.1fr_1fr]">
-                                <div className="max-w-xl">
-                                    <div className="relative mb-5 h-14 w-14">
-                                        <span className="absolute -inset-3 rounded-full bg-indigo-200/40 blur-md"></span>
-                                        <span className="animate-pop-in relative flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg shadow-indigo-200/60">
-                                            <BookOpen size={24} className="text-indigo-500" />
-                                        </span>
-                                    </div>
-                                    <h3 className="text-2xl font-extrabold leading-tight text-slate-900 sm:text-3xl">
-                                        Your first course<br />
-                                        is <span className="relative inline-block text-indigo-600">waiting
-                                            <svg viewBox="0 0 120 10" className="absolute -bottom-2 left-0 h-3 w-full text-indigo-300" preserveAspectRatio="none" aria-hidden="true">
-                                                <path d="M2 6 Q 15 1, 30 6 T 60 6 T 90 6 T 118 6" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                                            </svg>
-                                        </span>
-                                    </h3>
-                                    <p className="mt-5 max-w-md text-sm leading-relaxed text-slate-500 sm:text-base">
-                                        Nothing here yet. Browse what&apos;s available and start something today — every course
-                                        you finish adds XP and moves your Career Path forward.
-                                    </p>
-                                    <div className="mt-5 flex flex-wrap items-center gap-3">
-                                        <button
-                                            onClick={() => setActiveTab('available')}
-                                            className="lift inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-600/25 transition-colors hover:bg-indigo-700"
-                                        >
-                                            <BookOpen size={18} /> Browse courses <ArrowRight size={16} />
-                                        </button>
-                                        <Link
-                                            to="/career"
-                                            className="inline-flex items-center gap-2 rounded-xl border border-indigo-100 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:bg-indigo-50"
-                                        >
-                                            <Compass size={18} className="text-indigo-500" /> See my path
-                                        </Link>
-                                    </div>
-                                </div>
-                                <div className="mx-auto h-44 w-full max-w-xs sm:h-56 lg:h-60"><LearningArt /></div>
-                            </div>
-                            <div className="relative mt-6 grid gap-3 rounded-2xl border border-white/80 bg-white/70 p-3 backdrop-blur sm:grid-cols-3 sm:p-4">
-                                {PERKS.map(({ icon: Icon, tone, title, sub }) => (
-                                    <div key={title} className="flex items-center gap-3">
-                                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-lg ${tone}`}>
-                                            <Icon size={18} />
-                                        </span>
-                                        <div>
-                                            <p className="text-sm font-bold text-slate-900">{title}</p>
-                                            <p className="text-xs text-slate-500">{sub}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                        {/* Course progress — continue where you left off */}
-                        <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                            <div className="mb-4">
-                                <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900"><BookOpen size={18} className="text-indigo-500" /> Course progress</h3>
-                                <p className="text-sm text-slate-500">Continue where you left off</p>
-                            </div>
-                            {inProgress.length ? (
-                            /* On a phone this row has nowhere near the width for four
-                               things side by side: the title column was being crushed to
-                               a few characters. The ring stands down there (the bar and
-                               the "% complete" line already say the same thing) and
-                               Continue takes its own full-width line. */
-                            <ul className="stagger space-y-3">
-                                {inProgress.map((c, i) => (
-                                    <li key={c._id} className="group flex flex-wrap items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-white hover:shadow-md sm:flex-nowrap sm:gap-4">
-                                        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-black text-white shadow-md ${['bg-indigo-500', 'bg-fuchsia-500', 'bg-sky-500'][i % 3]}`}>
-                                            {getInitials(c.title)}
-                                        </span>
-                                        <div className="min-w-0 flex-1 basis-40">
-                                            <p className="truncate font-bold text-slate-800">{c.title}</p>
-                                            <p className="text-xs text-slate-500">{c.completedLessons || 0} lesson{c.completedLessons === 1 ? '' : 's'} done · {c.progress}% complete</p>
-                                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                                                <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 transition-[width] duration-1000 ease-out" style={{ width: `${c.progress}%` }} />
-                                            </div>
-                                        </div>
-                                        <span className="hidden shrink-0 sm:block">
-                                            <ProgressRing percent={c.progress} size={48} stroke={5} label={`${c.progress}% complete`}>
-                                                <span className="text-[11px] font-black tabular-nums text-slate-700">{c.progress}%</span>
-                                            </ProgressRing>
-                                        </span>
-                                        <Link to={`/learn/${c._id}`} className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 group-hover:translate-x-0.5 sm:w-auto sm:justify-start">
-                                            <PlayCircle size={14} /> Continue
-                                        </Link>
-                                    </li>
-                                ))}
-                            </ul>
-                            ) : (
-                                <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 p-6 text-center sm:flex-row sm:text-left">
-                                    <span className="text-4xl drift" aria-hidden="true">🚀</span>
-                                    <div className="flex-1">
-                                        <p className="font-bold text-slate-800">{completedCount ? 'Everything you started is finished!' : 'Nothing in progress yet'}</p>
-                                        <p className="text-sm text-slate-500">{completedCount ? `${completedCount} course${completedCount === 1 ? '' : 's'} completed — start the next one.` : 'Pick a course and your progress shows up here.'}</p>
-                                    </div>
-                                    <button type="button" onClick={() => setActiveTab('available')} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700">Browse courses <ArrowRight size={14} /></button>
-                                </div>
-                            )}
-                        </div>
-                        <div className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {courses.map(course => (
-                                <CourseCard
-                                    key={course._id}
-                                    course={course}
-                                    progress={getProgressVal(course._id)}
-                                    to={`/learn/${course._id}`}
-                                />
-                            ))}
-                        </div>
-                        </>
-                    )
                 ) : activeTab === 'bundles' ? (
                     bundles.length > 0 ? (
                         <div className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

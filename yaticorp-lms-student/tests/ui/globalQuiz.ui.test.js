@@ -235,6 +235,6 @@ createRoot(document.getElementById('root')).render(
             entry: dashboardEntry(false), api: dashApi,
             script: `await sleep(1200); return { tabs: $$('button').map((b) => b.innerText.trim()).filter(Boolean) };` });
         assert.ok(!result.tabs.some((t) => /Global Quiz/.test(t)), 'the tab is gone');
-        assert.ok(result.tabs.some((t) => /My Courses/.test(t)), 'the others stay');
+        assert.ok(result.tabs.some((t) => /Available Courses/.test(t)), 'the others stay');
     });
 });
