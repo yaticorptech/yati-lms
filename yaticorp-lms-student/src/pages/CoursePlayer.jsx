@@ -11,6 +11,7 @@ import { PlayCircle, FileText, CheckCircle2, ChevronDown, ChevronRight, CheckSqu
 import VideoPlayer from '../components/VideoPlayer';
 import QuizTaker from '../components/QuizTaker';
 import { useCoursePlayer } from '../shared/hooks/useCoursePlayer';
+import { unlockedLessonIds } from '../shared/playback/resume';
 
 const CoursePlayer = () => {
     const { courseId } = useParams();
@@ -27,6 +28,8 @@ const CoursePlayer = () => {
         generatingCert,
         toggleModule,
         markLessonComplete,
+        resumePositionFor,
+        reportPlayback,
         generateCertificate: sharedGenerateCertificate
     } = useCoursePlayer(api, courseId);
 
@@ -141,10 +144,7 @@ const CoursePlayer = () => {
 
     // Sequential unlocking: a lesson is accessible only once every lesson before
     // it is completed (i.e. completed lessons + the current one to do).
-    const orderedLessons = modules.flatMap(m => m.lessons);
-    let firstIncompleteIdx = orderedLessons.findIndex(l => !completedLessons.includes(l._id));
-    if (firstIncompleteIdx === -1) firstIncompleteIdx = orderedLessons.length;
-    const unlockedIds = new Set(orderedLessons.slice(0, firstIncompleteIdx + 1).map(l => l._id));
+    const unlockedIds = unlockedLessonIds(modules, completedLessons);
 
     // Friendly label for a drip-locked module's unlock time.
     const dripLabel = (unlockAt) => {
@@ -195,6 +195,9 @@ const CoursePlayer = () => {
                                     videoId={activeLesson.videoId}
                                     libraryId={activeLesson.libraryId}
                                     title={activeLesson.title}
+                                    lessonId={activeLesson._id}
+                                    resumeFrom={resumePositionFor(activeLesson._id)}
+                                    onPositionSaved={(seconds, reason) => reportPlayback(activeLesson._id, seconds, reason)}
                                     onEnded={() => setWatchedLessonId(activeLesson?._id ?? null)}
                                     preventSkip={true}
                                 />
