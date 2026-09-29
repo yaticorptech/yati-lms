@@ -6,7 +6,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { screen, wrap, skipWithoutChrome, skipWithoutStyles } from './harness.js';
+import { screen, wrap, skipWithoutChrome, skipWithoutStyles, DEVICES } from './harness.js';
 import { apiModule } from './fixtures.js';
 
 const ORG = { _id: 'o1', name: 'St Agnes College', logo: null };
@@ -70,15 +70,27 @@ describe('Enrolled Courses: organization courses', { skip: skipWithoutChrome }, 
         assert.equal(result.player, true);
     });
 
-    test('three tabs fit a phone, and nothing spills sideways', { skip: skipWithoutStyles }, async () => {
-        const { result } = await screen({ entry: page('/enrolled-courses?tab=organization'), api: api(ORG), styles: true, width: 500, script: `
-            await sleep(800);
-            const w = document.documentElement.clientWidth;
-            const bar = $('button[aria-pressed]').parentElement.getBoundingClientRect();
-            const tabs = $$('button[aria-pressed]').map((b) => ({ w: b.scrollWidth - b.clientWidth }));
-            return { overflow: document.documentElement.scrollWidth - w, barRight: bar.right, w, clipped: tabs.filter((t) => t.w > 0).length };` });
-        assert.ok(result.overflow <= 0, 'page overflow ' + result.overflow);
-        assert.ok(result.barRight <= result.w);
-        assert.equal(result.clipped, 0, 'no tab label is cut off');
-    });
+    // At real phone widths through device mode: the 500px window is the
+    // narrowest headless Chrome opens, and three tabs that fit there ran the
+    // third one off the edge of a 360px phone.
+    for (const [name, sizing] of [
+        ['a 500px window', { width: 500 }],
+        ['a 360px phone', { device: { width: 360, height: 780, dpr: 3, mobile: true } }],
+        [`the narrowest phone (${DEVICES.galaxyZFold6Folded.width}px)`, { device: DEVICES.galaxyZFold6Folded }]
+    ]) {
+        test(`three tabs fit ${name}, and nothing spills sideways`, { skip: skipWithoutStyles }, async () => {
+            const { result } = await screen({ entry: page('/enrolled-courses?tab=organization'), api: api(ORG), styles: true, ...sizing, script: `
+                await sleep(800);
+                const w = document.documentElement.clientWidth;
+                const bar = $('button[aria-pressed]').parentElement.getBoundingClientRect();
+                const tabs = $$('button[aria-pressed]').map((b) => ({ w: b.scrollWidth - b.clientWidth, right: b.getBoundingClientRect().right, label: text(b) }));
+                return { overflow: document.documentElement.scrollWidth - w, barRight: bar.right, w, tabs, clipped: tabs.filter((t) => t.w > 0).length };` });
+            assert.ok(result.overflow <= 0, 'page overflow ' + result.overflow);
+            assert.ok(result.barRight <= result.w, `the bar ends at ${result.barRight} on a ${result.w}px screen`);
+            assert.equal(result.clipped, 0, 'no tab label is cut off');
+            assert.equal(result.tabs.length, 3);
+            assert.ok(result.tabs.every((t) => t.right <= result.barRight + 0.5), 'every tab sits inside the bar: ' + JSON.stringify(result.tabs));
+            assert.match(result.tabs[2].label, /Organization\s*2/);
+        });
+    }
 });

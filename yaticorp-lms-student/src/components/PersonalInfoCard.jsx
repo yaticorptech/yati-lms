@@ -108,8 +108,12 @@ export default function PersonalInfoCard({ user, level, editing, onEdit, onViewP
             {/* The profile page and plant, on screens with room for them */}
             {!editing && <ProfileArt className="pointer-events-none absolute bottom-0 right-0 hidden w-[230px] xl:block" />}
 
-            <div className="relative flex items-start justify-between gap-4 px-5 pt-5 sm:px-8 sm:pt-7">
-                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            {/* Edit Profile sits beside the heading when both fit on one line,
+                and drops under it when they do not — on a phone always, as a
+                full-width button. Beside it there, it squeezed the heading
+                into a column a few words wide. */}
+            <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-4 px-5 pt-5 sm:px-8 sm:pt-7">
+                <div className="flex min-w-0 flex-auto items-center gap-3 sm:gap-4">
                     <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100/80 text-violet-500">
                         <User size={22} fill="currentColor" strokeWidth={1.5} />
                     </span>
@@ -120,7 +124,7 @@ export default function PersonalInfoCard({ user, level, editing, onEdit, onViewP
                 </div>
                 {!editing && (
                     <button type="button" onClick={onEdit}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-500 px-3.5 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition-colors hover:from-violet-700 hover:to-indigo-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2">
+                        className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-500 px-3.5 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition-colors hover:from-violet-700 hover:to-indigo-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 sm:w-auto">
                         <Pencil size={15} aria-hidden="true" /> Edit Profile
                     </button>
                 )}

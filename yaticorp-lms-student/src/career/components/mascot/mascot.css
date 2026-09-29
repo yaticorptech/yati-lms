@@ -266,7 +266,13 @@
 /* Only the character and its bubble take clicks. The layer itself must stay
    transparent to the pointer, or a mascot resting in the corner would quietly
    block whatever sits under its box. */
-.mc-actor .mc-hit { pointer-events: auto; }
+.mc-actor .mc-hit { pointer-events: auto; touch-action: manipulation; }
+/* On a touch screen the figure itself is not a touch target, so a drag that
+   starts on it scrolls the page underneath; its tap is read by the touch
+   handler in MascotController. The bubble's button keeps its own. */
+@media (pointer: coarse) {
+  .mc-actor .mc-figure { pointer-events: none; }
+}
 
 /* Off-screen, or the tab is in the background: stop every loop dead rather
    than burning frames on a character nobody is looking at. */

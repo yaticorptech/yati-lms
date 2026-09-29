@@ -452,6 +452,52 @@ export default function MascotController() {
    */
   const dormant = offStage;
 
+  /* ---- Tapping it on a phone --------------------------------------------
+     On a touch screen the figure takes no pointer events (mascot.css), so a
+     finger that lands on it and drags scrolls the page underneath. The actor
+     is position: fixed, and a drag that starts on a fixed element scrolls
+     the document — which in this shell does not scroll — rather than the
+     page's own scroller, so the page stopped dead under the character. The
+     tap it still needs is read here, from a touch that starts and ends on it
+     without travelling; the click that would otherwise fall through to
+     whatever is under the character is cancelled. */
+  const figureRef = useRef(null);
+  // While it is speaking a tap takes the words down; otherwise it says hello.
+  // `live.message`, not the `message` below, which keeps the last line during
+  // its exit animation.
+  const tap = useCallback(() => {
+    if (live.message) mascot.hush();
+    else if (!docked) mascot.react('greeting', { ms: 3600 });
+  }, [live.message, docked]);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia?.('(pointer: coarse)').matches) return undefined;
+    let start = null;
+    const within = (t) => {
+      const r = figureRef.current?.getBoundingClientRect();
+      return !!r && t.clientX >= r.left && t.clientX <= r.right && t.clientY >= r.top && t.clientY <= r.bottom;
+    };
+    const onStart = (e) => {
+      const t = e.changedTouches[0];
+      start = offStage || !within(t) ? null : { x: t.clientX, y: t.clientY, at: Date.now() };
+    };
+    const onEnd = (e) => {
+      if (!start) return;
+      const t = e.changedTouches[0];
+      const moved = Math.hypot(t.clientX - start.x, t.clientY - start.y);
+      const quick = Date.now() - start.at < 600;
+      start = null;
+      if (moved > 12 || !quick || !within(t)) return;
+      e.preventDefault();
+      tap();
+    };
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchend', onEnd, { passive: false });
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchend', onEnd);
+    };
+  }, [offStage, tap]);
+
 
   // While docked the slot decides what the character is doing; while active
   // the instruction does.
@@ -528,11 +574,13 @@ export default function MascotController() {
         <span className="mc-look block">
           <span className="mc-beat block">
             <button
+              ref={figureRef}
               type="button"
-              onClick={() => !docked && mascot.react('greeting', { ms: 3600 })}
+              // A mouse click, or Enter on the keyboard. Touch is read above.
+              onClick={tap}
               aria-label="Your CareerPath guide"
               tabIndex={offStage ? -1 : 0}
-              className="mc-hit block cursor-pointer border-0 bg-transparent p-0"
+              className="mc-hit mc-figure block cursor-pointer border-0 bg-transparent p-0"
             >
               <MascotRenderer
                 state={shownState}
