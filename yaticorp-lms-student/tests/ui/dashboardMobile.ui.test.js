@@ -11,7 +11,7 @@ const PHONE = 500;      // the narrowest viewport headless Chrome will give
 const DESKTOP = 1280;
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { screen, srcFile, skipWithoutStyles } from './harness.js';
+import { screen, srcFile, skipWithoutStyles, DEVICES } from './harness.js';
 import { apiModule } from './fixtures.js';
 
 const api = apiModule({
@@ -53,6 +53,27 @@ createRoot(document.getElementById('root')).render(
     </AuthContext.Provider>
   </>);`;
 
+// The same section with one course to enrol in, and a stand-in for the
+// Enrolled Courses page so the test can see where enrolling leads.
+const enrollEntry = `
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { AuthContext } from '${srcFile('context/AuthContext.jsx')}';
+import { RewardsProvider } from '${srcFile('context/RewardsContext.jsx')}';
+import Dashboard from '${srcFile('pages/Dashboard.jsx')}';
+createRoot(document.getElementById('root')).render(
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree' }, isGlobalQuizEnabled: true, isRewardsEnabled: true }}>
+    <RewardsProvider>
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Dashboard courses={[]} bundles={[]} availableCourses={[{ _id: 'a1', title: 'SQL Essentials', price: 0 }]}
+                   loading={false} error={null} buyingCourseId={null} enrollCourse={() => Promise.resolve()} refresh={() => {}} weeklyActivity={<div />} />} />
+          <Route path="/enrolled-courses" element={<p id="enrolled-page">Enrolled Courses</p>} />
+        </Routes>
+      </MemoryRouter>
+    </RewardsProvider>
+  </AuthContext.Provider>);`;
+
 /**
  * Anything whose content is wider than the box it was given, ignoring what
  * already deals with its own overflow — a truncated title, a card that clips
@@ -73,7 +94,7 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
         const { result, errors } = await screen({
             entry, api, width: PHONE, styles: true, budget: 25_000, script: `
                 await sleep(900);
-                const labels = ['My Courses', 'Bundles', 'Completed', 'Available Courses', 'Global Quiz', 'Weekly activity'];
+                const labels = ['Available Courses', 'Completed', 'Bundles', 'Global Quiz', 'Weekly activity'];
                 const out = {};
                 for (const label of labels) {
                     const tab = $$('button').find((b) => b.innerText.trim().startsWith(label));
@@ -100,6 +121,7 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
                 return {
                     rows: tops.length,
                     count: tabs.length,
+                    names: tabs.map((t) => t.innerText.trim()),
                     scrollable: strip.scrollWidth > strip.clientWidth,
                     pageScrollsSideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
                     barHeight: strip.offsetHeight - strip.clientHeight,
@@ -107,9 +129,14 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
                     moreLeft: strip.parentElement.dataset.moreLeft
                 };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.count, 6, 'all six tabs are there');
+        assert.equal(result.count, 5, 'all five tabs are there');
+        assert.ok(!result.names.some((n) => /My Courses/.test(n)), `My Courses is not one of them: ${result.names.join(', ')}`);
+        // In this order: Available Courses first, Bundles third. (Completed carries
+        // a count when a course is finished, dropped here.)
+        assert.deepEqual(result.names.map((n) => n.replace(/\s*\d+$/, '')),
+            ['Available Courses', 'Completed', 'Bundles', 'Global Quiz', 'Weekly activity']);
         assert.equal(result.rows, 1, `they sit on one line, found ${result.rows}`);
-        assert.equal(result.scrollable, true, 'and that line scrolls, since six do not fit a phone');
+        assert.equal(result.scrollable, true, 'and that line scrolls, since five do not fit a phone');
         assert.equal(result.pageScrollsSideways, false, 'the page itself stays put');
         assert.equal(result.barHeight, 0, 'no scrollbar is drawn under the tabs');
         assert.equal(result.moreRight, 'true', 'the right edge fades, to say there is more that way');
@@ -119,16 +146,17 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
     test('choosing a tab off the edge brings it into view', async () => {
         // The reason this strip used to wrap: a tab past the edge was a tab
         // nobody found. Scrolling is only acceptable if the chosen one comes
-        // to the front.
+        // to the front. The strip scrolls smoothly, which takes real time, so
+        // this runs on a real phone width in the device mode.
         const { result, errors } = await screen({
-            entry, api, width: PHONE, styles: true, budget: 20_000, script: `
+            entry, api, device: DEVICES.galaxyA55, styles: true, budget: 20_000, script: `
                 await sleep(900);
                 const strip = $('[role="tablist"]');
                 const last = $$('[role="tab"]').find((t) => /Weekly activity/.test(t.innerText));
                 const before = { left: Math.round(strip.scrollLeft),
                                  visible: last.getBoundingClientRect().right <= strip.getBoundingClientRect().right + 1 };
                 last.click();
-                await sleep(500);
+                await sleep(900);
                 const s = strip.getBoundingClientRect(), l = last.getBoundingClientRect();
                 return { before,
                          after: { left: Math.round(strip.scrollLeft),
@@ -143,42 +171,71 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
         assert.equal(result.moreRight, 'false', 'and the right does not, at the end of the strip');
     });
 
-    test('the continue row keeps a readable title, instead of being crushed', async () => {
-        const { result } = await screen({
-            entry, api, width: PHONE, styles: true, script: `
+    test('tapping a tab moves it to the front, and brings the next one into view', async () => {
+        // On a real phone width. Tapping Completed used to leave it where it
+        // was, second, with Bundles cut off under the right-hand fade until the
+        // strip was swiped.
+        const { result, errors } = await screen({
+            entry, api, device: DEVICES.galaxyA55, styles: true, script: `
                 await sleep(900);
-                const title = $$('p').find((p) => p.className.includes('truncate') && /Modern React/.test(p.innerText));
-                return { box: title ? title.clientWidth : 0, text: title ? title.innerText.trim() : null };` });
-        assert.equal(result.text, 'Modern React from the Ground Up');
-        // It was 45px before, which showed about four characters.
-        assert.ok(result.box >= 180, `the title column is only ${result.box}px wide`);
+                const strip = $('[role="tablist"]');
+                const tab = (re) => $$('[role="tab"]').find((t) => re.test(t.innerText));
+                const S = () => strip.getBoundingClientRect();
+                const before = { completedAt: Math.round(tab(/Completed/).getBoundingClientRect().left - S().left),
+                                 bundlesWhole: tab(/Bundles/).getBoundingClientRect().right <= S().right };
+                tab(/Completed/).click();
+                await sleep(900);
+                const C = tab(/Completed/).getBoundingClientRect(), B = tab(/Bundles/).getBoundingClientRect();
+                return { before, vw: innerWidth,
+                         completedAt: Math.round(C.left - S().left),
+                         pad: parseFloat(getComputedStyle(strip).scrollPaddingInlineStart),
+                         bundlesWhole: B.left >= S().left && B.right <= S().right,
+                         pageMoved: scrollX !== 0 || scrollY !== 0 };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.vw, 384, 'a real phone width');
+        assert.equal(result.before.bundlesWhole, false, 'at first Bundles is cut off at the edge');
+        assert.ok(result.before.completedAt > 100, 'and Completed sits second, behind Available Courses');
+        assert.ok(Math.abs(result.completedAt - result.pad) <= 2,
+            `after the tap Completed is at the front, just clear of the fade: ${result.completedAt}px in, the fade is ${result.pad}px`);
+        assert.equal(result.bundlesWhole, true, 'and Bundles, after it, is now whole');
+        assert.equal(result.pageMoved, false, 'only the strip scrolled, not the page');
     });
 
-    test('Continue takes its own full-width line on a phone', async () => {
-        const { result } = await screen({
-            entry, api, width: PHONE, styles: true, script: `
-                await sleep(900);
-                const link = $$('a').find((a) => /Continue/.test(a.innerText));
-                const row = link.closest('li');
-                return { link: link.getBoundingClientRect().width, row: row.clientWidth, sameLine: Math.abs(link.getBoundingClientRect().top - row.getBoundingClientRect().top) < 20 };` });
-        assert.ok(result.link > result.row - 40, 'the button spans the row');
-        assert.equal(result.sameLine, false, 'and sits below the title rather than beside it');
-    });
-
-    test('on a desktop it still sits beside the progress ring', async () => {
-        const { result } = await screen({
+    test('there is no My Courses tab: the section opens on Available Courses, with no course list', async () => {
+        // The student's enrolled courses have their own page, Enrolled
+        // Courses; the Dashboard does not repeat them.
+        const { result, errors } = await screen({
             entry, api, width: DESKTOP, styles: true, script: `
                 await sleep(900);
-                const link = $$('a').find((a) => /Continue/.test(a.innerText));
-                const row = link.closest('li');
-                const rings = row.querySelectorAll('[role="img"]');
-                return {
-                    link: link.getBoundingClientRect().width, row: row.clientWidth,
-                    ringVisible: rings.length > 0 && rings[0].getBoundingClientRect().width > 0,
-                    sameLine: Math.abs(link.getBoundingClientRect().top - row.getBoundingClientRect().top) < 30
-                };` });
-        assert.ok(result.link < 200, 'the button is its own size, not the whole row');
-        assert.ok(result.ringVisible, 'the ring is back');
-        assert.equal(result.sameLine, true, 'everything on one line');
+                const selected = $$('[role="tab"]').find((t) => t.getAttribute('aria-selected') === 'true');
+                const body = document.body.innerText;
+                return { selected: selected && selected.innerText.trim(),
+                         myCourses: /My Courses/.test(body),
+                         continueCard: /Continue where you left off/.test(body),
+                         courseListed: /Modern React from the Ground Up/.test(body),
+                         xpPill: /315 XP/.test(body) };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.selected, 'Available Courses', 'the first tab is the one open');
+        assert.equal(result.myCourses, false, 'My Courses is nowhere on the section');
+        assert.equal(result.continueCard, false, 'nor its Course progress card');
+        assert.equal(result.courseListed, false, 'nor its list of enrolled courses');
+        assert.equal(result.xpPill, false, 'and no XP pill beside the tabs (the summary says 315 XP)');
+    });
+
+    test('enrolling in an available course opens Enrolled Courses', async () => {
+        // It used to switch to My Courses to show the new course. That list is
+        // on Enrolled Courses now, so that is where the student is taken.
+        const { result, errors } = await screen({
+            entry: enrollEntry, api, width: DESKTOP, styles: true, script: `
+                await sleep(900);
+                $$('[role="tab"]').find((t) => /Available Courses/.test(t.innerText)).click();
+                await sleep(300);
+                $$('button').find((b) => /Enroll Now/.test(b.innerText)).click();
+                await sleep(300);
+                $$('button').find((b) => /Confirm Enroll/.test(b.innerText)).click();
+                await sleep(600);
+                return { landed: !!$('#enrolled-page') };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.landed, true);
     });
 });

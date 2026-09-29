@@ -16,7 +16,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { screen, srcFile, skipWithoutStyles } from './harness.js';
+import { screen, srcFile, skipWithoutStyles, DEVICES } from './harness.js';
 import { apiModule } from './fixtures.js';
 
 const PHONE = 500;      // the narrowest viewport headless Chrome will give
@@ -69,7 +69,7 @@ const SECTIONS = `
     personalInfo: has(/Personal Information/),
     leaderboard: has(/Leaderboard/),
     wallet: has(/Wallet/),
-    myLearning: has(/My Courses/) && has(/Weekly activity/i),
+    myLearning: has(/Available Courses/) && has(/Weekly activity/i),
     resume: has(/Your Resume/),
     aiKey: has(/Your own AI key/i),
     progress: has(/Your Progress/),
@@ -171,6 +171,28 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         assert.equal(small.below, true, 'at 1024px it moves under the greeting rather than squeezing in');
         assert.equal(small.art, false, 'and the picture steps aside');
         assert.equal(small.inside, true, 'still inside the card');
+    });
+
+    test('on a phone, Edit Profile goes under the heading, so the heading keeps its line', async () => {
+        // Beside the heading on a 344px phone it squeezed "Personal Information"
+        // onto two lines and "Manage your profile information" onto three.
+        const HEAD = `
+            await sleep(1500);
+            const c = $('[data-personal-info]'), h = $('#personal-info-title'), sub = h.nextElementSibling;
+            const btn = [...c.querySelectorAll('button')].find((b) => /Edit Profile/.test(b.innerText));
+            const lines = (el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
+            const H = h.getBoundingClientRect(), B = btn.getBoundingClientRect();
+            return { title: lines(h), sub: lines(sub), below: B.top >= H.bottom, beside: B.left > H.right,
+                     fullWidth: B.width >= c.querySelector('#personal-info-title').closest('div.flex-wrap').clientWidth - 64 };`;
+        const phone = await screen({ entry: page('profile'), api, styles: true, device: DEVICES.galaxyZFold6Folded, budget: 20_000, script: HEAD });
+        assert.deepEqual(phone.errors, []);
+        assert.equal(phone.result.title, 1, '"Personal Information" on one line');
+        assert.equal(phone.result.sub, 1, 'and "Manage your profile information" on one line');
+        assert.equal(phone.result.below, true, 'Edit Profile under them');
+        assert.equal(phone.result.fullWidth, true, 'as a full-width button');
+        const desk = await screen({ entry: page('profile'), api, styles: true, width: DESKTOP, budget: 20_000, script: HEAD });
+        assert.equal(desk.result.beside, true, 'on a desktop it is back beside the heading');
+        assert.equal(desk.result.fullWidth, false, 'at its own size');
     });
 
     test('My Profile opens with Personal Information: each detail under its label', async () => {
