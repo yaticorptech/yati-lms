@@ -113,6 +113,9 @@ const rest = () => {
   clearTimer();
   holdUntil = 0;
   holdPriority = 0;
+  // Gone stays gone: docking a character that was sent away would stand it
+  // in the corner of the screen with nothing to do there.
+  if (snapshot.suppressed) return;
   commit({
     mode: 'docked',
     visible: true,
@@ -138,6 +141,12 @@ const SPEAK_MS = 6000;
  * reports something new.
  */
 const play = ({ state = 'idle', pose, body, message = null, cta = null, anchor, prefer, ms, priority = PRIORITY.ambient }) => {
+  // Sent away on purpose stays away. A reaction or a line arriving after
+  // leave() — a quiz ending, a task starting — used to put the character
+  // straight back on the page, in the corner or on top of a paragraph, after
+  // the student had already been shown what they needed. Only enter() brings
+  // it back, and enter() is only called by guidance that means to.
+  if (snapshot.suppressed) return false;
   if (priority < holdPriority && now() < holdUntil) return false;
 
   const base = STATES[isState(state) ? state : 'idle'];
@@ -235,6 +244,8 @@ export const mascot = {
     clearTimer();
     holdUntil = 0;
     holdPriority = 0;
+    // See rest(): only enter() brings a character that was sent away back.
+    if (snapshot.suppressed) return mascot;
     commit({
       mode: 'docked',
       visible: true,
@@ -306,6 +317,23 @@ export const mascot = {
   /** Let go of the current beat and settle. */
   rest() {
     rest();
+    return mascot;
+  },
+
+  /**
+   * Take the words down and nothing else. A tap on the character while it
+   * is speaking is the one gesture that means "read it": the bubble goes,
+   * a sequence that would have spoken next is abandoned, and the character
+   * stays exactly where and how it is.
+   */
+  hush() {
+    cancelScript?.();
+    clearTimer();
+    holdUntil = 0;
+    holdPriority = 0;
+    commit({ message: null, cta: null });
+    // Page guidance treats this as "seen": see CareerPathMascot.
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('mascot:hushed'));
     return mascot;
   },
 

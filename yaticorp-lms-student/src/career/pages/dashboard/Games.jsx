@@ -470,7 +470,13 @@ export default function Games() {
         <section className="relative isolate overflow-hidden rounded-3xl shadow-card ring-1 ring-sky-200/70 ring-inset">
           <HeroScene className="absolute inset-0 h-full w-full" />
 
-          <div className="relative grid items-center gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_20.5rem]">
+          {/* `minmax(0,1fr)` and not a bare column: the leaderboard's rows
+              keep their names on one line, so as an auto column this sized
+              itself to "Bhagyashree YOU ★ 117" and on a narrow phone ran the
+              pitch and the board out through the banner's right padding. A
+              zero minimum lets the column be the banner's width and the name
+              shorten instead. */}
+          <div className="relative grid grid-cols-[minmax(0,1fr)] items-center gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_20.5rem]">
             {/* The pitch */}
             <div className="flex items-end gap-4">
               <GameTokensArt className="hidden h-[10.5rem] w-[10.5rem] shrink-0 self-end lg:block" />

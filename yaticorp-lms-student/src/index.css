@@ -14,10 +14,11 @@
    the sidebar layout: a third of the width gone to a menu that showed four of
    its eight sections, the rest scrolled out of sight under Contact Support.
    A landscape phone keeps the phone layout instead, where every section fits
-   in the bottom bar. Tablets, laptops, foldables open and the Nest Hub are all
-   taller than 30rem, so for them this is exactly md. Use it only for what
-   depends on which navigation is showing; page layouts stay on width. */
-@custom-variant sidebar (@media (min-width: 48rem) and (min-height: 30rem));
+   in the bottom bar. From lg rather than md: at 768 (an iPad Mini upright) the
+   256px sidebar left the page about 510px, and heroes wrapped a word a line.
+   Use it only for what depends on which navigation is showing; page layouts
+   stay on width. */
+@custom-variant sidebar (@media (min-width: 64rem) and (min-height: 30rem));
 
 /* ---------------------------------------------------------------------------
    Dashboard welcome panel

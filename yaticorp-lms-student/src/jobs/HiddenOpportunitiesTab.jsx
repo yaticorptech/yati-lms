@@ -116,7 +116,7 @@ export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location 
 
             {error && <p className="flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-700"><AlertCircle size={15} /> {error}</p>}
             {!picks.length && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">Your skills do not yet cover the core of any role we track. Add a few more skills to your resume, or search jobs by hand.</p>}
-            {loading && <div className="grid gap-4 xl:grid-cols-2">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-52 rounded-2xl" />)}</div>}
+            {loading && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-52 rounded-2xl" />)}</div>}
 
             {!loading && groups && groups.map((g) => (
                 <div key={g.role.name}>
@@ -124,7 +124,7 @@ export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location 
                         <h3 className="text-base font-black text-slate-900">{g.role.name}</h3>
                         <p className="text-xs text-slate-500">{g.role.held ? 'A role you have held' : `Because you know ${g.role.because.join(', ')}`}</p>
                     </div>
-                    <div className="grid gap-4 xl:grid-cols-2">{g.jobs.map((job) => <MatchCard key={job.id} job={job} />)}</div>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{g.jobs.map((job) => <MatchCard key={job.id} job={job} />)}</div>
                 </div>
             ))}
             {!loading && groups && groups.length === 0 && picks.length > 0 && (

@@ -84,7 +84,7 @@ function Row({ entry, dense }) {
   const medal = MEDAL[entry.rank];
   return (
     <li
-      className={`flex items-center gap-2.5 rounded-2xl px-2.5 py-2 transition-colors ${
+      className={`flex items-center gap-2 rounded-2xl px-2 py-2 transition-colors sm:gap-2.5 sm:px-2.5 ${
         entry.isMe
           ? 'bg-violet-50 ring-1 ring-violet-200 ring-inset'
           : 'bg-surface ring-1 ring-line-100 ring-inset hover:bg-surface-50'
@@ -100,10 +100,13 @@ function Row({ entry, dense }) {
 
       <Avatar entry={entry} />
 
-      <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#173a63]">
-        {entry.name}
+      {/* The tag sits beside the name, not inside it: inside, a name cut
+          short on a narrow phone took the tag with it, and the ellipsis
+          landed halfway through "You". */}
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span className="truncate text-sm font-bold text-[#173a63]">{entry.name}</span>
         {entry.isMe && (
-          <span className="ml-1.5 rounded-md bg-violet-600 px-1.5 py-0.5 align-middle text-[0.58rem] font-black tracking-wide text-white uppercase">
+          <span className="shrink-0 rounded-md bg-violet-600 px-1.5 py-0.5 text-[0.58rem] font-black tracking-wide text-white uppercase">
             You
           </span>
         )}
@@ -454,13 +457,16 @@ export default function GameLeaderboard({ dense = false, limit }) {
   if (dense) {
     return (
       <div data-guide="game-leaderboard">
-        <div className="flex items-center gap-2">
+        {/* Wraps so that on a 320px phone, where the heading and the period
+            do not share a line, the period drops under it rather than out
+            through the panel's edge. */}
+        <div className="flex flex-wrap items-center gap-2">
           <Crown className="h-5 w-5 shrink-0 fill-amber-400 text-amber-500" />
           <h2 className="flex-1 text-base font-black text-[#173a63]">Leaderboard</h2>
           {/* The period is the only choice worth offering here. Scope was a
               second dropdown that nearly every student left on Everyone, and
               two controls over three rows read as more machinery than board. */}
-          <FilterSelect label="Period" value={period} options={PERIODS} onChange={setPeriod} />
+          <FilterSelect label="Period" value={period} options={PERIODS} onChange={setPeriod} className="ml-auto" />
         </div>
         <div className="mt-3">{body}</div>
       </div>
