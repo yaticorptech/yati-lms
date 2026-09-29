@@ -137,8 +137,14 @@ const CoursePreview = () => {
 
                             {/* Video */}
                             {(activeLesson.videoUrl || activeLesson.videoId) && (
-                                <div className="rounded-2xl overflow-hidden bg-black">
-                                    <VideoPlayer lesson={activeLesson} />
+                                <div className="relative aspect-video rounded-2xl overflow-hidden bg-black">
+                                    <VideoPlayer
+                                        source={activeLesson.videoSource || 'youtube'}
+                                        url={activeLesson.videoUrl}
+                                        videoId={activeLesson.videoId}
+                                        libraryId={activeLesson.libraryId}
+                                        title={activeLesson.title}
+                                    />
                                 </div>
                             )}
 

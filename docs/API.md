@@ -132,6 +132,8 @@ under review. For a platform admin the response is unchanged.
 | GET | `/user/courses/:id` | Student | Get course content |
 | POST | `/user/courses/:id/enroll` | Student | Enroll into a course |
 | POST | `/user/progress/update` | Student | Update lesson progress |
+| GET | `/user/courses/:id/playback` | Student | The open lesson and saved video positions for a course |
+| PUT | `/user/courses/:id/playback` | Student | Save a video position (`{ lessonId, seconds, at? }`) and/or the open lesson (`{ activeLessonId }`) |
 | GET | `/user/settings` | Student | Get user settings |
 | GET | `/user/ai-key` | User | Whether the student has saved their own Gemini key (masked, never the key itself) |
 | PUT | `/user/ai-key` | User | Save the student's Gemini key (`{ key }`); checked live with Google, stored encrypted |

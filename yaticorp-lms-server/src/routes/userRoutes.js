@@ -27,6 +27,11 @@ router.get('/courses/available', protectUser, getAvailableCourses);
 router.get('/courses/organization', protectUser, getOrganizationCourses);
 router.get('/courses/:id', protectUser, getCourseContent);
 router.post('/courses/:id/enroll', protectUser, enrollCourse);
+// Where the student is in a course's videos, so a phone and a laptop pick up
+// from the same place.
+const { getPlayback, savePlayback } = require('../controllers/playbackController');
+router.get('/courses/:id/playback', protectUser, getPlayback);
+router.put('/courses/:id/playback', protectUser, savePlayback);
 router.post('/progress/update', protectUser, updateProgress);
 
 // Bundle Routes — every published bundle is open to any signed-in student, so
