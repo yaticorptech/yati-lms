@@ -427,7 +427,10 @@
     transition: opacity 0.15s ease;
     z-index: 1;
 }
-.tab-scroll-wrap::before { left: 0; background: linear-gradient(to right, var(--tab-fade, #fff), transparent); }
+/* Solid for its first 0.75rem: a tapped tab is scrolled to sit just clear of
+   this fade, which leaves the last letter of the tab before it under here —
+   hidden, rather than showing through as a stray half-glyph. */
+.tab-scroll-wrap::before { left: 0; background: linear-gradient(to right, var(--tab-fade, #fff) 0.75rem, transparent); }
 .tab-scroll-wrap::after { right: 0; background: linear-gradient(to left, var(--tab-fade, #fff), transparent); }
 .tab-scroll-wrap[data-more-left='true']::before { opacity: 1; }
 .tab-scroll-wrap[data-more-right='true']::after { opacity: 1; }
