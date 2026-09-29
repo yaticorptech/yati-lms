@@ -7,7 +7,7 @@
  * white listing cards below are steps towards.
  */
 import { Link } from 'react-router-dom';
-import { Target, GraduationCap, ArrowRight, Compass } from 'lucide-react';
+import { Target, ArrowRight, Compass } from 'lucide-react';
 
 const TONES = {
     have: 'bg-emerald-400/15 text-emerald-100 border-emerald-300/30',
@@ -26,51 +26,6 @@ const Backdrop = () => (
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.08)_1px,transparent_1px)] bg-[size:18px_18px]" />
     </>
 );
-
-/**
- * The gap's skills, grouped by the published course that teaches them.
- *
- * Grouped by course rather than by skill because the action is per course —
- * one enrol decision may close several gaps at once, and saying so is the
- * whole sell.
- */
-const TeachBlock = ({ teach }) => {
-    if (!teach?.length) return null;
-
-    const byCourse = new Map();
-    for (const t of teach) {
-        if (!byCourse.has(t.courseId)) byCourse.set(t.courseId, { title: t.title, skills: [] });
-        byCourse.get(t.courseId).skills.push(t.skill);
-    }
-
-    return (
-        <div className="mt-6 border-t border-white/10 pt-5">
-            <h4 className="mb-2.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white/70">
-                <GraduationCap size={14} className="text-sky-300" /> Learn these here
-            </h4>
-            <div className="space-y-2">
-                {[...byCourse.entries()].map(([courseId, course]) => (
-                    <Link
-                        key={courseId}
-                        to={`/preview/${courseId}`}
-                        className="group flex items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-3 transition-colors hover:bg-white/15"
-                    >
-                        <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-white">{course.title}</p>
-                            <p className="mt-0.5 text-xs text-white/60">
-                                Covers {course.skills.join(', ')}
-                            </p>
-                        </div>
-                        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-sky-200">
-                            We teach this
-                            <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-                        </span>
-                    </Link>
-                ))}
-            </div>
-        </div>
-    );
-};
 
 /**
  * Where this gap meets the student's Career Path.
@@ -188,8 +143,10 @@ export default function SkillGapCard({ gap, unrecognizedRole, careerGoal, career
                     <Group title="Trending in current listings" skills={gap.trending} variant="trending" marker="●" />
                 </div>
 
-                <TeachBlock teach={gap.teach} />
-
+                {/* No list of the platform's courses that teach the gap. The
+                    server still sends `gap.teach`; the board is about the
+                    role and its skills, and the course catalogue is a page
+                    of its own. */}
                 <CareerPathLink role={gap.role} careerGoal={careerGoal} enabled={careerPathEnabled} />
 
                 {gap.advice && <p className="mt-6 border-t border-white/10 pt-4 text-sm text-white/70">{gap.advice}</p>}

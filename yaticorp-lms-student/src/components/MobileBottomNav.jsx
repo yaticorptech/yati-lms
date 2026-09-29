@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { User, LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, GraduationCap, Mic } from 'lucide-react';
+import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, GraduationCap, Mic } from 'lucide-react';
 import './mobileBottomNav.css';
 
 /**
@@ -11,11 +11,11 @@ import './mobileBottomNav.css';
  * destinations sit under the thumb here, and the drawer keeps what does not
  * belong in a nav bar — support and sign-out.
  *
- * Labels are shortened to one word each so eight of them sit on one line
+ * Labels are shortened to one word each so seven of them sit on one line
  * under their icons; the sidebar's full name stays on the accessible label,
- * so a screen reader still hears "Enrolled Courses". "Community" became
- * "Forum" when My Profile joined the bar: eight cells on a 344px phone are
- * 41px each, and "Community" was cut to "Commu…" even at seven.
+ * so a screen reader still hears "Enrolled Courses". "Community" is "Forum":
+ * seven cells on a 344px phone are about 49px each, and "Community" was cut
+ * to "Commu…" at that width.
  *
  * Jobs and Career Path come and go with the admin switches, exactly
  * as they do in the sidebar, so the bar never offers a section the student
@@ -27,16 +27,16 @@ import './mobileBottomNav.css';
  * is something the thumb can watch rather than a colour that changes.
  */
 // `label` is the sidebar's own name and goes on the accessible label; `short`
-// is what fits under an icon in one line when eight of them share a phone.
-// My Profile leads, as it does in the sidebar.
+// is what fits under an icon in one line when seven of them share a phone.
+// My Profile stays in the drawer rather than here; Career Path sits right
+// after Courses.
 const ITEMS = [
-  { to: '/profile', label: 'My Profile', short: 'Profile', icon: User, exact: true },
   { to: '/', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
   { to: '/enrolled-courses', label: 'Enrolled Courses', short: 'Courses', icon: BookOpen },
+  { to: '/career', label: 'Career Path', short: 'Career', icon: Compass, flag: 'career' },
   { to: '/community', label: 'Community', short: 'Forum', icon: MessageSquare },
   { to: '/jobs', label: 'Jobs', short: 'Jobs', icon: Briefcase, flag: 'jobs' },
   { to: '/scholarships', label: 'Scholarships', short: 'Grants', icon: GraduationCap, flag: 'career' },
-  { to: '/career', label: 'Career Path', short: 'Career', icon: Compass, flag: 'career' },
   { to: '/interview', label: 'Interview Ready', short: 'Interview', icon: Mic }
 ];
 

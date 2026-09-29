@@ -7,10 +7,11 @@
  * their dates first, the categories, then the student's own ♡ list. A search
  * or a filter narrows the main grid and leaves the ♡ list where it is.
  */
+import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    Search, SlidersHorizontal, Sparkles, CalendarDays, LayoutGrid, Heart, Plus, Pencil,
+    Search, Sparkles, CalendarDays, LayoutGrid, Heart, Plus, Pencil,
     RotateCcw, AlertCircle, ShieldCheck, ShieldAlert, Compass, Undo2, X, CalendarRange, MapPin, Globe
 } from 'lucide-react';
 import { opportunitiesApi } from './api';
@@ -19,11 +20,11 @@ import { WorkerScene } from './HeroArt';
 import OpportunityCard from './OpportunityCard';
 import OpportunityDetails from './OpportunityDetails';
 import ProfileOnboarding from './ProfileOnboarding';
-import FiltersDrawer from './FiltersDrawer';
 import ReportDialog from './ReportDialog';
 import GuardianBanner from './GuardianBanner';
 import WebJobCard from './WebJobCard';
 import ApplyFlow from './application/ApplyFlow';
+import Dropdown from '../components/Dropdown';
 import './opportunities.css';
 
 const useDebounced = (value, ms) => {
@@ -105,7 +106,10 @@ const GhostButton = ({ onClick, children, to, primary = false }) => {
     return to ? <Link to={to} className={cls}>{children}</Link> : <button type="button" onClick={onClick} className={cls}>{children}</button>;
 };
 
-export default function OpportunitiesTab({ data, onData, careerPathEnabled = true, location = '', onLocation }) {
+// `heroSlot` is a node above the Jobs page's tab strip. Given one, the
+// banner is drawn there, so it leads the page the way the other tabs' banners
+// do; without one (the tab on its own) it is drawn here at the top.
+export default function OpportunitiesTab({ data, onData, careerPathEnabled = true, location = '', onLocation, heroSlot = null }) {
     const [editing, setEditing] = useState(false);
     const [listing, setListing] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -113,7 +117,6 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
     const [q, setQ] = useState('');
     const debouncedQ = useDebounced(q.trim(), 300);
     const [filters, setFilters] = useState(EMPTY_FILTERS);
-    const [filtersOpen, setFiltersOpen] = useState(false);
     const [interested, setInterested] = useState([]);
     const [leaving, setLeaving] = useState(() => new Set());
     const [undo, setUndo] = useState(null);
@@ -239,7 +242,6 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
     const openDetails = (opp) => setDetailsId(opp.id);
     const closeDetails = useCallback(() => { setDetailsId(null); loadPersonal(); }, [loadPersonal]);
     const closeReport = useCallback(() => setReporting(null), []);
-    const closeFilters = useCallback(() => setFiltersOpen(false), []);
     const clearAll = () => { setQ(''); setFilters(EMPTY_FILTERS); };
 
     const results = useMemo(() => listing?.results ?? [], [listing]);
@@ -273,8 +275,10 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
         </div>
     );
 
+    const place = (banner) => (heroSlot ? createPortal(banner, heroSlot) : banner);
+
     if (data === undefined) {
-        return <div className="space-y-5"><div className="skeleton h-56 rounded-3xl" /><Skeletons /></div>;
+        return <div className="space-y-5">{place(<div className="skeleton h-56 rounded-3xl" />)}<Skeletons /></div>;
     }
     if (data === null) {
         return (
@@ -290,7 +294,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
 
     return (
         <div className="space-y-6">
-            <Hero band={band} hasProfile={hasProfile} total={listing?.total ?? 0} loading={loading && !listing} window={listing?.window} />
+            {place(<Hero band={band} hasProfile={hasProfile} total={listing?.total ?? 0} loading={loading && !listing} window={listing?.window} />)}
 
             {/* The details form is a popup over the board. A first visit cannot
                 dismiss it — there is nothing to show until it is answered. */}
@@ -343,11 +347,10 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search part-time jobs…" type="search"
                                 className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
                         </label>
-                        <button type="button" onClick={() => setFiltersOpen(true)}
-                            className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-indigo-300 hover:text-indigo-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
-                            <SlidersHorizontal size={16} aria-hidden="true" /> Filters
-                            {countActive(filters) > 0 && <span className="rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{countActive(filters)}</span>}
-                        </button>
+                        {/* No Filters drawer. Everything it held is on the page
+                            already — the category dropdown by the results, the
+                            interest chips, the dates strip — and a second door to
+                            the same choices was one control too many. */}
                         <label className="relative">
                             <span className="sr-only">Your town or city</span>
                             <MapPin size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
@@ -481,7 +484,35 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                             <SectionTitle icon={filtersActive ? Search : Sparkles} title={<span id="opp-main-title">{mainTitle}</span>}
                                 hint={filtersActive ? (countActive(filters) ? `${countActive(filters)} filter${countActive(filters) === 1 ? '' : 's'} applied` : undefined)
                                     : 'In date order — your free time first, then the rest of the month. Local jobs and open vacancies near you, together.'}
-                                action={filtersActive && <GhostButton onClick={clearAll}><RotateCcw size={14} aria-hidden="true" /> Clear</GhostButton>} />
+                                action={(
+                                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                                        {/* The category filter, as a dropdown beside the results
+                                            rather than a grid of tiles under them: the tiles were
+                                            a second, larger control for the same choice, and a
+                                            screen of them below the results read as content. */}
+                                        {listing?.categories?.length > 0 && (
+                                            <div className="w-full sm:w-60 [&>*]:w-full">
+                                                <Dropdown
+                                                    label="Category" icon={LayoutGrid} accent="indigo" placement="panel"
+                                                    value={filters.category}
+                                                    options={[
+                                                        { value: '', label: 'All categories' },
+                                                        ...listing.categories.map((c) => ({
+                                                            value: c.id,
+                                                            label: `${c.icon ? `${c.icon} ` : ''}${c.label}${c.count ? ` · ${c.count}` : ''}`
+                                                        }))
+                                                    ]}
+                                                    // Counts are across all upcoming dates, so picking
+                                                    // one widens the dates to match, as the tiles did.
+                                                    onChange={(category) => setFilters((f) => ({ ...f, category, ...(category ? { anyDate: true } : {}) }))}
+                                                    className="relative inline-flex min-h-11 w-full items-center rounded-xl border border-slate-300 bg-white pl-10 pr-9 text-sm font-semibold text-slate-700 transition-colors hover:border-indigo-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 sm:min-h-10"
+                                                    panelClassName="left-auto right-0 w-64"
+                                                />
+                                            </div>
+                                        )}
+                                        {filtersActive && <GhostButton onClick={clearAll}><RotateCcw size={14} aria-hidden="true" /> Clear</GhostButton>}
+                                    </div>
+                                )} />
                             {results.length ? grid(ordered) : filtersActive ? (
                                 <Empty icon={Search} title="Nothing matches that search" actions={<GhostButton onClick={clearAll}>Clear search &amp; filters</GhostButton>}>
                                     Try a shorter word, or clear a filter or two.
@@ -509,30 +540,6 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         </section>
                     )}
 
-                    {band !== 'explore' && listing?.categories?.length > 0 && (
-                        <section aria-labelledby="opp-categories-title">
-                            <SectionTitle icon={LayoutGrid} title={<span id="opp-categories-title">Categories</span>} hint="Counts across all upcoming dates. Only categories open to your age group are shown." />
-                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                                {/* Every category is a live filter, even one with nothing
-                                    in it yet: tapping it shows the empty state for that line
-                                    of work rather than a button that does nothing. */}
-                                {listing.categories.map((c) => (
-                                    <button key={c.id} type="button" aria-pressed={filters.category === c.id}
-                                        onClick={() => setFilters((f) => ({ ...f, category: f.category === c.id ? '' : c.id, anyDate: true }))}
-                                        className={`group flex items-center gap-3 rounded-2xl border bg-white p-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
-                                            filters.category === c.id ? 'border-indigo-400 ring-1 ring-indigo-200' : 'border-slate-200'
-                                        }`}>
-                                        <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-xl transition-colors group-hover:bg-indigo-50">{c.icon}</span>
-                                        <span className="min-w-0">
-                                            <span className="block truncate text-sm font-semibold text-slate-800">{c.label}</span>
-                                            <span className={`block text-xs ${c.count ? 'text-slate-500' : 'text-slate-400'}`}>{c.count ? `${c.count} upcoming` : 'None yet · tap to watch'}</span>
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </section>
-                    )}
-
                     {/* ── Interested ───────────────────────────────────── */}
                     {band !== 'explore' && (
                         <section aria-labelledby="opp-interested-title">
@@ -546,8 +553,6 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         </section>
                     )}
 
-                    <FiltersDrawer open={filtersOpen} onClose={closeFilters} filters={filters} onApply={setFilters}
-                        vocab={vocab} rules={rules} categories={listing?.categories ?? []} />
                 </>
             )}
 

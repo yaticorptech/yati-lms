@@ -276,22 +276,30 @@ export default function Badges() {
             <RewardsHeroArt earned={unlockedCount} className="h-full w-full" />
           </div>
 
-          <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 lg:max-w-[64%]">
-            <LevelBadge level={level} percent={percent} />
+          {/* On a phone the ring sits beside the title rather than on a row of
+              its own, which left it alone in the top-left corner over a blank
+              band; the bar and the button then take the full width underneath.
+              From sm the ring is one column beside all of it. */}
+          <div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-4 p-5 sm:gap-x-5 sm:p-6 lg:max-w-[64%]">
+            <div className="sm:row-span-3">
+              <LevelBadge level={level} percent={percent} />
+            </div>
 
-            <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
+            <div className="min-w-0">
               <p className="text-[0.7rem] font-black tracking-[0.16em] text-journey-600 uppercase">
                 Rewards
               </p>
               <h1 className="mt-1 text-2xl leading-tight font-black text-ink-900 sm:text-3xl">
                 Level {level} Learner
               </h1>
-              <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-ink-500">
+              {/* One figure a line on a phone, where the pair wrapped mid-way and left
+                  the dot dangling at the end of the first line. */}
+              <p className="mt-1.5 flex flex-col gap-y-1 text-sm font-semibold text-ink-500 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
                 <span className="inline-flex items-center gap-1.5">
                   <Zap className="h-4 w-4 fill-amber-200 text-amber-500" />
                   <span className="tabular-nums text-ink-900">{animatedXp}</span> total XP
                 </span>
-                <span aria-hidden className="text-ink-300">·</span>
+                <span aria-hidden className="hidden text-ink-300 sm:inline">·</span>
                 {/* Not "X of Y": the catalogue is revealed one badge at a time,
                     so Y is only what happens to be visible today. */}
                 <span className="inline-flex items-center gap-1.5">
@@ -300,54 +308,53 @@ export default function Badges() {
                   {unlockedCount === 1 ? 'badge' : 'badges'} earned
                 </span>
               </p>
+            </div>
 
-              <div className="mt-4 max-w-md">
-                <div className="mb-1.5 flex flex-wrap justify-between gap-x-3 text-xs font-bold text-ink-600">
-                  <span className="whitespace-nowrap">Progress to Level {level + 1}</span>
-                  <span className="whitespace-nowrap tabular-nums">
-                    {xp} / {ceiling} XP
-                  </span>
-                </div>
-                <div
-                  role="progressbar"
-                  aria-valuenow={percent}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={`Progress to Level ${level + 1}`}
-                  className="h-2.5 overflow-hidden rounded-full bg-surface-100 ring-1 ring-line-200/60 ring-inset"
-                >
-                  <div
-                    className="fp-effort-gradient fp-stripes h-full rounded-full transition-[width] duration-1000 ease-out"
-                    style={{ width: `${percent}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-2.5">
-                <Link
-                  to="/career/planner"
-                  data-guide="earn"
-                  className="fp-press group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
-                >
-                  <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
-                  Earn {TASK_XP} XP now
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Link>
-                <span className="text-xs font-bold text-ink-500">
-                  {xpToLevel > 0 ? (
-                    <>
-                      <span className="text-ink-900 tabular-nums">
-                        {tasksToLevel} {tasksToLevel === 1 ? 'task' : 'tasks'}
-                      </span>{' '}
-                      to Level {level + 1}
-                    </>
-                  ) : (
-                    'Level target hit — new ground from here.'
-                  )}
+            <div className="col-span-2 max-w-md sm:col-span-1 sm:col-start-2">
+              <div className="mb-1.5 flex flex-wrap justify-between gap-x-3 text-xs font-bold text-ink-600">
+                <span className="whitespace-nowrap">Progress to Level {level + 1}</span>
+                <span className="whitespace-nowrap tabular-nums">
+                  {xp} / {ceiling} XP
                 </span>
+              </div>
+              <div
+                role="progressbar"
+                aria-valuenow={percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Progress to Level ${level + 1}`}
+                className="h-2.5 overflow-hidden rounded-full bg-surface-100 ring-1 ring-line-200/60 ring-inset"
+              >
+                <div
+                  className="fp-effort-gradient fp-stripes h-full rounded-full transition-[width] duration-1000 ease-out"
+                  style={{ width: `${percent}%` }}
+                />
               </div>
             </div>
 
+            <div className="col-span-2 flex flex-wrap items-center gap-2.5 sm:col-span-1 sm:col-start-2">
+              <Link
+                to="/career/planner"
+                data-guide="earn"
+                className="fp-press group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
+              >
+                <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
+                Earn {TASK_XP} XP now
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+              <span className="text-xs font-bold text-ink-500">
+                {xpToLevel > 0 ? (
+                  <>
+                    <span className="text-ink-900 tabular-nums">
+                      {tasksToLevel} {tasksToLevel === 1 ? 'task' : 'tasks'}
+                    </span>{' '}
+                    to Level {level + 1}
+                  </>
+                ) : (
+                  'Level target hit — new ground from here.'
+                )}
+              </span>
+            </div>
           </div>
         </section>
 

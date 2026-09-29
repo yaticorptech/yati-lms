@@ -164,12 +164,21 @@ const EnrolledCourses = () => {
                 </div>
 
                 {/* Courses or bundles: one segmented switch, with counts. */}
-                <div className="lms-rise mt-6 mb-6 inline-flex w-full gap-1 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200 sm:w-auto" style={{ animationDelay: '0.15s' }}>
-                    {[
+                {(() => {
+                    const tabs = [
                         ['courses', 'My courses', BookOpen, courses.length],
                         ['bundles', 'Bundles', Layers, bundles.length],
                         ...(org.organization ? [['organization', 'Organization', Building2, org.courses.length]] : [])
-                    ].map(([key, label, Icon, count]) => {
+                    ];
+                    // Three tabs with their counts beside them do not fit a
+                    // phone in one line — "Organization 0" ran off the right
+                    // edge on a 360px screen — so on a phone the count sits
+                    // under the label and the three share the width equally.
+                    // Two tabs have the room, and keep the one-line form.
+                    const stacked = tabs.length > 2;
+                    return (
+                <div className="lms-rise mt-6 mb-6 inline-flex w-full gap-1 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200 sm:w-auto" style={{ animationDelay: '0.15s' }}>
+                    {tabs.map(([key, label, Icon, count]) => {
                         const on = activeTab === key;
                         return (
                             <button
@@ -177,13 +186,15 @@ const EnrolledCourses = () => {
                                 type="button"
                                 onClick={() => setActiveTab(key)}
                                 aria-pressed={on}
-                                className={`inline-flex min-h-10 flex-auto items-center justify-center gap-1 rounded-xl px-2 text-[12.5px] font-black whitespace-nowrap transition-all sm:flex-none sm:gap-2 sm:px-4 sm:text-sm ${
+                                className={`inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl text-[12.5px] font-black whitespace-nowrap transition-all sm:flex-none sm:flex-row sm:gap-2 sm:px-4 sm:py-0 sm:text-sm ${
+                                    stacked ? 'flex-1 flex-col gap-0.5 px-1.5 py-1.5' : 'flex-auto gap-1 px-2'
+                                } ${
                                     on
                                         ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/25'
                                         : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                                 }`}
                             >
-                                <Icon size={16} className="hidden shrink-0 min-[400px]:block" />
+                                <Icon size={16} className={`hidden shrink-0 ${stacked ? 'sm:block' : 'min-[400px]:block'}`} />
                                 {label}
                                 <span className={`rounded-full px-1.5 py-0.5 text-[0.68rem] tabular-nums ${on ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                     {count}
@@ -192,6 +203,8 @@ const EnrolledCourses = () => {
                         );
                     })}
                 </div>
+                    );
+                })()}
 
                 {showLoader ? (
                     <YatiLoader label="Loading your courses" />

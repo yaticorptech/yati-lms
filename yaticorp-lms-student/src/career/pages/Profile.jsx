@@ -424,22 +424,32 @@ export default function Profile() {
               className="pointer-events-none absolute top-1/2 right-4 hidden h-40 w-56 -translate-y-1/2 xl:block"
             />
 
-            <div className="relative flex flex-wrap items-center gap-5 xl:pr-60">
-              <span className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-journey-500 to-indigo-600 text-2xl font-black text-white shadow-lg shadow-journey-500/30">
+            {/* A grid on a phone — the avatar beside the name and email, the
+                boost and the level card full width beneath — because as one
+                wrapping row the name dropped under the avatar on a 360px screen
+                and left it alone over a blank band. From sm it is the wrapping
+                row it was, with the text back together as one column. */}
+            <div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 sm:flex sm:flex-wrap sm:gap-5 xl:pr-60">
+              <span className="relative row-span-3 flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-journey-500 to-indigo-600 text-2xl font-black text-white shadow-lg shadow-journey-500/30">
                 {user.name?.charAt(0)?.toUpperCase() || '?'}
                 <span className="absolute -right-1.5 -bottom-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-[0.6rem] font-black text-amber-950 ring-2 ring-surface">
                   {level}
                 </span>
               </span>
-              <div className="min-w-0 flex-1 basis-56">
+              {/* `contents` on a phone: the lines inside place themselves on
+                  the grid, so the boost can span both columns while the name
+                  and email sit beside the avatar. */}
+              <div className="contents sm:block sm:min-w-0 sm:flex-1 sm:basis-56">
                 <p className="text-[0.68rem] font-black tracking-[0.16em] text-journey-600 uppercase">
                   My progress
                 </p>
                 <h1 className="mt-0.5 text-2xl leading-tight font-black break-words text-ink-900 sm:text-3xl">
                   {user.name}
                 </h1>
-                <p className="mt-0.5 text-sm break-all text-ink-500">{user.email}</p>
-                <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-journey-100/60 px-2.5 py-1 text-xs font-bold text-journey-700">
+                {/* Smaller beside the avatar: at 14px a plain Gmail address
+                    broke mid-word on a 344px phone. */}
+                <p className="mt-0.5 text-xs break-all text-ink-500 sm:text-sm">{user.email}</p>
+                <p className="col-span-2 mt-3 inline-flex items-center gap-1.5 justify-self-start rounded-lg bg-journey-100/60 px-2.5 py-1 text-xs font-bold text-journey-700 sm:mt-2.5">
                   <span aria-hidden>💪</span>
                   {dailyBoost()}
                 </p>
@@ -447,7 +457,7 @@ export default function Profile() {
 
               {/* Level, stated once, from the same helper every other surface
                   on the site reads. */}
-              <div className="flex w-full shrink-0 items-center gap-4 rounded-2xl bg-surface/90 p-3.5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur sm:w-auto">
+              <div className="col-span-2 mt-4 flex w-full shrink-0 items-center gap-4 rounded-2xl bg-surface/90 p-3.5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur sm:mt-0 sm:w-auto">
                 <LevelRing level={level} percent={levelInfo.percent} />
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 text-xs font-black text-amber-600">

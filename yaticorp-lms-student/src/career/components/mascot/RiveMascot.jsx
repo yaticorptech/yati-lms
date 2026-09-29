@@ -39,6 +39,10 @@ export default function RiveMascot({
     src: RIVE_SRC,
     stateMachines: STATE_MACHINE,
     autoplay: true,
+    // A finger that lands on the rig and drags is scrolling the page, not
+    // pressing the character. Without this the runtime cancels every touch
+    // on its canvas, and the page stopped dead under the mascot.
+    isTouchScrollEnabled: true,
     // Feet on the baseline, so the character stands on the page rather than
     // floating in the middle of its own box.
     layout: new Layout({ fit: Fit.Contain, alignment: Alignment.BottomCenter }),

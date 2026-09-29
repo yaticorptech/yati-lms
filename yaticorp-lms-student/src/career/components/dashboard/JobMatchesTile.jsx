@@ -92,7 +92,9 @@ export default function JobMatchesTile() {
             to="/jobs"
             className="fp-btn fp-btn-soft group inline-flex items-center gap-1 rounded-md bg-surface-100 px-2.5 py-1 text-xs font-bold text-link"
           >
-            See all matches
+            {/* Shorter on a phone, where the full label broke into two lines
+                beside the title. */}
+            <span className="whitespace-nowrap"><span className="sm:hidden">See all</span><span className="hidden sm:inline">See all matches</span></span>
             <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
           </Link>
         }
@@ -100,12 +102,18 @@ export default function JobMatchesTile() {
       {/* Three across only once there is room for three. At `sm` the LMS
           sidebar is still taking 16rem, so three job cards were sharing about
           570px and every company name truncated mid-word — "Staff Data
-          Scientist,…" three times over, which tells the student nothing. */}
-      <div className="grid gap-3 lg:grid-cols-3">
+          Scientist,…" three times over, which tells the student nothing.
+
+          `minmax(0,1fr)`, not a bare column: the company and location below
+          keep to one line, so as an auto column this sized itself to the
+          longest company name and on a phone the cards ran out past the
+          tile's edge. A zero minimum keeps the column the tile's width and
+          lets the name shorten instead. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-3">
         {jobs.map((job) => (
           <div
             key={job.id}
-            className="rounded-xl border border-line-200 p-4"
+            className="min-w-0 rounded-xl border border-line-200 p-4"
           >
             <div className="mb-2 flex items-center justify-between gap-2">
               {hadSkills ? (
@@ -124,11 +132,11 @@ export default function JobMatchesTile() {
             <p className="line-clamp-2 text-sm font-bold leading-snug text-ink-900">
               {job.title}
             </p>
-            <p className="mt-1 truncate text-xs font-medium text-ink-500">{job.company}</p>
+            <p className="mt-1 truncate text-xs font-medium text-ink-500" title={job.company}>{job.company}</p>
             {job.location && (
-              <p className="mt-1.5 flex items-center gap-1 truncate text-xs text-ink-400">
+              <p className="mt-1.5 flex items-center gap-1 text-xs text-ink-400" title={job.location}>
                 <MapPin className="h-3 w-3 shrink-0" />
-                {job.location}
+                <span className="truncate">{job.location}</span>
               </p>
             )}
           </div>
