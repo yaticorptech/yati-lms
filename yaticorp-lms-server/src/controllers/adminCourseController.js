@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const vdoCipherController = require('./vdoCipherController');
 const { uploadToBunny, uploadStreamToBunny } = require('../utils/bunnyStorage');
+const { unplayableReason } = require('../utils/webVideo');
 
 // ==========================
 // COURSE OPERATIONS
@@ -532,6 +533,14 @@ const uploadLessonFile = async (req, res) => {
         const isPdf = req.file.mimetype === 'application/pdf'
             || path.extname(req.file.originalname || '').toLowerCase() === '.pdf';
         const folder = isPdf ? 'lesson-pdfs' : 'lesson-videos';
+        // Bunny serves the file as-is and nothing transcodes it, so a codec
+        // browsers do not decode (HEVC from a phone or Mac screen recording,
+        // ProRes) would store fine and then fail for every student. Refuse it
+        // now, with the reason, while the admin still has the source file open.
+        if (!isPdf) {
+            const problem = unplayableReason(req.file.path, req.file.originalname);
+            if (problem) return res.status(400).json({ message: problem, code: 'UNPLAYABLE_VIDEO' });
+        }
         const stream = fs.createReadStream(req.file.path);
         const url = await uploadStreamToBunny(stream, req.file.originalname, folder, req.file.size);
         res.json({ url, kind: isPdf ? 'pdf' : 'video' });
