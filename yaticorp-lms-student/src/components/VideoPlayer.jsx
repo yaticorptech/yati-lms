@@ -24,6 +24,25 @@ const formatClock = (seconds) => {
 };
 
 /**
+ * What to tell the student when the player has given up. A video that never
+ * started (0:00) with an unsupported-source or decode error is the file, not
+ * the connection: a codec the browser cannot play, or a file that is gone.
+ * Retrying will not help them, so say so and point them at the instructor.
+ */
+const failureText = (at, code) => {
+    if (at > 0) return { title: 'Playback was interrupted.', hint: 'Check your connection, then try again.' };
+    if (code === 4) return {
+        title: 'This video cannot be played in your browser.',
+        hint: 'The file uses a format this browser does not support, or it is no longer available. Try another browser, or let your instructor know.'
+    };
+    if (code === 3) return {
+        title: 'This video file cannot be decoded.',
+        hint: 'The file appears to be damaged. Please let your instructor know.'
+    };
+    return { title: 'The video could not be loaded.', hint: 'Check your connection, then try again.' };
+};
+
+/**
  * HTML5 player for a plain video file (Bunny Storage, S3, any direct URL).
  *
  * Blocks forward-seeking (no skipping ahead) and reports when the video has
@@ -61,6 +80,8 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
     const retryTimerRef = useRef(null);
     // Seconds at which automatic recovery gave up; shows the manual retry.
     const [interruptedAt, setInterruptedAt] = useState(null);
+    // The media error it gave up on, so the overlay can say what went wrong.
+    const [errorCode, setErrorCode] = useState(null);
     // Seconds the video was resumed from; shown briefly so 12:34 is not a surprise.
     const [resumedFrom, setResumedFrom] = useState(null);
 
@@ -196,6 +217,11 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
         if (retriesRef.current >= MAX_AUTO_RETRIES) {
             recoveringRef.current = false;
             shouldPlayRef.current = play;
+            // Named in the console so a broken lesson can be traced to its
+            // file: the code says whether the network, the file or the
+            // browser's codec support failed, and Chrome adds its own detail.
+            console.error('[VideoPlayer] giving up on video', { url, code: v.error.code, detail: v.error.message, at });
+            setErrorCode(v.error.code);
             setInterruptedAt(at);
             return;
         }
@@ -209,6 +235,7 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
         const at = interruptedAt || 0;
         retriesRef.current = 0;
         setInterruptedAt(null);
+        setErrorCode(null);
         restartAt(at, true);
     };
 
@@ -266,12 +293,8 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
 
             {interruptedAt != null && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl bg-black/80 p-6 text-center text-white">
-                    <p className="font-semibold">
-                        {interruptedAt > 0 ? 'Playback was interrupted.' : 'The video could not be loaded.'}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-300">
-                        Check your connection, then try again.
-                    </p>
+                    <p className="font-semibold">{failureText(interruptedAt, errorCode).title}</p>
+                    <p className="mt-1 max-w-sm text-sm text-slate-300">{failureText(interruptedAt, errorCode).hint}</p>
                     <button
                         type="button"
                         onClick={retryNow}
