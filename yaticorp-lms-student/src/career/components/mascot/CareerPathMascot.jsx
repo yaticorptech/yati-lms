@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import MascotStage from './MascotStage';
 import mascot from './mascotBus';
-import { watchTarget } from './mascotTargets';
+import { findTarget, watchTarget } from './mascotTargets';
+import { guideDone, markGuideDone } from './mascotMemory';
+import { AuthContext } from '../../context/AuthContext';
 import { pageFor, stepsFor } from './careerPathPages';
 import './mascot.css';
 
@@ -53,6 +55,21 @@ export default function CareerPathMascot() {
   const { pathname } = useLocation();
   const page = pageFor(pathname);
   const target = page?.show?.at || null;
+  const { user } = useContext(AuthContext);
+  const userId = user?._id || user?.id || null;
+
+  /*
+   * Whether this page's guidance has already been shown and acted on. It
+   * plays until the student clicks the element it points at, or taps the
+   * character away, and then not again on this page — see mascotMemory.js.
+   * `doneVersion` is bumped when that happens so the answer is re-read.
+   */
+  const [doneVersion, setDoneVersion] = useState(0);
+  const done = useMemo(
+    () => !page?.show || guideDone(userId, page.key),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [page, userId, doneVersion]
+  );
 
   /*
    * Whether this page's target is on screen — stamped with the page it was
@@ -72,8 +89,9 @@ export default function CareerPathMascot() {
   useEffect(() => {
     // No target to watch: `inView` is derived against the current page's
     // key, so a page with nothing to point at is already reported as not
-    // visible without having to write that down.
-    if (!page || !target) return undefined;
+    // visible without having to write that down. A page already shown
+    // around is not watched either.
+    if (!page || !target || done) return undefined;
 
     let settle = null;
     const stop = watchTarget(target, (rect) => {
@@ -92,7 +110,7 @@ export default function CareerPathMascot() {
       clearTimeout(settle);
       stop();
     };
-  }, [page, target]);
+  }, [page, target, done]);
 
   /* ---- Going, and going away -------------------------------------------- */
 
@@ -109,7 +127,8 @@ export default function CareerPathMascot() {
       /*
        * The sequence ends beside the target rather than tidying itself
        * away. What clears it is this component and nothing else: the
-       * target leaving the screen, or the page changing.
+       * student acting on the target, the target leaving the screen, or
+       * the page changing.
        */
       stay: true,
       // MascotSignals holds its situational briefing until this fires, so
@@ -119,9 +138,26 @@ export default function CareerPathMascot() {
   }, [page]);
 
   const guidedFor = useRef(null);
+
+  /*
+   * The student has done the thing, or waved the character off: remember
+   * it, and send the character away for good on this page. Everything that
+   * could bring it back — a reaction to the task starting, the quiz ending,
+   * the Overview briefing — is refused while it is away (see play() in
+   * mascotBus.js), so from here the page is the student's alone.
+   */
+  const finish = useCallback(() => {
+    if (!page) return;
+    markGuideDone(userId, page.key);
+    guidedFor.current = null;
+    mascot.cancelGuide();
+    mascot.leave();
+    setDoneVersion((v) => v + 1);
+  }, [page, userId]);
+
   useEffect(() => {
     if (!page) return;
-    if (inView) {
+    if (inView && !done) {
       // Once per arrival at a target, not once per scroll event.
       if (guidedFor.current === page.key) return;
       guidedFor.current = page.key;
@@ -137,10 +173,39 @@ export default function CareerPathMascot() {
       mascot.cancelGuide();
       mascot.leave();
     }
-  }, [page, inView, runTour]);
+  }, [page, inView, done, runTour]);
+
+  /* While the character is pointing at the target, a click on that target
+     is the moment the guidance was for. The listener is on the document, in
+     the capture phase, so it survives the target being re-rendered and runs
+     even if the click is stopped further down. */
+  useEffect(() => {
+    if (!page || !target || done || !inView) return undefined;
+    const onClick = (e) => {
+      const el = findTarget(target);
+      if (el && (e.target === el || el.contains(e.target))) finish();
+    };
+    const onHushed = () => finish();
+    document.addEventListener('click', onClick, true);
+    window.addEventListener('mascot:hushed', onHushed);
+    return () => {
+      document.removeEventListener('click', onClick, true);
+      window.removeEventListener('mascot:hushed', onHushed);
+    };
+  }, [page, target, done, inView, finish]);
+
+  /* A page already shown around: whatever the character was doing on the
+     way in, it is not wanted here. */
+  useEffect(() => {
+    if (page && done) {
+      mascot.cancelGuide();
+      mascot.leave();
+    }
+  }, [page, done]);
 
   /* The sidebar progress card dispatches this when its mascot is tapped,
-     and has done for as long as it has existed; this is what listens. */
+     and has done for as long as it has existed; this is what listens. An
+     explicit request plays the tour even on a page already shown around. */
   useEffect(() => {
     window.addEventListener('mascot:ask', runTour);
     return () => window.removeEventListener('mascot:ask', runTour);

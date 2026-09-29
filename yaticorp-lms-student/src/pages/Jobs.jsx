@@ -21,8 +21,8 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { useSearchParams } from 'react-router-dom';
 import {
     Briefcase, MapPin, Loader2, RotateCcw, Search, AlertCircle, Crosshair,
-    Bookmark, Sparkles, Compass, Globe, Clock, Check, X, Info
-, GraduationCap } from 'lucide-react';
+    Bookmark, Sparkles, Compass, Globe, Clock, Check, X, Info, GraduationCap, Plus
+} from 'lucide-react';
 
 import { AuthContext } from '../context/AuthContext';
 import { jobsApi, detectLocation, autoDetectLocation, careerPrefill, learnerSkills } from '../jobs/api';
@@ -55,12 +55,14 @@ const EMPTY_FORM = {
     location: '', coords: null, remoteOnly: false, strictType: true, sortBy: 'relevance'
 };
 
+// `short` is the name a phone shows, where five tabs share one row and a
+// cell is a thumb wide; the full `label` stays on the tab for screen readers.
 const TABS = [
-    { id: 'jobs', label: 'Jobs', hint: 'Find Jobs', icon: Briefcase, tone: 'indigo' },
-    { id: 'match', label: 'Career Match', hint: 'Smart Suggestions', icon: Sparkles, tone: 'emerald' },
-    { id: 'hidden', label: 'Hidden Opportunities', hint: 'Unseen Jobs', icon: Globe, tone: 'orange' },
-    { id: 'opportunities', label: 'Part-Time Jobs', hint: 'Flexible Work', icon: Clock, tone: 'sky' },
-    { id: 'saved', label: 'Saved Jobs', hint: 'Your Collection', icon: Bookmark, tone: 'violet' }
+    { id: 'jobs', label: 'Jobs', short: 'Jobs', hint: 'Find Jobs', icon: Briefcase, tone: 'indigo' },
+    { id: 'match', label: 'Career Match', short: 'Match', hint: 'Smart Suggestions', icon: Sparkles, tone: 'emerald' },
+    { id: 'hidden', label: 'Hidden Opportunities', short: 'Hidden', hint: 'Unseen Jobs', icon: Globe, tone: 'orange' },
+    { id: 'saved', label: 'Saved Jobs', short: 'Saved', hint: 'Your Collection', icon: Bookmark, tone: 'violet' },
+    { id: 'opportunities', label: 'Part-Time Jobs', short: 'Part-time', hint: 'Flexible Work', icon: Clock, tone: 'sky' }
 ];
 
 /* What each tab lays over the form when it asks the ranker. Hidden
@@ -119,7 +121,9 @@ const formFromParams = (params) => {
         currency: params.get('cur') || 'INR',
         location: params.get('loc') || '',
         remoteOnly: params.get('remote') === '1',
-        sortBy: params.get('sort') || 'relevance'
+        // A sort the dropdown no longer offers (an old link's `sort=skills`)
+        // falls back rather than leaving the control on a choice it cannot show.
+        sortBy: ['relevance', 'recent', 'distance'].includes(params.get('sort')) ? params.get('sort') : 'relevance'
     };
 };
 
@@ -222,6 +226,8 @@ export default function Jobs() {
     const [params, setParams] = useSearchParams();
     const [form, setForm] = useState(() => formFromParams(params));
     const [tab, setTab] = useState(() => tabFromParam(params.get('tab')));
+    // Where the part-time tab draws its banner: above the tab strip.
+    const [heroSlot, setHeroSlot] = useState(null);
     /* The student's opportunity profile — band, rules, vocab. undefined
        until the first fetch answers; null when it failed. Loaded here rather
        than in the tab because the band decides what THIS page may show. */
@@ -702,20 +708,32 @@ export default function Jobs() {
                     topMatch={data?.results?.[0]?.match?.total ?? null}
                 />
             )}
+            {/* Every tab opens with its banner above the tabs. Part-time's
+                banner belongs to that tab's own state, so it renders itself
+                into this slot rather than being lifted out — and the tab
+                strip stays put, which is what lets its highlight slide from
+                one tab to the next instead of being rebuilt. Hidden while
+                empty, so an unfilled slot costs no gap. */}
+            {showOpportunities && <div ref={setHeroSlot} className="empty:hidden" />}
 
             <JobsTabs tabs={TABS} active={tab} onChange={switchTab} counts={{ saved: savedJobs.length }} />
 
-
+            {/* Keyed on the tab, so the incoming view fades in rather than
+                snapping into place under the moving highlight. */}
+            <div key={tab} className="animate-fade-in">
             {showOpportunities ? (
                 <OpportunitiesTab data={oppData} onData={setOppData} careerPathEnabled={isCareerPathEnabled}
-                    location={form.location} onLocation={(location) => update({ location })} />
+                    location={form.location} onLocation={(location) => update({ location })} heroSlot={heroSlot} />
             ) : tab === 'match' ? (
                 <CareerMatchTab profile={resumeProfile} onProfile={setResumeProfile} onSwitchTab={switchTab} location={form.location} />
             ) : tab === 'hidden' ? (
                 <HiddenOpportunitiesTab profile={resumeProfile} onSwitchTab={switchTab} location={form.location} />
             ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
-                {/* ── Filters ─────────────────────────────────────────────── */}
+            <div className={`grid grid-cols-1 gap-6 items-start ${tab === 'saved' ? '' : 'lg:grid-cols-[340px_1fr]'}`}>
+                {/* ── Filters ─────────────────────────────────────────────
+                    Saved Jobs is a list of what was kept, not a search: the
+                    form stands down there and the list has the full width. */}
+                {tab !== 'saved' && (
                 <form
                     onSubmit={(e) => { e.preventDefault(); search(); }}
                     className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5 lg:sticky lg:top-6"
@@ -734,10 +752,14 @@ export default function Jobs() {
                             onChange={(skills) => update({ skills })}
                             error={errors.skills}
                         />
+                        {/* Where the skills came from, and the ones earned here
+                            that are not in the search yet. One quiet line under
+                            the field; the offer is a small pill rather than a
+                            link, so it reads as an action and not a footnote. */}
                         {learned && learned.skills.length > 0 && (
-                            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-500">
-                                <GraduationCap size={12} className="shrink-0 text-indigo-500" aria-hidden="true" />
-                                <span>
+                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-slate-500">
+                                <span className="inline-flex items-center gap-1.5">
+                                    <GraduationCap size={12} className="shrink-0 text-indigo-500" aria-hidden="true" />
                                     {[
                                         learned.bySource.course.length && `${learned.bySource.course.length} from your courses`,
                                         learned.bySource.career.length && `${learned.bySource.career.length} from your skill progress`,
@@ -746,11 +768,12 @@ export default function Jobs() {
                                 </span>
                                 {missingLearned.length > 0 && (
                                     <button type="button" onClick={() => update({ skills: [...new Set([...form.skills, ...missingLearned])].slice(0, 20) })}
-                                        className="font-bold text-indigo-600 hover:underline">
+                                        className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 font-bold text-indigo-700 transition-colors hover:bg-indigo-100">
+                                        <Plus size={11} strokeWidth={2.5} aria-hidden="true" />
                                         Add {missingLearned.length} more you have earned
                                     </button>
                                 )}
-                            </p>
+                            </div>
                         )}
                     </div>
 
@@ -881,6 +904,7 @@ export default function Jobs() {
                         </button>
                     </div>
                 </form>
+                )}
 
                 {/* ── Results ─────────────────────────────────────────────── */}
                 <section aria-label="Job recommendations" className="min-w-0">
@@ -926,20 +950,11 @@ export default function Jobs() {
                             )}
                         </div>
 
+                        {/* No Saved toggle here: Saved Jobs is a tab of its
+                            own in the strip above, with its count on it, and
+                            a second door to the same place in the toolbar was
+                            one control too many. */}
                         <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => switchTab(tab === 'saved' ? 'jobs' : 'saved')}
-                                aria-pressed={tab === 'saved'}
-                                className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
-                                    tab === 'saved'
-                                        ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                                        : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300 hover:text-indigo-600'
-                                }`}
-                            >
-                                <Bookmark size={15} fill={tab === 'saved' ? 'currentColor' : 'none'} />
-                                Saved{savedJobs.length ? ` (${savedJobs.length})` : ''}
-                            </button>
                             {tab !== 'saved' && (
                                 <div className="inline-flex items-stretch overflow-hidden rounded-xl border border-slate-200 bg-white">
                                     <label htmlFor="job-sort"
@@ -951,7 +966,6 @@ export default function Jobs() {
                                         value={form.sortBy}
                                         options={[
                                             { value: 'relevance', label: 'Best match' },
-                                            { value: 'skills', label: 'Skill overlap' },
                                             { value: 'recent', label: 'Most recent' },
                                             ...(form.coords ? [{ value: 'distance', label: 'Nearest' }] : [])
                                         ]}
@@ -993,7 +1007,11 @@ export default function Jobs() {
                     {/* ── Saved view ─────────────────────────────────────── */}
                     {tab === 'saved' && (
                         savedJobs.length ? (
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            /* Three across on a wide screen. The two-column grid
+                               was sized for the column beside the search form;
+                               with the form gone, two cards left a third of the
+                               row empty. */
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                                 {savedJobs.map((job) => (
                                     <JobCard key={job.id} job={job} saved onToggleSave={toggleSave} />
                                 ))}
@@ -1111,6 +1129,7 @@ export default function Jobs() {
                 </section>
             </div>
             )}
+            </div>
         </div>
     );
 }

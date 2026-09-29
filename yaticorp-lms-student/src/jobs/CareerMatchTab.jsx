@@ -163,13 +163,13 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
 
             {!skills.length && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{profile || source === 'upload' ? 'No skills could be read from this resume. Upload a text-based PDF, or search jobs by hand.' : 'Nothing to match on yet. Finish a course, upload a resume, or search jobs by hand.'}</p>}
             {(error || fetchError) && <p className="flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-700"><AlertCircle size={15} /> {error || fetchError}</p>}
-            {loading && <div className="grid gap-4 xl:grid-cols-2">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-52 rounded-2xl" />)}</div>}
+            {loading && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-52 rounded-2xl" />)}</div>}
 
             {!loading && results && (
                 results.length ? (
                     <>
                         <p className="text-sm text-slate-500"><strong className="text-slate-800">{results.length}</strong> job{results.length === 1 ? ' matches' : 's match'} {profile || source === 'upload' ? 'your resume' : 'your skills'}, best fit first.</p>
-                        <div className="grid gap-4 xl:grid-cols-2">{results.map((job) => <MatchCard key={job.id} job={job} />)}</div>
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{results.map((job) => <MatchCard key={job.id} job={job} />)}</div>
                     </>
                 ) : (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">

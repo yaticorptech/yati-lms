@@ -60,14 +60,16 @@ export default function NotesReader({ notes, onRead, read = false }) {
             aria-hidden
             className="pointer-events-none absolute -top-12 -right-8 h-32 w-32 rounded-full bg-pink-200/40 blur-2xl"
           />
-          <div className="relative flex items-start gap-3.5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-journey-500 to-indigo-600 text-white shadow-md shadow-journey-500/30">
+          {/* On a phone the icon shares a line with the label and the
+              summary runs the full width beneath. Beside the whole summary,
+              the icon left a paragraph in a column two-thirds as wide as
+              the card. From sm it stands beside both, as before. */}
+          <div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3.5 gap-y-2 sm:items-start sm:gap-y-1">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-journey-500 to-indigo-600 text-white shadow-md shadow-journey-500/30 sm:row-span-2">
               <BookMarked className="h-5 w-5" />
             </span>
-            <div>
-              <p className="text-[0.68rem] font-black tracking-[0.14em] text-journey-600 uppercase">In short</p>
-              <p className="mt-1 leading-relaxed text-ink-800">{notes.summary}</p>
-            </div>
+            <p className="text-[0.68rem] font-black tracking-[0.14em] text-journey-600 uppercase">In short</p>
+            <p className="col-span-2 leading-relaxed text-ink-800 sm:col-span-1 sm:col-start-2">{notes.summary}</p>
           </div>
         </div>
       )}
@@ -84,7 +86,9 @@ export default function NotesReader({ notes, onRead, read = false }) {
             </span>
             {section.heading}
           </h4>
-          <ul className="space-y-2.5 pl-11">
+          {/* Indented under the heading from sm. On a phone the 44px cost
+              a fifth of the width and left the points as a narrow column. */}
+          <ul className="space-y-2.5 sm:pl-11">
             {section.points?.map((point, j) => (
               <li key={j} className="flex gap-2.5 text-sm leading-relaxed text-ink-700">
                 <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-journey-50 text-journey-600 ring-1 ring-journey-100 ring-inset">
@@ -102,7 +106,7 @@ export default function NotesReader({ notes, onRead, read = false }) {
               `whitespace-pre-wrap` and a mono face because most of these are
               code, and code that has lost its line breaks is unreadable. */}
           {section.example && (
-            <figure className="mt-4 ml-11 overflow-hidden rounded-xl bg-slate-900 shadow-lg shadow-slate-900/20 ring-1 ring-white/10">
+            <figure className="mt-4 overflow-hidden rounded-xl bg-slate-900 sm:ml-11 shadow-lg shadow-slate-900/20 ring-1 ring-white/10">
               {/* A window bar, so the block reads as an editor rather than a
                   grey box — and the mono text is light on dark, the way code
                   is read everywhere else. */}

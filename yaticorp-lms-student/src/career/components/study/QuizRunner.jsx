@@ -238,11 +238,13 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
             ))}
           <div className="relative flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <QuizVerdictArt passed={!!result.passed} className="mc-pop h-16 w-16 shrink-0" />
+              <QuizVerdictArt passed={!!result.passed} className="mc-pop h-14 w-14 shrink-0 sm:h-16 sm:w-16" />
               <div>
                 <p className="text-lg font-black text-ink-900">
                   {result.passed ? 'You passed!' : 'Almost there'}{' '}
-                  <span className="text-sm font-bold text-ink-500 tabular-nums">
+                  {/* One unit, so a narrow banner wraps it whole rather than
+                      leaving "3" on the first line and "/ 5 correct" on the next. */}
+                  <span className="text-sm font-bold whitespace-nowrap text-ink-500 tabular-nums">
                     {result.score} / {result.total} correct
                   </span>
                 </p>
@@ -289,7 +291,9 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
         />
         <div className="mb-4 flex gap-3.5 pt-1">
           {/* A question mark while it is open, then a tick or a cross. */}
-          <QuizMarkArt outcome={outcome} className="mc-pop h-11 w-11 shrink-0" key={outcome ? (outcome.correct ? 'right' : 'wrong') : 'asking'} />
+          {/* A size down on a phone, where beside it the question had
+              barely half the card to itself. */}
+          <QuizMarkArt outcome={outcome} className="mc-pop h-9 w-9 shrink-0 sm:h-11 sm:w-11" key={outcome ? (outcome.correct ? 'right' : 'wrong') : 'asking'} />
           <div className="min-w-0">
             <p className="text-[0.66rem] font-black tracking-[0.14em] text-journey-600 uppercase">
               Question {index + 1}
@@ -362,7 +366,10 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
           </p>
         )}
 
-        {/* ---- Back / next / submit ---- */}
+        {/* ---- Back / next / submit ----
+            The labels never break inside their buttons. Back is its arrow
+            alone on a phone: with the word, "Next question" beside it had
+            no room and folded its own arrow onto a second line. */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line-100 pt-4">
           <Button
             variant="ghost"
@@ -370,15 +377,17 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
             icon={ArrowLeft}
             disabled={index === 0}
             onClick={() => go(index - 1)}
+            aria-label="Back"
+            className="whitespace-nowrap"
           >
-            Back
+            <span className="hidden sm:inline">Back</span>
           </Button>
 
           {result ? (
             !isLast ? (
-              <Button size="sm" variant="secondary" onClick={() => go(index + 1)}>
+              <Button size="sm" variant="secondary" onClick={() => go(index + 1)} className="whitespace-nowrap">
                 Next answer
-                <ArrowRight className="ml-1.5 h-4 w-4" />
+                <ArrowRight className="ml-1.5 inline h-4 w-4 align-[-0.2em]" />
               </Button>
             ) : (
               <span className="text-sm text-ink-500">That was the last one.</span>
@@ -388,10 +397,10 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
               size="sm"
               disabled={picked === undefined}
               onClick={() => go(index + 1)}
-              className={picked !== undefined ? 'fp-btn fp-btn-primary' : ''}
+              className={`whitespace-nowrap ${picked !== undefined ? 'fp-btn fp-btn-primary' : ''}`}
             >
               Next question
-              <ArrowRight className="ml-1.5 h-4 w-4" />
+              <ArrowRight className="ml-1.5 inline h-4 w-4 align-[-0.2em]" />
             </Button>
           ) : (
             <div className="flex flex-wrap items-center gap-3">
@@ -401,7 +410,7 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
                 loading={submitting}
                 loadingText="Checking…"
                 icon={Check}
-                className={allAnswered ? 'fp-btn fp-btn-primary fp-glow-violet' : ''}
+                className={`whitespace-nowrap ${allAnswered ? 'fp-btn fp-btn-primary fp-glow-violet' : ''}`}
               >
                 Submit answers
               </Button>

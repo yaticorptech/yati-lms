@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useContext, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
+import { AuthContext } from '../../context/AuthContext';
 import mascot, { PRIORITY } from './mascotBus';
+import { guideDone } from './mascotMemory';
 
 /**
  * Reads the student's situation once and lets the character react to it.
@@ -97,6 +99,8 @@ const readSituation = (today, events) => {
 
 export default function MascotSignals() {
   const { pathname } = useLocation();
+  const { user } = useContext(AuthContext);
+  const userId = user?._id || user?.id || null;
   // Only on the section's front page. Deeper pages have their own moments
   // (a quiz result, a finished task) and do not need a briefing on arrival.
   const atOverview = pathname === '/career';
@@ -141,6 +145,10 @@ export default function MascotSignals() {
 
       await afterTour();
       if (cancelled) return;
+      // The tour ended because the student clicked what it pointed at, or
+      // was never needed here again: the character has been sent away for
+      // good on this page, and a briefing would bring it straight back.
+      if (guideDone(userId, 'overview')) return;
 
       markSeen();
       mascot.enter();
@@ -151,7 +159,7 @@ export default function MascotSignals() {
       cancelled = true;
       release?.();
     };
-  }, [atOverview]);
+  }, [atOverview, userId]);
 
   return null;
 }

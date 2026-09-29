@@ -46,6 +46,10 @@ const CLEAR_MOTES = [
 
 const dayLabel = (d) =>
   d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+// For a phone, where "Monday 28 September" beside the ring broke into two
+// lines of letter-spaced capitals.
+const shortDayLabel = (d) =>
+  d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 
 /* How a cleared day should be sent off, which depends on when it was cleared.
    The line used to say "enjoy the evening" unconditionally, so a student who
@@ -60,7 +64,7 @@ const DAY_PHASES = [
 const readClock = () => {
   const now = new Date();
   const hour = now.getHours();
-  return { label: dayLabel(now), closer: DAY_PHASES.find((p) => hour < p.until).closer };
+  return { label: dayLabel(now), shortLabel: shortDayLabel(now), closer: DAY_PHASES.find((p) => hour < p.until).closer };
 };
 
 /**
@@ -163,7 +167,7 @@ export default function Planner() {
   const toast = useToast();
   const celebrate = useCelebrate();
   // The date and the sign-off, live rather than frozen at module load.
-  const { label: todayLabel, closer: dayCloser } = useDayClock();
+  const { label: todayLabel, shortLabel: todayShortLabel, closer: dayCloser } = useDayClock();
 
   // Clearing the day is a once-per-day event. Without this guard, re-opening a
   // finished task and letting its gates re-report would throw the confetti
@@ -526,9 +530,17 @@ export default function Planner() {
           <MissionArt cleared={dayCleared} className="h-full w-full" />
         </div>
 
-        <div className="relative flex flex-wrap items-center gap-5 p-5 sm:p-6 md:min-h-[196px] lg:max-w-[68%]">
+        {/* A grid on a phone: the ring beside the date and the title, and
+            the rest — the state of the day, the task, the XP — full width
+            under them. As one wrapping row the ring took a third of a 360px
+            screen and everything else squeezed into what was left: the date
+            on two lines, the title on two, the task cut short. From sm it is
+            the wrapping row it was, with the text as one column. */}
+        <div className={`relative grid items-center gap-x-3 p-5 sm:flex sm:flex-wrap sm:gap-5 sm:p-6 md:min-h-[196px] lg:max-w-[68%] ${
+          tasks.length > 0 ? 'grid-cols-[auto_minmax(0,1fr)]' : 'grid-cols-1'
+        }`}>
           {tasks.length > 0 && (
-            <div className="relative flex h-20 w-20 shrink-0 items-center justify-center sm:h-28 sm:w-28">
+            <div className="relative row-span-2 flex h-18 w-18 shrink-0 items-center justify-center sm:h-28 sm:w-28">
               {/* Two halos, and only one of them runs at a time. While there is
                   work left the badge breathes violet, which is the section's
                   "this is live" signal; once the day is cleared it sends out
@@ -550,7 +562,7 @@ export default function Planner() {
                   />
                 </>
               )}
-              <svg viewBox="0 0 72 72" className="relative h-20 w-20 -rotate-90 sm:h-28 sm:w-28" aria-hidden>
+              <svg viewBox="0 0 72 72" className="relative h-18 w-18 -rotate-90 sm:h-28 sm:w-28" aria-hidden>
                 <defs>
                   <linearGradient id="fp-ring-grad" x1="0" y1="0" x2="1" y2="1">
                     {dayCleared ? (
@@ -617,12 +629,17 @@ export default function Planner() {
           {/* Date, then title, then the state of the day — in that order and a
               beat apart, which is the order they are read in. `stagger` only
               runs once, on arrival. */}
-          <div className="stagger min-w-0 flex-1">
-            <p className="inline-flex items-center gap-1.5 rounded-full bg-surface/80 px-2.5 py-1 text-[0.68rem] font-black tracking-[0.16em] text-journey-700 uppercase shadow-sm ring-1 ring-journey-100 ring-inset">
+          {/* `contents` on a phone: the lines inside place themselves on the
+              grid, so the last two can span both columns. */}
+          <div className="stagger contents sm:block sm:min-w-0 sm:flex-1">
+            <p className="inline-flex items-center gap-1.5 justify-self-start rounded-full bg-surface/80 px-2.5 py-1 text-[0.68rem] font-black tracking-[0.16em] text-journey-700 uppercase shadow-sm ring-1 ring-journey-100 ring-inset">
               <CalendarCheck className="h-3.5 w-3.5 text-journey-500" aria-hidden />
-              {todayLabel}
+              <span className="sm:hidden">{todayShortLabel}</span>
+              <span className="hidden sm:inline">{todayLabel}</span>
             </p>
-            <h1 className="mt-2 flex items-center gap-2 text-2xl leading-tight font-black tracking-tight sm:text-3xl md:text-4xl">
+            {/* A step under 2xl on a phone: beside the ring, "Today's mission"
+                at 2xl broke onto two lines on a 344px screen. */}
+            <h1 className="mt-2 flex items-center gap-2 text-[1.4rem] leading-tight font-black tracking-tight sm:text-3xl md:text-4xl">
               {/* Keyed on the state, so the headline re-enters when the last
                   task turns "Today's mission" into "Today's mission complete"
                   rather than silently swapping a word mid-sentence. */}
@@ -636,15 +653,17 @@ export default function Planner() {
               >
                 {dayCleared ? "Today's mission complete" : "Today's mission"}
               </span>
+              {/* Not on a phone: beside the ring, "Today's mission" has the
+                  width for itself and no more. */}
               <Sparkles
-                className={`h-6 w-6 shrink-0 ${dayCleared ? 'fp-twinkle text-amber-400' : 'fp-bob-soft text-amber-400'}`}
+                className={`hidden h-6 w-6 shrink-0 sm:block ${dayCleared ? 'fp-twinkle text-amber-400' : 'fp-bob-soft text-amber-400'}`}
                 aria-hidden
               />
             </h1>
-            <p className="mt-1.5 text-sm font-semibold text-ink-600 sm:text-[0.95rem]">{missionLine}</p>
+            <p className="col-span-full mt-2.5 text-sm font-semibold text-ink-600 sm:mt-1.5 sm:text-[0.95rem]">{missionLine}</p>
 
             {tasks.length > 0 && (
-              <div className="mt-5 flex flex-wrap items-center gap-3">
+              <div className="col-span-full mt-4 flex flex-wrap items-center gap-3 sm:mt-5">
                 {nextTask && (
                   /* Names the task to pick up now. This used to be a button that
                      only scrolled to the row below — on any screen where the
@@ -944,7 +963,16 @@ export default function Planner() {
                         <span className="mb-1.5 inline-flex items-center gap-1.5 text-[0.68rem] font-black tracking-[0.14em] text-journey-700 uppercase">
                           <span aria-hidden className="fp-blink h-2 w-2 rounded-full bg-journey-500" />
                           <Target className="h-3 w-3" aria-hidden />
-                          {started ? 'Pick up where you left off' : 'Up next'}
+                          {/* Shorter on a phone, where the long form wrapped
+                              its last word onto a line of its own. */}
+                          {started ? (
+                            <>
+                              <span className="sm:hidden">Pick up here</span>
+                              <span className="hidden sm:inline">Pick up where you left off</span>
+                            </>
+                          ) : (
+                            'Up next'
+                          )}
                         </span>
                       )}
 
@@ -1081,7 +1109,10 @@ export default function Planner() {
                         >
                           <GraduationCap className="h-4 w-4 shrink-0 text-link" />
                           <span className="min-w-0">
-                            <span className="block truncate text-[0.8rem] font-bold text-link-strong">
+                            {/* Two lines on a phone: the link's width is the
+                                row's, and a truncated title showed no more
+                                than "Password hashing wi…". */}
+                            <span className="line-clamp-2 text-[0.8rem] font-bold text-link-strong sm:line-clamp-none sm:block sm:truncate">
                               {task.courseLesson.lessonTitle}
                             </span>
                             <span className="block truncate text-[0.68rem] font-medium text-ink-500">
@@ -1100,45 +1131,53 @@ export default function Planner() {
                     {/* A tick-only task can still be learned by video: the
                         lesson is built on request, and the manual tick stays
                         beside it for those who already know how. */}
-                    {needsNothing && !done && (
-                      <button
-                        type="button"
-                        onClick={() => setOpenTaskId(open ? null : task._id)}
-                        aria-expanded={open}
-                        /* The companion walks to the next unfinished task.
-                           Keyed on nextTaskId rather than the `isNext` flag
-                           below, which goes false as soon as the row opens
-                           and would pull the anchor out mid-sentence. A row
-                           renders one of these two buttons, never both. */
-                        data-guide={task._id === nextTaskId ? 'task-start' : undefined}
-                        className={`relative mt-0.5 inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-[0.96] sm:w-auto sm:py-1.5 ${
-                          open
-                            ? 'bg-brand-600 text-white shadow-sm'
-                            : 'bg-surface text-journey-700 ring-1 ring-journey-200 ring-inset hover:bg-journey-50'
-                        }`}
-                      >
-                        <MonitorPlay className="h-3.5 w-3.5" />
-                        <span>{open ? 'Close' : 'Watch a video'}</span>
-                      </button>
-                    )}
                     {needsNothing ? (
-                      <button
-                        type="button"
-                        onClick={() => handleManualToggle(task)}
-                        disabled={ticking === task._id}
-                        aria-pressed={done}
-                        aria-label={done ? `Mark "${task.title}" as not done` : `Mark "${task.title}" as done`}
-                        className={`mt-0.5 inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full ring-1 transition-all active:scale-[0.94] disabled:opacity-50 ${
-                          done
-                            ? 'h-8 w-8 bg-emerald-500 text-white ring-emerald-500 hover:bg-emerald-600'
-                            : isNext
-                              ? 'fp-btn fp-btn-primary fp-glow-violet h-10 w-full bg-gradient-to-r from-journey-600 to-indigo-600 px-3.5 text-xs font-black text-white ring-transparent sm:h-9 sm:w-auto'
-                              : 'h-8 w-8 bg-surface text-ink-400 ring-line-300 hover:text-link hover:ring-brand-400'
-                        }`}
-                      >
-                        <Check className="h-4 w-4" strokeWidth={3} />
-                        {!done && isNext && <span>Mark done</span>}
-                      </button>
+                      /* On a phone the two buttons share a line of their own:
+                         the video button used to take the whole line and the
+                         tick — a small circle — landed alone on the next,
+                         reading as a stray control. `contents` dissolves the
+                         wrapper from sm, where the row has room for both, and
+                         once the task is done and only the tick is left. */
+                      <div className={done ? 'contents' : 'flex w-full items-center gap-2 sm:contents'}>
+                        {!done && (
+                          <button
+                            type="button"
+                            onClick={() => setOpenTaskId(open ? null : task._id)}
+                            aria-expanded={open}
+                            /* The companion walks to the next unfinished task.
+                               Keyed on nextTaskId rather than the `isNext` flag
+                               below, which goes false as soon as the row opens
+                               and would pull the anchor out mid-sentence. A row
+                               renders one of these two buttons, never both. */
+                            data-guide={task._id === nextTaskId ? 'task-start' : undefined}
+                            className={`relative mt-0.5 inline-flex min-w-0 flex-1 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-[0.96] sm:flex-none sm:py-1.5 ${
+                              open
+                                ? 'bg-brand-600 text-white shadow-sm'
+                                : 'bg-surface text-journey-700 ring-1 ring-journey-200 ring-inset hover:bg-journey-50'
+                            }`}
+                          >
+                            <MonitorPlay className="h-3.5 w-3.5" />
+                            <span>{open ? 'Close' : 'Watch a video'}</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleManualToggle(task)}
+                          disabled={ticking === task._id}
+                          aria-pressed={done}
+                          aria-label={done ? `Mark "${task.title}" as not done` : `Mark "${task.title}" as done`}
+                          className={`mt-0.5 inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full ring-1 transition-all active:scale-[0.94] disabled:opacity-50 ${
+                            done
+                              ? 'h-8 w-8 bg-emerald-500 text-white ring-emerald-500 hover:bg-emerald-600'
+                              : isNext
+                                ? 'fp-btn fp-btn-primary fp-glow-violet h-10 flex-1 bg-gradient-to-r from-journey-600 to-indigo-600 px-3.5 text-xs font-black text-white ring-transparent sm:h-9 sm:flex-none'
+                                : 'h-8 w-8 bg-surface text-ink-400 ring-line-300 hover:text-link hover:ring-brand-400'
+                          }`}
+                        >
+                          <Check className="h-4 w-4" strokeWidth={3} />
+                          {!done && isNext && <span>Mark done</span>}
+                        </button>
+                      </div>
                     ) : (
                       /* The only route to finishing a task with a lesson, so it
                          is styled as the primary action while the task is still
