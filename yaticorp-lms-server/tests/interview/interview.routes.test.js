@@ -33,6 +33,34 @@ describe('dashboard and practice bank', () => {
         assert.equal(r.body.ai.model, 'template'); assert.equal(r.body.activeSession, null);
         assert.ok(r.body.practice.total > 0);
     });
+    test('the dashboard does not wait for the AI to write the bank; it arrives in the background', async () => {
+        // A student whose learning data has changed since their last bank.
+        // The AI takes long; the dashboard used to sit on it.
+        const ai = require('../../src/interview/aiInterviewer');
+        const { InterviewPrep } = require('../../src/interview/models');
+        const real = { configuredFor: ai.configuredFor, generateQuestions: ai.generateQuestions };
+        let finished = false;
+        ai.configuredFor = async () => true;
+        ai.generateQuestions = () => new Promise((resolve) => setTimeout(() => {
+            finished = true;
+            resolve({ questions: [{ id: 'technical-1', category: 'technical', topic: 'Python', question: 'AI-WRITTEN: explain a list comprehension.', hint: 'Give an example.', difficulty: 'easy' }], topics: [{ topic: 'Python', reason: 'Their strongest skill.' }], model: 'stub' });
+        }, 500));
+        try {
+            await InterviewPrep.updateOne({ userId: me.user._id }, { $set: { generatedFrom: 'stale' } });
+            const d = await api('GET', '/dashboard');
+            assert.equal(d.status, 200);
+            assert.equal(finished, false, 'answered before the AI had finished');
+            assert.equal(d.body.practice.generating, true, 'and says the personal bank is on its way');
+            assert.ok(d.body.practice.total > 0, 'with the previous bank to practise meanwhile');
+
+            await new Promise((r) => setTimeout(r, 800));
+            const q = await api('GET', '/questions');
+            assert.equal(q.body.generating, false, 'once written, nothing is pending');
+            assert.equal(q.body.questions[0].question, 'AI-WRITTEN: explain a list comprehension.', 'and the AI bank has replaced the old one');
+        } finally {
+            ai.configuredFor = real.configuredFor; ai.generateQuestions = real.generateQuestions;
+        }
+    });
     test('practising a question is recorded once and unknown ids are refused', async () => {
         const q = await api('GET', '/questions'); assert.equal(q.status, 200); assert.ok(q.body.questions.length > 0);
         const id = q.body.questions[0].id;

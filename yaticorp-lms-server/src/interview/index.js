@@ -20,6 +20,7 @@ const { protectUser } = require('../middleware/authMiddleware');
 const { InterviewSession, InterviewPrep, TYPES } = require('./models');
 const { buildContext } = require('./studentContext');
 const ai = require('./aiInterviewer');
+const template = require('./templateInterviewer');
 const { readiness } = require('./readinessService');
 const { safeRecordActivity } = require('../rewards/services/activityService');
 const { coursesForSkills } = require('../jobboard/services/lmsCourses');
@@ -76,32 +77,74 @@ const publicSession = (s, { withContext = false } = {}) => ({
 // rebuilt once. v2: 30-40 questions instead of about 20.
 const BANK_VERSION = 'v2';
 
+// One generation per student at a time. A second request while the first is
+// still writing must not start another; it waits on, or ignores, this one.
+const generating = new Map();
+const regenerate = (userId, context, source) => {
+    const key = String(userId);
+    if (generating.has(key)) return generating.get(key);
+    const run = (async () => {
+        try {
+            const out = await ai.generateQuestions({ context, userId });
+            const prep = (await InterviewPrep.findOne({ userId })) || new InterviewPrep({ userId });
+            prep.questions = out.questions; prep.topics = out.topics; prep.generatedAt = new Date(); prep.generatedFrom = source; prep.role = context.goal || '';
+            await prep.save();
+        } catch (err) {
+            console.warn('[interview] practice bank generation failed:', err.message);
+        } finally {
+            generating.delete(key);
+        }
+    })();
+    generating.set(key, run);
+    return run;
+};
+
+/**
+ * The student's practice bank, and whether a fresh one is still on its way.
+ *
+ * The bank is regenerated when the learning data has moved on (new skills or
+ * projects mean new questions) or when the bank's version has. With the AI
+ * that takes ten seconds and more, and the dashboard used to wait for it —
+ * the whole section sat on a spinner every time a student's learning data
+ * had changed since their last visit. Now the request is answered at once
+ * with what there is: the last bank, or the built-in interviewer's, written
+ * in a moment. The AI's runs in the background and replaces it when done,
+ * and `generating` lets the page say so. Without an AI key the built-in bank
+ * is the final one, so nothing is deferred.
+ */
 const ensurePrep = async (userId, context) => {
     let prep = await InterviewPrep.findOne({ userId });
     if (!prep) prep = new InterviewPrep({ userId });
-    // Regenerate when the learning data has moved on (new skills or projects
-    // mean new questions) or when the bank's version has.
     const source = `${context.hash}:${BANK_VERSION}`;
-    if (!prep.questions.length || prep.generatedFrom !== source) {
-        const out = await ai.generateQuestions({ context, userId });
-        prep.questions = out.questions; prep.topics = out.topics; prep.generatedAt = new Date(); prep.generatedFrom = source; prep.role = context.goal || '';
+    if (prep.questions.length && prep.generatedFrom === source) return { prep, generating: false };
+
+    if (!(await ai.configuredFor(userId))) {
+        await regenerate(userId, context, source);
+        return { prep: await InterviewPrep.findOne({ userId }), generating: false };
+    }
+
+    regenerate(userId, context, source);
+    if (!prep.questions.length) {
+        // Nothing to show yet: the built-in bank stands in until the AI's arrives.
+        prep.questions = template.generateQuestions(context); prep.topics = template.recommendTopics(context);
+        prep.generatedAt = new Date(); prep.generatedFrom = `${source}:template`; prep.role = context.goal || '';
         await prep.save();
     }
-    return prep;
+    return { prep, generating: true };
 };
 
 router.get('/dashboard', async (req, res, next) => {
     try {
         const context = await buildContext(req.user._id);
         if (!context) return res.status(404).json({ message: 'Account not found.' });
-        const [r, prep] = await Promise.all([readiness(req.user._id, context), ensurePrep(req.user._id, context)]);
+        const [r, { prep, generating: banking }] = await Promise.all([readiness(req.user._id, context), ensurePrep(req.user._id, context)]);
         await InterviewPrep.updateOne({ userId: req.user._id }, { $set: { readiness: r.overall } });
         const active = await InterviewSession.findOne({ userId: req.user._id, status: 'active' }).sort({ startedAt: -1 }).select('_id type startedAt turns').lean();
         res.json({
             student: { name: context.name, firstName: context.firstName, goal: context.goal, strongSkills: context.strongSkills, learningSkills: context.learningSkills, projects: context.projects.map((p) => p.name) },
             readiness: r,
             topics: prep.topics,
-            practice: { total: prep.questions.length, practiced: prep.practiced.length, sample: prep.questions.filter((q) => !prep.practiced.includes(q.id)).slice(0, 3) },
+            practice: { total: prep.questions.length, practiced: prep.practiced.length, sample: prep.questions.filter((q) => !prep.practiced.includes(q.id)).slice(0, 3), generating: banking },
             activeSession: active ? { id: String(active._id), type: active.type, startedAt: active.startedAt, answered: active.turns.filter((t) => t.answer).length } : null,
             types: TYPES,
             ai: { configured: ai.configured(), model: ai.configured() ? ai.MODEL : 'template' }
@@ -113,8 +156,8 @@ router.get('/questions', async (req, res, next) => {
     try {
         const context = await buildContext(req.user._id);
         if (!context) return res.status(404).json({ message: 'Account not found.' });
-        const prep = await ensurePrep(req.user._id, context);
-        res.json({ questions: prep.questions, practiced: prep.practiced, topics: prep.topics, generatedAt: prep.generatedAt });
+        const { prep, generating: banking } = await ensurePrep(req.user._id, context);
+        res.json({ questions: prep.questions, practiced: prep.practiced, topics: prep.topics, generatedAt: prep.generatedAt, generating: banking });
     } catch (err) { next(err); }
 });
 

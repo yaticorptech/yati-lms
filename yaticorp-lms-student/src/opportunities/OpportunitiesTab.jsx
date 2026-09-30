@@ -109,7 +109,8 @@ const GhostButton = ({ onClick, children, to, primary = false }) => {
 // `heroSlot` is a node above the Jobs page's tab strip. Given one, the
 // banner is drawn there, so it leads the page the way the other tabs' banners
 // do; without one (the tab on its own) it is drawn here at the top.
-export default function OpportunitiesTab({ data, onData, careerPathEnabled = true, location = '', onLocation, heroSlot = null }) {
+// `location` is the Jobs tab's box, read only: the board never writes it back.
+export default function OpportunitiesTab({ data, onData, careerPathEnabled = true, location = '', heroSlot = null }) {
     const [editing, setEditing] = useState(false);
     const [listing, setListing] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -126,18 +127,16 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
     const [applyingTo, setApplyingTo] = useState(null);
     const [reporting, setReporting] = useState(null);
     const reqId = useRef(0);
-    // The place is the Jobs section's own — the one typed into the search
-    // form and carried in the URL. Part-time work is looked for in the same
-    // town as everything else, and changing it here changes it everywhere.
-    const webLocation = location.trim();
-    const [townEdit, setTownEdit] = useState(null);   // null while not being edited
-    const townDraft = townEdit ?? webLocation;
-    const setTownDraft = setTownEdit;
-    const commitTown = () => {
-        const next = (townEdit ?? '').trim();
-        setTownEdit(null);
-        if (next && next !== webLocation && onLocation) onLocation(next);
-    };
+    // The part-time board's own town: the one saved on the part-time profile
+    // ("Your town or area"). Until the student has set one, the Jobs tab's
+    // Location box stands in, so a town typed there shows here. Changing the
+    // part-time town — with the dates and interests — changes only this
+    // board; the Jobs tab keeps its own box. The pill by the search box only
+    // shows the town. It used to be a second, typed box, clipped by its own
+    // width to "Shivamogga," — a comma and nothing after it.
+    const profileTown = String(data?.profile?.location || '').trim();
+    const town = profileTown || location.trim();
+    const webLocation = town;
 
     const vocab = data?.vocab;
     const hasProfile = !!data?.profile;
@@ -304,38 +303,36 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                 which is how the header came to sit across the top of the card.
                 The section's scale: chrome 40-50, dialogs 120, report 130,
                 applying 140, confirmations 160. */}
-            {(!hasProfile || editing) && (
+            {/* Portalled to <body>. Rendered in place, the popup sat inside the
+                Jobs page's fade-in wrappers, and an animated opacity makes a
+                stacking context: z-120 then only counted inside the tab, and the
+                app's header and bottom bar painted over the card's top and its
+                Save button on a real phone (2026-09-30). */}
+            {(!hasProfile || editing) && createPortal(
                 <div className="fixed inset-0 z-[120] overflow-hidden bg-slate-900/50 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="opp-onboarding-title">
-                  {/* A phone gets a sheet, not a card: full width, full height,
-                      no gutters and nothing floating. A centred card with side
-                      margins is a desktop shape, and on a 360px screen it left
-                      a cramped column with its corners clipped.
+                  {/* The overlay does not scroll and the card cannot outgrow
+                      it: the card's own body is the only scroller, so the
+                      heading and the buttons are always on screen whatever the
+                      window size or the browser's zoom.
 
-                      From sm up it is a card again — and there, items-start with
-                      my-auto rather than items-center, because a flex item
-                      centred inside a scroll container overflows equally top and
-                      bottom and the top half can never be scrolled back to. */}
-                  {/* The overlay does not scroll any more and the card cannot
-                      outgrow it: the card's own body is the only scroller, so
-                      the heading and the buttons are always on screen whatever
-                      the window size or the browser's zoom. */}
-                  {/* items-start, never items-center. A centred item that is
-                      taller than the visible area overflows equally above and
-                      below, and the half above the top can never be reached —
-                      which is how the title came to be sliced along its middle.
-                      Anchored to the top, any overflow goes downward only. */}
-                  {/* The backdrop covers the window, but the card is placed in
-                      the content area — clear of the 16rem sidebar and the 4rem
-                      header. Centred on the window it sat 150px left of where
-                      the page's own centre is, and its top edge tucked under
-                      the header bar. Gutters come from padding rather than a
-                      narrower card, which would squeeze the two columns. */}
-                  <div className="flex h-full items-stretch justify-center pt-16 pb-[7.5rem] sm:items-start sm:px-6 sm:py-6 sidebar:pl-[17.5rem] md:pr-6 sidebar:pt-[5.5rem] sidebar:pb-6 lg:pr-10 sidebar:lg:pb-8">
+                      On a phone it is a small card, not the whole screen: 1rem
+                      gutters at the sides, and a height cap (in the form) that
+                      leaves 4rem of backdrop above and below. Centred is safe
+                      there — the cap keeps the card shorter than the space it is
+                      centred in, so it can never overflow off the top.
+
+                      From sm up, items-start: the backdrop covers the window,
+                      but the card is placed in the content area, clear of the
+                      16rem sidebar and the 4rem header. Gutters come from
+                      padding rather than a narrower card, which would squeeze
+                      the two columns. */}
+                  <div className="flex h-full items-center justify-center px-4 py-4 sm:items-start sm:px-6 sm:py-6 sidebar:pl-[17.5rem] md:pr-6 sidebar:pt-[5.5rem] sidebar:pb-6 lg:pr-10 sidebar:lg:pb-8">
                     <div className="relative flex max-h-full w-full max-w-5xl">
-                        <ProfileOnboarding vocab={vocab} initial={data.profile} onSaved={onSaved} onCancel={hasProfile ? () => setEditing(false) : undefined} />
+                        <ProfileOnboarding vocab={vocab} initial={data.profile} town={town} onSaved={onSaved} onCancel={hasProfile ? () => setEditing(false) : undefined} />
                     </div>
                   </div>
-                </div>
+                </div>,
+                document.body
             )}
             {hasProfile && (
                 <>
@@ -351,15 +348,16 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                             already — the category dropdown by the results, the
                             interest chips, the dates strip — and a second door to
                             the same choices was one control too many. */}
-                        <label className="relative">
-                            <span className="sr-only">Your town or city</span>
-                            <MapPin size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                            <input value={townDraft} onChange={(e) => setTownDraft(e.target.value)}
-                                onBlur={commitTown}
-                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitTown(); } }}
-                                placeholder="Your town" aria-label="Your town or city"
-                                className="min-h-12 w-36 rounded-2xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-slate-800 shadow-sm placeholder:font-normal placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
-                        </label>
+                        {/* The board's town. Not a field: it is changed with the
+                            dates and interests, through the Edit button beside
+                            it. Shown whole, however long, not cut at a fixed width. */}
+                        {town && (
+                            <span data-town className="inline-flex min-h-12 max-w-[16rem] items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-800 shadow-sm" title={`Your town: ${town}`}>
+                                <MapPin size={15} className="shrink-0 text-slate-400" aria-hidden="true" />
+                                <span className="sr-only">Your town: </span>
+                                <span className="truncate">{town}</span>
+                            </span>
+                        )}
                         <button type="button" onClick={() => setEditing(true)}
                             className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-indigo-300 hover:text-indigo-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
                             <Pencil size={15} aria-hidden="true" /> <span className="hidden sm:inline">Change dates &amp; interests</span><span className="sm:hidden">Edit</span>
@@ -379,7 +377,6 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                                 className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold text-indigo-700 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
                                 <CalendarRange size={14} aria-hidden="true" /> {anyDate ? 'Back to my dates' : 'Show all upcoming dates'}
                             </button>
-                            <button type="button" onClick={() => setEditing(true)} className="rounded-lg px-2 py-1 font-semibold text-slate-600 hover:bg-white">Change dates</button>
                         </div>
                     )}
 
@@ -412,15 +409,16 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         </p>
                     )}
 
-                    {listing?.web?.allowed && (listing.web.notice || listing.web.count > 0) && (
+                    {/* Only when Google Jobs vacancies are actually on the board.
+                        When they are not — the allowance is used up, or the
+                        town is unknown — nothing is said: the notice and the
+                        "search these sites yourself" links that used to stand
+                        here were taken off the page on request. */}
+                    {listing?.web?.allowed && listing.web.count > 0 && (
                         <p className="flex items-center gap-2 text-xs text-slate-500">
                             <Globe size={14} className="shrink-0 text-sky-500" aria-hidden="true" />
-                            {listing.web.notice
-                                ? listing.web.notice
-                                : <>
-                                    Including {listing.web.count} open part-time vacanc{listing.web.count === 1 ? 'y' : 'ies'} near {listing.web.place?.label || webLocation} from Google Jobs.
-                                    {listing.web.widened && <> Few were posted in {listing.web.place?.city || webLocation}, so some come from {listing.web.widened}.</>}
-                                </>}
+                            Including {listing.web.count} open part-time vacanc{listing.web.count === 1 ? 'y' : 'ies'} near {listing.web.place?.label || webLocation} from Google Jobs.
+                            {listing.web.widened && <> Few were posted in {listing.web.place?.city || webLocation}, so some come from {listing.web.widened}.</>}
                         </p>
                     )}
 
@@ -440,27 +438,6 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         </p>
                     )}
 
-                    {/* Nothing came back from the board itself, so the student
-                        is handed the same search on the sites that run it.
-                        These are searches, not vacancies, and say so. */}
-                    {listing?.web?.searchLinks?.length > 0 && (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
-                            <p className="text-xs font-bold text-slate-700">
-                                Search part-time work in {listing.web.place?.city || webLocation} yourself
-                            </p>
-                            <p className="mt-0.5 text-xs text-slate-500">These open a search on each site — the vacancies are theirs, not ours.</p>
-                            <ul className="mt-2 flex flex-wrap gap-2">
-                                {listing.web.searchLinks.map((link) => (
-                                    <li key={link.id}>
-                                        <a href={link.url} target="_blank" rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-indigo-300 hover:text-indigo-700">
-                                            <Globe size={13} className="text-sky-500" aria-hidden="true" /> {link.name}
-                                        </a>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
 
                     {rules && hiddenByRules > 0 && rules.band !== 'adult' && (
                         <p className="flex items-center gap-2 text-xs text-slate-500">
@@ -521,7 +498,6 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                                 <Empty icon={CalendarDays} title="Nothing on your dates or the rest of this month"
                                     actions={<>
                                         <GhostButton primary onClick={() => setFilters((f) => ({ ...f, anyDate: true }))}>See {otherDates} job{otherDates === 1 ? '' : 's'} after this month</GhostButton>
-                                        <GhostButton onClick={() => setEditing(true)}>Change dates</GhostButton>
                                         <GhostButton onClick={() => setEditing(true)}>Update interests</GhostButton>
                                     </>}>
                                     Nothing is scheduled around {windowLabel({ from: data.profile.wantFrom, to: data.profile.wantTo })} that you can take up.
@@ -531,7 +507,6 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                                 <Empty title="No local jobs match your current preferences."
                                     actions={<>
                                         <GhostButton onClick={() => setEditing(true)}>Update interests</GhostButton>
-                                        <GhostButton onClick={() => setEditing(true)}>Change dates</GhostButton>
                                         <GhostButton onClick={() => setFilters((f) => ({ ...f, anyDate: true, category: '', interest: '' }))}>Explore other categories</GhostButton>
                                     </>}>
                                     No upcoming jobs are open to you right now. The LMS team adds local jobs as organisations send them — check back soon.

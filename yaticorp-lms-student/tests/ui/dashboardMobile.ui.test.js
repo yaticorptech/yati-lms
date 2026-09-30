@@ -238,4 +238,30 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
         assert.deepEqual(errors, []);
         assert.equal(result.landed, true);
     });
+    // "Hello, Bhagyashree!" broke into "Bhagyashre / e!" on a 360px phone: at
+    // a fixed 30px the name was wider than the room beside the photo, and
+    // break-words split it (2026-09-30). The banner alone, at real phone
+    // widths, with a name that long and one longer still.
+    for (const [w, first] of [[320, 'Bhagyashree'], [344, 'Bhagyashree'], [360, 'Bhagyashree'], [384, 'Bhagyashree'], [344, 'Bhagyalakshmi']]) {
+        test(`"${first}!" stays whole on one line at ${w}px`, async () => {
+            const banner = `
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
+import WelcomeBanner from '${srcFile('components/WelcomeBanner.jsx')}';
+createRoot(document.getElementById('root')).render(<MemoryRouter><div className="bg-slate-50 p-4">
+  <WelcomeBanner name="${first} Bangera" firstName="${first}" level={3} greeting="Good evening" greetingIcon="*" xpRemaining={260} percent={40} /></div></MemoryRouter>);`;
+            const { result, errors } = await screen({
+                entry: banner, api: 'export default {};', styles: true, budget: 15_000,
+                device: { width: w, height: 800, dpr: 3 }, script: `
+                    await sleep(500);
+                    const name = $('h1 span');
+                    // One top per line the name's letters are laid out on.
+                    const range = document.createRange(); range.selectNodeContents(name);
+                    const tops = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+                    return { lines: tops.size, sideways: document.documentElement.scrollWidth > innerWidth };` });
+            assert.deepEqual(errors, []);
+            assert.equal(result.lines, 1, `the name is split over ${result.lines} lines`);
+            assert.equal(result.sideways, false, 'and nothing pushes the page sideways');
+        });
+    }
 });

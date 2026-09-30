@@ -23,7 +23,7 @@ const Chip = ({ on, onClick, children, icon }) => (
 );
 
 const Section = ({ icon: Icon, n, title, hint, children }) => (
-    <section className="rounded-2xl border border-slate-200 p-3.5 sm:p-4">
+    <section className="rounded-2xl border border-slate-200 p-3 sm:p-4">
         <h3 className="flex items-center gap-2 text-[15px] font-bold text-slate-900">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-black text-white">{n}</span>
             <Icon size={17} className="text-indigo-500" aria-hidden="true" /> {title}
@@ -47,7 +47,9 @@ const AGE_MEANS = {
 const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500';
 const LABEL = 'mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500';
 
-export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel }) {
+/** `town` is the Jobs section's current town, so the form opens on the town in
+ *  use rather than the one saved last time (or nothing, the first time). */
+export default function ProfileOnboarding({ vocab, initial, town = '', onSaved, onCancel }) {
     const today = toDateInput(new Date());
     const [form, setForm] = useState(() => ({
         guardianName: initial?.guardianName || '',
@@ -56,7 +58,7 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
         dateOfBirth: toDateInput(initial?.dateOfBirth) || '',
         wantFrom: toDateInput(initial?.wantFrom) || today,
         wantTo: toDateInput(initial?.wantTo) || toDateInput(initial?.wantFrom) || today,
-        location: initial?.location || '',
+        location: town || initial?.location || '',
         interests: initial?.interests || []
     }));
     const [oneDay, setOneDay] = useState(() => !initial || toDateInput(initial.wantFrom) === toDateInput(initial.wantTo));
@@ -69,8 +71,8 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
     // entered is the one they meant. null until the date is a real past one.
     const age = ageFromDob(form.dateOfBirth);
     const band = bandFromAge(age);
-    /** Under fifteen, every job application needs a guardian to agree first. */
-    const needsGuardian = age != null && age < 15;
+    /** Under eighteen, every job application needs a guardian to agree first. */
+    const needsGuardian = age != null && age < 18;
     const update = (patch) => { setError(''); setForm((f) => ({ ...f, ...patch })); };
     const toggle = (id) => update({ interests: form.interests.includes(id) ? form.interests.filter((x) => x !== id) : [...form.interests, id] });
 
@@ -82,7 +84,7 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
         if (wantTo < form.wantFrom) return setError('The end date is before the start date.');
         if (!form.interests.length) return setError('Pick at least one interest.');
         if (form.guardianPhone && !phoneOk) return setError('Enter a 10-digit Indian mobile number for your parent.');
-        // Under fifteen a guardian has to approve each job, so their name and
+        // Under eighteen a guardian has to approve each job, so their name and
         // address are needed here rather than at the worst possible moment.
         if (form.guardianEmail && !emailOk) return setError("Enter a valid email address for your parent or guardian.");
         if (needsGuardian && !emailOk) return setError("Add your parent or guardian's email address — that is where the job permission request is sent.");
@@ -100,27 +102,27 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
 
     return (
         <form onSubmit={save} aria-labelledby="opp-onboarding-title"
-            className="relative flex h-full max-h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl">
+            className="relative flex max-h-[calc(100dvh-8rem)] w-full flex-col overflow-hidden rounded-3xl bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:shadow-none">
             {/* Band 1 of 3: the heading, which never moves. It used to be
                 sticky inside a card that was itself taller than the window, so
                 scrolling the popup carried the whole card — heading included —
                 off the top of the screen. A card that cannot outgrow the
                 screen has nowhere to carry it to. */}
-            <div className="shrink-0 border-b border-slate-100 bg-white px-4 pb-3 pt-5 sm:px-6 sm:pt-6">
+            <div className="shrink-0 border-b border-slate-100 bg-white px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
                 <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
                         {/* The title is the first thing in the card. There used to
                             be a small "Your details" eyebrow above it, which said
                             nothing the title does not and was the one line thin
                             enough to be clipped by the card's top edge. */}
-                        <h2 id="opp-onboarding-title" className="text-lg font-bold text-slate-900 sm:text-xl">
+                        <h2 id="opp-onboarding-title" className="text-base font-bold leading-snug text-slate-900 sm:text-xl">
                             {initial ? 'Update your dates and interests' : 'Tell us when you want work, and what kind'}
                         </h2>
                         <p className="mt-1 text-xs text-slate-500 sm:text-sm">No resume, no CV — jobs on your dates that match your interests.</p>
                     </div>
                     {onCancel && (
                         <button type="button" onClick={onCancel} aria-label="Close"
-                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border sm:h-10 sm:w-10 border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
                             <X size={18} />
                         </button>
                     )}
@@ -135,7 +137,7 @@ export default function ProfileOnboarding({ vocab, initial, onSaved, onCancel })
                 hard edge there reads as text that has been cut off rather than
                 text that carries on. The fade says there is more. */}
             <div className="relative min-h-0 flex-1">
-            <div className="h-full overflow-y-auto px-4 py-4 sm:px-6">
+            <div className="h-full overflow-y-auto px-3 py-3 sm:px-6 sm:py-4">
             <div className="grid gap-3 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.75fr)]">
               <div className="space-y-3">
                 <Section icon={CalendarDays} n={1} title="When do you want work?" hint="Only jobs running on these dates are shown. You can change them any time.">

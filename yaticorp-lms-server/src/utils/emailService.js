@@ -25,6 +25,38 @@
  */
 const nodemailer = require('nodemailer');
 const SibApiV3Sdk = require('sib-api-v3-sdk');
+const dns = require('node:dns').promises;
+
+/**
+ * Why an address should not be written to, or '' when it may be.
+ *
+ * A message to an address that does not exist is not refused by the sending
+ * server: it goes, and the failure comes back later as a bounce to the LMS's
+ * own mailbox, where nobody is looking. The student was told "Email sent".
+ * The checks that can be made before sending are made here: the domain must
+ * run a mail server (a typo like gmial.com does not), and the address must
+ * not be the student's own or the LMS's own mailbox, neither of which is a
+ * parent. Whether the mailbox itself exists cannot be known in advance.
+ *
+ * When the lookup itself fails — no network — the address is allowed through:
+ * a DNS outage must not stop every request in the LMS.
+ */
+const recipientProblem = async (email, { own = '' } = {}) => {
+    const address = String(email || '').trim().toLowerCase();
+    const ours = [process.env.SMTP_FROM, process.env.SMTP_USER, process.env.BREVO_SENDER_EMAIL, process.env.ADMIN_EMAIL]
+        .map((a) => String(a || '').trim().toLowerCase()).filter(Boolean);
+    if (own && address === String(own).trim().toLowerCase()) return "That is your own email address. Enter your parent or guardian's.";
+    if (ours.includes(address)) return "That is the LMS's own mailbox, not a parent's. Enter your parent or guardian's address.";
+    const domain = address.split('@')[1];
+    if (!domain) return 'Enter a valid email address.';
+    try {
+        const mx = await dns.resolveMx(domain);
+        if (!mx.length) return `We cannot find a mail server for "${domain}". Check the spelling of the address.`;
+    } catch (err) {
+        if (['ENODATA', 'ENOTFOUND', 'ESERVFAIL', 'EBADNAME'].includes(err.code)) return `We cannot find a mail server for "${domain}". Check the spelling of the address.`;
+    }
+    return '';
+};
 
 const FROM_NAME = () => process.env.SMTP_FROM_NAME || 'YATICORP LMS';
 
@@ -38,8 +70,12 @@ const provider = () => {
 /** Whether email can be sent at all, for callers that want to say so up front. */
 const emailConfigured = () => provider() !== null;
 
-// One transport for the process: nodemailer pools connections, and building a
-// fresh one per message re-does the TLS handshake every time.
+// One transport for the process, but no connection pool. A pooled connection
+// is kept open between messages, and this server sends a message every few
+// hours at most: Gmail closes the idle socket long before the next one, and
+// that next send failed with "Connection closed" while a fresh process sent
+// the same message fine. A new connection per message costs one TLS
+// handshake, which is nothing at this volume.
 let transport = null;
 const smtpTransport = () => {
     if (transport) return transport;
@@ -50,23 +86,38 @@ const smtpTransport = () => {
         // Implicit TLS on 465; STARTTLS on 587 and everything else.
         secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || port === 465,
         auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-        pool: true,
+        pool: false,
         connectionTimeout: 15000,
-        greetingTimeout: 10000
+        greetingTimeout: 10000,
+        socketTimeout: 30000
     });
     return transport;
 };
 
-const sendOverSmtp = async ({ to, toName, subject, htmlContent }) => {
+/** A failure of the connection rather than of the message: worth one more go. */
+const DROPPED = new Set(['ECONNECTION', 'ETIMEDOUT', 'ECONNRESET', 'EPIPE', 'ESOCKET']);
+const dropped = (err) => DROPPED.has(err?.code) || /connection closed|socket close|unexpected socket close/i.test(err?.message || '');
+
+const sendOverSmtp = async ({ to, toName, subject, htmlContent }, attempt = 1) => {
     const from = process.env.SMTP_FROM || process.env.SMTP_USER;
-    const info = await smtpTransport().sendMail({
-        from: { name: FROM_NAME(), address: from },
-        to: toName ? { name: toName, address: to } : to,
-        subject,
-        html: htmlContent
-    });
-    console.log(`[Email] ✅ SMTP accepted | ${info.messageId} | ${(info.accepted || []).length} recipient(s)`);
-    return info;
+    try {
+        const info = await smtpTransport().sendMail({
+            from: { name: FROM_NAME(), address: from },
+            to: toName ? { name: toName, address: to } : to,
+            subject,
+            html: htmlContent
+        });
+        console.log(`[Email] ✅ SMTP accepted | ${info.messageId} | ${(info.accepted || []).length} recipient(s)`);
+        return info;
+    } catch (err) {
+        // The server refusing the message (a bad login, a bad address) is
+        // final. A dropped connection is tried once more on a new socket.
+        if (attempt === 1 && dropped(err)) {
+            console.warn(`[Email] SMTP connection dropped (${err.code || err.message}); trying once more`);
+            return sendOverSmtp({ to, toName, subject, htmlContent }, 2);
+        }
+        throw err;
+    }
 };
 
 const sendOverBrevo = async ({ to, toName, subject, htmlContent }) => {
@@ -119,4 +170,4 @@ const closeEmailTransport = () => {
     transport = null;
 };
 
-module.exports = { sendEmail, emailConfigured, provider, closeEmailTransport };
+module.exports = { sendEmail, emailConfigured, provider, closeEmailTransport, recipientProblem };

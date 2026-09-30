@@ -47,13 +47,15 @@ const CareerPathLink = ({ role, careerGoal, enabled }) => {
 
     if (sameGoal) {
         return (
+            // On a phone the link goes under the sentence: beside it, it squeezed
+            // the sentence into a column two or three words wide.
             <Link to="/career"
-                className="group mt-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-300/30 bg-emerald-400/15 px-4 py-3 transition-colors hover:bg-emerald-400/25">
-                <span className="flex items-center gap-2 text-sm text-emerald-50">
-                    <Compass size={15} className="shrink-0 text-emerald-300" />
+                className="group mt-4 flex flex-col items-start gap-2 rounded-xl border border-emerald-300/30 bg-emerald-400/15 px-4 py-3 transition-colors hover:bg-emerald-400/25 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <span className="flex min-w-0 items-start gap-2 text-sm text-emerald-50 sm:items-center">
+                    <Compass size={15} className="mt-0.5 shrink-0 text-emerald-300 sm:mt-0" />
                     This is your Career Path goal — your roadmap turns these skills into daily tasks.
                 </span>
-                <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-emerald-200">
+                <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap pl-[23px] text-xs font-bold text-emerald-200 sm:pl-0">
                     Open Career Path
                     <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
                 </span>
@@ -64,12 +66,12 @@ const CareerPathLink = ({ role, careerGoal, enabled }) => {
     if (careerGoal === null) {
         return (
             <Link to="/career/onboarding"
-                className="group mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-3 transition-colors hover:bg-white/15">
-                <span className="flex items-center gap-2 text-sm text-white/90">
-                    <Compass size={15} className="shrink-0 text-sky-300" />
+                className="group mt-4 flex flex-col items-start gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-3 transition-colors hover:bg-white/15 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <span className="flex min-w-0 items-start gap-2 text-sm text-white/90 sm:items-center">
+                    <Compass size={15} className="mt-0.5 shrink-0 text-sky-300 sm:mt-0" />
                     Want a day-by-day plan for this role? Career Path builds one and tracks you through it.
                 </span>
-                <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-sky-200">
+                <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap pl-[23px] text-xs font-bold text-sky-200 sm:pl-0">
                     Build my roadmap
                     <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
                 </span>
