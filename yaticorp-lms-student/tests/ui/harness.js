@@ -163,7 +163,25 @@ window.addEventListener('unhandledrejection', (e) => window.__errors.push('rejec
             const file = alias[url] || (url === '/' ? 'index.html' : url.slice(1));
             try {
                 const body = await readFile(path.join(dir, file));
-                res.writeHead(200, { 'Content-Type': file.endsWith('.html') ? 'text/html' : file.endsWith('.js') ? 'text/javascript' : 'application/octet-stream' });
+                const type = file.endsWith('.html') ? 'text/html' : file.endsWith('.js') ? 'text/javascript'
+                    : file.endsWith('.wav') ? 'audio/wav' : 'application/octet-stream';
+                // A media file is served the way a CDN serves it: with its
+                // length known and byte ranges honoured. Without both, Chrome
+                // treats a <video> source as a live stream — no duration, no
+                // seeking — and a player test cannot mean anything.
+                const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+                if (range && body.length) {
+                    const start = range[1] ? Number(range[1]) : Math.max(0, body.length - Number(range[2]));
+                    const end = range[1] && range[2] ? Math.min(Number(range[2]), body.length - 1) : body.length - 1;
+                    if (start > end || start >= body.length) {
+                        res.writeHead(416, { 'Content-Range': `bytes */${body.length}` });
+                        return res.end();
+                    }
+                    res.writeHead(206, { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1,
+                        'Content-Range': `bytes ${start}-${end}/${body.length}` });
+                    return res.end(body.subarray(start, end + 1));
+                }
+                res.writeHead(200, { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Length': body.length });
                 res.end(body);
             } catch { res.writeHead(404).end('not found'); }
         });
