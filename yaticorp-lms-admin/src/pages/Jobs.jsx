@@ -12,7 +12,7 @@
  * about the cohort, not about any one person.
  */
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
 import LocalJobsPanel from '../components/LocalJobsPanel';
 import PartTimeApplicationsPanel from '../components/PartTimeApplicationsPanel';
@@ -70,6 +70,8 @@ const RankedBars = ({ title, subtitle, rows, empty }) => {
 };
 
 const Jobs = () => {
+    const [searchParams] = useSearchParams();
+    const focusApplication = searchParams.get('application') || '';
     const [overview, setOverview] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -182,8 +184,11 @@ const Jobs = () => {
             </div>
 
             {/* ── Local jobs the admin posts (the students' Opportunities tab) ── */}
+            {/* A parent's approval link lands here with ?application=<id>: the
+                applications come first then, opened on that one. */}
+            {focusApplication ? <PartTimeApplicationsPanel focusId={focusApplication} /> : null}
             <LocalJobsPanel />
-            <PartTimeApplicationsPanel />
+            {!focusApplication && <PartTimeApplicationsPanel />}
 
             {/* ── Index health ─────────────────────────────────────────── */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -20,6 +20,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
 import './calendarMotion.css';
+import { useMascot } from '../../mascot/useMascot';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -84,6 +85,7 @@ export default function CalendarView() {
   // What the big card shows: the month of learning, or the week of classes.
   // Same card, same place — the student flips it rather than scrolling for it.
   const [panel, setPanel] = useState('calendar');
+  const mascot = useMascot();
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState(new Date());
   // Which way the last month change went, so the grid can arrive from the
@@ -484,7 +486,7 @@ export default function CalendarView() {
               <div
                 role="group"
                 aria-label="Calendar view"
-                data-guide="cal-toggle"
+                data-mascot-target="cal-toggle"
                 className="flex shrink-0 items-center gap-1 rounded-xl border border-line-200 bg-surface-50 p-1"
               >
                 {[
@@ -494,7 +496,12 @@ export default function CalendarView() {
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setPanel(key)}
+                    onClick={() => {
+                      setPanel(key);
+                      // The mascot walks to the class on now, or back to today.
+                      if (key === 'timetable') mascot.timetableOpened();
+                      else mascot.calendarOpened();
+                    }}
                     aria-pressed={panel === key}
                     className={`fp-press inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition-all ${
                       panel === key
@@ -592,7 +599,7 @@ export default function CalendarView() {
             ))}
           </div>
 
-          <div key={monthKey} className="cal-grid -mx-3 grid grid-cols-7 gap-1 sm:mx-0 sm:gap-2">
+          <div key={monthKey} data-mascot-target="calendar" className="cal-grid -mx-3 grid grid-cols-7 gap-1 sm:mx-0 sm:gap-2">
             {cells.map(({ date, day, outside }, idx) => {
               const key = dayKey(date);
               const dayTasks = byDay.get(key) || [];
@@ -640,6 +647,7 @@ export default function CalendarView() {
                   }${dayEvents.length ? `, ${dayEvents.length} of your own events` : ''}`}
                   aria-pressed={isSelected}
                   aria-current={isToday ? 'date' : undefined}
+                  data-mascot-target={isToday ? 'calendar-day' : undefined}
                   className={`cal-cell fp-press relative flex flex-col rounded-xl border p-1.5 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-journey-500/40 sm:p-2 ${cellHeight} ${
                     isToday
                       ? 'border-transparent bg-gradient-to-br from-journey-600 to-indigo-600 text-white shadow-md shadow-journey-600/30'
@@ -757,7 +765,7 @@ export default function CalendarView() {
         </Card>
 
         <div className="space-y-4">
-        <Card key={selectedKey} data-guide="day-panel" className="animate-fade-in-up">
+        <Card key={selectedKey} data-mascot-target="day-panel" className="animate-fade-in-up">
           <div className="mb-4">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-bold text-ink-900">

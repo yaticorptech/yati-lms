@@ -93,7 +93,7 @@ const APPLICATION = {
         location: 'Koramangala, Bengaluru', pay: '₹450/day', safety: ['Studio manager in the room.'] },
     guardian: { name: 'Radhika', email: 'ra••••@example.com', phone: '' },
     steps: ['Request sent', 'Parent review', 'Admin approval', 'Approved'].map((label) => ({ label, state: 'done' })),
-    guardianAge: 15, declineReason: '', canContinue: true, guardianLink: ''
+    guardianAge: 18, declineReason: '', canContinue: true, guardianLink: ''
 };
 const applyApi = apiModule({
     '/opportunities/applications': { application: APPLICATION },

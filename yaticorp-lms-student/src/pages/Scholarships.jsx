@@ -291,22 +291,22 @@ export default function Scholarships() {
                     {(s.provider || s.amount) && (
                       <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-slate-500">
                         {s.provider && (
-                          <span className="inline-flex items-center gap-1">
-                            <Building2 size={13} />
-                            {s.provider}
+                          <span className="inline-flex min-w-0 items-start gap-1">
+                            <Building2 size={13} className="mt-0.5 shrink-0" />
+                            <span className="min-w-0 break-words">{s.provider}</span>
                           </span>
                         )}
                         {s.amount && (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 font-black text-emerald-700">
-                            <Coins size={12} />
-                            {s.amount}
+                          <span className="inline-flex min-w-0 items-start gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 font-black text-emerald-700">
+                            <Coins size={12} className="mt-0.5 shrink-0" />
+                            <span className="min-w-0 break-words">{s.amount}</span>
                           </span>
                         )}
                       </p>
                     )}
                     {s.deadline && (
                       <p
-                        className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
+                        className={`mt-1.5 inline-flex min-w-0 max-w-full items-start gap-1.5 rounded-2xl px-2.5 py-1 text-xs font-bold sm:rounded-full ${
                           passed
                             ? 'bg-slate-100 text-slate-500'
                             : soon
@@ -314,9 +314,11 @@ export default function Scholarships() {
                               : 'bg-purple-50 text-purple-800 ring-1 ring-purple-100 ring-inset'
                         }`}
                       >
-                        <CalendarDays size={13} />
-                        {passed ? 'Deadline passed · ' : soon ? `Closes in ${days} ${days === 1 ? 'day' : 'days'} · ` : 'Deadline · '}
-                        {s.deadline}
+                        <CalendarDays size={13} className="mt-0.5 shrink-0" />
+                        <span className="min-w-0 break-words">
+                          {passed ? 'Deadline passed · ' : soon ? `Closes in ${days} ${days === 1 ? 'day' : 'days'} · ` : 'Deadline · '}
+                          {s.deadline}
+                        </span>
                       </p>
                     )}
                   </div>

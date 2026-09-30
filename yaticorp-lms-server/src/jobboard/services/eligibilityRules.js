@@ -16,36 +16,42 @@ const { TYPES } = require('../data/opportunityVocab');
 
 const EMPLOYMENT_TYPES = TYPES.filter((t) => t.employment).map((t) => t.id);
 
+// Every job on the board is open to every student, whatever their age
+// (the account owner's instruction, 2026-09-29). What age still decides is
+// who has to agree first: under GUARDIAN_AGE a parent or guardian approves
+// each application, then the school; from then on the student goes straight
+// on. The bands keep only what differs beyond that — what is shown of the
+// organisation's contact and pay.
 const BANDS = [
   {
     id: 'explore',
-    label: 'Explore & Learn',
+    label: 'Local jobs',
     minAge: 0,
     maxAge: 13,
     employment: false,
-    allowedTypes: [],          // nothing on this board is open under 14
-    allowedSafety: [],
-    verifiedOnly: true,
+    allowedTypes: null,
+    allowedSafety: null,
+    verifiedOnly: false,
     maxHours: null,
-    guardianApproval: false,
-    exposeContact: false,
-    exposeCompensation: false,
-    hiddenCategories: ['delivery', 'catering']
-  },
-  {
-    id: 'teen',
-    label: 'Age-appropriate local jobs',
-    minAge: 14,
-    maxAge: 17,
-    employment: 'restricted',
-    allowedTypes: ['gig', 'event-support'],
-    allowedSafety: ['youth-safe', 'supervised'],
-    verifiedOnly: true,
-    maxHours: '4+',
     guardianApproval: true,
     exposeContact: false,
     exposeCompensation: true,
-    hiddenCategories: ['delivery']
+    hiddenCategories: []
+  },
+  {
+    id: 'teen',
+    label: 'Local jobs',
+    minAge: 14,
+    maxAge: 17,
+    employment: 'restricted',
+    allowedTypes: null,
+    allowedSafety: null,
+    verifiedOnly: false,
+    maxHours: null,
+    guardianApproval: true,
+    exposeContact: false,
+    exposeCompensation: true,
+    hiddenCategories: []
   },
   {
     id: 'adult',
@@ -92,7 +98,8 @@ const bandFor = (age) => {
 const check = (opp, { age, band }) => {
   if (!band) return { ok: false, rule: 'unknown-age' };
   if (opp.status !== 'open') return { ok: false, rule: 'closed' };
-  if (age < (opp.minimumAge ?? 0)) return { ok: false, rule: 'age' };
+  // A job's minimum age is shown on the card, not enforced: every job is
+  // open to every student, and the parent's approval is the safeguard.
   if (opp.maximumAge != null && age > opp.maximumAge) return { ok: false, rule: 'age' };
   if (band.hiddenCategories.includes(opp.category)) return { ok: false, rule: 'safety' };
   if (band.allowedTypes && !band.allowedTypes.includes(opp.opportunityType)) return { ok: false, rule: 'safety' };

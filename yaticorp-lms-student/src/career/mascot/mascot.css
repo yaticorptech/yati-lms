@@ -1,0 +1,132 @@
+/* ── The Career Path mascot (src/career/mascot) ── */
+
+/* A layer over the section that nothing can click: the mascot is decoration.
+   Above the page, below the top bar, menus, dialogs and toasts — the engine
+   lifts it above one dialog only while pointing at something inside it. */
+.career-mascot {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+}
+/* Off stage while a page loader is up: the loader has a mascot of its own. */
+.career-mascot[data-away] { visibility: hidden; }
+
+/* The character. Moved with translate3d by the engine, never by layout. */
+.career-mascot-body {
+  position: absolute;
+  left: 0;
+  top: 0;
+  aspect-ratio: 1117 / 1408;
+  will-change: transform, opacity;
+}
+/* Turning round is a quick turn, not a snap. */
+.career-mascot-facing {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.15s ease;
+}
+.career-mascot-rig,
+.career-mascot-still {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+  will-change: transform, opacity;
+}
+.career-mascot-rig svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Stills are cut to their soles; the rig's soles sit 4% above its edge, so a
+   still stands 4% up to share the ground line. */
+.career-mascot-still {
+  bottom: 4%;
+  width: 100%;
+  height: 96%;
+  object-fit: contain;
+  object-position: 50% 100%;
+  opacity: 0;
+  user-select: none;
+}
+
+.career-mascot-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.75rem);
+  max-width: min(15rem, calc(100vw - 2rem));
+  width: max-content;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgb(124 58 237 / 0.18);
+  border-radius: 1rem;
+  background: #fff;
+  color: #1e1b4b;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 10px 24px -10px rgb(30 27 75 / 0.35);
+  transform: translateX(calc(-50% + var(--shift, 0px)));
+  animation: career-mascot-bubble 0.2s ease-out both;
+}
+.career-mascot-bubble[data-below] {
+  bottom: auto;
+  top: calc(100% + 0.75rem);
+}
+/* The tail points at the mascot: down when the bubble is above it, up when below. */
+.career-mascot-bubble::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - var(--shift, 0px));
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  border-right: 1px solid rgb(124 58 237 / 0.18);
+  border-bottom: 1px solid rgb(124 58 237 / 0.18);
+  background: #fff;
+  transform: translateX(-50%) rotate(45deg);
+}
+.career-mascot-bubble[data-below]::after {
+  top: -6px;
+  bottom: auto;
+  transform: translateX(-50%) rotate(225deg);
+}
+@keyframes career-mascot-bubble {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* The soft ring around what the mascot is pointing at: two pulses, two seconds. */
+.career-mascot-ring {
+  position: absolute;
+  border-radius: 14px;
+  box-shadow: 0 0 0 3px rgb(124 58 237 / 0.5);
+  animation: career-mascot-pulse 1s ease-out 2;
+}
+@keyframes career-mascot-pulse {
+  from { box-shadow: 0 0 0 2px rgb(124 58 237 / 0.65); }
+  to   { box-shadow: 0 0 0 16px rgb(124 58 237 / 0); }
+}
+
+/* A burst of confetti for a badge: each bit flies out on its own vector, then falls. */
+.career-mascot-confetti { position: absolute; inset: 0; overflow: hidden; }
+.career-mascot-confetti-bit {
+  position: absolute;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  background: hsl(var(--hue) 90% 60%);
+  animation: career-mascot-confetti 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+@keyframes career-mascot-confetti {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 90px)) rotate(var(--spin)) scale(0.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .career-mascot-facing { transition: none; }
+  .career-mascot-bubble,
+  .career-mascot-ring,
+  .career-mascot-confetti-bit { animation: none; }
+}

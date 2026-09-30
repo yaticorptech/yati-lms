@@ -18,6 +18,8 @@ export const applicationApi = {
     // Answers { application, mail } — the mail half says whether the email
     // was really accepted, so the screen can say which.
     sendRequest: (id) => post(`${base}/${id}/request`),
+    // The same request again, to the guardian as they stand now.
+    resend: (id) => post(`${base}/${id}/resend`),
     continue: (id) => post(`${base}/${id}/continue`)
 };
 

@@ -4,7 +4,7 @@
  *              the organization admin panel and public organization registration
  */
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { getViewedOrganization } from './utils/viewOrganization';
 import AdminLayout from './layouts/AdminLayout';
@@ -25,8 +25,15 @@ import Dashboard from './pages/Dashboard';
  */
 const PlatformRoute = ({ children }) => {
   const { admin, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <div>Loading...</div>;
-  if (!admin) return <Navigate to="/login" replace />;
+  // Signed out: remember the page, so signing in lands on it — a parent's
+  // approval link opens one application in Jobs, and it must still be that
+  // application after the sign-in, not the dashboard.
+  if (!admin) {
+    try { sessionStorage.setItem('afterLogin', location.pathname + location.search); } catch { /* storage unavailable */ }
+    return <Navigate to="/login" replace />;
+  }
   if (admin.role === 'orgadmin') return <Navigate to="/organization" replace />;
   return children;
 };

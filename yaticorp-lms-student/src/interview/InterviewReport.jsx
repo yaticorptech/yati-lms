@@ -122,7 +122,7 @@ export default function InterviewReport() {
 
                     <div className="hidden items-end gap-1 lg:flex">
                         <p className="lb-script mb-10 text-lg leading-tight text-orange-600/90">{r.overall >= 75 ? 'Well\u00a0done!' : 'Great\u00a0Effort!'}</p>
-                        <Illustration name="cheer" mascot={false} height={150} />
+                        <Illustration name="cheer" height={150} />
                     </div>
 
                     <div className="justify-self-center text-center">
@@ -240,7 +240,7 @@ export default function InterviewReport() {
                             <Lightbulb size={22} className="shrink-0 text-amber-400" />
                             <span className="lb-script text-base leading-tight text-slate-700">Small steps everyday<br />lead to big results!</span>
                         </p>
-                        <Illustration name="steps" mascot={false} height={110} className="hidden lg:block" />
+                        <Illustration name="steps" height={110} className="hidden lg:block" />
                     </div>
                 </div>
 

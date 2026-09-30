@@ -24,7 +24,7 @@ import api from './services/api';
 import { AuthContext } from './context/AuthContext';
 import CareerProviders from './CareerProviders';
 import WhatsNew from './components/WhatsNew';
-import CareerPathMascot from './components/mascot/CareerPathMascot';
+import CareerPathMascot from './mascot/CareerPathMascot';
 
 /**
  * The section's ten screens, in the order the standalone app grouped them:
@@ -62,6 +62,9 @@ const NAV_GROUPS = [
     items: [{ name: 'Settings', path: '/career/settings', icon: Settings, tone: 'from-slate-400 to-slate-600 shadow-slate-500/40' }]
   }
 ];
+
+// Tabs the guide walks to by name; the rest keep a plain `tab-<name>`.
+const GUIDE_TARGETS = { skills: 'skills', roadmap: 'view-roadmap', recommendations: 'mentor' };
 
 function CareerFrame() {
   const { refresh } = useContext(AuthContext);
@@ -219,7 +222,7 @@ function CareerFrame() {
                   to={item.path}
                   end={item.exact}
                   title={item.name}
-                  data-guide={`tab-${item.path.split('/').pop() || 'overview'}`}
+                  data-mascot-target={GUIDE_TARGETS[item.path.split('/').pop()] || `tab-${item.path.split('/').pop() || 'overview'}`}
                   className={({ isActive }) =>
                     `fp-press group relative z-10 flex min-w-[5.4rem] flex-1 flex-col items-center rounded-t-[1.1rem] px-1.5 pt-1 pb-2.5 text-center transition-all duration-300 sm:min-w-[6.2rem] ${
                       isActive
@@ -261,12 +264,8 @@ function CareerFrame() {
           same list per student; this is where the features actually are. */}
       <WhatsNew />
 
-      {/* The Career Path companion. Mounted here and nowhere else, so the
-          character exists for exactly as long as this section is open. */}
-      <CareerPathMascot />
-
       {/* Keyed on the route so the slide-up replays on every tab switch. */}
-      <div key={pathname} className={direction === 'right' ? 'fp-page-in-right' : 'fp-page-in-left'}>
+      <div key={pathname} data-mascot-section className={direction === 'right' ? 'fp-page-in-right' : 'fp-page-in-left'}>
         <Outlet />
       </div>
     </>
@@ -276,7 +275,11 @@ function CareerFrame() {
 export default function CareerShell() {
   return (
     <CareerProviders>
-      <CareerFrame />
+      {/* Mounted here, around every tab, so the mascot lives through tab
+          switches instead of starting over on each page. */}
+      <CareerPathMascot>
+        <CareerFrame />
+      </CareerPathMascot>
     </CareerProviders>
   );
 }

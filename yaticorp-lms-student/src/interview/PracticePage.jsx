@@ -20,6 +20,14 @@ export default function PracticePage() {
 
     const load = useCallback(() => interviewApi.questions().then((d) => { setData(d); setError(null); }).catch((e) => { setError(e); setData(null); }), []);
     useEffect(() => { load(); }, [load]);
+    // While the AI is still writing the personal bank, the server hands out
+    // the built-in one and says so; this asks again every few seconds until
+    // the personal one has taken its place.
+    useEffect(() => {
+        if (!data?.generating) return;
+        const t = setInterval(load, 4000);
+        return () => clearInterval(t);
+    }, [data?.generating, load]);
 
     // /interview/practice#q-<id> — a question picked on the dashboard — opens
     // that question and brings it into view, instead of the top of the list.
@@ -58,6 +66,7 @@ export default function PracticePage() {
                     <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-100">Practice bank</p>
                         <p className="text-xl font-black sm:text-2xl">{data.questions.length} question{data.questions.length === 1 ? '' : 's'} to rehearse</p>
+                        {data.generating && <p className="mt-1 text-sm text-indigo-100">Personalising your questions from your courses and skills… these standard ones will do meanwhile.</p>}
                         <p className="mt-1 text-sm text-indigo-100">Open a question, read the hint, and think your answer through out loud.</p>
                     </div>
                 </div>

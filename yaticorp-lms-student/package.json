@@ -15,7 +15,6 @@
     "test:ui": "node --test --test-concurrency=1 tests/ui/*.test.js"
   },
   "dependencies": {
-    "@rive-app/react-canvas": "^4.34.1",
     "axios": "^1.13.5",
     "chart.js": "^4.5.1",
     "html5-qrcode": "^2.3.8",

@@ -77,7 +77,12 @@ const studentView = (row) => ({
     },
     steps: stepsFor(row.status),
     guardianAge: GUARDIAN_AGE,
+    // Whether a parent had to agree at all. A student of GUARDIAN_AGE or over
+    // goes straight on, and their screen must not claim approvals that never
+    // happened.
+    guardianNeeded: (row.student?.age ?? 0) < GUARDIAN_AGE,
     requestedAt: row.requestedAt, mailSentAt: row.mailSentAt,
+    mailBouncedAt: row.mailBouncedAt || null, fallbackSentAt: row.fallbackSentAt || null,
     decidedAt: row.decidedAt, declineReason: row.declineReason || '',
     // The guardian's yes and the LMS's are separate events with separate dates,
     // so the student can see which of the two they are still waiting on.
@@ -138,7 +143,11 @@ const adminView = (row) => ({
     canDecide: row.status === 'awaiting-admin',
     // Nothing has gone to the parent, so there is nothing of theirs to erase.
     // The route checks this again; this is only so the button knows to appear.
-    canDelete: row.status === 'needs-guardian' && !row.mailSentAt && !row.requestedAt,
+    // Every application can be deleted by an operator (the account owner's
+    // instruction, 2026-09-30); it used to be only one never sent to a parent.
+    canDelete: true,
+    // So the confirmation can say what deleting one that went out undoes.
+    parentContacted: !!(row.requestedAt || row.mailSentAt),
     waitingOn: WAITING_ON[row.status] || '',
     updatedAt: row.updatedAt
 });

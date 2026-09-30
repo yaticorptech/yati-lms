@@ -270,7 +270,6 @@ export default function Badges() {
               reader nothing it is not already told in words. */}
           <div
             aria-hidden
-            data-mascot-clear
             className="pointer-events-none absolute inset-y-0 right-0 hidden w-[38%] max-w-[380px] [mask-image:linear-gradient(to_right,transparent,black_10%)] lg:block"
           >
             <RewardsHeroArt earned={unlockedCount} className="h-full w-full" />
@@ -335,7 +334,7 @@ export default function Badges() {
             <div className="col-span-2 flex flex-wrap items-center gap-2.5 sm:col-span-1 sm:col-start-2">
               <Link
                 to="/career/planner"
-                data-guide="earn"
+                data-mascot-target="earn"
                 className="fp-press group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
               >
                 <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
@@ -413,7 +412,7 @@ export default function Badges() {
                 says how close, not what the threshold is: "100 XP to unlock"
                 once told a student on 80 XP they needed 100 more. */}
             {nextBadge && (
-              <div data-guide="next-badge" className="fp-lift relative flex flex-col items-center overflow-hidden rounded-2xl border-2 border-dashed border-journey-200 bg-journey-50/40 p-5 text-center">
+              <div data-mascot-target="rewards" className="fp-lift relative flex flex-col items-center overflow-hidden rounded-2xl border-2 border-dashed border-journey-200 bg-journey-50/40 p-5 text-center">
                 <div
                   aria-hidden
                   className={`pointer-events-none absolute -top-12 -right-10 h-32 w-32 rounded-full blur-2xl ${nextTier.halo}`}
@@ -450,7 +449,7 @@ export default function Badges() {
                   </div>
                   <Link
                     to="/career/planner"
-                    data-guide="badge-task"
+                    data-mascot-target="rewards-task"
                     className="fp-press group mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-3 py-2 text-xs font-black text-white shadow-md shadow-journey-500/25 transition-all hover:from-journey-700 hover:to-indigo-700"
                   >
                     <Zap className="h-3.5 w-3.5 fill-amber-300 text-amber-300" />

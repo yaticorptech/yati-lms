@@ -294,9 +294,9 @@ function SkillsPanel({ skills }) {
         </ul>
       </div>
 
-      {/* The CareerPath mascot beside the skill bars — the official cut-out,
-          floating, with a couple of drifting sparks. Decorative: everything
-          it stands next to is stated in text. */}
+      {/* The skills art beside the skill bars, floating, with a couple of
+          drifting sparks. Decorative: everything it stands next to is stated
+          in text. */}
       <div
         aria-hidden
         className="relative hidden h-44 w-52 shrink-0 items-end justify-center self-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-50 via-surface to-pink-50 ring-1 ring-journey-100 ring-inset lg:flex"
@@ -409,7 +409,7 @@ export default function Profile() {
     <div className="fp-enter grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_16rem]">
       <div className="min-w-0 space-y-5">
         {/* ---- Identity, level, and what it is all pointed at ----------- */}
-        <Card data-guide="progress-summary" padded={false} className="overflow-hidden">
+        <Card data-mascot-target="progress-summary" padded={false} className="overflow-hidden">
           <div className="relative overflow-hidden bg-gradient-to-r from-journey-50 via-surface to-amber-50/70 p-5 sm:p-6">
             <div
               aria-hidden
@@ -475,6 +475,7 @@ export default function Profile() {
                   </div>
                   <Link
                     to="/career/planner"
+                    data-mascot-target="pending-task"
                     className="group mt-2.5 inline-flex items-center gap-1 text-xs font-black text-journey-700 hover:underline"
                   >
                     Earn 10 XP now

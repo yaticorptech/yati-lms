@@ -153,5 +153,8 @@ const redoSkippedTask = async (req, res) => {
 
 module.exports = {
   getProfileSummary,
-  redoSkippedTask
+  redoSkippedTask,
+  // todayController counts the streak the same way; without this export it
+  // imported undefined and /career/today answered 500 on every page load.
+  calculateStreak
 };

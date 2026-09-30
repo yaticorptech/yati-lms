@@ -21,6 +21,13 @@ export const useAuth = () => useContext(AuthContext);
  */
 const homeFor = (adminData) => (adminData?.role === 'orgadmin' ? '/organization' : '/');
 
+/** The page a signed-out administrator was sent away from, used once. */
+const afterLogin = (adminData) => {
+    let back = '';
+    try { back = sessionStorage.getItem('afterLogin') || ''; sessionStorage.removeItem('afterLogin'); } catch { /* storage unavailable */ }
+    return back && back.startsWith('/') && adminData?.role !== 'orgadmin' ? back : homeFor(adminData);
+};
+
 export const AuthProvider = ({ children }) => {
     // The stored session is available synchronously, so seed it at first render
     // rather than correcting it from an effect (which caused a null-admin flash).
@@ -58,7 +65,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('adminData', JSON.stringify(adminData));
 
         setAdmin(adminData);
-        navigate(homeFor(adminData));
+        navigate(afterLogin(adminData));
 
         return { success: true };
     } catch (err) {
@@ -76,7 +83,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('adminData', JSON.stringify(adminData));
 
         setAdmin(adminData);
-        navigate(homeFor(adminData));
+        navigate(afterLogin(adminData));
 
         return { success: true };
     } catch (err) {

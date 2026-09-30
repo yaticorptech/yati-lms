@@ -19,6 +19,7 @@ import MissionArt from '../../components/plan/MissionArt';
 import LessonProgress from '../../components/study/LessonProgress';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
+import { useMascot } from '../../mascot/useMascot';
 
 // What the server pays for a finished task, matching TASK_XP in
 // taskCompletionService. Verified end to end: completing one moves the profile
@@ -166,6 +167,7 @@ export default function Planner() {
     });
   const toast = useToast();
   const celebrate = useCelebrate();
+  const mascot = useMascot();
   // The date and the sign-off, live rather than frozen at module load.
   const { label: todayLabel, shortLabel: todayShortLabel, closer: dayCloser } = useDayClock();
 
@@ -318,15 +320,12 @@ export default function Planner() {
         : t
     );
     setTasks(after);
+    // Every finished task, lesson or tick: the mascot jumps and walks on to
+    // the next one. After the refresh above, so a quiz's own verdict comes first.
+    mascot.stepCompleted();
 
     const remaining = after.filter((t) => t.status !== 'Completed').length;
     const clearedTheDay = remaining === 0 && after.length > 0;
-
-    /* One line, and the mascot reacts: a cheer for the task, a leap for the
-       level. What those reactions look like is not this page's business —
-       see components/mascot/mascotStates.js. */
-    if (!clearedTheDay) window.dispatchEvent(new CustomEvent('mascot:task-complete'));
-    if (leveledUp) window.dispatchEvent(new CustomEvent('mascot:level-up'));
 
     // ⚡ The rarest thing that can happen here, so it takes precedence over
     // both the day-cleared and the single-task celebration. Crossing a level
@@ -376,17 +375,6 @@ export default function Planner() {
   // Today's plan is built on the first request of the day, so the initial load
   // can carry a Gemini call. Say so rather than showing a bare spinner.
   const showLoader = useMinimumLoading(loading);
-  // The whole day done: the mascot waves goodbye. Above the early return
-  // below, because hooks must run on every render.
-  const clearedNow = !loading && tasks.length > 0 && tasks.every((t) => t.status === 'Completed');
-  const clearedRef = useRef(false);
-  useEffect(() => {
-    if (clearedNow && !clearedRef.current) {
-      clearedRef.current = true;
-      window.dispatchEvent(new CustomEvent('mascot:section-complete'));
-    }
-    if (!clearedNow) clearedRef.current = false;
-  }, [clearedNow]);
 
   /* The ring starts empty and sweeps to the day's real figure. It is held at
      zero until two frames after the loader clears, because a transition whose
@@ -517,14 +505,9 @@ export default function Planner() {
             instead of as the banner itself. It says the same thing the ring on
             the left does — arrow still flying while there is work left, in the
             gold once the day is cleared — so it is `aria-hidden` and costs a
-            screen reader nothing.
-
-            `data-mascot-clear` keeps the companion off it: there is a task
-            list below for it to point at, and a character standing on the
-            bullseye is the one place it must not stop. */}
+            screen reader nothing. */}
         <div
           aria-hidden
-          data-mascot-clear
           className="pointer-events-none absolute inset-y-0 right-0 hidden w-[32%] max-w-[380px] [mask-image:linear-gradient(to_right,transparent,black_8%)] lg:block"
         >
           <MissionArt cleared={dayCleared} className="h-full w-full" />
@@ -780,12 +763,7 @@ export default function Planner() {
           cleared-day note at the foot of the list still marks the finish. */}
 
       <Card padded={false} className="animate-fade-in-up overflow-hidden ring-1 ring-journey-100/60">
-        {/* `data-mascot-clear` for the reason the header of the journey strip
-            carries it: this is a heading and a line of the day's focus, which
-            is words the student is reading, and the companion was landing
-            square on them. It has the task list below to stand beside. */}
         <div
-          data-mascot-clear
           className="flex flex-wrap items-center gap-3 border-b border-line-100 bg-gradient-to-r from-journey-50/70 via-surface to-surface px-4 py-4 sm:px-6"
         >
           <span className="fp-journey-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-md shadow-journey-500/30">
@@ -865,7 +843,7 @@ export default function Planner() {
         ) : (
           /* One flat list. Every task here belongs to today, so grouping them
              under Daily/Weekly/Monthly headings only added labels to read. */
-          <ul data-guide="today-tasks" className="divide-y divide-line-100">
+          <ul data-mascot-target="today-tasks" className="divide-y divide-line-100">
             {tasks.map((task, index) => {
               const done = task.status === 'Completed';
               const open = openTaskId === task._id;
@@ -1144,12 +1122,6 @@ export default function Planner() {
                             type="button"
                             onClick={() => setOpenTaskId(open ? null : task._id)}
                             aria-expanded={open}
-                            /* The companion walks to the next unfinished task.
-                               Keyed on nextTaskId rather than the `isNext` flag
-                               below, which goes false as soon as the row opens
-                               and would pull the anchor out mid-sentence. A row
-                               renders one of these two buttons, never both. */
-                            data-guide={task._id === nextTaskId ? 'task-start' : undefined}
                             className={`relative mt-0.5 inline-flex min-w-0 flex-1 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-[0.96] sm:flex-none sm:py-1.5 ${
                               open
                                 ? 'bg-brand-600 text-white shadow-sm'
@@ -1165,6 +1137,14 @@ export default function Planner() {
                           onClick={() => handleManualToggle(task)}
                           disabled={ticking === task._id}
                           aria-pressed={done}
+                          /* The guide walks to the next unfinished task's own
+                             action: this tick on a task with nothing to learn,
+                             the Start button below on one with a lesson — a
+                             row renders one or the other, never both. Keyed on
+                             nextTaskId rather than `isNext`, which goes false
+                             as soon as the row opens and would pull the
+                             target out from under the guide mid-sentence. */
+                          data-mascot-target={task._id === nextTaskId && !done ? 'start-task' : undefined}
                           aria-label={done ? `Mark "${task.title}" as not done` : `Mark "${task.title}" as done`}
                           className={`mt-0.5 inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full ring-1 transition-all active:scale-[0.94] disabled:opacity-50 ${
                             done
@@ -1188,12 +1168,11 @@ export default function Planner() {
                         type="button"
                         onClick={() => setOpenTaskId(open ? null : task._id)}
                         aria-expanded={open}
-                        /* The companion walks to the next unfinished task.
-                           Keyed on nextTaskId rather than the `isNext` flag
-                           below, which goes false as soon as the row opens
-                           and would pull the anchor out mid-sentence. A row
-                           renders one of these two buttons, never both. */
-                        data-guide={task._id === nextTaskId ? 'task-start' : undefined}
+                        /* The guide walks to the next unfinished task. Keyed
+                           on nextTaskId rather than the `isNext` flag below,
+                           which goes false as soon as the row opens and would
+                           pull the target out mid-sentence. */
+                        data-mascot-target={task._id === nextTaskId ? 'start-task' : undefined}
                         className={`relative mt-0.5 inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-[0.96] sm:w-auto sm:py-1.5 ${
                           open
                             ? 'bg-brand-600 text-white shadow-sm'
@@ -1247,14 +1226,7 @@ export default function Planner() {
             plan, and this is a door rather than a prompt. Offering it up top
             would turn a one-task day into a suggestion to collect more. */}
         {tasks.length > 0 && !needsRoadmap && !examEve && (
-          /* `data-mascot-clear` for the same reason as the bullseye above, and
-             a sharper one: the companion celebrates a finished task, and the
-             moment it has to celebrate is the moment this button unlocks — so
-             it landed square on the one thing the student is being invited to
-             press, and a mascot standing on a button is a button that cannot
-             be pressed. It has the whole task list to stand beside instead. */
           <div
-            data-mascot-clear
             className="relative flex flex-col items-center gap-2 overflow-hidden border-t border-journey-100 bg-gradient-to-r from-journey-50 via-pink-50/60 to-amber-50 px-6 py-6 text-center"
           >
             <span aria-hidden className="fp-drift-icon pointer-events-none absolute top-3 left-[12%] text-base" style={{ animationDelay: '-1.8s' }}>✨</span>
@@ -1268,6 +1240,8 @@ export default function Planner() {
               type="button"
               onClick={handleAddAnother}
               disabled={addingTask || !allDone}
+              data-mascot-locked={allDone ? undefined : "today's tasks"}
+              data-mascot-prerequisite="start-task"
               aria-busy={addingTask || undefined}
               aria-disabled={!allDone || undefined}
               title={allDone ? undefined : 'Finish today’s tasks first'}

@@ -327,6 +327,7 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
           <button
             type="button"
             onClick={onStart}
+            data-mascot-target="play"
             autoFocus
             className="fp-btn fp-btn-primary fp-beacon fp-sweep animate-fade-in-up mt-4 inline-flex min-h-12 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-8 text-base font-black text-white shadow-lg shadow-violet-600/30 sm:mt-5 sm:min-h-14 sm:w-auto sm:text-lg lg:min-h-16 lg:px-12"
             style={at(0.36)}

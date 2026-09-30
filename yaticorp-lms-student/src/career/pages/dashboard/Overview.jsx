@@ -131,6 +131,7 @@ export default function Overview() {
           </div>
           <Link
             to="/career/onboarding"
+            data-mascot-target="start-quest"
             className="fp-press group inline-flex shrink-0 items-center gap-2 rounded-2xl bg-white px-7 py-3.5 font-black text-journey-800 shadow-lg shadow-journey-900/30 transition-transform hover:scale-[1.03]"
           >
             🚀 Start onboarding
