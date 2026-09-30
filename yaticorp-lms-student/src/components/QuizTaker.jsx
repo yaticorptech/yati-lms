@@ -7,6 +7,8 @@ import { Check, X, AlertCircle, RotateCcw, Award, ArrowRight, ArrowLeft } from '
 import api from '../utils/api';
 
 import { useQuiz } from '../shared/hooks/useQuiz';
+import { useMascot } from '../mascot/useMascot';
+import { quizReaction } from '../mascot/reactions';
 
 const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
     const {
@@ -23,10 +25,14 @@ const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
         submitQuiz,
         retryQuiz
     } = useQuiz(api, lessonId, { onQuizPassed, isAlreadyCompleted });
+    const mascot = useMascot();
 
     const handleSubmit = async () => {
         try {
-            await submitQuiz();
+            // The server grades every answer at once, so the verdict on the
+            // whole attempt is the mascot's cue (see quizReaction).
+            const graded = await submitQuiz();
+            mascot.react(quizReaction(graded));
         } catch (err) {
             alert(err.message || 'Failed to submit quiz. Please try again.');
         }
@@ -83,6 +89,7 @@ const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
                             <div className="mt-4">
                                 <button
                                     onClick={retryQuiz}
+                                    data-mascot-cta
                                     className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors inline-flex items-center justify-center shadow-sm"
                                 >
                                     <RotateCcw size={16} className="mr-2" /> Retake Assessment
@@ -231,6 +238,7 @@ const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
                     <button
                         onClick={handleSubmit}
                         disabled={answers.some(a => a === null) || submitting}
+                        data-mascot-cta
                         className="flex items-center px-6 py-2.5 md:px-8 md:py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
                         {submitting ? 'Submitting...' : 'Submit Assessment'}

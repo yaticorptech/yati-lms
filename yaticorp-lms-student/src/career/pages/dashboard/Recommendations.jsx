@@ -335,11 +335,6 @@ export default function Recommendations() {
     visibleRoadmap.reduce((n, c) => n + c.count, 0) +
     visibleCurated.reduce((n, c) => n + c.count, 0);
 
-  // The hero's shortcuts: whichever categories hold the most right now.
-  const quickPicks = [...visibleRoadmap, ...visibleCurated]
-    .sort((x, y) => y.count - x.count)
-    .slice(0, 4);
-
   const hasRoadmapMaterial = roadmapDefs.some((d) => d.groups.some(([, items]) => items?.length > 0));
   const nothingAtAll = !data && !hasRoadmapMaterial;
 
@@ -388,7 +383,7 @@ export default function Recommendations() {
         </span>
 
         <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,23rem)]">
-          <div data-mascot-clear className="min-w-0">
+          <div className="min-w-0">
             <p className="inline-flex items-center gap-2 pr-16 text-[0.7rem] font-black tracking-[0.14em] text-amber-200 uppercase lg:pr-0">
               <Sparkles aria-hidden className="h-3.5 w-3.5" strokeWidth={2.5} />
               Ideas &amp; Resources
@@ -414,75 +409,48 @@ export default function Recommendations() {
 
             {!nothingAtAll && (
               <>
-                <div className="relative mt-4 max-w-xl">
-                  <Search className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-violet-500" />
+                {/* One white bar: the icon, the field, and beside it — never over
+                    it — what the box is searching through or how much it found.
+                    The field takes whatever width the pill leaves, so nothing
+                    is ever clipped; a placeholder that still will not fit ends
+                    in an ellipsis. */}
+                <div className="mt-4 flex max-w-xl items-center gap-3 rounded-2xl bg-white py-2 pr-2 pl-4 shadow-[0_12px_30px_-10px_rgb(30_27_75/0.55)] transition-shadow focus-within:ring-4 focus-within:ring-amber-300/60">
+                  <Search className="pointer-events-none h-5 w-5 shrink-0 text-violet-500" />
                   <input
                     type="search"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search every resource…"
                     aria-label="Search resources"
-                    className="min-h-11 w-full rounded-2xl border-0 bg-white py-2.5 pr-32 pl-12 text-sm text-ink-900 shadow-[0_12px_30px_-10px_rgb(30_27_75/0.55)] transition-shadow placeholder:text-ink-400 focus:ring-4 focus:ring-amber-300/60 focus:outline-none"
+                    className="fp-search-field min-h-7 min-w-0 flex-1 border-0 bg-transparent py-0.5 text-sm text-ink-900 text-ellipsis placeholder:text-ink-400 focus:ring-0 focus:outline-none"
                   />
-                  {/* What the box is searching through, or how much it found. */}
-                  <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2">
-                    {searching ? (
-                      <span className="flex items-center gap-1.5">
-                        <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700 tabular-nums">
-                          {matchCount} {matchCount === 1 ? 'match' : 'matches'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSearchQuery('')}
-                          aria-label="Clear search"
-                          className="pointer-events-auto rounded-md p-1 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                  {searching ? (
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700 tabular-nums">
+                        {matchCount} {matchCount === 1 ? 'match' : 'matches'}
                       </span>
-                    ) : (
-                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 tabular-nums">
-                        {matchCount} ideas
-                      </span>
-                    )}
-                  </span>
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Clear search"
+                        className="rounded-md p-1 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 tabular-nums">
+                      {matchCount} ideas
+                    </span>
+                  )}
                 </div>
 
-                {/* The biggest categories, straight into their dialog. One
-                    row: it scrolls sideways on a phone instead of wrapping a
-                    lone chip onto a line of its own. They follow the search,
-                    so while typing they show where the matches are. */}
-                {quickPicks.length > 0 && (
-                  <div className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-                    {quickPicks.map((c) => {
-                      const t = TONES[c.tone] || TONES.violet;
-                      const Icon = c.icon;
-                      return (
-                        <button
-                          key={c.title}
-                          type="button"
-                          onClick={() => setDialog({ title: c.title, categories: [c] })}
-                          aria-haspopup="dialog"
-                          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/12 py-1 pr-3.5 pl-1 text-xs font-bold whitespace-nowrap text-white ring-1 ring-white/25 backdrop-blur-sm transition-all ring-inset hover:-translate-y-0.5 hover:bg-white/20"
-                        >
-                          <span className={`flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br shadow-sm ${t.icon}`}>
-                            <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
-                          </span>
-                          {c.title}
-                          <span className="rounded-full bg-white/20 px-1.5 text-[0.68rem] tabular-nums">{c.count}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
               </>
             )}
           </div>
 
-          {/* The scene, glowing on the banner. `data-mascot-clear` keeps the
-              companion off it: a character standing on the bulb is the one
-              place it must not stop. */}
-          <div aria-hidden data-mascot-clear className="pointer-events-none relative hidden lg:block">
+          {/* The scene, glowing on the banner. */}
+          <div aria-hidden className="pointer-events-none relative hidden lg:block">
             <span className="absolute inset-[18%] rounded-full bg-amber-300/40 blur-3xl" />
             <div className="relative">
               <IdeasHeroArt />

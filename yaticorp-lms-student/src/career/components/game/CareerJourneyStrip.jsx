@@ -72,13 +72,8 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
   };
 
   return (
-    <section data-guide="journey" className="overflow-hidden rounded-3xl border border-line-200 bg-surface p-5 shadow-card sm:p-6">
-      {/* data-mascot-clear marks the row, not the card. The companion
-          guiding the hero above can reach down into the top of this one on
-          a phone; marking the whole section would hand it the card's
-          padding as well, and a guide that treats empty margin as content
-          ends up making worse choices elsewhere to avoid it. */}
-      <div data-mascot-clear className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <section data-mascot-target="journey" className="overflow-hidden rounded-3xl border border-line-200 bg-surface p-5 shadow-card sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-base font-black text-ink-900">
             <span aria-hidden>🗺️</span>
@@ -93,6 +88,7 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
         </div>
         <Link
           to="/career/roadmap"
+          data-mascot-target="view-roadmap"
           className="fp-btn fp-btn-soft group inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-journey-50 px-3 py-1.5 text-xs font-black text-journey-700"
         >
           View roadmap

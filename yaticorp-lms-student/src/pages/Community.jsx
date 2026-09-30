@@ -203,9 +203,8 @@ const handleEditPost = (post) => {
                         </div>
                     </div>
 
-                    {/* The mascot on its own lit stage: a spotlight behind it,
-                        a platform under it, a slow ring going out. Wide enough
-                        that a raised arm never meets the card's edge. */}
+                    {/* The art on its own lit stage: a spotlight behind it,
+                        a platform under it, a slow ring going out. */}
                     <div aria-hidden className="relative hidden h-52 w-64 items-end justify-center pb-3 md:flex">
                         <span className="cm-glow absolute bottom-6 left-1/2 h-40 w-40 rounded-full bg-white/35 blur-2xl" />
                         <span className="cm-ring absolute bottom-3 left-1/2 h-10 w-44 rounded-[50%] border-2 border-white/50" />

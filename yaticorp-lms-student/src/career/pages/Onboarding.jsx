@@ -594,6 +594,7 @@ export default function Onboarding() {
                         key={career}
                         type="button"
                         onClick={() => handleCareerSelect(career)}
+                        data-mascot-card
                         className="fp-lift fp-press flex min-h-14 items-center gap-3 rounded-2xl border border-line-200 bg-surface p-3.5 text-left text-sm font-bold text-ink-800 transition-colors hover:border-journey-300 hover:bg-journey-50"
                       >
                         <span
@@ -694,6 +695,7 @@ export default function Onboarding() {
           {step < 5 ? (
             <Button
               onClick={nextStep}
+              data-mascot-target="enroll"
               className="shrink-0 bg-gradient-to-r from-journey-600 to-indigo-600 hover:from-journey-700 hover:to-indigo-700"
             >
               Next
@@ -704,6 +706,7 @@ export default function Onboarding() {
               variant="accent"
               icon={Sparkles}
               onClick={handleSubmit}
+              data-mascot-target="enroll"
               loading={isGenerating}
               loadingText="Generating roadmap (about 10s)…"
               className="min-w-0 bg-gradient-to-r from-journey-600 via-fuchsia-600 to-indigo-600"

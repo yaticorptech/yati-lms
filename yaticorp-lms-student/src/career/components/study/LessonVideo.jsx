@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, MonitorPlay } from 'lucide-react';
+import { useMascot } from '../../mascot/useMascot';
 
 /**
  * The lesson video, played through the YouTube IFrame Player API rather than a
@@ -52,6 +53,14 @@ export default function LessonVideo({ video, watched, onWatched, onProgress }) {
   const furthestRef = useRef(0);
 
   const [percent, setPercent] = useState(watched ? 100 : 0);
+  // The mascot watches along. Read through a ref: the player is built once
+  // per video and must not be rebuilt for the mascot's sake.
+  const frameRef = useRef(null);
+  const mascot = useMascot();
+  const mascotRef = useRef(mascot);
+  useEffect(() => {
+    mascotRef.current = mascot;
+  }, [mascot]);
 
   useEffect(() => {
     reportedRef.current = !!watched;
@@ -59,6 +68,8 @@ export default function LessonVideo({ video, watched, onWatched, onProgress }) {
 
   useEffect(() => {
     let cancelled = false;
+    // The frame the mascot watches, read once: the ref is a node React owns.
+    const frame = frameRef.current;
     const stopPolling = () => {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -111,6 +122,10 @@ export default function LessonVideo({ video, watched, onWatched, onProgress }) {
 
             // Reaching the end counts regardless of the sampled fraction —
             // seeking past the last stretch still means they finished it.
+            if (event.data === YT.PlayerState.PLAYING) mascotRef.current.video('playing', frame);
+            else if (event.data === YT.PlayerState.PAUSED) mascotRef.current.video('paused', frame);
+            else if (event.data === YT.PlayerState.ENDED) mascotRef.current.video('ended', frame);
+
             if (event.data === YT.PlayerState.ENDED && !reportedRef.current) {
               reportedRef.current = true;
               setPercent(100);
@@ -124,6 +139,7 @@ export default function LessonVideo({ video, watched, onWatched, onProgress }) {
     return () => {
       cancelled = true;
       stopPolling();
+      mascotRef.current.video('gone', frame);
       playerRef.current?.destroy?.();
       playerRef.current = null;
     };
@@ -135,7 +151,7 @@ export default function LessonVideo({ video, watched, onWatched, onProgress }) {
 
   return (
     <div>
-      <div className="overflow-hidden rounded-xl border border-line-200/80 bg-black">
+      <div ref={frameRef} data-mascot-context="video" className="overflow-hidden rounded-xl border border-line-200/80 bg-black">
         <div className="aspect-video">
           {/* The API replaces this node with its own iframe. */}
           <div ref={hostRef} className="h-full w-full" />

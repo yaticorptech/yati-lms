@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Rocket, Star } from 'lucide-react';
-import MascotRenderer from '../career/components/mascot/MascotRenderer';
 import './yatiLoader.css';
 
 /**
@@ -24,8 +23,40 @@ const LINES = [
   'One task at a time is how it all gets done.'
 ];
 
-// The official cut-out for each mood the orbit is asked for.
+// The official cut-out for each mood the orbit is asked for: unaltered
+// artwork from the mascot sheets, never redrawn. Width : height of each, so
+// the pose is shown at its true shape. If a file is missing the main pose
+// stands in; if that is missing too, nothing is drawn rather than a stand-in.
 const POSE_FOR = { thinking: 'thinking', happy: 'excited', celebrating: 'confetti', pointing: 'point' };
+const POSE_SRC = {
+  thinking: '/mascot/thinking.png',
+  excited: '/mascot/excited.png',
+  confetti: '/mascot/confetti.png',
+  point: '/mascot/point.png'
+};
+const POSE_RATIO = { thinking: 158 / 190, excited: 164 / 194, confetti: 333 / 330, point: 470 / 590 };
+
+/** The mascot on its own: the whole picture floats, the artwork is untouched. */
+function OrbitMascot({ pose, height }) {
+  const [failed, setFailed] = useState({});
+  const key = failed[pose] ? 'point' : pose;
+  if (failed.point && key === 'point') return null;
+  const width = Math.round(height * POSE_RATIO[key]);
+  return (
+    <span className="block" style={{ width, height }} aria-hidden>
+      <span className="mc-float block h-full w-full">
+        <img
+          src={POSE_SRC[key]}
+          alt=""
+          draggable={false}
+          onError={() => setFailed((f) => ({ ...f, [key]: true }))}
+          className="h-full w-full object-contain object-bottom select-none"
+          style={{ filter: 'drop-shadow(0 12px 16px rgba(28, 95, 214, 0.28))' }}
+        />
+      </span>
+    </span>
+  );
+}
 
 /** The mascot in its orbit, on its own so other screens can borrow it. */
 export function YatiOrbit({ size = 168, mood = 'thinking' }) {
@@ -78,7 +109,7 @@ export function YatiOrbit({ size = 168, mood = 'thinking' }) {
 
       {/* the mascot */}
       <span className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
-        <MascotRenderer pose={POSE_FOR[mood] || 'thinking'} height={mascot} motion="mc-float" />
+        <OrbitMascot pose={POSE_FOR[mood] || 'thinking'} height={mascot} />
       </span>
     </div>
   );
@@ -90,17 +121,14 @@ export default function YatiLoader({ label = 'Loading…', size = 168, fullScree
     const t = setInterval(() => setTick((n) => n + 1), 2400);
     return () => clearInterval(t);
   }, []);
-  // The CareerPath mascot keeps out of the way while a page is loading.
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent('mascot:loading', { detail: true }));
-    return () => window.dispatchEvent(new CustomEvent('mascot:loading', { detail: false }));
-  }, []);
   const line = lines[tick % lines.length];
 
   return (
     <div
       role="status"
       aria-live="polite"
+      // The Career Path guide steps off stage while this is up: one mascot at a time.
+      data-yati-loader=""
       className={
         fullScreen
           ? 'flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-violet-50 via-white to-pink-50 p-6'

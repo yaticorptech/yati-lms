@@ -66,6 +66,38 @@ export const getCourseServices = (apiClient) => ({
     },
 
     /**
+     * Where the student is in this course's videos, as the server has it:
+     * `{ activeLessonId, activeLessonAt, positions: { [lessonId]: { seconds, at } } }`.
+     */
+    getPlayback: async (courseId) => {
+        const res = await apiClient.get(`/user/courses/${courseId}/playback`);
+        return res.data;
+    },
+
+    /**
+     * Save a video position (`{ lessonId, seconds, at }`) and/or the open
+     * lesson (`{ activeLessonId, at }`). With `keepalive` the request is made
+     * with fetch so it outlives the page being closed — the one moment the
+     * position most needs saving, and one axios cannot cover.
+     */
+    savePlayback: async (courseId, payload, { keepalive = false } = {}) => {
+        if (!keepalive) {
+            const res = await apiClient.put(`/user/courses/${courseId}/playback`, payload);
+            return res.data;
+        }
+        const base = String(apiClient.defaults?.baseURL || '').replace(/\/$/, '');
+        let token = null;
+        try { token = localStorage.getItem('studentToken'); } catch { /* no storage, no token */ }
+        await fetch(`${base}/user/courses/${courseId}/playback`, {
+            method: 'PUT',
+            keepalive: true,
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify(payload)
+        });
+        return null;
+    },
+
+    /**
      * Generate course certificate
      */
     generateCertificate: async (courseId) => {

@@ -240,6 +240,22 @@
 @keyframes mascot-tag { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .mascot-eyes, .mascot-arm, .mascot-enter, .mascot-tag { animation: none; } }
 
+/* ── Illustration motion ──
+   Used by the hero and empty-state art (Community, Enrolled Courses,
+   Scholarships, the quiz verdict, Interview Ready). Each moves the WHOLE
+   image; both stop under prefers-reduced-motion. */
+.mc-float { animation: mc-float 3.2s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes mc-float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50%      { transform: translateY(-8px) rotate(1deg); }
+}
+.mc-pop { animation: mc-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes mc-pop {
+  from { opacity: 0; transform: scale(0.5) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) { .mc-float, .mc-pop { animation: none !important; } }
+
 /* ── Community hero ── */
 .cm-drift { animation: cm-drift 5.5s ease-in-out infinite; }
 .cm-glow { animation: cm-glow 3.2s ease-in-out infinite; }

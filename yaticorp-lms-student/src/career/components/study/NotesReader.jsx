@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookMarked, Check, Lightbulb, Loader2 } from 'lucide-react';
+import { useMascotRegion } from '../../mascot/useMascot';
 
 // How long the end of the notes must stay on screen before it counts as read.
 // Without a dwell, scrolling straight past would mark them read in one frame.
@@ -19,6 +20,8 @@ export default function NotesReader({ notes, onRead, read = false }) {
   // nothing happening at all — the student scrolls to the bottom, sees no
   // acknowledgement, and has no idea the step is being credited.
   const [atEnd, setAtEnd] = useState(false);
+  // While the notes are on screen the mascot reads along.
+  const region = useMascotRegion('reading');
 
   useEffect(() => {
     if (!onRead || read) return;
@@ -53,7 +56,7 @@ export default function NotesReader({ notes, onRead, read = false }) {
   if (!notes?.summary && !notes?.sections?.length) return null;
 
   return (
-    <div className="space-y-6">
+    <div ref={region} data-mascot-context="reading" className="space-y-6">
       {notes.summary && (
         <div className="animate-fade-in-up relative overflow-hidden rounded-2xl bg-gradient-to-r from-journey-50 via-surface to-pink-50 p-5 ring-1 ring-journey-100 ring-inset">
           <div

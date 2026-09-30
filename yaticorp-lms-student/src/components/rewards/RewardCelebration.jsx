@@ -105,7 +105,7 @@ export const CelebrationOverlay = ({ event, onClose, remaining = 0 }) => {
 };
 
 export const RewardToast = ({ text, onClose }) => (
-    <div className="fixed bottom-24 right-4 z-[200] animate-fade-in sm:bottom-6 sm:right-6" role="status">
+    <div className="mascot-clear fixed bottom-24 right-4 z-[200] animate-fade-in sm:bottom-6 sm:right-6" role="status">
         <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-white px-4 py-3 shadow-xl">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><Sparkles size={18} /></span>
             <p className="text-sm font-bold text-slate-800">{text}</p>
