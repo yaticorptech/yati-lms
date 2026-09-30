@@ -311,6 +311,7 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
           type="button"
           onClick={onShareBadge}
           disabled={badgeBusy}
+          data-mascot-target="claim-badge"
           className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2 text-sm font-semibold text-amber-800 transition-all hover:bg-amber-100 active:scale-[0.97] disabled:opacity-60"
         >
           <Award className="h-3.5 w-3.5" />

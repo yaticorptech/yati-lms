@@ -349,7 +349,7 @@ export default function SettingsPage() {
         {/* ---------------------------------------------------------------
             Education
         --------------------------------------------------------------- */}
-        <Card data-guide="settings-panel" className="animate-fade-in-up">
+        <Card data-mascot-target="settings-panel" className="animate-fade-in-up">
           <CardHeader
             icon={GraduationCap}
             title="Where you are studying"
@@ -637,7 +637,6 @@ export default function SettingsPage() {
       --------------------------------------------------------------- */}
       {editing && isDirty && (
         <div
-          data-mascot-avoid
           className="animate-fade-in-up fixed inset-x-0 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-40 border-t border-line-200 bg-surface/95 px-4 py-3 shadow-[0_-4px_16px_-6px_rgb(16_24_40/0.12)] backdrop-blur sidebar:bottom-0 sidebar:left-64">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold text-ink-700">

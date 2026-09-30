@@ -4,10 +4,9 @@ Drop your own artwork here. PNG, WebP and JPEG all work — the page tries each
 in turn, so whichever your design tool exports needs no renaming. A transparent
 background looks best.
 
-Each file is optional. A slot falls back to a shared `student` image, and then
-to the LMS mascot, so a missing file never shows as a broken image. Two slots
-deliberately skip the mascot and stay empty until your own artwork arrives:
-the report's banner (`cheer`) and the next-steps card (`steps`).
+Each file is optional. A slot falls back to a shared `student` image, and when
+that is missing too it stays empty until your own artwork arrives, so a missing
+file never shows as a broken image.
 
 | File | Where it appears |
 |---|---|

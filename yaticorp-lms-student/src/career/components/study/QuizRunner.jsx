@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, X, Trophy, RotateCcw, Zap, HelpCircle, Sparkles } from 'lucide-react';
 import Button from '../ui/Button';
 import { QuizMarkArt, QuizVerdictArt } from '../ui/PanelArt';
+import { useMascot, useMascotRegion } from '../../mascot/useMascot';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -95,6 +96,9 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
   // Answers are always stored and submitted as ORIGINAL positions — the
   // server grades by those and knows nothing about the shuffle.
   const [order, setOrder] = useState(() => (material?.quiz || []).map((q) => identity(q.options.length)));
+  const mascot = useMascot();
+  // While the quiz is on screen the mascot thinks it through alongside — until it is graded.
+  const region = useMascotRegion(result ? null : 'quiz');
 
   // Switching skills must not carry the previous quiz's answers over.
   //
@@ -110,18 +114,6 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
     setIndex(0);
     setOrder((material?.quiz || []).map((q) => identity(q.options.length)));
   }
-
-  // Tell the mascot: a quiz has begun (it wishes luck, then thinks beside
-  // it), and how it ended (it dances or droops-then-encourages).
-  useEffect(() => {
-    if (!questions.length) return undefined;
-    window.dispatchEvent(new CustomEvent('mascot:quiz-start'));
-    return () => window.dispatchEvent(new CustomEvent('mascot:quiz-end'));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [material?._id]);
-  useEffect(() => {
-    if (result) window.dispatchEvent(new CustomEvent('mascot:quiz-result', { detail: { passed: result.passed } }));
-  }, [result]);
 
   if (!questions.length) return null;
 
@@ -145,6 +137,8 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
       setResult(data);
       setDir('left');
       setIndex(0);
+      // The one moment the student learns how every answer went.
+      mascot.quizGraded(data);
     }
   };
 
@@ -162,7 +156,7 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
   const scorePct = result ? Math.round((result.score / result.total) * 100) : 0;
 
   return (
-    <div data-guide="quiz" className="relative space-y-4 overflow-hidden rounded-3xl bg-gradient-to-br from-journey-50 via-surface to-pink-50 p-4 ring-1 ring-journey-100 ring-inset sm:p-5">
+    <div ref={region} data-mascot-target="quiz" className="relative space-y-4 overflow-hidden rounded-3xl bg-gradient-to-br from-journey-50 via-surface to-pink-50 p-4 ring-1 ring-journey-100 ring-inset sm:p-5">
       <div
         aria-hidden
         className="fp-float pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full bg-journey-200/40 blur-3xl"
@@ -264,7 +258,7 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
                   <Zap className="h-4 w-4" />+{result.xpAwarded} XP
                 </span>
               )}
-              <Button variant="secondary" size="sm" icon={RotateCcw} onClick={handleRetry}>
+              <Button variant="secondary" size="sm" icon={RotateCcw} onClick={handleRetry} data-mascot-target="retry">
                 Try again
               </Button>
             </div>

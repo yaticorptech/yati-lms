@@ -9,6 +9,7 @@ import NotesReader from './NotesReader';
 import QuizRunner from './QuizRunner';
 import LessonVideo from './LessonVideo';
 import LessonSteps from './LessonSteps';
+import { useMascot } from '../../mascot/useMascot';
 
 /**
  * The lesson for ONE planner task: watch the video, read the notes written about
@@ -19,16 +20,16 @@ import LessonSteps from './LessonSteps';
  * fact that they belong together.
  */
 export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
-  // A task has been opened: the mascot gives a small confident gesture.
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent('mascot:task-start'));
-  }, []);
-
   const [study, setStudy] = useState(null);
   const [loading, setLoading] = useState(true);
   // Which mode is building, or null. Not a boolean: with two buttons, a shared
   // flag would put the spinner on both.
   const [generating, setGenerating] = useState(null);
+  // Opening a task ends the mascot's pointing at it.
+  const mascot = useMascot();
+  useEffect(() => {
+    mascot.taskStarted();
+  }, [mascot]);
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
 

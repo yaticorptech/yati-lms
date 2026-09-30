@@ -102,7 +102,7 @@ const roadTone = (state, palette) =>
       ? { road: 'stroke-journey-200', line: 'stroke-journey-500', flow: true }
       : { road: palette.road, line: palette.dash, flow: false };
 
-function Platform({ palette, state, index, onClick, label, sway }) {
+function Platform({ palette, state, index, onClick, label, sway, lockedBy }) {
   const isDone = state === 'done';
   const isCurrent = state === 'current';
   const locked = state === 'upcoming';
@@ -113,7 +113,9 @@ function Platform({ palette, state, index, onClick, label, sway }) {
       type="button"
       onClick={onClick}
       aria-label={label}
-      data-guide={isCurrent ? 'milestone' : undefined}
+      data-mascot-target={isCurrent ? 'current-roadmap-position' : undefined}
+      data-mascot-locked={locked ? lockedBy : undefined}
+      data-mascot-prerequisite="current-roadmap-position"
       className={`fp-rm-platform group relative h-[116px] w-[120px] shrink-0 ${locked ? 'saturate-[.75]' : ''}`}
       style={{ transform: `translateX(${sway}px)` }}
     >
@@ -183,7 +185,7 @@ function Platform({ palette, state, index, onClick, label, sway }) {
   );
 }
 
-function PhaseCard({ stage, index, state, palette, onClick, side }) {
+function PhaseCard({ stage, index, state, palette, onClick, side, lockedBy }) {
   const title = phaseTitle(stage);
   const choices = parseChoices(title);
   const isDone = state === 'done';
@@ -203,12 +205,10 @@ function PhaseCard({ stage, index, state, palette, onClick, side }) {
     <button
       type="button"
       onClick={onClick}
-      /* Every phase card is content the companion must not stand on. It is
-         sent to the platform beside the current one, and on a phone the
-         card is the only thing immediately to that platform's right — so
-         without this it lands squarely on the phase it is announcing. */
-      data-mascot-clear
       aria-label={`Open phase ${index + 1}: ${choices ? choices.lead : title}`}
+      data-mascot-look
+      data-mascot-locked={locked ? lockedBy : undefined}
+      data-mascot-prerequisite="current-roadmap-position"
       className={`group relative w-full max-w-md overflow-hidden rounded-2xl border p-3.5 text-left shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover md:p-5 ${shell} ${
         isCurrent ? 'fp-rm-now' : ''
       } ${side === 'left' ? 'md:ml-auto' : 'md:mr-auto'}`}
@@ -437,6 +437,9 @@ export default function JourneyMap({ phases, states, startedFrom, goal, percent,
         const nodeSway = i % 2 === 0 ? -sway : sway;
         const cardSide = i % 2 === 0 ? 'right' : 'left';
         const title = phaseTitle(stage);
+        // What the guide tells someone hovering a locked phase to finish first.
+        const before = i > 0 ? phaseTitle(phases[i - 1]) : null;
+        const lockedBy = before ? parseChoices(before)?.lead || before : undefined;
         const card = (
           <PhaseCard
             stage={stage}
@@ -444,6 +447,7 @@ export default function JourneyMap({ phases, states, startedFrom, goal, percent,
             state={state}
             palette={palette}
             side={cardSide}
+            lockedBy={lockedBy}
             onClick={() => onOpen(i)}
           />
         );
@@ -468,6 +472,7 @@ export default function JourneyMap({ phases, states, startedFrom, goal, percent,
                 index={i}
                 sway={nodeSway}
                 label={`Open phase ${i + 1}: ${title}`}
+                lockedBy={lockedBy}
                 onClick={() => onOpen(i)}
               />
             </div>

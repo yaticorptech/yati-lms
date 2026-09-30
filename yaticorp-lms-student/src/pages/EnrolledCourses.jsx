@@ -64,7 +64,7 @@ const EnrolledCourses = () => {
     };
 
     useAutoRefresh(fetchMyCourses, 30000);
-    // The same loader as Career Path: the mascot, a line, a bar — held for a
+    // The same loader as Career Path: the orbit, a line, a bar — held for a
     // moment so it never flickers.
     const showLoader = useMinimumLoading(loading);
 
@@ -151,7 +151,7 @@ const EnrolledCourses = () => {
                             </div>
                         </div>
 
-                        {/* The mascot on its lit stage. Decorative. */}
+                        {/* The art on its lit stage. Decorative. */}
                         <div aria-hidden className="relative hidden h-52 w-64 items-end justify-center pb-3 md:flex">
                             <span className="cm-glow absolute bottom-6 left-1/2 h-40 w-40 rounded-full bg-white/35 blur-2xl" />
                             <span className="cm-ring absolute bottom-3 left-1/2 h-10 w-44 rounded-[50%] border-2 border-white/50" />

@@ -147,6 +147,7 @@ export default function TimetableCard({ slots = [], onChange, embedded = false }
   const current = today.find((s) => s.start <= now && now < s.end) || null;
   const next = today.find((s) => s.start > now) || null;
   const isNow = (row, day) => day === todayDay && row.start <= now && now < row.end;
+  const isNext = (row, day) => day === todayDay && Boolean(next) && row.start === next.start;
 
   const startEditing = () => {
     if (slots.length > 0) {
@@ -381,6 +382,7 @@ export default function TimetableCard({ slots = [], onChange, embedded = false }
                   const value = cells[cellKey(row.id, d.day)] || '';
                   const isToday = d.day === todayDay;
                   const live = !editing && value && isNow(row, d.day);
+                  const upcoming = !editing && value && isNext(row, d.day);
                   // Row by row, left to right, 30ms apart: the week draws
                   // itself in the order it is read.
                   const delay = `${i * days.length * 30 + c * 30 + 80}ms`;
@@ -404,6 +406,7 @@ export default function TimetableCard({ slots = [], onChange, embedded = false }
                       ) : value ? (
                         <span
                           title={live ? `${value} — happening now` : value}
+                          data-mascot-target={live ? 'current-class' : upcoming ? 'next-class' : undefined}
                           className={`relative flex min-h-[3rem] items-center justify-center rounded-xl px-1.5 py-2 text-center text-xs leading-snug font-bold ring-1 ring-inset transition-transform ${colourOf(
                             value
                           )} ${live ? 'fp-breathe scale-[1.04] shadow-md ring-2 ring-journey-500' : 'hover:-translate-y-0.5 hover:shadow-sm'}`}

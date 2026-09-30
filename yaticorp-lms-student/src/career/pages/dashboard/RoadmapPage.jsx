@@ -15,6 +15,7 @@ import { readAiBudgetError } from '../../utils/aiBudget';
 import GeneratingRoadmap from '../../components/journey/GeneratingRoadmap';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
+import { useMascot } from '../../mascot/useMascot';
 
 export default function RoadmapPage() {
   const [roadmap, setRoadmap] = useState(null);
@@ -32,6 +33,7 @@ export default function RoadmapPage() {
   const [error, setError] = useState(null);
   const toast = useToast();
   const celebrate = useCelebrate();
+  const mascot = useMascot();
 
   useEffect(() => {
     const fetchRoadmap = async () => {
@@ -138,6 +140,11 @@ export default function RoadmapPage() {
               : 'That phase is behind you. The next one is open.',
           progress: total ? `${done} / ${total} phases` : undefined
         });
+        // A finished phase earns its milestone badge: once the card above is
+        // dismissed, the mascot takes the student to the button that claims it.
+        // The last phase finishes the whole path, which is its own moment.
+        if (done === total && total > 0) mascot.pathCompleted();
+        else mascot.phaseCompleted();
       }
     } catch {
       setCompletedPhases(previous);

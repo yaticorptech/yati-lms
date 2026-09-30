@@ -113,7 +113,7 @@ export default function JourneyHero({ task, completedToday = 0, totalToday = 0 }
           Build Your Future
         </span>
 
-        <h1 data-mascot-clear className="mt-3 text-[1.6rem] leading-[1.14] font-black tracking-tight text-slate-900 sm:text-[1.9rem] lg:text-[2.1rem] xl:text-[2.4rem]">
+        <h1 className="mt-3 text-[1.6rem] leading-[1.14] font-black tracking-tight text-slate-900 sm:text-[1.9rem] lg:text-[2.1rem] xl:text-[2.4rem]">
           <span className="ch-in block" style={{ animationDelay: '0.08s' }}>
             Your Career Journey
           </span>
@@ -136,11 +136,7 @@ export default function JourneyHero({ task, completedToday = 0, totalToday = 0 }
           </span>
         </h1>
 
-        {/* Marked so the companion will not stand on it or float its bubble
-            through it on the way to the quest button. The heading below
-            carries the same mark. Nothing can infer "these are words being
-            read" from the DOM, so the hero says so. */}
-        <p data-mascot-clear className="ch-in mt-2.5 max-w-md text-[0.86rem] leading-[1.45] text-slate-600 lg:mt-4 lg:text-[0.95rem] lg:leading-relaxed" style={{ animationDelay: '0.28s' }}>
+        <p className="ch-in mt-2.5 max-w-md text-[0.86rem] leading-[1.45] text-slate-600 lg:mt-4 lg:text-[0.95rem] lg:leading-relaxed" style={{ animationDelay: '0.28s' }}>
           Explore. Learn. Grow. Turn your goals into achievements with a step-by-step career
           path designed just for you.
         </p>

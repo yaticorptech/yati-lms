@@ -129,7 +129,7 @@ export function RecommendationCard({ report, onPractice, onRetake, onDetail }) {
                 <p className="relative z-10 pl-8 text-[15px] font-semibold leading-relaxed text-slate-800 @[38rem]:max-w-[68%]">&ldquo;{highlight(text, terms)}&rdquo;</p>
                 <span className="pointer-events-none absolute -bottom-1 right-0 hidden items-end @[38rem]:flex">
                     <span className="mb-16 mr-1 rounded-2xl rounded-br-sm bg-amber-100 px-2.5 py-1 text-[11px] font-bold italic text-amber-800 shadow-sm">You&apos;ve got this!</span>
-                    <Illustration name="idea" pose="point" height={112} />
+                    <Illustration name="idea" height={112} />
                 </span>
             </div>
 

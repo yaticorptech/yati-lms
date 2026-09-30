@@ -11,11 +11,9 @@ import { levelProgress } from '../career/utils/progress';
  * sidebar's own palette instead of being a flat PNG that stops matching the
  * moment the navy behind it changes.
  *
- * The ring replaced a second copy of the CareerPath mascot. That mascot is a
- * single roaming character owned by MascotStage, and a still one pinned up
- * here read as a duplicate of it — two of the same face on screen at once,
- * one of them unable to do any of the things the real one does. This says
- * what the card is actually for instead.
+ * The ring replaced a still copy of the CareerPath mascot, which read as
+ * decoration pinned to the sidebar. This says what the card is actually for
+ * instead.
  *
  * Geometry note: the circle is rotated a quarter turn so the arc starts at
  * twelve o'clock rather than three, and the dash offset counts DOWN from the

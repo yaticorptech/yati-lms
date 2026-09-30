@@ -111,7 +111,7 @@ export default function GameShell({
   const bankedStars = progress ? starsForGame(progress.gameId) : 0;
 
   return (
-    <section data-guide="game" className="overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card">
+    <section data-mascot-target="game" className="overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card">
       {/* A sky band in every game, not the game's own colour: the level
           briefing below carries the colour, and the band's job is to hold the
           objective legibly and the target art beside it. */}
