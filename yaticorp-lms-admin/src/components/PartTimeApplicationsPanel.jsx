@@ -105,12 +105,8 @@ const Decide = ({ row, onDone }) => {
 };
 
 /**
- * Removing an application that never left the building.
- *
- * Offered only where nothing has gone to a parent — no message sent, no answer
- * given. Anything further on is a record of something that happened to someone
- * else, and is not an operator's to erase; the route refuses those as well, so
- * this button appearing is never what decides it.
+ * Removing an application, in any state. It asks first, and when a parent was
+ * already emailed it says what that undoes.
  */
 const Delete = ({ row, onDone }) => {
     const [asking, setAsking] = useState(false);
@@ -143,7 +139,9 @@ const Delete = ({ row, onDone }) => {
                 Delete {row.student?.name || 'this student'}&apos;s application for {row.job?.title || 'this job'}?
             </p>
             <p className="mt-1 text-xs text-rose-800/80">
-                Nothing was sent to a parent, so nobody else has seen it. The student can apply again.
+                {row.parentContacted
+                    ? `${row.guardian?.name || 'The parent'} was already emailed about it; the link in that email will stop working. The student can apply again.`
+                    : 'Nothing was sent to a parent, so nobody else has seen it. The student can apply again.'}
             </p>
             {error && <p className="mt-2 text-xs font-semibold text-rose-700">{error}</p>}
             <div className="mt-2.5 flex flex-wrap gap-2">
@@ -162,7 +160,7 @@ const Delete = ({ row, onDone }) => {
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 
-export default function PartTimeApplicationsPanel() {
+export default function PartTimeApplicationsPanel({ focusId = '' }) {
     const [filter, setFilter] = useState('');
     const [nonce, setNonce] = useState(0);          // bumped to refetch
     // The answer carries the question it belongs to, so a slow earlier request
@@ -179,6 +177,18 @@ export default function PartTimeApplicationsPanel() {
     }, [key, filter]);
 
     const loading = result.key !== key;
+
+    // Opened from a parent's approval link: bring that application into view
+    // once the list is in, the first time only.
+    const [shownFocus, setShownFocus] = useState('');
+    useEffect(() => {
+        if (!focusId || shownFocus === focusId || result.key !== key) return;
+        const el = document.getElementById(`application-${focusId}`);
+        if (!el) return;
+        el.scrollIntoView({ block: 'center' });
+        const t = setTimeout(() => setShownFocus(focusId), 0);
+        return () => clearTimeout(t);
+    }, [focusId, shownFocus, result, key]);
     const state = { loading, rows: loading ? [] : result.rows, counts: loading ? {} : result.counts, error: loading ? '' : result.error };
     const load = () => setNonce((n) => n + 1);
 
@@ -203,8 +213,8 @@ export default function PartTimeApplicationsPanel() {
                 <div className="min-w-0 flex-1 basis-56">
                     <h2 className="text-lg font-bold text-slate-800">Part-time applications</h2>
                     <p className="mt-0.5 text-sm text-slate-500">
-                        Students under 15 need two answers: their parent&apos;s, given through their own
-                        link, and then yours. A row gets buttons only once the parent has agreed.
+                        Students under 18 need two answers: their parent&apos;s, given through their own
+                        link, and then yours. A row gets Approve and Reject once the parent has agreed.
                     </p>
                 </div>
                 <button type="button" onClick={load}
@@ -237,14 +247,15 @@ export default function PartTimeApplicationsPanel() {
 
             <ul className="mt-4 space-y-3">
                 {state.rows.map((row) => (
-                    <li key={row.id} className="rounded-xl border border-slate-200 p-4">
+                    <li key={row.id} id={`application-${row.id}`} data-focused={row.id === focusId || undefined}
+                        className={`rounded-xl border p-4 ${row.id === focusId ? 'border-indigo-400 ring-2 ring-indigo-300' : 'border-slate-200'}`}>
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 flex-1 basis-52">
                                 <p className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-800">
                                     {row.student.name}
                                     {row.underAge && (
                                         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-black text-amber-800">
-                                            Under 15{row.student.age != null ? ` · age ${row.student.age}` : ''}
+                                            Under 18{row.student.age != null ? ` · age ${row.student.age}` : ''}
                                         </span>
                                     )}
                                 </p>

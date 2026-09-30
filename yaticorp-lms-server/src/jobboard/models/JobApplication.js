@@ -20,7 +20,10 @@ const crypto = require('node:crypto');
 const mongoose = require('mongoose');
 
 /** Under this age a guardian has to agree before the application goes on. */
-const GUARDIAN_AGE = 15;
+// Under this age every application needs a parent or guardian to agree first,
+// then the school. Eighteen: every minor, on the account owner's instruction
+// (2026-09-29); it was fifteen.
+const GUARDIAN_AGE = 18;
 
 const STATUSES = [
     'ready',              // old enough; nothing to wait for
@@ -74,6 +77,12 @@ const schema = new mongoose.Schema({
     // message: this is what stops a second press sending a second copy, and
     // staying null after a refused send is what still allows a retry.
     mailSentAt: { type: Date, default: null },
+    // The provider's reason the last send failed, or '' once one has gone.
+    mailError: { type: String, default: '' },
+    // Set by the bounce watcher when the provider reported the parent's address
+    // does not exist, and when the same request was sent to the school instead.
+    mailBouncedAt: { type: Date, default: null },
+    fallbackSentAt: { type: Date, default: null },
     decidedAt: { type: Date, default: null },
     declineReason: { type: String, default: '' },
     continuedAt: { type: Date, default: null },

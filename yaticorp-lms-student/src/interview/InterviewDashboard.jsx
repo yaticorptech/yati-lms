@@ -4,7 +4,6 @@
  * A welcome banner with the student's readiness, one tip from the
  * interviewer, the five parts of that readiness, the interview picker, and
  * underneath the practice bank, recommended topics and what to work on.
- * The illustration is the LMS's own mascot rather than a new character.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -15,7 +14,6 @@ import {
 } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
 import { interviewApi, TYPE_META, fmtDate, ROLES, ROLE_OTHER as OTHER } from './api';
-import Illustration from './Illustration';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
 import { TopicsCard, PracticeCard, ImproveCard } from './DashboardCards';
 import { ScoreRing, CountUp } from './ui';
@@ -124,11 +122,10 @@ export default function InterviewDashboard() {
             <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-100 via-indigo-50 to-sky-100 p-5 shadow-sm ring-1 ring-indigo-100 sm:p-7">
                 <span aria-hidden="true" className="pointer-events-none absolute -right-10 top-10 h-56 w-56 rounded-full bg-white/50 blur-3xl" />
                 <span aria-hidden="true" className="pointer-events-none absolute -left-16 -bottom-16 h-56 w-56 rounded-full bg-violet-200/40 blur-3xl" />
-                {/* Three columns — greeting, mascot, readiness — from xl, not lg:
-                    at 1024 the sidebar leaves about 700px, and the greeting was
-                    squeezed to a word per line with "Developer" cut off behind
-                    the mascot. Below xl it stacks, as it does on a tablet. */}
-                <div className="relative grid items-center gap-6 xl:grid-cols-[minmax(0,1fr)_auto_320px]">
+                {/* Two columns — greeting, readiness — from xl, not lg: at 1024
+                    the sidebar leaves about 700px, and the greeting was squeezed
+                    to a word per line. Below xl it stacks, as on a tablet. */}
+                <div className="relative grid items-center gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
                     <div>
                         <h1 className="text-2xl font-black leading-tight text-slate-900 sm:text-[2rem]">
                             Hi {data.student.firstName},<br />Let&apos;s get you interview-ready{data.student.goal ? <><br />for <span className="text-violet-600">{data.student.goal}!</span></> : '!'}
@@ -138,11 +135,6 @@ export default function InterviewDashboard() {
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600"><Lightbulb size={15} /></span>
                             &ldquo;You&apos;re one step closer to your dream job!&rdquo;
                         </p>
-                    </div>
-
-                    <div className="hidden items-end gap-1 xl:flex">
-                        <p className="lb-script mb-6 text-lg leading-tight text-indigo-500/90">Practice<br />Improve<br />Succeed</p>
-                        <Illustration name="thumbs-up" pose="thumbs" height={168} />
                     </div>
 
                     <div className="rounded-3xl bg-white p-4 shadow-lg shadow-indigo-100 ring-1 ring-indigo-50">

@@ -23,45 +23,60 @@ const Shell = ({ children }) => (
 
 export default function GuardianReview() {
     const { token } = useParams();
-    // The mail's two buttons carry the answer here as ?answer=approve|decline,
-    // so the parent lands on the confirmation for the one they pressed. It is
-    // read as the initial value rather than in an effect: no scanner following
-    // the link can turn it into a decision, and nothing is sent until they
-    // confirm on this page.
+    // The mail's two buttons carry the answer here as ?answer=approve|decline.
+    // Pressing one in the email IS the answer: it is recorded the moment this
+    // opens, and the browser goes straight on to the application in the admin
+    // panel, where the school gives the final Approve or Reject (the account
+    // owner's instruction, 2026-09-29). No request page, no second question —
+    // only "Recording your answer…" while it is saved. The answer is sent from
+    // here rather than on the link itself, so a mail scanner that merely
+    // fetches the address decides nothing. The buttons on the page itself, for
+    // someone who opened the plain link, still ask once before they count.
     const [params] = useSearchParams();
     const fromMail = params.get('answer');
+    const viaMail = fromMail === 'approve' || fromMail === 'decline';
     const [state, setState] = useState({ loading: true, request: null, error: '' });
     const [busy, setBusy] = useState('');
-    const [confirming, setConfirming] = useState(
-        fromMail === 'approve' || fromMail === 'decline' ? fromMail : ''
-    );
+    const [confirming, setConfirming] = useState('');
     const [reason, setReason] = useState('');
+
+    /** On to the admin panel when there is one; otherwise show the answer here. */
+    const goOn = useCallback((d) => {
+        if (d?.next) { window.location.replace(d.next); return; }
+        setState({ loading: false, request: d.request, error: '' });
+    }, []);
+
+    const decide = useCallback((verb, why = '') => {
+        setBusy(verb);
+        const call = verb === 'approve' ? guardianApi.approve(token) : guardianApi.decline(token, why.trim());
+        return call
+            .then((d) => { setState({ loading: false, request: d.request, error: '' }); setConfirming(''); return d; })
+            .catch((e) => { setState((s) => ({ ...s, loading: false, error: e.message })); return null; })
+            .finally(() => setBusy(''));
+    }, [token]);
 
     const load = useCallback(() => {
         guardianApi.read(token)
-            .then((d) => setState({ loading: false, request: d.request, error: '' }))
+            .then((d) => {
+                if (!viaMail) { setState({ loading: false, request: d.request, error: '' }); return; }
+                // Already answered (the link opened a second time): straight on.
+                if (d.request?.status !== 'awaiting-guardian') { goOn(d); return; }
+                const call = fromMail === 'approve' ? guardianApi.approve(token) : guardianApi.decline(token, '');
+                call.then(goOn).catch((e) => setState({ loading: false, request: d.request, error: e.message }));
+            })
             .catch((e) => setState({ loading: false, request: null, error: e.message }));
-    }, [token]);
+    }, [token, viaMail, fromMail, goOn]);
     useEffect(load, [load]);
-
-    const decide = (verb) => {
-        setBusy(verb);
-        const call = verb === 'approve' ? guardianApi.approve(token) : guardianApi.decline(token, reason.trim());
-        call
-            .then((d) => { setState({ loading: false, request: d.request, error: '' }); setConfirming(''); })
-            .catch((e) => setState((s) => ({ ...s, error: e.message })))
-            .finally(() => setBusy(''));
-    };
 
     if (state.loading) {
         return <Shell><div className="flex items-center justify-center gap-3 rounded-3xl border border-slate-200 bg-white p-10 text-slate-500">
-            <Loader2 size={20} className="animate-spin text-indigo-500" aria-hidden="true" /> Opening the request…
+            <Loader2 size={20} className="animate-spin text-indigo-500" aria-hidden="true" /> {viaMail ? 'Recording your answer…' : 'Opening the request…'}
         </div></Shell>;
     }
     if (!state.request) {
         return <Shell><div className="rounded-3xl border border-rose-200 bg-white p-8 text-center shadow-sm">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><Ban size={26} aria-hidden="true" /></span>
-            <h1 className="mt-4 text-xl font-black text-slate-900">This link cannot be opened</h1>
+            <h1 className="mt-4 text-xl font-black text-slate-900">This request is no longer open</h1>
             <p className="mt-1 text-sm text-slate-600">{state.error}</p>
         </div></Shell>;
     }
@@ -180,7 +195,7 @@ export default function GuardianReview() {
                     confirmLabel={busy === 'decline' ? 'Declining…' : 'Decline permission'}
                     busy={busy === 'decline'}
                     onCancel={() => setConfirming('')}
-                    onConfirm={() => decide('decline')}
+                    onConfirm={() => decide('decline', reason)}
                 >
                     <label className="mt-4 block">
                         <span className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Reason (optional)</span>

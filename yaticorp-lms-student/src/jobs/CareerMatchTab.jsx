@@ -17,7 +17,9 @@ const ring = (t) => t >= 75 ? 'text-emerald-600 bg-emerald-50 border-emerald-200
 export const MatchCard = ({ job }) => {
     const m = job.match || { total: 0, matched: [], missing: [] };
     return (
-        <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg">
+        // min-w-0 with the grid's grid-cols-1: a card is as wide as the screen
+        // allows, never as wide as its longest line.
+        <article className="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg">
             <div className="flex items-start justify-between gap-3">
                 <div className={`flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl border ${ring(m.total)}`} aria-label={`${m.total}% match`}>
                     <span className="text-lg font-bold leading-none tabular-nums">{m.total}</span>
@@ -39,9 +41,11 @@ export const MatchCard = ({ job }) => {
                     {m.missing?.slice(0, 3).map((s) => <span key={s} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">+ {s}</span>)}
                 </div>
             )}
+            {/* The button keeps its size and its one line; a long "via …" beside
+                it shortens instead. Squeezed, it broke into "Find / Job" on a phone. */}
             <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-                <span className="text-xs text-slate-500">{job.source ? `via ${job.source}` : ''}</span>
-                <a href={job.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700">
+                <span className="min-w-0 truncate text-xs text-slate-500">{job.source ? `via ${job.source}` : ''}</span>
+                <a href={job.url} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700">
                     Find Job <ExternalLink size={14} />
                 </a>
             </div>
@@ -169,7 +173,7 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
                 results.length ? (
                     <>
                         <p className="text-sm text-slate-500"><strong className="text-slate-800">{results.length}</strong> job{results.length === 1 ? ' matches' : 's match'} {profile || source === 'upload' ? 'your resume' : 'your skills'}, best fit first.</p>
-                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{results.map((job) => <MatchCard key={job.id} job={job} />)}</div>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{results.map((job) => <MatchCard key={job.id} job={job} />)}</div>
                     </>
                 ) : (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">

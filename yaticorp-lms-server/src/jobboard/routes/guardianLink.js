@@ -31,12 +31,23 @@ router.use(rateLimit({
     message: { error: 'Too many requests — try again in a minute.' }
 }));
 
+/**
+ * Where the answer goes next: the application in the admin panel, where the
+ * school gives the final Approve or Reject. The email's buttons send the
+ * browser straight there once the answer is recorded (the account owner's
+ * instruction, 2026-09-29). Empty when ADMIN_URL is not set.
+ */
+const adminNext = (row) => {
+    const base = String(process.env.ADMIN_URL || '').trim().replace(/\/$/, '');
+    return base ? `${base}/jobs?application=${row._id}` : '';
+};
+
 /** The application this link opens, or a clear reason why it does not. */
 const byToken = async (token) => {
     const clean = String(token || '');
     if (clean.length < 20) return { error: 'That link is not valid.', status: 404 };
     const row = await Application.findOne({ linkToken: clean });
-    if (!row) return { error: 'That link is not valid. Ask for a new one.', status: 404 };
+    if (!row) return { error: 'This request no longer exists — it was withdrawn or removed. Nothing more needs to be done with this link.', status: 404 };
     if (row.linkExpiresAt && row.linkExpiresAt.getTime() < Date.now()) {
         return { row, error: 'That link has expired. Your child can send a new request.', status: 410 };
     }
@@ -47,8 +58,8 @@ const byToken = async (token) => {
 router.get('/:token', async (req, res, next) => {
     try {
         const { row, error, status } = await byToken(req.params.token);
-        if (error) return res.status(status).json({ error, ...(row ? { request: guardianView(row) } : {}) });
-        res.json({ request: guardianView(row) });
+        if (error) return res.status(status).json({ error, ...(row ? { request: guardianView(row), next: adminNext(row) } : {}) });
+        res.json({ request: guardianView(row), next: adminNext(row) });
     } catch (err) { next(err); }
 });
 
@@ -58,10 +69,10 @@ const decide = (verb) => async (req, res, next) => {
         const { row, error, status } = await byToken(req.params.token);
         if (error) return res.status(status).json({ error });
         if (SETTLED.includes(row.status) || row.status === 'awaiting-admin') {
-            return res.status(409).json({ error: 'This request has already been answered.', request: guardianView(row) });
+            return res.status(409).json({ error: 'This request has already been answered.', request: guardianView(row), next: adminNext(row) });
         }
         if (row.status !== 'awaiting-guardian') {
-            return res.status(409).json({ error: 'This request is not waiting for an answer.', request: guardianView(row) });
+            return res.status(409).json({ error: 'This request is not waiting for an answer.', request: guardianView(row), next: adminNext(row) });
         }
         // A yes does not finish the application, it passes it on: the LMS still
         // has to sign it off. A no ends it here — nobody overrides a parent.
@@ -69,7 +80,7 @@ const decide = (verb) => async (req, res, next) => {
         row.decidedAt = new Date();
         if (verb === 'decline') row.declineReason = String(req.body?.reason || '').trim().slice(0, 300);
         await row.save();
-        res.json({ request: guardianView(row) });
+        res.json({ request: guardianView(row), next: adminNext(row) });
     } catch (err) { next(err); }
 };
 

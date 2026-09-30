@@ -5,7 +5,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useEffect } from 'react';
 import api from '../utils/api';
-import { useNavigate } from 'react-router-dom';
 import { getAuthServices } from '../shared/api/authService';
 
 export const AuthContext = createContext();
@@ -20,9 +19,30 @@ export const AuthProvider = ({ children }) => {
     const [isJobsEnabled, setIsJobsEnabled] = useState(true);
     const [isGlobalQuizEnabled, setIsGlobalQuizEnabled] = useState(true);
     const [isRewardsEnabled, setIsRewardsEnabled] = useState(true);
-    const navigate = useNavigate();
 
     const authService = getAuthServices(api);
+
+    /*
+     * One browser, one signed-in student. The login is kept in localStorage,
+     * which every tab shares, but each tab read the student's name once, when
+     * it opened. So after another account signed in in a second tab, the first
+     * tab kept showing its old name while every request it made went out as
+     * the new account — one student's application appeared under another's
+     * name. Now, the moment the saved login changes in any tab (signed in,
+     * signed out, or someone else), every other tab reloads, so a tab always
+     * shows the account it is actually using. Two accounts side by side need
+     * two browsers, or a private window.
+     */
+    useEffect(() => {
+        const onStorage = (e) => {
+            // e.key is null when storage was cleared altogether.
+            if (e.key !== null && e.key !== 'studentToken') return;
+            if (e.key === 'studentToken' && e.oldValue === e.newValue) return;
+            window.location.reload();
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+    }, []);
 
     useEffect(() => {
         const initAuth = async () => {
@@ -64,7 +84,10 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('studentToken', data.token);
             localStorage.setItem('studentData', JSON.stringify(data));
             setUser(data);
-            navigate('/');
+            // A full load, not a client-side move: caches held in memory (Career
+            // Path's reads, the rewards summary) belong to whoever was signed in
+            // before, and must not be shown to this student.
+            window.location.assign('/');
             return { success: true };
         } catch (err) {
             return { success: false, error: err.response?.data?.message || 'Login failed' };
@@ -75,7 +98,8 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('studentToken');
         localStorage.removeItem('studentData');
         setUser(null);
-        navigate('/login');
+        // A full load, for the same reason as after signing in.
+        window.location.assign('/login');
     };
 
     return (

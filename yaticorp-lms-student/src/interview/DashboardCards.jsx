@@ -106,7 +106,7 @@ const CATEGORY_ICON = { hr: Users, technical: Code2, project: FolderOpen, behavi
 export function PracticeCard({ practice }) {
     return (
         <CardShell icon={FileText} iconClass="bg-gradient-to-br from-sky-500 to-blue-600 shadow-sky-200"
-            title="Practice questions" hint={`${practice.total} question${practice.total === 1 ? '' : 's'} picked for you`}
+            title="Practice questions" hint={practice.generating ? 'Personalising your questions… these will do meanwhile' : `${practice.total} question${practice.total === 1 ? '' : 's'} picked for you`}
             action={<HeadLink to="/interview/practice" tone="bg-sky-50 text-sky-700 hover:bg-sky-100">View all</HeadLink>}>
             <ul className="stagger space-y-2">
                 {practice.sample.map((q, i) => {

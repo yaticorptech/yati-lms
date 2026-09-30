@@ -142,6 +142,12 @@ router.put('/profile', async (req, res, next) => {
         if (guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(guardianEmail)) {
             return res.status(400).json({ error: "Enter a valid email address for your parent or guardian." });
         }
+        // A parent's address that cannot take mail is caught here, not as a
+        // bounce in the LMS's own inbox after the student was told "sent".
+        if (guardianEmail) {
+            const why = await require('../../utils/emailService').recipientProblem(guardianEmail, { own: req.user?.email });
+            if (why) return res.status(400).json({ error: why });
+        }
         const wantFrom = parseDay(body.wantFrom);
         const wantTo = parseDay(body.wantTo || body.wantFrom);
         if (!wantFrom || !wantTo) return res.status(400).json({ error: 'Pick the date, or dates, you want work on.' });

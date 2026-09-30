@@ -8,7 +8,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { screen, srcFile, skipWithoutStyles } from './harness.js';
+import { screen, srcFile, skipWithoutStyles, DEVICES } from './harness.js';
 import { apiModule } from './fixtures.js';
 
 // A long interest list, so the card is genuinely taller than a short screen.
@@ -50,7 +50,11 @@ import OpportunitiesTab from '${srcFile('opportunities/OpportunitiesTab.jsx')}';
 const data = { band: 'teen',
   profile: { dateOfBirth: '2012-02-13', wantFrom: '2026-09-11', wantTo: '2026-09-11', interests: ['catering'], guardianName: 'Ramya', guardianEmail: 'r@x.com' },
   vocab: { interests: ${JSON.stringify(INTERESTS)}, categories: [], types: [] }, rules: {}, guardian: null };
-const Page = () => <OpportunitiesTab data={data} onData={() => {}} careerPathEnabled location="Bengaluru" onLocation={() => {}} />;
+// Wrapped the way pages/Jobs.jsx wraps it: two fade-in boxes. An animated
+// opacity makes a stacking context, and without these the popup looked fine
+// here while the real app drew its header and bottom bar over it.
+const Page = () => <div className="space-y-5 animate-fade-in pb-12"><div className="animate-fade-in">
+  <OpportunitiesTab data={data} onData={() => {}} careerPathEnabled location="Bengaluru" onLocation={() => {}} /></div></div>;
 createRoot(document.getElementById('root')).render(
   <AuthContext.Provider value={{ user: { name: 'Bhagyashree' } }}>
     <MemoryRouter initialEntries={['/jobs']}>
@@ -156,10 +160,11 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
         assert.ok(result.topIsDialog, 'and the very top of the screen belongs to the popup');
     });
 
-    test('a phone gets a full-screen sheet; a wide screen keeps its card', async () => {
-        // On a 360px screen the centred card left a cramped column with gutters
-        // down both sides and its corners clipped. A phone gets the whole
-        // screen instead. The card shape returns from sm up.
+    test('a phone gets a small card with the backdrop round it; a wide screen keeps its card', async () => {
+        // A full-screen sheet was tried and the account owner asked for it to
+        // be smaller (2026-09-30): a card with gutters on every side, whose
+        // middle scrolls. Its corners must still be on screen — an earlier
+        // centred card had them clipped.
         const BOX = `
             await sleep(1200);
             const open = $$('button').find((b) => /dates|Edit|Change/i.test(b.innerText));
@@ -171,16 +176,16 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
             const r = card.getBoundingClientRect(), c = close.getBoundingClientRect();
             return {
                 left: Math.round(r.left), right: Math.round(innerWidth - r.right), top: Math.round(r.top),
+                bottom: Math.round(innerHeight - r.bottom),
                 closeVisible: c.top >= 0 && c.bottom <= innerHeight,
                 sideways: document.documentElement.scrollWidth > innerWidth
             };`;
 
         const phone = (await screen({ entry: shellEntry, api: shellApi, width: 500, height: 800, styles: true, budget: 25_000, script: BOX })).result;
-        assert.equal(phone.left, 0, `the sheet should reach the left edge, sat at ${phone.left}px`);
-        assert.equal(phone.right, 0, `and the right edge, ${phone.right}px short`);
-        // Not 0: the app's own 4rem header owns the top of a phone screen, and
-        // the sheet starts under it rather than behind it.
-        assert.ok(phone.top >= 64, `the sheet starts at ${phone.top}px, behind the app header`);
+        assert.ok(phone.left >= 12 && phone.right >= 12,
+            `the card should leave a gutter each side, has ${phone.left}px and ${phone.right}px`);
+        assert.ok(phone.top >= 16 && phone.bottom >= 16,
+            `and backdrop above and below it, has ${phone.top}px and ${phone.bottom}px`);
         assert.ok(phone.closeVisible, 'with the close button on screen');
         assert.equal(phone.sideways, false, 'and nothing pushed the page sideways');
 
@@ -199,28 +204,61 @@ describe('the part-time details popup', { skip: skipWithoutStyles }, () => {
             `the card starts at ${desk.top}px, under the ${HEADER}px header bar`);
     });
 
-    test('the Save button clears the floating bottom nav', async () => {
-        // The nav floats over the last 4rem of every phone screen. A sheet that
-        // runs the full height puts its actions underneath it, and Save ended up
-        // 25px behind the bar — there, but not pressable.
+    test('the Save button can be pressed, whatever the bottom nav does', async () => {
+        // The nav floats over the last 4rem of every phone screen, and Save
+        // once ended up 25px behind it — there, but not pressable. The popup
+        // sits above the bar (z-120 over z-40), so what matters is not where
+        // Save is but what a tap on it actually lands on.
         const BOTTOM = `${SCROLLER}
             await sleep(1200);
             const open = $$('button').find((b) => /dates|Edit|Change/i.test(b.innerText));
             if (open) open.click();
             await sleep(800);
             const dialog = $('[role="dialog"][aria-modal="true"]');
-            const body = scrollerIn(dialog.querySelector('form'));
+            const form = dialog.querySelector('form');
+            const body = scrollerIn(form);
             body.scrollTop = body.scrollHeight; await sleep(400);
-            const nav = $('.mbn-in');
+            const tapped = (b) => { const r = b.getBoundingClientRect(); const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return b === hit || b.contains(hit); };
             const save = $$('button').find((b) => /save/i.test(b.innerText) && dialog.contains(b));
-            const s = save.getBoundingClientRect(), n = nav.getBoundingClientRect();
-            return { saveBottom: Math.round(s.bottom), navTop: Math.round(n.top),
-                     covered: s.bottom > n.top };`;
+            const cancel = $$('button').find((b) => /cancel/i.test(b.innerText) && dialog.contains(b));
+            const s = save.getBoundingClientRect(), f = form.getBoundingClientRect();
+            return { save: tapped(save), cancel: tapped(cancel), saveBottom: Math.round(s.bottom),
+                     sheetBottom: Math.round(f.bottom), vh: innerHeight };`;
         const { result } = await screen({
             entry: shellEntry, api: shellApi, width: 500, height: 700, styles: true, budget: 25_000, script: BOTTOM });
-        assert.equal(result.covered, false,
-            `Save ends at ${result.saveBottom}px, under a bar that starts at ${result.navTop}px`);
+        assert.ok(result.save, `a tap on Save (ending at ${result.saveBottom}px) lands on something else`);
+        assert.ok(result.cancel, 'and so does a tap on Cancel');
+        assert.ok(result.saveBottom <= result.sheetBottom && result.sheetBottom <= result.vh,
+            `Save ends at ${result.saveBottom}px, the card at ${result.sheetBottom}px, the screen at ${result.vh}px`);
     });
+
+    for (const name of ['galaxyZFold6Folded', 'galaxyA55', 'iPhone16ProMax']) {
+        test(`on a ${name} the card sits clear of both screen edges, with nothing drawn over it`, async () => {
+            // On a real phone the card touched the top of the screen and the
+            // bottom bar lay across its Save button (2026-09-30).
+            const EDGES = `
+                await sleep(1200);
+                const open = $$('button').find((b) => /dates|Edit|Change/i.test(b.innerText));
+                if (open) open.click();
+                await sleep(800);
+                const dialog = $('[role="dialog"][aria-modal="true"]');
+                const form = dialog.querySelector('form');
+                const f = form.getBoundingClientRect();
+                const mine = (x, y) => { const el = document.elementFromPoint(x, y); return !!el && form.contains(el); };
+                const save = $$('button').find((b) => /save/i.test(b.innerText) && form.contains(b)).getBoundingClientRect();
+                return { top: Math.round(f.top), bottom: Math.round(innerHeight - f.bottom),
+                         topEdge: mine(innerWidth / 2, f.top + 6), bottomEdge: mine(innerWidth / 2, f.bottom - 6),
+                         save: mine(save.left + save.width / 2, save.top + save.height / 2) };`;
+            const { result, errors } = await screen({
+                entry: shellEntry, api: shellApi, device: DEVICES[name], styles: true, budget: 25_000, script: EDGES });
+            assert.deepEqual(errors, []);
+            assert.ok(result.top >= 16, `the card starts ${result.top}px from the top of the screen`);
+            assert.ok(result.bottom >= 16, `and ends ${result.bottom}px from the bottom`);
+            assert.ok(result.topEdge, 'the top of the card is not covered by the app header');
+            assert.ok(result.bottomEdge, 'the bottom of the card is not covered by the bottom bar');
+            assert.ok(result.save, 'and a tap on Save lands on Save');
+        });
+    }
 
     for (const [w, h, floor] of [[1400, 800, 0], [1000, 700, 0], [500, 700, 64]]) {
         test(`the pinned heading keeps its own padding at ${w} by ${h}`, async () => {

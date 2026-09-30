@@ -7,6 +7,13 @@
 process.env.INTERVIEW_AI = 'template';
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env'), quiet: true });
+// Tests never send real email. With the mailbox from .env they did: every run
+// of the organization tests mailed made-up example.com contacts, and each one
+// came back as an "Address not found" bounce in the LMS's own inbox — about
+// eighty on 2026-09-29 alone. Tests that exercise sending stub the mailer or
+// point it at a server of their own.
+for (const k of ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'BREVO_API_KEY']) delete process.env[k];
+process.env.BOUNCE_WATCH = 'off';
 const mongoose = require('mongoose');
 const express = require('express');
 const jwt = require('jsonwebtoken');

@@ -24,6 +24,12 @@ const Login = () => {
 
     if (admin) return <Navigate to="/" replace />;
 
+    // Arrived from the Approve / Decline button in a parent's email: the answer
+    // is already recorded. Say so, for a parent who lands here, and tell staff
+    // that signing in opens the application for the final decision.
+    let fromParent = false;
+    try { fromParent = /[?&]application=/.test(sessionStorage.getItem('afterLogin') || ''); } catch { /* storage unavailable */ }
+
     // Login with credentials
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -65,6 +71,13 @@ const Login = () => {
                     {needs2FA ? 'Enter your two-factor code' : 'Sign in to continue'}
                 </p>
             </div>
+
+            {fromParent && (
+                <div data-parent-answer className="mx-auto mt-6 w-full max-w-md z-10 rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-5 py-4 text-sm leading-relaxed text-emerald-100">
+                    <p className="font-bold text-emerald-50">Thank you — the parent&apos;s answer has been recorded.</p>
+                    <p className="mt-1">School staff: sign in to see the application and give the final approval.</p>
+                </div>
+            )}
 
             <div className="mt-6 sm:mt-8 mx-auto w-full max-w-md z-10">
                 <div className="bg-slate-800/80 backdrop-blur-xl py-7 sm:py-8 px-5 shadow-2xl rounded-2xl sm:px-10 border border-slate-700">

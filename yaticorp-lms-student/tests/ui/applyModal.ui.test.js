@@ -33,7 +33,7 @@ const APPLICATION = {
     },
     guardian: { name: 'Radhika', email: 'ra••••@example.com', phone: '' },
     steps: ['Request sent', 'Guardian review', 'Approval', 'Application continues'].map((label) => ({ label, state: 'waiting' })),
-    guardianAge: 15, reminders: 0, declineReason: '', canContinue: false, guardianLink: ''
+    guardianAge: 18, reminders: 0, declineReason: '', canContinue: false, guardianLink: ''
 };
 const VOCAB = {
     categories: [{ id: 'decoration', label: 'Decoration & buntings' }],

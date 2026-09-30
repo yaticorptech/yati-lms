@@ -34,7 +34,7 @@ const application = (status, extra = {}) => ({
     job: JOB,
     guardian: { name: 'Devaki', email: 'de••••@example.com', phone: '+91 XXXXX XXX10' },
     steps: STEPS[status].map((state, i) => ({ label: STEP_LABELS[i], state })),
-    guardianAge: 15, reminders: 0, declineReason: '',
+    guardianAge: 18, reminders: 0, declineReason: '',
     canContinue: status === 'approved' || status === 'continued',
     guardianLink: status === 'needs-guardian' ? '' : '/jobs/guardian/tok',
     ...extra
@@ -55,10 +55,11 @@ export default {
   post: (url, body) => {
     window.__calls.push(['POST', url, body]);
     const next = url.includes('/request') ? states.after.request
+      : url.includes('/resend') ? states.after.resend
       : url.includes('/continue') ? states.after.continue : null;
     if (next) current = next;
     // The request route also reports what became of the text message.
-    const mail = url.includes('/request') ? (states.sms || null) : null;
+    const mail = url.includes('/request') ? (states.sms || null) : url.includes('/resend') ? { sent: true, to: 'de••••@example.com', again: true } : null;
     return reply(mail ? { application: current, mail } : { application: current });
   },
   put: (url, body) => { window.__calls.push(['PUT', url, body]); return reply({ application: current }); },
@@ -91,7 +92,7 @@ describe('the student applying', { skip: skipWithoutStyles }, () => {
                 return { body, tracker, buttons: $$('button').map((b) => b.innerText.replace(/\\s+/g, ' ').trim()).filter(Boolean) };` });
         assert.deepEqual(errors, []);
         assert.match(result.body, /Guardian approval required/);
-        assert.match(result.body, /under 15/);
+        assert.match(result.body, /under 18/);
         assert.match(result.body, /Devaki/);
         assert.match(result.body, /de••••@example\.com/, 'the address is masked, never shown in full');
         assert.ok(result.buttons.some((b) => /Send approval request/i.test(b)));
@@ -119,13 +120,28 @@ describe('the student applying', { skip: skipWithoutStyles }, () => {
         assert.match(result.body, /Approval request sent/);
         assert.match(result.body, /Waiting for parent response/);
         assert.deepEqual(result.tracker, ['done', 'active', 'waiting', 'waiting']);
-        // There is no resend. One request is one message, and a button here
-        // only ever mailed the same parent the same job again.
-        assert.ok(!result.buttons.some((b) => /Resend request/i.test(b)),
-            `nothing should offer to send it again, saw ${JSON.stringify(result.buttons)}`);
         assert.ok(result.buttons.some((b) => /View request details/i.test(b)));
         assert.ok(!result.buttons.some((b) => /^Continue application/i.test(b)), 'there is nothing to continue with yet');
         assert.match(result.body, /cannot continue this application until Devaki answers/);
+    });
+
+    test('a sent request that is not answered offers Send again, beside View request details', async () => {
+        const sentOnce = application('awaiting-guardian', { mailSentAt: '2026-09-30T04:31:20.000Z', requestedAt: '2026-09-30T04:31:16.000Z' });
+        const { result, errors } = await screen({
+            entry, api: api(sentOnce, { resend: { ...sentOnce, mailSentAt: '2026-09-30T05:10:00.000Z' } }), styles: true, script: `
+                await sleep(700);
+                const row = $$('button').find((b) => /Send again/.test(b.innerText));
+                const view = $$('button').find((b) => /View request details/.test(b.innerText));
+                const sameRow = row && view && row.parentElement === view.parentElement;
+                row && row.click(); await sleep(600);
+                return { hadButton: !!row, sameRow, body: text(document.body),
+                         posted: window.__calls.filter((c) => c[0] === 'POST').map((c) => c[1]) };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.hadButton, true, 'Send again is offered');
+        assert.equal(result.sameRow, true, 'in the same row as View request details');
+        assert.ok(result.posted.some((u) => /\/resend$/.test(u)), 'pressing it sends the request again');
+        assert.match(result.body, /Email sent again to de••••@example\.com/);
+        assert.match(result.body, /If Devaki has not answered, use Send again/);
     });
 
     test('an email that really went says so, with the address masked', async () => {
@@ -255,6 +271,39 @@ createRoot(document.getElementById('root')).render(
         assert.ok(result.buttons.some((b) => /^Decline$/i.test(b)));
         assert.ok(result.buttons.some((b) => /Approve & continue/i.test(b)));
         assert.match(result.body, /Nobody at the school or the LMS can approve it for you/);
+    });
+
+    // The email's own buttons carry the answer in the link.
+    const mailEntry = (answer) => guardianEntry.replace("initialEntries={['/jobs/guardian/tok']}", `initialEntries={['/jobs/guardian/tok?answer=${answer}']}`);
+
+    test('the Approve button in the email records the answer on opening, with no second question', async () => {
+        const { result, errors } = await screen({
+            entry: mailEntry('approve'), api: guardianApi('awaiting-guardian'), styles: true, script: `
+                await sleep(900);
+                return { body: text(document.body), dialog: !!$('[role="dialog"]'),
+                         posted: window.__calls.filter((c) => c[0] === 'POST').map((c) => c[1]) };` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.posted.some((u) => /\/approve$/.test(u)), 'approved without a click on the page');
+        assert.equal(result.dialog, false, 'nothing to confirm');
+        assert.match(result.body, /Permission given/);
+    });
+
+    test('the Decline button in the email records that on opening too', async () => {
+        const { result, errors } = await screen({
+            entry: mailEntry('decline'), api: guardianApi('awaiting-guardian'), styles: true, script: `
+                await sleep(900);
+                return { body: text(document.body), posted: window.__calls.filter((c) => c[0] === 'POST').map((c) => c[1]) };` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.posted.some((u) => /\/decline$/.test(u)));
+        assert.match(result.body, /Permission declined/);
+    });
+
+    test('a link with an answer opened again later changes nothing', async () => {
+        const { result } = await screen({
+            entry: mailEntry('approve'), api: guardianApi('awaiting-admin', { guardianAnswered: true, decidedAt: '2026-09-29T08:00:00.000Z' }), styles: true, script: `
+                await sleep(900);
+                return { posted: window.__calls.filter((c) => c[0] === 'POST').length, body: text(document.body) };` });
+        assert.equal(result.posted, 0, 'already answered: nothing is sent again');
     });
 
     test('approving asks once, then shows the guardian it landed', async () => {
