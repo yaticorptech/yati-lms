@@ -1526,3 +1526,17 @@
   .fp-game-card:hover .fp-game-floor { transform: translateX(-50%); opacity: 1; }
 }
 
+/* ── The Ideas search field ──
+   The bar around it carries the focus ring, and the page draws its own clear
+   button beside the match count; the browser's own focus outline and the
+   clear cross it draws inside a type="search" field would double both. */
+.futurepath .fp-search-field:focus {
+  outline: none;
+  box-shadow: none;
+}
+.futurepath .fp-search-field::-webkit-search-cancel-button,
+.futurepath .fp-search-field::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}

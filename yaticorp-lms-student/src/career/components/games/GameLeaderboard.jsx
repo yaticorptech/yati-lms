@@ -334,6 +334,24 @@ export default function GameLeaderboard({ dense = false, limit }) {
   const [tick, setTick] = useState(0);
   const [state, setState] = useState({ key: null, board: null, error: null });
   const key = `${period}|${scope}`;
+  // The compact panel's scroller: whether it overflows, and whether it is at the end.
+  const listRef = useRef(null);
+  const [list, setList] = useState({ overflowing: false, atEnd: false });
+  const measureList = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const overflowing = el.scrollHeight > el.clientHeight + 1;
+    const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+    setList((prev) => (prev.overflowing === overflowing && prev.atEnd === atEnd ? prev : { overflowing, atEnd }));
+  }, []);
+  useEffect(() => {
+    measureList();
+  }, [state, dense, measureList]);
+  const scrollList = () => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTo({ top: list.atEnd ? 0 : el.scrollTop + el.clientHeight * 0.85, behavior: 'smooth' });
+  };
 
   // A level just ended and the server has it: draw the new standings.
   useEffect(() => {
@@ -385,6 +403,12 @@ export default function GameLeaderboard({ dense = false, limit }) {
         className={dense ? 'min-w-0 flex-1' : ''}
       />
     </div>
+  );
+
+  const footer = board && shown.length > 0 && (
+    <p className="mt-2 px-1 text-right text-[0.68rem] font-semibold text-ink-400">
+      {board.total} player{board.total === 1 ? '' : 's'} ranked
+    </p>
   );
 
   const body = (
@@ -445,9 +469,7 @@ export default function GameLeaderboard({ dense = false, limit }) {
             </>
           )}
 
-          <p className="mt-2 px-1 text-right text-[0.68rem] font-semibold text-ink-400">
-            {board.total} player{board.total === 1 ? '' : 's'} ranked
-          </p>
+          {!dense && footer}
         </>
       )}
     </>
@@ -456,7 +478,7 @@ export default function GameLeaderboard({ dense = false, limit }) {
   // The panel beside the banner: a crown, the standings, and a way to see more.
   if (dense) {
     return (
-      <div data-guide="game-leaderboard">
+      <div data-mascot-target="game-leaderboard">
         {/* Wraps so that on a 320px phone, where the heading and the period
             do not share a line, the period drops under it rather than out
             through the panel's edge. */}
@@ -468,14 +490,48 @@ export default function GameLeaderboard({ dense = false, limit }) {
               two controls over three rows read as more machinery than board. */}
           <FilterSelect label="Period" value={period} options={PERIODS} onChange={setPeriod} className="ml-auto" />
         </div>
-        <div className="mt-3">{body}</div>
+        {/* Three rows tall, whatever the class size: more players scroll
+            inside rather than stretching the banner down the page. A fade
+            shows there is more, and the button scrolls a screenful — or, at
+            the end, back to the top. */}
+        <div className="relative mt-3">
+          <div
+            ref={listRef}
+            onScroll={measureList}
+            data-standings
+            className="max-h-[10.75rem] overflow-y-auto overscroll-contain pr-0.5 [scrollbar-width:thin]"
+          >
+            {body}
+          </div>
+          {list.overflowing && !list.atEnd && (
+            <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-8 rounded-b-xl bg-gradient-to-t from-white/95 to-transparent" />
+          )}
+        </div>
+        {board && shown.length > 0 && (
+          <div className="mt-1 flex items-center justify-between gap-2">
+            {list.overflowing ? (
+              <button
+                type="button"
+                onClick={scrollList}
+                aria-label={list.atEnd ? 'Back to the top of the standings' : 'Scroll the standings'}
+                className="fp-press inline-flex h-7 items-center gap-1 rounded-full bg-journey-600 pr-2.5 pl-2 text-[0.68rem] font-black text-white shadow-md shadow-journey-600/30"
+              >
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${list.atEnd ? 'rotate-180' : ''}`} />
+                {list.atEnd ? 'Top' : 'More'}
+              </button>
+            ) : (
+              <span />
+            )}
+            {footer}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <section
-      data-guide="game-leaderboard"
+      data-mascot-target="game-leaderboard"
       className="overflow-hidden rounded-2xl border border-line-200 bg-surface shadow-card"
     >
       <div className="flex flex-wrap items-center gap-2 border-b border-line-100 px-3 py-2.5">

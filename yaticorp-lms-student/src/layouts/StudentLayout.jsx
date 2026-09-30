@@ -496,12 +496,7 @@ const StudentLayout = () => {
             )}
 
             {/* Desktop Sidebar */}
-            {/* data-mascot-clear: the Career Path companion measures the page
-                to find somewhere to stand, and the gutter beside the content
-                looks like empty space to it. This marks the navigation as
-                somewhere it may not stand. Read only by the mascot; nothing
-                about this sidebar changes. */}
-            <aside data-mascot-clear className="hidden sidebar:flex w-64 bg-slate-900 text-white flex-col z-10 shadow-xl">
+            <aside className="hidden sidebar:flex w-64 bg-slate-900 text-white flex-col z-10 shadow-xl">
                 <div className="p-6 flex items-center justify-center border-b border-slate-800 bg-slate-900">
                     <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
                 </div>
@@ -531,12 +526,8 @@ const StudentLayout = () => {
                 </div>
             </aside>
 
-            {/* Mobile Header. Marked for the Career Path companion: it is the
-                top bar at this width but it is a div, not the <header> below,
-                so nothing else here would tell the character it exists — and
-                it walked up behind it. */}
+            {/* Mobile Header */}
             <div
-                data-mascot-avoid
                 data-mobile-header
                 className="sidebar:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4"
             >

@@ -77,11 +77,7 @@ export default function JourneyBanner({ name, greeting, level = 1, progress, str
           )}
         </p>
 
-        {/* Marked so the companion will not stand on the words or float its
-            bubble through them. Nothing can infer "these are words being
-            read" from the DOM, so the banner says so. */}
         <h1
-          data-mascot-clear
           className="mt-1 text-[1.35rem] leading-[1.08] font-black tracking-tight text-[#1b2456] sm:text-[1.65rem] lg:text-[1.7rem] xl:text-[2.05rem]"
         >
           <span className="cb-in block" style={{ animationDelay: '0.06s' }}>
@@ -128,7 +124,6 @@ export default function JourneyBanner({ name, greeting, level = 1, progress, str
         </h1>
 
         <p
-          data-mascot-clear
           className="cb-in mt-2.5 text-[0.78rem] leading-[1.5] text-slate-600 sm:text-[0.85rem]"
           style={{ animationDelay: '0.22s' }}
         >

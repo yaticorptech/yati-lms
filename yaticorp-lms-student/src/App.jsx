@@ -55,6 +55,9 @@ import { RewardsProvider } from './context/RewardsContext';
 // student screen needs.
 import CareerShell from './career/CareerShell';
 import CareerProviders from './career/CareerProviders';
+import CareerPathMascot from './career/mascot/CareerPathMascot';
+// The mascot workbench: dev builds only, reached by typing /dev/mascot.
+const MascotDemo = import.meta.env.DEV ? React.lazy(() => import('./pages/dev/MascotDemo')) : null;
 const CareerOverview = React.lazy(() => import('./career/pages/dashboard/Overview'));
 const CareerPlanner = React.lazy(() => import('./career/pages/dashboard/Planner'));
 const CareerCalendar = React.lazy(() => import('./career/pages/dashboard/Calendar'));
@@ -64,8 +67,6 @@ const CareerRecommendations = React.lazy(() => import('./career/pages/dashboard/
 const CareerProfile = React.lazy(() => import('./career/pages/Profile'));
 const CareerBadges = React.lazy(() => import('./career/pages/dashboard/Badges'));
 const CareerGames = React.lazy(() => import('./career/pages/dashboard/Games'));
-// The mascot workbench. Nothing links to it; it is reached by typing the
-// path, and it drives the rig in isolation before it goes near a real page.
 const CareerSettings = React.lazy(() => import('./career/pages/dashboard/SettingsPage'));
 const CareerOnboarding = React.lazy(() => import('./career/pages/Onboarding'));
 
@@ -180,9 +181,13 @@ function App() {
           path="career/onboarding"
           element={
             <CareerProviders>
-              <React.Suspense fallback={<CareerFallback />}>
-                <CareerOnboarding />
-              </React.Suspense>
+              {/* The one Career Path page outside CareerShell, so the mascot
+                  is mounted for it here. */}
+              <CareerPathMascot>
+                <React.Suspense fallback={<CareerFallback />}>
+                  <CareerOnboarding />
+                </React.Suspense>
+              </CareerPathMascot>
             </CareerProviders>
           }
         />
@@ -200,6 +205,7 @@ function App() {
         </Route>
         </Route>
       </Route>
+      {MascotDemo && <Route path="/dev/mascot" element={<React.Suspense fallback={<CareerFallback />}><MascotDemo /></React.Suspense>} />}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

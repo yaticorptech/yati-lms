@@ -1,0 +1,61 @@
+/* ── The mascot (src/mascot) ── */
+
+/* A reaction's still springs up from the ground line as it fades in.
+   MascotStage leaves the class off under prefers-reduced-motion. */
+.mascot-stage-pop {
+  transform-origin: 50% 100%;
+  animation: mascot-stage-pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes mascot-stage-pop {
+  from { transform: scale(0.85); }
+  to   { transform: scale(1); }
+}
+
+/* The lesson page's corner, kept as numbers the toasts below can read too.
+   Phones and tablets carry the floating nav over the bottom 5.25rem, so the
+   mascot collapses to 120px and stands just above it. The desktop layout (the
+   app's `sidebar` breakpoint) has no nav, so it sits in the corner at 200px. */
+:root {
+  --mascot-dock-size: 120px;
+  --mascot-dock-right: 0.75rem;
+  --mascot-dock-bottom: calc(5.75rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 64rem) and (min-height: 30rem) {
+  :root {
+    --mascot-dock-size: 200px;
+    --mascot-dock-right: 1.5rem;
+    --mascot-dock-bottom: 1.5rem;
+  }
+}
+
+.mascot-dock {
+  position: fixed;
+  right: var(--mascot-dock-right);
+  bottom: var(--mascot-dock-bottom);
+  z-index: 30;
+  pointer-events: none;
+}
+/* Ducking below a primary button (MascotDock) is a glide, not a jump. */
+.mascot-dock-body { transition: transform 0.3s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .mascot-dock-body { transition: none; }
+}
+
+/* While the dock holds the corner (MascotDock sets the attribute), a toast that
+   also lives there stands beside it on desktop and above it on phones, instead
+   of covering the mascot at the very moment it celebrates. */
+html[data-mascot-dock] .mascot-clear {
+  right: var(--mascot-dock-right);
+  bottom: calc(var(--mascot-dock-bottom) + var(--mascot-dock-size) * 1408 / 1117 + 0.75rem);
+}
+@media (min-width: 64rem) and (min-height: 30rem) {
+  html[data-mascot-dock] .mascot-clear {
+    right: calc(var(--mascot-dock-right) + var(--mascot-dock-size) + 0.75rem);
+    bottom: var(--mascot-dock-bottom);
+  }
+}
+
+/* A list that scrolls down into the corner can bring its last rows up past it. */
+html[data-mascot-dock] .mascot-clear-scroll {
+  padding-bottom: calc(var(--mascot-dock-size) * 1408 / 1117 + 1rem);
+}

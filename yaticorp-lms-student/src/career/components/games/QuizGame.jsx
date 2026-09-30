@@ -5,6 +5,7 @@ import useGameProgress, { between, ramp, starsFor, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 import { pickQuestions, remember, recordFor, keyOf } from './questionMemory';
+import { useMascot } from '../../mascot/useMascot';
 
 const shuffle = (list) => {
   const out = [...list];
@@ -54,6 +55,7 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
   const [score, setScore] = useState(0);
   const [chosen, setChosen] = useState(null);
   const [started, setStarted] = useState(false);
+  const mascot = useMascot();
 
   /**
    * The questions for this level.
@@ -137,6 +139,8 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
     // Recorded as it happens rather than at the end of the round, so a student
     // who abandons a level half-way still keeps credit for what they answered.
     remember(progress.gameId, progress.difficulty, current, right);
+    // The one quiz in the Career Path that marks each answer as it is given.
+    mascot.quizAnswer(right);
   };
 
   return (

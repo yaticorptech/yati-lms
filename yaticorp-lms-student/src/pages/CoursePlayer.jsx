@@ -11,6 +11,9 @@ import { PlayCircle, FileText, CheckCircle2, ChevronDown, ChevronRight, CheckSqu
 import VideoPlayer from '../components/VideoPlayer';
 import QuizTaker from '../components/QuizTaker';
 import { useCoursePlayer } from '../shared/hooks/useCoursePlayer';
+import MascotDock from '../mascot/MascotDock';
+import { useMascot } from '../mascot/useMascot';
+import { REACTIONS } from '../mascot/reactions';
 
 const CoursePlayer = () => {
     const { courseId } = useParams();
@@ -29,6 +32,7 @@ const CoursePlayer = () => {
         markLessonComplete,
         generateCertificate: sharedGenerateCertificate
     } = useCoursePlayer(api, courseId);
+    const mascot = useMascot();
 
     // Platform-specific UI states
     const [certResult, setCertResult] = useState(null);
@@ -67,6 +71,14 @@ const CoursePlayer = () => {
         }
     };
 
+    // Finishing a lesson for the first time is the mascot's cue to celebrate;
+    // re-sending one that was already done is not.
+    const completeLesson = async (lessonId) => {
+        const firstTime = !completedLessons.includes(lessonId);
+        await markLessonComplete(lessonId);
+        if (firstTime) mascot.react(REACTIONS.lessonComplete);
+    };
+
     const handleQuizPassed = async (lessonId, creditsEarned) => {
         if (creditsEarned && creditsEarned > 0) {
             setCreditToast({ credits: creditsEarned });
@@ -79,7 +91,7 @@ const CoursePlayer = () => {
             }
         }
         if (lessonId) {
-            await markLessonComplete(lessonId);
+            await completeLesson(lessonId);
         }
     };
 
@@ -159,9 +171,11 @@ const CoursePlayer = () => {
     return (
         <div className="flex flex-col lg:flex-row gap-6 animate-fade-in h-[calc(100vh-6rem)] relative z-0">
 
+            <MascotDock />
+
             {/* In-app Credit Toast Notification */}
             {creditToast && (
-                <div className="fixed bottom-6 right-6 z-[200] animate-fade-in">
+                <div className="mascot-clear fixed bottom-6 right-6 z-[200] animate-fade-in">
                     <div className="bg-white border border-emerald-200 shadow-2xl rounded-2xl px-6 py-4 flex items-center space-x-4">
                         <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
                             <Award size={24} className="text-emerald-600" />
@@ -243,8 +257,9 @@ const CoursePlayer = () => {
                     {activeLesson && activeLesson.type !== 'quiz' && (
                         <div className="flex flex-col items-start sm:items-end">
                             <button
-                                onClick={() => markLessonComplete(activeLesson._id)}
+                                onClick={() => completeLesson(activeLesson._id)}
                                 disabled={isCompleted || !watchGateOpen}
+                                data-mascot-cta
                                 className={`px-6 py-3 rounded-xl font-bold flex items-center shadow-sm transition-all duration-300 ${isCompleted ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed' : !watchGateOpen ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-4 focus:ring-indigo-100'}`}
                             >
                                 {isCompleted ? (
@@ -311,6 +326,7 @@ const CoursePlayer = () => {
                             <button
                                 onClick={generateCertificate}
                                 disabled={generatingCert}
+                                data-mascot-cta
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center shadow-sm transition-colors disabled:opacity-50"
                             >
                                 {generatingCert ? 'Downloading...' : 'Download Certificate Again'}
@@ -319,6 +335,7 @@ const CoursePlayer = () => {
                             <button
                                 onClick={generateCertificate}
                                 disabled={generatingCert}
+                                data-mascot-cta
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center shadow-sm transition-colors disabled:opacity-50"
                             >
                                 {generatingCert ? 'Generating...' : 'Get Certificate'}
@@ -346,7 +363,7 @@ const CoursePlayer = () => {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto">
+                <div className="mascot-clear-scroll flex-1 overflow-y-auto">
                     {modules.map((module, mIdx) => (
                         <div key={module._id} className="border-b border-slate-100">
                             {/* Module Header */}

@@ -30,7 +30,7 @@ export default function CurrentMission({ completedToday = 0, totalToday = 0 }) {
     return (
       <Link
         to="/career/planner"
-        data-guide="quest"
+        data-mascot-target="start-quest"
         className="fp-btn fp-btn-soft group inline-flex min-h-12 items-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-3 text-sm font-black text-emerald-950 shadow-lg shadow-emerald-900/25 sm:px-5"
       >
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/60">
@@ -47,7 +47,7 @@ export default function CurrentMission({ completedToday = 0, totalToday = 0 }) {
     return (
       <Link
         to="/career/planner"
-        data-guide="quest"
+        data-mascot-target="start-quest"
         className="fp-btn fp-btn-primary group inline-flex min-h-12 items-center gap-2.5 rounded-2xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-journey-900/25 sm:px-5"
       >
         <Sparkles className="h-4 w-4 shrink-0 text-amber-300" />
@@ -60,7 +60,7 @@ export default function CurrentMission({ completedToday = 0, totalToday = 0 }) {
   return (
     <Link
       to="/career/planner"
-      data-guide="quest"
+      data-mascot-target="start-quest"
       aria-label={`${started ? 'Continue' : 'Start'} today's quest and earn ${TASK_XP} XP`}
       className="fp-sweep fp-btn fp-btn-warm fp-beacon group relative inline-flex min-h-12 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 px-4 py-3 text-sm font-black whitespace-nowrap text-white sm:gap-2.5 sm:px-5"
     >

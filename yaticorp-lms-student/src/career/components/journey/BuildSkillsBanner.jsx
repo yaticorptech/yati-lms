@@ -269,14 +269,8 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
         aria-hidden
         className="fp-float-slow pointer-events-none absolute right-1/3 -bottom-24 h-56 w-56 rounded-full bg-pink-200/40 blur-3xl"
       />
-      {/* `data-mascot-clear` so the companion treats the scene as something
-          being looked at and walks around it. It is not banned from the page —
-          it still has the task button to point at — but the art is the reason
-          this banner is here, and a character standing on the star is the one
-          place it must not stop. */}
       <div
         aria-hidden
-        data-mascot-clear
         className="pointer-events-none absolute inset-y-0 right-0 hidden w-[52%] max-w-[470px] [mask-image:linear-gradient(to_right,transparent,black_10%)] md:block"
       >
         <BuildSkillsArt />

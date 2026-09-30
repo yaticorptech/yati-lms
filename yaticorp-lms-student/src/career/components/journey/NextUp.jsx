@@ -73,7 +73,7 @@ export default function NextUp({ nextPhase, levelProgress }) {
             floor: it used to stop short of the streak card beside it. */}
         <Link
           to="/career/planner"
-          data-guide="unlock"
+          data-mascot-target="next-step"
           className="fp-btn fp-btn-primary group mt-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/25"
         >
           Unlock with today&apos;s task
