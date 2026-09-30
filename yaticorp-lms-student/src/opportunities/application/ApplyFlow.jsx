@@ -1,6 +1,6 @@
 /**
  * Applying for a part-time job, and the guardian permission a student under
- * fifteen needs before it can go anywhere.
+ * eighteen needs before it can go anywhere.
  *
  * One panel that follows the application through its states: the age check,
  * the guardian card, the request going out, the wait, and then the answer.
@@ -161,6 +161,9 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
     const approved = status === 'approved' || status === 'continued';
     const declined = status === 'declined' || status === 'rejected';
     const canSend = !!guardian.name && !!guardian.email;
+    // A student of the guardian age or over never needed a parent: no tracker
+    // of approvals that never happened, and no guardian card.
+    const noGuardian = app.guardianNeeded === false || status === 'ready';
 
     /* ── The banner at the top changes with the state ─────────────────── */
     const HEAD = {
@@ -173,13 +176,15 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
         approved: { icon: PartyPopper, ring: 'bg-emerald-100 text-emerald-700', title: 'Approved',
             body: `${guardian.name || 'Your guardian'} and your school have both approved this application. You can carry on.` },
         continued: { icon: PartyPopper, ring: 'bg-emerald-100 text-emerald-700', title: 'Application in progress',
-            body: 'Your guardian and your school have both approved this one. Your school will take it from here.' },
+            body: app.guardianNeeded === false
+                ? 'No permission was needed for this one. Your school will take it from here.'
+                : 'Your guardian and your school have both approved this one. Your school will take it from here.' },
         declined: { icon: Ban, ring: 'bg-rose-100 text-rose-700', title: 'Permission declined',
             body: 'Your guardian has not approved this application.' },
         rejected: { icon: Ban, ring: 'bg-rose-100 text-rose-700', title: 'Not approved by your school',
             body: `${guardian.name || 'Your guardian'} agreed, but your school has not approved this application.` },
         ready: { icon: CheckCircle2, ring: 'bg-emerald-100 text-emerald-700', title: 'Ready to apply',
-            body: `You are ${app.student.age ?? 15} — no guardian permission is needed for this one.` }
+            body: `You are ${app.student.age ?? 18} — no guardian permission is needed for this one.` }
     }[status] || {};
     const HeadIcon = HEAD.icon || ShieldCheck;
 
@@ -200,7 +205,7 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
                     <StatusBadge tone={toneFor(status)}>{statusLabel(status)}</StatusBadge>
                 </div>
 
-                {status !== 'ready' && (
+                {!noGuardian && (
                     <div className="mt-5 border-t border-slate-100 pt-5">
                         <Tracker steps={steps} />
                     </div>
@@ -211,7 +216,7 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
             <JobCard job={job} />
 
             {/* ── Guardian, and what to do next ────────────────────────── */}
-            {status !== 'ready' && (
+            {!noGuardian && (
                 <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Guardian</p>
                     {editing
@@ -239,13 +244,19 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
                     {waiting && (
                         <>
                             <div className="flex flex-wrap gap-2.5">
-                                {/* There is no resend. One request is one message, and a
-                                    button here only ever mailed the same parent the same
-                                    job again. The exception is a send the provider refused:
-                                    that one left nothing in any inbox, so it may be tried
-                                    again — and the server, not this screen, is what decides
-                                    that, by leaving mailSentAt unset. */}
-                                {!app.mailSentAt && (
+                                {/* Not sent (the provider refused it, or it bounced): the
+                                    first send is tried again. Sent and still unanswered:
+                                    Send again, to the guardian as they stand now — so a
+                                    changed address gets it too. */}
+                                {app.mailSentAt ? (
+                                    <button type="button" disabled={busy === 'resend'}
+                                        onClick={() => run('resend', () => applicationApi.resend(app.id)).catch(() => {})}
+                                        className={`${btn.primary} w-full sm:w-auto`}>
+                                        {busy === 'resend'
+                                            ? <><Loader2 size={15} className="animate-spin" aria-hidden="true" /> Sending…</>
+                                            : <><RefreshCw size={15} aria-hidden="true" /> Send again</>}
+                                    </button>
+                                ) : (
                                     <button type="button" disabled={busy === 'send'}
                                         onClick={() => run('send', () => applicationApi.sendRequest(app.id)).catch(() => {})}
                                         className={`${btn.primary} w-full sm:w-auto`}>
@@ -261,7 +272,7 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
                             {mail && (
                                 <p className={`rounded-xl px-3.5 py-2.5 text-xs leading-relaxed ${mail.sent ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}>
                                     {mail.sent
-                                        ? <><span className="font-bold">Email sent to {mail.to}. </span>{guardian.name || 'Your guardian'} can open the link in it to answer.</>
+                                        ? <><span className="font-bold">Email {mail.again ? 'sent again' : 'sent'} to {mail.to}. </span>{guardian.name || 'Your guardian'} can open the link in it to answer.</>
                                         : <>
                                             <span className="font-bold">The email could not be sent. </span>
                                             Your school has been told. Open the guardian&apos;s page below and show it to
@@ -269,9 +280,19 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
                                         </>}
                                 </p>
                             )}
+                            {/* The provider reported the address does not exist. The
+                                request went to the school instead, and the student may
+                                correct the address and send again. */}
+                            {app.mailBouncedAt && (
+                                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-900">
+                                    <span className="font-bold">The email could not be delivered: {guardian.name || 'your guardian'}&apos;s address {guardian.email} was not found. </span>
+                                    {app.fallbackSentAt ? 'The request has been sent to your school instead. ' : ''}
+                                    Check the address with {guardian.name || 'your guardian'}, use Change guardian to correct it, and send the request again.
+                                </p>
+                            )}
                             <p className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs leading-relaxed text-slate-600">
                                 You cannot continue this application until {guardian.name || 'your guardian'} answers.
-                                {app.mailSentAt && ' They have been sent the request once — we will not email them again about this job.'}
+                                {app.mailSentAt && ` Last sent ${new Date(app.mailSentAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. If ${guardian.name || 'they'} ${guardian.name ? 'has' : 'have'} not answered, use Send again.`}
                             </p>
                             {app.guardianLink && (
                                 <a href={app.guardianLink} target="_blank" rel="noopener noreferrer" className={`${btn.ghost} w-full sm:w-auto`}>

@@ -71,7 +71,7 @@ export default function WebJobCard({ job, categoryLabel }) {
                     <span className="truncate">{job.publisher ? `${job.publisher} · via Google Jobs` : 'via Google Jobs'}</span>
                 </span>
                 <a href={job.url} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
+                    className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
                     Find Job <ExternalLink size={14} aria-hidden="true" />
                 </a>
             </div>

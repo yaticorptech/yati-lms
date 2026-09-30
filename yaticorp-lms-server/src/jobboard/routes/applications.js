@@ -20,16 +20,26 @@ const { normaliseIndianMobile } = require('../../services/smsService');
 // read back in a test without standing a mail server up.
 const mailer = require('../../utils/emailService');
 const { maskEmail } = require('../services/applicationService');
+const { guardianMail } = require('../services/guardianMail');
 
 const HOURS = { '1-2': '1–2 hrs/day', '2-4': '4 hrs/day', '4+': '4+ hrs/day' };
 
-/** Where the guardian's page lives, as an address they can tap in a message. */
-const siteUrl = () => String(process.env.FRONTEND_URL || process.env.CLIENT_URL || '').replace(/\/$/, '');
-
-/** A plain, readable line for the email body. */
-const field = (label, value) => (value
-    ? `<tr><td style="padding:6px 0;color:#64748b;font-size:13px;width:110px">${label}</td><td style="padding:6px 0;color:#0f172a;font-size:14px;font-weight:600">${value}</td></tr>`
-    : '');
+/**
+ * Where the guardian's page lives, as an address they can tap in a message.
+ *
+ * The site the student is using right now, when it is one of ours: a student
+ * on learn.yaticorp.com gets links to learn.yaticorp.com, and a developer on
+ * localhost gets localhost. FRONTEND_URL alone was set to localhost on the
+ * machine that sent real requests, and every button in those emails opened
+ * nothing on the parent's phone.
+ */
+const ownSites = () => new Set([process.env.FRONTEND_URL, process.env.CLIENT_URL, process.env.PUBLIC_APP_URL,
+    ...String(process.env.ALLOWED_ORIGINS || '').split(',')].map((s) => String(s || '').trim().replace(/\/$/, '')).filter(Boolean));
+const siteUrl = (req) => {
+    const origin = String(req?.get?.('origin') || '').replace(/\/$/, '');
+    if (origin && (ownSites().has(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))) return origin;
+    return String(process.env.FRONTEND_URL || process.env.CLIENT_URL || '').replace(/\/$/, '');
+};
 
 /**
  * Email the guardian their link.
@@ -44,45 +54,9 @@ const field = (label, value) => (value
  * What comes back says whether it truly went, so the student's screen can tell
  * them the truth rather than claiming a message that was never accepted.
  */
-const emailGuardian = async (application) => {
-    const link = `${siteUrl()}/jobs/guardian/${application.linkToken}`;
-    const who = application.student?.name || 'A student';
-    const job = application.job || {};
-    const subject = `${who} needs your permission for a part-time job`;
-    const htmlContent = `
-<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0f172a">
-  <p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#4f46e5">Guardian permission</p>
-  <h1 style="margin:0 0 12px;font-size:22px">Part-time job permission</h1>
-  <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#475569">
-    ${who} has asked to apply for a part-time job. Nothing is arranged until you answer.
-  </p>
-  <table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:8px 16px">
-    ${field('Job', job.title)}${field('Company', job.company)}${field('Hours', job.hours)}
-    ${field('Dates', job.duration)}${field('Location', job.location)}${field('Pay', job.pay)}
-  </table>
-  <p style="margin:24px 0 10px;font-size:15px;font-weight:700">Do you give permission?</p>
-  <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0 10px;width:100%">
-    <tr><td>
-      <a href="${link}?answer=approve" style="display:block;background:#059669;color:#fff;text-align:center;text-decoration:none;font-weight:700;font-size:16px;padding:16px 24px;border-radius:12px">
-        &#10003;&nbsp; Yes, I approve
-      </a>
-    </td></tr>
-    <tr><td>
-      <a href="${link}?answer=decline" style="display:block;background:#fff;color:#be123c;border:2px solid #fecdd3;text-align:center;text-decoration:none;font-weight:700;font-size:16px;padding:14px 24px;border-radius:12px">
-        &#10007;&nbsp; No, I do not approve
-      </a>
-    </td></tr>
-  </table>
-  <p style="margin:14px 0 8px;font-size:13px;line-height:1.6;color:#64748b">
-    Either button opens the request, where you confirm your answer with one tap. Nothing is
-    recorded until you confirm, so opening this email changes nothing.
-  </p>
-  <p style="margin:0 0 8px;font-size:13px;line-height:1.6;color:#64748b">
-    Only you can answer this. Nobody at the school or the LMS can approve it for you.
-  </p>
-  <p style="margin:0;font-size:12px;color:#94a3b8;word-break:break-all">If the buttons do not work, open: ${link}</p>
-</div>`;
-
+const emailGuardian = async (application, req) => {
+    const link = `${siteUrl(req)}/jobs/guardian/${application.linkToken}`;
+    const { subject, htmlContent } = guardianMail(application, link);
     try {
         await mailer.sendEmail({ to: application.guardian.email, toName: application.guardian.name, subject, htmlContent });
         return { sent: true, to: maskEmail(application.guardian.email), link };
@@ -115,11 +89,47 @@ const jobSnapshot = (opp) => ({
 /** The student's record, or null. */
 const mine = (req, id) => Application.findOne({ _id: id, userId: req.user._id });
 
+/**
+ * An application that has not gone anywhere yet follows the profile.
+ *
+ * The age and the guardian's details are copied onto the application when it
+ * is started, and a student who then corrects their date of birth found the
+ * old age still on it — "You are 23" over a profile that said sixteen — with
+ * the guardian step decided by the wrong number. Until a request has been
+ * sent, nothing rests on the snapshot, so it is taken again from the profile
+ * each time the application is opened. Once a parent has been asked, it is
+ * left alone: their answer was to the application as it was sent.
+ */
+const refreshFromProfile = async (row, userId) => {
+    // "Continued" without a request ever sent was a student going straight on
+    // because the age at the time allowed it; if it no longer does, the parent
+    // has to be asked after all.
+    const untouched = row.status === 'ready' || row.status === 'needs-guardian' || (row.status === 'continued' && !row.requestedAt);
+    if (!untouched) return row;
+    const profile = await OpportunityProfile.findOne({ userId }).lean();
+    if (!profile) return row;
+    const age = ageFrom(profile.dateOfBirth);
+    const guardian = {
+        name: row.guardian?.name || profile.guardian?.guardianName || '',
+        email: row.guardian?.email || profile.guardian?.email || '',
+        phone: row.guardian?.phone || profile.guardian?.phone || ''
+    };
+    const status = age != null && age >= GUARDIAN_AGE ? (row.status === 'continued' ? 'continued' : 'ready') : 'needs-guardian';
+    const changed = age !== row.student?.age || status !== row.status
+        || ['name', 'email', 'phone'].some((k) => guardian[k] !== (row.guardian?.[k] || ''));
+    if (!changed) return row;
+    row.student = { ...(row.student || {}), age };
+    row.status = status;
+    row.guardian = guardian;
+    await row.save();
+    return row;
+};
+
 /* ── Start, or pick up where it was left ──────────────────────────────── */
 
 /**
  * POST / { opportunityId } — the age check happens here, on the server. A
- * student of fifteen or over goes straight on; anyone younger lands on the
+ * student of eighteen or over goes straight on; anyone younger lands on the
  * guardian step and cannot leave it until a guardian answers.
  */
 router.post('/', async (req, res, next) => {
@@ -128,7 +138,7 @@ router.post('/', async (req, res, next) => {
         if (!opportunityId) return res.status(400).json({ error: 'Which job is this for?' });
 
         const existing = await Application.findOne({ userId: req.user._id, opportunityId });
-        if (existing) return res.json({ application: studentView(existing) });
+        if (existing) return res.json({ application: studentView(await refreshFromProfile(existing, req.user._id)) });
 
         const opp = await Opportunity.findById(opportunityId).lean().catch(() => null);
         if (!opp) return res.status(404).json({ error: 'That job is no longer listed.' });
@@ -175,7 +185,7 @@ router.get('/:id', async (req, res, next) => {
     try {
         const row = await mine(req, req.params.id);
         if (!row) return res.status(404).json({ error: 'Application not found.' });
-        res.json({ application: studentView(row) });
+        res.json({ application: studentView(await refreshFromProfile(row, req.user._id)) });
     } catch (err) { next(err); }
 });
 
@@ -194,6 +204,9 @@ router.put('/:id/guardian', async (req, res, next) => {
         const phone = req.body?.phone ? normaliseIndianMobile(String(req.body.phone)) : (row.guardian?.phone || '');
         if (!name) return res.status(400).json({ error: "Enter your parent or guardian's name." });
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return res.status(400).json({ error: "Enter your parent or guardian's email address." });
+        // Caught here rather than as a bounce nobody reads: see recipientProblem.
+        const why = await mailer.recipientProblem(email, { own: req.user?.email });
+        if (why) return res.status(400).json({ error: why });
         row.guardian = { name, email, phone };
         await row.save();
         res.json({ application: studentView(row) });
@@ -237,14 +250,54 @@ router.post('/:id/request', async (req, res, next) => {
         }
         await row.save();
 
-        const mail = await emailGuardian(row);
+        const mail = await emailGuardian(row, req);
+        // What happened is kept on the record — the time it went, or the
+        // provider's reason it did not — so a failure can be looked into
+        // later rather than only in a console that has since scrolled away.
+        row.mailSentAt = mail.sent ? new Date() : null;
+        row.mailError = mail.sent ? '' : String(mail.reason || 'unknown').slice(0, 300);
+        await row.save();
+        // Why it failed is for the server log and the record; a student can
+        // do nothing with a provider's error string.
+        res.json({ application: studentView(row), mail: { sent: mail.sent, to: mail.to, link: mail.link } });
+    } catch (err) { next(err); }
+});
+
+/**
+ * POST /:id/resend — send the same request again, while it waits on the parent.
+ *
+ * For a parent who has not answered (the account owner's instruction,
+ * 2026-09-30). It goes to the guardian as they stand now, so after Change
+ * guardian the new address gets it; the link inside is the same one, so an
+ * older copy still works too. A minute must pass between sends, so a double
+ * press does not mail a parent twice.
+ */
+const RESEND_GAP_MS = 60 * 1000;
+router.post('/:id/resend', async (req, res, next) => {
+    try {
+        const row = await mine(req, req.params.id);
+        if (!row) return res.status(404).json({ error: 'Application not found.' });
+        if (row.status !== 'awaiting-guardian') {
+            return res.status(409).json({ error: 'This request is not waiting for the parent any more.', application: studentView(row) });
+        }
+        if (!row.guardian?.email) return res.status(400).json({ error: "Add your parent or guardian's email address first." });
+        const last = row.mailSentAt || row.requestedAt;
+        if (last && Date.now() - new Date(last).getTime() < RESEND_GAP_MS) {
+            return res.status(429).json({ error: 'It was sent just now. Wait a minute before sending it again.', application: studentView(row) });
+        }
+        const why = await mailer.recipientProblem(row.guardian.email, { own: req.user?.email });
+        if (why) return res.status(400).json({ error: why, application: studentView(row) });
+
+        const mail = await emailGuardian(row, req);
         if (mail.sent) {
             row.mailSentAt = new Date();
-            await row.save();
+            // A fresh send: an earlier bounce says nothing about this one.
+            row.mailBouncedAt = null; row.fallbackSentAt = null; row.mailError = '';
+        } else {
+            row.mailError = String(mail.reason || 'unknown').slice(0, 300);
         }
-        // Why it failed is for the server log; a student can do nothing with
-        // a provider's error string.
-        res.json({ application: studentView(row), mail: { sent: mail.sent, to: mail.to, link: mail.link } });
+        await row.save();
+        res.json({ application: studentView(row), mail: { sent: mail.sent, to: mail.to, link: mail.link, again: true } });
     } catch (err) { next(err); }
 });
 

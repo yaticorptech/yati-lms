@@ -2,7 +2,7 @@
  * Applying for a part-time job when a guardian has to agree first.
  *
  * The age check is the point of this suite: it happens on the server, and a
- * student under fifteen cannot get past it by asking nicely. The other half is
+ * student under eighteen cannot get past it by asking nicely. The other half is
  * who may answer — the guardian, through their link, and nobody else.
  */
 const { test, describe, before, after } = require('node:test');
@@ -54,7 +54,7 @@ before(async () => {
     older = await makeUser('Elder');
     admin = await makeAdmin('Ops');
     await profileFor(young.user._id, 13);
-    await profileFor(older.user._id, 17);
+    await profileFor(older.user._id, 19);
 
     const starts = new Date(); starts.setDate(starts.getDate() + 3);
     job = await Opportunity.create({
@@ -93,7 +93,7 @@ const apply = async (call, opportunityId) => {
 };
 
 describe('the age check', () => {
-    test('a student under fifteen is stopped and asked for a guardian', async () => {
+    test('a student under eighteen is stopped and asked for a guardian', async () => {
         const r = await apply(api, String(job._id));
         assert.equal(r.status, 201);
         assert.equal(r.body.application.status, 'needs-guardian');
@@ -140,7 +140,7 @@ describe('the age check', () => {
         await Opportunity.deleteOne({ _id: second._id });
     });
 
-    test('a student of fifteen or over carries straight on', async () => {
+    test('a student of eighteen or over carries straight on', async () => {
         const elder = startApp({ mount: '/api/jobs', router: require('../../src/jobboard') });
         const r = await elder.call(older.token)('POST', '/opportunities/applications', { opportunityId: String(job._id) });
         elder.server.close();
@@ -215,6 +215,239 @@ describe('sending the request', () => {
         // address must leave the application exactly where it was.
         assert.equal((await Application.findById((await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) }))._id)).status,
             'awaiting-guardian', 'building the mail decides nothing');
+    });
+
+    test('an application not yet sent follows a corrected date of birth', async () => {
+        // Started as an adult, then the profile is corrected to sixteen, then
+        // to thirteen: the age on the application, and whether a parent is
+        // needed, follow the profile each time it is opened.
+        const starts = new Date(); starts.setDate(starts.getDate() + 6);
+        const job2 = await Opportunity.create({
+            slug: `stock-count-${Date.now()}`, title: 'Stock count', organization: { name: 'Depot', verified: true },
+            category: 'events', opportunityType: 'event-support', startsAt: starts, endsAt: starts, hoursPerSession: '2-4',
+            minimumAge: 13, location: { area: 'Peenya', city: 'Bengaluru' }, compensation: { label: '₹700' },
+            safetyClassification: 'supervised', status: 'open', guardianApprovalRequired: true
+        });
+        const grown = await makeUser('Grown');
+        const profile = await profileFor(grown.user._id, 23);
+        const elder = startApp({ mount: '/api/jobs', router: require('../../src/jobboard') });
+        const call = elder.call(grown.token);
+        try {
+            const started = await call('POST', '/opportunities/applications', { opportunityId: String(job2._id) });
+            assert.equal(started.body.application.status, 'ready');
+            assert.equal(started.body.application.student.age, 23);
+
+            await OpportunityProfile.updateOne({ _id: profile._id }, { $set: { dateOfBirth: bornYearsAgo(16) } });
+            const asTeen = await call('GET', `/opportunities/applications/${started.body.application.id}`);
+            assert.equal(asTeen.body.application.student.age, 16, 'the age shown is the profile\'s now');
+            assert.equal(asTeen.body.application.status, 'needs-guardian', 'and at sixteen a parent is needed after all');
+
+            await OpportunityProfile.updateOne({ _id: profile._id }, { $set: { dateOfBirth: bornYearsAgo(13) } });
+            const asChild = await call('POST', '/opportunities/applications', { opportunityId: String(job2._id) });
+            assert.equal(asChild.body.application.student.age, 13);
+            assert.equal(asChild.body.application.status, 'needs-guardian', 'and thirteen needs one');
+            assert.equal(asChild.body.application.guardian.name, 'Devaki', 'with the guardian taken from the profile');
+        } finally {
+            elder.server.close();
+            await Application.deleteMany({ opportunityId: String(job2._id) });
+            await Opportunity.deleteOne({ _id: job2._id });
+            await OpportunityProfile.deleteOne({ _id: profile._id });
+            await require('../../src/models/User').deleteOne({ _id: grown.user._id });
+        }
+    });
+
+    test('a parent address that cannot take mail is refused before anything is sent', async () => {
+        // A typo in the domain, and the student's own address: both used to be
+        // accepted, mailed, and bounced back to the LMS's mailbox unseen.
+        const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) });
+        const typo = await api('PUT', `/opportunities/applications/${row.id}/guardian`, { name: 'Devaki', email: 'devaki.rao@gmial.com' });
+        assert.equal(typo.status, 400);
+        assert.match(typo.body.error, /cannot find a mail server for "gmial\.com"/);
+
+        const me = await require('../../src/models/User').findById(young.user._id).lean();
+        if (me?.email) {
+            const own = await api('PUT', `/opportunities/applications/${row.id}/guardian`, { name: 'Devaki', email: me.email });
+            assert.equal(own.status, 400);
+            assert.match(own.body.error, /your own email address/);
+        }
+
+        const fine = await api('PUT', `/opportunities/applications/${row.id}/guardian`, { name: 'Devaki', email: 'devaki.rao@example.com' });
+        assert.equal(fine.status, 200, 'a real domain is still accepted');
+    });
+
+    test('a bounced request is marked, resent to the school, and may be sent again to a corrected address', async () => {
+        const { failedRecipients, handleBounce } = require('../../src/utils/bounceWatcher');
+        assert.deepEqual(failedRecipients('Subject: Delivery Status Notification (Failure)\r\nX-Failed-Recipients: Devaki.Rao@example.com\r\n'), ['devaki.rao@example.com']);
+        assert.deepEqual(failedRecipients('Subject: hello\r\n'), [], 'a message that names no failed address is not a bounce');
+
+        const mailer = require('../../src/utils/emailService');
+        const real = mailer.sendEmail; const sent = [];
+        mailer.sendEmail = async (msg) => { sent.push(msg); };
+        const savedFallback = process.env.GUARDIAN_FALLBACK_EMAIL;
+        process.env.GUARDIAN_FALLBACK_EMAIL = 'office@school.example';
+        try {
+            // A request out to the parent, as the route leaves it. Its own
+            // address: every test user here shares the fixture's parent.
+            const bad = `devaki.${Date.now()}@example.com`;
+            const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) });
+            await Application.updateOne({ _id: row._id }, { $set: { status: 'awaiting-guardian', 'guardian.email': bad, mailSentAt: new Date(), mailBouncedAt: null, fallbackSentAt: null } });
+
+            const n = await handleBounce(bad);
+            assert.equal(n, 1, 'the waiting request was found');
+            const after = await Application.findById(row._id);
+            assert.ok(after.mailBouncedAt, 'marked as bounced');
+            assert.equal(after.mailSentAt, null, 'and no longer counted as sent');
+            assert.match(after.mailError, /could not be found/);
+            assert.ok(after.fallbackSentAt, 'the request went on to the school');
+            assert.equal(sent.length, 1);
+            assert.equal(sent[0].to, 'office@school.example', 'to the fallback mailbox');
+            assert.match(sent[0].subject, /^Address not found — /);
+            assert.match(sent[0].htmlContent, /Address not found/, 'saying why it came there');
+            assert.ok(sent[0].htmlContent.includes(`/jobs/guardian/${after.linkToken}?answer=approve`), 'with the same request inside');
+
+            // The student sees it, and can correct the address and send again.
+            const seen = await api('GET', `/opportunities/applications/${row.id}`);
+            assert.ok(seen.body.application.mailBouncedAt);
+            assert.ok(seen.body.application.fallbackSentAt);
+            const again = await api('POST', `/opportunities/applications/${row.id}/request`);
+            assert.equal(again.status, 200, 'not refused as "already sent"');
+            assert.equal(sent.length, 2, 'a second message went, to the parent');
+
+            assert.equal(await handleBounce(bad), 0, 'the same bounce is not handled twice');
+        } finally {
+            mailer.sendEmail = real;
+            if (savedFallback === undefined) delete process.env.GUARDIAN_FALLBACK_EMAIL; else process.env.GUARDIAN_FALLBACK_EMAIL = savedFallback;
+        }
+    });
+
+    test('Send again mails the request once more, to the guardian as they stand now', async () => {
+        const mailer = require('../../src/utils/emailService');
+        const real = mailer.sendEmail; const sent = [];
+        mailer.sendEmail = async (msg) => { sent.push(msg); };
+        const long = new Date(Date.now() - 10 * 60 * 1000);
+        const made = await Application.create({
+            userId: young.user._id, opportunityId: `resend-${Date.now()}`, student: { name: 'Sowndarya Student', age: 13 },
+            job: { title: 'A job waiting on the parent' }, guardian: { name: 'Devaki', email: 'devaki.new@example.com' },
+            status: 'awaiting-guardian', requestedAt: long, mailSentAt: long, mailBouncedAt: long, fallbackSentAt: long, mailError: 'bounced',
+            linkToken: `resend-token-${Date.now()}-abcdefghij`
+        });
+        try {
+            const r = await api('POST', `/opportunities/applications/${made._id}/resend`);
+            assert.equal(r.status, 200, JSON.stringify(r.body).slice(0, 160));
+            assert.equal(r.body.mail.sent, true);
+            assert.equal(r.body.mail.again, true);
+            assert.equal(sent.length, 1, 'one message');
+            assert.equal(sent[0].to, 'devaki.new@example.com', 'to the address on the application now');
+            assert.ok(sent[0].htmlContent.includes(`/jobs/guardian/${made.linkToken}?answer=approve`), 'with the same link as before');
+            const after = await Application.findById(made._id).lean();
+            assert.ok(after.mailSentAt > long, 'sent time moved on');
+            assert.equal(after.mailBouncedAt, null, 'an earlier bounce no longer counts');
+            assert.equal(after.fallbackSentAt, null);
+            assert.equal(after.status, 'awaiting-guardian', 'still waiting on the parent');
+
+            const twice = await api('POST', `/opportunities/applications/${made._id}/resend`);
+            assert.equal(twice.status, 429, 'not twice within a minute');
+            assert.equal(sent.length, 1);
+
+            // A bounce notice dated before this send is about the earlier one.
+            const { handleBounce } = require('../../src/utils/bounceWatcher');
+            assert.equal(await handleBounce('devaki.new@example.com', { bouncedAt: long }), 0, 'an old bounce does not mark the new send');
+
+            await Application.updateOne({ _id: made._id }, { $set: { status: 'awaiting-admin' } });
+            const answered = await api('POST', `/opportunities/applications/${made._id}/resend`);
+            assert.equal(answered.status, 409, 'nothing to send once the parent has answered');
+        } finally {
+            mailer.sendEmail = real;
+            await Application.deleteOne({ _id: made._id });
+        }
+    });
+
+    test('every job is open to every student; age decides only who must agree first', async () => {
+        // A job marked for adults, a thirteen-year-old and a nineteen-year-old. The board used to
+        // hide it (nothing at all was open under 14, and a minimum age was
+        // enforced). Now it is shown and can be applied for, and what the age
+        // changes is the guardian step.
+        const starts = new Date(); starts.setDate(starts.getDate() + 5);
+        const adultJob = await Opportunity.create({
+            slug: `night-stock-${Date.now()}`, title: 'Night stocktake', organization: { name: 'Big Mart', verified: false },
+            category: 'delivery', opportunityType: 'part-time', startsAt: starts, endsAt: starts, hoursPerSession: '4+',
+            minimumAge: 18, location: { area: 'Peenya', city: 'Bengaluru' }, compensation: { label: '₹900' },
+            safetyClassification: 'general', status: 'open', guardianApprovalRequired: false
+        });
+        try {
+            const seen = await api('GET', `/opportunities/${adultJob._id}`);
+            assert.equal(seen.status, 200, JSON.stringify(seen.body).slice(0, 160));
+            const started = await api('POST', '/opportunities/applications', { opportunityId: String(adultJob._id) });
+            assert.equal(started.status, 201, JSON.stringify(started.body).slice(0, 160));
+            assert.equal(started.body.application.status, 'needs-guardian', 'a thirteen-year-old still needs a parent first');
+            assert.equal(started.body.application.guardianNeeded, true);
+
+            const elder = startApp({ mount: '/api/jobs', router: require('../../src/jobboard') });
+            const grown = await elder.call(older.token)('POST', '/opportunities/applications', { opportunityId: String(adultJob._id) });
+            elder.server.close();
+            assert.equal(grown.status, 201);
+            assert.equal(grown.body.application.status, 'ready', 'a nineteen-year-old goes straight on');
+            assert.equal(grown.body.application.guardianNeeded, false, 'and is told no parent was involved');
+        } finally {
+            await Application.deleteMany({ opportunityId: String(adultJob._id) });
+            await Opportunity.deleteOne({ _id: adultJob._id });
+        }
+    });
+
+    test('the link in the mail points at the site the student is using, not a fixed setting', async () => {
+        // FRONTEND_URL on the machine that sent real requests was localhost,
+        // so every button in those emails opened nothing on a parent's phone.
+        // The link follows the request's own origin when it is one of ours.
+        const mailer = require('../../src/utils/emailService');
+        const real = mailer.sendEmail;
+        const savedFront = process.env.FRONTEND_URL, savedAllowed = process.env.ALLOWED_ORIGINS;
+        process.env.FRONTEND_URL = 'http://localhost:5173';
+        process.env.ALLOWED_ORIGINS = 'https://learn.yaticorp.com';
+        const base = `http://127.0.0.1:${jobsServer.address().port}/api/jobs`;
+        const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) });
+        const request = async (origin) => {
+            let html = '';
+            mailer.sendEmail = async (msg) => { html = msg.htmlContent; };
+            await Application.updateOne({ _id: row._id }, { $set: { mailSentAt: null } });
+            const r = await fetch(`${base}/opportunities/applications/${row.id}/request`, { method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${young.token}`, ...(origin ? { Origin: origin } : {}) } });
+            return { link: (await r.json()).mail.link, html };
+        };
+        try {
+            const live = await request('https://learn.yaticorp.com');
+            assert.match(live.link, /^https:\/\/learn\.yaticorp\.com\/jobs\/guardian\//, 'from the live site, the link is to the live site');
+            assert.ok(live.html.includes('https://learn.yaticorp.com/jobs/guardian/'), 'in the mail too');
+            const stranger = await request('https://evil.example.com');
+            assert.match(stranger.link, /^http:\/\/localhost:5173\//, 'an origin that is not ours is not trusted: back to FRONTEND_URL');
+            const none = await request(null);
+            assert.match(none.link, /^http:\/\/localhost:5173\//, 'and so is a request with no origin at all');
+        } finally {
+            mailer.sendEmail = real;
+            process.env.FRONTEND_URL = savedFront; process.env.ALLOWED_ORIGINS = savedAllowed;
+            if (savedAllowed === undefined) delete process.env.ALLOWED_ORIGINS;
+        }
+    });
+
+    test('a refused send is written on the record, and cleared once one goes', async () => {
+        const mailer = require('../../src/utils/emailService');
+        const real = mailer.sendEmail;
+        const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) });
+        try {
+            mailer.sendEmail = async () => { throw new Error('535 Username and Password not accepted'); };
+            await Application.updateOne({ _id: row._id }, { $set: { mailSentAt: null } });
+            await api('POST', `/opportunities/applications/${row.id}/request`);
+            let after = await Application.findById(row._id);
+            assert.equal(after.mailSentAt, null, 'nothing went');
+            assert.match(after.mailError, /535/, 'and the provider\'s reason is on the record');
+
+            mailer.sendEmail = async () => {};
+            await api('POST', `/opportunities/applications/${row.id}/request`);
+            after = await Application.findById(row._id);
+            assert.ok(after.mailSentAt, 'the retry went');
+            assert.equal(after.mailError, '', 'and the old reason is cleared');
+        } finally {
+            mailer.sendEmail = real;
+        }
     });
 
     test('the student still cannot continue while it is pending', async () => {
@@ -485,34 +718,27 @@ describe('what an operator sees', () => {
         assert.equal(await Application.countDocuments({ _id: made._id }), 0, 'and it is gone');
     });
 
-    test('once a parent has been written to, it cannot be deleted', async () => {
-        // The row the suite has already sent a request for.
-        const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) }).lean();
-        assert.notEqual(row.status, 'needs-guardian', 'this one really has been sent');
-
-        const listed = await adminApi('GET', '/admin/opportunities/applications');
-        const seen = listed.body.applications.find((a) => a.id === String(row._id));
-        assert.equal(seen.canDelete, false, 'no delete is offered');
-
-        const r = await adminApi('DELETE', `/admin/opportunities/applications/${row._id}`);
-        assert.equal(r.status, 409, 'and the route refuses it even if asked directly');
-        assert.match(r.body.error, /already gone to the parent/i);
-        assert.equal(await Application.countDocuments({ _id: row._id }), 1, 'the record survives');
-    });
-
-    test('a request that was sent but never delivered still cannot be deleted', async () => {
-        // mailSentAt is null after a refused send, but requestedAt is set — the
-        // link exists and the parent may yet open it.
-        const made = await Application.create({
-            userId: young.user._id, opportunityId: 'del-2',
-            student: { name: 'Sowndarya Student', age: 13 },
-            job: { title: 'A job whose email bounced' },
-            guardian: { name: 'Devaki', email: 'devaki.rao@example.com' },
-            status: 'awaiting-guardian', requestedAt: new Date()
-        });
-        const r = await adminApi('DELETE', `/admin/opportunities/applications/${made._id}`);
-        assert.equal(r.status, 409);
-        await Application.deleteOne({ _id: made._id });
+    test('every application can be deleted, whatever its state', async () => {
+        // Sent and waiting on the parent, answered by the parent, and approved:
+        // each offers Delete, says a parent was contacted, and goes when asked.
+        const states = [
+            { opportunityId: 'del-sent', status: 'awaiting-guardian', requestedAt: new Date(), mailSentAt: new Date() },
+            { opportunityId: 'del-answered', status: 'awaiting-admin', requestedAt: new Date(), mailSentAt: new Date(), decidedAt: new Date() },
+            { opportunityId: 'del-approved', status: 'approved', requestedAt: new Date(), mailSentAt: new Date(), decidedAt: new Date(), adminDecidedAt: new Date() }
+        ];
+        for (const extra of states) {
+            const made = await Application.create({
+                userId: young.user._id, student: { name: 'Sowndarya Student', age: 13 },
+                job: { title: `A job (${extra.status})` }, guardian: { name: 'Devaki', email: 'devaki.rao@example.com' }, ...extra
+            });
+            const listed = await adminApi('GET', '/admin/opportunities/applications');
+            const seen = listed.body.applications.find((a) => a.id === String(made._id));
+            assert.equal(seen.canDelete, true, `${extra.status}: Delete is offered`);
+            assert.equal(seen.parentContacted, true, `${extra.status}: and it says the parent was emailed`);
+            const r = await adminApi('DELETE', `/admin/opportunities/applications/${made._id}`);
+            assert.equal(r.status, 200, `${extra.status}: deleted`);
+            assert.equal(await Application.countDocuments({ _id: made._id }), 0);
+        }
     });
 
     test('the Approved tab keeps an application the student has carried on with', async () => {

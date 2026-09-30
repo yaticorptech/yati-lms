@@ -123,13 +123,13 @@ export default function WelcomeBanner({
             {/* xl:pr-44 keeps the row clear of the picture's visible part; its
                 left third fades out and may sit behind the pill. */}
             <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:gap-6 xl:pr-44">
-                <div className="flex min-w-0 items-center gap-4 sm:gap-6">
+                <div className="flex min-w-0 items-center gap-3 min-[400px]:gap-4 sm:gap-6">
                     {/* The photo, in a white ring with a lavender halo */}
                     <div className="relative shrink-0">
                         <button type="button" onClick={photo ? onViewPhoto : undefined} disabled={!photo}
                             aria-label={photo ? 'View your photo' : undefined}
                             className="block rounded-full bg-indigo-100/80 p-1.5 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-default">
-                            <span data-photo className="block h-20 w-20 overflow-hidden rounded-full border-4 border-white bg-indigo-50 sm:h-24 sm:w-24 lg:h-28 lg:w-28">
+                            <span data-photo className="block h-16 w-16 overflow-hidden rounded-full border-4 border-white bg-indigo-50 min-[400px]:h-20 min-[400px]:w-20 sm:h-24 sm:w-24 lg:h-28 lg:w-28">
                                 {photo
                                     ? <img src={photo} alt={name} className="h-full w-full object-cover" />
                                     : <span className="flex h-full w-full items-center justify-center text-2xl font-black text-indigo-600">{initials}</span>}
@@ -144,7 +144,15 @@ export default function WelcomeBanner({
                         <p className="flex items-center gap-1.5 text-sm text-slate-600 sm:text-base">
                             <span aria-hidden="true">{greetingIcon}</span> {greeting},
                         </p>
-                        <h1 className="mt-0.5 break-words text-3xl font-black tracking-tight text-indigo-950 sm:text-4xl">
+                        {/* Sized to the screen on a phone. At a fixed 30px a
+                            name like "Bhagyashree!" was wider than the room
+                            beside the photo on a 360px screen, and broke into
+                            "Bhagyashre / e!". 7vw reaches the full 30px by
+                            430px, and under 400px the photo is a size smaller
+                            to give the name the room: a 13-letter name fits
+                            at 344px, "Bhagyashree!" at 320px. break-words
+                            stays only as the last resort for a longer one. */}
+                        <h1 className="mt-0.5 break-words text-[clamp(1.5rem,7vw,1.875rem)] font-black tracking-tight text-indigo-950 sm:text-4xl">
                             Hello, <span className="text-indigo-600">{firstName}!</span>
                         </h1>
                         <p className="mt-1.5 text-sm text-slate-500 sm:text-base">

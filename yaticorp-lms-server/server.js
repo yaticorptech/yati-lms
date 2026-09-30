@@ -9,6 +9,8 @@ const { connectDB } = require('./src/config/db');
 
 // Connect to database
 connectDB();
+// Guardian requests whose parent address bounced: see src/utils/bounceWatcher.js.
+if (process.env.NODE_ENV !== 'test') require('./src/utils/bounceWatcher').start();
 
 const app = express();
 
