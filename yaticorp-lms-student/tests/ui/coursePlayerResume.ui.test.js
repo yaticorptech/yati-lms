@@ -246,3 +246,42 @@ describe('the video position', { skip: skipWithoutChrome }, () => {
         assert.equal(result.pill, false, 'no resume notice for a fresh start');
     });
 });
+
+describe('a video the browser fails to decode', { skip: skipWithoutChrome }, () => {
+    // Chrome reports a decode failure (media error 3) at the same spot on
+    // every load when its cached copy of a large file is stitched wrong, and
+    // fires `playing` just before failing again. The player used to reload at
+    // that spot forever, which a student saw as the video restarting.
+    test('is reloaded past the cache, then stepped over, then given up on', async () => {
+        const { result, errors } = await screen({
+            entry: entry(`localStorage.setItem('yati:video-pos:L1', '42');`),
+            api: api([]), files, budget: 40000,
+            // Real time: a second media load never completes on virtual time.
+            device: { width: 1400, height: 1000, dpr: 1, mobile: false },
+            script: `
+  let video = null;
+  for (let i = 0; i < 50 && !video; i++) { video = $('video'); if (!video) await sleep(100); }
+  for (let i = 0; i < 100 && video && video.readyState < 1; i++) await sleep(100);
+  await sleep(500);
+  const failure = { code: 3, message: 'PIPELINE_ERROR_DECODE', MEDIA_ERR_ABORTED: 1, MEDIA_ERR_DECODE: 3 };
+  Object.defineProperty(video, 'error', { get: () => failure, configurable: true });
+  const attempts = [];
+  for (let i = 0; i < 4; i++) {
+    video.dispatchEvent(new Event('playing'));
+    video.dispatchEvent(new Event('error'));
+    await sleep(1000 * 2 ** i + 1500);
+    attempts.push({ src: video.getAttribute('src'), at: Math.round(video.currentTime) });
+  }
+  return { attempts, overlay: text($$('p').find((p) => /cannot be played/.test(p.textContent))),
+    button: text(find(/Resume from/)) };`
+        });
+        assert.deepEqual(errors, []);
+        const [first, second, third] = result.attempts;
+        assert.match(first.src, /^\/lesson\.wav\?r=\d+$/, `reloaded under a new cache key (got ${first.src})`);
+        assert.equal(first.at, 42, 'at the same spot first');
+        assert.equal(second.at, 43, 'then a second past it');
+        assert.equal(third.at, 45, 'then further on');
+        assert.equal(result.overlay, 'This part of the video cannot be played.', 'and it stops instead of looping');
+        assert.equal(result.button, 'Resume from 0:45');
+    });
+});
