@@ -9,6 +9,9 @@ lerna-debug.log*
 
 node_modules
 dist
+# The vendored speech plugin ships its built JavaScript (see docs/MOBILE.md):
+# without it, a fresh checkout (Vercel) cannot resolve @capacitor-community/speech-recognition.
+!native-plugins/speech-recognition/dist
 dist-ssr
 *.local
 .env
