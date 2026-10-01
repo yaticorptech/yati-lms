@@ -16,7 +16,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
     Globe, Plus, Trash2, Edit3, CheckCircle2, Loader2, X, Search, FolderX, ArrowLeft,
-    Send, EyeOff, Copy, Eye, Radio, AlertTriangle, ListChecks
+    Send, EyeOff, Copy, Eye, Radio, AlertTriangle, ListChecks, Timer
 } from 'lucide-react';
 import api from '../utils/api';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
@@ -25,6 +25,9 @@ import Select from '../components/Select';
 const BLANK_QUESTION = { question: '', options: ['', '', '', ''], correctAnswerIndex: 0, explanation: '', category: 'General', difficulty: 'medium' };
 const DIFFICULTY = { easy: 'bg-emerald-100 text-emerald-700', medium: 'bg-indigo-100 text-indigo-700', hard: 'bg-rose-100 text-rose-700' };
 const SIZES = [5, 10, 15, 20];
+// Time limits offered at a click, in minutes; 0 is no limit. Any other whole
+// number of minutes can be typed in beside them.
+const TIME_LIMITS = [0, 5, 10, 15, 30];
 const INPUT = 'mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
 const LABEL = 'text-xs font-bold uppercase tracking-wider text-slate-500';
 const BTN = 'inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none';
@@ -33,6 +36,8 @@ const BTN2 = 'inline-flex items-center justify-center gap-2 rounded-xl border bo
 const categoryOf = (q) => q.category || 'General';
 const errorOf = (err, fallback) => err.response?.data?.message || fallback;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+/** "10 min limit", or "no time limit". */
+const fmtLimit = (quiz) => (quiz.timeLimitMinutes ? `${quiz.timeLimitMinutes} min limit` : 'no time limit');
 
 const StatusPill = ({ status }) => status === 'published'
     ? <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-emerald-700"><Radio size={12} /> Live</span>
@@ -77,7 +82,7 @@ const Dialog = ({ label, onClose, children, footer, wide }) => (
 function QuizForm({ quiz, limits, onClose, onSaved }) {
     const editing = Boolean(quiz?._id);
     const count = quiz?.questionCount || 0;
-    const [form, setForm] = useState({ title: quiz?.title || '', description: quiz?.description || '', size: quiz?.size || 10 });
+    const [form, setForm] = useState({ title: quiz?.title || '', description: quiz?.description || '', size: quiz?.size || 10, timeLimitMinutes: quiz?.timeLimitMinutes || 0 });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const min = Math.max(limits.min, count);
@@ -86,7 +91,7 @@ function QuizForm({ quiz, limits, onClose, onSaved }) {
         e.preventDefault();
         setBusy(true); setError('');
         try {
-            const body = { ...form, size: Number(form.size) };
+            const body = { ...form, size: Number(form.size), timeLimitMinutes: Number(form.timeLimitMinutes) || 0 };
             const r = editing ? await api.put(`/admin/global-quiz/quizzes/${quiz._id}`, body) : await api.post('/admin/global-quiz/quizzes', body);
             onSaved(r.data, editing);
         } catch (err) { setError(errorOf(err, 'Could not save the quiz.')); }
@@ -125,6 +130,24 @@ function QuizForm({ quiz, limits, onClose, onSaved }) {
                         </label>
                     </div>
                     <p className="mt-1 text-xs text-slate-400">Between {min} and {limits.max}.</p>
+                </div>
+                <div>
+                    <span className={LABEL}>Time limit</span>
+                    <p className="mt-0.5 text-xs text-slate-500">How long students get for the whole quiz. Their clock starts when they press Start, and the paper closes when it runs out.</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {TIME_LIMITS.map((n) => (
+                            <button key={n} type="button" onClick={() => setForm({ ...form, timeLimitMinutes: n })} aria-pressed={Number(form.timeLimitMinutes) === n}
+                                className={`min-w-14 rounded-xl px-4 py-2 text-sm font-bold transition-colors ${Number(form.timeLimitMinutes) === n ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{n ? `${n} min` : 'No limit'}</button>
+                        ))}
+                        <label className="flex items-center gap-2 text-sm text-slate-500">
+                            or
+                            <input type="number" min={0} max={limits.timeLimitMax || 180} value={form.timeLimitMinutes} aria-label="Custom time limit in minutes"
+                                onChange={(e) => setForm({ ...form, timeLimitMinutes: e.target.value })}
+                                className="w-20 rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-indigo-500 focus:outline-none" />
+                            min
+                        </label>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400">Whole minutes, up to {limits.timeLimitMax || 180}. 0 means no limit.</p>
                 </div>
                 {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
             </Dialog>
@@ -221,7 +244,8 @@ function Preview({ quiz, questions, onClose }) {
     return (
         <Dialog label={`Preview: ${quiz.title}`} onClose={onClose} wide footer={<button type="button" onClick={onClose} className={`${BTN} flex-1 sm:flex-none`}>Done</button>}>
             <p className="rounded-xl bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
-                Students get these {questions.length} question{questions.length === 1 ? '' : 's'} in a shuffled order, one at a time, without the answers.
+                Students get these {questions.length} question{questions.length === 1 ? '' : 's'} in a shuffled order, one at a time, without the answers, and each student gets one attempt.
+                {quiz.timeLimitMinutes ? ` They have ${quiz.timeLimitMinutes} minute${quiz.timeLimitMinutes === 1 ? '' : 's'} from pressing Start.` : ' There is no time limit.'}
                 The correct answer and its explanation show here for you, and appear to students after they answer.
             </p>
             <ol className="space-y-3">
@@ -269,7 +293,7 @@ function QuizList({ quizzes, settings, onOpen, onNew, onAction, onSetting, savin
                         Global Quiz
                     </h1>
                     <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                        Write quizzes of any size — 5 questions, 10, 20 — and publish the one students should take.
+                        Write quizzes of any size — 5 questions, 10, 20 — give each a time limit if you want one, and publish the one students should take.
                         It is practice: it awards no credits, XP or course progress.
                     </p>
                 </div>
@@ -284,7 +308,7 @@ function QuizList({ quizzes, settings, onOpen, onNew, onAction, onSetting, savin
                         <div className="min-w-0">
                             <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Live for students</p>
                             <p className="truncate font-bold text-slate-900" title={live.title}>{live.title}</p>
-                            <p className="text-xs text-emerald-800">{live.questionCount} question{live.questionCount === 1 ? '' : 's'} · published {fmtDate(live.publishedAt)}{!enabled ? ' · but the Global Quiz is switched off below' : ''}</p>
+                            <p className="text-xs text-emerald-800">{live.questionCount} question{live.questionCount === 1 ? '' : 's'} · {fmtLimit(live)} · published {fmtDate(live.publishedAt)}{!enabled ? ' · but the Global Quiz is switched off below' : ''}</p>
                         </div>
                     </div>
                     <button onClick={() => onOpen(live._id)} className={`${BTN2} shrink-0`}>Open quiz</button>
@@ -331,7 +355,7 @@ function QuizList({ quizzes, settings, onOpen, onNew, onAction, onSetting, savin
                                         <StatusPill status={q.status} />
                                     </div>
                                     <div className="mt-4"><Meter count={q.questionCount} size={q.size} /></div>
-                                    <p className="mt-2 text-xs text-slate-400">{q.categories.length} categor{q.categories.length === 1 ? 'y' : 'ies'} · updated {fmtDate(q.updatedAt)}</p>
+                                    <p className="mt-2 text-xs text-slate-400">{q.categories.length} categor{q.categories.length === 1 ? 'y' : 'ies'} · {fmtLimit(q)} · updated {fmtDate(q.updatedAt)}</p>
                                     <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
                                         <button onClick={() => onOpen(q._id)} className={`${BTN2} px-3 py-2`}><Edit3 size={15} /> Open</button>
                                         {q.status === 'published'
@@ -430,6 +454,7 @@ function QuizDetail({ quizId, onBack, onAction, onEditQuiz, reloadKey }) {
                         <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl [overflow-wrap:anywhere]">{quiz.title}</h1>
                         {quiz.description && <p className="mt-1 max-w-2xl text-sm text-slate-500 [overflow-wrap:anywhere]">{quiz.description}</p>}
                         <div className="mt-3"><Meter count={held} size={quiz.size} /></div>
+                        <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-slate-500"><Timer size={14} className="text-indigo-500" /> {quiz.timeLimitMinutes ? `${quiz.timeLimitMinutes} minute limit · the clock starts when a student presses Start` : 'No time limit'}</p>
                     </div>
                     <div className="flex flex-wrap gap-2 lg:shrink-0">
                         <button onClick={() => onEditQuiz({ ...quiz, questionCount: held })} className={BTN2}><Edit3 size={16} /> Edit details</button>
@@ -534,7 +559,7 @@ const GlobalQuiz = () => {
     const [params, setParams] = useSearchParams();
     const openId = params.get('quiz');
     const [quizzes, setQuizzes] = useState(null);
-    const [limits, setLimits] = useState({ min: 3, max: 50 });
+    const [limits, setLimits] = useState({ min: 3, max: 50, timeLimitMax: 180 });
     const [settings, setSettings] = useState(null);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');

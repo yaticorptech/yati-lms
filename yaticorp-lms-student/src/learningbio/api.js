@@ -4,6 +4,7 @@
  */
 import client from '../utils/api';
 import saveToDrive from '../integrations/google/saveToDrive';
+import { saveBlob } from '../native/saveFile';
 
 const unwrap = (err) => {
     const body = err.response?.data;
@@ -27,15 +28,8 @@ export const bioApi = {
     /** The bio as a PDF, handed to the browser as a download. */
     downloadPdf: async (name = 'Learning_Bio') => {
         const res = await client.get('/learning-bio/pdf', { responseType: 'blob' }).catch(unwrap);
-        const url = URL.createObjectURL(res.data);
         const fileName = `${String(name).replace(/[^A-Za-z0-9]+/g, '_')}_Learning_Bio.pdf`;
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        await saveBlob(res.data, fileName, { title: 'Learning Bio' });
 
         // A copy in the student's own Drive, when they have connected one.
         // Deliberately not awaited: the download has already happened.

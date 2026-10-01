@@ -124,7 +124,7 @@ export default function HiddenOpportunitiesTab({ profile, onSwitchTab, location 
                         <h3 className="text-base font-black text-slate-900">{g.role.name}</h3>
                         <p className="text-xs text-slate-500">{g.role.held ? 'A role you have held' : `Because you know ${g.role.because.join(', ')}`}</p>
                     </div>
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{g.jobs.map((job) => <MatchCard key={job.id} job={job} />)}</div>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{g.jobs.map((job) => <MatchCard key={job.id} job={job} actionLabel="Apply" />)}</div>
                 </div>
             ))}
             {!loading && groups && groups.length === 0 && picks.length > 0 && (

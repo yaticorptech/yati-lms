@@ -13,6 +13,8 @@ import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, Ch
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
+import { pictureUrl } from '../native/pictures';
+import PullToRefresh from '../components/PullToRefresh';
 
 // Contact Support Modal
 const ContactModal = ({ onClose, user }) => {
@@ -74,6 +76,8 @@ const ContactModal = ({ onClose, user }) => {
 
 const StudentLayout = () => {
     const { user, logout, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled } = useContext(AuthContext);
+    // The page's own scroller, for pull-to-refresh.
+    const mainRef = useRef(null);
     // Streak, points and level for the header pills. Null until loaded or
     // when an admin has locked rewards; the pills simply stay away then.
     const rewards = useRewards();
@@ -628,7 +632,9 @@ const StudentLayout = () => {
             )}
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-auto bg-slate-50 sidebar:pt-0 pt-16 relative">
+            {/* Drag down at the top of a page to reload it (touch screens). */}
+            <PullToRefresh scrollerRef={mainRef} />
+            <main ref={mainRef} className="flex-1 overflow-auto overscroll-y-contain bg-slate-50 sidebar:pt-0 pt-16 relative">
                 {/* Desktop Header */}
                 <header className="hidden sidebar:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-8 sticky top-0 z-30">
                     {/* Left side kept empty so the pills and profile stay on the right. */}
@@ -689,7 +695,7 @@ const StudentLayout = () => {
                             >
                                 <span className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm ring-2 ring-indigo-100 hover:ring-indigo-300 transition-all duration-200 overflow-hidden">
                                     {user?.profilePicture ? (
-                                        <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
+                                        <img src={pictureUrl(user.profilePicture)} alt={user.name} className="w-full h-full object-cover" />
                                     ) : (
                                         getInitials(user?.name)
                                     )}
@@ -708,7 +714,7 @@ const StudentLayout = () => {
                                     <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col items-center gap-2 text-center">
                                         <div className="w-14 h-14 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg overflow-hidden">
                                             {user?.profilePicture ? (
-                                                <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
+                                                <img src={pictureUrl(user.profilePicture)} alt={user.name} className="w-full h-full object-cover" />
                                             ) : (
                                                 getInitials(user?.name)
                                             )}

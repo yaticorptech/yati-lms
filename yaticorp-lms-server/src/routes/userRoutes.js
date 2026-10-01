@@ -48,12 +48,14 @@ const aiKeyCtrl = require('../controllers/userAiKeyController');
 router.route('/ai-key').get(protectUser, aiKeyCtrl.getAiKey).put(protectUser, aiKeyCtrl.setAiKey).delete(protectUser, aiKeyCtrl.deleteAiKey);
 
 // Quiz Routes
-const { getQuizForStudent, submitQuizAnswers, getGlobalQuiz, submitGlobalQuiz } = require('../controllers/userQuizController');
+const { getQuizForStudent, submitQuizAnswers, getGlobalQuiz, startGlobalQuiz, submitGlobalQuiz, finishGlobalQuiz } = require('../controllers/userQuizController');
 router.get('/lessons/:lessonId/quiz', protectUser, getQuizForStudent);
 router.post('/lessons/:lessonId/quiz/submit', protectUser, submitQuizAnswers);
 // One paper across every course the student can open. Practice: it records nothing.
 router.get('/quizzes/global', protectUser, getGlobalQuiz);
+router.post('/quizzes/global/start', protectUser, startGlobalQuiz);
 router.post('/quizzes/global/submit', protectUser, submitGlobalQuiz);
+router.post('/quizzes/global/finish', protectUser, finishGlobalQuiz);
 
 // Ticket Routes
 router.post('/tickets', protectUser, createTicket);

@@ -2,6 +2,8 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { CalendarDays, Check, ChevronDown, FolderOpen, Link2, Loader2, ShieldCheck, Unlink } from 'lucide-react';
 import { beginConnect, disconnect } from './api';
 import { getSnapshot, refresh, subscribe } from './googleStore';
+import { openExternal } from '../../native/saveFile';
+import { isNative } from '../../native/platform';
 
 /**
  * Connect, disconnect, and sync, in Career Path settings.
@@ -48,6 +50,14 @@ export default function GoogleConnectionCard() {
     setBusy('connect');
     try {
       const { url } = await beginConnect();
+      // Google refuses to sign in inside an app's web view, so the app sends
+      // the student to the system browser; the connection is saved on the
+      // server, and this card refreshes when they come back.
+      if (isNative()) {
+        await openExternal(url);
+        setBusy('');
+        return;
+      }
       window.location.href = url;
     } catch {
       setNote('Could not reach Google. Please try again.');

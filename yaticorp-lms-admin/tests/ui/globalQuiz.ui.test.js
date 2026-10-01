@@ -11,8 +11,8 @@ const question = (id, quizId, q, category) => ({
     explanation: 'Mercury orbits closest.', category, difficulty: 'easy'
 });
 const QUIZZES = [
-    { _id: 'live', title: 'Weekly GK', description: 'Five quick ones', size: 5, status: 'published', publishedAt: '2026-09-20T00:00:00.000Z', updatedAt: '2026-09-20T00:00:00.000Z', questionCount: 5, categories: ['General'] },
-    { _id: 'full', title: 'Aptitude', description: '', size: 3, status: 'draft', publishedAt: null, updatedAt: '2026-09-21T00:00:00.000Z', questionCount: 3, categories: ['Aptitude', 'Maths'] },
+    { _id: 'live', title: 'Weekly GK', description: 'Five quick ones', size: 5, timeLimitMinutes: 10, status: 'published', publishedAt: '2026-09-20T00:00:00.000Z', updatedAt: '2026-09-20T00:00:00.000Z', questionCount: 5, categories: ['General'] },
+    { _id: 'full', title: 'Aptitude', description: '', size: 3, timeLimitMinutes: 0, status: 'draft', publishedAt: null, updatedAt: '2026-09-21T00:00:00.000Z', questionCount: 3, categories: ['Aptitude', 'Maths'] },
     { _id: 'half', title: 'Science', description: 'Still being written', size: 10, status: 'draft', publishedAt: null, updatedAt: '2026-09-22T00:00:00.000Z', questionCount: 2, categories: ['Science'] }
 ];
 const QUESTIONS = {
@@ -56,9 +56,10 @@ describe('the list of quizzes', { skip: skipWithoutChrome }, () => {
             };` });
         assert.deepEqual(errors, []);
         assert.equal(result.cards.length, 3);
-        assert.match(result.cards[0], /Weekly GK.*Live.*5 of 5 added · full/);
-        assert.match(result.cards[2], /Science.*Draft.*2 of 10 added · 8 left/);
+        assert.match(result.cards[0], /Weekly GK.*Live.*5 of 5 added · full.*10 min limit/);
+        assert.match(result.cards[2], /Science.*Draft.*2 of 10 added · 8 left.*no time limit/);
         assert.match(result.banner, /Weekly GK/);
+        assert.match(result.banner, /10 min limit/);
     });
 
     test('a quiz that is not full cannot be published, and says why', async () => {
@@ -101,7 +102,26 @@ describe('the list of quizzes', { skip: skipWithoutChrome }, () => {
         assert.equal(result.post[1], '/admin/global-quiz/quizzes');
         assert.equal(result.post[2].title, 'Current affairs');
         assert.equal(result.post[2].size, 5);
+        assert.equal(result.post[2].timeLimitMinutes, 0, 'untimed unless a limit is chosen');
         assert.ok(result.opened, 'straight into the new quiz');
+    });
+
+    test('a new quiz can be given a time limit, at a click or typed in', async () => {
+        const { result } = await screen({ entry: LIST, api, script: `
+            await sleep(700);
+            click(/New quiz/); await sleep(250);
+            const setter = (el, v) => { Object.getOwnPropertyDescriptor(el.constructor.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };
+            setter($('[role=dialog] input'), 'Timed GK');
+            click(/^10 min$/, '[role=dialog] button'); await sleep(100);
+            const pressed = $$('[role=dialog] button').find((b) => /^10 min$/.test(b.innerText)).getAttribute('aria-pressed');
+            setter($('[role=dialog] input[aria-label="Custom time limit in minutes"]'), '25'); await sleep(100);
+            const typedOver = $$('[role=dialog] button').find((b) => /^10 min$/.test(b.innerText)).getAttribute('aria-pressed');
+            click(/Create quiz/); await sleep(600);
+            return { pressed, typedOver, post: window.__calls.find((c) => c[0] === 'POST') };` });
+        assert.equal(result.pressed, 'true', 'the 10-minute button takes');
+        assert.equal(result.typedOver, 'false', 'typing a number of minutes replaces it');
+        assert.equal(result.post[1], '/admin/global-quiz/quizzes');
+        assert.equal(result.post[2].timeLimitMinutes, 25);
     });
 
     test('duplicate and delete', async () => {
@@ -134,10 +154,12 @@ describe('inside a quiz', { skip: skipWithoutChrome }, () => {
                 meter: text($('[aria-label="3 of 3 questions added"]')),
                 sets: $$('section[aria-label$=" questions"]').map((s) => s.getAttribute('aria-label')),
                 full: text($('[role=status]')),
-                addButton: !!$('button[aria-label="Add question at the end"]')
+                addButton: !!$('button[aria-label="Add question at the end"]'),
+                limit: text($$('p').find((p) => /time limit|minute limit/i.test(p.innerText)))
             };` });
         assert.deepEqual(errors, []);
         assert.equal(result.title, 'Aptitude');
+        assert.equal(result.limit, 'No time limit');
         assert.match(result.meter, /3 of 3 added · full/);
         assert.deepEqual(result.sets, ['Aptitude questions', 'Maths questions']);
         assert.match(result.full, /All 3 questions are in/);
@@ -204,6 +226,8 @@ describe('inside a quiz', { skip: skipWithoutChrome }, () => {
         assert.equal(result.items, 3);
         assert.equal(result.correct, 3);
         assert.match(result.body, /shuffled order/);
+        assert.match(result.body, /each student gets one attempt/);
+        assert.match(result.body, /There is no time limit/);
     });
 
     test('a quiz that is not full cannot be published from inside it either', async () => {
@@ -213,6 +237,19 @@ describe('inside a quiz', { skip: skipWithoutChrome }, () => {
             return { disabled: pub.disabled, note: text(document.body) };` });
         assert.equal(result.disabled, true);
         assert.match(result.note, /Add 8 more questions to publish/);
+    });
+
+    test('Edit details opens with the current time limit and saves a new one', async () => {
+        const { result } = await screen({ entry: at('/global-quiz?quiz=live'), api, script: `
+            await sleep(700);
+            click(/Edit details/); await sleep(250);
+            const was = $$('[role=dialog] button').find((b) => /^10 min$/.test(b.innerText)).getAttribute('aria-pressed');
+            click(/^No limit$/, '[role=dialog] button'); await sleep(100);
+            click(/Save changes/); await sleep(400);
+            return { was, put: window.__calls.find((c) => c[0] === 'PUT') };` });
+        assert.equal(result.was, 'true', 'the limit the quiz already has is shown pressed');
+        assert.equal(result.put[1], '/admin/global-quiz/quizzes/live');
+        assert.equal(result.put[2].timeLimitMinutes, 0);
     });
 
     test('back goes to the list', async () => {

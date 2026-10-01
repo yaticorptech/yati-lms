@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Trophy, Star, Layers, Gamepad2, RefreshCw, Crown, ArrowRight, ChevronDown } from 'lucide-react';
 import api from '../../services/api';
 import { GAMES_SYNCED } from './levels';
+import { pictureUrl } from '../../../native/pictures';
 
 /**
  * Who has earned the most stars across the brain games.
@@ -46,7 +47,7 @@ const initials = (name = '') =>
 
 function Avatar({ entry }) {
   return entry.profilePicture ? (
-    <img src={entry.profilePicture} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
+    <img src={pictureUrl(entry.profilePicture)} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
   ) : (
     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[0.62rem] font-black text-violet-700">
       {initials(entry.name)}

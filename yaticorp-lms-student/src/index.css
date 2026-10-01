@@ -429,6 +429,45 @@
 .tab-scroll::-webkit-scrollbar { display: none; }
 .tab-scroll > * { scroll-snap-align: start; }
 
+/* The tab strip's motion (student dashboard). One underline glides from tab
+   to tab — its place and width are set from JS, which measures the chosen tab
+   — the chosen tab's icon gives a small pop, a pressed tab dips, and the
+   counter badge springs in. All of it stops for reduced motion. */
+.tab-ink {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    width: 0;
+    border-radius: 3px 3px 0 0;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    box-shadow: 0 -2px 10px rgba(99, 102, 241, 0.35);
+    transform: translateX(var(--ink-x, 0px));
+    width: var(--ink-w, 0px);
+    transition: transform 0.38s cubic-bezier(0.34, 1.4, 0.64, 1), width 0.38s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.2s;
+    scroll-snap-align: none;
+    pointer-events: none;
+}
+.tab-btn { transition: color 0.2s ease, transform 0.15s ease; }
+.tab-btn:active { transform: scale(0.95); }
+.tab-btn .tab-icon { transition: transform 0.25s ease, color 0.2s ease; }
+.tab-btn:hover .tab-icon { transform: translateY(-2px) rotate(-6deg); }
+.tab-btn[data-active='true'] .tab-icon { animation: tab-icon-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes tab-icon-pop {
+    0% { transform: scale(0.6) rotate(-12deg); }
+    60% { transform: scale(1.2) rotate(4deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+.tab-count { animation: tab-count-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes tab-count-in { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.tab-panel { animation: tab-panel-in 0.35s ease-out both; }
+@keyframes tab-panel-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+    .tab-ink, .tab-btn, .tab-btn .tab-icon { transition: none; }
+    .tab-btn[data-active='true'] .tab-icon, .tab-count, .tab-panel { animation: none; }
+    .tab-btn:hover .tab-icon, .tab-btn:active { transform: none; }
+}
+
 /* The fades sit on the wrapper, not the scroller, so they do not scroll away.
    `mask-image` would clip the tabs themselves; a gradient overlay only tints
    what is under it, and pointer-events stay with the strip. */
