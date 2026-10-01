@@ -15,8 +15,8 @@ let app, userApp, boss, me, api, studentApi, original, wasPublished = [];
 const made = [];
 
 const Q = (question, extra = {}) => ({ question, options: ['Venus', 'Mercury', 'Mars'], correctAnswerIndex: 1, explanation: 'Mercury orbits closest.', category: TAG, difficulty: 'easy', ...extra });
-const newQuiz = async (size, title = `${TAG} ${size}`) => {
-    const r = await api('POST', '/global-quiz/quizzes', { title, size, description: 'A test quiz' });
+const newQuiz = async (size, title = `${TAG} ${size}`, extra = {}) => {
+    const r = await api('POST', '/global-quiz/quizzes', { title, size, description: 'A test quiz', ...extra });
     assert.equal(r.status, 201, JSON.stringify(r.body));
     made.push(r.body._id);
     return r.body;
@@ -100,13 +100,37 @@ describe('quizzes', () => {
             assert.equal(r.status, 400); assert.match(r.body.message, expected);
         }
     });
+
+    test('a quiz can be given a time limit in whole minutes, changed, and copied with it', async () => {
+        const timed = await newQuiz(3, `${TAG} timed`, { timeLimitMinutes: 15 });
+        assert.equal(timed.timeLimitMinutes, 15);
+        const untimed = await newQuiz(3, `${TAG} untimed`);
+        assert.equal(untimed.timeLimitMinutes, 0, 'no limit unless one is given');
+        const list = (await api('GET', '/global-quiz/quizzes')).body;
+        assert.equal(list.quizzes.find((q) => q._id === timed._id).timeLimitMinutes, 15);
+        assert.equal(list.limits.timeLimitMax, 180);
+        const changed = await api('PUT', `/global-quiz/quizzes/${timed._id}`, { title: timed.title, size: 3, timeLimitMinutes: 7 });
+        assert.equal(changed.status, 200, JSON.stringify(changed.body)); assert.equal(changed.body.timeLimitMinutes, 7);
+        const copy = await api('POST', `/global-quiz/quizzes/${timed._id}/duplicate`);
+        assert.equal(copy.status, 201); made.push(copy.body._id);
+        assert.equal(copy.body.timeLimitMinutes, 7, 'a copy keeps the limit');
+        const cleared = await api('PUT', `/global-quiz/quizzes/${timed._id}`, { title: timed.title, size: 3, timeLimitMinutes: '' });
+        assert.equal(cleared.status, 200); assert.equal(cleared.body.timeLimitMinutes, 0, 'a blank limit is no limit');
+    });
+
+    test('a time limit outside whole minutes up to three hours is refused', async () => {
+        for (const bad of [-1, 181, 2.5, 'ten']) {
+            const r = await api('POST', '/global-quiz/quizzes', { title: `${TAG} bad`, size: 3, timeLimitMinutes: bad });
+            assert.equal(r.status, 400, String(bad)); assert.match(r.body.message, /whole minutes/);
+        }
+    });
 });
 
 describe('publishing', () => {
     let a, b;
 
     test('only a full quiz can be published', async () => {
-        a = await newQuiz(3, `${TAG} A`);
+        a = await newQuiz(3, `${TAG} A`, { timeLimitMinutes: 20 });
         await fill(a, 2);
         const early = await api('POST', `/global-quiz/quizzes/${a._id}/publish`);
         assert.equal(early.status, 400); assert.equal(early.body.code, 'QUIZ_NOT_FULL');
@@ -120,7 +144,10 @@ describe('publishing', () => {
         const paper = await studentApi('GET', '/quizzes/global?limit=10');
         assert.equal(paper.status, 200);
         assert.equal(paper.body.quiz.title, `${TAG} A`);
+        assert.equal(paper.body.quiz.timeLimitMinutes, 20, 'the paper says how long students get');
         assert.equal(paper.body.questions.length, 3);
+        // An attempt at it, for the delete test below to find.
+        assert.equal((await studentApi('POST', '/quizzes/global/start')).status, 201);
     });
 
     test('publishing another quiz replaces it, and the first goes back to draft', async () => {
@@ -150,9 +177,12 @@ describe('publishing', () => {
         assert.equal(qs.length, 4); assert.ok(qs.every((q) => q.quizId === r.body._id));
     });
 
-    test('deleting a quiz deletes its questions', async () => {
+    test('deleting a quiz deletes its questions and every attempt at it', async () => {
+        const Attempt = require('../../src/models/GlobalQuizAttempt');
+        assert.equal(await Attempt.countDocuments({ quizId: a._id }), 1);
         const r = await api('DELETE', `/global-quiz/quizzes/${a._id}`);
         assert.equal(r.status, 200); assert.equal(r.body.deletedQuestions, 3);
+        assert.equal(await Attempt.countDocuments({ quizId: a._id }), 0);
         assert.equal((await api('GET', `/global-quiz/quizzes/${a._id}/questions`)).status, 404);
     });
 });

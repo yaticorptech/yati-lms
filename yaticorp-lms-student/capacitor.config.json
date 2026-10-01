@@ -1,0 +1,32 @@
+{
+  "appId": "com.yaticorp.lms",
+  "appName": "Yaticorp LMS",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#0f172a",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0f172a"
+    },
+    "Keyboard": {
+      "resize": "body"
+    }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "insetsHandling": "native"
+  },
+  "backgroundColor": "#0f172a"
+}

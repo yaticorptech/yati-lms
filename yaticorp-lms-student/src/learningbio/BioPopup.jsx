@@ -10,6 +10,7 @@ import { bioApi } from './api';
 import BioText from './BioText';
 import { ErrorBox } from './ui';
 import Portal from '../components/Portal';
+import { pictureUrl } from '../native/pictures';
 
 /** The photo on its blob, with the two little accents from the design. */
 const Portrait = ({ avatar, name }) => (
@@ -26,7 +27,7 @@ const Portrait = ({ avatar, name }) => (
         </svg>
         <span className="absolute inset-[9%] overflow-hidden rounded-full bg-violet-100 shadow-xl ring-4 ring-white sm:ring-8">
             {avatar
-                ? <img src={avatar} alt={name} className="h-full w-full object-cover" />
+                ? <img src={pictureUrl(avatar)} alt={name} className="h-full w-full object-cover" />
                 : <span className="flex h-full w-full items-center justify-center text-4xl font-black text-violet-400 sm:text-6xl md:text-7xl">{(name || '?').trim().charAt(0).toUpperCase()}</span>}
         </span>
     </div>

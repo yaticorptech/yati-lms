@@ -8,10 +8,11 @@
  */
 import { useEffect, useState } from 'react';
 import { num } from './format';
+import { pictureUrl } from '../../native/pictures';
 
 const initials = (name = '') => name.trim().split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 export const Avatar = ({ e, size = 'h-9 w-9', ring = '' }) => e.profilePicture
-    ? <img src={e.profilePicture} alt="" className={`${size} shrink-0 rounded-full object-cover ${ring}`} />
+    ? <img src={pictureUrl(e.profilePicture)} alt="" className={`${size} shrink-0 rounded-full object-cover ${ring}`} />
     : <span className={`${size} flex shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-black text-indigo-600 ${ring}`}>{initials(e.name)}</span>;
 
 const COLORS = ['#f43f5e', '#f97316', '#facc15', '#22c55e', '#06b6d4', '#6366f1', '#a855f7', '#ec4899', '#fbbf24', '#3b82f6'];

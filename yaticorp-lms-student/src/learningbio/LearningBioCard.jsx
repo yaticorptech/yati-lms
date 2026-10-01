@@ -10,6 +10,7 @@ import { bioApi, STATUS_TONE } from './api';
 import BioStrength from './BioStrength';
 import BioEditor from './BioEditor';
 import { Avatar, ErrorBox, Analyzing } from './ui';
+import { pictureUrl } from '../native/pictures';
 
 const Stat = ({ icon: Icon, value, label, tone }) => (
     <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${tone}`}>
@@ -51,7 +52,7 @@ export default function LearningBioCard() {
             {data === undefined ? <Analyzing /> : error && !data ? <ErrorBox error={error} onRetry={load} /> : (
                 <div className="relative">
                     <div className="flex items-start gap-4">
-                        <Avatar src={data.user.avatar} name={data.user.name} />
+                        <Avatar src={pictureUrl(data.user.avatar)} name={data.user.name} />
                         <div className="min-w-0 flex-1">
                             <p className="truncate text-lg font-black text-slate-900">{data.user.name}</p>
                             {data.bio.headline && <p className="truncate text-sm font-semibold text-indigo-700">{data.bio.headline}</p>}

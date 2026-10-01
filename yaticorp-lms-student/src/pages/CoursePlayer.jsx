@@ -15,6 +15,7 @@ import { unlockedLessonIds } from '../shared/playback/resume';
 import MascotDock from '../mascot/MascotDock';
 import { useMascot } from '../mascot/useMascot';
 import { REACTIONS } from '../mascot/reactions';
+import { saveBlob } from '../native/saveFile';
 
 const CoursePlayer = () => {
     const { courseId } = useParams();
@@ -53,20 +54,8 @@ const CoursePlayer = () => {
             // Fetch the file as a complete blob (this works because Cloudinary free tier sends proper CORS headers for raw GETs, its just the Content-Disposition that fails)
             const response = await fetch(url);
             const blob = await response.blob();
-
-            // Create a fake local URL pointing to that blob
-            const blobUrl = window.URL.createObjectURL(blob);
-
-            // Create a temporary anchor to click and trigger the download of the blob
-            const a = document.createElement('a');
-            a.href = blobUrl;
-            a.download = filename || 'document.pdf';
-            document.body.appendChild(a);
-            a.click();
-
-            // Clean up the fake URL
-            window.URL.revokeObjectURL(blobUrl);
-            document.body.removeChild(a);
+            // The browser's download on the web; the share sheet in the app.
+            await saveBlob(blob, filename || 'document.pdf');
         } catch (error) {
             console.error('Failed to download PDF directly:', error);
             // Fallback: Just open the URL normally if blob fetching fails (e.g. strict CORS proxy)
@@ -102,14 +91,9 @@ const CoursePlayer = () => {
         try {
             const blob = await sharedGenerateCertificate();
             const fileName = `Certificate_${courseData.course.title.replace(/\s+/g, '_')}.pdf`;
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', fileName);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode.removeChild(link);
-            window.URL.revokeObjectURL(url);
+            // A browser download on the web; in the app, where a web view
+            // cannot download, the phone's save/share sheet (native/saveFile).
+            await saveBlob(blob, fileName, { title: 'Certificate' });
             setCertResult({ downloaded: true });
 
             // The best moment there is to offer this: they have just finished
@@ -168,8 +152,11 @@ const CoursePlayer = () => {
         return `Unlocks in ${days} day${days === 1 ? '' : 's'} · ${dateStr}`;
     };
 
+    // Side by side and one screen tall on a computer, the curriculum scrolling
+    // inside itself. On a phone the page simply grows: the curriculum card is
+    // as tall as its modules and lessons, no taller and no shorter.
     return (
-        <div className="flex flex-col lg:flex-row gap-6 animate-fade-in h-[calc(100vh-6rem)] relative z-0">
+        <div className="flex flex-col lg:flex-row gap-6 animate-fade-in lg:h-[calc(100vh-6rem)] relative z-0">
 
             <MascotDock />
 
@@ -349,7 +336,7 @@ const CoursePlayer = () => {
             </div>
 
             {/* Curriculum Sidebar */}
-            <div className="w-full lg:w-96 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden h-full flex-shrink-0">
+            <div className="mascot-clear-after w-full lg:w-96 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden lg:h-full flex-shrink-0">
                 <div className="p-6 border-b border-slate-100 bg-slate-50">
                     <h3 className="font-bold text-lg text-slate-800 tracking-tight">Curriculum</h3>
                     <div className="mt-4">
@@ -366,7 +353,7 @@ const CoursePlayer = () => {
                     </div>
                 </div>
 
-                <div className="mascot-clear-scroll flex-1 overflow-y-auto">
+                <div className="mascot-clear-scroll mascot-clear-below lg:flex-1 lg:overflow-y-auto">
                     {modules.map((module, mIdx) => (
                         <div key={module._id} className="border-b border-slate-100">
                             {/* Module Header */}

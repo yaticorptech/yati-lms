@@ -15,6 +15,7 @@ import Dropdown from '../components/Dropdown';
 import { interviewApi, TYPE_META, DURATION, STAGE_LABEL, ROLES, ROLE_OTHER, announceProgress } from './api';
 import { BotScene, FeatureRow } from './IntroArt';
 import { createSpeaker, createListener, requestMicrophone, listenerErrorMessage } from './speech';
+import { isNative } from '../native/platform';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
 import { markReturn } from './scrollMemory';
 
@@ -224,7 +225,7 @@ export default function MockInterview() {
         if (!turn || spokenRef.current.has(turn.index)) return;
         spokenRef.current.add(turn.index);
         setVoiceNote(''); setHeard(''); setDraft('');
-        await speaker.speak(turn.question, { onStart: () => mountedRef.current && setPhase('speaking') });
+        await speaker.speak(turn.question, { onStart: () => mountedRef.current && setPhase('speaking'), onError: (why) => mountedRef.current && setVoiceNote(`The voice could not play on this phone: ${why}`) });
         if (!mountedRef.current) return;
         if (voiceMode && listener.supported) listen(); else { setPhase('review'); setTimeout(() => inputRef.current?.focus(), 50); }
     }, [speaker, listener, listen, voiceMode]);
@@ -248,7 +249,9 @@ export default function MockInterview() {
 
     const tryAgain = () => { speaker.stop(); listener.stop(); setVoiceNote(''); if (voiceMode && listener.supported) listen(); else { setDraft(''); setPhase('review'); } };
     const stopListening = () => { listener.stop(); };
-    const toggleMic = () => { if (phase === 'listening') stopListening(); else if (phase === 'review' || phase === 'idle') { if (!listener.supported) return; setVoiceMode(true); tryAgain(); } };
+    /* Switch to voice and listen at once: `tryAgain` would still see the old voiceMode in this same tick. */
+    const startVoice = () => { speaker.stop(); listener.stop(); setVoiceNote(''); setVoiceMode(true); listen(); };
+    const toggleMic = () => { if (phase === 'listening') stopListening(); else if (phase === 'review' || phase === 'idle') { if (!listener.supported) return; startVoice(); } };
 
     const submit = async () => {
         const text = draft.trim();
@@ -264,7 +267,7 @@ export default function MockInterview() {
             // question stays open, rather than the interview moving on.
             if (next.clarification) {
                 setClarify(next.clarification);
-                await speaker.speak(next.clarification, { onStart: () => mountedRef.current && setPhase('speaking') });
+                await speaker.speak(next.clarification, { onStart: () => mountedRef.current && setPhase('speaking'), onError: (why) => mountedRef.current && setVoiceNote(`The voice could not play on this phone: ${why}`) });
                 if (!mountedRef.current) return;
                 if (voiceMode && listener.supported) listen(); else { setPhase('review'); setTimeout(() => inputRef.current?.focus(), 50); }
                 return;
@@ -361,10 +364,11 @@ export default function MockInterview() {
                         placeholder={phase === 'analyzing' ? 'Analyzing your answer…' : 'Your spoken answer appears here. You can also type.'}
                         className="mt-2 w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-[15px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:bg-slate-50" />
                     {voiceNote && <p className="mt-2 flex items-start gap-1.5 text-xs font-semibold text-amber-700"><AlertTriangle size={13} className="mt-0.5 shrink-0" /> {voiceNote}</p>}
+
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap gap-2">
                             {listener.supported && <Btn icon={RotateCcw} onClick={tryAgain} disabled={phase !== 'review'}>Try again</Btn>}
-                            {!voiceMode && listener.supported && <Btn icon={Mic} onClick={() => { setVoiceMode(true); tryAgain(); }} disabled={phase !== 'review'}>Use voice</Btn>}
+                            {!voiceMode && listener.supported && <Btn icon={Mic} onClick={startVoice} disabled={phase !== 'review'}>Use voice</Btn>}
                             {voiceMode && listener.supported && <Btn icon={Keyboard} onClick={() => { setVoiceMode(false); setVoiceNote(''); setTimeout(() => inputRef.current?.focus(), 50); }} disabled={phase !== 'review'}>Type instead</Btn>}
                         </div>
                         <Btn tone="primary" icon={phase === 'analyzing' ? Loader2 : Send} onClick={submit} loading={phase === 'analyzing'} disabled={!canSubmit}>{phase === 'analyzing' ? 'Analyzing…' : 'Submit answer'}</Btn>
@@ -395,6 +399,7 @@ export default function MockInterview() {
                         {phase === 'listening' ? <Square size={22} fill="currentColor" /> : listener.supported ? <Mic size={26} /> : <MicOff size={26} />}
                     </button>
                     <Btn tone="danger" icon={Square} onClick={finish} loading={finishing} disabled={answered < 2} title={answered < 2 ? 'Answer at least two questions first' : 'End and get your report'}>End Interview</Btn>
+                    {isNative() && !done && answered < 2 && <span className="text-[10px] font-semibold text-slate-400">Answer 2 questions to end</span>}
                     <button type="button" onClick={() => setShowTranscript((v) => !v)} aria-expanded={showTranscript} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"><MessageSquareText size={14} /> Transcript {showTranscript ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>
                 </div>
             )}

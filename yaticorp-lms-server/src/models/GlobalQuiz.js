@@ -11,6 +11,8 @@ const mongoose = require('mongoose');
 
 const SIZE_MIN = 3;
 const SIZE_MAX = 50;
+// The longest a timed quiz can be given, in minutes. 0 is untimed.
+const TIME_LIMIT_MAX = 180;
 
 const globalQuizSchema = new mongoose.Schema({
     title: { type: String, required: true, trim: true, maxlength: 80 },
@@ -18,6 +20,9 @@ const globalQuizSchema = new mongoose.Schema({
     // How many questions the quiz holds. The bank refuses more, and a quiz is
     // published only once it is full.
     size: { type: Number, required: true, min: SIZE_MIN, max: SIZE_MAX, default: 10 },
+    // How long students get for the whole quiz, in minutes; 0 means no limit.
+    // The student app runs the clock and closes the paper when it is up.
+    timeLimitMinutes: { type: Number, min: 0, max: TIME_LIMIT_MAX, default: 0 },
     status: { type: String, enum: ['draft', 'published'], default: 'draft', index: true },
     publishedAt: { type: Date, default: null },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null }
@@ -25,5 +30,6 @@ const globalQuizSchema = new mongoose.Schema({
 
 globalQuizSchema.statics.SIZE_MIN = SIZE_MIN;
 globalQuizSchema.statics.SIZE_MAX = SIZE_MAX;
+globalQuizSchema.statics.TIME_LIMIT_MAX = TIME_LIMIT_MAX;
 
 module.exports = mongoose.model('GlobalQuiz', globalQuizSchema, 'global_quizzes');

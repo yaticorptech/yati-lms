@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate, Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
+import { isNative } from '../native/platform';
 
 const Login = () => {
     const { admin, login, verify2FA } = useAuth();
@@ -150,6 +151,12 @@ const Login = () => {
                                 {loading ? 'Verifying...' : 'Verify Code'}
                             </button>
                         </form>
+                    )}
+                    {/* Inside the app the student side is the same bundle's root. */}
+                    {isNative() && (
+                        <p className="mt-4 text-center text-xs text-slate-500">
+                            Not staff? <a href="/index.html" className="font-bold text-indigo-600 hover:underline">Back to the student app</a>
+                        </p>
                     )}
                 </div>
             </div>

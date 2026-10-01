@@ -3,7 +3,8 @@
  *
  * Optional is the whole point, so the first thing checked is that leaving it
  * blank changes nothing: the account is created and the student lands on the
- * dashboard exactly as before. Then that a filled-in ID travels with the
+ * dashboard. With an ID they land there too; what the ID led to travels with
+ * them (sessionStorage 'yati.signupOrg') and the dashboard shows it once. Then that a filled-in ID travels with the
  * registration, and that a typo in its shape is caught while the field is still
  * on screen to correct rather than after the account exists.
  *
@@ -20,7 +21,8 @@ import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AuthContext } from '${srcFile('context/AuthContext.jsx')}';
 import Signup from '${srcFile('pages/Signup.jsx')}';
-const value = { user: null, setUser: () => {}, loading: false, login: () => {}, logout: () => {},
+// Entering the app is a full page load; here it is recorded instead.
+const value = { user: null, setUser: () => {}, loading: false, login: () => {}, logout: () => {}, enterApp: (data) => { window.__entered = data; document.body.insertAdjacentHTML('beforeend', '<h1>DASHBOARD REACHED</h1>'); },
   isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true, isGlobalQuizEnabled: true, isRewardsEnabled: true };
 createRoot(document.getElementById('root')).render(
   <AuthContext.Provider value={value}>
@@ -121,27 +123,24 @@ describe('the optional Organization ID on signup', { skip: skipWithoutChrome }, 
         assert.ok(!/organization/i.test(result.body), 'with no extra screen about organizations');
     });
 
-    test('an ID travels with the registration, and the answer is shown', async () => {
+    test('an ID travels with the registration, and the student goes straight to the dashboard with the answer', async () => {
         const { result, errors } = await screen({
             entry,
             api: stub({ requested: true, orgCode: 'ORG-2026-0001', name: 'ABC College', message: 'Your request to join ABC College has been sent. They will be asked to approve you.' }),
             script: `${FILL('org-2026-0001')}${FINISH}
                 const register = window.__calls.find(([m, url]) => m === 'POST' && url.includes('/auth/register'));
-                const body = document.body.innerText.replace(/\\s+/g, ' ').trim();
-                click(/Go to my dashboard/i);
-                await sleep(500);
                 return {
                     sentOrgCode: register ? register[2].orgCode : undefined,
-                    body,
+                    entered: !!window.__entered,
+                    carried: JSON.parse(sessionStorage.getItem('yati.signupOrg') || 'null'),
                     reachedDashboard: /DASHBOARD REACHED/.test(document.body.innerText)
                 };
                 `
         });
         assert.deepEqual(errors, []);
         assert.equal(result.sentOrgCode, 'org-2026-0001', 'whatever was typed is what is sent');
-        assert.match(result.body, /Your account is ready/i);
-        assert.match(result.body, /request to join ABC College has been sent/i, 'the student is told what happened');
-        assert.ok(result.reachedDashboard, 'and can carry on to the dashboard');
+        assert.ok(result.entered && result.reachedDashboard, 'no stop on the way: straight to the dashboard');
+        assert.match(result.carried?.message || '', /request to join ABC College has been sent/i, 'what happened goes with them, for the dashboard to show');
     });
 
     test('an ID the organization chose (handle style) is accepted and sent', async () => {
@@ -150,32 +149,31 @@ describe('the optional Organization ID on signup', { skip: skipWithoutChrome }, 
             api: stub({ requested: true, orgCode: 'st_agnes_college', name: 'St Agnes College', message: 'Your request to join St Agnes College has been sent. They will be asked to approve you.' }),
             script: `${FILL('st_agnes_college')}${FINISH}
                 const register = window.__calls.find(([m, url]) => m === 'POST' && url.includes('/auth/register'));
-                return { sentOrgCode: register ? register[2].orgCode : undefined, body: document.body.innerText.replace(/\\s+/g, ' ').trim() };
+                return { sentOrgCode: register ? register[2].orgCode : undefined, carried: JSON.parse(sessionStorage.getItem('yati.signupOrg') || 'null') };
                 `
         });
         assert.deepEqual(errors, []);
         assert.equal(result.sentOrgCode, 'st_agnes_college');
-        assert.match(result.body, /request to join St Agnes College has been sent/i);
+        assert.match(result.carried?.message || '', /request to join St Agnes College has been sent/i);
     });
 
-    test('an unrecognised ID still creates the account, and points at the dashboard button', async () => {
+    test('an unrecognised ID still creates the account, and the dashboard is told so', async () => {
         const { result, errors } = await screen({
             entry,
             api: stub({ requested: false, orgCode: 'ORG-1999-9999', message: 'We could not find an active organization with the ID ORG-1999-9999. Your account is ready — you can add the right ID later from your dashboard.' }),
             script: `${FILL('ORG-1999-9999')}${FINISH}
                 return {
                     registered: window.__calls.some(([m, url]) => m === 'POST' && url.includes('/auth/register')),
-                    body: document.body.innerText.replace(/\\s+/g, ' ').trim(),
-                    canContinue: $$('button').some((b) => /Go to my dashboard/i.test(b.innerText))
+                    entered: !!window.__entered,
+                    carried: JSON.parse(sessionStorage.getItem('yati.signupOrg') || 'null')
                 };
                 `
         });
         assert.deepEqual(errors, []);
         assert.ok(result.registered, 'a bad ID never costs someone their account');
-        assert.match(result.body, /Your account is ready/i);
-        assert.match(result.body, /could not find an active organization/i);
-        assert.match(result.body, /Add organization/i, 'and it says where to try again');
-        assert.ok(result.canContinue);
+        assert.ok(result.entered, 'and they still go straight to the dashboard');
+        assert.equal(result.carried?.requested, false);
+        assert.match(result.carried?.message || '', /could not find an active organization/i);
     });
 
     test('an ID of the wrong shape is caught before the account is made', async () => {

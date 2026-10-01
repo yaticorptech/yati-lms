@@ -18,6 +18,7 @@ import BioEditor from './BioEditor';
 import BioSettings from './BioSettings';
 import { Section, Btn, ErrorBox, Avatar, Analyzing } from './ui';
 import BioText from './BioText';
+import { pictureUrl } from '../native/pictures';
 
 export default function LearningBioPage() {
     const [data, setData] = useState(undefined);
@@ -52,7 +53,7 @@ export default function LearningBioPage() {
             <header className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-500 p-6 text-white shadow-lg shadow-indigo-200 sm:p-8">
                 <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
                 <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
-                    <Avatar src={data.user.avatar} name={data.user.name} size="h-20 w-20" />
+                    <Avatar src={pictureUrl(data.user.avatar)} name={data.user.name} size="h-20 w-20" />
                     <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-100">✨ My Learning Bio</p>
                         <h1 className="mt-1 text-2xl font-black sm:text-3xl">{data.user.name}</h1>
@@ -79,7 +80,7 @@ export default function LearningBioPage() {
                         <div className="mx-auto w-full max-w-[260px] md:mx-0">
                             <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-100 to-violet-100 shadow-md ring-1 ring-indigo-100">
                                 {data.user.avatar
-                                    ? <img src={data.user.avatar} alt={data.user.name} className="h-full w-full object-cover" />
+                                    ? <img src={pictureUrl(data.user.avatar)} alt={data.user.name} className="h-full w-full object-cover" />
                                     : <div className="flex h-full w-full flex-col items-center justify-center text-indigo-400"><Avatar name={data.user.name} size="h-24 w-24" /><Link to="/profile" className="mt-3 text-xs font-bold text-indigo-600 hover:underline">Add a photo on your profile</Link></div>}
                             </div>
                         </div>

@@ -78,16 +78,23 @@ export const AuthProvider = ({ children }) => {
         initAuth();
     }, []);
 
+    /**
+     * A student has just signed in or signed up: keep the session and open the
+     * dashboard. A full load, not a client-side move: caches held in memory
+     * (Career Path's reads, the rewards summary) belong to whoever was signed
+     * in before, and must not be shown to this student.
+     */
+    const enterApp = (data) => {
+        localStorage.setItem('studentToken', data.token);
+        localStorage.setItem('studentData', JSON.stringify(data));
+        setUser(data);
+        window.location.assign('/');
+    };
+
     const login = async (cardNumber, password) => {
         try {
             const data = await authService.login({ cardNumber, password });
-            localStorage.setItem('studentToken', data.token);
-            localStorage.setItem('studentData', JSON.stringify(data));
-            setUser(data);
-            // A full load, not a client-side move: caches held in memory (Career
-            // Path's reads, the rewards summary) belong to whoever was signed in
-            // before, and must not be shown to this student.
-            window.location.assign('/');
+            enterApp(data);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.response?.data?.message || 'Login failed' };
@@ -103,7 +110,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, setUser, loading, login, logout, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isGlobalQuizEnabled, isRewardsEnabled }}>
+        <AuthContext.Provider value={{ user, setUser, loading, login, logout, enterApp, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isGlobalQuizEnabled, isRewardsEnabled }}>
             {children}
         </AuthContext.Provider>
     );
