@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import saveToDrive from '../../../integrations/google/saveToDrive';
 import { Linkedin, MessageCircle, Link2, Download, X, Check, Share2 } from 'lucide-react';
+import { openExternal, saveBlob } from '../../../native/saveFile';
 
 /**
  * Does this browser have an OS share sheet?
@@ -107,15 +108,8 @@ export default function ShareBadgeDialog({ badge, onClose }) {
     try {
       const res = await fetch(badge.imageUrl);
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
       const name = `career-path-milestone-${badge.phaseIndex + 1}.png`;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await saveBlob(blob, name, { title: 'Career Path milestone' });
 
       // And a copy in their own Drive, where it will still be years from now.
       saveToDrive(blob, {
@@ -125,7 +119,7 @@ export default function ShareBadgeDialog({ badge, onClose }) {
       });
     } catch {
       // Fall back to simply opening it, which every browser can do.
-      window.open(badge.imageUrl, '_blank', 'noopener');
+      openExternal(badge.imageUrl);
     }
   };
 

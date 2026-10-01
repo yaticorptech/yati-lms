@@ -56,11 +56,12 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
     const active = rail?.querySelector('[data-current="true"]');
     if (!rail || !active) return;
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    active.scrollIntoView({
-      behavior: reduced ? 'auto' : 'smooth',
-      inline: 'center',
-      block: 'nearest'
-    });
+    // Only the strip slides sideways; the page itself is never scrolled
+    // (scrollIntoView would also move the page up or down to show it).
+    const a = active.getBoundingClientRect();
+    const r = rail.getBoundingClientRect();
+    const left = rail.scrollLeft + (a.left - r.left) - (rail.clientWidth - a.width) / 2;
+    rail.scrollTo({ left: Math.max(0, left), behavior: reduced ? 'auto' : 'smooth' });
   }, [currentIndex]);
 
   if (phases.length === 0) return null;

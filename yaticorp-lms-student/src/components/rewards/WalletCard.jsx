@@ -48,7 +48,8 @@ const Sheet = ({ title, onClose, children, wide }) => {
                             <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X size={16} /></button>
                         </div>
                     )}
-                    <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+                    {/* On a phone the card keeps its size and its contents are drawn a size smaller. */}
+                    <div className="min-h-0 flex-1 overflow-y-auto max-sm:[zoom:0.86]">{children}</div>
                 </div>
             </div>
         </Portal>

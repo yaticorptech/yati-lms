@@ -198,7 +198,7 @@ return { log, target: boxOf($('[data-mascot-target="start-quest"]')), entered: s
     });
 
     test('a returning student gets no entrance: it fades in at its corner and goes to the page\'s target', async () => {
-        const { result, errors } = await screen({ entry: app('/career/planner'), api: lms, modules, files: ASSETS, budget: 12000, script: `${WATCH}
+        const { result, errors } = await screen({ height: 4200, entry: app('/career/planner'), api: lms, modules, files: ASSETS, budget: 12000, script: `${WATCH}
 await sleep(6000);
 return { log, target: boxOf(tick('Write a README')), vw: innerWidth, vh: innerHeight };` });
         assert.deepEqual(errors, []);
@@ -210,7 +210,7 @@ return { log, target: boxOf(tick('Write a README')), vw: innerWidth, vh: innerHe
     });
 
     test('a finished step: it waits out the celebration card, jumps, then points at the next task', async () => {
-        const { result, errors } = await screen({ entry: app('/career/planner'), api: lms, modules, files: ASSETS, budget: 30000, script: `${WATCH}
+        const { result, errors } = await screen({ height: 4200, entry: app('/career/planner'), api: lms, modules, files: ASSETS, budget: 30000, script: `${WATCH}
 await sleep(6500);
 const seen = [...log.stills];
 const seenGestures = log.gestures.length;
@@ -229,7 +229,8 @@ return { card, beforeDismiss, gestures: log.gestures.slice(seenGestures), lines:
         assert.ok(apart(result.spot, result.target));
     });
 
-    const quiz = (grade) => screen({
+    // Tall enough that Try again is on screen: the mascot points only at what the student can see.
+    const quiz = (grade) => screen({ height: 4200,
         entry: alone('<QuizRunner material={material} onSubmit={async () => window.__grade} submitting={false} />', {
             imports: `import QuizRunner from '${srcFile('career/components/study/QuizRunner.jsx')}';
 const material = { _id: 'm1', quiz: ['one', 'two', 'three'].map((n) => ({ question: 'Question ' + n + '?', options: ['Yes ' + n, 'No ' + n] })) };`
@@ -285,7 +286,7 @@ return { shook, gestures: log.gestures.slice(seen), lines: log.lines, spot: spot
         assert.ok(Math.abs(result.spot.left - (result.target.right + 16)) < 1 || Math.abs(result.spot.right - (result.target.left - 16)) < 1, '16px beside it');
     });
 
-    test('a target below the fold is brought up with scrollTo, never scrollIntoView', async () => {
+    test('a target below the fold is left alone: the mascot never scrolls the page', async () => {
         const body = `<div style={{ height: 2400 }} /><button id="deep" style={{ marginLeft: 300 }}>Deep down</button><div style={{ height: 800 }} />`;
         const { result, errors } = await screen({
             entry: alone(body), api: apiModule({}), modules, files: ASSETS, budget: 15000, script: `
@@ -298,12 +299,14 @@ await sleep(1500);
 window.__mascot.point(document.getElementById('deep'), 'Down here');
 await sleep(6000);
 const target = boxOf(document.getElementById('deep'));
-return { into: window.__into, to: window.__to, target, vh: innerHeight, log };` });
+const scrolled = Math.max(document.scrollingElement.scrollTop, document.querySelector('main')?.scrollTop || 0);
+return { into: window.__into, to: window.__to, target, scrolled, vh: innerHeight, log };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.into, 0);
-        assert.ok(result.to >= 1, 'scrolled with scrollTo');
-        assert.ok(result.target.top >= 0 && result.target.bottom <= result.vh, 'the target is on screen');
-        assert.deepEqual(result.log.lines, ['Down here']);
+        assert.equal(result.into, 0, 'no scrollIntoView');
+        assert.equal(result.to, 0, 'no scrollTo either');
+        assert.equal(result.scrolled, 0, 'the page is where the student left it');
+        assert.ok(result.target.top > result.vh, 'the target is still below the fold');
+        assert.ok(!result.log.gestures.includes('point'), 'and is not pointed at from off screen');
     });
 
     test('ten quiet seconds bring a nudge to the page\'s call to action; thirty, sleep until any input', async () => {
@@ -381,7 +384,7 @@ return { log, target: boxOf($('[data-mascot-target="start-task"]')) };` });
         assert.ok(apart(result.log.atPoint.box, result.target));
     });
 
-    test('on a phone it keeps to its corner: at rest only head and shoulders show, and a target is scrolled up above it to be pointed at', async () => {
+    test('on a phone it keeps to its corner: at rest only head and shoulders show, a target below the fold is not scrolled to, and one on screen is pointed at from just under it', async () => {
         // A real phone screen, in real time: the dock is a layout decision, and the walk is a glide.
         const { result, errors } = await screen({
             entry: alone(`<button id="high" style={{ position: 'absolute', top: 120, left: 16, width: 160, height: 44 }}>Up here</button><div style={{ height: 900 }} /><button data-mascot-target="start-task" style={{ display: 'block', width: '100%', height: 48 }}>Start</button><div style={{ height: 1400 }} />`),
@@ -396,21 +399,23 @@ window.__mascot.point(document.getElementById('high'), 'Up here');
 let upAt = null;
 for (let i = 0; i < 100 && !upAt; i++) { await sleep(100); if (body.getAttribute('data-mascot-gesture') === 'point') upAt = spotBox(); }
 const high = boxOf(document.getElementById('high'));
-return { log, target, upAt, high, rest, vw: innerWidth, vh: innerHeight, width: body.offsetWidth };` });
+const scrolled = Math.max(document.scrollingElement.scrollTop, document.querySelector('main')?.scrollTop || 0);
+return { log, target, upAt, high, rest, scrolled, vw: innerWidth, vh: innerHeight, width: body.offsetWidth };` });
         assert.deepEqual(errors, []);
         const { log, target, rest } = result;
         assert.equal(result.width, 96, 'the phone size');
         assert.equal(log.walked, false, 'docked, it never walks');
-        // The page's own pointing, then the one the test asks for; the key presses keep the idle nudge away.
-        assert.deepEqual(log.gestures, ['point', 'point']);
+        // The page's own target is below the fold: not scrolled to, not pointed at.
+        // Only the one the test asks for is; the key presses keep the idle nudge away.
+        assert.ok(target.top > result.vh, 'the page target starts below the fold');
+        assert.equal(result.scrolled, 0, 'the page was never scrolled');
+        assert.deepEqual(log.gestures, ['point']);
         const at = log.atPoint.box;
-        assert.ok(at.top >= target.bottom + 12 - 1, `the target (bottom ${Math.round(target.bottom)}) was scrolled up above its head (top ${Math.round(at.top)})`);
         assert.ok(at.left >= result.vw / 2 || at.right <= result.vw / 2, 'in a corner, not over the middle of the page');
         assert.ok(at.bottom <= result.vh, 'raised to full height while pointing');
         assert.ok(rest.top + rest.h > result.vh + 20, `at rest it sinks: ${Math.round(rest.top + rest.h - result.vh)}px of it below the edge`);
         // 16px inside a safe area that is itself 8px in from the edge.
         assert.ok(rest.left + rest.w >= result.vw - 32 || rest.left <= 32, `and stays in the corner (left ${Math.round(rest.left)})`);
-        assert.ok(at.top - target.bottom < 24, `right under the target, not far below it (${Math.round(at.top - target.bottom)}px)`);
         const { upAt, high } = result;
         assert.ok(upAt, 'it pointed at the high target');
         assert.ok(Math.abs(upAt.top - (high.bottom + 12)) < 2, `it rose to stand just under it (top ${Math.round(upAt.top)}, target bottom ${Math.round(high.bottom)})`);
@@ -430,13 +435,17 @@ createRoot(document.getElementById('root')).render(<MemoryRouter initialEntries=
         const { result, errors } = await screen({ entry, api: apiModule({}), modules, files: ASSETS, budget: 30000, script: `${WATCH}
 await sleep(4000);
 const before = log.stills.length;
+// The student is looking at Try again: the mascot only points at what is on screen.
+document.querySelector('[data-mascot-target="retry"]').scrollIntoView({ block: 'center' });
+await sleep(500);
 click(/^Quiz failed$/);
 await sleep(16000);
 return { buttons: $$('.dev-panel button').length, stills: log.stills.slice(before), gestures: log.gestures, lines: log.lines, targets: $$('[data-mascot-target]').length };` });
         assert.deepEqual(errors, []);
         assert.ok(result.buttons > 50, `${result.buttons} buttons`);
         assert.ok(result.targets >= 12, `${result.targets} targets on the page`);
-        assert.deepEqual(result.stills.slice(-1), ['sad'], `${result.stills}`);
+        // Sad for the failed quiz; the quiz panel, now on screen, may bring its thinking pose after.
+        assert.ok(result.stills.includes('sad'), `${result.stills}`);
         assert.equal(result.gestures.at(-1), 'point', `${result.gestures}`);
         assert.ok(result.lines.includes("It's okay, let's try again!"));
     });

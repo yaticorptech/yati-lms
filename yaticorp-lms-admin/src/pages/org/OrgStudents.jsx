@@ -17,6 +17,7 @@ import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { CARD, Bar, Pill, Empty, Banner, Rows, BTN2, PageHeader, Segmented, Avatar } from '../../components/orgUi';
 import { relativeDay, formatDate } from '../../utils/dates';
+import { saveBlob } from '../../native/saveFile';
 
 const SORTS = [
     ['name', 'Name'],
@@ -101,12 +102,7 @@ const StudentList = () => {
         ].map(escape).join(','));
 
         const blob = new Blob([[header.map(escape).join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `students-${new Date().toISOString().slice(0, 10)}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+        saveBlob(blob, `students-${new Date().toISOString().slice(0, 10)}.csv`, { title: 'Students (CSV)' });
     };
 
     return (

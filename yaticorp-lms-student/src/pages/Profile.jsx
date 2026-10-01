@@ -9,7 +9,7 @@ import AiKeySettings from '../components/AiKeySettings';
 import Cropper from 'react-easy-crop';
 import {
     Award, Loader2, Check, X, ZoomIn, ZoomOut,
-    Flame, Gem, Coins, CalendarDays, Upload, Trash2, Sparkles
+    Flame, Gem, Coins, CalendarDays, Upload, Trash2, Sparkles, Building2
 } from 'lucide-react';
 import { levelProgress, currentStreak, recentActivity } from '../career/utils/progress';
 import { StatTile, ProgressRing, ActivityStrip } from '../components/ProfileWidgets';
@@ -22,6 +22,8 @@ import ProgressCard from '../components/rewards/ProgressCard';
 import LeaderboardCard from '../components/rewards/LeaderboardCard';
 import WalletCard from '../components/rewards/WalletCard';
 import Portal from '../components/Portal';
+import { saveBlob } from '../native/saveFile';
+import { pictureUrl } from '../native/pictures';
 
 // Helper: convert crop area to a cropped blob
 const getCroppedBlob = (imageSrc, pixelCrop) =>
@@ -66,6 +68,10 @@ const AVATAR_GROUPS = [
  */
 const Profile = ({ view = 'dashboard' }) => {
     const onProfile = view === 'profile';
+    // Set by signup when an Organization ID was given: shown once, on the dashboard.
+    const [signupOrg, setSignupOrg] = useState(() => {
+        try { const v = sessionStorage.getItem('yati.signupOrg'); sessionStorage.removeItem('yati.signupOrg'); return v ? JSON.parse(v) : null; } catch { return null; }
+    });
     const { user, setUser, isCareerPathEnabled } = useContext(AuthContext);
     // Streak, XP, rank, badges and wallet from the rewards system. Null while
     // loading or when an admin has locked the section; the page then falls
@@ -269,14 +275,7 @@ const Profile = ({ view = 'dashboard' }) => {
             );
             const blob = new Blob([res.data], { type: 'application/pdf' });
             const fileName = `Certificate_${(cert.courseId?.title || 'Course').replace(/\s+/g, '_')}.pdf`;
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode.removeChild(link);
-            window.URL.revokeObjectURL(url);
+            await saveBlob(blob, fileName, { title: 'Certificate' });
 
             // And a copy in their own Drive. Not awaited: the certificate is
             // already on their machine, and a filing failure is not a download
@@ -405,6 +404,18 @@ const Profile = ({ view = 'dashboard' }) => {
                     <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
                 </>
             ) : (
+                <>
+                {signupOrg && (
+                    <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3 ${signupOrg.requested ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                        <Building2 size={18} className={`mt-0.5 shrink-0 ${signupOrg.requested ? 'text-emerald-600' : 'text-amber-600'}`} />
+                        <div className="min-w-0 flex-1 text-sm">
+                            <p className="font-bold text-slate-800">Your account is ready</p>
+                            {signupOrg.message && <p className="mt-0.5 text-slate-600">{signupOrg.message}</p>}
+                            {!signupOrg.requested && <p className="mt-0.5 text-xs text-slate-500">Use <strong>Add organization</strong> on your dashboard whenever you have the right ID.</p>}
+                        </div>
+                        <button type="button" onClick={() => setSignupOrg(null)} aria-label="Dismiss" className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-white hover:text-slate-600"><X size={16} /></button>
+                    </div>
+                )}
                 <WelcomeBanner
                     name={user?.name || ''}
                     firstName={firstName}
@@ -417,6 +428,7 @@ const Profile = ({ view = 'dashboard' }) => {
                     xpTo={isCareerPathEnabled ? '/career' : undefined}
                     onViewPhoto={() => setViewingPhoto(true)}
                 />
+                </>
             )}
 
             {/* ── My Profile: Your Progress ─────────────────────────────── */}
@@ -483,7 +495,7 @@ const Profile = ({ view = 'dashboard' }) => {
                     >
                         <div className="relative max-w-sm w-full" onClick={e => e.stopPropagation()}>
                             <img
-                                src={user.profilePicture}
+                                src={pictureUrl(user.profilePicture)}
                                 alt={user.name}
                                 className="w-full rounded-2xl shadow-2xl object-cover"
                             />
