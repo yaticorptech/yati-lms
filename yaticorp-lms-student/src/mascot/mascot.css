@@ -59,3 +59,9 @@ html[data-mascot-dock] .mascot-clear {
 html[data-mascot-dock] .mascot-clear-scroll {
   padding-bottom: calc(var(--mascot-dock-size) * 1408 / 1117 + 1rem);
 }
+/* A card that grows with its list on a phone (the course curriculum) keeps
+   that room below itself instead, so the card is no taller than its rows. */
+@media (max-width: 1023.98px) {
+  html[data-mascot-dock] .mascot-clear-scroll.mascot-clear-below { padding-bottom: 0; }
+  html[data-mascot-dock] .mascot-clear-after { margin-bottom: calc(var(--mascot-dock-size) * 1408 / 1117 + 1rem); }
+}

@@ -11,10 +11,25 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --test --test-concurrency=1 tests/**/*.test.js",
-    "test:ui": "node --test --test-concurrency=1 tests/ui/*.test.js"
+    "test": "node --test --experimental-test-module-mocks --test-concurrency=1 tests/**/*.test.js",
+    "test:ui": "node --test --test-concurrency=1 tests/ui/*.test.js",
+    "build:mobile": "VITE_BUILD_STAMP=\"$(date +%d/%m\\ %H:%M)\" vite build --mode mobile && npm --prefix ../yaticorp-lms-admin run build:mobile",
+    "cap:sync": "npm run build:mobile && cap sync",
+    "cap:ios": "cap open ios",
+    "cap:android": "cap open android",
+    "cap:assets": "capacitor-assets generate --ios --android"
   },
   "dependencies": {
+    "@capacitor-community/speech-recognition": "file:native-plugins/speech-recognition",
+    "@capacitor-community/text-to-speech": "^8.0.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.3",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/share": "^8.0.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "axios": "^1.13.5",
     "chart.js": "^4.5.1",
     "html5-qrcode": "^2.3.8",
@@ -27,6 +42,10 @@
     "react-router-dom": "^6.30.3"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.2.1",
     "@types/react": "^19.2.7",

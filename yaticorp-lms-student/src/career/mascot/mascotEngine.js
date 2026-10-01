@@ -15,7 +15,7 @@ import config from '../../mascot/mascotConfig.js';
 import { clamp, createRigDriver, easeOutBack, gestureMs, springStep } from '../../mascot/rigDriver.js';
 import { loadImage, loadStill, preloadStills, stillUrl } from '../../mascot/stills.js';
 import parts from '../../mascot/raster-manifest.js';
-import { centreSpot, facingFor, gazeToward, homeSpot, onScreen, scrollDelta, standBeside, walkMs, wanderSpot } from './mascotGeometry.js';
+import { centreSpot, facingFor, gazeToward, homeSpot, onScreen, standBeside, walkMs, wanderSpot } from './mascotGeometry.js';
 import { createBrain } from './mascotBrain.js';
 
 const RIG_BASE = '/mascot/raster-parts/';
@@ -62,14 +62,6 @@ const pageScroller = () => {
     const main = document.querySelector('main');
     return main && scrolls(main) ? main : document.scrollingElement;
 };
-
-/** The nearest box that scrolls `el` up and down: a dialog's body, or the page. */
-function scrollerOf(el) {
-    for (let node = el?.parentElement; node && node !== document.body; node = node.parentElement) {
-        if (scrolls(node) && node.scrollHeight > node.clientHeight) return node;
-    }
-    return pageScroller();
-}
 
 /**
  * Where the mascot may stand: the section's scroll area, clear of the phone's
@@ -507,60 +499,33 @@ export function createMascotEngine({ get, set, random = Math.random }) {
     // ---- scrolling and standing ----
 
     /**
-     * Off screen? Scroll its own scroller — scrollTo, not scrollIntoView — and
-     * wait for it to arrive. If a smooth scroll never gets there (switched off
-     * in the browser, or stalled), the rest of the way is one step.
+     * The mascot never scrolls the page: the student decides what is on
+     * screen. A target that is not in view is simply not pointed at.
      */
-    async function bringIntoView(el, token) {
-        const delta = scrollDelta(el.getBoundingClientRect(), safeArea(el));
-        if (!delta) return;
-        const box = scrollerOf(el);
-        const goal = Math.max(0, Math.min(box.scrollTop + delta, box.scrollHeight - box.clientHeight));
-        rt.scrolling = true;
-        box.scrollTo({ top: goal, behavior: get.reduced() ? 'auto' : 'smooth' });
-        for (let i = 0; i < 20 && !token.cancelled && Math.abs(box.scrollTop - goal) > 1; i++) await sleep(50, token);
-        if (Math.abs(box.scrollTop - goal) > 1) box.scrollTo({ top: goal, behavior: 'auto' });
-        // Its last scroll event lands a frame later; it is still the mascot's
-        // doing, not the student's, and must not reset their idle clock.
-        await sleep(120, token);
-        rt.scrolling = false;
+    function inView(el) {
+        const r = el.getBoundingClientRect();
+        const safe = safeArea(el);
+        return r.height > 0 && r.bottom > safe.top && r.top < safe.bottom;
     }
 
     /**
      * Docked: the mascot stands right under the target, in the corner AWAY
      * from it, so the pointing reads as pointing at that and nothing else.
-     * The page is scrolled to bring the target down to just above its head —
-     * up the page when the target is too low, down the page when it is too
-     * high — and when the page is already at its top, the mascot rises to
-     * meet the target instead. When the target would sit behind it, it takes
-     * the other corner.
+     * The page is left where the student put it: a target that is not on
+     * screen is not pointed at. When the target would sit behind the mascot,
+     * it takes the other corner.
      */
     async function dockBeside(el, token) {
         const safe = safeArea(el);
         const d = dims();
-        const box = el.getBoundingClientRect();
-        const scroller = scrollerOf(el);
         const gap = config.layout.dockGap;
         const floorY = safe.bottom - d.h;
-        const headY = floorY - gap;
-        let delta = 0;
-        if (box.bottom > headY) delta = box.bottom - headY;
-        else if (box.bottom < headY) delta = -Math.min(headY - box.bottom, scroller.scrollTop);
-        if (Math.abs(delta) > 1) {
-            const goal = Math.max(0, Math.min(scroller.scrollTop + delta, scroller.scrollHeight - scroller.clientHeight));
-            rt.scrolling = true;
-            scroller.scrollTo({ top: goal, behavior: get.reduced() ? 'auto' : 'smooth' });
-            for (let i = 0; i < 20 && !token.cancelled && Math.abs(scroller.scrollTop - goal) > 1; i++) await sleep(50, token);
-            if (Math.abs(scroller.scrollTop - goal) > 1) scroller.scrollTo({ top: goal, behavior: 'auto' });
-            await sleep(120, token);
-            rt.scrolling = false;
-        }
-        if (token.cancelled || !el.isConnected) return null;
+        // The page is never scrolled for the mascot; off screen, it lets it be.
+        if (token.cancelled || !el.isConnected || !inView(el)) return null;
         const after = el.getBoundingClientRect();
         const centre = (after.left + after.right) / 2;
         const side = centre > (safe.left + safe.right) / 2 ? 'left' : 'right';
-        // Just under the target: on the floor when the target came down to it,
-        // higher up when the page could scroll no further.
+        // Just under the target, or on the floor when the target is lower down.
         const top = Math.max(safe.top, Math.min(floorY, after.bottom + gap));
         let spot = { x: dockSpot(true, side).x, y: top };
         const at = { left: spot.x, top: spot.y, right: spot.x + d.w, bottom: spot.y + d.h };
@@ -583,8 +548,8 @@ export function createMascotEngine({ get, set, random = Math.random }) {
 
     async function goTo(el, token, opts = {}) {
         if (get.dock()) return dockBeside(el, token);
-        if (opts.scroll !== false) await bringIntoView(el, token);
-        if (token.cancelled) return null;
+        // Nothing is scrolled into view for the mascot (opts.scroll is ignored).
+        if (token.cancelled || !inView(el)) return null;
         const safe = safeArea(el);
         const spot = standBeside(el.getBoundingClientRect(), dims(), safe, obstacles(safe, el));
         await walkTo(spot, token, { run: opts.run, glide: opts.glide });
@@ -799,12 +764,16 @@ export function createMascotEngine({ get, set, random = Math.random }) {
                 if (step.scroll === false && get.dock()) return;
                 // Not scrolling means not walking to what has scrolled away either.
                 if (step.scroll === false && !onScreen(el.getBoundingClientRect(), safeArea(el))) return;
+                // Off screen it is not walked to, and so not pointed at either:
+                // the page is never scrolled for the mascot.
+                if (!inView(el)) { ctx.target = null; return; }
                 lookAt(el, 4000);
-                await goTo(el, token, { scroll: step.scroll, glide: step.do === 'glide' });
+                if (!(await goTo(el, token, { glide: step.do === 'glide' }))) ctx.target = null;
                 return;
             }
             case 'point': {
                 const el = ctx.target;
+                // Nothing on screen to point at: no gesture, and no words about it.
                 if (!el?.isConnected) return;
                 const box = el.getBoundingClientRect();
                 const mid = mascotBox();

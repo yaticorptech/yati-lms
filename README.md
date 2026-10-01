@@ -74,3 +74,7 @@ npm start
 - Web apps require `VITE_API_URL` for correct backend connectivity.
 - Server CORS allows localhost variants plus configured production origins.
 - Mobile API base URL is configured in code and may need local override for LAN testing.
+
+## Mobile apps
+
+The student and admin sites also ship as iOS and Android apps built with Capacitor. See [docs/MOBILE.md](docs/MOBILE.md).

@@ -10,6 +10,7 @@ import AchievementBadges from './AchievementBadges';
 import InterestTags from './InterestTags';
 import { Section, Avatar, ErrorBox, Analyzing } from './ui';
 import BioText from './BioText';
+import { pictureUrl } from '../native/pictures';
 
 export default function SharedBioPage() {
     const { code } = useParams();
@@ -23,7 +24,7 @@ export default function SharedBioPage() {
         <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-4 sm:p-8">
             <div className="mx-auto max-w-4xl space-y-5">
                 <header className="flex items-center gap-4 rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
-                    <Avatar src={data.user.avatar} name={data.user.name} size="h-16 w-16" />
+                    <Avatar src={pictureUrl(data.user.avatar)} name={data.user.name} size="h-16 w-16" />
                     <div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-600">✨ Learning Bio · YATICORP LMS</p><h1 className="text-2xl font-black text-slate-900">{data.user.name}</h1><p className="text-sm font-semibold text-indigo-700">{data.bio.headline}</p></div>
                 </header>
                 <Section icon={Sparkles} title={`Hi! I'm ${data.user.name.split(' ')[0]}.`}><BioText text={data.bio.bio} /></Section>

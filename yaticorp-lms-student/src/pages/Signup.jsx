@@ -4,7 +4,7 @@
  */
 import Mascot from '../components/Mascot';
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, QrCode, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2 } from 'lucide-react';
@@ -99,8 +99,7 @@ const primaryBtn = 'group relative flex w-full items-center justify-center round
 const backBtn = 'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50';
 
 const Signup = () => {
-    const { setUser } = useContext(AuthContext);
-    const navigate = useNavigate();
+    const { enterApp } = useContext(AuthContext);
 
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -118,7 +117,6 @@ const Signup = () => {
      * a word. A student who left it blank sees nothing extra and goes straight to
      * the dashboard, so this costs the common case nothing.
      */
-    const [signupOutcome, setSignupOutcome] = useState(null);
 
     // QR validation state
     const [qrCodeNumber, setQrCodeNumber] = useState('');
@@ -263,15 +261,12 @@ const Signup = () => {
                 orgCode: formData.orgCode.trim()
             });
 
-            localStorage.setItem('studentToken', res.data.token);
-            localStorage.setItem('studentData', JSON.stringify(res.data));
-            setUser(res.data);
-
+            // Straight to the dashboard, the same way as signing in. What the
+            // Organization ID led to is shown there, once.
             if (res.data.organization) {
-                setSignupOutcome(res.data.organization);
-            } else {
-                navigate('/');
+                try { sessionStorage.setItem('yati.signupOrg', JSON.stringify(res.data.organization)); } catch { /* storage off */ }
             }
+            enterApp(res.data);
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
             setStep(1);
@@ -336,7 +331,7 @@ const Signup = () => {
                 {/* ── Right: the sign-up card ──────────────────────────── */}
                 <section className="relative bg-white px-5 py-8 sm:px-10 sm:py-10">
                     <div className="mx-auto max-w-md">
-                        {!signupOutcome && (
+                        {(
                         <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
                             <span className="lg-float flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 ring-1 ring-indigo-100">
                                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300"><UserPlus size={18} /></span>
@@ -514,7 +509,7 @@ const Signup = () => {
                         )}
 
                         {/* Step 3: password */}
-                        {step === 3 && !signupOutcome && (
+                        {step === 3 && (
                             <form className="lg-rise mt-6 space-y-5" onSubmit={handleRegistrationSubmit} style={{ animationDelay: '0.2s' }}>
                                 {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">{error}</div>}
 
@@ -586,33 +581,7 @@ const Signup = () => {
                             </form>
                         )}
 
-                        {/* The optional Organization ID, answered. Only ever shown
-                            to someone who filled that field in. */}
-                        {signupOutcome && (
-                            <div className="lg-rise mt-2 space-y-5 text-center" style={{ animationDelay: '0.1s' }}>
-                                <span className={`lg-float mx-auto flex h-16 w-16 items-center justify-center rounded-full ring-1 ${signupOutcome.requested ? 'bg-emerald-50 ring-emerald-100' : 'bg-amber-50 ring-amber-100'}`}>
-                                    <span className={`flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-md ${signupOutcome.requested ? 'bg-emerald-600 shadow-emerald-300' : 'bg-amber-500 shadow-amber-300'}`}>
-                                        {signupOutcome.requested ? <CheckCircle2 size={18} /> : <Building2 size={18} />}
-                                    </span>
-                                </span>
-                                <div>
-                                    <h2 className="text-2xl font-black tracking-tight text-slate-900">Your account is ready</h2>
-                                    <p className="mt-2 text-sm text-slate-600">{signupOutcome.message}</p>
-                                </div>
-                                {!signupOutcome.requested && (
-                                    <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs text-slate-500">
-                                        Your dashboard has an <strong>Add organization</strong> button — you can enter the
-                                        right ID there whenever you have it.
-                                    </p>
-                                )}
-                                <button type="button" onClick={() => navigate('/')} className={primaryBtn}>
-                                    Go to my dashboard
-                                    <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>
-                                </button>
-                            </div>
-                        )}
-
-                        {!signupOutcome && (
+                        {(
                             <>
                         <button type="button" onClick={() => setShowContact(true)}
                             className="lg-rise mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50" style={{ animationDelay: '0.3s' }}>

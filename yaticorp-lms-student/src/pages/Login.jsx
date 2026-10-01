@@ -8,6 +8,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { AuthContext } from '../context/AuthContext';
 import { Navigate, Link } from 'react-router-dom';
 import api from '../utils/api';
+import { isNative } from '../native/platform';
 import { GraduationCap, Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard } from 'lucide-react';
 
 // --- Contact Admin Modal ---
@@ -452,6 +453,13 @@ const Login = () => {
                         <p className="mt-5 text-center text-xs text-slate-500">
                             Don&apos;t have an account? <Link to="/signup" className="font-bold text-indigo-600 hover:underline">Sign up here</Link>
                         </p>
+                        {/* Inside the app the admin console travels in the same bundle, under
+                            /admin/. On the website it is its own site, so no link here. */}
+                        {isNative() && (
+                            <p className="mt-3 text-center text-xs text-slate-500">
+                                Staff? <a href="/admin/index.html" className="font-bold text-indigo-600 hover:underline">Admin sign in</a>
+                            </p>
+                        )}
                     </div>
                 </section>
             </div>

@@ -55,7 +55,12 @@ app.use(cors({
                            origin === 'http://localhost' ||
                            origin === 'http://127.0.0.1';
 
-        if (isLocalhost || allowedOrigins.includes(origin)) {
+        // The mobile apps (Capacitor): the iOS shell sends capacitor://localhost,
+        // the Android shell https://localhost. Neither is a website anyone can
+        // host, so allowing them opens nothing to the public web.
+        const isMobileApp = origin === 'capacitor://localhost' || origin === 'https://localhost';
+
+        if (isLocalhost || isMobileApp || allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
         console.warn(`CORS blocked request from origin: ${origin}`);

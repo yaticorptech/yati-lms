@@ -170,6 +170,7 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
        did, and feeding them back through a render only to measure again is
        the cascade the effect rules warn about. */
     const stripRef = useRef(null);
+    const tappedRef = useRef(false);
     const markEdges = useCallback(() => {
         const el = stripRef.current;
         if (!el?.parentElement) return;
@@ -177,11 +178,24 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
         el.parentElement.dataset.moreLeft = String(el.scrollLeft > slack);
         el.parentElement.dataset.moreRight = String(el.scrollLeft + el.clientWidth < el.scrollWidth - slack);
     }, []);
+    // The underline that glides to the chosen tab: its place and width are the
+    // tab's own, read from the DOM and written straight to the strip.
+    const moveInk = useCallback(() => {
+        const strip = stripRef.current;
+        const tab = strip?.querySelector('[data-active="true"]');
+        if (!tab) return;
+        strip.style.setProperty('--ink-x', `${tab.offsetLeft}px`);
+        strip.style.setProperty('--ink-w', `${tab.offsetWidth}px`);
+    }, []);
     useEffect(() => {
-        markEdges();
-        window.addEventListener('resize', markEdges);
-        return () => window.removeEventListener('resize', markEdges);
-    }, [markEdges, tabs.length]);
+        const onResize = () => { markEdges(); moveInk(); };
+        onResize();
+        window.addEventListener('resize', onResize);
+        // Fonts settling and the badge appearing change the tabs' widths.
+        const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(moveInk) : null;
+        stripRef.current?.querySelectorAll('[role="tab"]').forEach((el) => ro?.observe(el));
+        return () => { window.removeEventListener('resize', onResize); ro?.disconnect(); };
+    }, [markEdges, moveInk, tabs.length]);
     useEffect(() => {
         // The chosen tab moves to the front of the strip, so the tabs after it
         // come into view. Scrolled only far enough to be seen, it stayed where
@@ -200,7 +214,17 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
             strip.scrollTo({ left: Math.max(0, left), behavior: still ? 'auto' : 'smooth' });
         }
         markEdges();
-    }, [activeTab, markEdges]);
+        moveInk();
+        // A tab the student tapped (not the first one shown on arrival) also
+        // brings the page to it: the strip settles at the top of the screen,
+        // just under the header, with that tab's content beneath it.
+        if (tappedRef.current) {
+            tappedRef.current = false;
+            const bar = strip?.closest('[data-tab-bar]');
+            const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+            bar?.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' });
+        }
+    }, [activeTab, markEdges, moveInk]);
     const [enrollModal, setEnrollModal] = useState(null); // { _id, title }
     const [enrolling, setEnrolling] = useState(false);
 
@@ -252,7 +276,7 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                 negative margin, which widened the page by that margin on a
                 phone and set every section scrolling sideways; it stays inside
                 its column. */}
-            <div className="flex items-end gap-3 border-b border-slate-200">
+            <div data-tab-bar className="flex scroll-mt-20 items-end gap-3 border-b border-slate-200 lg:scroll-mt-6">
                 {/* The fades are drawn in the page's own grey, so they blend
                     into it instead of showing as white blocks at the edges. */}
                 <div className="tab-scroll-wrap relative min-w-0 flex-1 [--tab-fade:var(--color-slate-50)]">
@@ -261,7 +285,7 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                         onScroll={markEdges}
                         role="tablist"
                         aria-label="My learning"
-                        className="tab-scroll flex scroll-ps-7 items-center gap-x-4 sm:gap-x-5 lg:gap-x-7"
+                        className="tab-scroll relative flex scroll-ps-7 items-center gap-x-4 sm:gap-x-5 lg:gap-x-7"
                     >
                         {tabs.map(({ key, label, icon: Icon }) => (
                             <button
@@ -269,17 +293,17 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                 role="tab"
                                 aria-selected={activeTab === key}
                                 data-active={activeTab === key ? 'true' : 'false'}
-                                onClick={() => setActiveTab(key)}
-                                className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap px-1 pb-3 pt-1 text-sm font-bold transition-colors lg:text-base ${activeTab === key ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => { if (key === activeTab) stripRef.current?.closest('[data-tab-bar]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); else { tappedRef.current = true; setActiveTab(key); } }}
+                                className={`tab-btn relative flex shrink-0 items-center gap-2 whitespace-nowrap px-1 pb-3 pt-1 text-sm font-bold lg:text-base ${activeTab === key ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                             >
-                                <Icon size={18} strokeWidth={1.8} className={activeTab === key ? 'text-indigo-500' : 'text-slate-400'} />
+                                <Icon size={18} strokeWidth={1.8} className={`tab-icon ${activeTab === key ? 'text-indigo-500' : 'text-slate-400'}`} />
                                 {label}
                                 {key === 'completed' && completedCount > 0 && (
-                                    <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-black text-emerald-700">{completedCount}</span>
+                                    <span className="tab-count rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-black text-emerald-700">{completedCount}</span>
                                 )}
-                                {activeTab === key && <div className="absolute inset-x-0 -bottom-px h-0.5 rounded-t-full bg-indigo-600"></div>}
                             </button>
                         ))}
+                        <span aria-hidden="true" className="tab-ink" />
                     </div>
                 </div>
             </div>
@@ -293,6 +317,8 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                     My Learning
                 </h2>
 
+                {/* Each tab's content eases in when it is chosen. */}
+                <div key={activeTab} className="tab-panel">
                 {activeTab === 'activity' ? (
                     weeklyActivity
                 ) : activeTab === 'quiz' ? (
@@ -514,6 +540,7 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                         </div>
                     )
                 ) : null}
+                </div>
             </div>
 
             {/* Enroll Confirmation Modal */}

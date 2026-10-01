@@ -18,6 +18,7 @@ import { Tile, Feature, Artwork } from './profileBlocks';
 import BioPopup from '../learningbio/BioPopup';
 import { Sparkles as BioSparkles } from 'lucide-react';
 import Portal from './Portal';
+import { saveBlob } from '../native/saveFile';
 
 const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
@@ -138,14 +139,7 @@ export default function ResumeSection() {
         try {
             const r = await api.get('/user/resume/ats', { responseType: 'blob' });
             const pdf = new Blob([r.data], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(pdf);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'ATS_Resume.pdf';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
+            await saveBlob(pdf, 'ATS_Resume.pdf', { title: 'ATS resume' });
 
             // A copy in the student's own Drive, if they have connected one.
             // Never blocks the download: the file is already on their machine.

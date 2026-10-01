@@ -165,9 +165,6 @@ export default function LeaderboardCard() {
                 </div>
             )}
 
-            {board && me && !me.rank && board.entries.length > 0 && (
-                <p className="mt-3 rounded-xl bg-indigo-50 p-3 text-center text-xs font-semibold text-indigo-700">You have not earned XP in this period yet — complete a lesson to appear here.</p>
-            )}
             {rankUp && <p className="rw-pop mt-3 text-center text-xs font-bold text-emerald-600">🎉 You moved up {rankUp} place{rankUp === 1 ? '' : 's'} since your last visit</p>}
 
             {(full || hasMore) && (

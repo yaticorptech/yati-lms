@@ -11,6 +11,7 @@
 const mongoose = require('mongoose');
 const GlobalQuiz = require('../models/GlobalQuiz');
 const GlobalQuestion = require('../models/GlobalQuestion');
+const GlobalQuizAttempt = require('../models/GlobalQuizAttempt');
 const { ensureMigrated } = require('../services/globalQuizService');
 
 const MAX_OPTIONS = 6;
@@ -49,7 +50,13 @@ const readQuiz = (body, current = 0) => {
         return { error: `A quiz holds between ${GlobalQuiz.SIZE_MIN} and ${GlobalQuiz.SIZE_MAX} questions.` };
     }
     if (size < current) return { error: `This quiz already has ${current} questions. Remove ${current - size} before making it ${size}.` };
-    return { value: { title, size, description: String(body?.description || '').trim().slice(0, 300) } };
+    // The time limit is optional: left out, blank or 0 means the quiz is untimed.
+    const rawLimit = body?.timeLimitMinutes;
+    const timeLimitMinutes = rawLimit === undefined || rawLimit === null || rawLimit === '' ? 0 : Number(rawLimit);
+    if (!Number.isInteger(timeLimitMinutes) || timeLimitMinutes < 0 || timeLimitMinutes > GlobalQuiz.TIME_LIMIT_MAX) {
+        return { error: `The time limit is in whole minutes, up to ${GlobalQuiz.TIME_LIMIT_MAX}; leave it at 0 for no limit.` };
+    }
+    return { value: { title, size, timeLimitMinutes, description: String(body?.description || '').trim().slice(0, 300) } };
 };
 
 /** A quiz as the panel shows it: its fields, how full it is, what it covers. */
@@ -76,7 +83,7 @@ const listQuizzes = async (req, res) => {
     try {
         await ensureMigrated();
         const quizzes = await GlobalQuiz.find({}).sort({ status: -1, updatedAt: -1 }).lean();
-        res.json({ quizzes: await withCounts(quizzes), limits: { min: GlobalQuiz.SIZE_MIN, max: GlobalQuiz.SIZE_MAX } });
+        res.json({ quizzes: await withCounts(quizzes), limits: { min: GlobalQuiz.SIZE_MIN, max: GlobalQuiz.SIZE_MAX, timeLimitMax: GlobalQuiz.TIME_LIMIT_MAX } });
     } catch (error) { fail(res, error); }
 };
 
@@ -106,13 +113,14 @@ const updateQuiz = async (req, res) => {
     } catch (error) { fail(res, error); }
 };
 
-// @desc    Delete a quiz and every question in it
+// @desc    Delete a quiz, every question in it, and every student's attempt at it
 // @route   DELETE /api/admin/global-quiz/quizzes/:quizId
 const deleteQuiz = async (req, res) => {
     try {
         const quiz = await findQuiz(req.params.quizId);
         if (!quiz) return res.status(404).json({ message: 'No such quiz.' });
         const { deletedCount } = await GlobalQuestion.deleteMany({ quizId: quiz._id });
+        await GlobalQuizAttempt.deleteMany({ quizId: quiz._id });
         await quiz.deleteOne();
         res.json({ ok: true, deletedQuestions: deletedCount, wasPublished: quiz.status === 'published' });
     } catch (error) { fail(res, error); }
@@ -157,7 +165,7 @@ const duplicateQuiz = async (req, res) => {
         const quiz = await findQuiz(req.params.quizId);
         if (!quiz) return res.status(404).json({ message: 'No such quiz.' });
         const copy = await GlobalQuiz.create({
-            title: `Copy of ${quiz.title}`.slice(0, 80), description: quiz.description, size: quiz.size, createdBy: req.admin?._id || null
+            title: `Copy of ${quiz.title}`.slice(0, 80), description: quiz.description, size: quiz.size, timeLimitMinutes: quiz.timeLimitMinutes || 0, createdBy: req.admin?._id || null
         });
         const questions = await GlobalQuestion.find({ quizId: quiz._id }).lean();
         if (questions.length) {

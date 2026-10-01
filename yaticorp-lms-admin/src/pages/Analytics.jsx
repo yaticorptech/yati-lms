@@ -9,6 +9,7 @@ import {
     ChevronUp, ChevronDown, X, CheckCircle2, Clock, AlertCircle, Download
 } from 'lucide-react';
 import useAutoRefresh from '../hooks/useAutoRefresh';
+import { saveBlob } from '../native/saveFile';
 
 // ─── Student List Slide Panel ────────────────────────────────────────────────
 const StudentPanel = ({ course, onClose }) => {
@@ -227,12 +228,7 @@ const Analytics = () => {
                             onClick={async () => {
                                 try {
                                     const res = await api.get('/admin/reports/export/csv', { responseType: 'blob' });
-                                    const url = window.URL.createObjectURL(new Blob([res.data]));
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `analytics_${new Date().toISOString().slice(0, 10)}.csv`;
-                                    a.click();
-                                    window.URL.revokeObjectURL(url);
+                                    await saveBlob(new Blob([res.data], { type: 'text/csv' }), `analytics_${new Date().toISOString().slice(0, 10)}.csv`, { title: 'Analytics (CSV)' });
                                 } catch { alert('Export failed'); }
                             }}
                             className="flex items-center gap-1.5 px-4 py-2.5 sm:py-2 bg-white border border-slate-300 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
@@ -244,12 +240,7 @@ const Analytics = () => {
                             onClick={async () => {
                                 try {
                                     const res = await api.get('/admin/reports/export/excel', { responseType: 'blob' });
-                                    const url = window.URL.createObjectURL(new Blob([res.data]));
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `analytics_${new Date().toISOString().slice(0, 10)}.xlsx`;
-                                    a.click();
-                                    window.URL.revokeObjectURL(url);
+                                    await saveBlob(new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `analytics_${new Date().toISOString().slice(0, 10)}.xlsx`, { title: 'Analytics (Excel)' });
                                 } catch { alert('Export failed'); }
                             }}
                             className="flex items-center gap-1.5 px-4 py-2.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
