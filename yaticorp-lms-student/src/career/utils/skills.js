@@ -14,9 +14,8 @@ export const LEVELS = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
 // differ, mean something, and are worth showing.
 export const PER_TASK = 5;
 
-// XP one finished task pays, mirroring TASK_XP in
-// backend/services/taskCompletionService.js.
-export const TASK_XP = 10;
+// The XP a finished task pays is the admin's 'career_task' rule: read it with
+// useXpRule('career_task') from context/useRewards, not a constant here.
 
 /**
  * A tile colour for a skill, derived from its own name.

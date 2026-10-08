@@ -17,6 +17,7 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const Admin = require('../../models/Admin');
 const Organization = require('../models/Organization');
+const OrgAuditLog = require('../models/OrgAuditLog');
 
 /** The header a superadmin sends to look at one organization's own panel. */
 const VIEW_HEADER = 'x-view-organization';
@@ -24,13 +25,15 @@ const VIEW_HEADER = 'x-view-organization';
 /**
  * Authenticate an organization administrator and attach their organization.
  *
- * Platform admins are refused. A superadmin is let in for one purpose: to see
- * an organization's panel exactly as that organization does, without its
+ * Platform admins are refused. A superadmin is let in to work in an
+ * organization's panel exactly as that organization does, without its
  * password. They name the organization in the X-View-Organization header —
  * the only case where the organization comes from the request, and only for
- * an account that can already read every organization through
- * /api/organizations/admin/*. It is look, don't touch: anything but a read is
- * refused, so nothing is ever done in an organization's name by someone else.
+ * an account that can already read and edit every organization through
+ * /api/organizations/admin/*. They may change what the organization could
+ * change itself, with one exception: the sign-in password. `req.admin` is the
+ * superadmin's own account, so /me/password would change theirs, not the
+ * organization's — that one route is refused.
  */
 const protectOrgAdmin = async (req, res, next) => {
     const header = req.headers.authorization;
@@ -46,20 +49,43 @@ const protectOrgAdmin = async (req, res, next) => {
         if (!admin) {
             return res.status(401).json({ message: 'Not authorized, admin not found' });
         }
+        // Signed in before the password last changed: that session ended with
+        // the change (models/Admin.js, passwordChangedAt).
+        if (admin.tokenPredatesPassword(decoded.iat)) {
+            return res.status(401).json({ code: 'PASSWORD_CHANGED', message: 'Your password was changed. Please sign in again.' });
+        }
         if (admin.role === 'superadmin' && req.headers[VIEW_HEADER]) {
             const viewed = String(req.headers[VIEW_HEADER]);
             if (!mongoose.isValidObjectId(viewed)) return res.status(404).json({ message: 'Organization not found' });
             const organization = await Organization.findById(viewed);
             if (!organization) return res.status(404).json({ message: 'Organization not found' });
-            if (!['GET', 'HEAD'].includes(req.method)) {
+            // Express matches routes case-insensitively and ignores a trailing
+            // slash, so the path is compared the same way — '/PASSWORD/' must
+            // not slip past. changeMyPassword refuses a viewing superadmin too.
+            if (req.method === 'PUT' && req.path.replace(/\/+$/, '').toLowerCase() === '/password') {
                 return res.status(403).json({
-                    code: 'READ_ONLY_VIEW',
-                    message: `You are viewing ${organization.name} as the platform administrator. Changes can only be made by the organization itself.`
+                    code: 'NOT_YOUR_PASSWORD',
+                    message: `Only ${organization.name} can change its own sign-in password.`
                 });
             }
             req.admin = admin;
             req.organization = organization;
             req.viewingAsSuperAdmin = true;
+            // Every change a superadmin makes while working as the
+            // organization is recorded against it, once the response is
+            // known — the organization would otherwise see edits nobody there
+            // made, with no trace of who did.
+            if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+                res.on('finish', () => {
+                    OrgAuditLog.record({
+                        orgId: organization._id,
+                        admin,
+                        action: 'view-mode-write',
+                        req,
+                        details: { status: res.statusCode }
+                    });
+                });
+            }
             return next();
         }
         if (admin.role !== 'orgadmin') {

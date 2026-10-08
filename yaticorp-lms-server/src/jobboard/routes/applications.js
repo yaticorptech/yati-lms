@@ -10,6 +10,8 @@ const express = require('express');
 const router = express.Router();
 
 const Application = require('../models/JobApplication');
+const { chargeWallet } = require('../../rewards/services/walletRuleService');
+const { xpOnSuccess } = require('../../rewards/services/xpHooks');
 const Opportunity = require('../models/Opportunity');
 const OpportunityProfile = require('../models/OpportunityProfile');
 const User = require('../../models/User');
@@ -132,7 +134,12 @@ const refreshFromProfile = async (row, userId) => {
  * student of eighteen or over goes straight on; anyone younger lands on the
  * guardian step and cannot leave it until a guardian answers.
  */
-router.post('/', async (req, res, next) => {
+// Wallet rules: applying is priced once per job; reopening the same application is not.
+const newApplication = async (req) => {
+    const id = String(req.body?.opportunityId || '').trim();
+    return !!id && !(await Application.exists({ userId: req.user._id, opportunityId: id }));
+};
+router.post('/', chargeWallet('apply_part_time', { when: newApplication, ref: (req) => String(req.body.opportunityId).trim() }), xpOnSuccess('part_time_apply', (req) => `apply:${String(req.body?.opportunityId || '').trim()}`), async (req, res, next) => {
     try {
         const opportunityId = String(req.body?.opportunityId || '').trim();
         if (!opportunityId) return res.status(400).json({ error: 'Which job is this for?' });

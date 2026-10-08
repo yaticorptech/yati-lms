@@ -9,7 +9,9 @@
  * written against. Rendered without it, every screen in the section falls back
  * to the LMS's font and neutral palette. The negative margins cancel
  * StudentLayout's content padding so the section can run edge-to-edge and then
- * re-apply its own.
+ * re-apply its own — on the same `sidebar` breakpoint StudentLayout switches
+ * its padding at. Keyed to `md` instead, every width between the two pulled
+ * the page 16px past each side and the section scrolled sideways.
  */
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './components/ui/Toast';
@@ -22,7 +24,7 @@ export default function CareerProviders({ children }) {
       <ToastProvider>
         <ConfirmProvider>
           <CelebrationProvider>
-            <div className="futurepath -m-4 flex min-h-full flex-col p-4 md:-m-8 md:p-8">
+            <div className="futurepath -m-4 flex min-h-full flex-col p-4 sidebar:-m-8 sidebar:p-8">
               {children}
             </div>
           </CelebrationProvider>

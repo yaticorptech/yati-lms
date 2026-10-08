@@ -14,6 +14,7 @@ router.get('/wallet/rewards', c.getRewardLedger);
 router.get('/wallet/withdrawals', c.getWithdrawals);
 router.post('/wallet/redeem', c.redeem);
 router.post('/wallet/withdraw', c.withdraw);
+router.post('/wallet/spend', c.spend);
 router.get('/events/unseen', c.getUnseenEvents);
 router.post('/events/seen', c.markEventsSeen);
 

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Check, X, Lightbulb } from 'lucide-react';
 import GameShell from './GameShell';
-import useGameProgress, { between, ramp, starsFor, starsOn } from './levels';
+import useGameProgress, { between, ramp, starsForFixed, starsOn } from './levels';
 import useTimedRound from './useTimedRound';
 import useRecordStars from './useRecordStars';
 import { pickQuestions, remember, recordFor, keyOf } from './questionMemory';
@@ -104,9 +104,11 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
       if (unseen < config.count) {
         const neighbour = band < 3 ? band + 1 : band - 1;
         const shift = band < 3 ? 1 : -1;
+        // Tagged with the band they came from, so the memory files them
+        // there: asked now, they must count as seen when that band arrives.
         const borrowed = questions
           .filter((q) => (q.level || 1) === neighbour)
-          .map((q) => ({ ...q, tierShift: shift }));
+          .map((q) => ({ ...q, tierShift: shift, fromBand: neighbour }));
         pool = [...graded, ...borrowed];
       }
     }
@@ -124,7 +126,10 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
   const over = finished || timeUp;
   const passMark = Math.min(config.passMark, deck.length);
   const passed = score >= passMark;
-  const stars = over ? starsFor(score, passMark) : 0;
+  // Graded against the deck, not 1.5x the pass mark: from step eight the pass
+  // mark is more than two-thirds of the deck, and a perfect score capped at
+  // two stars.
+  const stars = over ? starsForFixed(score, passMark, deck.length) : 0;
   useRecordStars(progress, over, stars);
 
   // Options shuffled per question, so the right answer is not always in the
@@ -138,6 +143,7 @@ function Round({ progress, title, tone, questions, renderPrompt, onExit }) {
     if (right) setScore((s) => s + 1);
     // Recorded as it happens rather than at the end of the round, so a student
     // who abandons a level half-way still keeps credit for what they answered.
+    // Filed under the question's own band (a borrowed one carries it).
     remember(progress.gameId, progress.difficulty, current, right);
     // The one quiz in the Career Path that marks each answer as it is given.
     mascot.quizAnswer(right);

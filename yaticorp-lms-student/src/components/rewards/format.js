@@ -3,11 +3,19 @@ export const money = (n, currency = 'INR') =>
 
 export const num = (n) => Number(n || 0).toLocaleString('en-IN');
 
-// Every student's wallet shows this opening balance on top of what the
-// ledger says they have earned. Display only: the server's `available`
-// is what redemptions and withdrawals are checked against.
-export const OPENING_BALANCE = 150000;
-export const balance = (available) => Number(available || 0) + OPENING_BALANCE;
+// The wallet balance as the server holds it. The starting credit is a real,
+// spend-only ledger entry now (it used to be added here for display only, so
+// students saw ₹1,50,000 they could not actually spend).
+export const balance = (available) => Number(available || 0);
+
+/** What `xp` is worth at the admin's rate, e.g. 1000 XP = ₹10. */
+export const xpValue = (xp, conversion) =>
+    conversion?.pointsPerUnit ? (Number(xp || 0) * Number(conversion.unitValue || 0)) / Number(conversion.pointsPerUnit) : 0;
+
+/** The line a ledger row is shown under. The starting credit always reads the
+ *  same, whatever text it was booked with. */
+export const txTitle = (t) =>
+    t.source === 'starting_credit' ? 'Starting wallet credit' : t.description || SOURCE_LABEL[t.source] || t.source;
 
 export const when = (d) => {
     const date = new Date(d);
@@ -15,11 +23,15 @@ export const when = (d) => {
 };
 
 export const SOURCE_LABEL = {
+    xp_reward: 'XP converted',
+    starting_credit: 'Starting credit',
     learning_reward: 'Learning reward',
     leaderboard_reward: 'Leaderboard reward',
     referral_reward: 'Referral reward',
     job_earning: 'Job earning',
     purchase: 'Purchase',
+    feature_charge: 'Feature used',
+    feature_refund: 'Refund',
     withdrawal: 'Withdrawal',
     withdrawal_refund: 'Withdrawal returned',
     admin_adjustment: 'Adjustment',

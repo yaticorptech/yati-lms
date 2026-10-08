@@ -17,6 +17,7 @@ import {
     FileText, Upload, Loader2, X, Check, GraduationCap, BadgeCheck, ShieldCheck
 } from 'lucide-react';
 import { jobsApi } from './api';
+import PriceTag from '../components/rewards/PriceTag';
 
 const ACCEPT = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -157,6 +158,7 @@ export default function ResumeCard({ profile, onProfile, onApply }) {
                         <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-rose-600">PDF</span>
                         <span className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-sky-700">IMAGE</span>
                         <span className="text-xs font-semibold text-slate-400">Max 5 MB</span>
+                        <PriceTag action="upload_resume" className="text-xs text-indigo-600" />
                     </div>
                 </div>
             )}

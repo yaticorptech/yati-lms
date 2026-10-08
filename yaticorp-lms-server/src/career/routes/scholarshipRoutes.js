@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const { chargeWallet } = require('../../rewards/services/walletRuleService');
+const { xpOnSuccess, today } = require('../../rewards/services/xpHooks');
 const {
   getScholarships,
   generateScholarships,
@@ -14,7 +16,8 @@ const { protect } = require('../middleware/authMiddleware');
 router.get('/profile/options', protect, getProfileOptions);
 router.route('/profile').get(protect, getProfile).put(protect, saveProfile);
 
-router.post('/generate', protect, generateScholarships);
+// Wallet rule 'find_scholarship' and the optional XP rule 'scholarship_search' (once a day).
+router.post('/generate', protect, chargeWallet('find_scholarship'), xpOnSuccess('scholarship_search', () => `scholarships:${today()}`), generateScholarships);
 router.get('/', protect, getScholarships);
 
 module.exports = router;

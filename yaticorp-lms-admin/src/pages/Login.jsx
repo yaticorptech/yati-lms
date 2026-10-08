@@ -8,6 +8,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 import { isNative } from '../native/platform';
+import api from '../utils/api';
 
 const Login = () => {
     const { admin, login, verify2FA } = useAuth();
@@ -22,6 +23,10 @@ const Login = () => {
     const [token, setToken] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // "Forgot password?" — organization accounts get a reset link by email.
+    const [forgotOpen, setForgotOpen] = useState(false);
+    const [forgotSent, setForgotSent] = useState('');
 
     if (admin) return <Navigate to="/" replace />;
 
@@ -44,6 +49,27 @@ const Login = () => {
             setError(res.error);
         }
         setLoading(false);
+    };
+
+    // The answer is the same whether or not the address has an account, so
+    // the form cannot be used to find out who is registered.
+    const handleForgot = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+        try {
+            const res = await api.post('/auth/admin/forgot-password', { email });
+            setForgotSent(res.data.message);
+        } catch (err) {
+            setError(err.response?.data?.message || 'Could not send the reset link. Please try again.');
+        }
+        setLoading(false);
+    };
+
+    const toggleForgot = (open) => {
+        setForgotOpen(open);
+        setForgotSent('');
+        setError('');
     };
 
     // 2FA verification
@@ -69,7 +95,7 @@ const Login = () => {
                     YATICORP <span className="text-indigo-400">LMS-ADMIN</span>
                 </h2>
                 <p className="mt-2 text-sm text-slate-400">
-                    {needs2FA ? 'Enter your two-factor code' : 'Sign in to continue'}
+                    {needs2FA ? 'Enter your two-factor code' : forgotOpen ? 'Reset your organization password' : 'Sign in to continue'}
                 </p>
             </div>
 
@@ -83,8 +109,40 @@ const Login = () => {
             <div className="mt-6 sm:mt-8 mx-auto w-full max-w-md z-10">
                 <div className="bg-slate-800/80 backdrop-blur-xl py-7 sm:py-8 px-5 shadow-2xl rounded-2xl sm:px-10 border border-slate-700">
 
+                    {/* Forgotten password: organization accounts get an emailed link. */}
+                    {!needs2FA && forgotOpen && (
+                        <form className="space-y-6" onSubmit={handleForgot}>
+                            {error && <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm text-center">{error}</div>}
+                            {forgotSent ? (
+                                <div className="bg-emerald-500/10 border border-emerald-400/40 text-emerald-200 p-3 rounded-lg text-sm text-center">{forgotSent}</div>
+                            ) : (
+                                <>
+                                    <p className="text-sm text-slate-400">
+                                        Enter the email your organization signs in with and we will send a link to choose a new password. Platform staff: ask a superadmin to reset yours.
+                                    </p>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-2">Email address</label>
+                                        <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                                            className="appearance-none block w-full px-4 py-3 border border-slate-600 rounded-xl bg-slate-900/50 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                                            placeholder="admin@company.com" />
+                                    </div>
+                                    <button type="submit" disabled={loading}
+                                        className="w-full py-3 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all">
+                                        {loading ? 'Sending...' : 'Send reset link'}
+                                    </button>
+                                </>
+                            )}
+                            <div className="text-center">
+                                <button type="button" onClick={() => toggleForgot(false)}
+                                    className="text-sm font-bold text-indigo-400 transition-colors hover:text-indigo-300">
+                                    Back to sign in
+                                </button>
+                            </div>
+                        </form>
+                    )}
+
                     {/* Credentials */}
-                    {!needs2FA && (
+                    {!needs2FA && !forgotOpen && (
                         <form className="space-y-6" onSubmit={handleLogin}>
                             {error && <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm text-center">{error}</div>}
                             <div>
@@ -109,6 +167,12 @@ const Login = () => {
                                     </button>
                                 </div>
                                 <PasswordStrengthChecker password={password} focused={pwFocused} />
+                                <div className="mt-2 text-right">
+                                    <button type="button" onClick={() => toggleForgot(true)}
+                                        className="text-sm font-medium text-indigo-400 transition-colors hover:text-indigo-300">
+                                        Forgot password?
+                                    </button>
+                                </div>
                             </div>
                             <button type="submit" disabled={loading}
                                 className="w-full py-3 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all">

@@ -44,7 +44,11 @@ const computerMove = (b, smart) => (Math.random() < smart ? minimax(b, 'O').move
 
 const configFor = (difficulty, levelNo) => ({
   // How often the computer plays the perfect move rather than a random one.
-  smart: Math.min(1, ((difficulty - 1) * 30 + levelNo) / 60),
+  // Never every time: a perfect noughts-and-crosses player cannot be beaten,
+  // and capped at 1 the whole top band (and the end of the middle one) could
+  // only ever be drawn. At 0.9 it still slips now and then, and a sharp
+  // student can punish it.
+  smart: Math.min(0.9, ((difficulty - 1) * 30 + levelNo) / 60),
   seconds: between(90, 60, levelNo),
   // Points: a win is 2, a draw is 1. Losing scores nothing.
   target: between(4, 8, levelNo) + (difficulty - 1) * 2

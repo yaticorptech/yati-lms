@@ -23,12 +23,15 @@ import useAutoLogout from '../utils/useAutoLogout';
 import initials from '../utils/initials';
 import OrgBottomNav from '../components/OrgBottomNav';
 import { getViewedOrganization, stopViewingOrganization } from '../utils/viewOrganization';
+import useCenterTabs from '../hooks/useCenterTabs';
+import ErrorBoundary from '../components/ErrorBoundary';
+import { Dialog, DialogTitle } from '../components/orgUi';
 
 // `short` is the bottom bar's label on a phone, where four full labels do not fit.
 const NAV = [
     { to: '/organization', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
     { to: '/organization/students', label: 'Students', short: 'Students', icon: Users },
-    { to: '/organization/requests', label: 'Student Requests', short: 'Requests', icon: UserPlus, badge: 'pendingRequests' },
+    { to: '/organization/requests', label: 'Student requests', short: 'Requests', icon: UserPlus, badge: 'pendingRequests' },
     { to: '/organization/courses', label: 'Courses', short: 'Courses', icon: BookOpen },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
@@ -36,7 +39,7 @@ const NAV = [
 const STUDENT_PORTAL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
 
 const linkClass = (active) =>
-    `flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`;
+    `flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`;
 
 const MENU_ITEM = 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors';
 
@@ -60,10 +63,10 @@ const OrgCode = ({ code }) => {
         } catch { /* refused over plain HTTP; the code is on screen anyway */ }
     };
     return (
-        <button onClick={copy} aria-label={`Copy organization ID ${code}`}
-            className="group mt-1 inline-flex items-center gap-1.5 font-mono text-xs font-bold text-indigo-300 hover:text-white">
+        <button onClick={copy} aria-label={`Copy Organization ID ${code}`}
+            className="group -my-1.5 inline-flex min-h-10 items-center gap-1.5 font-mono text-xs font-bold text-indigo-600 hover:text-indigo-800">
             {code}
-            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={11} className="text-slate-500 group-hover:text-indigo-300" />}
+            {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={11} className="text-slate-400 group-hover:text-indigo-600" />}
         </button>
     );
 };
@@ -137,12 +140,14 @@ const StatusScreen = ({ organization, onLogout, viewing }) => {
 };
 
 const OrgAdminLayout = () => {
+    // Tapping a tab in a sideways-scrolling strip centres it (phones).
+    useCenterTabs();
     const { showSessionModal, confirmLogout } = useAutoLogout();
     const { admin, logout } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
 
-    // A superadmin looking at this organization's panel, read-only. "Exit"
+    // A superadmin working in this organization's panel, with its edits. "Exit"
     // takes them back to Organizations; there is nothing to sign out of here.
     const viewing = admin?.role === 'superadmin' ? getViewedOrganization() : null;
     const exitView = () => { stopViewingOrganization(); navigate('/organizations'); };
@@ -159,12 +164,12 @@ const OrgAdminLayout = () => {
 
     const isActive = (path, exact) => (exact ? location.pathname === path : location.pathname === path || location.pathname.startsWith(path + '/'));
 
-    // What the header calls the page: the nav item it belongs to, except a
-    // single student, which is a page of its own under Students.
-    const current = NAV.find(({ to, exact }) => isActive(to, exact));
-    const pageTitle = location.pathname.startsWith('/organization/students/')
-        ? 'Student details'
-        : current?.label || 'Dashboard';
+    // What the header says. Every section page opens with its own title (the
+    // Dashboard with "Welcome back"), so repeating it here only said it twice:
+    // the header carries whose panel this is instead — on a phone, where there
+    // is no sidebar to say so. A single student's page has no section title of
+    // its own (its heading is the student's name), so that one is named here.
+    const studentPage = location.pathname.startsWith('/organization/students/');
 
     // Status first. This endpoint is the one organization route that works
     // before approval, which is exactly why it is what the shell asks for.
@@ -182,15 +187,48 @@ const OrgAdminLayout = () => {
         return () => window.removeEventListener('organization-logo', onLogo);
     }, []);
 
-    // The waiting-requests badge, refreshed on navigation like the support
-    // badge in the platform panel. Silent on failure: a missing number must not
-    // put an error in front of someone trying to work.
+    /**
+     * The waiting-requests badge, refreshed on navigation like the support
+     * badge in the platform panel, and the moment a request is decided (the
+     * Requests page says so with an 'organization-requests-changed' event), so
+     * the number beside "Student requests" is never one behind.
+     *
+     * It asks the small count endpoint; a server without it answers with no
+     * `pending`, and the badge falls back to the full request list it used to
+     * read, without asking the count endpoint again. Silent on failure: a
+     * missing number must not put an error in front of someone trying to work.
+     */
+    const countEndpoint = useRef(true);
+    const countSeq = useRef(0);
+    const active = organization?.status === 'active';
     useEffect(() => {
-        if (organization?.status !== 'active') return;
-        api.get('/organizations/me/requests')
-            .then((r) => setCounts({ pendingRequests: r.data.pendingCount || 0 }))
-            .catch(() => {});
-    }, [location.pathname, organization?.status]);
+        if (!active) return undefined;
+        const loadCount = async () => {
+            const seq = ++countSeq.current;
+            let pending;
+            if (countEndpoint.current) {
+                try {
+                    const r = await api.get('/organizations/me/requests/count');
+                    if (typeof r.data?.pending === 'number') pending = r.data.pending;
+                    else countEndpoint.current = false;
+                } catch (err) {
+                    if (err.response?.status === 404) countEndpoint.current = false;
+                    else return;
+                }
+            }
+            if (pending === undefined) {
+                try {
+                    const r = await api.get('/organizations/me/requests');
+                    pending = r.data.pendingCount || 0;
+                } catch { return; }
+            }
+            // An older answer arriving after a newer one does not win.
+            if (seq === countSeq.current) setCounts({ pendingRequests: pending });
+        };
+        loadCount();
+        window.addEventListener('organization-requests-changed', loadCount);
+        return () => window.removeEventListener('organization-requests-changed', loadCount);
+    }, [location.pathname, active]);
 
     const [lastPath, setLastPath] = useState(location.pathname);
     if (lastPath !== location.pathname) {
@@ -243,60 +281,56 @@ const OrgAdminLayout = () => {
     return (
         <div className="flex h-dvh bg-slate-50 text-gray-900 font-sans overflow-hidden">
             {showSessionModal && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-                        <div className="p-6 text-center">
-                            <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">⏳</div>
-                            <h2 className="text-lg font-bold text-slate-800 mb-1">Session Expired</h2>
-                            <p className="text-slate-500 text-sm">Your session has expired. Please login again.</p>
-                        </div>
-                        <div className="px-6 pb-6">
-                            <button onClick={confirmLogout} className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm">OK</button>
-                        </div>
+                <Dialog onClose={confirmLogout} size="max-w-sm" z="z-[200]">
+                    <div className="p-6 text-center">
+                        <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">⏳</div>
+                        <DialogTitle className="text-lg font-bold text-slate-800 mb-1">Session Expired</DialogTitle>
+                        <p className="text-slate-500 text-sm">Your session has expired. Please login again.</p>
                     </div>
-                </div>
+                    <div className="px-6 pb-6">
+                        <button onClick={confirmLogout} className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm">OK</button>
+                    </div>
+                </Dialog>
             )}
 
             {showLogoutConfirm && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-                        <div className="p-6 text-center">
-                            <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <LogOut size={26} className="text-red-500" />
-                            </div>
-                            <h2 className="text-lg font-bold text-slate-800 mb-1">Log out?</h2>
-                            <p className="text-slate-500 text-sm">Are you sure you want to log out?</p>
+                <Dialog onClose={() => setShowLogoutConfirm(false)} size="max-w-sm">
+                    <div className="p-6 text-center">
+                        <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <LogOut size={26} className="text-red-500" />
                         </div>
-                        <div className="flex gap-3 px-6 pb-6">
-                            <button onClick={() => setShowLogoutConfirm(false)}
-                                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-colors">
-                                Cancel
-                            </button>
-                            <button onClick={() => { setShowLogoutConfirm(false); logout(); }}
-                                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors">
-                                Yes, Log out
-                            </button>
-                        </div>
+                        <DialogTitle className="text-lg font-bold text-slate-800 mb-1">Log out?</DialogTitle>
+                        <p className="text-slate-500 text-sm">Are you sure you want to log out?</p>
                     </div>
-                </div>
+                    <div className="flex gap-3 px-6 pb-6">
+                        <button onClick={() => setShowLogoutConfirm(false)} data-autofocus
+                            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-colors">
+                            Cancel
+                        </button>
+                        <button onClick={() => { setShowLogoutConfirm(false); logout(); }}
+                            className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors">
+                            Yes, Log out
+                        </button>
+                    </div>
+                </Dialog>
             )}
 
             {/* ── Desktop: the sidebar ─────────────────────────────────────
                 Phones use the bar along the bottom instead, so there is no
                 drawer to open and every section is one tap away. */}
-            <aside className="hidden w-64 shrink-0 flex-col bg-slate-900 text-white shadow-2xl lg:flex">
-                <div className="border-b border-slate-800 p-5">
+            <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white text-slate-700 lg:flex">
+                <div className="border-b border-slate-100 p-5">
                     <div className="flex items-center gap-3">
                         <OrgBadge name={organization.name} logo={organization.logo} />
                         <div className="min-w-0">
-                            <p className="truncate font-bold text-white" title={organization.name}>{organization.name}</p>
+                            <p className="truncate font-bold text-slate-900" title={organization.name}>{organization.name}</p>
                             <OrgCode code={organization.orgCode} />
                         </div>
                     </div>
                 </div>
 
                 <nav className="flex-1 space-y-1.5 overflow-y-auto p-4 custom-scrollbar" aria-label="Organization">
-                    <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Menu</p>
+                    <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Menu</p>
                     {NAV.map(({ to, label, icon: Icon, exact, badge }) => {
                         const active = isActive(to, exact);
                         const count = badge ? counts[badge] : 0;
@@ -315,9 +349,9 @@ const OrgAdminLayout = () => {
                     })}
                 </nav>
 
-                <div className="border-t border-slate-800 bg-slate-950/30 p-4">
+                <div className="border-t border-slate-100 bg-slate-50/60 p-4">
                     <a href={STUDENT_PORTAL} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center space-x-3 rounded-xl p-3 text-indigo-400 transition-all hover:bg-indigo-600/10 hover:text-white">
+                        className="flex items-center space-x-3 rounded-xl p-3 text-indigo-600 transition-all hover:bg-indigo-50 hover:text-indigo-700">
                         <ExternalLink size={18} /> <span className="text-sm font-medium">Student Portal</span>
                     </a>
                 </div>
@@ -328,10 +362,10 @@ const OrgAdminLayout = () => {
                     <div role="status" className="flex shrink-0 items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 lg:px-8">
                         <Eye size={16} className="shrink-0 text-amber-600" />
                         <p className="min-w-0 flex-1">
-                            <span className="font-semibold">Viewing {organization.name}</span>
-                            <span className="hidden sm:inline"> as the platform administrator</span> · read-only
+                            <span className="font-semibold">Managing {organization.name}</span>
+                            <span className="hidden sm:inline"> as the platform administrator</span> · changes are saved to this organization
                         </p>
-                        <button onClick={exitView} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100">
+                        <button onClick={exitView} className="-my-1.5 inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100">
                             <ArrowLeft size={14} /> Exit
                         </button>
                     </div>
@@ -341,10 +375,15 @@ const OrgAdminLayout = () => {
                         {/* On a phone the sidebar is gone, so the header carries
                             whose panel this is. */}
                         <span className="lg:hidden"><OrgBadge name={organization.name} logo={organization.logo} small /></span>
-                        <div className="min-w-0">
-                            <p className="truncate text-base font-bold text-slate-900 lg:text-xl">{pageTitle}</p>
-                            <p className="truncate text-xs text-slate-500 lg:hidden">{organization.name}</p>
-                        </div>
+                        {studentPage ? (
+                            <div className="min-w-0">
+                                <p className="truncate text-base font-bold text-slate-900 lg:text-xl">Student details</p>
+                                <p className="truncate text-xs text-slate-500 lg:hidden">{organization.name}</p>
+                            </div>
+                        ) : (
+                            // The sidebar names the organization on a desktop.
+                            <p className="min-w-0 truncate text-base font-bold text-slate-900 lg:hidden">{organization.name}</p>
+                        )}
                         <span className="hidden items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100 lg:inline-flex">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Active
                         </span>
@@ -410,7 +449,7 @@ const OrgAdminLayout = () => {
                 {/* Bottom padding on phones keeps the last card clear of the floating nav bar. */}
                 <div className="flex-1 overflow-y-auto p-4 pb-28 custom-scrollbar lg:p-8">
                     <div className="mx-auto w-full max-w-7xl">
-                        <Outlet />
+                        <ErrorBoundary resetKey={location.pathname}><Outlet /></ErrorBoundary>
                     </div>
                 </div>
             </main>

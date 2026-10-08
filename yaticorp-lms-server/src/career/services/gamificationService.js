@@ -53,7 +53,20 @@ const seedBadges = async () => {
   catalogueSynced = true;
 };
 
-const addXP = async (userId, amount, reason) => {
+/**
+ * Pay Career Path XP and check the XP badges.
+ *
+ * `refId` is the award's natural key ('task:<id>', 'taskquiz:<taskId>', …).
+ * The ledger is unique per user on source + refId, so two requests racing to
+ * pay the same thing — a double click, a second tab, a retried request — land
+ * one row and the loser comes back as a duplicate instead of a second payout.
+ * The in-document guards each caller keeps (creditedAt, bestScore, answeredAt)
+ * still decide WHETHER to pay; this only makes paying idempotent.
+ *
+ * @returns {Promise<number>} the XP actually credited — 0 when nothing was
+ *   paid, so callers can report what the student really got.
+ */
+const addXP = async (userId, amount, reason, { refId = null } = {}) => {
   await seedBadges();
 
   // The write itself goes through the rewards XP service, so Career Path XP
@@ -61,20 +74,28 @@ const addXP = async (userId, amount, reason) => {
   // same admin thresholds as course XP. It also posts the "XP earned" and
   // "Level up" notifications, which used to be created here.
   const { addXp } = require('../../rewards/services/xpService');
-  const result = await addXp({ userId, amount, source: 'career', description: `for ${reason}` });
-  if (!result || result.duplicate || result.missingUser) return;
+  const result = await addXp({ userId, amount, source: 'career', refId, description: `for ${reason}` });
+  if (!result || result.duplicate || result.missingUser || result.skipped) return 0;
 
   const user = await User.findById(userId);
-  if (!user) return;
+  // The XP is already in the ledger, so report it even if the badge check
+  // cannot run.
+  if (!user) return result.amount || 0;
 
   // Check Badges based on XP / Level
   const allBadges = await Badge.find();
   for (const badge of allBadges) {
     if (badge.xpRequired > 0 && user.xp >= badge.xpRequired) {
-      // check if user already has it
-      const hasBadge = await UserBadge.findOne({ userId, badgeId: badge._id });
-      if (!hasBadge) {
-        await UserBadge.create({ userId, badgeId: badge._id });
+      // One atomic upsert rather than find-then-create: two payouts landing
+      // together both saw "no badge" and both inserted, and with the unique
+      // { userId, badgeId } index the loser would now throw after its XP was
+      // paid. Only the request that actually inserted announces the badge.
+      const awarded = await UserBadge.updateOne(
+        { userId, badgeId: badge._id },
+        { $setOnInsert: { userId, badgeId: badge._id } },
+        { upsert: true }
+      );
+      if (awarded.upsertedCount === 1) {
         await Notification.create({
           userId,
           title: 'Badge Unlocked!',
@@ -85,6 +106,7 @@ const addXP = async (userId, amount, reason) => {
     }
   }
 
+  return result.amount || 0;
 };
 
 module.exports = { addXP, seedBadges, calculateLevel, BADGE_CATALOGUE };

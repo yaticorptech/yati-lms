@@ -1,39 +1,84 @@
 /**
  * Progress + momentum math.
  *
- * The level thresholds here mirror `calculateLevel` in
- * backend/services/gamificationService.js. If that ladder changes, change it
- * here too — the backend stays the source of truth for the level a user
- * actually has; this file only predicts how far the next one is so the UI can
- * draw a ring.
+ * Levels follow the admin's ladder (Rewards → Level thresholds), the same
+ * table the server levels students with — see levelFor/levelInfo in
+ * yaticorp-lms-server/src/rewards/services/configService.js, which the
+ * functions below mirror line for line. This file used to carry its own copy
+ * of the ladder; the first time an admin edited theirs, every ring and "XP to
+ * next level" in the app read a different number from the server.
+ *
+ * The thresholds arrive from the server (useLevelProgress fetches them), so
+ * pass them in where you have them. Called without, levelProgress uses the
+ * last ladder any screen loaded, and before one has loaded it says so
+ * (`known: false`) rather than guessing.
  */
 
-// Explicit rungs for the first five levels; beyond that the backend switches to
-// level = floor(sqrt(xp / 100)) + 2, which inverts to xp = 100 * (level - 2)^2.
-const EXPLICIT_THRESHOLDS = [0, 0, 100, 300, 600, 1000];
+const isLadder = (t) => Array.isArray(t) && t.length >= 2 && t.every((n) => Number.isFinite(Number(n)));
+
+let lastLadder = null;
+
+/** Keep the ladder a screen just loaded, for callers that cannot pass one. */
+export function rememberLevelThresholds(thresholds) {
+  if (isLadder(thresholds)) lastLadder = thresholds.map(Number);
+}
+
+/** The last ladder loaded this session, or null. */
+export const knownLevelThresholds = () => lastLadder;
+
+/** The level an XP total reaches. Past the table each level costs the last gap. */
+export function levelFor(xp, thresholds) {
+  const t = thresholds;
+  const x = Math.max(0, Number(xp) || 0);
+  let level = 1;
+  for (let i = 0; i < t.length; i++) if (x >= t[i]) level = i + 1;
+  if (x >= t[t.length - 1]) {
+    const gap = Math.max(1, t[t.length - 1] - t[t.length - 2]);
+    level = t.length + Math.floor((x - t[t.length - 1]) / gap);
+  }
+  return level;
+}
 
 /** XP at which `level` begins. */
-export function levelFloor(level) {
+export function levelFloor(level, thresholds) {
+  const t = thresholds;
   if (level <= 1) return 0;
-  if (level < EXPLICIT_THRESHOLDS.length) return EXPLICIT_THRESHOLDS[level];
-  return 100 * (level - 2) ** 2;
+  if (level <= t.length) return t[level - 1];
+  const gap = Math.max(1, t[t.length - 1] - t[t.length - 2]);
+  return t[t.length - 1] + (level - t.length) * gap;
 }
 
 /**
  * Where the user sits inside their current level.
  * Returns the XP earned into this level, the size of the level, and a 0-100
  * percentage suitable for a ring or bar.
+ *
+ * The level is worked out from the XP, as the server does, so the ring and
+ * the "to next level" figure can never disagree with each other; `level` is
+ * only the answer to fall back on while the ladder is unknown.
  */
-export function levelProgress(xp = 0, level = 1) {
+export function levelProgress(xp = 0, level = 1, thresholds) {
   const safeXp = Math.max(0, Number(xp) || 0);
-  const safeLevel = Math.max(1, Number(level) || 1);
+  const ladder = isLadder(thresholds) ? thresholds.map(Number) : lastLadder;
 
-  const floor = levelFloor(safeLevel);
-  const ceiling = levelFloor(safeLevel + 1);
+  if (!ladder) {
+    // Not loaded yet. An empty ring for a moment, never a made-up distance.
+    const current = Math.max(1, Number(level) || 1);
+    return {
+      known: false, level: current, into: 0, span: 1, xp: safeXp,
+      ceiling: safeXp, remaining: 0, nextLevel: current + 1, percent: 0
+    };
+  }
+
+  const current = levelFor(safeXp, ladder);
+  const floor = levelFloor(current, ladder);
+  const ceiling = levelFloor(current + 1, ladder);
   const span = Math.max(1, ceiling - floor);
   const into = Math.max(0, safeXp - floor);
 
   return {
+    known: true,
+    level: current,
     into,
     span,
     // The same progress said the other way: the student's running total, and
@@ -48,7 +93,7 @@ export function levelProgress(xp = 0, level = 1) {
     xp: safeXp,
     ceiling,
     remaining: Math.max(0, ceiling - safeXp),
-    nextLevel: safeLevel + 1,
+    nextLevel: current + 1,
     percent: Math.max(0, Math.min(100, Math.round((into / span) * 100)))
   };
 }

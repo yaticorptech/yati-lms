@@ -22,6 +22,9 @@ const protectPreview = async (req, res, next) => {
         try {
             const decoded = jwt.verify(header.split(' ')[1], process.env.JWT_SECRET);
             admin = await Admin.findById(decoded.id).select('-password');
+            // A token from before the last password change is no session at
+            // all: falling through to protectAdmin answers PASSWORD_CHANGED.
+            if (admin?.tokenPredatesPassword(decoded.iat)) admin = null;
         } catch { /* protectAdmin below says why */ }
     }
     if (admin?.role !== 'orgadmin') return protectAdmin(req, res, next);

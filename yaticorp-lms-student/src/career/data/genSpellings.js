@@ -141,13 +141,96 @@ const mistakes = [
 
 /* Words a mistake rule can land on by accident. "Thorough" less its "o" is
    "through", which is not a misspelling of anything. Every word on the lists
-   above is checked too; these are the ones that are not on them. */
+   above is checked too; these are the ones that are not on them.
+
+   The second half came from running every generated option through the
+   macOS British, American, Canadian and Australian spell checkers: "where"
+   less its "w" is "here", "really" undoubled is "rely", and "suddenly" with
+   its vowel swapped is "soddenly" — real words all, marked wrong. "Truely"
+   is a misspelling to most readers but some dictionaries carry it as an
+   old form, and a question must not hinge on which dictionary you own. */
 const REAL_WORDS = new Set([
   'through', 'though', 'thought', 'quiet', 'quite', 'desert', 'dessert', 'loose', 'lose', 'chose', 'choose',
   'later', 'latter', 'then', 'than', 'were', 'where', 'wear', 'weather', 'whether', 'accept', 'except',
   'advice', 'advise', 'device', 'devise', 'precede', 'proceed', 'personal', 'personnel', 'principal', 'principle',
-  'stationary', 'stationery', 'complement', 'compliment', 'affect', 'effect', 'moral', 'morale', 'bear', 'bare'
+  'stationary', 'stationery', 'complement', 'compliment', 'affect', 'effect', 'moral', 'morale', 'bear', 'bare',
+  'here', 'rely', 'soddenly', 'truely', 'hear', 'heard', 'herd', 'whither', 'wither', 'there', 'other', 'eaten',
+  // Webster's 1934 list, which keeps the archaic: Scots "queet" (ankle), old "waird".
+  'queet', 'waird'
 ]);
+
+/* ---- Spellings that are right somewhere ---------------------------------
+ * The list is in British spelling, and a student in India meets American
+ * spelling every day: offering "favorite" as the wrong spelling of
+ * "favourite", or "collectable" for "collectible", marks a correct answer
+ * wrong. Every accepted variant of the answer is therefore barred from its
+ * wrong options: the regular British/American pairs by rule, and the
+ * irregular ones listed by hand.
+ */
+const ACCEPTED_VARIANTS = {
+  collectible: ['collectable'],
+  judgement: ['judgment'],
+  acknowledgement: ['acknowledgment'],
+  jewellery: ['jewelry', 'jewelery'],
+  manoeuvre: ['maneuver', 'manoeuver'],
+  haemorrhage: ['hemorrhage'],
+  diarrhoea: ['diarrhea'],
+  archaeology: ['archeology'],
+  medieval: ['mediaeval'],
+  licence: ['license'],
+  liquefy: ['liquify'],
+  liquefaction: ['liquifaction'],
+  minuscule: ['miniscule'],
+  gauge: ['gage'],
+  sergeant: ['serjeant'],
+  renaissance: ['renascence'],
+  pastime: ['pasttime'],
+  ecstasy: ['ecstacy'],
+  fuchsia: ['fuschia'],
+  dumbbell: ['dumbell'],
+  supersede: ['supercede'],
+  mischievous: ['mischievious'],
+  inoculate: ['innoculate'],
+  embarrass: ['embarass'],
+  harass: ['harrass'],
+  millennium: ['millenium'],
+  cemetery: ['cemetary'],
+  publicly: ['publically'],
+  grammar: ['grammer']
+};
+
+/**
+ * Every spelling of `word` that a dictionary somewhere accepts: the word
+ * itself, its regular British/American twins, and the listed irregular ones.
+ *
+ * Some entries in ACCEPTED_VARIANTS are not variants but famous misspellings
+ * ("millenium", "supercede"). They are barred too, deliberately: those are
+ * the slips a reader has seen in print so often that some dictionaries now
+ * list them, and a quiz that calls one "wrong" invites the argument rather
+ * than teaching the word. There are always other wrong spellings to offer.
+ */
+const variantsOf = (word) => {
+  const out = new Set([word, ...(ACCEPTED_VARIANTS[word] || [])]);
+  const swap = (re, to) => {
+    if (re.test(word)) out.add(word.replace(re, to));
+  };
+  swap(/our(s?|ite|able|ful|ing|ed)$/, 'or$1');   // colour → color, favourite → favorite
+  swap(/or(s?|ite|able|ful|ing|ed)$/, 'our$1');
+  swap(/is(e|ed|es|ing|ation)$/, 'iz$1');           // organise → organize
+  swap(/iz(e|ed|es|ing|ation)$/, 'is$1');
+  swap(/ys(e|ed|es|ing)$/, 'yz$1');                 // analyse → analyze
+  // One way only: the list is British, and "-er" to "-re" would bar the
+  // honest slip "othre" for "other".
+  swap(/([^aeiou])re$/, '$1er');                    // centre → center
+  swap(/ll(ed|ing|er)$/, 'l$1');                    // travelled → traveled
+  swap(/ae/, 'e');                                  // archaeology → archeology
+  swap(/oe/, 'e');                                  // diarrhoea → diarrhea
+  swap(/ence$/, 'ense');                            // licence → license, defence → defense
+  swap(/ogue$/, 'og');                              // catalogue → catalog
+  swap(/ement$/, 'ment');                           // judgement → judgment
+  swap(/ellery$/, 'elry');                          // jewellery → jewelry
+  return out;
+};
 
 /**
  * Three distinct wrong spellings of one word.
@@ -157,7 +240,8 @@ const REAL_WORDS = new Set([
  */
 export const misspell = (word, real = new Set()) => {
   const wrong = new Set();
-  const usable = (w) => w && w !== word && /^[a-z]+$/.test(w) && !real.has(w) && !REAL_WORDS.has(w);
+  const accepted = variantsOf(word);
+  const usable = (w) => w && !accepted.has(w) && /^[a-z]+$/.test(w) && !real.has(w) && !REAL_WORDS.has(w);
   for (const make of mistakes) {
     const w = make(word);
     if (usable(w)) wrong.add(w);

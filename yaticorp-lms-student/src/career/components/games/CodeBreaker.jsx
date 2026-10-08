@@ -86,8 +86,10 @@ function Round({ progress, onExit }) {
   const solved = rows.some((r) => r.exact === LENGTH);
   const over = solved || rows.length >= config.tries;
   const passed = solved;
-  // Fewer guesses is better, so the star comparison is inverted.
-  const stars = over ? starsFor(rows.length, config.tries, true) : 0;
+  // Fewer guesses is better, so the star comparison is inverted. Only a
+  // cracked code earns any: running out of guesses used every try, which
+  // starsFor read as "within budget" and paid a star for failing.
+  const stars = solved ? starsFor(rows.length, config.tries, true) : 0;
   useRecordStars(progress, over, stars);
 
   const submit = () => {

@@ -25,6 +25,42 @@ const page = (route) => wrap('pages/EnrolledCourses.jsx', 'EnrolledCourses', {
 });
 
 describe('Enrolled Courses: organization courses', { skip: skipWithoutChrome }, () => {
+    test('?tab=organization with no organization falls back to My courses, without crashing', async () => {
+        const { result, errors } = await screen({ entry: page('/enrolled-courses?tab=organization'), api: api(null), script: `
+            await sleep(700);
+            return { pressed: text($('button[aria-pressed="true"]')), body: text(document.body) };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.pressed, /My courses/);
+        assert.match(result.body, /Web Development Basics/);
+    });
+
+    test('being removed from the organization during an auto-refresh does not crash the open tab', async () => {
+        // The first read finds the organization; the refresh finds none.
+        const removing = `
+            window.__calls = []; let orgReads = 0;
+            const reply = (data) => Promise.resolve({ data });
+            export default {
+              get: (url) => { window.__calls.push(['GET', url]);
+                if (url.includes('/user/courses/organization')) {
+                  orgReads += 1;
+                  return reply(orgReads === 1 ? { organization: ${JSON.stringify(ORG)}, courses: ${JSON.stringify(ORG_COURSES)} } : { organization: null, courses: [] });
+                }
+                return reply({ courses: [{ _id: 'p1', title: 'Web Development Basics', progress: 10 }], bundles: [] }); },
+              post: () => reply({}), put: () => reply({}), delete: () => reply({})
+            };`;
+        const { result, errors } = await screen({ entry: page('/enrolled-courses?tab=organization'), api: removing, script: `
+            await sleep(700);
+            const before = text(document.body);
+            // The same refresh useAutoRefresh runs on its timer, started early.
+            document.dispatchEvent(new Event('visibilitychange')); await sleep(500);
+            return { before, pressed: text($('button[aria-pressed="true"]')), body: text(document.body), tabs: $$('button[aria-pressed]').length };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.before, /St Agnes College/);
+        assert.match(result.pressed, /My courses/);
+        assert.equal(result.tabs, 2, 'the Organization tab is gone');
+        assert.match(result.body, /Web Development Basics/);
+    });
+
     test('no organization, no tab', async () => {
         const { result, errors } = await screen({ entry: page('/enrolled-courses'), api: api(null), script: `
             await sleep(600);

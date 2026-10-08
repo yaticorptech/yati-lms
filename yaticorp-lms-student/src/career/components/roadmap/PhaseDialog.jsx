@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Check, Lock, Sparkles, Clock3, ListChecks, Trophy, GitBranch } from 'lucide-react';
 import { parseChoices, phaseTitle } from '../../utils/roadmap';
 import PhaseDetail from './PhaseDetail';
+import useBackClose from '../../../native/useBackClose';
 
 /**
  * A phase, opened as its own page over the map.
@@ -29,6 +30,8 @@ export default function PhaseDialog({
   const choices = parseChoices(title);
   const isCurrent = state === 'current';
   const isDone = state === 'done';
+  // Android's back button closes the phase rather than leaving the roadmap.
+  useBackClose(onClose);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -77,7 +80,7 @@ export default function PhaseDialog({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="absolute top-4 right-4 rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
+            className="absolute top-3 right-3 flex h-10 w-10 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
           >
             <X className="h-4 w-4" />
           </button>
@@ -140,7 +143,7 @@ export default function PhaseDialog({
           )}
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
           <PhaseDetail
             stage={stage}
             state={state}

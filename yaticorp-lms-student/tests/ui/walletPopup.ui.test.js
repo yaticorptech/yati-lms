@@ -15,11 +15,11 @@ import { screen, srcFile, skipWithoutStyles } from './harness.js';
 const PHONE = 390;
 
 const WALLET = {
-    // available: 0 shows as ₹1,50,000 — format.js adds an OPENING_BALANCE of
-    // 150000 to every wallet before it is displayed. That is why the screen
-    // reads ₹1,50,000 beside a TOTAL EARNED of ₹0.
-    wallet: { available: 0, rewardPoints: 0, currency: 'INR', totalEarned: 0, totalSpent: 0 },
-    rewardPointsValue: 0, monetaryEnabled: false,
+    // ₹1,50,000 — the starting credit, which is a real spend-only ledger entry
+    // now rather than a figure added on for display — so the header has a
+    // long number to fit beside the XP.
+    wallet: { available: 150000, spendOnly: 150000, rewardPoints: 0, currency: 'INR', totalEarned: 0, totalSpent: 0 },
+    rewardPointsValue: 0, monetaryEnabled: false, xp: 1250,
     conversion: { pointsPerUnit: 100, unitValue: 10 },
     limits: {}, bySource: [], recent: []
 };
@@ -38,7 +38,7 @@ createRoot(document.getElementById('root')).render(
 
 const measure = `
   const r = (el) => { const b = el.getBoundingClientRect(); return { l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width) }; };
-  const tabs = $$('button').filter((b) => /Overview|Transactions|Reward points/.test(b.innerText));
+  const tabs = $$('button').filter((b) => /Overview|Transactions|^\\W*XP$/.test(b.innerText.trim()));
   const strip = tabs[0].parentElement;`;
 
 describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
@@ -58,7 +58,7 @@ describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
         assert.equal(result.scrollW, result.clientW, 'nothing to scroll to, so no scrollbar');
         assert.deepEqual(result.clipped, [], 'and no tab has its name cut off');
         assert.equal(new Set(result.widths).size, 1, `the three share the width evenly, got ${result.widths}`);
-        assert.deepEqual(result.labels, ['Overview', 'Transactions', 'Reward points']);
+        assert.deepEqual(result.labels, ['Overview', 'Transactions', 'XP']);
     });
 
     test('the two figures in the header line up as a pair', async () => {
@@ -69,7 +69,7 @@ describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
                 // inside the header — the band the heading sits in.
                 const head = $$('h2').find((h) => /Wallet/.test(h.innerText)).parentElement.parentElement;
                 const cells = Array.from(head.querySelectorAll('p'))
-                    .filter((p) => /^(BALANCE|REWARD POINTS)$/i.test(p.innerText.trim()))
+                    .filter((p) => /^(BALANCE|XP)$/i.test(p.innerText.trim()))
                     .map((p) => p.parentElement);
                 const values = cells.map((c) => c.querySelector('p:last-child'));
                 return {
@@ -85,7 +85,7 @@ describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
         assert.ok(b.l > a.r, 'side by side, not overlapping');
         assert.ok(a.l >= result.phone.l && b.r <= result.phone.r, 'both inside the popup');
         assert.deepEqual(result.valueClipped, [], 'and neither figure is cut off');
-        assert.deepEqual(result.values, ['₹1,50,000', '0']);
+        assert.deepEqual(result.values, ['₹1,50,000', '1,250'], 'the balance, and the student\'s XP in place of reward points');
     });
 
     test('the type is scaled down for a phone, not shrunk for everyone', async () => {

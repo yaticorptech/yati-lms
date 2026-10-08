@@ -58,24 +58,25 @@ const AiKeySettings = () => {
     };
 
     return (
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
-            <div className="flex items-start gap-3 mb-4">
+        // Sized to sit beside the Google account card on My Profile: the same
+        // padding, icon and type scale, so the pair reads as one row of settings.
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-start gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                     <KeyRound size={20} />
                 </div>
                 <div className="min-w-0">
-                    <h2 className="font-bold text-slate-800 text-lg">Your own AI key</h2>
-                    <p className="text-sm text-slate-500">
-                        Use your own free Google Gemini key for Career Path, mock interviews and your Learning Bio.
-                        With your own key there is no daily AI allowance.
+                    <h2 className="font-black text-slate-900 text-sm">Your own AI key</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                        Use your own free Gemini key for Career Path, mock interviews and your Learning Bio — with no daily AI allowance.
                     </p>
                 </div>
             </div>
 
             {status?.hasKey ? (
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
                     <CheckCircle2 className="text-emerald-600 shrink-0" size={20} />
-                    <div className="flex-1 min-w-0 text-sm">
+                    <div className="flex-1 min-w-0 text-xs">
                         <p className="font-semibold text-emerald-800">Your key is active</p>
                         <p className="text-emerald-700 font-mono truncate">{status.masked}</p>
                         {status.addedAt && <p className="text-emerald-600 text-xs mt-0.5">Added {new Date(status.addedAt).toLocaleDateString()}</p>}
@@ -83,16 +84,16 @@ const AiKeySettings = () => {
                     <button
                         onClick={remove}
                         disabled={removing}
-                        className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600 hover:bg-red-50 border border-red-200 px-3 py-2 rounded-lg disabled:opacity-50"
+                        className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-red-600 bg-white hover:bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg disabled:opacity-50"
                     >
-                        {removing ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                        {removing ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                         Remove key
                     </button>
                 </div>
             ) : (
-                <form onSubmit={save} className="space-y-3">
+                <form onSubmit={save} className="space-y-2">
                     {status && !status.platformKeyAvailable && (
-                        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                             AI features are off until you add a key.
                         </p>
                     )}
@@ -105,7 +106,7 @@ const AiKeySettings = () => {
                                 placeholder="Paste your Gemini API key"
                                 autoComplete="off"
                                 spellCheck={false}
-                                className="w-full border border-slate-300 rounded-lg px-3 py-2.5 pr-10 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                className="w-full border border-slate-300 rounded-lg px-3 py-2 pr-10 text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
                             />
                             <button type="button" onClick={() => setShow((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 after:absolute after:-inset-2 after:content-['']" aria-label={show ? 'Hide key' : 'Show key'}>
                                 {show ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -114,23 +115,23 @@ const AiKeySettings = () => {
                         <button
                             type="submit"
                             disabled={saving || !key.trim()}
-                            className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50"
+                            className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
                         >
                             {saving ? <><Loader2 size={16} className="animate-spin" /> Checking…</> : 'Save key'}
                         </button>
                     </div>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-[0.7rem] text-slate-500">
                         Get a free key at{' '}
                         <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline inline-flex items-center gap-0.5">
                             Google AI Studio <ExternalLink size={11} />
                         </a>
-                        . No card is needed. We check the key with Google before saving it, and store it encrypted.
+                        . No card needed; we check it with Google and store it encrypted.
                     </p>
                 </form>
             )}
 
             {notice && (
-                <p className={`mt-3 flex items-start gap-2 text-sm rounded-lg px-3 py-2 border ${notice.type === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                <p className={`mt-3 flex items-start gap-2 text-xs rounded-lg px-3 py-2 border ${notice.type === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'}`}>
                     {notice.type === 'ok' ? <CheckCircle2 size={16} className="shrink-0 mt-0.5" /> : <AlertCircle size={16} className="shrink-0 mt-0.5" />}
                     <span>{notice.text}</span>
                 </p>

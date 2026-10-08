@@ -8,6 +8,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Upload, FileText, Sparkles, ExternalLink, Loader2, RefreshCw, MapPin, Building2, Check, AlertCircle } from 'lucide-react';
 import { jobsApi, learnerSkills } from './api';
+import PriceTag from '../components/rewards/PriceTag';
+import usePricedJobLink from './usePricedJobLink';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -16,6 +18,8 @@ const ring = (t) => t >= 75 ? 'text-emerald-600 bg-emerald-50 border-emerald-200
 /** One matched job: score, title, company, place, the skills that matched, and the way in. */
 /** `actionLabel`: the button's words — Hidden Opportunities says "Apply". */
 export const MatchCard = ({ job, actionLabel = 'Find Job' }) => {
+    // Pays first when the admin has priced Find Job (Wallet rules).
+    const openJob = usePricedJobLink();
     const m = job.match || { total: 0, matched: [], missing: [] };
     return (
         // min-w-0 with the grid's grid-cols-1: a card is as wide as the screen
@@ -46,8 +50,8 @@ export const MatchCard = ({ job, actionLabel = 'Find Job' }) => {
                 it shortens instead. Squeezed, it broke into "Find / Job" on a phone. */}
             <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                 <span className="min-w-0 truncate text-xs text-slate-500">{job.source ? `via ${job.source}` : ''}</span>
-                <a href={job.url} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700">
-                    {actionLabel} <ExternalLink size={14} />
+                <a href={job.url} target="_blank" rel="noopener noreferrer" onClick={(e) => openJob(e, job)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700">
+                    {actionLabel} <PriceTag action="find_job" /> <ExternalLink size={14} />
                 </a>
             </div>
         </article>

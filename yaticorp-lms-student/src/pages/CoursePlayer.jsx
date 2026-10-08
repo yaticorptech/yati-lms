@@ -12,10 +12,11 @@ import VideoPlayer from '../components/VideoPlayer';
 import QuizTaker from '../components/QuizTaker';
 import { useCoursePlayer } from '../shared/hooks/useCoursePlayer';
 import { unlockedLessonIds } from '../shared/playback/resume';
-import MascotDock from '../mascot/MascotDock';
 import { useMascot } from '../mascot/useMascot';
 import { REACTIONS } from '../mascot/reactions';
 import { saveBlob } from '../native/saveFile';
+import PriceTag from '../components/rewards/PriceTag';
+import { isShortOfFunds, serverMessage } from '../utils/walletCharge';
 
 const CoursePlayer = () => {
     const { courseId } = useParams();
@@ -103,8 +104,9 @@ const CoursePlayer = () => {
                 description: `Your certificate for ${courseData.course.title}, issued by YATICORP.`,
                 reason: 'So the certificates you earn here are kept in your own Google Drive.'
             });
-        } catch {
-            alert('Failed to generate certificate');
+        } catch (e) {
+            // A short wallet balance says what the certificate costs (Wallet rules).
+            alert(isShortOfFunds(e) ? serverMessage(e) : 'Failed to generate certificate');
         }
     };
 
@@ -157,8 +159,6 @@ const CoursePlayer = () => {
     // as tall as its modules and lessons, no taller and no shorter.
     return (
         <div className="flex flex-col lg:flex-row gap-6 animate-fade-in lg:h-[calc(100vh-6rem)] relative z-0">
-
-            <MascotDock />
 
             {/* In-app Credit Toast Notification */}
             {creditToast && (
@@ -319,7 +319,7 @@ const CoursePlayer = () => {
                                 data-mascot-cta
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center shadow-sm transition-colors disabled:opacity-50"
                             >
-                                {generatingCert ? 'Downloading...' : 'Download Certificate Again'}
+                                {generatingCert ? 'Downloading...' : <>Download Certificate Again <PriceTag action="download_certificate" className="ml-1" /></>}
                             </button>
                         ) : (
                             <button
@@ -328,7 +328,7 @@ const CoursePlayer = () => {
                                 data-mascot-cta
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center shadow-sm transition-colors disabled:opacity-50"
                             >
-                                {generatingCert ? 'Generating...' : 'Get Certificate'}
+                                {generatingCert ? 'Generating...' : <>Get Certificate <PriceTag action="download_certificate" className="ml-1" /></>}
                             </button>
                         )}
                     </div>

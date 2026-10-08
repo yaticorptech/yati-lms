@@ -40,7 +40,10 @@ const loginAdmin = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        const admin = await Admin.findOne({ email });
+        // Trimmed and lower-cased, as every admin email is stored, so the case
+        // someone types their address in does not decide whether they get in.
+        // Only a string is looked up — an object here would be a query operator.
+        const admin = typeof password === 'string' ? await Admin.findByLoginEmail(email) : null;
 
         if (admin && (await admin.matchPassword(password))) {
             if (admin.isTwoFactorEnabled) {
@@ -189,7 +192,81 @@ const enable2FA = async (req, res) => {
     }
 };
 
+/** Said whether or not the address belongs to anyone, so it cannot be used to find out. */
+const FORGOT_REPLY = 'If that email belongs to an organization account, a link to reset its password has been sent to it.';
+
+// @desc    Email an organization admin a link to choose a new password
+// @route   POST /api/auth/admin/forgot-password
+// @access  Public (rate limited)
+const forgotAdminPassword = async (req, res) => {
+    const { issueAdminPasswordReset, RECOVERABLE_ROLES } = require('../services/adminPasswordReset');
+    try {
+        const email = Admin.normalizeEmail(req.body?.email);
+        if (!email) return res.status(400).json({ message: 'Enter your email address.' });
+
+        const admin = await Admin.findByLoginEmail(email);
+        if (admin && RECOVERABLE_ROLES.includes(admin.role)) {
+            // Not awaited, and a failure is logged rather than reported: either
+            // a slower or a different answer for a real account would tell a
+            // stranger which addresses have one.
+            issueAdminPasswordReset(admin).catch((error) => {
+                console.error('[admin] password reset email failed:', error.message);
+            });
+        }
+        res.json({ message: FORGOT_REPLY });
+    } catch (error) {
+        console.error('[admin] forgot password failed:', error.message);
+        res.status(500).json({ message: 'Could not process the request. Please try again later.' });
+    }
+};
+
+// @desc    Choose a new password with the emailed link
+// @route   POST /api/auth/admin/reset-password
+// @access  Public (rate limited)
+const resetAdminPassword = async (req, res) => {
+    const { hashToken, RECOVERABLE_ROLES } = require('../services/adminPasswordReset');
+    try {
+        const { token, newPassword, confirmPassword } = req.body || {};
+        if (typeof token !== 'string' || !token || typeof newPassword !== 'string' || !newPassword) {
+            return res.status(400).json({ message: 'The reset link and a new password are both needed.' });
+        }
+        if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+            return res.status(400).json({ message: 'The two new passwords do not match.' });
+        }
+        // Checked before the link is used up, so a weak first try does not
+        // cost the organization its link.
+        const strengthError = validatePasswordStrength(newPassword);
+        if (strengthError) return res.status(400).json({ message: strengthError });
+
+        // Claiming the token and clearing it is one atomic step, so the same
+        // link used twice at once still changes the password only once.
+        const admin = await Admin.findOneAndUpdate(
+            {
+                resetPasswordTokenHash: hashToken(token),
+                resetPasswordExpiry: { $gt: new Date() },
+                role: { $in: RECOVERABLE_ROLES }
+            },
+            { $unset: { resetPasswordTokenHash: '', resetPasswordExpiry: '' } },
+            { new: true }
+        );
+        if (!admin) {
+            return res.status(400).json({ message: 'This reset link is invalid or has expired. Please ask for a new one.' });
+        }
+
+        // save(), so the bcrypt pre-save hook hashes it like every other admin password.
+        admin.password = newPassword;
+        await admin.save();
+
+        res.json({ message: 'Your password was changed. You can sign in with it now.' });
+    } catch (error) {
+        console.error('[admin] reset password failed:', error.message);
+        res.status(500).json({ message: 'Could not reset the password. Please try again.' });
+    }
+};
+
 module.exports = {
+    forgotAdminPassword,
+    resetAdminPassword,
     loginAdmin,
     verify2FA,
     setup2FA,

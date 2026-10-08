@@ -6,9 +6,14 @@
  * account management, so the existing role hierarchy decides who gets here and
  * an ordinary platform admin does not.
  *
- * Nothing in this file deletes an organization. A rejected or suspended
- * organization keeps its document, its code, its memberships and every
- * student's learning record; only its access changes.
+ * A rejected or suspended organization keeps its document, its code, its
+ * memberships and every student's learning record; only its access changes.
+ * The single deletion (deleteOrganization) is for a registration that was
+ * rejected without ever having been approved, with nobody and nothing in it —
+ * it releases the ID and the email for someone else, and touches no student.
+ *
+ * Every change made here is written to the organization's audit log
+ * (models/OrgAuditLog.js), readable at GET /admin/:id/audit.
  */
 const Organization = require('../models/Organization');
 const JoinRequest = require('../models/JoinRequest');
@@ -19,6 +24,18 @@ const { checkNewOrgCode, isDuplicateOrgCode } = require('../services/orgCode');
 const { validatePasswordStrength } = require('../../middleware/validatePassword');
 const { withSummaries, studentDetail } = require('../services/studentProgress');
 const { sendEmail } = require('../../utils/emailService');
+const { escapeHtml, plainHeader } = require('../../utils/escapeHtml');
+const { checkEmailChange, applyEmailChange } = require('../services/orgEmail');
+const OrgAuditLog = require('../models/OrgAuditLog');
+
+/** Opt-in paging (`?page=`): 1-based page, limit 25 by default and at most 100. */
+const pageParams = (query) => ({
+    page: Math.max(1, parseInt(query.page, 10) || 1),
+    limit: Math.min(100, Math.max(1, parseInt(query.limit, 10) || 25))
+});
+
+/** A search box's text as a literal, case-insensitive pattern. */
+const searchPattern = (text) => new RegExp(String(text).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -61,10 +78,15 @@ const listOrganizations = async (req, res) => {
             filter.$or = [{ name: pattern }, { orgCode: pattern }, { email: pattern }, { contactPerson: pattern }];
         }
 
-        const organizations = await Organization.find(filter)
-            .select('-statusHistory')
-            .sort({ createdAt: -1 })
-            .lean();
+        // Paging is opt-in: without `page` every organization comes back, as before.
+        const paged = req.query.page !== undefined;
+        const { page, limit } = pageParams(req.query);
+        let listing = Organization.find(filter).select('-statusHistory').sort({ createdAt: -1, _id: 1 });
+        if (paged) listing = listing.skip((page - 1) * limit).limit(limit);
+        const [organizations, total] = await Promise.all([
+            listing.lean(),
+            paged ? Organization.countDocuments(filter) : null
+        ]);
 
         const ids = organizations.map((o) => o._id);
         const [students, pending, courses] = await Promise.all([
@@ -93,7 +115,8 @@ const listOrganizations = async (req, res) => {
                 acc[s] = totals.find((t) => t._id === s)?.count || 0;
                 return acc;
             }, { all: totals.reduce((sum, t) => sum + t.count, 0) }),
-            types: Organization.TYPES.map((value) => ({ value, label: Organization.TYPE_LABELS[value] }))
+            types: Organization.TYPES.map((value) => ({ value, label: Organization.TYPE_LABELS[value] })),
+            ...(paged ? { total, page, limit } : {})
         });
     } catch (error) {
         console.error('[organizations] list failed:', error);
@@ -159,6 +182,7 @@ const setCourseAccess = async (req, res) => {
             limit: limit !== undefined ? Number(limit) : (current.limit || 5)
         };
         await organization.save();
+        await OrgAuditLog.record({ orgId: organization._id, admin: req.admin, action: 'course-access', req, details: { ...organization.courseAccess } });
         const courseCount = await Course.countDocuments({ organizationId: organization._id });
         res.json({
             message: organization.courseAccess.enabled
@@ -199,7 +223,8 @@ const createOrganization = async (req, res) => {
         if (await Organization.findOne({ email: cleanEmail })) {
             return res.status(400).json({ message: 'An organization is already registered with that email address.' });
         }
-        if (await Admin.findOne({ email: cleanEmail })) {
+        // Case-insensitive, like the login, so a case variant is refused too.
+        if (await Admin.findByLoginEmail(cleanEmail)) {
             return res.status(400).json({ message: 'That email address is already in use on this platform.' });
         }
 
@@ -258,6 +283,7 @@ const updateOrganization = async (req, res) => {
     try {
         const organization = await Organization.findById(req.params.id);
         if (!organization) return res.status(404).json({ message: 'Organization not found' });
+        let emailChange = null;
 
         // Only the listed fields are read from the body. `orgCode` and `status`
         // cannot be changed here even if they are sent — the code is permanent,
@@ -278,13 +304,10 @@ const updateOrganization = async (req, res) => {
                 continue;
             }
             if (field === 'email') {
-                const cleanEmail = String(req.body.email).trim().toLowerCase();
-                if (!EMAIL_PATTERN.test(cleanEmail)) return res.status(400).json({ message: 'Enter a valid email address.' });
-                if (cleanEmail !== organization.email) {
-                    const taken = await Organization.findOne({ email: cleanEmail, _id: { $ne: organization._id } });
-                    if (taken) return res.status(400).json({ message: 'Another organization already uses that email address.' });
-                }
-                organization.email = cleanEmail;
+                // Also the organization admin's sign-in: checked against every
+                // account and written to both together, after the loop.
+                emailChange = await checkEmailChange(organization, String(req.body.email));
+                if (emailChange.error) return res.status(emailChange.status).json({ message: emailChange.error });
                 continue;
             }
             const value = String(req.body[field]).trim();
@@ -296,13 +319,54 @@ const updateOrganization = async (req, res) => {
             organization[field] = value;
         }
 
-        await organization.save();
+        const changed = organization.modifiedPaths().filter((f) => EDITABLE.includes(f));
+        if (emailChange && !emailChange.unchanged) { await applyEmailChange(organization, emailChange); changed.push('email'); }
+        else await organization.save();
+        await OrgAuditLog.record({ orgId: organization._id, admin: req.admin, action: 'edit', req, details: { fields: changed } });
         res.json({ message: 'Organization updated.', organization });
     } catch (error) {
         if (error.name === 'CastError') return res.status(404).json({ message: 'Organization not found' });
         // A field past its length limit is the caller's mistake, and the schema
         // already says which field and why.
         if (error.name === 'ValidationError') return res.status(400).json({ message: error.message });
+        // Someone took the address between the check and the write.
+        if (error.code === 11000) return res.status(400).json({ message: 'That email address is already in use on this platform.' });
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+/**
+ * @desc    Email an organization's admin a link to choose a new password
+ * @route   POST /api/organizations/admin/:id/send-password-reset
+ * @access  Private/SuperAdmin
+ *
+ * For an organization that has lost its password and cannot get the email to
+ * itself. The superadmin never sees or sets the password: the one-hour,
+ * one-use link goes to the account's own sign-in address, the same link the
+ * public "Forgot password?" form sends. There is deliberately no way here to
+ * type a password in for them.
+ */
+const sendAdminPasswordReset = async (req, res) => {
+    try {
+        const organization = await Organization.findById(req.params.id).select('name email').lean();
+        if (!organization) return res.status(404).json({ message: 'Organization not found' });
+
+        const admins = await Admin.find({ role: 'orgadmin', organizationId: organization._id });
+        const admin = admins.find((a) => a.email === organization.email) || (admins.length === 1 ? admins[0] : null);
+        if (!admin) return res.status(404).json({ message: 'This organization has no administrator account to reset.' });
+
+        const { issueAdminPasswordReset } = require('../../services/adminPasswordReset');
+        try {
+            await issueAdminPasswordReset(admin);
+        } catch (error) {
+            console.error('[organizations] reset email failed:', error.message);
+            return res.status(502).json({ message: 'The reset email could not be sent. Check the email settings and try again.' });
+        }
+        console.log(`[organizations] ${req.admin.name || req.admin.email} (${req.admin._id}) sent a password reset link to the admin of ${organization.name} (${organization._id})`);
+        await OrgAuditLog.record({ orgId: organization._id, admin: req.admin, action: 'send-password-reset', req, details: { to: admin.email } });
+        res.json({ message: `A password reset link was sent to ${admin.email}. It works once, for one hour.` });
+    } catch (error) {
+        if (error.name === 'CastError') return res.status(404).json({ message: 'Organization not found' });
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
@@ -314,6 +378,24 @@ const STATUS_WORDING = {
     suspended: { subject: 'Your organization has been suspended', verb: 'suspended' },
     inactive: { subject: 'Your organization has been deactivated', verb: 'deactivated' }
 };
+
+/**
+ * Which status may follow which — the same moves the admin app offers:
+ * a new application is approved or rejected; an active organization is
+ * suspended or deactivated; anything closed can be reinstated. Nothing goes
+ * back to pending, and nothing jumps between closed states (a rejected
+ * application is not "suspended").
+ */
+const ALLOWED_TRANSITIONS = {
+    pending: ['active', 'rejected'],
+    active: ['suspended', 'inactive'],
+    suspended: ['active'],
+    inactive: ['active'],
+    rejected: ['active']
+};
+
+/** Said to a student whose request was waiting when the organization closed. */
+const NOT_ACCEPTING = 'Organization is not accepting members';
 
 // @desc    Approve, reject, suspend or reinstate an organization
 // @route   PUT /api/organizations/admin/:id/status
@@ -339,7 +421,14 @@ const setOrganizationStatus = async (req, res) => {
         if (organization.status === status) {
             return res.status(400).json({ message: `This organization is already ${status}.` });
         }
+        if (!(ALLOWED_TRANSITIONS[organization.status] || []).includes(status)) {
+            return res.status(400).json({
+                code: 'ILLEGAL_TRANSITION',
+                message: `A ${organization.status} organization cannot be made ${status}.`
+            });
+        }
 
+        const previousStatus = organization.status;
         organization.status = status;
         organization.statusReason = String(reason || '').trim().slice(0, 500);
         // Set once and kept, so "approved on" survives a later suspension.
@@ -354,24 +443,45 @@ const setOrganizationStatus = async (req, res) => {
 
         await organization.save();
 
+        // Requests waiting for an organization that can no longer decide them
+        // would sit pending forever and block the student from asking anywhere
+        // else (one pending request per student). They are closed with a
+        // reason the student is shown.
+        let cancelledRequests = 0;
+        if (status !== 'active') {
+            const closed = await JoinRequest.updateMany(
+                { organizationId: organization._id, status: 'pending' },
+                { $set: { status: 'cancelled', decisionReason: NOT_ACCEPTING, decidedAt: new Date(), decidedBy: req.admin._id } }
+            );
+            cancelledRequests = closed.modifiedCount || 0;
+        }
+        await OrgAuditLog.record({
+            orgId: organization._id, admin: req.admin, action: 'status', req,
+            details: { from: previousStatus, to: status, reason: organization.statusReason, cancelledRequests }
+        });
+
         // Existing memberships and every student's learning record are left
         // exactly as they are. Suspension withdraws access, it does not undo
         // anything that has happened.
+        // Name, contact and reason are typed by people (the name by whoever
+        // registered), so every one is escaped; the platform must not mail out
+        // markup or links on their behalf.
         const wording = STATUS_WORDING[status];
         if (wording) {
+            const greetName = escapeHtml(organization.contactPerson || organization.name);
             sendEmail({
                 to: organization.email,
-                toName: organization.contactPerson || organization.name,
+                toName: plainHeader(organization.contactPerson || organization.name),
                 subject: wording.subject,
                 htmlContent: `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
                         <h2 style="color: #4F46E5;">${wording.subject}</h2>
-                        <p>Hi <strong>${organization.contactPerson || organization.name}</strong>,</p>
-                        <p><strong>${organization.name}</strong> has been ${wording.verb}.</p>
-                        ${organization.statusReason ? `<p><strong>Reason:</strong> ${organization.statusReason}</p>` : ''}
+                        <p>Hi <strong>${greetName}</strong>,</p>
+                        <p><strong>${escapeHtml(organization.name)}</strong> has been ${wording.verb}.</p>
+                        ${organization.statusReason ? `<p><strong>Reason:</strong> ${escapeHtml(organization.statusReason)}</p>` : ''}
                         ${status === 'active' ? `
                             <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                                <p style="margin: 0 0 8px 0;"><strong>Organization ID:</strong> ${organization.orgCode}</p>
+                                <p style="margin: 0 0 8px 0;"><strong>Organization ID:</strong> ${escapeHtml(organization.orgCode)}</p>
                                 <p style="margin: 0; font-size: 0.9em; color: #6b7280;">Share this ID with your students so
                                    they can ask to join your organization.</p>
                             </div>` : ''}
@@ -398,12 +508,33 @@ const getOrganizationStudents = async (req, res) => {
         const organization = await Organization.findById(req.params.id).select('name orgCode status').lean();
         if (!organization) return res.status(404).json({ message: 'Organization not found' });
 
+        // Opt-in paging and search (`?page=&limit=&search=`), by name, in the
+        // database, so only the returned page is summarised. Without `page`
+        // the whole list comes back, as before.
+        if (req.query.page !== undefined) {
+            const { page, limit } = pageParams(req.query);
+            const query = { organizationId: organization._id };
+            if (String(req.query.search || '').trim()) {
+                const pattern = searchPattern(req.query.search);
+                query.$or = [{ name: pattern }, { email: pattern }, { cardNumber: pattern }];
+            }
+            const [total, students] = await Promise.all([
+                User.countDocuments(query),
+                User.find(query).select('-password').sort({ name: 1, _id: 1 })
+                    .collation({ locale: 'en', strength: 2 })
+                    .skip((page - 1) * limit).limit(limit).lean()
+            ]);
+            return res.json({ organization, students: await withSummaries(students, organization._id), total, page, limit });
+        }
+
         const students = await User.find({ organizationId: req.params.id })
             .select('-password')
             .sort({ name: 1 })
             .lean();
 
-        res.json({ organization, students: await withSummaries(students) });
+        // Numbers as this organization sees them, without other organizations'
+        // private courses a student may have taken before moving here.
+        res.json({ organization, students: await withSummaries(students, organization._id) });
     } catch (error) {
         if (error.name === 'CastError') return res.status(404).json({ message: 'Organization not found' });
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -473,8 +604,8 @@ const getAssignableStudents = async (req, res) => {
  * leaving one open would show them "waiting for approval" for a membership they
  * already have.
  *
- * A pending organization is refused: it has to be approved before anyone is put
- * into it. Other statuses are not gated — a suspended organization can still be
+ * A pending or rejected organization is refused: it has to be approved before
+ * anyone is put into it (a rejected one never was). Other statuses are not gated — a suspended organization can still be
  * stocked — and the response says when the organization is not active, so the
  * caller can pass that on: its administrator cannot sign in and will not see
  * these students until it is.
@@ -485,6 +616,9 @@ const assignStudent = async (req, res) => {
         if (!organization) return res.status(404).json({ message: 'Organization not found' });
         if (organization.status === 'pending') {
             return res.status(400).json({ message: `${organization.name} is still pending. Approve it before assigning students to it.` });
+        }
+        if (organization.status === 'rejected') {
+            return res.status(400).json({ message: `${organization.name} was rejected. Reinstate it before assigning students to it.` });
         }
 
         const student = await User.findById(req.body.studentId).select('name organizationId');
@@ -515,6 +649,17 @@ const assignStudent = async (req, res) => {
                 }
             }
         );
+
+        await OrgAuditLog.record({
+            orgId: organization._id, admin: req.admin, action: 'assign-student', req,
+            details: { studentId: student._id, studentName: student.name, movedFrom: previous ? { _id: previous._id, name: previous.name } : null }
+        });
+        if (previous) {
+            await OrgAuditLog.record({
+                orgId: previous._id, admin: req.admin, action: 'unassign-student', req,
+                details: { studentId: student._id, studentName: student.name, movedTo: { _id: organization._id, name: organization.name } }
+            });
+        }
 
         const moved = previous
             ? `${student.name} was moved from ${previous.name} to ${organization.name}.`
@@ -568,6 +713,10 @@ const unassignStudent = async (req, res) => {
             }
         );
 
+        await OrgAuditLog.record({
+            orgId: req.params.id, admin: req.admin, action: 'unassign-student', req,
+            details: { studentId: student._id, studentName: student.name }
+        });
         res.json({ message: `${student.name} was removed from the organization. Their courses and progress are unchanged.` });
     } catch (error) {
         if (error.name === 'CastError') return res.status(404).json({ message: 'No such student in that organization' });
@@ -615,12 +764,86 @@ const getOrganizationOptions = async (req, res) => {
     }
 };
 
+/**
+ * @desc    Delete a rejected registration, releasing its ID and email
+ * @route   DELETE /api/organizations/admin/:id
+ * @access  Private/SuperAdmin
+ *
+ * Only for an application that was rejected and never approved, with no
+ * members and no courses — a mistaken or squatted registration holding an
+ * organization ID (and an email) someone else needs. Anything that ever
+ * operated as an organization keeps its record: 409. Removes the organization,
+ * its orgadmin account and its join requests; no student account or learning
+ * record is touched (there are no members, by the rule above). Logged.
+ */
+const deleteOrganization = async (req, res) => {
+    try {
+        const organization = await Organization.findById(req.params.id).select('name orgCode email status approvedAt').lean();
+        if (!organization) return res.status(404).json({ message: 'Organization not found' });
+
+        if (organization.status !== 'rejected' || organization.approvedAt) {
+            return res.status(409).json({
+                code: 'NOT_DELETABLE',
+                message: 'Only a rejected registration that was never approved can be deleted. Suspend or deactivate an organization instead.'
+            });
+        }
+        const [members, courses] = await Promise.all([
+            User.countDocuments({ organizationId: organization._id }),
+            Course.countDocuments({ organizationId: organization._id })
+        ]);
+        if (members || courses) {
+            return res.status(409).json({
+                code: 'NOT_DELETABLE',
+                message: `${organization.name} still has ${members} student${members === 1 ? '' : 's'} and ${courses} course${courses === 1 ? '' : 's'}, so it cannot be deleted.`
+            });
+        }
+
+        const [admins, requests] = await Promise.all([
+            Admin.deleteMany({ role: 'orgadmin', organizationId: organization._id }),
+            JoinRequest.deleteMany({ organizationId: organization._id })
+        ]);
+        await Organization.deleteOne({ _id: organization._id, status: 'rejected', approvedAt: null });
+
+        // Written after the delete, keyed by the old id, so the trail survives.
+        await OrgAuditLog.record({
+            orgId: organization._id, admin: req.admin, action: 'delete', req,
+            details: { name: organization.name, orgCode: organization.orgCode, email: organization.email, adminsDeleted: admins.deletedCount, requestsDeleted: requests.deletedCount }
+        });
+        console.log(`[organizations] ${req.admin.name || req.admin.email} (${req.admin._id}) deleted rejected organization ${organization.name} (${organization.orgCode}, ${organization._id})`);
+
+        res.json({ message: `${organization.name} was deleted. The organization ID ${organization.orgCode} and its email are free again.` });
+    } catch (error) {
+        if (error.name === 'CastError') return res.status(404).json({ message: 'Organization not found' });
+        console.error('[organizations] delete failed:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    The latest 100 audit rows for one organization
+// @route   GET /api/organizations/admin/:id/audit
+// @access  Private/SuperAdmin
+//
+// Works for a deleted organization too: its rows are kept under its old id.
+const getAuditLog = async (req, res) => {
+    try {
+        const mongoose = require('mongoose');
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Organization not found' });
+        const entries = await OrgAuditLog.find({ orgId: req.params.id }).sort({ at: -1, _id: -1 }).limit(100).lean();
+        res.json({ entries });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 module.exports = {
+    deleteOrganization,
+    getAuditLog,
     listOrganizations,
     getOrganization,
     setCourseAccess,
     createOrganization,
     updateOrganization,
+    sendAdminPasswordReset,
     setOrganizationStatus,
     getOrganizationStudents,
     getAssignableStudents,

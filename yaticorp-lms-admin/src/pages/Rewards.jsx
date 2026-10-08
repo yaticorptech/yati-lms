@@ -1,7 +1,7 @@
 /**
  * Rewards administration: the rulebook (XP, levels, streak milestones,
- * leaderboard rewards, conversion, limits, who may cash out), the badge
- * catalogue, wallets, the money ledger, withdrawal requests, per-student
+ * leaderboard rewards, XP conversion, starting credit, games), the badge
+ * catalogue, wallets, the money ledger, per-student
  * history and adjustments, and the integrity checks.
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import {
     Gift, Settings2, Award, Wallet, ReceiptText, ArrowDownToLine, ShieldCheck, Lock, Unlock, Loader2, Plus, Trash2, Save, Search,
-    RefreshCw, CheckCircle2, XCircle, AlertTriangle, Flame, Trophy, Coins, Users, ChevronRight, X
+    RefreshCw, CheckCircle2, XCircle, AlertTriangle, Flame, Trophy, Coins, Users, ChevronRight, X, Gamepad2
 } from 'lucide-react';
 import Select from '../components/Select';
 
@@ -24,7 +24,6 @@ const TABS = [
     { id: 'badges', label: 'Badges', icon: Award },
     { id: 'wallets', label: 'Wallets', icon: Wallet },
     { id: 'transactions', label: 'Transactions', icon: ReceiptText },
-    { id: 'withdrawals', label: 'Withdrawals', icon: ArrowDownToLine },
     { id: 'audit', label: 'Fraud checks', icon: ShieldCheck }
 ];
 
@@ -41,14 +40,15 @@ const TYPE_LABEL = { school_student: 'School student', college_student: 'College
 const Stat = ({ icon: Icon, label, value, sub, tone = 'indigo' }) => {
     const tones = { indigo: 'bg-indigo-100 text-indigo-600', emerald: 'bg-emerald-100 text-emerald-600', amber: 'bg-amber-100 text-amber-600', slate: 'bg-slate-100 text-slate-600', rose: 'bg-rose-100 text-rose-600' };
     return (
-        <div className="min-w-0 bg-white rounded-2xl border border-slate-100 p-4 sm:p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-                <span className={`shrink-0 p-1.5 rounded-lg ${tones[tone]}`}><Icon size={15} /></span>
-                <p className="min-w-0 text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</p>
+        // Compact on a phone, where two share a row; from sm up, as before.
+        <div className="min-w-0 bg-white rounded-2xl border border-slate-100 p-3 sm:p-5 shadow-sm">
+            <div className="flex items-start gap-2 mb-1.5 sm:items-center sm:mb-2">
+                <span className={`shrink-0 p-1 sm:p-1.5 rounded-lg ${tones[tone]}`}><Icon className="h-3.5 w-3.5 sm:h-[15px] sm:w-[15px]" /></span>
+                <p className="min-w-0 text-[10px] sm:text-xs font-bold leading-snug text-slate-500 uppercase tracking-wide sm:tracking-wider">{label}</p>
             </div>
             {/* A lakh-sized rupee figure is wider than a quarter-width card; it may break rather than spill. */}
-            <p className="text-2xl 2xl:text-3xl font-bold text-slate-800 tabular-nums [overflow-wrap:anywhere]">{value}</p>
-            {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
+            <p className="text-xl sm:text-2xl 2xl:text-3xl font-bold text-slate-800 tabular-nums [overflow-wrap:anywhere]">{value}</p>
+            {sub && <p className="text-[11px] sm:text-xs leading-snug text-slate-500 mt-1">{sub}</p>}
         </div>
     );
 };
@@ -108,7 +108,6 @@ export default function Rewards() {
             {tab === 'badges' && <Badges />}
             {tab === 'wallets' && <Wallets onOpenUser={setUserId} />}
             {tab === 'transactions' && <Transactions onOpenUser={setUserId} />}
-            {tab === 'withdrawals' && <Withdrawals onOpenUser={setUserId} />}
             {tab === 'audit' && <Audit onOpenUser={setUserId} />}
 
             {userId && <UserDrawer userId={userId} onClose={() => setUserId(null)} />}
@@ -122,39 +121,53 @@ function Overview() {
     const [err, setErr] = useState(null);
     useEffect(() => { api.get('/rewards/admin/overview').then((r) => setD(r.data)).catch((e) => setErr(e.response?.data?.message || 'Failed to load')); }, []);
     if (err) return <Banner kind="error">{err}</Banner>;
-    if (!d) return <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">{[0, 1, 2, 3].map((i) => <div key={i} className="animate-pulse h-28 bg-slate-100 rounded-2xl" />)}</div>;
-    const max = Math.max(1, ...d.activityByDay.map((a) => a.n));
+    if (!d) return <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">{[0, 1, 2, 3].map((i) => <div key={i} className="animate-pulse h-24 sm:h-28 bg-slate-100 rounded-2xl" />)}</div>;
+    // Every one of the last 14 days, zero where nothing happened — the server
+    // only returns days that had activity, and drawing just those made a quiet
+    // week look like a busy fortnight.
+    const byDay = Object.fromEntries(d.activityByDay.map((a) => [a._id, a.n]));
+    const days = Array.from({ length: 14 }, (_, i) => {
+        const dt = new Date(); dt.setDate(dt.getDate() - (13 - i));
+        const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+        return { key, n: byDay[key] || 0, label: dt.getDate() };
+    });
+    const max = Math.max(1, ...days.map((a) => a.n));
+    const activityTotal = days.reduce((t, a) => t + a.n, 0);
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
                 <Stat icon={Wallet} label="Wallet liability" value={money(d.wallets.available + d.wallets.pending)} sub={`${money(d.wallets.pending)} on hold · ${num(d.wallets.count)} wallets`} tone="emerald" />
-                <Stat icon={ArrowDownToLine} label="Pending withdrawals" value={num(d.pendingWithdrawals)} sub={`${money(d.pendingWithdrawalAmount)} requested`} tone="amber" />
-                <Stat icon={Coins} label="Reward points outstanding" value={num(d.wallets.points)} sub={`${money(d.wallets.withdrawn)} paid out to date`} tone="rose" />
+                <Stat icon={ReceiptText} label="Spent in the LMS" value={money(d.wallets.spent)} sub="Courses and wallet-rule features" tone="amber" />
+                <Stat icon={Coins} label="Reward points held" value={num(d.wallets.points)} sub="A score that unlocks badges — never money" tone="rose" />
                 <Stat icon={Flame} label="Active streaks" value={num(d.activeStreaks)} sub={`${num(d.badgesUnlocked)} badges unlocked · ${num(d.xpLast7Days.xp)} XP this week`} tone="indigo" />
             </div>
             <div className="grid gap-4 xl:grid-cols-2">
                 <div className="min-w-0 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
-                    <p className="font-bold text-slate-800 mb-1">Learning activity — last 14 days</p>
-                    <p className="text-xs text-slate-500 mb-4">Lessons, quizzes, courses, certificates and tasks that counted.</p>
-                    <div className="flex items-end gap-1 h-32">
-                        {d.activityByDay.length === 0 && <p className="text-sm text-slate-400 italic">No activity recorded yet.</p>}
-                        {d.activityByDay.map((a) => (
-                            <div key={a._id} className="flex-1 flex flex-col items-center gap-1" title={`${a._id}: ${a.n}`}>
-                                <div className="w-full rounded-t-md bg-indigo-500" style={{ height: `${(a.n / max) * 100}%`, minHeight: 4 }} />
-                                <span className="text-[9px] text-slate-400">{a._id.slice(-2)}</span>
-                            </div>
-                        ))}
+                    <div className="mb-1 flex items-baseline justify-between gap-3">
+                        <p className="font-bold text-slate-800">Learning activity — last 14 days</p>
+                        <span className="shrink-0 text-xs font-semibold text-slate-500 tabular-nums">{num(activityTotal)} total</span>
                     </div>
+                    <p className="text-xs text-slate-500 mb-4">Lessons, quizzes, courses, certificates and tasks that counted.</p>
+                    {activityTotal === 0 ? <p className="flex h-32 items-center justify-center text-sm text-slate-400 italic">No activity in the last 14 days.</p> : (
+                        <div className="flex items-end gap-1 h-32">
+                            {days.map((a) => (
+                                <div key={a.key} className="flex-1 flex h-full flex-col items-center justify-end gap-1" title={`${a.key}: ${a.n}`}>
+                                    <div className={`w-full rounded-t-md ${a.n ? 'bg-indigo-500' : 'bg-slate-100'}`} style={{ height: a.n ? `${(a.n / max) * 100}%` : 3 }} />
+                                    <span className="text-[9px] text-slate-400 tabular-nums">{a.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
                 <div className="min-w-0 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
                     <p className="font-bold text-slate-800 mb-1">Reward points issued, by source</p>
                     <p className="text-xs text-slate-500 mb-4">Every point traces back to a claim.</p>
                     {d.pointsIssuedBySource.length === 0 ? <p className="text-sm text-slate-400 italic">Nothing issued yet.</p> : (
                         <ul className="space-y-2">
-                            {d.pointsIssuedBySource.sort((a, b) => b.points - a.points).map((s) => (
+                            {[...d.pointsIssuedBySource].sort((a, b) => b.points - a.points).map((s, _, sorted) => (
                                 <li key={s._id} className="flex items-center gap-2 sm:gap-3 text-sm">
                                     <span className="w-24 sm:w-36 shrink-0 truncate font-semibold text-slate-600 capitalize" title={s._id.replace(/_/g, ' ')}>{s._id.replace(/_/g, ' ')}</span>
-                                    <div className="min-w-8 flex-1 h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-pink-500 rounded-full" style={{ width: `${(s.points / Math.max(1, d.pointsIssuedBySource[0].points)) * 100}%` }} /></div>
+                                    <div className="min-w-8 flex-1 h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-pink-500 rounded-full" style={{ width: `${(s.points / Math.max(1, sorted[0].points)) * 100}%` }} /></div>
                                     <span className="shrink-0 text-right font-bold tabular-nums">{num(s.points)} <span className="text-xs text-slate-400">({s.n})</span></span>
                                 </li>
                             ))}
@@ -167,31 +180,225 @@ function Overview() {
 }
 
 // ── Rules ───────────────────────────────────────────────────────────────────
-const XP_LABELS = { lesson_complete: 'Complete a lesson', quiz_complete: 'Complete a quiz', quiz_pass: 'Pass a quiz', assignment_complete: 'Complete an assignment', course_complete: 'Complete a course', certificate_earned: 'Earn a certificate', career_task: 'Complete a Career Path task', daily_activity: 'Solve the daily activity', interview_prep: 'Prepare for interviews (Interview Ready)', interview_practice: 'Practise an interview question', mock_interview: 'Complete a mock interview', interview_improved: 'Beat your best interview score', interview_challenge: 'Complete the weekly interview challenge' };
+// Every way a student earns XP, by area, with where it happens. All of them are
+// read live by the server (rewards configService.xpFor / activityService), so
+// a change here is what the next award pays.
+// Features paid for from the student's wallet balance. 0 = free. Charged on the
+// server (rewards walletRuleService) when the feature is used, refused when the
+// balance is short, and refunded if the feature then fails. Every entry is a
+// real hook on the server: a rule is live while it is in the rulebook, and the
+// optional ones are added with "Add wallet rule".
+const WALLET_GROUPS = [
+    {
+        title: 'Downloads and tools', rules: [
+            ['download_resume', 'Download resume', 'Each download of the ATS resume PDF.'],
+            ['upload_resume', 'Upload a resume', 'Each resume upload — on the profile or the Jobs page.'],
+            ['download_bio', 'Download learning bio', 'Each download of the Learning Bio PDF.'],
+            ['start_global_quiz', 'Start the Global Quiz', 'Once per quiz, when the attempt opens.'],
+            ['find_job', 'Find Job', 'Opening a job listing from Career Match or Hidden Opportunities; once per job.'],
+            ['apply_part_time', 'Apply for a part-time job', 'Once per job applied for.'],
+            ['rebuild_roadmap', 'Rebuild roadmap', 'Each rebuild from Career Path settings. The first roadmap is free.'],
+            ['start_mock_interview', 'Start a mock interview', 'Each new AI mock interview.'],
+            ['find_scholarship', 'Find scholarships', 'Each "Find scholarships for me" search on the Grants page.'],
+            ['generate_ideas', 'Rebuild the Ideas list', 'Each rebuild of the Career Path Ideas (recommendations) list.'],
+            ['download_certificate', 'Download a certificate', 'Each certificate PDF, from the course or the profile.']
+        ]
+    },
+    {
+        title: 'AI features', rules: [
+            ['ask_mentor', 'Ask the AI mentor', 'Each message sent to the Career Path mentor.'],
+            ['build_task_lesson', 'Build a task lesson', 'Each lesson built for a task — including "Different video" and switching language.'],
+            ['generate_study_material', 'Build a skill study pack', 'Each study pack built on the Skills page.'],
+            ['add_extra_task', 'Add another task', 'Each extra task added to Today\'s Plan after the day\'s plan is done.'],
+            ['regenerate_bio', 'Rewrite the learning bio', 'Each manual rewrite of the Learning Bio.']
+        ]
+    }
+];
+
+const XP_GROUPS = [
+    {
+        title: 'Courses', rules: [
+            ['lesson_complete', 'Complete a lesson', 'Each lesson, the first time it is completed.'],
+            ['quiz_complete', 'Complete a quiz', 'Submitting a course quiz.'],
+            ['quiz_pass', 'Pass a quiz', 'On top of completing it, when the quiz is passed.'],
+            ['course_complete', 'Complete a course', 'When a course reaches 100%.'],
+            ['certificate_earned', 'Earn a certificate', 'The first certificate for each course.'],
+            ['assignment_complete', 'Complete an assignment', 'Kept for assignments; nothing in the LMS awards it yet.']
+        ]
+    },
+    {
+        title: 'Career Path', rules: [
+            ['career_task', 'Complete a Career Path task', "Finishing a task in Today's Plan."],
+            ['career_task_quiz', 'Pass a Career Path task quiz', "First pass of a task's study quiz."],
+            ['skill_quiz', 'Pass a skill quiz', 'First pass of a quiz on the Skills page.'],
+            ['daily_activity', 'Solve the daily activity', "A right answer to the day's puzzle or question."]
+        ]
+    },
+    {
+        title: 'Interview Ready', rules: [
+            ['interview_practice', 'Practise an interview question', 'Each question, the first time it is practised.'],
+            ['interview_prep', 'Prepare for interviews', 'One-time bonus after five practised questions.'],
+            ['mock_interview', 'Complete a mock interview', 'Each finished AI mock interview.'],
+            ['interview_improved', 'Beat your best interview score', 'A mock interview that tops the previous best.'],
+            ['interview_challenge', 'Complete the weekly interview challenge', 'A full interview at the challenge score, once a week.']
+        ]
+    },
+    {
+        title: 'Community and opportunities', rules: [
+            ['forum_post', 'Post in the community forum', 'Once a day, however many posts.'],
+            ['forum_comment', 'Reply in the community forum', 'Once a day, however many replies.'],
+            ['resume_upload', 'Upload a resume', 'Once, the first upload.'],
+            ['part_time_apply', 'Apply for a part-time job', 'Once per job applied for.'],
+            ['scholarship_search', 'Search for scholarships', 'Once a day.']
+        ]
+    },
+    {
+        title: 'Global Quiz', rules: [
+            ['global_quiz_win', 'Win the Global Quiz', 'Once per quiz, for a final score at or above the win score (set below).'],
+            ['global_quiz_complete', 'Finish the Global Quiz', 'Once a day, whatever the score.']
+        ]
+    },
+    {
+        title: 'Progress and profile', rules: [
+            ['roadmap_milestone', 'Complete a roadmap phase', 'Once per phase, when its milestone badge is issued.'],
+            ['task_video_watched', 'Watch a task lesson video', 'Once per task, when the video has been watched through.'],
+            ['profile_picture', 'Add a profile photo', 'Once, the first photo.'],
+            ['achievement_added', 'Add an achievement', 'Once a day, however many are added.']
+        ]
+    }
+];
+
+/**
+ * The rules in force, by group, each with its amount and a remove button,
+ * and "Add rule" for any catalogued rule not in force. Only hooks the server
+ * really has are in the catalogue, so an added rule always does something.
+ */
+function RuleList({ groups, values, prefix, step = 1, onSet, onRemove, addLabel }) {
+    const [adding, setAdding] = useState(false);
+    const [pick, setPick] = useState('');
+    const [amount, setAmount] = useState('');
+    const all = groups.flatMap((g) => g.rules.map(([k, label]) => ({ k, label, group: g.title })));
+    const missing = all.filter((r) => !(r.k in (values || {})));
+    const add = () => {
+        if (!pick) return;
+        onSet(pick, Math.max(0, Number(amount) || 0));
+        setAdding(false); setPick(''); setAmount('');
+    };
+    return (
+        <div className="space-y-5">
+            {groups.map((g) => {
+                const live = g.rules.filter(([k]) => k in (values || {}));
+                if (!live.length) return null;
+                return (
+                    <div key={g.title}>
+                        {groups.length > 1 && <p className="mb-2 text-xs font-black uppercase tracking-wider text-indigo-500">{g.title}</p>}
+                        <div className="grid sm:grid-cols-2 gap-3">
+                            {live.map(([k, label, hint]) => (
+                                <div key={k}>
+                                    <div className="mb-1 flex items-start justify-between gap-2">
+                                        <label className={`${LABEL} !mb-0`}>{label}</label>
+                                        <button type="button" onClick={() => onRemove(k)} title="Remove this rule" aria-label={`Remove ${label}`}
+                                            className="-mt-1 rounded-md p-1 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-600"><Trash2 size={13} /></button>
+                                    </div>
+                                    <div className="relative">
+                                        {prefix && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{prefix}</span>}
+                                        <input type="number" min="0" step={step} value={values[k] ?? 0} onChange={(e) => onSet(k, Number(e.target.value))} className={`${INPUT} ${prefix ? (prefix.length > 1 ? 'pl-12' : 'pl-7') : ''}`} />
+                                    </div>
+                                    <p className="mt-1 text-[11px] leading-snug text-slate-400">{hint}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })}
+            {adding ? (
+                <div className="flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-3">
+                    <div className="min-w-[12rem] flex-1">
+                        <label className={LABEL}>Rule</label>
+                        <Select value={pick} onChange={(e) => setPick(e.target.value)} className={INPUT}>
+                            <option value="">Choose…</option>
+                            {/* The panel's Select reads <option>s only (no <optgroup>): the group is in the label. */}
+                            {missing.map((r) => <option key={r.k} value={r.k}>{groups.length > 1 ? `${r.label} — ${r.group}` : r.label}</option>)}
+                        </Select>
+                    </div>
+                    <div className="w-28">
+                        <label className={LABEL}>{prefix ? `Amount (${prefix})` : 'XP'}</label>
+                        <input type="number" min="0" step={step} value={amount} onChange={(e) => setAmount(e.target.value)} className={INPUT} placeholder="0" />
+                    </div>
+                    <button type="button" onClick={add} disabled={!pick} className={BTN2}><Plus size={14} /> Add</button>
+                    <button type="button" onClick={() => setAdding(false)} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700">Cancel</button>
+                </div>
+            ) : (
+                <button type="button" onClick={() => setAdding(true)} disabled={!missing.length} className={BTN2} title={missing.length ? '' : 'Every available rule is already in use'}>
+                    <Plus size={14} /> {addLabel}
+                </button>
+            )}
+            {!missing.length && <p className="text-[11px] text-slate-400">Every available rule is in use.</p>}
+        </div>
+    );
+}
+
+// One section of the rulebook. At module scope on purpose: declared inside
+// Rules it was a new component on every render, so React remounted every
+// input below it on each keystroke and the field lost focus after one digit.
+// Tones are written out in full; `bg-${tone}-100` is never generated by Tailwind.
+const CARD_TONES = { indigo: 'bg-indigo-100 text-indigo-600', emerald: 'bg-emerald-100 text-emerald-600', amber: 'bg-amber-100 text-amber-600', rose: 'bg-rose-100 text-rose-600' };
+const Card = ({ icon: Icon, title, sub, children, tone = 'indigo' }) => (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
+            <div className={`shrink-0 p-2 rounded-lg ${CARD_TONES[tone] || CARD_TONES.indigo}`}><Icon size={18} /></div>
+            <div className="min-w-0"><h2 className="font-bold text-slate-800">{title}</h2><p className="text-xs text-slate-500">{sub}</p></div>
+        </div>
+        <div className="p-4 sm:p-5">{children}</div>
+    </div>
+);
 
 function Rules() {
     const [cfg, setCfg] = useState(null);
     const [busy, setBusy] = useState(false);
+    // Rules removed since the last save; sent as removeRules so they stop for everyone.
+    const [removed, setRemoved] = useState({ xp: [], wallet: [] });
     const [msg, setMsg] = useState(null);
-    useEffect(() => { api.get('/rewards/admin/config').then((r) => setCfg(r.data)).catch((e) => setMsg({ kind: 'error', text: e.response?.data?.message || 'Failed to load' })); }, []);
+    // The rulebook as last saved, to tell whether anything on screen differs.
+    const [saved, setSaved] = useState(null);
+    useEffect(() => { api.get('/rewards/admin/config').then((r) => { setCfg(r.data); setSaved(JSON.stringify(r.data)); }).catch((e) => setMsg({ kind: 'error', text: e.response?.data?.message || 'Failed to load' })); }, []);
     if (!cfg) return <div className="animate-pulse h-64 bg-slate-100 rounded-2xl" />;
+    const dirty = JSON.stringify(cfg) !== saved || removed.xp.length > 0 || removed.wallet.length > 0;
+    const discard = () => { setCfg(JSON.parse(saved)); setRemoved({ xp: [], wallet: [] }); setMsg(null); };
 
     const set = (path, value) => setCfg((c) => { const n = structuredClone(c); let o = n; const ks = path.split('.'); for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = value; return n; });
+    const setRule = (map, key, value) => {
+        setCfg((c) => ({ ...c, [map]: { ...(c[map] || {}), [key]: value } }));
+        setRemoved((r) => ({ ...r, [map === 'xpRules' ? 'xp' : 'wallet']: r[map === 'xpRules' ? 'xp' : 'wallet'].filter((k) => k !== key) }));
+    };
+    const removeRule = (map, key) => {
+        setCfg((c) => { const next = { ...(c[map] || {}) }; delete next[key]; return { ...c, [map]: next }; });
+        const side = map === 'xpRules' ? 'xp' : 'wallet';
+        setRemoved((r) => ({ ...r, [side]: r[side].includes(key) ? r[side] : [...r[side], key] }));
+    };
     const save = async () => {
         setBusy(true); setMsg(null);
         try {
-            const r = await api.put('/rewards/admin/config', { xpRules: cfg.xpRules, levelThresholds: cfg.levelThresholds, streakMilestones: cfg.streakMilestones, leaderboardRewards: cfg.leaderboardRewards, conversion: cfg.conversion, limits: cfg.limits, walletAccess: cfg.walletAccess });
-            setCfg(r.data); setMsg({ kind: 'ok', text: 'Reward rules saved. They apply to the next award.' });
+            const r = await api.put('/rewards/admin/config', { xpRules: cfg.xpRules, walletRules: cfg.walletRules, removeRules: removed, levelThresholds: cfg.levelThresholds, streakMilestones: cfg.streakMilestones, leaderboardRewards: cfg.leaderboardRewards, conversion: cfg.conversion, limits: cfg.limits, walletAccess: cfg.walletAccess, startingCredit: cfg.startingCredit, games: cfg.games, globalQuiz: cfg.globalQuiz });
+            setCfg(r.data); setSaved(JSON.stringify(r.data)); setRemoved({ xp: [], wallet: [] }); setMsg({ kind: 'ok', text: 'Reward rules saved. They apply to every student from the next award or use.' });
         } catch (e) { setMsg({ kind: 'error', text: e.response?.data?.message || 'Failed to save' }); }
         finally { setBusy(false); }
     };
-    const Card = ({ icon: Icon, title, sub, children, tone = 'indigo' }) => (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
-                <div className={`shrink-0 p-2 rounded-lg bg-${tone}-100 text-${tone}-600`}><Icon size={18} /></div>
-                <div className="min-w-0"><h2 className="font-bold text-slate-800">{title}</h2><p className="text-xs text-slate-500">{sub}</p></div>
-            </div>
-            <div className="p-4 sm:p-5">{children}</div>
+    // Save, in the page flow at the top and again at the bottom of the rules —
+    // never pinned over the cards. Says whether anything is unsaved, and Save
+    // is only live when it is. A value, not a component, so it never remounts.
+    const saveBar = (
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+            <span className="flex items-center gap-1.5 text-xs font-semibold">
+                {dirty
+                    ? <><span className="h-1.5 w-1.5 rounded-full bg-amber-500" /><span className="text-amber-700">Unsaved changes</span></>
+                    : <><CheckCircle2 size={13} className="text-emerald-500" /><span className="text-slate-400">All changes saved</span></>}
+            </span>
+            {dirty && <button type="button" onClick={discard} disabled={busy} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50">Discard</button>}
+            <button type="button" onClick={save} disabled={busy || !dirty}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none">
+                {busy ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Save
+            </button>
         </div>
     );
     const cur = cfg.conversion.currency;
@@ -199,13 +406,36 @@ function Rules() {
     return (
         <div className="space-y-5">
             {msg && <Banner kind={msg.kind === 'error' ? 'error' : 'ok'} onClose={() => setMsg(null)}>{msg.text}</Banner>}
+            {saveBar}
             <div className="grid gap-5 xl:grid-cols-2">
-                <Card icon={Coins} title="XP rules" sub="XP is learning progress. It drives levels, the leaderboard and badges — never money.">
-                    <div className="grid sm:grid-cols-2 gap-3">
-                        {Object.keys(XP_LABELS).map((k) => (
-                            <div key={k}><label className={LABEL}>{XP_LABELS[k]}</label><input type="number" min="0" value={cfg.xpRules[k] ?? 0} onChange={(e) => set(`xpRules.${k}`, Number(e.target.value))} className={INPUT} /></div>
+                <Card icon={Coins} title="XP rules" sub="XP is learning progress: it drives levels, the leaderboard and badges, and every full block converts into wallet money (XP → money, below).">
+                    <RuleList groups={XP_GROUPS} values={cfg.xpRules} onSet={(k, v) => setRule('xpRules', k, v)} onRemove={(k) => removeRule('xpRules', k)} addLabel="Add XP rule" />
+                    <p className="mt-4 text-[11px] leading-snug text-slate-500">Streak milestones and Brain games pay their own XP (below). A removed rule pays nothing to anyone; a rule under "Add XP rule" pays nothing until it is added.</p>
+                </Card>
+                <Card icon={Wallet} title="Wallet rules" sub={`What a feature costs from the student's wallet balance, in ${cur}. 0 = free. Applies to every student from their next use; a short balance is refused, and a feature that fails is refunded.`} tone="emerald">
+                    <RuleList groups={WALLET_GROUPS} values={cfg.walletRules || {}} prefix={cur === 'INR' ? '₹' : cur} step={0.5} onSet={(k, v) => setRule('walletRules', k, v)} onRemove={(k) => removeRule('walletRules', k)} addLabel="Add wallet rule" />
+                </Card>
+                <Card icon={Trophy} title="Global Quiz" sub="What counts as winning. A win pays the &quot;Win the Global Quiz&quot; XP rule once per quiz; what starting a quiz costs is the &quot;Start the Global Quiz&quot; wallet rule." tone="amber">
+                    <div className="max-w-xs">
+                        <label className={LABEL}>Win score (%)</label>
+                        <input type="number" min="0" max="100" value={cfg.globalQuiz?.winScore ?? 60} onChange={(e) => set('globalQuiz.winScore', Number(e.target.value))} className={INPUT} />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-2">A student who finishes with at least this score has won. Currently {num(cfg.xpRules?.global_quiz_win ?? 0)} XP; starting costs {money(cfg.walletRules?.start_global_quiz ?? 0, cur)}.</p>
+                </Card>
+                <Card icon={Gamepad2} title="Brain games" sub="XP a level pays for its best result, once per star reached — replaying at the same stars pays nothing. Play is limited per student per day." tone="indigo">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="col-span-2 sm:col-span-1">
+                            <label className={LABEL}>Minutes a day</label>
+                            <input type="number" min="0" value={cfg.games?.dailyMinutes ?? 15} onChange={(e) => set('games.dailyMinutes', Number(e.target.value))} className={INPUT} />
+                        </div>
+                        {[['xpOneStar', '1 star'], ['xpTwoStars', '2 stars'], ['xpThreeStars', '3 stars']].map(([k, label]) => (
+                            <div key={k}>
+                                <label className={LABEL}>XP · {label}</label>
+                                <input type="number" min="0" value={cfg.games?.[k] ?? 0} onChange={(e) => set(`games.${k}`, Number(e.target.value))} className={INPUT} />
+                            </div>
                         ))}
                     </div>
+                    <p className="text-[11px] text-slate-500 mt-2">0 stars pays 0 XP. Minutes a day = 0 means no limit. A level first finished at 2 stars and later at 3 pays the 2-star XP, then the difference.</p>
                 </Card>
                 <Card icon={Trophy} title="Level thresholds" sub="XP at which each level begins. Level 1 is always 0." tone="amber">
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
@@ -249,35 +479,23 @@ function Rules() {
                         </div>
                     ))}
                 </Card>
-                <Card icon={Gift} title="Reward points → money" sub="Reward points are the only thing that becomes money, and only for eligible accounts." tone="rose">
+                <Card icon={Gift} title="XP → money" sub="Each time a student's XP balance reaches the XP amount, it is deducted and the value added to their wallet — automatically, for every account type. Their level and rank use lifetime XP and never drop. Reward points never become money." tone="rose">
                     <div className="grid sm:grid-cols-2 gap-3">
-                        <div><label className={LABEL}>Points per unit</label><input type="number" min="1" value={cfg.conversion.pointsPerUnit} onChange={(e) => set('conversion.pointsPerUnit', Number(e.target.value))} className={INPUT} /></div>
+                        <div><label className={LABEL}>XP per unit</label><input type="number" min="1" value={cfg.conversion.pointsPerUnit} onChange={(e) => set('conversion.pointsPerUnit', Number(e.target.value))} className={INPUT} /></div>
                         <div><label className={LABEL}>Unit value ({cur})</label><input type="number" min="0" step="0.01" value={cfg.conversion.unitValue} onChange={(e) => set('conversion.unitValue', Number(e.target.value))} className={INPUT} /></div>
-                        <div><label className={LABEL}>Minimum points to redeem</label><input type="number" min="0" value={cfg.conversion.minRedeemPoints} onChange={(e) => set('conversion.minRedeemPoints', Number(e.target.value))} className={INPUT} /></div>
                         <div><label className={LABEL}>Currency</label><input value={cfg.conversion.currency} maxLength={3} onChange={(e) => set('conversion.currency', e.target.value.toUpperCase())} className={INPUT} /></div>
                     </div>
-                    <p className="text-sm text-slate-600 mt-3 font-medium">{num(cfg.conversion.pointsPerUnit)} points = {money(cfg.conversion.unitValue, cur)}. Set the unit value to 0 to stop redemption entirely.</p>
-                    <div className="grid sm:grid-cols-3 gap-3 mt-4">
-                        <div><label className={LABEL}>Monthly cash cap ({cur})</label><input type="number" min="0" value={cfg.limits.monthlyCashCap} onChange={(e) => set('limits.monthlyCashCap', Number(e.target.value))} className={INPUT} /><p className="text-[11px] text-slate-400 mt-1">Per student · 0 = no cap</p></div>
-                        <div><label className={LABEL}>Min withdrawal ({cur})</label><input type="number" min="0" value={cfg.limits.minWithdrawal} onChange={(e) => set('limits.minWithdrawal', Number(e.target.value))} className={INPUT} /></div>
-                        <div><label className={LABEL}>Max withdrawal ({cur})</label><input type="number" min="0" value={cfg.limits.maxWithdrawal} onChange={(e) => set('limits.maxWithdrawal', Number(e.target.value))} className={INPUT} /><p className="text-[11px] text-slate-400 mt-1">0 = no maximum</p></div>
-                    </div>
+                    <p className="text-sm text-slate-600 mt-3 font-medium">Every {num(cfg.conversion.pointsPerUnit)} XP → −{num(cfg.conversion.pointsPerUnit)} XP from the balance, +{money(cfg.conversion.unitValue, cur)} to the wallet. A student with {num(cfg.conversion.pointsPerUnit * 2.5)} XP converts twice and keeps {num(cfg.conversion.pointsPerUnit / 2)} XP on the balance. Set the value to 0 to stop converting.</p>
                 </Card>
-                <Card icon={Users} title="Who can cash out" sub="Account types allowed to redeem points for money and request withdrawals. Others keep XP, badges and points. Override one student from Users → Edit." tone="indigo">
-                    <div className="space-y-2">
-                        {cfg.accountTypes.map((t) => (
-                            <label key={t} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">
-                                <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-indigo-600" checked={cfg.walletAccess.allowedAccountTypes.includes(t)} onChange={(e) => set('walletAccess.allowedAccountTypes', e.target.checked ? [...cfg.walletAccess.allowedAccountTypes, t] : cfg.walletAccess.allowedAccountTypes.filter((x) => x !== t))} />
-                                {TYPE_LABEL[t]}
-                                {!cfg.walletAccess.allowedAccountTypes.includes(t) && <span className="ml-auto text-[10px] font-black uppercase tracking-wider text-slate-400">Learning rewards only</span>}
-                            </label>
-                        ))}
+                <Card icon={Wallet} title="Starting wallet credit" sub="Given once to each student who registers from now on — accounts that existed before are not credited. It pays for courses and wallet-rule features." tone="emerald">
+                    <div className="max-w-xs">
+                        <label className={LABEL}>Amount ({cur})</label>
+                        <input type="number" min="0" step="1" value={cfg.startingCredit ?? 0} onChange={(e) => set('startingCredit', Number(e.target.value))} className={INPUT} />
                     </div>
+                    <p className="text-[11px] text-slate-500 mt-2">A change applies to students who register after it; credits already given stay as they are. 0 = no starting credit.</p>
                 </Card>
             </div>
-            <div className="flex justify-end gap-3 sticky bottom-4">
-                <button onClick={save} disabled={busy} className={BTN}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save reward rules</button>
-            </div>
+            {saveBar}
         </div>
     );
 }
@@ -285,8 +503,8 @@ function Rules() {
 const BadgeStatus = ({ active }) => <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{active ? 'active' : 'inactive'}</span>;
 
 // ── Badges ──────────────────────────────────────────────────────────────────
-const METRIC_LABEL = { lessons: 'Lessons completed', quizzes: 'Quizzes completed', perfect_quizzes: 'Perfect quizzes', courses: 'Courses completed', certificates: 'Certificates earned', xp: 'Total XP', longest_streak: 'Longest streak (days)', current_streak: 'Current streak (days)', top10_weeks: 'Weeks in the top 10', level: 'Level reached' };
-const EMPTY_BADGE = { key: '', title: '', description: '', emoji: '🎖️', metric: 'lessons', target: 1, rewardPoints: 0, order: 100, isActive: true };
+const METRIC_LABEL = { lessons: 'Lessons completed', quizzes: 'Quizzes completed', perfect_quizzes: 'Perfect quizzes', courses: 'Courses completed', certificates: 'Certificates earned', xp: 'Total XP', longest_streak: 'Longest streak (days)', current_streak: 'Current streak (days)', top10_weeks: 'Weeks in the top 10', level: 'Level reached', mock_interviews: 'Mock interviews completed', interview_readiness: 'Interview readiness score', reward_points: 'Reward points earned' };
+const EMPTY_BADGE = { key: '', title: '', description: '', emoji: '🎖️', metric: 'reward_points', target: 500, rewardPoints: 0, order: 100, isActive: true };
 
 function Badges() {
     const [data, setData] = useState(null);
@@ -312,21 +530,20 @@ function Badges() {
         <div className="space-y-4">
             {msg && <Banner kind={msg.kind === 'error' ? 'error' : 'ok'} onClose={() => setMsg(null)}>{msg.text}</Banner>}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-slate-500">{data.badges.length} badges · a badge unlocks when its metric reaches the target and pays its points once.</p>
+                <p className="text-sm text-slate-500">{data.badges.length} badges · a badge unlocks when its metric reaches the target. Reward points unlock badges (metric “Reward points earned”) — badges don&apos;t pay points.</p>
                 <button className={`${BTN} shrink-0 self-start sm:self-auto`} onClick={() => setEdit({ ...EMPTY_BADGE })}><Plus size={15} /> New badge</button>
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[680px]">
                         <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase">
-                            <th className={TH}>Badge</th><th className={TH}>Unlocks when</th><th className={TH}>Points</th><th className={TH}>Unlocked by</th><th className={TH}>Status</th><th className={`${TH} text-right`}>Actions</th>
+                            <th className={TH}>Badge</th><th className={TH}>Unlocks when</th><th className={TH}>Unlocked by</th><th className={TH}>Status</th><th className={`${TH} text-right`}>Actions</th>
                         </tr></thead>
                         <tbody className="divide-y divide-slate-100">
                             {data.badges.map((b) => (
                                 <tr key={b._id} className="hover:bg-slate-50/50">
                                     <td className={TD}><div className="flex items-center gap-3"><span className="text-2xl">{b.emoji}</span><div className="min-w-0"><div className="font-medium text-slate-800">{b.title}</div><div className="text-xs text-slate-500">{b.description}</div><div className="text-[10px] font-mono text-slate-400 break-all">{b.key}</div></div></div></td>
                                     <td className={`${TD} text-sm text-slate-600`}>{METRIC_LABEL[b.metric] || b.metric} ≥ <strong>{num(b.target)}</strong></td>
-                                    <td className={`${TD} text-sm font-bold text-pink-600`}>{b.rewardPoints ? `+${num(b.rewardPoints)}` : '—'}</td>
                                     <td className={`${TD} text-sm text-slate-600`}>{num(b.unlockedCount)} students</td>
                                     <td className={TD}><BadgeStatus active={b.isActive} /></td>
                                     <td className={`${TD} text-right space-x-3 whitespace-nowrap`}>
@@ -351,7 +568,7 @@ function Badges() {
                                 </div>
                                 <span className="shrink-0"><BadgeStatus active={b.isActive} /></span>
                             </div>
-                            <p className="mt-2 text-sm text-slate-600">{METRIC_LABEL[b.metric] || b.metric} ≥ <strong>{num(b.target)}</strong> · <span className="font-bold text-pink-600">{b.rewardPoints ? `+${num(b.rewardPoints)}` : '—'}</span> · {num(b.unlockedCount)} students</p>
+                            <p className="mt-2 text-sm text-slate-600">{METRIC_LABEL[b.metric] || b.metric} ≥ <strong>{num(b.target)}</strong> · {num(b.unlockedCount)} students</p>
                             <div className="mt-2 flex gap-4">
                                 <button onClick={() => setEdit({ ...b })} className="text-indigo-600 hover:text-indigo-900 font-medium text-sm">Edit</button>
                                 {b.isActive && <button onClick={() => deactivate(b)} className="text-red-500 hover:text-red-700 font-medium text-sm">Deactivate</button>}
@@ -371,7 +588,6 @@ function Badges() {
                             <div className="sm:col-span-2"><label className={LABEL}>Description</label><input value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} className={INPUT} /></div>
                             <div><label className={LABEL}>Metric</label><Select value={edit.metric} onChange={(e) => setEdit({ ...edit, metric: e.target.value })} className={INPUT}>{data.metrics.map((m) => <option key={m} value={m}>{METRIC_LABEL[m] || m}</option>)}</Select></div>
                             <div><label className={LABEL}>Target</label><input type="number" min="1" value={edit.target} onChange={(e) => setEdit({ ...edit, target: Number(e.target.value) })} className={INPUT} required /></div>
-                            <div><label className={LABEL}>Reward points</label><input type="number" min="0" value={edit.rewardPoints} onChange={(e) => setEdit({ ...edit, rewardPoints: Number(e.target.value) })} className={INPUT} /></div>
                             <div><label className={LABEL}>Order</label><input type="number" value={edit.order} onChange={(e) => setEdit({ ...edit, order: Number(e.target.value) })} className={INPUT} /></div>
                             <label className="sm:col-span-2 flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-indigo-600" checked={edit.isActive !== false} onChange={(e) => setEdit({ ...edit, isActive: e.target.checked })} /> Active</label>
                         </div>
@@ -384,28 +600,56 @@ function Badges() {
 }
 
 // ── Wallets ─────────────────────────────────────────────────────────────────
+// What each student's wallet holds and where it came from: the balance (and
+// how much of it is the spend-only starting credit), their XP — lifetime and
+// still waiting to convert — what has been converted and what that paid, and
+// what has been spent in the LMS.
 function Wallets({ onOpenUser }) {
     const [q, setQ] = useState('');
     const [data, setData] = useState(null);
+    const [rate, setRate] = useState(null);
     useEffect(() => { const t = setTimeout(() => api.get('/rewards/admin/wallets', { params: { q: q || undefined, limit: 100 } }).then((r) => setData(r.data)).catch(() => setData({ rows: [], total: 0 })), 250); return () => clearTimeout(t); }, [q]);
+    // The admin's XP → money rate, for "how far to the next conversion".
+    useEffect(() => { api.get('/rewards/admin/config').then((r) => setRate(r.data?.conversion || null)).catch(() => {}); }, []);
+    const unit = Number(rate?.pointsPerUnit) || 0;
+    const t = data?.totals;
+    const XpCell = ({ w }) => (
+        <div className="min-w-0">
+            <p className="font-bold tabular-nums text-slate-800">{num(w.xp)} <span className="text-xs font-semibold text-slate-400">lifetime</span></p>
+            <p className="text-xs tabular-nums text-amber-700">{num(w.xpBalance)} waiting to convert</p>
+            {unit > 0 && (
+                <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-amber-100" title={`${num(Math.max(0, unit - w.xpBalance))} XP to the next ${money(rate.unitValue, rate.currency)}`}>
+                    <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, (w.xpBalance / unit) * 100)}%` }} />
+                </div>
+            )}
+        </div>
+    );
     return (
         <div className="space-y-4">
+            {/* Across every wallet that matches the search. */}
+            {t && (
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <Stat icon={Wallet} label="Wallet balances" value={money(t.available)} sub={`${money(t.startingCredit)} of it starting credit`} tone="emerald" />
+                    <Stat icon={Coins} label="XP converted" value={num(t.xpConverted)} sub={unit ? `${num(unit)} XP = ${money(rate.unitValue, rate.currency)}` : 'XP turned into money'} tone="amber" />
+                    <Stat icon={Gift} label="Paid from XP" value={money(t.fromXp)} sub="Added to wallets by conversion" tone="indigo" />
+                    <Stat icon={ReceiptText} label="Spent in the LMS" value={money(t.spent)} sub="Courses and wallet-rule features" tone="rose" />
+                </div>
+            )}
             <div className="relative max-w-md"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, email or card number…" className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 text-sm shadow-sm" /><Search className="absolute left-3.5 top-3 text-slate-400" size={18} /></div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 {!data ? <div className="p-8 text-center text-slate-500">Loading…</div> : (
                     <>
-                    <div className="hidden md:block overflow-x-auto"><table className="w-full text-left border-collapse min-w-[700px]">
-                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className={TH}>Student</th><th className={TH}>Type</th><th className={TH}>Available</th><th className={TH}>Pending</th><th className={TH}>Points</th><th className={TH}>Earned</th><th className={`${TH} text-right`}></th></tr></thead>
+                    <div className="hidden md:block overflow-x-auto"><table className="w-full text-left border-collapse min-w-[860px]">
+                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className={TH}>Student</th><th className={TH}>Wallet balance</th><th className={TH}>XP</th><th className={TH}>XP converted</th><th className={TH}>Spent</th><th className={`${TH} text-right`}></th></tr></thead>
                         <tbody className="divide-y divide-slate-100">
-                            {data.rows.length === 0 && <tr><td colSpan="7" className="px-6 py-12 text-center text-slate-400 italic">No wallets yet.</td></tr>}
+                            {data.rows.length === 0 && <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400 italic">No wallets yet.</td></tr>}
                             {data.rows.map((w) => (
                                 <tr key={w._id} onClick={() => w.userId && onOpenUser(w.userId._id)} className="hover:bg-slate-50/50 cursor-pointer">
-                                    <td className={TD}><div className="font-medium text-slate-800">{w.userId?.name || 'Deleted user'}</div><div className="text-sm text-slate-500 break-all">{w.userId?.email}</div></td>
-                                    <td className={`${TD} text-sm text-slate-600`}>{TYPE_LABEL[w.userId?.accountType] || 'School student'}{w.userId?.walletAccess && w.userId.walletAccess !== 'default' && <span className="ml-1 text-[10px] font-black uppercase text-indigo-600">· {w.userId.walletAccess}</span>}</td>
-                                    <td className={`${TD} font-bold tabular-nums text-emerald-700 whitespace-nowrap`}>{money(w.available, w.currency)}</td>
-                                    <td className={`${TD} tabular-nums text-amber-700 whitespace-nowrap`}>{money(w.pending, w.currency)}</td>
-                                    <td className={`${TD} tabular-nums font-bold text-pink-600`}>{num(w.rewardPoints)}</td>
-                                    <td className={`${TD} tabular-nums text-slate-600 whitespace-nowrap`}>{money(w.totalEarned, w.currency)}</td>
+                                    <td className={TD}><div className="font-medium text-slate-800">{w.userId?.name || 'Deleted user'}</div><div className="text-sm text-slate-500 break-all">{w.userId?.email}</div><div className="text-xs text-slate-400">{TYPE_LABEL[w.userId?.accountType] || 'School student'} · Level {w.userId?.level || 1}</div></td>
+                                    <td className={TD}><div className="font-bold tabular-nums text-emerald-700 whitespace-nowrap">{money(w.available, w.currency)}</div>{w.startingCredit > 0 && <div className="text-xs text-slate-500 whitespace-nowrap">{money(w.startingCredit, w.currency)} starting credit</div>}</td>
+                                    <td className={TD}><XpCell w={w} /></td>
+                                    <td className={TD}><div className="font-bold tabular-nums text-slate-800">{num(w.xpConverted)} XP</div><div className="text-xs font-semibold text-indigo-600 whitespace-nowrap">→ {money(w.fromXp, w.currency)}</div></td>
+                                    <td className={`${TD} tabular-nums text-slate-600 whitespace-nowrap`}>{money(w.totalSpent, w.currency)}</td>
                                     <td className={`${TD} text-right`}><ChevronRight size={16} className="inline text-slate-400" /></td>
                                 </tr>
                             ))}
@@ -420,15 +664,14 @@ function Wallets({ onOpenUser }) {
                                     <div className="min-w-0 flex-1">
                                         <p className="font-medium text-slate-800 break-words">{w.userId?.name || 'Deleted user'}</p>
                                         <p className="text-sm text-slate-500 break-all">{w.userId?.email}</p>
-                                        <p className="text-xs text-slate-500">{TYPE_LABEL[w.userId?.accountType] || 'School student'}{w.userId?.walletAccess && w.userId.walletAccess !== 'default' && <span className="ml-1 text-[10px] font-black uppercase text-indigo-600">· {w.userId.walletAccess}</span>}</p>
                                     </div>
                                     <ChevronRight size={16} className="mt-1 shrink-0 text-slate-400" />
                                 </div>
                                 <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-slate-50 p-3 text-sm ring-1 ring-slate-100">
-                                    <div className="min-w-0"><dt className={LABEL}>Available</dt><dd className="font-bold tabular-nums text-emerald-700 break-words">{money(w.available, w.currency)}</dd></div>
-                                    <div className="min-w-0"><dt className={LABEL}>Pending</dt><dd className="tabular-nums text-amber-700 break-words">{money(w.pending, w.currency)}</dd></div>
-                                    <div className="min-w-0"><dt className={LABEL}>Points</dt><dd className="tabular-nums font-bold text-pink-600">{num(w.rewardPoints)}</dd></div>
-                                    <div className="min-w-0"><dt className={LABEL}>Earned</dt><dd className="tabular-nums text-slate-600 break-words">{money(w.totalEarned, w.currency)}</dd></div>
+                                    <div className="min-w-0"><dt className={LABEL}>Balance</dt><dd className="font-bold tabular-nums text-emerald-700 break-words">{money(w.available, w.currency)}</dd></div>
+                                    <div className="min-w-0"><dt className={LABEL}>Spent</dt><dd className="tabular-nums text-slate-600 break-words">{money(w.totalSpent, w.currency)}</dd></div>
+                                    <div className="min-w-0"><dt className={LABEL}>XP (to convert)</dt><dd className="tabular-nums font-bold text-slate-800">{num(w.xp)} <span className="font-semibold text-amber-700">({num(w.xpBalance)})</span></dd></div>
+                                    <div className="min-w-0"><dt className={LABEL}>Converted</dt><dd className="tabular-nums text-indigo-600 font-semibold">{num(w.xpConverted)} XP → {money(w.fromXp, w.currency)}</dd></div>
                                 </dl>
                             </li>
                         ))}
@@ -502,92 +745,21 @@ function Transactions({ onOpenUser }) {
     );
 }
 
-// ── Withdrawals ─────────────────────────────────────────────────────────────
-// Shared by the table row and the phone card.
-const PayTo = ({ m }) => (m?.type === 'upi' ? <span className="font-mono">{m.upiId}</span> : <span>{m?.accountName}<br /><span className="font-mono text-xs">{m?.accountNumber} · {m?.ifsc}</span></span>);
-const Requested = ({ w }) => <>{when(w.createdAt)}{w.processedAt && <div className="text-xs">processed {when(w.processedAt)}{w.processedBy?.name ? ` by ${w.processedBy.name}` : ''}</div>}{w.adminNote && <div className="text-xs italic">{w.adminNote}</div>}{w.payoutReference && <div className="text-xs font-mono">ref {w.payoutReference}</div>}</>;
-const Decide = ({ w, busy, decide }) => (busy === w._id ? <Loader2 size={16} className="inline animate-spin text-slate-400" /> : (
-    <>
-        {w.status === 'pending' && <button onClick={() => decide(w, 'approved')} className="text-sky-600 hover:text-sky-800 font-medium text-sm">Approve</button>}
-        {['pending', 'approved'].includes(w.status) && <button onClick={() => decide(w, 'paid')} className="text-emerald-600 hover:text-emerald-800 font-medium text-sm">Mark paid</button>}
-        {['pending', 'approved'].includes(w.status) && <button onClick={() => decide(w, 'rejected')} className="text-red-500 hover:text-red-700 font-medium text-sm">Reject</button>}
-    </>
-));
-
-function Withdrawals({ onOpenUser }) {
-    const [status, setStatus] = useState('pending');
-    const [data, setData] = useState(null);
-    const [busy, setBusy] = useState(null);
-    const [msg, setMsg] = useState(null);
-    const load = useCallback(() => { setData(null); return api.get('/rewards/admin/withdrawals', { params: { status: status || undefined, limit: 100 } }).then((r) => setData(r.data)).catch(() => setData({ rows: [] })); }, [status]);
-    useEffect(() => { load(); }, [load]);
-    const decide = async (w, decision) => {
-        let note = '', ref = '';
-        if (decision === 'rejected') { note = window.prompt('Reason (shown to the student):', ''); if (note === null) return; }
-        if (decision === 'paid') { ref = window.prompt('Payout reference (UTR / transaction id), optional:', '') ?? ''; }
-        if (decision !== 'rejected' && !window.confirm(`Mark ${money(w.amount, w.currency)} for ${w.userId?.name} as ${decision}?`)) return;
-        setBusy(w._id); setMsg(null);
-        try { await api.put(`/rewards/admin/withdrawals/${w._id}`, { decision, note, payoutReference: ref }); setMsg({ kind: 'ok', text: `Request marked ${decision}.` }); await load(); }
-        catch (e) { setMsg({ kind: 'error', text: e.response?.data?.message || 'Failed' }); }
-        finally { setBusy(null); }
-    };
-    return (
-        <div className="space-y-4">
-            {msg && <Banner kind={msg.kind === 'error' ? 'error' : 'ok'} onClose={() => setMsg(null)}>{msg.text}</Banner>}
-            <div className="flex flex-wrap gap-2">
-                {[['pending', 'Pending'], ['approved', 'Approved'], ['paid', 'Paid'], ['rejected', 'Rejected'], ['', 'All']].map(([v, l]) => (
-                    <button key={v} onClick={() => setStatus(v)} className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${status === v ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{l}</button>
-                ))}
-            </div>
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                {!data ? <div className="p-8 text-center text-slate-500">Loading…</div> : (
-                    <>
-                    <div className="hidden md:block overflow-x-auto"><table className="w-full text-left border-collapse min-w-[760px]">
-                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className={TH}>Student</th><th className={TH}>Amount</th><th className={TH}>Pay to</th><th className={TH}>Requested</th><th className={TH}>Status</th><th className={`${TH} text-right sticky right-0 bg-slate-50`}>Actions</th></tr></thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {data.rows.length === 0 && <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400 italic">No withdrawal requests.</td></tr>}
-                            {data.rows.map((w) => (
-                                <tr key={w._id} className="group hover:bg-slate-50/50">
-                                    <td className={TD}><button onClick={() => w.userId && onOpenUser(w.userId._id)} className="font-medium text-indigo-600 hover:underline text-left">{w.userId?.name || 'Deleted user'}</button><div className="text-xs text-slate-500 break-all">{w.userId?.email} · {w.userId?.phone} · {TYPE_LABEL[w.userId?.accountType] || 'School student'}</div></td>
-                                    <td className={`${TD} font-bold tabular-nums text-slate-800 whitespace-nowrap`}>{money(w.amount, w.currency)}</td>
-                                    <td className={`${TD} text-sm text-slate-600 break-all`}><PayTo m={w.method} /></td>
-                                    <td className={`${TD} text-sm text-slate-500`}><Requested w={w} /></td>
-                                    <td className={TD}><Pill s={w.status} /></td>
-                                    {/* Pinned to the right edge, so the decision stays in reach when a narrow screen scrolls the table. */}
-                                    <td className={`${TD} text-right space-x-3 whitespace-nowrap sticky right-0 bg-white group-hover:bg-slate-50`}>
-                                        <Decide w={w} busy={busy} decide={decide} />
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table></div>
-                    {/* Phones: one card per request, the decision buttons at the bottom. */}
-                    <ul className="divide-y divide-slate-100 md:hidden">
-                        {data.rows.length === 0 && <li className="px-4 py-12 text-center text-slate-400 italic">No withdrawal requests.</li>}
-                        {data.rows.map((w) => (
-                            <li key={w._id} className="p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <button onClick={() => w.userId && onOpenUser(w.userId._id)} className="min-w-0 font-medium text-indigo-600 hover:underline text-left break-words">{w.userId?.name || 'Deleted user'}</button>
-                                    <span className="shrink-0 font-bold tabular-nums text-slate-800">{money(w.amount, w.currency)}</span>
-                                </div>
-                                <p className="text-xs text-slate-500 break-all">{w.userId?.email} · {w.userId?.phone} · {TYPE_LABEL[w.userId?.accountType] || 'School student'}</p>
-                                <div className="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600 ring-1 ring-slate-100 break-all"><PayTo m={w.method} /></div>
-                                <div className="mt-2 flex items-start justify-between gap-3 text-sm text-slate-500">
-                                    <div className="min-w-0 break-words"><Requested w={w} /></div>
-                                    <span className="shrink-0"><Pill s={w.status} /></span>
-                                </div>
-                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1"><Decide w={w} busy={busy} decide={decide} /></div>
-                            </li>
-                        ))}
-                    </ul>
-                    </>
-                )}
-            </div>
-        </div>
-    );
-}
-
 // ── Audit ───────────────────────────────────────────────────────────────────
+/** A student in an audit line: their name, opening their history. */
+const Who = ({ u, name, onOpenUser }) => (
+    <button onClick={() => u && onOpenUser(String(u))} className="font-semibold text-indigo-600 hover:underline text-left">{name || 'Unknown student'}</button>
+);
+/** Only the figures that disagree, in words: "available ₹50 (ledger says ₹40)". */
+const mismatchText = (r) => {
+    if (!r.stored) return 'has ledger entries but no wallet';
+    const parts = [];
+    if (r.stored.available !== r.computed.available) parts.push(`available ${money(r.stored.available)} (ledger says ${money(r.computed.available)})`);
+    if (r.stored.pending !== r.computed.pending) parts.push(`on hold ${money(r.stored.pending)} (ledger says ${money(r.computed.pending)})`);
+    if (r.stored.rewardPoints !== r.computed.rewardPoints) parts.push(`${num(r.stored.rewardPoints)} points (ledger says ${num(r.computed.rewardPoints)})`);
+    return parts.join(' · ') || 'figures differ';
+};
+
 function Audit({ onOpenUser }) {
     const [d, setD] = useState(null);
     const [busy, setBusy] = useState(false);
@@ -609,10 +781,10 @@ function Audit({ onOpenUser }) {
                 <div className="flex flex-wrap gap-2 sm:shrink-0"><button onClick={run} className={BTN2}><RefreshCw size={14} /> Re-run</button><button onClick={runJobs} disabled={busy} className={BTN2}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Trophy size={14} />} Run leaderboard payouts now</button></div>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
-                <Section title="Duplicate learning activities" rows={d.duplicateActivities} render={(r) => `${r._id.t} ${r._id.r} × ${r.n}`} />
-                <Section title="Duplicate reward claims" rows={d.duplicateClaims} render={(r) => `${r._id.k} × ${r.n}`} />
-                <Section title="Duplicate wallet references" rows={d.duplicateReferences} render={(r) => `${r._id.k} × ${r.n}`} />
-                <Section title="Wallets that do not match their ledger" rows={d.walletMismatches} render={(r) => <button onClick={() => onOpenUser(r.userId)} className="text-indigo-600 hover:underline text-left [overflow-wrap:anywhere]">{String(r.userId)} — stored {JSON.stringify(r.stored)} vs ledger {JSON.stringify(r.computed)}</button>} />
+                <Section title="Duplicate learning activities" rows={d.duplicateActivities} render={(r) => <><Who u={r._id.u} name={r.name} onOpenUser={onOpenUser} /> — {String(r._id.t).replace(/_/g, ' ')} <span className="font-mono text-xs text-slate-400">{r._id.r}</span> recorded {r.n}×</>} />
+                <Section title="Duplicate reward claims" rows={d.duplicateClaims} render={(r) => <><Who u={r._id.u} name={r.name} onOpenUser={onOpenUser} /> — <span className="font-mono text-xs">{r._id.k}</span> paid {r.n}×</>} />
+                <Section title="Duplicate wallet references" rows={d.duplicateReferences} render={(r) => <><Who u={r._id.u} name={r.name} onOpenUser={onOpenUser} /> — <span className="font-mono text-xs">{r._id.k}</span> used {r.n}×</>} />
+                <Section title="Wallets that do not match their ledger" rows={d.walletMismatches} render={(r) => <><Who u={r.userId} name={r.name} onOpenUser={onOpenUser} /> — {mismatchText(r)}</>} />
             </div>
             <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
                 <p className="font-bold text-slate-800 mb-2">Recent scheduled runs</p>
@@ -654,10 +826,10 @@ function UserDrawer({ userId, onClose }) {
                 {!d ? <div className="p-8 text-center text-slate-500">Loading…</div> : (
                     <div className="p-4 sm:p-5 overflow-y-auto space-y-5 flex-1 min-h-0">
                         {msg && <Banner kind={msg.kind === 'error' ? 'error' : 'ok'} onClose={() => setMsg(null)}>{msg.text}</Banner>}
-                        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                             <Stat icon={Coins} label="XP · level" value={`${num(d.user.xp)} · L${d.level.level}`} sub={`${num(d.level.remaining)} XP to level ${d.level.nextLevel}`} />
                             <Stat icon={Flame} label="Streak" value={num(d.streak?.current || 0)} sub={`longest ${num(d.streak?.longest || 0)} · best weekly rank ${d.streak?.bestWeeklyRank ? `#${d.streak.bestWeeklyRank}` : '—'}`} tone="amber" />
-                            <Stat icon={Wallet} label="Wallet" value={money(d.wallet?.available || 0, cur)} sub={`${money(d.wallet?.pending || 0, cur)} pending · ${money(d.wallet?.totalWithdrawn || 0, cur)} withdrawn`} tone="emerald" />
+                            <Stat icon={Wallet} label="Wallet" value={money(d.wallet?.available || 0, cur)} sub={`${money(d.wallet?.totalSpent || 0, cur)} spent in the LMS`} tone="emerald" />
                             <Stat icon={Gift} label="Reward points" value={num(d.wallet?.rewardPoints || 0)} sub={`${num(d.badges.length)} badges`} tone="rose" />
                         </div>
                         {!d.audit.ok && <Banner kind="error">This wallet does not reconcile with its ledger: stored {JSON.stringify(d.audit.stored)} vs computed {JSON.stringify(d.audit.computed)}.</Banner>}
@@ -673,7 +845,7 @@ function UserDrawer({ userId, onClose }) {
                             <button type="submit" disabled={busy} className={`${BTN} justify-center sm:col-span-2 lg:col-span-1`}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Apply</button>
                         </form>
                         <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
-                            {[['money', 'Wallet ledger'], ['points', 'Reward points'], ['xp', 'XP'], ['activity', 'Activity'], ['withdrawals', 'Withdrawals'], ['badges', 'Badges']].map(([v, l]) => (
+                            {[['money', 'Wallet ledger'], ['points', 'Reward points'], ['xp', 'XP'], ['activity', 'Activity'], ['badges', 'Badges']].map(([v, l]) => (
                                 <button key={v} onClick={() => setView(v)} className={`shrink-0 whitespace-nowrap px-3 py-2 text-[13px] font-bold border-b-2 ${view === v ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>{l}</button>
                             ))}
                         </div>
@@ -682,7 +854,6 @@ function UserDrawer({ userId, onClose }) {
                             {view === 'points' && (d.points.length ? d.points.map((t) => <li key={t._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 [overflow-wrap:anywhere]"><span className="font-medium text-slate-800">{t.description || t.source}</span> <span className="text-xs text-slate-400">{t.claimKey} · {when(t.createdAt)}</span></span><span className={`shrink-0 font-bold tabular-nums ${t.points > 0 ? 'text-pink-600' : 'text-slate-700'}`}>{t.points > 0 ? '+' : ''}{num(t.points)}</span></li>) : <li className="py-6 text-center text-slate-400 italic">No reward points yet.</li>)}
                             {view === 'xp' && (d.xp.length ? d.xp.map((t) => <li key={t._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 [overflow-wrap:anywhere]"><span className="font-medium text-slate-800">{t.description || t.source}</span> <span className="text-xs text-slate-400">{t.source} · {when(t.createdAt)}</span></span><span className="shrink-0 font-bold tabular-nums text-amber-600">+{num(t.amount)} XP</span></li>) : <li className="py-6 text-center text-slate-400 italic">No XP yet.</li>)}
                             {view === 'activity' && (d.activity.length ? d.activity.map((a) => <li key={a._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 font-medium text-slate-800 [overflow-wrap:anywhere]">{a.type.replace(/_/g, ' ')} <span className="text-xs text-slate-400 font-mono">{a.refId}</span></span><span className="shrink-0 text-xs text-slate-500">{a.day} · +{a.xpAwarded} XP</span></li>) : <li className="py-6 text-center text-slate-400 italic">No activity recorded.</li>)}
-                            {view === 'withdrawals' && (d.withdrawals.length ? d.withdrawals.map((w) => <li key={w._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 font-medium text-slate-800 [overflow-wrap:anywhere]">{money(w.amount, cur)} · {w.method?.type} <span className="text-xs text-slate-400">{when(w.createdAt)}{w.adminNote ? ` · ${w.adminNote}` : ''}</span></span><Pill s={w.status} /></li>) : <li className="py-6 text-center text-slate-400 italic">No withdrawals.</li>)}
                             {view === 'badges' && (d.badges.length ? d.badges.map((b) => <li key={b._id} className="py-2 flex justify-between gap-3"><span className="min-w-0 font-medium text-slate-800 [overflow-wrap:anywhere]">{b.badgeKey}</span><span className="shrink-0 text-xs text-slate-500">{when(b.unlockedAt)}</span></li>) : <li className="py-6 text-center text-slate-400 italic">No badges yet.</li>)}
                         </ul>
                     </div>

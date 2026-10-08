@@ -5,12 +5,16 @@ const { findVideoForTopic } = require('../services/youtubeService');
 const {
   generateTaskStudyFromVideo,
   generateReadingLesson,
-  generateVideoSearchQuery
+  generateVideoSearchQuery,
+  chooseVideoForTask
 } = require('../services/geminiService');
 const { addXP } = require('../services/gamificationService');
 const { ensureMinimumQuiz } = require('../services/quizService');
-const { completeTask, TASK_XP } = require('../services/taskCompletionService');
+const { completeTask } = require('../services/taskCompletionService');
+// Both amounts are the admin's rules: 'career_task_quiz' and 'career_task'.
+const { xpFor } = require('../../rewards/services/configService');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
+const { toISODate } = require('../services/dailyPlanService');
 
 // Every question must be right. A task is completed by its lesson, so "passed"
 // has to mean the student actually understood the material — not that they got
@@ -23,7 +27,6 @@ const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 // Deliberately NOT shared with the skill-level quiz in studyController, which
 // is revision rather than a completion gate and keeps its own 60% mark.
 const QUIZ_PASS_MARK = 1;
-const QUIZ_XP = 20;
 
 // A video counts as watched at 90% rather than 100%: end cards, outros and
 // sponsor reads mean the last tenth is rarely the lesson, and demanding the
@@ -75,7 +78,7 @@ const maybeAutoComplete = async (userId, study) => {
   if (!gates.allMet) return { gates, autoCompleted: false, task: null, completionXp: 0 };
 
   const task = await Task.findOne({ _id: study.taskId, userId });
-  const { completed } = await completeTask(userId, task);
+  const { completed, xp } = await completeTask(userId, task);
 
   if (completed) {
     study.autoCompletedAt = new Date();
@@ -85,7 +88,11 @@ const maybeAutoComplete = async (userId, study) => {
   // Reported so the browser can show what the completion was actually worth.
   // The quiz already tells the student about its own XP; the task award on top
   // of it was invisible, which made the celebration understate the reward.
-  return { gates, autoCompleted: completed, task, completionXp: completed ? TASK_XP : 0 };
+  //
+  // What the ledger actually paid, not the rule: a task reopened and finished
+  // again completes without being credited a second time, and reporting the
+  // rule then celebrated XP the student never received.
+  return { gates, autoCompleted: completed, task, completionXp: completed ? xp || 0 : 0 };
 };
 
 /**
@@ -130,12 +137,22 @@ const getTaskStudy = async (req, res) => {
     // when the phrase was missing too, which is exactly the case where the
     // lookup had failed hardest. The task's own title is a good enough query;
     // it is what the search would have been built from anyway.
-    if (study.mode !== 'read' && !study.video?.videoId) {
+    //
+    // At most once a platform day per lesson, though. A topic with no
+    // embeddable video stays that way between opens, and searching again on
+    // every expand spent YouTube quota (100 units a search) to learn nothing.
+    const lastLookup = study.video?.lookupAttemptedAt;
+    const lookedUpToday = lastLookup && toISODate(lastLookup) === toISODate(new Date());
+    if (study.mode !== 'read' && !study.video?.videoId && !lookedUpToday) {
       try {
+        // Stamped before the search, so a failure (quota, network) counts as
+        // today's attempt too rather than being retried on the next open.
+        study.set('video.lookupAttemptedAt', new Date());
+        await study.save();
         const task = await Task.findOne({ _id: req.params.id, userId: req.user._id }).select('title');
         const query = study.video?.searchQuery || task?.title;
         if (query) {
-          const video = await findVideoForTopic(query, task?.title || '');
+          const video = await findVideoForTopic(query, task?.title || '', { lang: study.video?.language === 'hi' ? 'hi' : 'en' });
           if (video) {
             study.video = { ...study.video?.toObject?.() ?? study.video, ...video };
             await study.save();
@@ -150,6 +167,68 @@ const getTaskStudy = async (req, res) => {
   } catch (error) {
     res.status(statusFor(error)).json(aiAwareBody(error));
   }
+};
+
+/**
+ * Replace a lesson's video and nothing else.
+ *
+ * Notes, quiz, best score, attempts and the notes-read gate all stay: the
+ * buttons that land here say so, and resetting them meant a student who had
+ * already passed the quiz had to pass it again because they did not like the
+ * video — while the reset bestScore re-opened the quiz XP for every swap. Only
+ * the watch gate restarts, since it was measured against the old video.
+ *
+ * No new video found is a 404 (so the wallet charge is refunded) and the
+ * lesson is left exactly as it was — swapping a working video for nothing is
+ * worse than keeping it.
+ */
+const swapVideoOnly = async (req, res, { task, goal, study, lang }) => {
+  let searchQuery = study.video?.searchQuery;
+  if (!searchQuery) {
+    try {
+      searchQuery = await generateVideoSearchQuery(task, goal);
+    } catch (error) {
+      console.warn('Search-query generation failed, using task title:', error.message);
+    }
+  }
+  if (!searchQuery) searchQuery = task.title;
+
+  let video = null;
+  try {
+    video = await findVideoForTopic(searchQuery, task.title, {
+      lang,
+      exclude: [study.video?.videoId],
+      budget: task.duration,
+      choose: (shortlist) => chooseVideoForTask(task, goal, shortlist, lang === 'hi' ? 'Hindi' : 'English')
+    });
+  } catch (error) {
+    console.warn('YouTube lookup failed during a video swap:', error.message);
+  }
+
+  if (!video?.videoId) {
+    return res.status(404).json({
+      message: study.video?.videoId
+        ? 'No other video found for this one — your current video stays.'
+        : 'Still no playable video for this one. Your notes and quiz are unaffected.'
+    });
+  }
+
+  study.video = {
+    videoId: video.videoId,
+    title: video.title,
+    channel: video.channel,
+    thumbnail: video.thumbnail,
+    duration: video.duration,
+    durationSeconds: video.durationSeconds,
+    searchQuery,
+    language: video.language || lang
+  };
+  study.set('progress.videoWatched', false);
+  study.set('progress.videoWatchedAt', undefined);
+  study.set('progress.watchedSeconds', 0);
+  await study.save();
+
+  return res.status(201).json(publicView(study));
 };
 
 // @desc    Build (or rebuild) the video + notes + quiz lesson for one task
@@ -168,6 +247,20 @@ const generateTaskStudy = async (req, res) => {
     // 'read' stays on the video path, so older clients that send no mode at all
     // behave exactly as they did before.
     const mode = req.body?.mode === 'read' ? 'read' : 'video';
+    // The video's language: English or Hindi, as the student chose.
+    const lang = req.body?.lang === 'hi' ? 'hi' : 'en';
+
+    // "Different video" / "Find another video" promise the notes and quiz are
+    // unaffected, so they swap the video and nothing else. Only honoured on a
+    // video lesson that already has notes or a quiz to keep; otherwise there
+    // is nothing to preserve and the full build below runs.
+    if (mode === 'video' && req.body?.replace === 'video') {
+      const current = await TaskStudy.findOne({ userId: req.user._id, taskId: task._id });
+      const hasMaterial = current && (current.quiz?.length || current.notes?.summary || current.notes?.sections?.length);
+      if (current && current.mode !== 'read' && hasMaterial) {
+        return swapVideoOnly(req, res, { task, goal, study: current, lang });
+      }
+    }
 
     let searchQuery;
     let video = null;
@@ -192,7 +285,16 @@ const generateTaskStudy = async (req, res) => {
       // YOUTUBE_API_KEY is set, or when nothing suitable came back; either way
       // the lesson still gets built and the student searches YouTube themselves.
       try {
-        video = await findVideoForTopic(searchQuery, task.title);
+        // The previous video is skipped, so "Different video" means a
+        // different one. The chooser reads the top of the search against the
+        // whole task; if it is out of allowance or fails, the ranking stands.
+        const previous = await TaskStudy.findOne({ userId: req.user._id, taskId: task._id }).select('video.videoId').lean();
+        video = await findVideoForTopic(searchQuery, task.title, {
+          lang,
+          exclude: [previous?.video?.videoId],
+          budget: task.duration,
+          choose: (shortlist) => chooseVideoForTask(task, goal, shortlist, lang === 'hi' ? 'Hindi' : 'English')
+        });
       } catch (error) {
         // A quota or key problem should cost the video, not the whole lesson.
         console.warn('YouTube lookup failed, falling back to a search link:', error.message);
@@ -228,13 +330,16 @@ const generateTaskStudy = async (req, res) => {
                 thumbnail: video?.thumbnail,
                 duration: video?.duration,
                 durationSeconds: video?.durationSeconds,
-                searchQuery
+                searchQuery,
+                language: video?.language || lang
               },
         notes: generated.notes || {},
         quiz,
         // Rebuilding replaces the video and the questions, so previous scores no
         // longer describe this lesson — and neither does previous watch/read
-        // progress, which was against material that no longer exists.
+        // progress, which was against material that no longer exists. The
+        // quiz XP does not come back with it: that is keyed on the task in
+        // the ledger (see submitTaskQuiz), so a rebuild cannot re-farm it.
         bestScore: 0,
         attempts: 0,
         lastAttemptAt: null,
@@ -291,9 +396,17 @@ const submitTaskQuiz = async (req, res) => {
     study.bestScore = Math.max(study.bestScore, score);
     await study.save();
 
-    if (earnsXp) {
+    // Once per task, ever. bestScore says whether THIS quiz was passed before,
+    // but a full rebuild writes a new quiz and zeroes it — so the ledger key is
+    // the task, and a second pass after a rebuild comes back as a duplicate
+    // and reports 0 rather than paying again.
+    const quizRule = earnsXp ? await xpFor('career_task_quiz') : 0;
+    let quizXp = 0;
+    if (quizRule > 0) {
       const task = await Task.findById(study.taskId);
-      await addXP(req.user._id, QUIZ_XP, `passing the quiz for "${task?.title || 'your task'}"`);
+      quizXp = await addXP(req.user._id, quizRule, `passing the quiz for "${task?.title || 'your task'}"`, {
+        refId: `taskquiz:${study.taskId}`
+      });
     }
 
     // Passing is usually the last of the three gates, so this is where the task
@@ -304,7 +417,7 @@ const submitTaskQuiz = async (req, res) => {
       score,
       total,
       passed,
-      xpAwarded: earnsXp ? QUIZ_XP : 0,
+      xpAwarded: quizXp,
       completionXp,
       bestScore: study.bestScore,
       attempts: study.attempts,

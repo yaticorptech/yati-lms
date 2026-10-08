@@ -6,6 +6,7 @@ import React, { useContext, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
+import WalletShortDialog from '../components/rewards/WalletShortDialog';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
@@ -15,6 +16,24 @@ import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
 import { pictureUrl } from '../native/pictures';
 import PullToRefresh from '../components/PullToRefresh';
+import { ADMIN_VIEW_KEY } from '../pages/AdminAccess';
+
+// "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
+const timeAgo = (at) => {
+    const mins = Math.floor((Date.now() - new Date(at).getTime()) / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+};
+
+/** Set when a superadmin opened this dashboard from the admin Users page. */
+const readAdminView = () => {
+    try { return JSON.parse(localStorage.getItem(ADMIN_VIEW_KEY) || 'null'); } catch { return null; }
+};
 
 // Contact Support Modal
 const ContactModal = ({ onClose, user }) => {
@@ -75,7 +94,11 @@ const ContactModal = ({ onClose, user }) => {
 };
 
 const StudentLayout = () => {
-    const { user, logout, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled } = useContext(AuthContext);
+    const { user, logout, isCareerPathEnabled, isJobsEnabled } = useContext(AuthContext);
+    const [adminView] = useState(readAdminView);
+    // Signs out of the student and closes the tab the admin panel opened; if
+    // the browser will not close it, the sign-in page is left showing.
+    const exitAdminView = () => { window.close(); logout(); };
     // The page's own scroller, for pull-to-refresh.
     const mainRef = useRef(null);
     // Streak, points and level for the header pills. Null until loaded or
@@ -164,6 +187,10 @@ const StudentLayout = () => {
     const [showNotif, setShowNotif] = useState(false);
     const [notifSeen, setNotifSeen] = useState(() => parseInt(localStorage.getItem('notif_seen') || '0'));
     const notifRef = useRef(null);
+    // What was unread at the moment the panel opened. Opening marks
+    // everything read straight away, so without this snapshot the "new"
+    // highlight would vanish before the student had seen it.
+    const [freshKeys, setFreshKeys] = useState([]);
 
 
     useEffect(() => {
@@ -245,6 +272,11 @@ const StudentLayout = () => {
         setShowNotif(v => !v);
         if (!opening) return;
 
+        setFreshKeys([
+            ...careerNotifs.filter(n => !n.isRead).map(n => `career-${n._id}`),
+            ...jobNotifs.filter(n => !n.isRead).map(n => `jobs-${n._id}`)
+        ]);
+
         const seen = announcements.length;
         setNotifSeen(seen);
         localStorage.setItem('notif_seen', String(seen));
@@ -310,40 +342,37 @@ const StudentLayout = () => {
     // remounting on every parent render.
     const renderNavLinks = (onClick) => (
         <>
-            <Link to="/profile" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/profile') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                <User size={20} /> <span>My Profile</span>
-            </Link>
-            <Link to="/" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+            <Link to="/" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
                 <LayoutDashboard size={20} /> <span>Dashboard</span>
             </Link>
-            <Link to="/enrolled-courses" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/enrolled-courses') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+            <Link to="/enrolled-courses" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/enrolled-courses') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
                 <BookOpen size={20} /> <span>Enrolled Courses</span>
             </Link>
-            <Link to="/community" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/community') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+            {isCareerPathEnabled && (
+                <Link to="/career" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/career') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+                    <Compass size={20} /> <span>Career Path</span>
+                </Link>
+            )}
+            <Link to="/community" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/community') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
                 <MessageSquare size={20} /> <span>Community</span>
             </Link>
             {/* Both sections are withdrawn entirely when an admin locks them,
                 rather than shown disabled: a tab that cannot be opened only
                 invites the question of when it will be. */}
             {isJobsEnabled && (
-                <Link to="/jobs" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/jobs') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                <Link to="/jobs" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/jobs') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
                     <Briefcase size={20} /> <span>Jobs</span>
                 </Link>
             )}
             {/* Scholarships come from the student's Career Path resources, so
                 the tab follows that switch. */}
             {isCareerPathEnabled && (
-                <Link to="/scholarships" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/scholarships') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                <Link to="/scholarships" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/scholarships') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
                     <GraduationCap size={20} /> <span>Scholarships</span>
                 </Link>
             )}
-            {isCareerPathEnabled && (
-                <Link to="/career" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/career') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                    <Compass size={20} /> <span>Career Path</span>
-                </Link>
-            )}
             {/* Interview Ready: preparation and AI mock interviews. */}
-            <Link to="/interview" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/interview') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+            <Link to="/interview" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/interview') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
                 <Mic size={20} /> <span>Interview</span>
             </Link>
         </>
@@ -364,94 +393,107 @@ const StudentLayout = () => {
             )}
         </button>
 
-        {/* On the phone layout the panel spans the screen under the top bar:
-            a 320px box hung off the bell ran past the left edge of a 344px
-            Fold, the bell being 60px in from the right. With the sidebar it
-            is the dropdown it always was. */}
+        {/* On the phone layout the panel spans the screen under the top bar,
+            over a dimmed page: a 320px box hung off the bell ran past the
+            left edge of a 344px Fold, and without the dim the page behind
+            showed through below the list. With the sidebar it is the
+            dropdown it always was. The header stays put; only the list
+            scrolls. */}
         {showNotif && (
-            <div className="fixed inset-x-3 top-[4.25rem] z-[60] max-h-[min(20rem,calc(100dvh-6rem))] overflow-y-auto rounded-2xl border border-slate-100 bg-white shadow-2xl animate-in fade-in zoom-in duration-200 origin-top-right sidebar:absolute sidebar:inset-x-auto sidebar:right-0 sidebar:top-12 sidebar:w-80 sidebar:max-h-80">
+            <>
+            <div
+                aria-hidden
+                onClick={() => setShowNotif(false)}
+                className="fixed inset-0 top-[4rem] z-[59] bg-slate-900/25 backdrop-blur-[2px] animate-in fade-in duration-200 sidebar:hidden"
+            />
+            <div className="fixed inset-x-3 top-[4.5rem] z-[60] flex max-h-[calc(100dvh-10rem)] flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl shadow-slate-900/20 animate-in fade-in slide-in-from-top-2 duration-200 origin-top-right sidebar:absolute sidebar:inset-x-auto sidebar:right-0 sidebar:top-12 sidebar:w-96 sidebar:max-h-[28rem] sidebar:rounded-2xl">
 
-                {/* ✅ HEADER */}
-                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                    <p className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                        <Megaphone size={16} className="text-indigo-600" />
-                        Notifications
-                    </p>
-
-                    {/* ✅ MODERN GLASS BUTTON */}
-                    {feed.length > 0 && (
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                        <p className="text-base font-black text-slate-900">Notifications</p>
+                        {freshKeys.length > 0 && (
+                            <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-black text-white">
+                                {freshKeys.length} new
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                        {feed.length > 0 && (
+                            <button
+                                onClick={clearNotifications}
+                                className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-indigo-600 transition-colors hover:bg-indigo-50"
+                            >
+                                Clear all
+                            </button>
+                        )}
                         <button
-                            onClick={clearNotifications}
-                            className="px-3 py-1.5 text-xs font-semibold rounded-lg 
-                                       bg-white/70 backdrop-blur-md 
-                                       text-indigo-600 border border-indigo-100
-                                       hover:bg-indigo-50 hover:text-indigo-700
-                                       shadow-sm hover:shadow-md 
-                                       transition-all duration-200"
+                            onClick={() => setShowNotif(false)}
+                            aria-label="Close notifications"
+                            className="rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 sidebar:hidden"
                         >
-                            Clear All
+                            <X size={18} />
                         </button>
-                    )}
+                    </div>
                 </div>
 
-                {/* ✅ CONTENT */}
                 {feed.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400">
-                        <Bell size={32} className="mx-auto mb-2 opacity-20" />
-                        <p className="text-sm">Nothing yet.</p>
+                    <div className="px-6 py-10 text-center">
+                        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50">
+                            <Bell size={24} className="text-indigo-400" />
+                        </div>
+                        <p className="text-sm font-bold text-slate-700">You&apos;re all caught up</p>
+                        <p className="mt-1 text-xs text-slate-400">New badges, XP and job alerts will show up here.</p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-slate-50">
+                    <div className="relative flex min-h-0 flex-1 flex-col">
+                    {/* Four rows tall; the rest are a scroll away. */}
+                    <ul className="max-h-[23rem] min-h-0 space-y-1 overflow-y-auto overscroll-contain py-1.5">
                         {feed.map(item => {
+                            const key = `${item.kind}-${item.id}`;
                             const career = item.kind === 'career';
                             const jobs = item.kind === 'jobs';
                             const clickable = career || jobs;
+                            const fresh = freshKeys.includes(key);
+                            const Icon = career ? Compass : jobs ? Briefcase : Megaphone;
                             return (
-                                <div
-                                    key={`${item.kind}-${item.id}`}
-                                    className={`px-4 py-4 transition-colors ${clickable ? 'cursor-pointer hover:bg-indigo-50/50' : 'cursor-default hover:bg-slate-50'}`}
-                                    onClick={clickable ? () => {
-                                        setShowNotif(false);
-                                        navigate(jobs ? (item.link || '/jobs') : (item.link || '/career'));
-                                    } : undefined}
-                                >
-                                    <div className="flex items-start gap-2">
-                                        <span
-                                            className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                                                career
-                                                    ? 'bg-indigo-100 text-indigo-700'
-                                                    : jobs
-                                                        ? 'bg-emerald-100 text-emerald-700'
-                                                        : 'bg-slate-100 text-slate-600'
-                                            }`}
-                                        >
-                                            {career ? 'Career' : jobs ? 'Jobs' : 'Notice'}
+                                <li key={key}>
+                                    <div
+                                        role={clickable ? 'button' : undefined}
+                                        tabIndex={clickable ? 0 : undefined}
+                                        className={`relative mx-1.5 flex items-start gap-3 rounded-2xl px-3 py-3 transition-colors ${fresh ? 'bg-indigo-50/60' : ''} ${clickable ? 'cursor-pointer hover:bg-slate-50 active:bg-slate-100' : 'cursor-default'}`}
+                                        onClick={clickable ? () => {
+                                            setShowNotif(false);
+                                            navigate(item.link || (jobs ? '/jobs' : '/career'));
+                                        } : undefined}
+                                    >
+                                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                                            career ? 'bg-indigo-100 text-indigo-600' : jobs ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                                        }`}>
+                                            <Icon size={18} />
                                         </span>
                                         <div className="min-w-0 flex-1">
-                                            <p className="font-bold text-slate-800 text-sm leading-tight">
+                                            <p className="line-clamp-2 pr-4 text-sm leading-snug font-bold text-slate-900">
                                                 {item.title}
                                             </p>
-                                            <p className="text-slate-600 text-xs mt-1.5 leading-relaxed">
-                                                {item.body}
-                                            </p>
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                                                <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">
-                                                    {new Date(item.at).toLocaleDateString(undefined, {
-                                                        month: 'short',
-                                                        day: 'numeric',
-                                                        year: 'numeric'
-                                                    })}
+                                            {item.body && (
+                                                <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-slate-500">
+                                                    {item.body}
                                                 </p>
-                                            </div>
+                                            )}
+                                            <p className="mt-1.5 text-[11px] font-semibold text-slate-400">
+                                                {career ? 'Career' : jobs ? 'Jobs' : 'Notice'} · {timeAgo(item.at)}
+                                            </p>
                                         </div>
+                                        {fresh && <span aria-label="New" className="absolute top-4 right-3 h-2 w-2 rounded-full bg-indigo-600" />}
                                     </div>
-                                </div>
+                                </li>
                             );
                         })}
+                    </ul>
                     </div>
                 )}
             </div>
+            </>
         )}
     </div>
 );
@@ -500,9 +542,10 @@ const StudentLayout = () => {
             )}
 
             {/* Desktop Sidebar */}
-            <aside className="hidden sidebar:flex w-64 bg-slate-900 text-white flex-col z-10 shadow-xl">
-                <div className="p-6 flex items-center justify-center border-b border-slate-800 bg-slate-900">
-                    <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
+            <aside className="hidden sidebar:flex w-64 bg-white text-slate-700 border-r border-slate-200 flex-col z-10">
+                <div className="p-6 flex items-center justify-center border-b border-slate-100 bg-white">
+                    {/* Dark-lettered logo: the original is white artwork for a dark ground. */}
+                    <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
                 </div>
 
                 <nav className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
@@ -519,11 +562,31 @@ const StudentLayout = () => {
                     </div>
                 )}
 
-                {/* Sidebar footer — contact support only */}
-                <div className="p-4 border-t border-slate-800 bg-slate-950/50">
+                {/* Sidebar footer — the student's own row, then contact
+                    support. My Profile lives here rather than in the nav, the
+                    way ChatGPT and most apps keep the account at the foot. */}
+                <div className="p-4 border-t border-slate-100 bg-slate-50/60 space-y-2">
+                    <Link
+                        to="/profile"
+                        aria-label="My Profile"
+                        className={`flex items-center gap-3 rounded-lg p-2 transition-colors duration-200 ${isActive('/profile') ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+                    >
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
+                            {user?.profilePicture ? (
+                                <img src={pictureUrl(user.profilePicture)} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                                getInitials(user?.name)
+                            )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-bold">{user?.name}</span>
+                            <span className={`block text-xs ${isActive('/profile') ? 'text-indigo-100' : 'text-slate-500'}`}>My Profile</span>
+                        </span>
+                        <User size={18} className={isActive('/profile') ? 'text-white' : 'text-slate-400'} />
+                    </Link>
                     <button
                         onClick={() => setShowContact(true)}
-                        className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-2.5 rounded-lg transition-all duration-200 font-medium"
+                        className="flex items-center justify-center space-x-2 bg-indigo-50 border border-indigo-100 text-indigo-600 hover:bg-indigo-600 hover:text-white w-full py-2.5 rounded-lg transition-all duration-200 font-medium"
                     >
                         <MessageCircleQuestion size={18} /> <span>Contact Support</span>
                     </button>
@@ -533,10 +596,10 @@ const StudentLayout = () => {
             {/* Mobile Header */}
             <div
                 data-mobile-header
-                className="sidebar:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900 border-b border-slate-800 z-50 flex items-center justify-between px-4"
+                className="sidebar:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-50 flex items-center justify-between px-4"
             >
                 <div className="flex min-w-0 shrink items-center">
-                    <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-8 max-w-full object-contain" />
+                    <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 max-w-full object-contain" />
                 </div>
                 <div className="flex min-w-0 items-center gap-1.5">
                     {/* The wallet, as a bare icon — no tile behind it, matching
@@ -550,7 +613,7 @@ const StudentLayout = () => {
                         <Link
                             to="/#wallet"
                             aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}. Open the wallet.`}
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-emerald-400 transition-colors hover:text-emerald-300"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-emerald-600 transition-colors hover:text-emerald-700"
                         >
                             <Wallet size={20} />
                         </Link>
@@ -559,10 +622,10 @@ const StudentLayout = () => {
                         wrapper alone never reaches it — these descendant rules
                         do. Emerald to match the wallet beside it; the unread
                         badge keeps its own red. */}
-                    <div className="shrink-0 [&_button]:text-emerald-400 [&_button:hover]:bg-white/10 [&_svg]:text-emerald-400">
+                    <div className="shrink-0 [&_button]:text-emerald-600 [&_button:hover]:bg-slate-100 [&_svg]:text-emerald-600">
                         {renderNotificationBell()}
                     </div>
-                    <button onClick={() => setMobileMenuOpen(true)} aria-label="Open menu" className="shrink-0 p-2 text-white">
+                    <button onClick={() => setMobileMenuOpen(true)} aria-label="Open menu" className="shrink-0 p-2 text-slate-700">
                         <Menu size={24} aria-hidden="true" />
                     </button>
                 </div>
@@ -571,6 +634,7 @@ const StudentLayout = () => {
             {/* Greets a returning student with the one thing to do today.
                 Renders nothing on a first sign-in, or without a Career Path goal. */}
             <ContinuePanel />
+            <WalletShortDialog />
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
@@ -581,50 +645,57 @@ const StudentLayout = () => {
                         Contact Support and Logout below left the menu its own
                         scrolling strip about two items high. The close button stays
                         pinned at the top while the rest moves. */}
-                    <div className="relative w-4/5 max-w-sm bg-slate-900 text-white h-full flex flex-col overflow-y-auto shadow-2xl animate-fade-in border-r border-slate-800">
-                        <div className="sticky top-0 z-10 p-4 flex items-center justify-between border-b border-slate-800 bg-slate-900">
-                            <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-8 object-contain" />
-                            <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu" className="p-2 text-slate-400 hover:text-white">
+                    <div className="relative w-4/5 max-w-sm bg-white text-slate-700 h-full flex flex-col overflow-y-auto shadow-2xl animate-fade-in border-r border-slate-200">
+                        <div className="sticky top-0 z-10 p-4 flex items-center justify-between border-b border-slate-100 bg-white">
+                            <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 object-contain" />
+                            <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu" className="p-2 text-slate-400 hover:text-slate-700">
                                 <X size={24} aria-hidden="true" />
                             </button>
                         </div>
                         <nav className="flex-1 p-4 space-y-2">
                             {renderNavLinks(() => setMobileMenuOpen(false))}
                         </nav>
-                        <div className="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
+                        <div className="p-4 border-t border-slate-100 bg-slate-50/60 space-y-3">
+                            {/* Profile card in mobile drawer — opens My Profile,
+                                which is no longer in the nav list above. */}
+                            <Link
+                                to="/profile"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className={`block bg-white p-4 rounded-xl border transition-colors ${isActive('/profile') ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200 hover:border-indigo-200'}`}
+                            >
+                                <div className="flex justify-between items-start mb-1">
+                                    <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">Student</p>
+                                    {/* The wallet balance, where credits used to be shown. */}
+                                    {rw?.wallet && (
+                                        <div className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold flex items-center tabular-nums">
+                                            <Wallet size={12} className="mr-1" />
+                                            {money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="font-bold text-slate-900 truncate">{user?.name}</p>
+                                <p className="text-xs text-slate-500 font-mono mt-1">{user?.cardNumber}</p>
+                                <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-indigo-600"><User size={12} /> My Profile</p>
+                            </Link>
                             {/* Logout sits in this pinned footer, beside
                                 Contact Support, so it is always on screen. At
                                 the end of the scrolling nav it was hidden below
                                 the fold, and nothing hinted the list scrolled. */}
-                            <div className="mb-3 grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 <button
                                     type="button"
                                     onClick={() => { setMobileMenuOpen(false); setShowContact(true); }}
-                                    className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
+                                    className="flex items-center justify-center space-x-2 bg-indigo-50 border border-indigo-100 text-indigo-600 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
                                 >
                                     <MessageCircleQuestion size={20} /> <span>Support</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-                                    className="flex items-center justify-center space-x-2 bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
+                                    className="flex items-center justify-center space-x-2 bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
                                 >
                                     <LogOut size={20} /> <span>Logout</span>
                                 </button>
-                            </div>
-                            {/* Profile card in mobile drawer */}
-                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-                                <div className="flex justify-between items-start mb-1">
-                                    <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Student</p>
-                                    {isCreditSystemEnabled && (
-                                        <div className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-xs font-bold flex items-center">
-                                            <Award size={12} className="mr-1" />
-                                            {user?.credits || 0} Credits
-                                        </div>
-                                    )}
-                                </div>
-                                <p className="font-bold text-white truncate">{user?.name}</p>
-                                <p className="text-xs text-slate-400 font-mono mt-1">{user?.cardNumber}</p>
                             </div>
                         </div>
                     </div>
@@ -635,6 +706,20 @@ const StudentLayout = () => {
             {/* Drag down at the top of a page to reload it (touch screens). */}
             <PullToRefresh scrollerRef={mainRef} />
             <main ref={mainRef} className="flex-1 overflow-auto overscroll-y-contain bg-slate-50 sidebar:pt-0 pt-16 relative">
+                {/* A superadmin working in this student's dashboard: everything
+                    they do counts as the student's own, so it is said plainly,
+                    with the way out beside it. */}
+                {adminView && (
+                    <div role="status" className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 sidebar:px-8">
+                        <p className="min-w-0 flex-1">
+                            <span className="font-semibold">Viewing {user?.name || adminView.name}</span>
+                            <span className="hidden sm:inline"> as the platform administrator ({adminView.by})</span> · actions count as the student's
+                        </p>
+                        <button onClick={exitAdminView} className="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100">
+                            Exit
+                        </button>
+                    </div>
+                )}
                 {/* Desktop Header */}
                 <header className="hidden sidebar:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-8 sticky top-0 z-30">
                     {/* Left side kept empty so the pills and profile stay on the right. */}
@@ -723,9 +808,10 @@ const StudentLayout = () => {
                                             <p className="font-bold text-slate-800 text-sm">{user?.name}</p>
                                             <p className="text-xs text-slate-400 font-mono">{user?.cardNumber}</p>
                                         </div>
-                                        {isCreditSystemEnabled && (
-                                            <div className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold">
-                                                <Award size={12} /> {user?.credits || 0} Credits
+                                        {/* The wallet balance, where credits used to be shown. */}
+                                        {rw?.wallet && (
+                                            <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold tabular-nums">
+                                                <Wallet size={12} /> {money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}
                                             </div>
                                         )}
                                     </div>

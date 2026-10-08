@@ -18,7 +18,18 @@ const toPlain = (doc) => {
   // Defaults first: a rule added to the code after the config document was
   // created (the Interview Ready ones, say) would otherwise read as 0 XP.
   const stored = Object.fromEntries(doc.xpRules instanceof Map ? doc.xpRules : Object.entries(o.xpRules || {}));
-  return { ...o, xpRules: { ...C.DEFAULT_XP_RULES, ...stored } };
+  const wallet = Object.fromEntries(doc.walletRules instanceof Map ? doc.walletRules : Object.entries(o.walletRules || {}));
+  // A default the admin removed stays removed; a rule present in a map is live.
+  const without = (defaults, off = []) => Object.fromEntries(Object.entries(defaults).filter(([k]) => !off.includes(k)));
+  return {
+    ...o,
+    // Documents created before the setting existed read the default.
+    startingCredit: o.startingCredit ?? C.DEFAULT_STARTING_CREDIT,
+    games: { ...C.DEFAULT_GAMES, ...(o.games || {}) },
+    globalQuiz: { ...C.DEFAULT_GLOBAL_QUIZ, ...(o.globalQuiz || {}) },
+    xpRules: { ...without(C.DEFAULT_XP_RULES, o.rulesOff?.xp), ...stored },
+    walletRules: { ...without(C.DEFAULT_WALLET_RULES, o.rulesOff?.wallet), ...wallet }
+  };
 };
 
 const getConfig = async () => {
@@ -41,11 +52,38 @@ const updateConfig = async (body) => {
   const doc = (await RewardConfig.findOne()) || new RewardConfig();
   const errors = [];
 
+  if (!doc.rulesOff) doc.rulesOff = { xp: [], wallet: [] };
+  // Adding a rule: it is set (and no longer counted as removed).
   if (body.xpRules && typeof body.xpRules === 'object') {
     for (const [k, v] of Object.entries(body.xpRules)) {
       if (!C.ACTIVITY_TYPES.includes(k)) continue;
       const n = num(v); if (n === null) { errors.push(`xpRules.${k} must be a number ≥ 0`); continue; }
       doc.xpRules.set(k, Math.round(n));
+      doc.rulesOff.xp = (doc.rulesOff.xp || []).filter((x) => x !== k);
+    }
+  }
+  // Removing a rule: { removeRules: { xp: [keys], wallet: [keys] } }. It pays
+  // or costs nothing from then on, for everyone.
+  if (body.removeRules && typeof body.removeRules === 'object') {
+    for (const k of Array.isArray(body.removeRules.xp) ? body.removeRules.xp : []) {
+      if (!C.ACTIVITY_TYPES.includes(k) || (body.xpRules && k in body.xpRules)) continue;
+      doc.xpRules.delete(k);
+      if (k in C.DEFAULT_XP_RULES && !doc.rulesOff.xp.includes(k)) doc.rulesOff.xp.push(k);
+    }
+    for (const k of Array.isArray(body.removeRules.wallet) ? body.removeRules.wallet : []) {
+      if (!C.WALLET_ACTIONS.includes(k) || (body.walletRules && k in body.walletRules)) continue;
+      doc.walletRules?.delete(k);
+      if (k in C.DEFAULT_WALLET_RULES && !doc.rulesOff.wallet.includes(k)) doc.rulesOff.wallet.push(k);
+    }
+    doc.markModified('rulesOff');
+  }
+  if (body.walletRules && typeof body.walletRules === 'object') {
+    if (!doc.walletRules) doc.walletRules = new Map();
+    for (const [k, v] of Object.entries(body.walletRules)) {
+      if (!C.WALLET_ACTIONS.includes(k)) continue;
+      const n = num(v); if (n === null) { errors.push(`walletRules.${k} must be a number ≥ 0`); continue; }
+      doc.walletRules.set(k, Math.round(n * 100) / 100);
+      doc.rulesOff.wallet = (doc.rulesOff.wallet || []).filter((x) => x !== k);
     }
   }
   if (Array.isArray(body.levelThresholds)) {
@@ -68,7 +106,9 @@ const updateConfig = async (body) => {
       if (!Array.isArray(body.leaderboardRewards[period])) continue;
       const rs = body.leaderboardRewards[period].map((r) => ({ rank: num(r.rank, 1), rewardPoints: num(r.rewardPoints) }));
       if (rs.some((r) => r.rank === null || r.rewardPoints === null)) errors.push(`leaderboardRewards.${period} entries need rank ≥ 1 and points ≥ 0`);
-      else doc.leaderboardRewards[period] = rs.sort((a, b) => a.rank - b.rank);
+      // Two rows for one rank would pay that place twice.
+      else if (new Set(rs.map((r) => Math.round(r.rank))).size !== rs.length) errors.push(`${period} leaderboard rewards list the same rank twice`);
+      else doc.leaderboardRewards[period] = rs.map((r) => ({ rank: Math.round(r.rank), rewardPoints: Math.round(r.rewardPoints) })).sort((a, b) => a.rank - b.rank);
     }
   }
   if (body.conversion && typeof body.conversion === 'object') {
@@ -83,6 +123,28 @@ const updateConfig = async (body) => {
       if (body.limits[k] === undefined) continue;
       const n = num(body.limits[k]); n === null ? errors.push(`limits.${k} must be ≥ 0`) : (doc.limits[k] = n);
     }
+    // A minimum above the maximum would refuse every withdrawal.
+    if (doc.limits.maxWithdrawal > 0 && doc.limits.minWithdrawal > doc.limits.maxWithdrawal) {
+      errors.push('Minimum withdrawal cannot be more than the maximum');
+    }
+  }
+  if (body.games && typeof body.games === 'object') {
+    if (!doc.games) doc.games = { ...C.DEFAULT_GAMES };
+    for (const k of Object.keys(C.DEFAULT_GAMES)) {
+      if (body.games[k] === undefined) continue;
+      const n = num(body.games[k]);
+      n === null ? errors.push(`games.${k} must be a number ≥ 0`) : (doc.games[k] = Math.round(n));
+    }
+    doc.markModified('games');
+  }
+  if (body.globalQuiz && typeof body.globalQuiz === 'object' && body.globalQuiz.winScore !== undefined) {
+    const n = num(body.globalQuiz.winScore);
+    if (n === null || n > 100) errors.push('globalQuiz.winScore must be between 0 and 100');
+    else { doc.globalQuiz = { ...(doc.globalQuiz || {}), winScore: Math.round(n) }; doc.markModified('globalQuiz'); }
+  }
+  if (body.startingCredit !== undefined) {
+    const n = num(body.startingCredit);
+    n === null ? errors.push('startingCredit must be ≥ 0') : (doc.startingCredit = Math.round(n * 100) / 100);
   }
   if (body.walletAccess && Array.isArray(body.walletAccess.allowedAccountTypes)) {
     const bad = body.walletAccess.allowedAccountTypes.filter((t) => !C.ACCOUNT_TYPES.includes(t));
@@ -139,4 +201,10 @@ const seedBadges = async () => {
   badgesSeeded = true;
 };
 
-module.exports = { getConfig, isEnabled, updateConfig, invalidate, levelFor, levelFloor, levelInfo, seedBadges };
+/** The XP an activity pays right now, from the admin rulebook (0 when switched off by the admin). */
+/** What a feature costs from the wallet right now (0 = free). */
+const walletCostFor = async (action) => Math.max(0, Number((await getConfig()).walletRules?.[action]) || 0);
+
+const xpFor = async (type) => Math.max(0, Math.round(Number((await getConfig()).xpRules[type]) || 0));
+
+module.exports = { getConfig, isEnabled, updateConfig, invalidate, levelFor, levelFloor, levelInfo, seedBadges, xpFor, walletCostFor };

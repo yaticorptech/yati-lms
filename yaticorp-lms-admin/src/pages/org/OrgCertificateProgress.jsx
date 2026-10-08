@@ -9,10 +9,10 @@
  * server scopes to this organization's current students and its own courses.
  */
 import React, { useMemo, useState } from 'react';
-import { Award, BookOpen, ChevronDown, Search, Users } from 'lucide-react';
+import { Award, BookOpen, ChevronDown, Users } from 'lucide-react';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
-import { CARD, Bar, Empty, Banner, Rows, Avatar } from '../../components/orgUi';
+import { CARD, Bar, Empty, Banner, Rows, Avatar, LoadFailed, SearchInput } from '../../components/orgUi';
 import { formatDate } from '../../utils/dates';
 
 const pct = (part, whole) => (whole ? Math.round((part / whole) * 100) : 0);
@@ -45,8 +45,11 @@ const Head = ({ cols, children }) => (
 // Bars have a set, short width with their figure right beside them; on a wide
 // screen the spare room collects at the end of the row, before Details. A
 // student's course rows use the same columns as the student's own row.
+// The student's name keeps at least 12rem and the progress column gives way
+// first: at 1024px, beside the sidebar, a fixed 32rem column left the name
+// a sliver. The wide one waits for xl, where there is room for it.
 const COURSE_COLS = 'md:grid-cols-[minmax(0,1fr)_4.5rem_5.5rem_17rem]';
-const STUDENT_COLS = 'md:grid-cols-[minmax(0,1fr)_23rem_5rem] lg:grid-cols-[minmax(0,1fr)_32rem_5rem]';
+const STUDENT_COLS = 'md:grid-cols-[minmax(12rem,1fr)_minmax(0,23rem)_5rem] xl:grid-cols-[minmax(12rem,1fr)_minmax(0,32rem)_5rem]';
 
 const OrgCertificateProgress = () => {
     const [data, setData] = useState(null);
@@ -84,7 +87,15 @@ const OrgCertificateProgress = () => {
         return next;
     });
 
-    if (error && !data) return <Banner onClose={() => setError('')}>{error}</Banner>;
+    // A failed first load: nothing to show, so say so with a Retry rather than
+    // a dismissable banner that would leave the page blank behind it.
+    if (error && !data) {
+        return (
+            <div className={CARD}>
+                <LoadFailed what="certificate progress" onRetry={() => { setError(''); load(); }} />
+            </div>
+        );
+    }
     if (!data) return <div className={CARD}><Rows count={4} height="h-12" /></div>;
 
     if (!data.courses.length) {
@@ -105,8 +116,10 @@ const OrgCertificateProgress = () => {
             <div aria-label="Summary" className={`${CARD} overflow-hidden`}>
                 <div className="grid grid-cols-3 gap-px bg-slate-100">
                     <Figure label="Students" value={totals.students} />
-                    {/* Courses finished, and by how many of the students — one figure, not two. */}
-                    <Figure label="Certificates earned" value={totals.certificates} sub={`by ${totals.studentsWithCertificate} of ${totals.students} ${totals.students === 1 ? 'student' : 'students'}`} />
+                    {/* Courses finished, and by how many of the students — one figure, not two.
+                        These are your own courses at 100%, not issued certificates
+                        (the Dashboard's Certificates counts those). */}
+                    <Figure label="Our courses completed" value={totals.certificates} sub={`by ${totals.studentsWithCertificate} of ${totals.students} ${totals.students === 1 ? 'student' : 'students'}`} />
                     <Figure label="Completion rate" value={`${pct(totals.certificates, possible)}%`} sub={`${totals.certificates} of ${possible} possible`} />
                 </div>
             </div>
@@ -145,19 +158,14 @@ const OrgCertificateProgress = () => {
             {/* Students. */}
             <section aria-label="Students" className={`${CARD} overflow-hidden`}>
                 <SectionHead icon={Users} title="Students" count={students.length}>
-                    <div className="relative sm:w-64">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                        <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email"
-                            aria-label="Search students"
-                            className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
-                    </div>
+                    <SearchInput value={search} onChange={setSearch} placeholder="Search by name or email" label="Search students" />
                 </SectionHead>
 
                 {students.length === 0 ? (
                     <Empty icon={Users}>{search.trim() ? 'No student matches that search.' : 'No students have joined your organization yet.'}</Empty>
                 ) : (
                     <>
-                        <Head cols={STUDENT_COLS}><span>Student</span><span>Progress</span><span /></Head>
+                        <Head cols={STUDENT_COLS}><span>Student</span><span>Progress on our courses</span><span /></Head>
                         <ul className="divide-y divide-slate-100">
                             {students.map((s) => {
                                 const expanded = open.has(s._id);
@@ -174,13 +182,13 @@ const OrgCertificateProgress = () => {
                                             </div>
 
                                             <button type="button" onClick={() => toggle(s._id)} aria-expanded={expanded}
-                                                className="-mr-2 inline-flex items-center gap-1 justify-self-end rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 md:order-last">
+                                                className="-mr-2 inline-flex min-h-10 items-center gap-1 justify-self-end rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 md:order-last">
                                                 Details <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
                                             </button>
 
                                             <div className="col-span-2 flex items-center gap-3 md:col-span-1">
                                                 <span className="w-28 shrink-0 text-xs font-medium tabular-nums text-slate-700">{s.earned.length} of {s.courses.length} completed</span>
-                                                <div className="flex-1 md:w-36 md:flex-none lg:w-56"><Bar percent={done} tone="emerald" /></div>
+                                                <div className="flex-1 md:w-36 md:flex-none xl:w-56"><Bar percent={done} tone="emerald" /></div>
                                             </div>
                                         </div>
 
@@ -197,7 +205,7 @@ const OrgCertificateProgress = () => {
                                                         <div className="flex items-center gap-3">
                                                             <span className="hidden w-28 shrink-0 md:block" />
                                                             {/* No bar for a course they have not opened — "Not started" says it. */}
-                                                            <div className="hidden w-36 shrink-0 md:block lg:w-56">{c.started && <Bar percent={c.percentage} tone={c.completed ? 'emerald' : 'indigo'} />}</div>
+                                                            <div className="hidden w-36 shrink-0 md:block xl:w-56">{c.started && <Bar percent={c.percentage} tone={c.completed ? 'emerald' : 'indigo'} />}</div>
                                                             <span className={`whitespace-nowrap text-xs tabular-nums ${c.completed ? 'font-medium text-emerald-700' : c.started ? 'text-slate-700' : 'text-slate-400'}`}>
                                                                 {c.completed ? 'Completed' : c.started ? `${c.percentage}%` : 'Not started'}
                                                                 {c.completed && c.completedAt && <span className="font-normal text-slate-400"> · {formatDate(c.completedAt)}</span>}

@@ -1,0 +1,78 @@
+/* Loop Walker — styles for the mascot overlay. Everything is scoped under .lw-root and namespaced lw-, so it
+   cannot collide with your site. Tune the look with the custom properties on .lw-root. */
+.lw-root{
+  --lw-z: 40;                       /* stacking level of the mascot layer; the bubble and face cam sit above it */
+  --lw-accent: #4FC0F2;             /* bubble border, caret, labels */
+  --lw-bubble-bg: #0A1320;
+  --lw-bubble-text: #E2E9F2;
+  --lw-muted: #7C8AA0;
+  --lw-font: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --lw-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --fc: 148px;
+  font-family: var(--lw-font);
+}
+.lw-root canvas.lw-gl{ position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: var(--lw-z); pointer-events: none; }
+
+/* speech bubble */
+.lw-bubble{
+  position: fixed; left: 0; top: 0; z-index: calc(var(--lw-z) + 20); pointer-events: none;
+  width: max-content; max-width: min(290px, calc(100vw - 24px)); will-change: transform;
+}
+.lw-b-inner{
+  position: relative; padding: 10px 14px 11px;
+  background: var(--lw-bubble-bg); border: 1px solid color-mix(in srgb, var(--lw-accent) 45%, transparent);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.5);
+  color: var(--lw-bubble-text); font-size: 13.5px; line-height: 1.45; font-weight: 400;
+  opacity: 0; transform: translateY(6px) scale(.94); transform-origin: var(--tail, 50%) 100%;
+  transition: opacity .18s ease, transform .22s cubic-bezier(.2,1.4,.4,1);
+}
+.lw-bubble.on .lw-b-inner{ opacity: 1; transform: none; }
+.lw-b-inner::after{
+  content: ""; position: absolute; bottom: -7px; left: var(--tail, 50%); width: 12px; height: 12px; margin-left: -6px;
+  background: var(--lw-bubble-bg);
+  border-right: 1px solid color-mix(in srgb, var(--lw-accent) 45%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--lw-accent) 45%, transparent);
+  transform: rotate(45deg);
+}
+.lw-b-label{ display: block; font-family: var(--lw-mono); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; color: var(--lw-accent); margin-bottom: 4px; }
+.lw-b-label i{ font-style: normal; color: var(--lw-muted); }
+.lw-b-rest{ color: transparent; }                       /* unrevealed letters hold their space, so the bubble never reflows */
+.lw-b-caret{ display: inline-block; width: 0; height: 1.05em; vertical-align: -0.2em; position: relative; }
+.lw-b-caret::after{ content: ""; position: absolute; left: 1px; top: 0; width: 2px; height: 100%; background: var(--lw-accent); border-radius: 1px; animation: lw-caret .8s steps(1) infinite; }
+.lw-bubble.done .lw-b-caret::after{ opacity: 0; animation: none; }
+@keyframes lw-caret{ 50%{ opacity: 0; } }
+.lw-sr-only{ position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: -1px; }
+
+/* face cam (opt-in) */
+.lw-facecam{
+  position: fixed; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: calc(var(--lw-z) + 5); pointer-events: none; display: grid; justify-items: center; gap: 8px;
+}
+.lw-facecam.off{ display: none; }
+.lw-facecam canvas{
+  width: var(--fc); height: var(--fc); border-radius: 50%; display: block;
+  background: radial-gradient(circle at 50% 38%, #18374f, #081421 72%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--lw-accent) 45%, transparent), 0 12px 32px rgba(0,0,0,.55);
+}
+.lw-fc-meta{
+  font-family: var(--lw-mono); font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--lw-muted);
+  display: flex; gap: 8px; align-items: baseline; background: rgba(8,15,25,.9); padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,.08);
+}
+.lw-fc-meta b{ color: var(--lw-accent); font-weight: 500; letter-spacing: .08em; }
+
+/* the small hint pill (opt-out with hint: false) */
+.lw-hint{
+  position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: calc(var(--lw-z) + 5); pointer-events: none;
+  margin: 0; display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 999px;
+  background: rgba(8,15,25,.85); border: 1px solid rgba(255,255,255,.08); color: var(--lw-muted);
+  font-family: var(--lw-mono); font-size: .68rem; letter-spacing: .06em; max-width: min(360px, calc(100vw - 32px));
+}
+.lw-hint:empty, .lw-hint .lw-hint-text:empty{ display: none; }
+.lw-pulse{ width: 7px; height: 7px; border-radius: 50%; background: var(--lw-accent); animation: lw-pulse 2.4s ease-out infinite; flex: none; }
+@keyframes lw-pulse{ 0%{ box-shadow: 0 0 0 0 rgba(79,192,242,.55); } 70%{ box-shadow: 0 0 0 9px rgba(79,192,242,0); } 100%{ box-shadow: 0 0 0 0 rgba(79,192,242,0); } }
+
+/* the element Loop is currently explaining */
+/* YATICORP change: no border-radius here (the package set 4px), so a rounded button or pill keeps its own corners
+   while Loop explains it; the outline follows them. */
+.is-explained{ outline: 2px solid color-mix(in srgb, var(--lw-accent, #4FC0F2) 55%, transparent); outline-offset: 4px; transition: outline-color .2s ease; }
+
+@media (prefers-reduced-motion: reduce){ .lw-pulse{ animation: none; } }

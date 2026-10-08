@@ -209,6 +209,26 @@ export function createMascotEngine({ get, set, random = Math.random }) {
         opacityTarget: 0
     };
 
+    /*
+     * Under reduced motion the rig holds still once posed, so the loop stops
+     * when nothing is left to move (see `frame`). Anything that gives the
+     * loop work again — a walk, a fade, a still, the next measurement — sets
+     * one of these, and setting one wakes the loop. Done here, once, rather
+     * than with a start() beside each of the dozen places that assign them.
+     */
+    for (const key of ['moving', 'opacityTarget', 'still', 'followDue']) {
+        let value = rt[key];
+        Object.defineProperty(rt, key, {
+            enumerable: true,
+            get: () => value,
+            set: (next) => {
+                const changed = next !== value;
+                value = next;
+                if (changed) rt.wake?.();
+            }
+        });
+    }
+
     const dims = () => get.dims();
     const walksNot = () => get.reduced() || get.dock();
     const node = (name) => rt.dom?.[name];
@@ -586,9 +606,18 @@ export function createMascotEngine({ get, set, random = Math.random }) {
 
     // ---- the loop ----
 
+    /** Nothing on screen will change until something new is asked for. */
+    const idle = () =>
+        !rt.moving && !rt.followDue && rt.opacity === rt.opacityTarget
+        // A still being held open-endedly is a picture, not a motion; one on
+        // a timer needs frames to reach its end.
+        && (!rt.still || (rt.still.phase === 'hold' && !Number.isFinite(rt.still.hold)))
+        && (rt.driver?.settled?.() ?? true);
+
     const frame = (now) => {
         rt.raf = 0;
         if (rt.stopped || rt.paused) return;
+        rt.inFrame = true;
         const dt = rt.lastFrame ? (now - rt.lastFrame) / 1000 : 1 / 60;
         rt.lastFrame = now;
         const d = dims();
@@ -630,14 +659,22 @@ export function createMascotEngine({ get, set, random = Math.random }) {
 
         stepStill(now);
         rt.driver?.tick(dt);
+        rt.inFrame = false;
+        // Reduced motion: the rig is posed and holding, so stop asking for
+        // frames — sixty a second of nothing changing is battery for nothing.
+        // rt.wake brings the loop back the moment there is work.
+        if (get.reduced() && idle()) return;
         rt.raf = requestAnimationFrame(frame);
     };
 
     const start = () => {
-        if (rt.raf || rt.stopped || rt.paused) return;
+        // Inside a frame the frame itself decides whether another follows;
+        // scheduling here too would run two loops.
+        if (rt.raf || rt.inFrame || rt.stopped || rt.paused) return;
         rt.lastFrame = 0;
         rt.raf = requestAnimationFrame(frame);
     };
+    rt.wake = start;
     const pauseIf = () => {
         const paused = rt.hidden || rt.offscreen;
         if (paused === rt.paused) return;
@@ -1104,7 +1141,18 @@ export function createMascotEngine({ get, set, random = Math.random }) {
         attach(dom) {
             rt.dom = dom;
             if (dom?.rig && !rt.driver) {
-                rt.driver = createRigDriver(dom.rig, { prefix: `cm${++rt.seq}`, random });
+                rt.driver = createRigDriver(dom.rig, { prefix: `cm${++rt.seq}`, random, reduced: get.reduced });
+                // Whatever is asked of the rig wakes a loop that reduced
+                // motion let stop. Wrapped once here: the calls are spread
+                // through every script in this file.
+                for (const name of ['play', 'playGesture', 'setExpression', 'setWalk', 'setMode', 'setSleeping', 'setLook']) {
+                    const call = rt.driver[name];
+                    rt.driver[name] = (...args) => {
+                        const out = call(...args);
+                        start();
+                        return out;
+                    };
+                }
                 dom.rig.style.opacity = '1';
                 dom.still.style.opacity = '0';
                 dom.body.style.opacity = '0';

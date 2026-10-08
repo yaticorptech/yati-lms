@@ -4,6 +4,7 @@
  */
 import axios from 'axios';
 import { clearCareerCache } from '../career/services/api';
+import { onWalletResponse, onWalletError } from './walletCharge';
 
 const apiBaseURL = import.meta.env.VITE_API_URL;
 
@@ -33,8 +34,8 @@ const clearAfterSave = (config) => {
     if (config && (config.method || 'get').toLowerCase() !== 'get') clearCareerCache();
 };
 api.interceptors.response.use(
-    (response) => { clearAfterSave(response.config); return response; },
-    (error) => { clearAfterSave(error.config); return Promise.reject(error); }
+    (response) => { clearAfterSave(response.config); return onWalletResponse(response); },
+    (error) => { clearAfterSave(error.config); return onWalletError(error); }
 );
 
 export default api;

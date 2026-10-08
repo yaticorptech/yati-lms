@@ -17,6 +17,7 @@ const mongoose = require('mongoose');
 const Course = require('../../models/Course');
 const Module = require('../../models/Module');
 const Lesson = require('../../models/Lesson');
+const videoOwnership = require('../services/videoOwnership');
 
 const NOT_FOUND = { message: 'Not found' };
 const ownCourse = (course, req) => Boolean(course?.organizationId) && String(course.organizationId) === String(req.organization._id);
@@ -106,6 +107,30 @@ const withinCourseLimit = async (req, res, next) => {
     }
 };
 
+/**
+ * After a course was created: did it land past the limit? Returns the limit
+ * when it did (the caller deletes it), null when it is within it.
+ *
+ * The count-then-create in withinCourseLimit cannot stop two requests that
+ * count at the same moment. This settles it afterwards without a lock: every
+ * course of the organization is ranked by (createdAt, _id), and the new one is
+ * over the limit if `limit` or more rank ahead of it. Concurrent creators all
+ * see the same order, so exactly the courses past the limit are taken back —
+ * never one too few, never one that was within it.
+ */
+const overCourseLimit = async (course, organization) => {
+    const limit = organization.courseAccess?.limit || 0;
+    const ahead = await Course.countDocuments({
+        organizationId: organization._id,
+        _id: { $ne: course._id },
+        $or: [
+            { createdAt: { $lt: course.createdAt } },
+            { createdAt: course.createdAt, _id: { $lt: course._id } }
+        ]
+    });
+    return ahead >= limit ? limit : null;
+};
+
 /* ── Ownership guards ─────────────────────────────────────────────────── */
 
 const ownsCourseParam = (param = 'id') => guard((req) => courseIsOurs(req.params[param], req));
@@ -132,17 +157,19 @@ const ownsAllLessons = guard(async (req) => {
 });
 
 /**
- * A video may be managed when no lesson uses it yet (it was just uploaded) or
- * when the lesson that uses it is ours. A video in anyone else's lesson is not.
+ * A video may be managed only when it is positively ours: we uploaded it
+ * (services/videoOwnership.js). "No lesson uses it yet" is not enough — that
+ * is also true of any platform video not yet in a lesson.
  */
-const ownsVideo = guard(async (req) => {
-    const users = await Lesson.find({ videoId: req.params.videoId }).select('_id').lean();
-    for (const l of users) if (!(await lessonIsOurs(l._id, req))) return false;
-    return true;
-});
+const ownsVideo = guard((req) => videoOwnership.orgOwnsVideo(req.params.videoId, req.organization._id));
+/** Deleting it from VdoCipher also needs that no one else's lesson still plays it. */
+const ownsVideoToDelete = guard(async (req) => (
+    await videoOwnership.orgOwnsVideo(req.params.videoId, req.organization._id)
+    && videoOwnership.onlyOrgUsesVideo(req.params.videoId, req.organization._id)
+));
 
 module.exports = {
-    requireCourseAccess, getCourseAccess, withinCourseLimit, requireLogo,
+    requireCourseAccess, getCourseAccess, withinCourseLimit, overCourseLimit, requireLogo,
     ownsCourseParam, ownsModuleParam, ownsLessonParam, ownsBodyCourse, ownsBodyModule,
-    ownsAllModules, ownsAllLessons, ownsVideo
+    ownsAllModules, ownsAllLessons, ownsVideo, ownsVideoToDelete
 };

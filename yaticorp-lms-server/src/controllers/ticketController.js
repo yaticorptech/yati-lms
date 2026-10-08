@@ -101,6 +101,23 @@ const getMyTickets = async (req, res) => {
 // @desc    Admin send message to user
 // @route   POST /api/tickets/admin/:id/message
 // @access  Admin
+// The admin's words go into HTML: escaped, with line breaks kept.
+const escapeHtml = (text) => String(text)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    .replace(/\n/g, '<br>');
+
+/** Why an email was refused, in words an admin can act on. */
+const emailFailure = (error) => {
+    const detail = error?.response?.body?.message || error?.response?.text || error?.message || '';
+    if (/api key is not enabled|unauthori[sz]ed|key not found|invalid api key/i.test(detail)) {
+        return 'Email could not be sent: the Brevo API key is not enabled. Enable it in Brevo → Settings → API Keys (or set SMTP_HOST, SMTP_USER and SMTP_PASS in the server .env).';
+    }
+    if (/no email provider configured|no sender email/i.test(detail)) {
+        return `Email could not be sent: ${detail}`;
+    }
+    return detail ? `Email could not be sent: ${detail}` : 'Email could not be sent.';
+};
+
 const sendAdminMessage = async (req, res) => {
     try {
         const { message } = req.body;
@@ -122,8 +139,8 @@ const sendAdminMessage = async (req, res) => {
             htmlContent: `
                 <div style="font-family: sans-serif; padding: 24px;">
                     <h2>Message from Support Team</h2>
-                    <p>Hi ${ticket.name},</p>
-                    <p>${message}</p>
+                    <p>Hi ${escapeHtml(ticket.name || '')},</p>
+                    <p>${escapeHtml(message)}</p>
                     <p style="font-size:12px;color:gray;">YATICORP LMS</p>
                 </div>
             `
@@ -132,8 +149,9 @@ const sendAdminMessage = async (req, res) => {
         res.json({ message: 'Message sent successfully' });
 
     } catch (error) {
-        console.error('Send Admin Message Error:', error);
-        res.status(500).json({ message: 'Failed to send message' });
+        console.error('Send Admin Message Error:', error?.response?.body || error.message);
+        // Say why: "Failed to send message" left the admin nothing to fix.
+        res.status(502).json({ message: emailFailure(error) });
     }
 };
 

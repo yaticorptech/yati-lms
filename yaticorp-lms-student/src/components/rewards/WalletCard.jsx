@@ -5,18 +5,22 @@
  * history and redemption.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Wallet, Gift, TrendingUp, ArrowUpCircle, Trophy, BookOpen, Award, ArrowDownToLine, RotateCcw, Briefcase, X } from 'lucide-react';
+import { Wallet, Gift, TrendingUp, ArrowUpCircle, Trophy, BookOpen, Award, ArrowDownToLine, RotateCcw, Briefcase, Sparkles, X } from 'lucide-react';
 import api from '../../utils/api';
 import WalletSection from './WalletSection';
-import { money, num, balance, SOURCE_LABEL } from './format';
+import { money, num, balance, SOURCE_LABEL, txTitle } from './format';
 import Portal from '../Portal';
 
 const ICON = {
+    xp_reward: { Icon: Sparkles, cls: 'bg-amber-100 text-amber-600' },
+    starting_credit: { Icon: Gift, cls: 'bg-emerald-100 text-emerald-600' },
     learning_reward: { Icon: ArrowUpCircle, cls: 'bg-emerald-100 text-emerald-600' },
     leaderboard_reward: { Icon: Trophy, cls: 'bg-amber-100 text-amber-600' },
     referral_reward: { Icon: Gift, cls: 'bg-pink-100 text-pink-600' },
     job_earning: { Icon: Briefcase, cls: 'bg-sky-100 text-sky-600' },
     purchase: { Icon: BookOpen, cls: 'bg-indigo-100 text-indigo-600' },
+    feature_charge: { Icon: Sparkles, cls: 'bg-indigo-100 text-indigo-600' },
+    feature_refund: { Icon: RotateCcw, cls: 'bg-emerald-100 text-emerald-600' },
     withdrawal: { Icon: ArrowDownToLine, cls: 'bg-slate-100 text-slate-600' },
     withdrawal_refund: { Icon: RotateCcw, cls: 'bg-slate-100 text-slate-600' },
     admin_adjustment: { Icon: Award, cls: 'bg-violet-100 text-violet-600' }
@@ -62,8 +66,15 @@ export default function WalletCard() {
     const load = useCallback(() => api.get('/rewards/wallet').then((r) => setData(r.data)).catch(() => {}), []);
     useEffect(() => {
         load();
+        // Back on the tab: re-read, so a rate the admin just changed shows
+        // without a reload.
+        const onVisible = () => document.visibilityState === 'visible' && load();
         window.addEventListener('yati:progress-changed', load);
-        return () => window.removeEventListener('yati:progress-changed', load);
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            window.removeEventListener('yati:progress-changed', load);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, [load]);
 
     const w = data?.wallet;
@@ -84,11 +95,18 @@ export default function WalletCard() {
                         <div className="@container min-w-0 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
                             <p className="text-sm font-semibold text-slate-600">Wallet Balance</p>
                             <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-emerald-700">{money(balance(w.available), cur)}</p>
+                            <p className="text-xs font-semibold text-emerald-700/80">Spend it on courses and features</p>
                         </div>
                         <div className="@container min-w-0 rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-                            <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">XP Points</p><span className="rounded-lg bg-amber-100 p-1.5 text-amber-600"><Gift size={16} /></span></div>
-                            <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-amber-700">{num(w.rewardPoints)}</p>
-                            <p className="text-xs font-semibold text-amber-700/80">{num(data.conversion.pointsPerUnit)} XP = {money(data.conversion.unitValue, cur)}</p>
+                            <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">XP Balance</p><span className="rounded-lg bg-amber-100 p-1.5 text-amber-600"><Sparkles size={16} /></span></div>
+                            <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-amber-700">{num(data.xpBalance)} XP</p>
+                            {/* The admin's live rate. Each full block converts on its own. */}
+                            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-amber-100">
+                                <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, (data.xpBalance / Math.max(1, data.conversion.pointsPerUnit)) * 100)}%` }} />
+                            </div>
+                            <p className="mt-1 text-xs font-semibold text-amber-700/80">
+                                {num(Math.max(0, data.conversion.pointsPerUnit - data.xpBalance))} XP more → +{money(data.conversion.unitValue, cur)}
+                            </p>
                         </div>
                         <div className="@container min-w-0 rounded-2xl border border-sky-100 bg-sky-50/70 p-4">
                             <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">Total Earned</p><span className="rounded-lg bg-sky-100 p-1.5 text-sky-600"><TrendingUp size={16} /></span></div>
@@ -101,7 +119,7 @@ export default function WalletCard() {
                             <p className="font-bold text-slate-800">Recent Transactions</p>
                         </div>
                         {data.recent.length === 0 ? (
-                            <p className="p-6 text-center text-sm text-slate-500">No transactions yet. Streak milestones and badges pay reward points; redeem them here to fill your wallet.</p>
+                            <p className="p-6 text-center text-sm text-slate-500">No transactions yet. Every XP you earn pays into your wallet at the rate above.</p>
                         ) : (
                             <ul className="divide-y divide-slate-100">
                                 {data.recent.slice(0, 4).map((t) => {
@@ -111,7 +129,7 @@ export default function WalletCard() {
                                         <li key={t._id} className="flex items-center gap-3 px-4 py-3">
                                             <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${cls}`}><Icon size={18} /></span>
                                             <div className="min-w-0 flex-1">
-                                                <p className="truncate font-bold text-slate-800">{t.description || SOURCE_LABEL[t.source] || t.source}</p>
+                                                <p className="truncate font-bold text-slate-800">{txTitle(t)}</p>
                                                 <p className="truncate text-xs text-slate-500">{SOURCE_LABEL[t.source] || t.source}{t.status !== 'completed' ? ` · ${t.status}` : ''}</p>
                                             </div>
                                             <div className="text-right">

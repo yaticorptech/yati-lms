@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   GraduationCap, Compass, MapPin, Save, RefreshCw, Undo2, AlertTriangle, Pencil, Lock
 } from 'lucide-react';
@@ -16,6 +16,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import api from '../../services/api';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
+import PriceTag from '../../../components/rewards/PriceTag';
 
 /**
  * `value` must stay byte-identical to the Goal schema's enum — it is what gets
@@ -116,28 +117,52 @@ export default function SettingsPage() {
    */
   const [editing, setEditing] = useState(false);
 
+  // 'none' when there is no goal to edit (GET /goals answered 404), 'failed'
+  // when the read itself failed. Either way the form is not shown: an empty
+  // form for a student with no goal saved through PUT and got a 404, and an
+  // empty form after a failed read invites them to overwrite a real profile.
+  const [loadState, setLoadState] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setLoadState(null);
 
     Promise.all([
-      api.get('/goals').catch(() => null),
+      api.get('/goals').catch((err) => {
+        if (err.response?.status === 404) return { none: true };
+        throw err;
+      }),
       // Only used to decide whether rebuilding actually destroys anything. A
       // student with no roadmap yet has nothing to lose and should not be shown
-      // a frightening warning about it.
-      api.get('/roadmap').catch(() => null)
-    ]).then(([goalRes, roadmapRes]) => {
-      if (cancelled) return;
-      const initial = pickFields(goalRes?.data);
-      setForm(initial);
-      setSaved(initial);
-      setHasRoadmap(Boolean(roadmapRes?.data));
-      setLoading(false);
-    });
+      // a frightening warning about it. A read that FAILED is not proof there
+      // is nothing, so it is treated as a roadmap that exists — the warning
+      // is the safe side to be wrong on.
+      api.get('/roadmap').catch((err) => (err.response?.status === 404 ? null : { data: true }))
+    ])
+      .then(([goalRes, roadmapRes]) => {
+        if (cancelled) return;
+        if (goalRes.none) {
+          setLoadState('none');
+          return;
+        }
+        const initial = pickFields(goalRes?.data);
+        setForm(initial);
+        setSaved(initial);
+        setHasRoadmap(Boolean(roadmapRes?.data));
+      })
+      .catch(() => {
+        if (!cancelled) setLoadState('failed');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const set = (field) => (value) => setForm((prev) => ({ ...prev, [field]: value }));
 
@@ -189,6 +214,20 @@ export default function SettingsPage() {
       // Likewise the job fields.
       currentJob: keep(isJob, prev.currentJob),
       experience: keep(isJob, prev.experience)
+    }));
+  };
+
+  /**
+   * A state belongs to a country, so changing the country drops one the new
+   * country does not have — the same rule onboarding applies. Left alone, a
+   * profile read "Karnataka, United States" and the roadmap prompt was handed
+   * both as fact.
+   */
+  const chooseCountry = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      country: value,
+      state: statesFor(value).includes(prev.state) ? prev.state : ''
     }));
   };
 
@@ -258,9 +297,9 @@ export default function SettingsPage() {
   /**
    * Save AND rebuild the roadmap.
    *
-   * Rebuilding is not a refresh — the server deletes the old roadmap, every
-   * task, all skill progress, the planner's context and all recommendations
-   * before writing a new one. The previous version of this page did that on one
+   * Rebuilding is not a refresh — once the new roadmap is generated, the
+   * server deletes the old one, every task, all skill progress, the planner's
+   * context and all recommendations in its place. The previous version of this page did that on one
    * unlabelled click, so correcting a typo in "Dream Company" could wipe weeks
    * of finished work with no warning and no way back.
    */
@@ -282,7 +321,10 @@ export default function SettingsPage() {
     setBusy('rebuild');
     try {
       await persist();
-      await api.post('/roadmap/generate');
+      // The explicit consent the server now requires before it replaces an
+      // existing roadmap. This button, behind the confirm above, is the only
+      // place in the app that sends it.
+      await api.post('/roadmap/generate', { rebuild: true });
       toast.success('Your new roadmap is ready.', 'Rebuilt');
       navigate('/career/roadmap');
     } catch (err) {
@@ -294,6 +336,46 @@ export default function SettingsPage() {
 
   const showLoader = useMinimumLoading(loading);
   if (showLoader) return <YatiLoader label="Loading your settings" />;
+
+  if (loadState === 'none') {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <PageHeader
+          eyebrow="Your profile"
+          title="Settings & Profile"
+          subtitle="These details are what your roadmap, your daily tasks and your mentor are built from."
+        />
+        <Card>
+          <p className="font-semibold text-ink-900">You have not set up your career profile yet</p>
+          <p className="mt-1 text-sm text-ink-500">
+            Answer five quick questions about where you are and where you want to go, and your roadmap is built from them.
+          </p>
+          <div className="mt-4">
+            <Link to="/career/onboarding">
+              <Button icon={Compass}>Set up my profile</Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loadState === 'failed') {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <PageHeader eyebrow="Your profile" title="Settings & Profile" />
+        <Card className="border-rose-200 bg-rose-50" role="alert">
+          <p className="font-semibold text-rose-800">Your profile did not load</p>
+          <p className="mt-1 text-sm text-rose-700">Check your connection and try again. Nothing has changed.</p>
+          <div className="mt-4">
+            <Button variant="secondary" icon={RefreshCw} onClick={() => setReloadKey((k) => k + 1)}>
+              Try again
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -568,7 +650,7 @@ export default function SettingsPage() {
             <SuggestField
               label="Country"
               value={form.country || ''}
-              onChange={set('country')}
+              onChange={chooseCountry}
               disabled={!editing}
               options={COUNTRIES}
               placeholder="e.g. India"
@@ -622,7 +704,7 @@ export default function SettingsPage() {
                 onClick={handleRebuild}
                 className="mt-3.5"
               >
-                Save &amp; rebuild roadmap
+                Save &amp; rebuild roadmap <PriceTag action="rebuild_roadmap" />
               </Button>
             </div>
           </div>

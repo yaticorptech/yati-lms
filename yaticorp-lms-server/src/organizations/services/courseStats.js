@@ -11,6 +11,7 @@ const Course = require('../../models/Course');
 const Enrollment = require('../../models/Enrollment');
 const Progress = require('../../models/Progress');
 const Certificate = require('../../models/Certificate');
+const { bestProgressByKey, clampPercent } = require('./studentProgress');
 
 const memberIds = (organizationId) => User.find({ organizationId }).distinct('_id');
 
@@ -44,12 +45,13 @@ const certificateProgress = async (organizationId) => {
     const ids = students.map((s) => s._id);
     const [enrolments, progress, certificates] = await Promise.all([
         Enrollment.find({ userId: { $in: ids }, courseId: { $in: courseIds } }).select('userId courseId').lean(),
-        Progress.find({ userId: { $in: ids }, courseId: { $in: courseIds } }).select('userId courseId percentage updatedAt').lean(),
+        Progress.find({ userId: { $in: ids }, courseId: { $in: courseIds } }).select('userId courseId percentage completedLessons updatedAt').lean(),
         Certificate.find({ userId: { $in: ids }, courseId: { $in: courseIds } }).select('userId courseId pdfUrl issuedAt').lean()
     ]);
     const key = (u, c) => `${u}|${c}`;
     const enrolled = new Set(enrolments.map((e) => key(e.userId, e.courseId)));
-    const byProgress = new Map(progress.map((p) => [key(p.userId, p.courseId), p]));
+    // One row per student and course even if duplicates were stored.
+    const byProgress = bestProgressByKey(progress);
     const byCert = new Map(certificates.map((c) => [key(c.userId, c.courseId), c]));
     const titleOf = new Map(courses.map((c) => [String(c._id), c.title]));
 
@@ -58,7 +60,7 @@ const certificateProgress = async (organizationId) => {
             const k = key(s._id, courseId);
             const p = byProgress.get(k);
             const cert = byCert.get(k);
-            const percentage = Math.min(100, Math.round(p?.percentage || 0));
+            const percentage = clampPercent(Math.round(p?.percentage || 0));
             return {
                 courseId, title: titleOf.get(courseId),
                 started: enrolled.has(k) || Boolean(p),

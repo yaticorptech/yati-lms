@@ -97,13 +97,47 @@ describe('GET /api/roadmap repairs a roadmap saved with a finished phase', () =>
     assert.deepEqual(res.body.completedPhases, [0, 1, 2]);
   });
 
-  test('badges move with their phase, and the orphan is deleted', async () => {
-    await seed({ completedPhases: [0, 1, 2, 3], badgeIndices: [0, 2, 3] });
+  test('badges after the removed phase move down with it, keeping their links', async () => {
+    await seed({ completedPhases: [0, 1, 2, 3], badgeIndices: [0, 3] });
+    const MilestoneBadge = require('../../src/career/models/MilestoneBadge');
+    const codesBefore = (await MilestoneBadge.find({ userId: me.user._id }).sort({ phaseIndex: 1 }).lean())
+      .map((b) => b.shareCode);
     await api('GET', '/');
     assert.deepEqual(await badgesNow(), [
       [0, PHASES[0].phase],
-      [2, PHASES[3].phase]   // was 3; the badge for phase 2 went with the phase
+      [2, PHASES[3].phase]   // was 3
     ]);
+    const codesAfter = (await MilestoneBadge.find({ userId: me.user._id }).sort({ phaseIndex: 1 }).lean())
+      .map((b) => b.shareCode);
+    assert.deepEqual(codesAfter, codesBefore, 'a posted /b/<code> link must keep working');
+  });
+
+  test('a badge on the phase it would drop stops the repair; no badge is ever deleted', async () => {
+    // The student earned — and may have shared — a badge for that phase, so
+    // the phase is real to them. Deleting the badge broke its public link.
+    await seed({ completedPhases: [0, 1, 2, 3], badgeIndices: [0, 2, 3] });
+    const res = await api('GET', '/');
+    assert.equal(res.body.roadmapData.educationRoadmap.length, PHASES.length);
+    assert.deepEqual(res.body.completedPhases, [0, 1, 2, 3]);
+    assert.deepEqual(await badgesNow(), [
+      [0, PHASES[0].phase], [2, PHASES[2].phase], [3, PHASES[3].phase]
+    ]);
+  });
+
+  test('runs once per roadmap, not again after the goal changes', async () => {
+    await seed();
+    await api('GET', '/');   // first read: repaired and marked
+    const Goal = require('../../src/career/models/Goal');
+    const Roadmap = require('../../src/career/models/Roadmap');
+    // Put a fresh PG-entry phase back, as if written for a different goal,
+    // and move the goal so the rule would match it.
+    await Roadmap.updateOne(
+      { userId: me.user._id },
+      { $push: { 'roadmapData.educationRoadmap': { phase: 'Postgraduate Year 1: Something Else' } } }
+    );
+    await Goal.updateOne({ userId: me.user._id }, { $set: { currentYear: '2nd Year' } });
+    const res = await api('GET', '/');
+    assert.equal(res.body.roadmapData.educationRoadmap.length, 5);
   });
 
   test('a roadmap with nothing to drop is left exactly alone', async () => {

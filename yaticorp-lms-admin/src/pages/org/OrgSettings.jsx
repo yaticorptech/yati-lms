@@ -12,12 +12,14 @@
  * something has actually changed, so the page cannot be saved by accident.
  */
 import React, { useState, useEffect } from 'react';
-import { Building2, Pencil, Lock, Loader2, Check, Copy, KeyRound, ImagePlus } from 'lucide-react';
+import { Building2, Pencil, Lock, Loader2, Check, Copy, KeyRound, ImagePlus, RotateCw } from 'lucide-react';
 import api from '../../utils/api';
 import { CARD, INPUT, LABEL, BTN, BTN2, Banner, PageHeader } from '../../components/orgUi';
 import PasswordField from '../../components/PasswordField';
 import PasswordStrengthChecker from '../../components/PasswordStrengthChecker';
 import { formatDate } from '../../utils/dates';
+import { useAuth } from '../../context/AuthContext';
+import { getViewedOrganization } from '../../utils/viewOrganization';
 
 /** The fields this page owns. Anything else the server sends is left alone. */
 // The logo is not among them: it has its own card, uploaded as an image.
@@ -77,6 +79,8 @@ const LogoCard = ({ organization, onSaved, onError }) => {
 };
 
 const OrgSettings = () => {
+    const { admin } = useAuth();
+    const viewing = admin?.role === 'superadmin' ? getViewedOrganization() : null;
     const [organization, setOrganization] = useState(null);
     const [form, setForm] = useState(EMPTY);
     const [saved, setSaved] = useState(EMPTY);   // the server's last confirmed copy
@@ -87,8 +91,11 @@ const OrgSettings = () => {
     const [notice, setNotice] = useState('');
     const [copied, setCopied] = useState(false);
 
-    useEffect(() => {
-        api.get('/organizations/me')
+    // Also the Retry on the load-failed screen, so it re-runs the same request.
+    const load = () => {
+        setLoading(true);
+        setError('');
+        return api.get('/organizations/me')
             .then((res) => {
                 setOrganization(res.data.organization);
                 setForm(pick(res.data.organization));
@@ -96,7 +103,9 @@ const OrgSettings = () => {
             })
             .catch((err) => setError(err.response?.data?.message || 'Could not load your organization.'))
             .finally(() => setLoading(false));
-    }, []);
+    };
+
+    useEffect(() => { load(); }, []);
 
     const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
 
@@ -125,6 +134,14 @@ const OrgSettings = () => {
             setOrganization(res.data.organization);
             setSaved(pick(res.data.organization));
             setForm(pick(res.data.organization));
+            // The email is also this account's sign-in, and the server moved
+            // the login with it. Keep the stored session's copy in step so the
+            // panel shows the new address (a viewing superadmin's own is untouched).
+            if (!viewing && admin && res.data.organization.email && res.data.organization.email !== admin.email) {
+                try {
+                    localStorage.setItem('adminData', JSON.stringify({ ...admin, email: res.data.organization.email }));
+                } catch { /* storage unavailable; the next sign-in shows it */ }
+            }
             setEditing(false);
             setNotice(res.data.message);
             setTimeout(() => setNotice(''), 5000);
@@ -146,6 +163,21 @@ const OrgSettings = () => {
             <div className="space-y-4 animate-fade-in">
                 <div className="animate-pulse h-20 bg-slate-100 rounded-2xl" />
                 <div className="animate-pulse h-96 bg-slate-100 rounded-2xl" />
+            </div>
+        );
+    }
+
+    // The load failed: there is no organization to show, and every card below
+    // reads from it. Say so and offer the request again, rather than crash.
+    if (!organization) {
+        return (
+            <div className="mx-auto w-full max-w-3xl space-y-4 lg:space-y-6 animate-fade-in pb-10">
+                <PageHeader icon={Building2} title="Organization Settings"
+                    subtitle="Your organization's details, as students and the platform see them." />
+                <Banner>
+                    {error || 'Could not load your organization.'} Please try again.
+                </Banner>
+                <button onClick={load} className={BTN2}><RotateCw size={16} />Retry</button>
             </div>
         );
     }
@@ -180,7 +212,7 @@ const OrgSettings = () => {
                 <div className="grid gap-5 sm:grid-cols-3">
                     <div>
                         <p className={LABEL}>Organization ID</p>
-                        <button onClick={copyCode} aria-label={`Copy organization ID ${organization.orgCode}`}
+                        <button onClick={copyCode} aria-label={`Copy Organization ID ${organization.orgCode}`}
                             className="group inline-flex items-center gap-2 font-mono text-base font-bold text-slate-900 hover:text-indigo-600">
                             {organization.orgCode}
                             {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={13} className="text-slate-300 group-hover:text-indigo-500" />}
@@ -254,7 +286,10 @@ const OrgSettings = () => {
                 )}
             </form>
 
-            <ChangePassword />
+            {/* A superadmin managing this organization signs in with their own
+                account, so the organization's password is not theirs to change
+                (the server refuses it too). */}
+            {!viewing && <ChangePassword />}
         </div>
     );
 };
@@ -292,6 +327,14 @@ const ChangePassword = () => {
         setBusy(true); setError(''); setNotice('');
         try {
             const res = await api.put('/organizations/me/password', form);
+            // A password change signs out every other session: the old token is
+            // refused from now on (401 PASSWORD_CHANGED), so the new one the
+            // server hands back replaces it here — this session stays signed in.
+            // Not for a superadmin managing this organization: their own token
+            // is not the organization's.
+            if (res.data?.token && !getViewedOrganization()) {
+                try { localStorage.setItem('adminToken', res.data.token); } catch { /* storage unavailable */ }
+            }
             setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
             setNotice(res.data.message);
             setTimeout(() => setNotice(''), 6000);

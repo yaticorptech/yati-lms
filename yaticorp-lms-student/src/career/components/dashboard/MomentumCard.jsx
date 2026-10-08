@@ -3,6 +3,7 @@ import './overviewCardArt.css';
 import { ArrowRight, CheckCircle2, Flame, Zap } from 'lucide-react';
 import LevelRing from '../ui/LevelRing';
 import useCountUp from '../../../hooks/useCountUp';
+import { useXpRule } from '../../../context/useRewards';
 
 /**
  * 🔥 One card for everything the student has built up: the habit and the ladder.
@@ -21,13 +22,15 @@ import useCountUp from '../../../hooks/useCountUp';
  * on the right because levelling is part of the journey.
  */
 export default function MomentumCard({ streak, activity = [], level, progress, weekly }) {
+  // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
+  const TASK_XP = useXpRule('career_task');
   const streakCount = useCountUp(streak);
   const shownXp = useCountUp(progress.xp, 1000);
   const shownWeekly = useCountUp(weekly?.recent || 0, 900);
   const activeDays = activity.filter((d) => d.active).length;
   // Backend awards 10 XP per completed task, so a task count is a target in a
   // way that a raw XP number is not.
-  const tasksToNextLevel = Math.max(1, Math.ceil(progress.remaining / 10));
+  const tasksToNextLevel = Math.max(1, Math.ceil(progress.remaining / Math.max(1, TASK_XP)));
 
   return (
     <section className="grid overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card lg:grid-cols-[1.15fr_1fr]">
@@ -185,7 +188,7 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
             <ArrowRight className="fp-nudge-x h-3.5 w-3.5 shrink-0 text-ink-300" />
             <span className="fp-effort-gradient fp-chip-breathe inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-black text-white">
               <Zap className="fp-bolt h-3 w-3 fill-white/40" />
-              +10 XP
+              +{TASK_XP} XP
             </span>
           </div>
 

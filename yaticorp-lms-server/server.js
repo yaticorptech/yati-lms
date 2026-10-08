@@ -68,7 +68,9 @@ app.use(cors({
         corsError.status = 403;
         return callback(corsError, false);
     },
-    credentials: true
+    credentials: true,
+    // Read by the student app to refresh the wallet balance after a priced feature.
+    exposedHeaders: ['X-Wallet-Charged']
 }));
 app.use(express.json());
 

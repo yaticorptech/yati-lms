@@ -30,6 +30,11 @@ const { loginAdmin, verify2FA, setup2FA, enable2FA } = require('../controllers/a
 const { protectAdmin } = require('../middleware/authMiddleware');
 
 router.post('/admin/login', authLimiter, loginAdmin);
+
+// ── Admin Password Reset (organization admins; see services/adminPasswordReset.js)
+const { forgotAdminPassword, resetAdminPassword } = require('../controllers/adminAuthController');
+router.post('/admin/forgot-password', authLimiter, forgotAdminPassword);
+router.post('/admin/reset-password', authLimiter, resetAdminPassword);
 router.post('/admin/verify-2fa', authLimiter, verify2FA);
 router.post('/admin/setup-2fa', protectAdmin, setup2FA);
 router.post('/admin/enable-2fa', protectAdmin, enable2FA);

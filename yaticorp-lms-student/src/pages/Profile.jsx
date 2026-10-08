@@ -6,12 +6,14 @@ import saveToDrive from '../integrations/google/saveToDrive';
 import CertificatesFrame from '../components/CertificatesFrame';
 import ResumeSection from '../components/ResumeSection';
 import AiKeySettings from '../components/AiKeySettings';
+import GoogleConnectionCard from '../integrations/google/GoogleConnectionCard';
 import Cropper from 'react-easy-crop';
 import {
     Award, Loader2, Check, X, ZoomIn, ZoomOut,
     Flame, Gem, Coins, CalendarDays, Upload, Trash2, Sparkles, Building2
 } from 'lucide-react';
-import { levelProgress, currentStreak, recentActivity } from '../career/utils/progress';
+import { currentStreak, recentActivity } from '../career/utils/progress';
+import useLevelProgress from '../career/context/useLevelProgress';
 import { StatTile, ProgressRing, ActivityStrip } from '../components/ProfileWidgets';
 import WelcomeBanner from '../components/WelcomeBanner';
 import PersonalInfoCard from '../components/PersonalInfoCard';
@@ -24,6 +26,7 @@ import WalletCard from '../components/rewards/WalletCard';
 import Portal from '../components/Portal';
 import { saveBlob } from '../native/saveFile';
 import { pictureUrl } from '../native/pictures';
+import { isShortOfFunds, serverMessage } from '../utils/walletCharge';
 
 // Helper: convert crop area to a cropped blob
 const getCroppedBlob = (imageSrc, pixelCrop) =>
@@ -63,7 +66,7 @@ const AVATAR_GROUPS = [
  *   dashboard — a welcome banner (photo, level, greeting, progress to the
  *               next level), then Leaderboard, Wallet & Rewards and My Learning.
  *   profile   — Personal Information (photo, the student's details and Edit
- *               Profile), then Your Progress, My Certificates, Your Resume and
+ *               Profile), then Your Progress, My Certificates, Your Resume, Your Google account and
  *               Your Own AI Key.
  */
 const Profile = ({ view = 'dashboard' }) => {
@@ -285,8 +288,8 @@ const Profile = ({ view = 'dashboard' }) => {
                 description: `Your certificate for ${cert.courseId?.title || 'a course'}, issued by YATICORP.`,
                 reason: 'So the certificates you earn here are kept in your own Google Drive.'
             });
-        } catch {
-            setCertError('Failed to download certificate. Please try again.');
+        } catch (e) {
+            setCertError(isShortOfFunds(e) ? serverMessage(e) : 'Failed to download certificate. Please try again.');
         } finally {
             setDownloadingId(null);
         }
@@ -295,7 +298,7 @@ const Profile = ({ view = 'dashboard' }) => {
     const firstName = (user?.name || 'there').trim().split(' ')[0];
     const level = Math.max(1, Number(career?.level) || 1);
     const xp = Number(career?.xp) || 0;
-    const ring = levelProgress(xp, level);
+    const ring = useLevelProgress(xp, level);
     const careerStreak = useMemo(() => currentStreak(history), [history]);
     const streak = rw ? rw.streak.current : careerStreak;
     const week = useMemo(() => recentActivity(history, 7).map((d) => ({ ...d, dayNum: Number(d.key.slice(-2)) })), [history]);
@@ -411,7 +414,7 @@ const Profile = ({ view = 'dashboard' }) => {
                         <div className="min-w-0 flex-1 text-sm">
                             <p className="font-bold text-slate-800">Your account is ready</p>
                             {signupOrg.message && <p className="mt-0.5 text-slate-600">{signupOrg.message}</p>}
-                            {!signupOrg.requested && <p className="mt-0.5 text-xs text-slate-500">Use <strong>Add organization</strong> on your dashboard whenever you have the right ID.</p>}
+                            {!signupOrg.requested && <p className="mt-0.5 text-xs text-slate-500">Add it from <strong>My Profile → Personal Information → Organization/College</strong> whenever you have the right Organization ID.</p>}
                         </div>
                         <button type="button" onClick={() => setSignupOrg(null)} aria-label="Dismiss" className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-white hover:text-slate-600"><X size={16} /></button>
                     </div>
@@ -423,7 +426,7 @@ const Profile = ({ view = 'dashboard' }) => {
                     level={level}
                     greeting={dayGreeting}
                     greetingIcon={hour < 12 ? '☀️' : hour < 17 ? '🌤️' : '🌙'}
-                    xpRemaining={ring.remaining}
+                    xpRemaining={ring.known ? ring.remaining : null}
                     percent={ring.percent}
                     xpTo={isCareerPathEnabled ? '/career' : undefined}
                     onViewPhoto={() => setViewingPhoto(true)}
@@ -483,8 +486,21 @@ const Profile = ({ view = 'dashboard' }) => {
             {/* ── My Profile: resume — the uploaded file, and the ATS resume built from courses ── */}
             {onProfile && <ResumeSection />}
 
-            {/* ── My Profile: bring your own Gemini key for the AI features ── */}
-            {onProfile && <AiKeySettings />}
+            {/* ── My Profile: the student's Google account, where their certificates,
+                resume and exam dates can go. The same card as on the Calendar;
+                Google sends them back to whichever page they connected from. ── */}
+            {/* ── …and beside it, bring your own Gemini key for the AI features.
+                Two small settings cards side by side on a laptop rather than two
+                full-width panels; stacked on a phone. ── */}
+            {onProfile && (
+                // min-w-0 on each card: a grid item will not shrink below its
+                // content otherwise, and a long Google address widened a phone
+                // page past the screen.
+                <div className="grid gap-4 lg:grid-cols-2 lg:items-start [&>*]:min-w-0">
+                    <GoogleConnectionCard compact />
+                    <AiKeySettings />
+                </div>
+            )}
 
             {/* ── Photo Viewer Modal ── */}
             {viewingPhoto && user?.profilePicture && (

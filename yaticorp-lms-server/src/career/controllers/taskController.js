@@ -5,6 +5,7 @@ const Goal = require('../models/Goal');
 const User = require('../models/User');
 const PlannerContext = require('../models/PlannerContext');
 const TaskStudy = require('../models/TaskStudy');
+const DailyPlan = require('../models/DailyPlan');
 const { generateTasksFromAI } = require('../services/geminiService');
 const { completeTask } = require('../services/taskCompletionService');
 const { lessonGates } = require('./taskStudyController');
@@ -18,7 +19,8 @@ const {
   sweepMissedTasks,
   ensureTodaysPlan,
   setTodaysTimeBudget,
-  addAnotherTask
+  addAnotherTask,
+  examsTomorrow
 } = require('../services/dailyPlanService');
 
 // @desc    Generate one extra task for today, on request
@@ -51,12 +53,63 @@ const generateAnotherTask = async (req, res) => {
 // @route   POST /api/tasks/generate
 // @access  Private
 const generateTasks = async (req, res) => {
+  // Set once this request owns today's DailyPlan, so a failure can hand the day
+  // back exactly as it found it.
+  let claim = null;
+  let claimCreated = false;
   try {
     const goal = await Goal.findOne({ userId: req.user._id });
     const roadmap = await Roadmap.findOne({ userId: req.user._id });
 
     if (!goal || !roadmap) {
       return res.status(400).json({ message: 'Roadmap and Goal must exist before generating tasks.' });
+    }
+
+    const today = startOfDay();
+    const tomorrow = addDays(today, 1);
+
+    // This is the planner's empty-state button, and the planner showed it
+    // while GET /tasks was still building the day in another request — so a
+    // click landed a second task and a second Gemini call on top of the one
+    // already coming. A day that already has work is refused; "Generate
+    // another task" is the way to ask for more.
+    const existing = await Task.find({ userId: req.user._id, assignedDate: { $gte: today, $lt: tomorrow } })
+      .sort({ createdAt: 1 });
+    if (existing.length > 0) {
+      return res.status(409).json({ message: 'Today already has its task.', code: 'already-planned', tasks: existing });
+    }
+
+    // The day before an exam is kept clear on every other path; this one must
+    // not be the way round it.
+    const exams = await examsTomorrow(req.user._id, today);
+    if (exams.length > 0) {
+      return res.status(400).json({ message: `Today is kept clear for tomorrow's ${exams[0].title}. Use it to revise.` });
+    }
+
+    // Claim the day the same way the daily plan does, so two clicks (or a
+    // click racing the planner's own build) cannot both reach the model. A
+    // plan that is 'ready' with nothing on it — its tasks withdrawn since —
+    // is taken over rather than refused, or the empty state would be a dead
+    // end until midnight.
+    const user = await User.findById(req.user._id).select('dailyTimeBudget');
+    try {
+      claim = await DailyPlan.create({
+        userId: req.user._id,
+        date: today,
+        status: 'generating',
+        timeBudgetMinutes: user?.dailyTimeBudget || 60
+      });
+      claimCreated = true;
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      claim = await DailyPlan.findOneAndUpdate(
+        { userId: req.user._id, date: today, status: 'ready' },
+        { $set: { status: 'generating' } },
+        { new: true }
+      );
+      if (!claim) {
+        return res.status(409).json({ message: "Today's task is already being prepared.", code: 'generating', tasks: [] });
+      }
     }
 
     const aiData = await generateTasksFromAI(goal, roadmap);
@@ -70,10 +123,11 @@ const generateTasks = async (req, res) => {
     for (const skill of offeredSkills) {
       await SkillProgress.findOneAndUpdate(
         { userId: req.user._id, skillName: skill.skillName },
-        {
-          $set: { level: skill.level },
-          $setOnInsert: { progress: 0 }
-        },
+        // The model's level is only a starting guess for a skill the student
+        // has not tracked before. Setting it on every call overwrote a level
+        // they had earned by finishing tasks — an Advanced skill knocked back
+        // to Beginner because a prompt said so.
+        { $setOnInsert: { level: skill.level, progress: 0 } },
         { upsert: true, new: true }
       );
     }
@@ -111,7 +165,6 @@ const generateTasks = async (req, res) => {
     let createdTasks = [];
     const offered = (aiData.tasks || []).filter((t) => t.title);
     if (offered.length > 0) {
-      const user = await User.findById(req.user._id).select('dailyTimeBudget');
       const { tasks } = fitToBudget(offered, user?.dailyTimeBudget || 60);
 
       for (const task of tasks) {
@@ -127,15 +180,29 @@ const generateTasks = async (req, res) => {
           guidance: task.learning === 'none' && task.guidance?.length ? task.guidance : undefined,
           // These join today's plan, so they appear alongside the generated
           // ones and fall under the same end-of-day sweep.
-          assignedDate: startOfDay(),
+          assignedDate: today,
+          dueDate: tomorrow,
           status: 'Pending'
         });
         createdTasks.push(newTask);
       }
     }
 
+    claim.status = 'ready';
+    claim.taskCount = createdTasks.length;
+    await claim.save();
+    claim = null;
+
     res.status(201).json({ message: 'Tasks and Skills generated', tasks: createdTasks });
   } catch (error) {
+    // Release the day so the student can retry: a claim this request made is
+    // removed, one it took over goes back to how it was.
+    if (claim) {
+      await (claimCreated
+        ? DailyPlan.deleteOne({ _id: claim._id })
+        : DailyPlan.updateOne({ _id: claim._id }, { $set: { status: 'ready' } })
+      ).catch(() => {});
+    }
     res.status(statusFor(error)).json(aiAwareBody(error));
   }
 };
@@ -285,14 +352,41 @@ const setTimeBudget = async (req, res) => {
   }
 };
 
+/** A 'YYYY-MM-DD' query value as the platform midnight it names, or null. */
+const parseDayParam = (value) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const at = new Date(`${value}T12:00:00Z`);
+  return Number.isNaN(at.getTime()) ? null : startOfDay(at);
+};
+
 // @desc    Every task ever assigned, for history views
-// @route   GET /api/tasks/history
+// @route   GET /api/tasks/history?from=YYYY-MM-DD&to=YYYY-MM-DD
 // @access  Private
 const getTaskHistory = async (req, res) => {
   try {
-    const tasks = await Task.find({ userId: req.user._id })
+    // Without a range this is the newest 200, which is all the existing
+    // callers want. A calendar paging back through older months asks for a
+    // window instead — 200 is only a few months of a busy student, and the
+    // cap silently emptied everything before that.
+    const from = parseDayParam(req.query.from);
+    const to = parseDayParam(req.query.to);
+    if ((req.query.from && !from) || (req.query.to && !to)) {
+      return res.status(400).json({ message: 'from and to must be dates in YYYY-MM-DD form.' });
+    }
+
+    const filter = { userId: req.user._id };
+    if (from || to) {
+      filter.assignedDate = {};
+      if (from) filter.assignedDate.$gte = from;
+      // Inclusive of the whole `to` day.
+      if (to) filter.assignedDate.$lt = addDays(to, 1);
+    }
+
+    // A window is still bounded, just far more generously: a year of extra
+    // tasks fits, a crafted ten-year range cannot pull an unbounded list.
+    const tasks = await Task.find(filter)
       .sort({ assignedDate: -1, createdAt: -1 })
-      .limit(200);
+      .limit(from || to ? 2000 : 200);
     res.status(200).json(tasks);
   } catch (error) {
     res.status(statusFor(error)).json(aiAwareBody(error));

@@ -74,21 +74,25 @@ describe('the mock interview welcome screen', { skip: skipWithoutChrome }, () =>
         assert.equal(result.decorative, 3, "the robot's checklist is hidden from screen readers");
     });
 
+    // The length sits beside each type in the picker and beside the chosen one
+    // in the field; the separate duration box, which looked like a field that
+    // could be changed, is gone.
     test('the duration follows the interview type', async () => {
         const { result } = await screen({
             entry, api, script: `${PICKERS}
-                const shown = () => $$('p').map(text).find((t) => /minutes/.test(t || ''));
                 await sleep(600);
-                const full = shown();
+                const full = chosenIn(0);
+                const box = $$('p').map(text).find((t) => /minutes/.test(t || ''));
                 await openPicker(0);
-                const types = rows();
+                const types = rows().map((r) => r.replace(/\\s+/g, ' '));
                 const hrRow = $$('[role="option"]').find((o) => /HR Interview/.test(o.innerText));
                 hrRow.click(); await sleep(250);
-                return { full, hr: shown(), types };` });
-        assert.equal(result.full, '12–15 minutes');
-        assert.equal(result.hr, '8–10 minutes', 'a shorter interview shows a shorter time');
-        assert.ok(result.types.includes('Full Mock Interview'));
-        assert.ok(result.types.includes('HR Interview'));
+                return { full, box, hr: chosenIn(0), types };` });
+        assert.match(result.full, /Full Mock Interview\s*· 12–15 min/);
+        assert.match(result.hr, /HR Interview\s*· 8–10 min/, 'a shorter interview shows a shorter time');
+        assert.equal(result.box, undefined, 'no separate duration box');
+        assert.ok(result.types.some((t) => /Full Mock Interview/.test(t) && /12–15 min/.test(t)));
+        assert.ok(result.types.some((t) => /HR Interview/.test(t) && /8–10 min/.test(t)));
     });
 
     test('the role they arrived with is the one chosen, and it stays on the list', async () => {

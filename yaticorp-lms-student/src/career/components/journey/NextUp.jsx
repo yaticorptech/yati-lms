@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import '../dashboard/overviewCardArt.css';
 import { ArrowRight, Lock, Trophy, Zap } from 'lucide-react';
 import { phaseTitle, parseChoices } from '../../utils/roadmap';
+import { useXpRule } from '../../../context/useRewards';
 
 /**
  * 🔓 What finishing today actually buys.
@@ -16,6 +17,8 @@ import { phaseTitle, parseChoices } from '../../utils/roadmap';
  * phase, and a locked row promising one would be a lie about the roadmap.
  */
 export default function NextUp({ nextPhase, levelProgress }) {
+  // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
+  const TASK_XP = useXpRule('career_task');
   const nextTitle = nextPhase ? phaseTitle(nextPhase) : null;
   const nextLead = nextTitle ? parseChoices(nextTitle)?.lead || nextTitle : null;
   const hasLevel = levelProgress && levelProgress.remaining > 0;
@@ -24,7 +27,7 @@ export default function NextUp({ nextPhase, levelProgress }) {
 
   // The backend awards 10 XP per completed task, so "how many more tasks" is a
   // goal in a way that "260 XP" is not.
-  const tasksToLevel = hasLevel ? Math.max(1, Math.ceil(levelProgress.remaining / 10)) : 0;
+  const tasksToLevel = hasLevel ? Math.max(1, Math.ceil(levelProgress.remaining / Math.max(1, TASK_XP))) : 0;
 
   return (
     <section className="isolate fp-lift relative flex h-full flex-col overflow-hidden rounded-3xl border border-line-200 bg-surface p-6 shadow-card">

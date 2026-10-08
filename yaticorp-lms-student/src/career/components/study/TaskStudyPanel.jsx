@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Sparkles, RefreshCw, Trophy, MonitorPlay, FileText, HelpCircle, BookOpen
+  Sparkles, RefreshCw, Trophy, MonitorPlay, FileText, HelpCircle, BookOpen, Play, Target, Clock, ArrowRight, ArrowLeft, Languages, Check
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../ui/Toast';
@@ -9,7 +9,17 @@ import NotesReader from './NotesReader';
 import QuizRunner from './QuizRunner';
 import LessonVideo from './LessonVideo';
 import LessonSteps from './LessonSteps';
+import { QuizMarkArt } from '../ui/PanelArt';
+import { useCelebrate } from '../ui/Celebration';
 import { useMascot } from '../../mascot/useMascot';
+
+// The languages a video lesson can be in. Names in their own script, so a
+// student finds theirs at a glance.
+const VIDEO_LANGUAGES = [
+  { code: 'en', label: 'English', hint: 'Taught in English' },
+  { code: 'hi', label: 'हिंदी', hint: 'Hindi' }
+];
+const LANGUAGE_NAMES = { en: 'English', hi: 'Hindi' };
 
 /**
  * The lesson for ONE planner task: watch the video, read the notes written about
@@ -31,7 +41,25 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
     mascot.taskStarted();
   }, [mascot]);
   const [submitting, setSubmitting] = useState(false);
+  // The quiz waits behind a Start button, so a student scrolling past it to
+  // the notes is not dropped into question one before they have learnt anything.
+  const [quizStarted, setQuizStarted] = useState(false);
+  const quizRef = useRef(null);
   const toast = useToast();
+  const celebrate = useCelebrate();
+  // The language of the current video, so "Different video" keeps it. A video
+  // we could not place ('other') is searched again in English.
+  const currentLang = study?.video?.language === 'hi' ? 'hi' : 'en';
+  // After "Watch a video", the chooser asks which language before building.
+  const [choosingLanguage, setChoosingLanguage] = useState(false);
+
+  /** Open the quiz and bring it into view. */
+  const startQuiz = useCallback(() => {
+    setQuizStarted(true);
+    window.requestAnimationFrame(() =>
+      quizRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    );
+  }, []);
 
   // Guards the completion toast, so a re-render or a second gate landing in the
   // same moment cannot announce the same finish twice.
@@ -57,7 +85,10 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
         // The quiz XP and the completion XP are separate awards; reporting only
         // one of them would understate what the work was worth.
         onCompleted?.(data.task || { ...task, status: 'Completed' }, {
-          xp: (data.xpAwarded || 0) + (data.completionXp || 0)
+          xp: (data.xpAwarded || 0) + (data.completionXp || 0),
+          // Set only when the quiz was the step that finished the task, so the
+          // planner's celebration can show the score alongside the XP.
+          score: data.total ? `${data.score} / ${data.total} correct` : undefined
         });
       }
     },
@@ -121,21 +152,39 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
    * `mode` is passed explicitly at every call site rather than defaulted from a
    * click handler — an earlier version of this panel wired a handler straight
    * to onClick and posted the click event as its argument.
+   *
+   * `replaceVideo` is the "Different video" / "Find another video" path: the
+   * server swaps the video and keeps the notes, the quiz and the score, which
+   * is what those buttons promise.
    */
-  const handleGenerate = async (mode = 'video') => {
-    setGenerating(mode);
+  const handleGenerate = async (mode = 'video', lang = 'en', { replaceVideo = false } = {}) => {
+    // Which button is busy. A first build names its language, so only the
+    // language that was picked shows the spinner.
+    setGenerating(mode === 'video' && !study ? `lang-${lang}` : mode);
     try {
-      const { data } = await api.post(`/tasks/${task._id}/study`, { mode });
+      const { data } = await api.post(`/tasks/${task._id}/study`, {
+        mode,
+        lang,
+        ...(replaceVideo ? { replace: 'video' } : {})
+      });
       setStudy(data);
-      // A rebuilt lesson clears its watch/read progress server-side, so the
+      // Any rebuild restarts at least the watch gate server-side, so the
       // completion announcement is due again if the student re-earns it.
       announcedRef.current = false;
+      // A full rebuild writes a new quiz. Leaving it open would show the old
+      // attempt's state against questions it was never about; a video swap
+      // keeps the quiz, so it stays where it was.
+      if (!replaceVideo) setQuizStarted(false);
       // The task is gated from now on — the planner drops its manual tick.
       onLessonReady?.(task._id);
       toast.success(
-        mode === 'read'
+        replaceVideo
+          ? 'Here is a different video. Your notes and quiz are unchanged.'
+          : mode === 'read'
           ? 'Your notes and quiz are ready.'
-          : 'Video, notes and quiz are ready.',
+          : data?.video?.videoId && lang !== 'en' && data.video.language !== lang
+            ? `No ${LANGUAGE_NAMES[lang]} video found for this one, so here is an English one.`
+            : 'Video, notes and quiz are ready.',
         'Lesson built'
       );
     } catch (err) {
@@ -152,11 +201,29 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
       setStudy((prev) =>
         prev ? { ...prev, bestScore: data.bestScore, attempts: data.attempts } : prev
       );
-      // Skipped when the quiz was the last gate: the celebration below already
-      // announces the pass and the XP, and a toast on top of it is just the
+      // A pass gets its own moment: the score and the XP, with confetti.
+      // Skipped when the quiz was the last gate — the planner's "Task complete"
+      // celebration carries the score then, and two pop-ups stacked is the
       // same news twice.
-      if (data.xpAwarded > 0 && !data.autoCompleted) {
-        toast.success(`You passed and earned ${data.xpAwarded} XP.`, 'Quiz passed');
+      if (data.passed && !data.autoCompleted) {
+        const remaining = [
+          data.gates?.needsVideo && !data.gates.videoWatched && 'watch the video',
+          data.gates?.needsNotes && !data.gates.notesRead && 'read the notes'
+        ].filter(Boolean);
+        celebrate({
+          kind: 'task',
+          icon: Trophy,
+          tone: 'amber',
+          title: 'You passed the quiz!',
+          message:
+            data.xpAwarded > 0
+              ? remaining.length
+                ? `Every answer right. ${remaining.join(' and ').replace(/^./, (c) => c.toUpperCase())} to finish this task.`
+                : 'Every answer right — nice work.'
+              : 'Every answer right again. You had already earned the XP for this one.',
+          score: `${data.score} / ${data.total} correct`,
+          xp: data.xpAwarded
+        });
       }
       // Passing is usually the last gate, so this is where the task most often
       // completes itself.
@@ -210,6 +277,58 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
       );
     }
 
+    // Second step of "Watch a video": which language to watch it in.
+    if (choosingLanguage) {
+      return (
+        <div className="px-4 pb-6 sm:px-6">
+          <div className="rounded-xl border border-dashed border-line-300 bg-surface-50/60 p-6">
+            <div className="text-center">
+              <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                <Languages className="h-5 w-5" />
+              </span>
+              <h4 className="font-bold text-ink-900">Which language do you want the video in?</h4>
+              <p className="mx-auto mt-1 mb-5 max-w-md text-sm leading-relaxed text-ink-500">
+                We&apos;ll find a tutorial in that language. If there isn&apos;t one for this topic,
+                you&apos;ll get an English one.
+              </p>
+            </div>
+
+            <div className="mx-auto grid max-w-md gap-3 sm:grid-cols-2">
+              {VIDEO_LANGUAGES.map(({ code, label, hint }) => (
+                <button
+                  key={code}
+                  type="button"
+                  disabled={generating !== null}
+                  onClick={() => handleGenerate('video', code)}
+                  className="group flex flex-col items-center gap-1 rounded-xl border border-line-200 bg-surface px-4 py-4 text-center transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-card disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="flex items-center gap-1.5 text-lg font-black text-ink-900">
+                    {generating === `lang-${code}` && <RefreshCw className="h-4 w-4 animate-spin text-link" />}
+                    {label}
+                  </span>
+                  <span className="text-xs text-ink-500">
+                    {generating === `lang-${code}` ? 'Finding your video…' : hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                disabled={generating !== null}
+                onClick={() => setChoosingLanguage(false)}
+                className="inline-flex items-center gap-1 text-xs font-bold text-ink-500 hover:text-ink-900 disabled:opacity-50"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Two ways in, offered as equals. Some students learn from a video and some
     // would rather read; making one of them the default and the other a
     // fallback would be guessing on their behalf.
@@ -230,15 +349,13 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
             <button
               type="button"
               disabled={generating !== null}
-              onClick={() => handleGenerate('video')}
+              onClick={() => setChoosingLanguage(true)}
               className="group rounded-xl border border-line-200 bg-surface p-4 text-left transition-all hover:border-brand-200 hover:shadow-card disabled:cursor-not-allowed disabled:opacity-60"
             >
               <span className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
                 <MonitorPlay className="h-4.5 w-4.5" />
               </span>
-              <span className="block text-sm font-bold text-ink-900">
-                {generating === 'video' ? 'Finding your video…' : 'Watch a video'}
-              </span>
+              <span className="block text-sm font-bold text-ink-900">Watch a video</span>
               <span className="mt-0.5 block text-xs leading-relaxed text-ink-500">
                 A YouTube tutorial for this exact task, with notes written about it.
               </span>
@@ -300,7 +417,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               icon={RefreshCw}
               loading={generating === 'video'}
               loadingText="Looking…"
-              onClick={() => handleGenerate('video')}
+              onClick={() => handleGenerate('video', currentLang, { replaceVideo: true })}
             >
               Find another video
             </Button>
@@ -322,8 +439,8 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               size="sm"
               icon={RefreshCw}
               loading={generating === 'video'}
-              loadingText="Rebuilding…"
-              onClick={() => handleGenerate('video')}
+              loadingText="Finding one…"
+              onClick={() => handleGenerate('video', currentLang, { replaceVideo: true })}
             >
               Different video
             </Button>
@@ -341,8 +458,10 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
         </section>
       )}
 
-      {/* 2 — Read: notes written about the video above */}
-      {study.notes?.summary && (
+      {/* 2 — Read: notes written about the video above. Shown whenever the
+          server counts them as a gate — a summary OR sections — or a lesson
+          with sections but no summary could never be finished. */}
+      {(study.notes?.summary || study.notes?.sections?.length > 0) && (
         <section className={isReading ? '' : 'border-t border-line-100 pt-6'}>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h4 className="flex items-center gap-3 text-lg font-black text-ink-900">
@@ -362,7 +481,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
 
       {/* 3 — Test: questions drawn from the same material */}
       {study.quiz?.length > 0 && (
-        <section className="border-t border-line-100 pt-6">
+        <section ref={quizRef} className="scroll-mt-4 border-t border-line-100 pt-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h4 className="flex items-center gap-3 text-lg font-black text-ink-900">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-journey-50 text-journey-600 ring-1 ring-journey-100 ring-inset">
@@ -370,7 +489,8 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               </span>
               Check you got it
             </h4>
-            {study.attempts > 0 && (
+            {/* Before the quiz opens, the start card shows the best score itself. */}
+            {quizStarted && study.attempts > 0 && (
               <p className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700 ring-1 ring-amber-100 ring-inset">
                 <Trophy className="h-3.5 w-3.5 text-amber-500" />
                 Best: {study.bestScore}/{study.quiz.length} over {study.attempts}{' '}
@@ -378,14 +498,135 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               </p>
             )}
           </div>
-          <QuizRunner
-            material={study}
-            onSubmit={handleSubmitQuiz}
-            submitting={submitting}
-            requireAllCorrect
-          />
+          {quizStarted ? (
+            <QuizRunner
+              material={study}
+              onSubmit={handleSubmitQuiz}
+              submitting={submitting}
+              requireAllCorrect
+            />
+          ) : (
+            <QuizStartCard
+              total={study.quiz.length}
+              best={study.bestScore || 0}
+              attempts={study.attempts || 0}
+              passed={Boolean(study.gates?.quizPassed)}
+              onStart={startQuiz}
+            />
+          )}
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * The door to the quiz: what it asks of the student, how close they came last
+ * time, and one big button. Worded for where they are — a first go, a retry
+ * after a near miss, or a retake once it is already passed.
+ */
+function QuizStartCard({ total, best, attempts, passed, onStart }) {
+  const headline = passed
+    ? 'Quiz passed!'
+    : attempts > 0
+      ? best >= total - 1
+        ? 'So close! One more go?'
+        : 'Ready for another try?'
+      : 'Ready to test yourself?';
+  const subline = passed
+    ? 'Every answer right — this step is done.'
+    : attempts > 0
+      ? 'Take your time — every answer is explained after you submit.'
+      : 'Quick questions on what you just learnt.';
+  const cta = attempts > 0 ? 'Try again' : 'Start quiz';
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-journey-600 via-indigo-600 to-fuchsia-600 px-5 py-4 text-white shadow-lg shadow-journey-500/25 sm:px-6">
+      {/* Soft light and drifting sparkles, behind everything. */}
+      <div aria-hidden className="fp-float pointer-events-none absolute -top-16 -right-12 h-40 w-40 rounded-full bg-pink-400/40 blur-3xl" />
+      <div aria-hidden className="fp-float-slow pointer-events-none absolute -bottom-20 -left-12 h-40 w-40 rounded-full bg-sky-400/30 blur-3xl" />
+      {[
+        ['8%', '18%', '-0.4s', '✨'], ['88%', '14%', '-2.1s', '⭐'], ['78%', '78%', '-1.2s', '✦'], ['14%', '80%', '-3s', '✦']
+      ].map(([left, top, delay, glyph]) => (
+        <span
+          key={`${left}-${top}`}
+          aria-hidden
+          className="fp-drift-icon pointer-events-none absolute text-xs text-white/80"
+          style={{ left, top, animationDelay: delay }}
+        >
+          {glyph}
+        </span>
+      ))}
+
+      <div className="relative flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
+        <div className="fp-float relative shrink-0">
+          <span aria-hidden className="absolute inset-0 rounded-full bg-white/30 blur-lg" />
+          <QuizMarkArt className="relative h-12 w-12 drop-shadow-lg" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <h5 className="text-base font-black tracking-tight sm:text-lg">{headline}</h5>
+          <p className="mt-0.5 text-xs text-white/80">{subline}</p>
+
+          <div className="mt-2.5 flex flex-wrap justify-center gap-1.5 sm:justify-start">
+            {[
+              [HelpCircle, `${total} ${total === 1 ? 'question' : 'questions'}`],
+              [Target, 'All correct to finish'],
+              [Clock, 'No timer']
+            ].map(([Icon, label]) => (
+              <span
+                key={label}
+                className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[0.7rem] font-bold ring-1 ring-white/25 backdrop-blur-sm ring-inset"
+              >
+                <Icon className="h-3 w-3" />
+                {label}
+              </span>
+            ))}
+          </div>
+
+          {attempts > 0 && (
+            <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+              <Trophy className="h-3.5 w-3.5 text-amber-300" />
+              <span className="text-xs font-black text-white/90">
+                Best {best}/{total}
+              </span>
+              <span className="flex gap-1" aria-hidden>
+                {Array.from({ length: total }, (_, i) => (
+                  <span
+                    key={i}
+                    className={`h-1.5 w-4 rounded-full ${i < best ? 'bg-amber-300 shadow-sm shadow-amber-300/60' : 'bg-white/25'}`}
+                  />
+                ))}
+              </span>
+              <span className="text-xs text-white/70">
+                · {attempts} {attempts === 1 ? 'attempt' : 'attempts'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Once passed there is nothing to retake — a done badge instead of a button. */}
+        {passed ? (
+          <span className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-white/95 px-4 py-2.5 text-sm font-black text-emerald-700 shadow-lg">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+              <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            </span>
+            Passed
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onStart}
+            className="fp-btn fp-glow-violet group inline-flex shrink-0 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-journey-700 shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97] focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60"
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-journey-500 to-fuchsia-500 text-white">
+              <Play className="h-3 w-3 fill-current" />
+            </span>
+            {cta}
+            <ArrowRight className="fp-btn-arrow h-4 w-4" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

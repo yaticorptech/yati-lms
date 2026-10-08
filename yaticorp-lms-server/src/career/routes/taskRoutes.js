@@ -1,4 +1,6 @@
 const express = require('express');
+const { chargeWallet } = require('../../rewards/services/walletRuleService');
+const { xpOnSuccess } = require('../../rewards/services/xpHooks');
 const router = express.Router();
 
 const {
@@ -23,7 +25,7 @@ router.param('id', validateObjectId);
 
 router.post('/generate', protect, generateTasks);
 // Declared before '/:id' so the literal path is not read as a task id.
-router.post('/another', protect, generateAnotherTask);
+router.post('/another', protect, chargeWallet('add_extra_task'), generateAnotherTask);
 router.get('/history', protect, getTaskHistory);
 router.put('/day/time-budget', protect, setTimeBudget);
 router.route('/')
@@ -33,11 +35,11 @@ router.route('/')
 // '/:id/study' is never swallowed by the task update route.
 router.route('/:id/study')
   .get(protect, getTaskStudy)
-  .post(protect, generateTaskStudy);
+  .post(protect, chargeWallet('build_task_lesson'), generateTaskStudy);
 router.post('/:id/study/quiz', protect, submitTaskQuiz);
 // Watch/read gates. Declared alongside the other study routes and before
 // '/:id', which only ever matches a bare id.
-router.put('/:id/study/progress', protect, updateStudyProgress);
+router.put('/:id/study/progress', protect, xpOnSuccess('task_video_watched', (req) => (req.body?.videoWatched ? `video:${req.params.id}` : null)), updateStudyProgress);
 
 router.route('/:id')
   .put(protect, updateTask);

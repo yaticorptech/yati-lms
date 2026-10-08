@@ -9,6 +9,9 @@ const Enrollment = require('../models/Enrollment');
 const Bundle = require('../models/Bundle');
 const Progress = require('../models/Progress');
 const { canAccessCourse, visibleCoursesFilter } = require('../services/courseAccess');
+const walletService = require('../rewards/services/walletService');
+const { getConfig: getRewardsConfig } = require('../rewards/services/configService');
+const { Wallet, WalletTransaction } = require('../rewards/models');
 
 /**
  * Every published bundle, with only its published courses attached.
@@ -193,10 +196,8 @@ const getCourseContent = async (req, res) => {
             })
         );
 
-        let progress = await Progress.findOne({ userId: req.user._id, courseId });
-        if (!progress) {
-            progress = await Progress.create({ userId: req.user._id, courseId, percentage: 0 });
-        }
+        // Atomic: opening the course in two tabs at once still makes one row.
+        const progress = await Progress.findOrCreate(req.user._id, courseId);
 
         res.json({
             course,
@@ -214,14 +215,15 @@ const getCourseContent = async (req, res) => {
 const updateProgress = async (req, res) => {
     try {
         const { courseId, lessonId } = req.body;
+        // Plain values only: an object here ({"$gt": ""}) would match some course.
+        if (typeof courseId !== 'string' || (lessonId != null && typeof lessonId !== 'string')) {
+            return res.status(400).json({ message: 'Invalid course or lesson' });
+        }
 
         const target = courseId ? await Course.findById(courseId).select('organizationId').lean() : null;
         if (!target || !canAccessCourse(req.user, target)) return res.status(404).json({ message: 'Course not found' });
 
-        let progress = await Progress.findOne({ userId: req.user._id, courseId });
-        if (!progress) {
-            progress = new Progress({ userId: req.user._id, courseId, completedLessons: [] });
-        }
+        const progress = await Progress.findOrCreate(req.user._id, courseId);
 
         progress.lastAccessedLesson = lessonId;
 
@@ -380,13 +382,63 @@ const enrollCourse = async (req, res) => {
             return res.status(400).json({ message: 'You are already enrolled in this course' });
         }
 
-        await Enrollment.create({
-            userId: req.user._id,
-            type: 'Course',
-            courseId: courseId
-        });
+        // The admin's price is taken from the wallet, every enrolment. Not for
+        // an organization's own courses (free to their members), and not while
+        // Rewards is locked — the same rule every wallet price follows.
+        const userId = req.user._id;
+        const price = walletService.money(course.price || 0);
+        const rewards = await getRewardsConfig();
+        let charge = null;
+        if (price > 0 && !course.organizationId && rewards.enabled !== false) {
+            await walletService.grantStartingCredit(userId);
+            // Numbered per course, so two clicks at once book one charge (the
+            // ledger refuses a second entry with the same key), while a
+            // genuine re-enrolment later is charged again.
+            const previous = await WalletTransaction.countDocuments({ userId, source: 'purchase', type: 'debit', 'meta.courseId': String(course._id) });
+            try {
+                charge = await walletService.debit({
+                    userId, amount: price, source: 'purchase', spendCreditFirst: true,
+                    referenceKey: `course:${course._id}:${previous + 1}`,
+                    description: `Enrolled in ${course.title}`,
+                    meta: { courseId: String(course._id) },
+                    createdBy: 'user'
+                });
+            } catch (err) {
+                if (err.code === 'INSUFFICIENT_FUNDS') {
+                    const w = await Wallet.findOne({ userId }).select('available currency').lean();
+                    const cur = w?.currency || 'INR';
+                    return res.status(402).json({
+                        code: 'INSUFFICIENT_FUNDS',
+                        message: `This course costs ${cur} ${price} and your wallet balance is ${cur} ${walletService.money(w?.available || 0)}. Earn XP on Career Path to add to your wallet balance.`,
+                        needed: price, balance: w?.available || 0
+                    });
+                }
+                throw err;
+            }
+            if (charge.duplicate) {
+                return res.status(409).json({ message: 'Your enrolment is already being processed.' });
+            }
+        }
 
-        res.json({ message: 'Enrolled successfully!', course });
+        try {
+            await Enrollment.create({ userId, type: 'Course', courseId });
+        } catch (err) {
+            // Paid but not enrolled: the money goes straight back.
+            if (charge?.txn) {
+                await walletService.credit({
+                    userId, amount: price, source: 'feature_refund', referenceKey: `refund:${charge.txn._id}`,
+                    description: `Refund: enrolment in ${course.title} did not complete`, spendOnly: (charge.txn.meta?.fromSpendOnly || 0) >= price
+                }).catch((e) => console.error('[enroll] refund failed:', e.message));
+            }
+            throw err;
+        }
+
+        res.json({
+            message: 'Enrolled successfully!',
+            course,
+            charged: charge?.txn ? price : 0,
+            balance: charge?.wallet?.available ?? null
+        });
 
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });

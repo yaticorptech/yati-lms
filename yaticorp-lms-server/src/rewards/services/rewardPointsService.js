@@ -45,6 +45,16 @@ const awardPoints = async ({ userId, points, source, claimKey, description = '',
   if (!quiet) {
     await notify(userId, 'Reward points earned', `+${points} reward points — ${description || source.replace(/_/g, ' ')}.`);
   }
+  // Points unlock badges ('reward_points'), so a points award is a moment to
+  // look. Required here, not at the top: badgeService is loaded after this.
+  if (created) {
+    try {
+      const { getConfig } = require('./configService');
+      await require('./badgeService').evaluate(userId, await getConfig());
+    } catch (err) {
+      console.error('[rewards] badge check after points failed:', err.message);
+    }
+  }
   return created;
 };
 

@@ -151,7 +151,11 @@ const Settings = () => {
             if (!dataToSubmit.password) {
                 delete dataToSubmit.password;
             }
-            await api.put(`/admin/admins/${editAdminForm._id}`, dataToSubmit);
+            const res = await api.put(`/admin/admins/${editAdminForm._id}`, dataToSubmit);
+            // Your own new password: keep this session (older tokens stop working).
+            if (res.data?.token) {
+                try { localStorage.setItem('adminToken', res.data.token); } catch { /* storage unavailable */ }
+            }
             setShowEditAdminModal(false);
             fetchData();
         } catch (err) {

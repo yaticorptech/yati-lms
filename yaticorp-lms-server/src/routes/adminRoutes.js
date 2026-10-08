@@ -16,7 +16,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const { lessonUpload, attachmentUpload, tagUploadLimit, tagAttachmentLimit } = require('../middleware/lessonUploadMiddleware');
 
 // Import secondary controllers directly mapping here for simplicity
-const { getUsers, getUserById, updateUserStatus, addUser, deleteUser, updateUser, resetProgress, bulkAddUsers } = require('../controllers/adminUserController');
+const { getUsers, getUserById, updateUserStatus, addUser, deleteUser, updateUser, resetProgress, bulkAddUsers, openStudentDashboard } = require('../controllers/adminUserController');
 const { getAdmins, addAdmin, deleteAdmin, updateAdmin } = require('../controllers/adminManagementController');
 const { getUserCourseProgress, setUserCourseProgress } = require('../controllers/adminProgressController');
 const courseCtrl = require('../controllers/adminCourseController');
@@ -28,6 +28,8 @@ router.route('/users').get(protectAdmin, getUsers).post(protectAdmin, addUser);
 router.post('/users/bulk', protectAdmin, upload.single('file'), bulkAddUsers);
 router.route('/users/:id').get(protectAdmin, getUserById).put(protectAdmin, updateUser).delete(protectAdmin, deleteUser);
 router.route('/users/:id/status').put(protectAdmin, updateUserStatus);
+// Superadmins only: opens the student's own dashboard, signed in as them.
+router.post('/users/:id/dashboard-access', protectAdmin, superAdminOnly, openStudentDashboard);
 router.route('/users/:id/progress/:courseId')
     .get(protectAdmin, getUserCourseProgress)
     .put(protectAdmin, setUserCourseProgress)
