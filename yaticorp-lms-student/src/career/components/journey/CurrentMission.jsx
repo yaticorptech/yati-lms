@@ -1,10 +1,9 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Check, Sparkles, Zap } from 'lucide-react';
+import { useXpRule } from '../../../context/useRewards';
 
-// What the server pays for a finished task, matching TASK_XP in
-// taskCompletionService. Verified end to end: completing one moves the profile
-// by exactly this much, so it is a promise rather than a guess.
-const TASK_XP = 10;
+// What a finished task pays is the admin's 'career_task' rule, read with
+// useXpRule below: the same value the server pays, so it is a promise.
 
 /**
  * ⚡ The one button the dashboard exists to get pressed.
@@ -22,6 +21,8 @@ const TASK_XP = 10;
  * is exactly what this offers. Near-black text on it clears 10:1.
  */
 export default function CurrentMission({ completedToday = 0, totalToday = 0 }) {
+  // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
+  const TASK_XP = useXpRule('career_task');
   const allDone = totalToday > 0 && completedToday >= totalToday;
   const waiting = totalToday > 0 && !allDone;
   const started = waiting && completedToday > 0;

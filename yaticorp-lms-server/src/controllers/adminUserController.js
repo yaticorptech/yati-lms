@@ -207,7 +207,9 @@ const updateUserStatus = async (req, res) => {
         if (user) {
             user.status = status;
             const updatedUser = await user.save();
-            res.json(updatedUser);
+            // Never the password (hash) or reset token: the panel reads only the status.
+            const { password: _pw, resetPasswordToken: _rt, resetPasswordExpiry: _re, ...safe } = updatedUser.toObject();
+            res.json(safe);
         } else {
             res.status(404).json({ message: 'User not found' });
         }
@@ -361,7 +363,13 @@ const deleteUser = async (req, res) => {
             }
         }
 
-        // 3. Delete the user document
+        // 3. Their organization join requests. Left behind they were hidden
+        //    from the organization's list but still counted in its pending
+        //    badge (and a superadmin's "waiting" numbers), so the two disagreed.
+        //    scripts/reportOrphanJoinRequests.js clears ones left by older deletes.
+        await require('../organizations/models/JoinRequest').deleteMany({ userId: user._id });
+
+        // 4. Delete the user document
         await User.findByIdAndDelete(req.params.id);
 
         res.json({ message: 'User removed successfully' });
@@ -624,7 +632,55 @@ const bulkAddUsers = async (req, res) => {
     }
 };
 
+/**
+ * @desc    Open a student's own dashboard, signed in as them
+ * @route   POST /api/admin/users/:id/dashboard-access
+ * @access  Private/SuperAdmin
+ *
+ * Returns the same payload the student login does, with a token that lasts two
+ * hours rather than thirty days and names the superadmin who asked for it
+ * (`impersonatedBy`). It is not a sign-in by the student, so `loginCount` is
+ * left alone — otherwise the student's own next visit would be greeted as a
+ * returning one, and the count the dashboard shows would be wrong. Each opening
+ * is logged.
+ */
+const openStudentDashboard = async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'User not found' });
+        const user = await User.findById(req.params.id).select('-password');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        if (user.status !== 'active') {
+            return res.status(400).json({ message: 'This student is blocked. Unblock them to open their dashboard.' });
+        }
+
+        const jwt = require('jsonwebtoken');
+        const token = jwt.sign(
+            { id: user._id, role: 'student', impersonatedBy: String(req.admin._id) },
+            process.env.JWT_SECRET,
+            { expiresIn: '2h' }
+        );
+        console.log(`[admin] ${req.admin.name || req.admin.email} (${req.admin._id}) opened the dashboard of student ${user.cardNumber} (${user._id})`);
+
+        res.json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            cardNumber: user.cardNumber,
+            profilePicture: user.profilePicture || '',
+            credits: user.credits || 0,
+            loginCount: user.loginCount || 0,
+            role: 'student',
+            token,
+            viewedBy: req.admin.name || 'Super Admin'
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 module.exports = {
+    openStudentDashboard,
     getUsers,
     getUserById,
     updateUserStatus,

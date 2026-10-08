@@ -24,4 +24,9 @@ router.use((req, res) => {
   res.status(404).json({ message: `No such endpoint: ${req.method} ${req.originalUrl}` });
 });
 
+// Fix the starting-credit cut-off as the server comes up, so a student who
+// registers before anyone opens a wallet is still on the right side of it.
+// Mongoose queues the query until the database is connected.
+require('./services/walletService').startingCreditFrom().catch((e) => console.error('[rewards] starting-credit cut-off:', e.message));
+
 module.exports = router;

@@ -35,6 +35,9 @@ const api = apiModule({
     '/user/available-courses': [],
     '/rewards/summary': {
         xp: 315, level: { level: 3 }, streak: { current: 4, longest: 6 }, badges: [],
+        // The admin's level ladder: the banner's "XP to the next level" is read
+        // against it, never against a table in the page.
+        config: { levelThresholds: [0, 100, 300, 600, 1000, 1600, 2500, 3600, 4900, 6400] },
         stats: { lessons: { total: 12, thisWeek: 2 }, quizzes: { total: 3, passed: 3, thisWeek: 1 }, courses: { enrolled: 1, total: 1 }, xpThisWeek: 40 },
         series: {}
     },
@@ -173,26 +176,53 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         assert.equal(small.inside, true, 'still inside the card');
     });
 
-    test('on a phone, Edit Profile goes under the heading, so the heading keeps its line', async () => {
-        // Beside the heading on a 344px phone it squeezed "Personal Information"
-        // onto two lines and "Manage your profile information" onto three.
+    test('on a phone, Edit Profile is a pencil at the top right, and the heading keeps its line', async () => {
+        // Beside the heading on a 344px phone a full button squeezed "Personal
+        // Information" onto two lines; under it, it took a row of its own. On a
+        // phone it is the pencil alone, on the heading's row (2026-10-01), and
+        // its name is still there for a screen reader. A desktop has the label.
         const HEAD = `
             await sleep(1500);
             const c = $('[data-personal-info]'), h = $('#personal-info-title'), sub = h.nextElementSibling;
-            const btn = [...c.querySelectorAll('button')].find((b) => /Edit Profile/.test(b.innerText));
+            const btn = [...c.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Edit Profile');
             const lines = (el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
-            const H = h.getBoundingClientRect(), B = btn.getBoundingClientRect();
-            return { title: lines(h), sub: lines(sub), below: B.top >= H.bottom, beside: B.left > H.right,
-                     fullWidth: B.width >= c.querySelector('#personal-info-title').closest('div.flex-wrap').clientWidth - 64 };`;
+            const H = h.getBoundingClientRect(), B = btn.getBoundingClientRect(), C = c.getBoundingClientRect();
+            return { title: lines(h), sub: lines(sub), beside: B.left > H.right, sameRow: B.top < H.bottom,
+                     atRight: C.right - B.right < 40, width: Math.round(B.width), height: Math.round(B.height) };`;
         const phone = await screen({ entry: page('profile'), api, styles: true, device: DEVICES.galaxyZFold6Folded, budget: 20_000, script: HEAD });
         assert.deepEqual(phone.errors, []);
         assert.equal(phone.result.title, 1, '"Personal Information" on one line');
         assert.equal(phone.result.sub, 1, 'and "Manage your profile information" on one line');
-        assert.equal(phone.result.below, true, 'Edit Profile under them');
-        assert.equal(phone.result.fullWidth, true, 'as a full-width button');
+        assert.equal(phone.result.beside && phone.result.sameRow && phone.result.atRight, true, 'Edit Profile at the top right, on the heading\'s row');
+        assert.ok(phone.result.width <= 40 && phone.result.height <= 40, `as an icon, drawn ${phone.result.width} by ${phone.result.height}`);
         const desk = await screen({ entry: page('profile'), api, styles: true, width: DESKTOP, budget: 20_000, script: HEAD });
-        assert.equal(desk.result.beside, true, 'on a desktop it is back beside the heading');
-        assert.equal(desk.result.fullWidth, false, 'at its own size');
+        assert.equal(desk.result.beside, true, 'on a desktop it is beside the heading too');
+        assert.ok(desk.result.width > 60 && desk.result.width <= 120 && desk.result.height <= 34,
+            `a small button with its label, drawn ${desk.result.width} by ${desk.result.height}`);
+    });
+
+    test('on a phone, the photo sits beside the name and the details are one list', async () => {
+        // Six separate cards under a centred photo made the card longer than
+        // the screen (2026-10-01). Now: photo, name and level in one row, and
+        // the details as rows of one list, edge to edge with no gaps.
+        const { result, errors } = await screen({
+            entry: page('profile'), api, styles: true, device: DEVICES.galaxyA55, budget: 20_000, script: `
+                await sleep(1500);
+                const c = $('[data-personal-info]');
+                const photo = c.querySelector('button[aria-label="Change photo or avatar"]').parentElement.getBoundingClientRect();
+                const name = [...c.querySelectorAll('p')].find((p) => p.innerText.trim() === 'Bhagyashree Bangera').getBoundingClientRect();
+                const rows = [...c.querySelectorAll('dl > div')].map((d) => d.getBoundingClientRect());
+                return { nameBeside: name.left > photo.right && name.top < photo.bottom,
+                         oneList: rows.every((r, i) => !i || Math.abs(r.top - rows[i - 1].bottom) < 1.5),
+                         sameEdges: new Set(rows.map((r) => Math.round(r.left) + ':' + Math.round(r.right))).size === 1,
+                         height: Math.round(c.getBoundingClientRect().height), vh: innerHeight,
+                         sideways: document.documentElement.scrollWidth > innerWidth };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.nameBeside, true, 'the name beside the photo');
+        assert.equal(result.oneList, true, 'the six details as one list, row under row');
+        assert.equal(result.sameEdges, true, 'all the same width');
+        assert.ok(result.height < result.vh * 0.8, `the card is ${result.height}px on a ${result.vh}px screen`);
+        assert.equal(result.sideways, false, 'and nothing pushes the page sideways');
     });
 
     test('My Profile opens with Personal Information: each detail under its label', async () => {
@@ -243,7 +273,7 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         assert.equal(result.separate, true, 'each drawn as its own tile');
     });
 
-    test('the laid-out order: Name, ID, Email down the left; Phone, Organization, Level down the right', async () => {
+    test('the laid-out order, three to a row as in the design: Name, Phone, Email; then ID, Organization, Level', async () => {
         const { result, errors } = await screen({
             entry: page('profile'), api, styles: true, width: DESKTOP, budget: 20_000, script: `
                 await sleep(1500);
@@ -253,13 +283,42 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
                 });
                 return at;` });
         assert.deepEqual(errors, []);
-        const left = ['Full Name', 'User ID', 'Email'], right = ['Phone Number', 'Organization/College', 'Level'];
-        for (const col of [left, right]) {
-            assert.equal(new Set(col.map((k) => result[k].x)).size, 1, `${col.join(', ')} share one column`);
-            assert.ok(result[col[0]].y < result[col[1]].y && result[col[1]].y < result[col[2]].y, `${col.join(', ')} run top to bottom`);
+        const top = ['Full Name', 'Phone Number', 'Email'], bottom = ['User ID', 'Organization/College', 'Level'];
+        for (const row of [top, bottom]) {
+            assert.equal(new Set(row.map((k) => result[k].y)).size, 1, `${row.join(', ')} share one row`);
+            assert.ok(result[row[0]].x < result[row[1]].x && result[row[1]].x < result[row[2]].x, `${row.join(', ')} run left to right`);
         }
-        assert.ok(result['Phone Number'].x > result['Full Name'].x, 'the second column is to the right');
-        for (let i = 0; i < 3; i++) assert.equal(result[left[i]].y, result[right[i]].y, `${left[i]} and ${right[i]} share a row`);
+        assert.ok(result['User ID'].y > result['Full Name'].y, 'the second row is below the first');
+        for (let i = 0; i < 3; i++) assert.equal(result[top[i]].x, result[bottom[i]].x, `${top[i]} and ${bottom[i]} share a column`);
+    });
+
+    test('every tile has a chevron and opens what it shows, wherever on the tile it is pressed', async () => {
+        // Pressed near the chevron, away from the text: the whole tile is the
+        // control, not just its words.
+        const PRESS = (label) => `
+            await sleep(1500);
+            const tile = [...$('[data-personal-info]').querySelectorAll('dl > div')].find((d) => d.querySelector('dt').innerText.trim() === '${label}');
+            const r = tile.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.right - 30, r.top + r.height / 2);
+            const link = hit.closest('a');
+            // Counted before the press: Edit Profile replaces the tiles.
+            const chevrons = [...$('[data-personal-info]').querySelectorAll('dl > div')].filter((d) => d.querySelector(':scope > svg')).length;
+            hit.click(); await sleep(300);
+            return { chevrons,
+                     form: !!$$('input').find((i) => i.value === 'Bhagyashree Bangera'),
+                     popup: !!$('[aria-labelledby="organization-popup-title"]'),
+                     href: link && link.getAttribute('href') };`;
+        const run = async (label) => {
+            const { result, errors } = await screen({ entry: page('profile'), api, styles: true, width: DESKTOP, budget: 20_000, script: PRESS(label) });
+            assert.deepEqual(errors, []);
+            return result;
+        };
+        const phone = await run('Phone Number');
+        assert.equal(phone.chevrons, 6, 'all six tiles carry a chevron');
+        assert.equal(phone.form, true, 'Phone Number opens Edit Profile');
+        assert.equal((await run('Email')).form, true, 'so does Email');
+        assert.equal((await run('Organization/College')).popup, true, 'Organization/College opens the organization popup');
+        assert.equal((await run('Level')).href, '/career', 'and Level opens Career Path, where levels are earned');
     });
 
     test('the organization is still the way to link one: it opens the existing popup', async () => {
@@ -285,6 +344,34 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         assert.equal(result.name, true, 'with the name');
         assert.equal(result.email, true, 'and the email');
         assert.equal(result.cardLocked, true, 'and the card number still read-only');
+    });
+
+    test('on a phone, Your Progress is two tiles to a row, not a column of five cards', async () => {
+        // One full-width card per figure made a column taller than the screen
+        // (2026-10-01). Two to a row; the streak spans the row under them; the
+        // overall figure stays on its label's line with the bar below.
+        for (const device of [DEVICES.galaxyZFold6Folded, DEVICES.galaxyA55]) {
+            const { result, errors } = await screen({
+                entry: page('profile'), api, styles: true, device, budget: 20_000, script: `
+                    await sleep(1800);
+                    const c = [...document.querySelectorAll('section')].find((x) => /Your Progress/.test(x.querySelector('h2')?.innerText || ''));
+                    const tiles = [...c.querySelector('.grid').children].map((t) => t.getBoundingClientRect());
+                    const label = [...c.querySelectorAll('p')].find((p) => p.innerText.trim() === 'Overall Progress').getBoundingClientRect();
+                    const pct = [...c.querySelectorAll('span')].find((x) => /^\\d+%$/.test(x.innerText.trim())).getBoundingClientRect();
+                    return { rows: new Set(tiles.map((t) => Math.round(t.top))).size,
+                             pairs: [0, 2].every((i) => Math.round(tiles[i].top) === Math.round(tiles[i + 1].top)),
+                             streakSpans: tiles[4].width > tiles[0].width * 1.8,
+                             pctOnLabelLine: Math.abs((pct.top + pct.bottom) / 2 - (label.top + label.bottom) / 2) < 8,
+                             height: Math.round(c.getBoundingClientRect().height), vh: innerHeight,
+                             sideways: document.documentElement.scrollWidth > innerWidth };` });
+            assert.deepEqual(errors, []);
+            assert.equal(result.rows, 3, `three rows of tiles at ${device.width}px, not five`);
+            assert.equal(result.pairs, true, 'the first four in pairs');
+            assert.equal(result.streakSpans, true, 'the streak across the row under them');
+            assert.equal(result.pctOnLabelLine, true, 'the overall figure on the line of its label');
+            assert.ok(result.height < result.vh * 0.75, `the section is ${result.height}px on a ${result.vh}px screen`);
+            assert.equal(result.sideways, false, 'and nothing pushes the page sideways');
+        }
     });
 
     test('Your Progress shows the six figures, from the API', async () => {
@@ -328,6 +415,26 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         assert.equal(result.fileInput, true, 'with its file chooser');
     });
 
+    test('a verified certificate has a Delete button, and Delete takes it off the profile', async () => {
+        // The LMS's own certificates had only PDF; only uploads could be
+        // deleted (2026-10-02). Delete asks first, then the card goes.
+        const { result, errors } = await screen({
+            entry: page('profile'), api, styles: true, width: DESKTOP, budget: 20_000, script: `
+                await sleep(1500);
+                const card = () => $$('article').find((a) => (a.title || '').startsWith('Modern React'));
+                const del = card().querySelector('button[aria-label="Delete Modern React"]');
+                let asked = '';
+                window.confirm = (q) => { asked = q; return true; };
+                del.click(); await sleep(400);
+                return { hadButton: !!del, asked, gone: !card(),
+                         call: window.__calls.find((c) => c[0] === 'DELETE') };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.hadButton, true, 'the verified certificate has Delete beside PDF');
+        assert.match(result.asked, /stays valid/, 'it asks first, and says the certificate stays valid');
+        assert.deepEqual(result.call, ['DELETE', '/certificates/c1'], 'it asks the server to take it off the profile');
+        assert.equal(result.gone, true, 'and the card leaves the frame');
+    });
+
     for (const [name, view] of [['Dashboard', ''], ['My Profile', 'profile']]) {
         test(`${name} fits a phone without scrolling sideways`, async () => {
             const { result, errors } = await screen({
@@ -351,7 +458,7 @@ import { RewardsContext } from '${srcFile('context/useRewards.js')}';
 import StudentLayout from '${srcFile('layouts/StudentLayout.jsx')}';
 const Where = () => <p id="where">{useLocation().pathname}</p>;
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: ${JSON.stringify(USER)}, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
+  <AuthContext.Provider value={{ user: ${JSON.stringify({ ...USER, profilePicture: '/avatars/girls/1.jpg' })}, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
     <RewardsContext.Provider value={{ enabled: false, summary: null }}>
       <MemoryRouter initialEntries={['${at}']}>
         <Routes><Route path="/" element={<StudentLayout />}>
@@ -361,20 +468,28 @@ createRoot(document.getElementById('root')).render(
     </RewardsContext.Provider>
   </AuthContext.Provider>);`;
 
-    test('the sidebar has My Profile first, Dashboard under it, and My Profile goes to /profile', async () => {
+    test('the sidebar is grouped — Dashboard, then Learn, Career, Activities — and My Profile sits at the foot beside Contact Support', async () => {
         const { result, errors } = await screen({
             entry: layout('/'), api, styles: true, width: DESKTOP, script: `
                 await sleep(600);
-                const links = $$('aside a, nav a').map((a) => ({ text: a.innerText.trim(), href: a.getAttribute('href') }));
-                const i = links.findIndex((l) => l.text === 'My Profile');
-                const mine = links.find((l) => l.text === 'My Profile');
-                $$('a').find((a) => a.innerText.trim() === 'My Profile').click();
+                const aside = $('aside');
+                const links = $$('aside nav a').map((a) => a.innerText.trim());
+                const heads = $$('aside nav p').map((p) => p.innerText.trim());
+                const mine = [...aside.querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'My Profile');
+                const inNav = !!mine && !!mine.closest('nav');
+                const footer = mine && mine.parentElement;
+                const support = footer && [...footer.querySelectorAll('button')].some((b) => b.innerText.includes('Contact Support'));
+                mine.click();
                 await sleep(300);
-                return { next: links[i + 1], mine, now: text($('#where')),
-                         lit: $$('a').find((a) => a.innerText.trim() === 'My Profile').className.includes('bg-indigo-600') };` });
+                return { links, heads, href: mine.getAttribute('href'), inNav, support,
+                         now: text($('#where')),
+                         lit: [...$('aside').querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'My Profile').className.includes('bg-indigo-600') };` });
         assert.deepEqual(errors, []);
-        assert.deepEqual(result.mine, { text: 'My Profile', href: '/profile' });
-        assert.equal(result.next.text, 'Dashboard', 'Dashboard sits directly under My Profile');
+        assert.deepEqual(result.heads, ['LEARN', 'CAREER', 'ACTIVITIES']);
+        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Community', 'Career Path', 'Interview Prep', 'Jobs', 'Scholarships', 'Games & Competitions']);
+        assert.equal(result.href, '/profile');
+        assert.equal(result.inNav, false, 'My Profile is not in the menu list');
+        assert.equal(result.support, true, 'it sits in the footer with Contact Support');
         assert.equal(result.now, '/profile', 'and clicking it opens My Profile');
         assert.equal(result.lit, true, 'which it then shows as the current page');
     });

@@ -7,6 +7,7 @@ const Quiz = require('../models/Quiz');
 const GlobalQuestion = require('../models/GlobalQuestion');
 const GlobalQuizAttempt = require('../models/GlobalQuizAttempt');
 const { livePaper } = require('../services/globalQuizService');
+const { chargeFor, refundCharge, sendShort } = require('../rewards/services/walletRuleService');
 const Setting = require('../models/Setting');
 const { canAccessCourse } = require('../services/courseAccess');
 
@@ -112,10 +113,9 @@ const submitQuizAnswers = async (req, res) => {
                 if (!courseId) {
                     console.error('Could not resolve courseId for lesson', lesson._id);
                 } else {
-                    let progress = await Progress.findOne({ userId: req.user._id, courseId });
-                    if (!progress) {
-                        progress = new Progress({ userId: req.user._id, courseId, passedQuizzes: [], attemptedQuizzesForCredit: [] });
-                    }
+                    // Atomic find-or-create, so a quiz submitted twice at once
+                    // cannot leave two progress rows for the course.
+                    const progress = await Progress.findOrCreate(req.user._id, courseId);
 
                     // Check First Attempt Logic - if system is enabled
                     if (isCreditSystemEnabled && (!progress.attemptedQuizzesForCredit || !progress.attemptedQuizzesForCredit.includes(quiz._id))) {
@@ -202,6 +202,8 @@ const inOrder = (order, rows) => {
 const safeQuestion = (q) => ({ questionId: String(q._id), questionText: q.question, options: q.options, category: q.category || 'General', difficulty: q.difficulty || 'medium' });
 
 const quizConfig = async () => (await Setting.findOne().select('globalQuiz').lean())?.globalQuiz || {};
+// The demo cards see every section, the quiz included (services/fullAccess.js).
+const { hasFullAccess } = require('../services/fullAccess');
 const quizOff = (res) => res.status(403).json({ code: 'GLOBAL_QUIZ_OFF', message: 'The global quiz is currently unavailable.' });
 
 const timeUp = (attempt, quiz) => (quiz.timeLimitMinutes || 0) > 0 && Date.now() - attempt.startedAt.getTime() > quiz.timeLimitMinutes * 60_000 + TIME_GRACE_MS;
@@ -262,10 +264,13 @@ const paperFor = async (user) => {
 //          sent by an older client is not applied.
 // @route   GET /api/user/quizzes/global
 // @access  Private/User
+const closesAtOf = (quiz) => require('../models/GlobalQuiz').closesAt(quiz);
+const isClosed = (quiz) => { const at = closesAtOf(quiz); return !!at && Date.now() >= at.getTime(); };
+
 const getGlobalQuiz = async (req, res) => {
     try {
         const config = await quizConfig();
-        if (config.enabled === false) return quizOff(res);
+        if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
         // No published quiz: an empty paper, which the student app already
         // shows as "No quiz questions yet".
         const { live, attempt, byId } = await paperFor(req.user);
@@ -275,7 +280,11 @@ const getGlobalQuiz = async (req, res) => {
             questions: picked.map(safeQuestion),
             available: pool.length,
             categories: [...new Set(pool.map((q) => q.category || 'General'))],
-            quiz: live ? { title: live.quiz.title, description: live.quiz.description, timeLimitMinutes: live.quiz.timeLimitMinutes || 0 } : null,
+            quiz: live ? {
+                title: live.quiz.title, description: live.quiz.description, timeLimitMinutes: live.quiz.timeLimitMinutes || 0,
+                // The admin's day limit: when new attempts stop, and whether they already have.
+                closesAt: closesAtOf(live.quiz), closed: isClosed(live.quiz)
+            } : null,
             attempt: attemptView(attempt, byId)
         });
     } catch (error) {
@@ -290,22 +299,38 @@ const getGlobalQuiz = async (req, res) => {
 const startGlobalQuiz = async (req, res) => {
     try {
         const config = await quizConfig();
-        if (config.enabled === false) return quizOff(res);
+        if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
         const found = await paperFor(req.user);
         const { live, byId } = found;
         let { attempt } = found;
         if (!live || !live.questions.length) return res.status(404).json({ message: 'No quiz is published right now.' });
+        // Past the admin's day limit no new attempt opens; one already under
+        // way (resumed here) can still be finished.
+        if (!attempt && isClosed(live.quiz)) {
+            const closed = closesAtOf(live.quiz);
+            return res.status(403).json({ code: 'QUIZ_CLOSED', message: `This quiz closed on ${closed.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Watch for the next one.` });
+        }
         if (attempt?.finishedAt) {
             return res.status(409).json({ code: attempt.timedOut ? 'TIME_UP' : 'ALREADY_ATTEMPTED', message: 'You have already taken this quiz. Each quiz can be taken once.', attempt: attemptView(attempt, byId) });
         }
         let created = false;
         if (!attempt) {
+            // Wallet rules: opening the attempt is the priced moment (once per
+            // quiz — the reference is the quiz), refunded if no attempt is made.
+            let charge = null;
+            try {
+                charge = await chargeFor({ userId: req.user._id, action: 'start_global_quiz', referenceKey: String(live.quiz._id) });
+            } catch (err) {
+                if (err.code === 'INSUFFICIENT_FUNDS') return sendShort(res, err);
+                throw err;
+            }
+            if (charge?.charged > 0) res.setHeader('X-Wallet-Charged', String(charge.charged));
             try {
                 attempt = await GlobalQuizAttempt.create({ userId: req.user._id, quizId: live.quiz._id, order: shuffle(live.questions).map((q) => q._id), startedAt: new Date() });
                 created = true;
             } catch (err) {
                 // Two taps at once: the first one's attempt is the attempt.
-                if (err.code !== 11000) throw err;
+                if (err.code !== 11000) { await refundCharge({ userId: req.user._id, charge, action: 'start_global_quiz' }).catch(() => {}); throw err; }
                 attempt = await GlobalQuizAttempt.findOne({ userId: req.user._id, quizId: live.quiz._id });
             }
         }
@@ -326,7 +351,7 @@ const startGlobalQuiz = async (req, res) => {
 const submitGlobalQuiz = async (req, res) => {
     try {
         const config = await quizConfig();
-        if (config.enabled === false) return quizOff(res);
+        if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
         const answers = Array.isArray(req.body?.answers) ? req.body.answers.slice(0, MAX_QUESTIONS) : null;
         if (!answers || !answers.length) return res.status(400).json({ message: 'Answer at least one question first.' });
 
@@ -379,13 +404,31 @@ const submitGlobalQuiz = async (req, res) => {
 const finishGlobalQuiz = async (req, res) => {
     try {
         const config = await quizConfig();
-        if (config.enabled === false) return quizOff(res);
+        if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
         const found = await paperFor(req.user);
         const { live, byId } = found;
         let { attempt } = found;
         if (!live || !attempt) return res.status(404).json({ message: 'Start the quiz first.' });
         attempt = await closeAttempt(attempt, { timedOut: !!req.body?.timedOut || timeUp(attempt, live.quiz), total: live.questions.length });
-        res.json({ attempt: attemptView(attempt, byId) });
+
+        // A win — a final score at or above the admin's win score — pays the
+        // "Win the Global Quiz" XP rule, once per quiz (the activity ledger
+        // refuses the same quiz twice). Never a reason to fail the finish.
+        let win = { won: false, winScore: null, xp: 0 };
+        try {
+            const rewards = await require('../rewards/services/configService').getConfig();
+            const winScore = Number(rewards.globalQuiz?.winScore ?? 60);
+            const xp = Math.max(0, Math.round(Number(rewards.xpRules?.global_quiz_win) || 0));
+            win = { won: (attempt.score || 0) >= winScore, winScore, xp: 0 };
+            if (win.won && xp > 0 && rewards.enabled !== false) {
+                const { safeRecordActivity } = require('../rewards/services/activityService');
+                const done = await safeRecordActivity({ userId: req.user._id, type: 'global_quiz_win', refId: `global-win:${live.quiz._id}`, meta: { score: attempt.score } });
+                if (done && done.enabled && !done.duplicate && !done.error) win.xp = xp;
+            }
+        } catch (e) {
+            console.error('[global quiz] win XP failed:', e.message);
+        }
+        res.json({ attempt: attemptView(attempt, byId), win });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }

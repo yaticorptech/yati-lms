@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Flame, CheckCircle2, TrendingUp, Award, RotateCcw, GraduationCap, Compass, CalendarDays, MapPin, ArrowRight, Zap, Check, Lock, Flag, Sparkles, Trophy
@@ -11,13 +11,16 @@ import Card, { CardHeader } from '../components/ui/Card';
 import ProgressArt from '../components/progress/ProgressArt';
 import { SkillsArt } from '../components/ui/PanelArt';
 import ProgressStats from '../components/progress/ProgressStats';
-import { levelProgress, dayKey } from '../utils/progress';
+import { dayKey } from '../utils/progress';
+import useLevelProgress from '../context/useLevelProgress';
+import LoadError from '../components/ui/LoadError';
 import { phaseStates, journeyPercent, phaseTitle, parseChoices } from '../utils/roadmap';
 import { initialsOf, tilesFor } from '../utils/skills';
 import { dailyBoost } from '../utils/motivation';
 import useCountUp from '../../hooks/useCountUp';
 import YatiLoader from '../../components/YatiLoader';
 import useMinimumLoading from '../../hooks/useMinimumLoading';
+import { useXpRule } from '../../context/useRewards';
 
 // Title-casing these would produce "Mca" or "Qa Engineer", which reads worse
 // than the lowercase original. Degrees and tech terms stay uppercase.
@@ -312,6 +315,8 @@ function SkillsPanel({ skills }) {
 }
 
 export default function Profile() {
+  // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
+  const TASK_XP = useXpRule('career_task');
   const { user, loading } = useContext(AuthContext);
   const toast = useToast();
 
@@ -330,36 +335,63 @@ export default function Profile() {
   // Above the early return below: hooks must run on every render.
   const showLoader = useMinimumLoading(loading);
   const shownXp = useCountUp(Number(user?.xp) || 0, 1000);
+  const levelInfo = useLevelProgress(user?.xp, user?.level);
+  const [summaryFailed, setSummaryFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   // No signed-out redirect here. This page renders inside ProtectedRoute, which
   // already holds it back until there is a session.
 
-  useEffect(() => {
-    if (!user) return;
+  // GET /profile/summary sweeps missed tasks (a write) before it answers.
+  // Returned so a caller can wait on it; a failure keeps the summary that is
+  // on screen rather than blanking it.
+  const loadSummary = useCallback(
+    () =>
+      api
+        .get('/profile/summary')
+        .then(({ data }) => {
+          setSummary(data);
+          setSummaryFailed(false);
+        })
+        .catch(() => setSummaryFailed(true))
+        .finally(() => setLoadingSummary(false)),
+    []
+  );
 
-    api
-      .get('/profile/summary')
-      .then(({ data }) => setSummary(data))
-      .catch(() => setSummary(null))
-      .finally(() => setLoadingSummary(false));
+  // Keyed on who the student is, not on the user object. CareerShell
+  // refreshes that object on every navigation (XP may have moved), and keyed
+  // on it this re-ran the sweep and all three reads each time — twice on
+  // arrival alone.
+  const userId = user?._id;
+  useEffect(() => {
+    if (!userId) return;
+    loadSummary();
 
     // Each on its own failure: a student with a summary but no roadmap keeps
     // the rest of the page.
     api.get('/roadmap').then(({ data }) => setRoadmap(data)).catch(() => setRoadmap(null));
     api.get('/tasks/history').then(({ data }) => setHistory(data || [])).catch(() => setHistory([]));
-  }, [user]);
+  }, [userId, loadSummary]);
+
+  const retrySummary = async () => {
+    setRetrying(true);
+    await loadSummary();
+    setRetrying(false);
+  };
 
   const handleRedo = async (task) => {
     setRedoingId(task._id);
     try {
       await api.post(`/profile/skipped/${task._id}/redo`);
-      // Drop it locally rather than refetching — the row is gone from the
-      // skipped list the moment it moves back onto today's plan.
+      // A row is every miss of one task, and only one of them moves. The
+      // server stops listing the row once a copy is on today's plan, so the
+      // row goes at once and the counts are then re-read — subtracting one
+      // locally would be wrong whenever the row stood for several misses.
       setSummary((prev) => ({
         ...prev,
-        skippedTasks: prev.skippedTasks.filter((t) => t._id !== task._id),
-        stats: { ...prev.stats, skipped: Math.max(0, prev.stats.skipped - 1) }
+        skippedTasks: prev.skippedTasks.filter((t) => t._id !== task._id)
       }));
+      loadSummary();
       toast.success(`"${task.title}" is back on today's plan.`, 'Added back');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not move that task.');
@@ -373,7 +405,6 @@ export default function Profile() {
   const stats = summary?.stats;
   const goal = summary?.goal;
   const startedAt = describeStart(goal);
-  const levelInfo = levelProgress(user.xp, user.level);
   const level = Math.max(1, Number(user.level) || 1);
 
   const phases = roadmap?.roadmapData?.educationRoadmap || [];
@@ -465,7 +496,7 @@ export default function Profile() {
                     {shownXp} XP
                   </p>
                   <p className="mt-0.5 text-sm font-black text-ink-900 tabular-nums">
-                    {levelInfo.remaining} XP to Level {levelInfo.nextLevel}
+                    {levelInfo.known ? `${levelInfo.remaining} XP to Level ${levelInfo.nextLevel}` : `Level ${level}`}
                   </p>
                   <div className="mt-2 h-1.5 w-40 overflow-hidden rounded-full bg-surface-100">
                     <div
@@ -478,7 +509,7 @@ export default function Profile() {
                     data-mascot-target="pending-task"
                     className="group mt-2.5 inline-flex items-center gap-1 text-xs font-black text-journey-700 hover:underline"
                   >
-                    Earn 10 XP now
+                    Earn {TASK_XP} XP now
                     <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 </div>
@@ -515,6 +546,12 @@ export default function Profile() {
             </div>
           )}
         </Card>
+
+        {/* Without this a failed summary simply left the bottom of the page
+            empty, which reads as nothing to show rather than nothing loaded. */}
+        {!loadingSummary && summaryFailed && !summary && (
+          <LoadError title="We couldn't load your progress" onRetry={retrySummary} retrying={retrying} />
+        )}
 
         {loadingSummary && (
           <Card>

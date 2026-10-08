@@ -362,9 +362,10 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                             className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-indigo-300 hover:text-indigo-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
                             <Pencil size={15} aria-hidden="true" /> <span className="hidden sm:inline">Change dates &amp; interests</span><span className="sm:hidden">Edit</span>
                         </button>
+                        {/* Guardian permission and the safety notes: a small
+                            shield here, the words in a popup behind it. */}
+                        <GuardianBanner rules={rules} />
                     </div>
-
-                    <GuardianBanner rules={rules} />
 
                     {band !== 'explore' && (
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm">

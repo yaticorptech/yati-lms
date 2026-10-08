@@ -14,13 +14,51 @@ const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 // dominant part of the prompt.
 const HISTORY_MESSAGES = 20;
 
+// The longest question a student can send. A chat box, not a document upload:
+// anything longer is almost always a pasted essay, and every character of it
+// is spent again on each later reply, because it rides along in the history.
+const MAX_MESSAGE_CHARS = 2000;
+
+// Each replayed history entry is cut to this. The mentor needs to know what
+// was said a few questions ago, not every word of it — and one long old reply
+// should not push the student's own context out of the prompt.
+const HISTORY_ENTRY_CHARS = 1000;
+
+/**
+ * Refuse a message that is not one, before anything is charged or generated.
+ *
+ * `message` used to go into the prompt unchecked: an object was stringified
+ * into "[object Object]" and answered (and billed), and a 200 KB paste was
+ * sent to Gemini whole. Mounted ahead of the wallet charge in chatRoutes, and
+ * run again by sendMessage so the controller is safe on its own.
+ */
+const messageProblem = (message) => {
+  if (typeof message !== 'string' || !message.trim()) return 'Message is required';
+  if (message.length > MAX_MESSAGE_CHARS) {
+    return `Please keep your message under ${MAX_MESSAGE_CHARS} characters.`;
+  }
+  return null;
+};
+
+const validateMessage = (req, res, next) => {
+  const problem = messageProblem(req.body?.message);
+  if (problem) return res.status(400).json({ message: problem });
+  next();
+};
+
+const clip = (text, max) => {
+  const s = String(text || '');
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+};
+
 // @desc    Send a message to AI Mentor
 // @route   POST /api/chat
 // @access  Private
 const sendMessage = async (req, res) => {
   try {
-    const { message } = req.body;
-    if (!message) return res.status(400).json({ message: 'Message is required' });
+    const problem = messageProblem(req.body?.message);
+    if (problem) return res.status(400).json({ message: problem });
+    const message = req.body.message.trim();
 
     // Fetch all user context
     const user = await User.findById(req.user._id);
@@ -55,7 +93,9 @@ const sendMessage = async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(HISTORY_MESSAGES)
         .lean()
-    ).reverse();
+    )
+      .reverse()
+      .map((entry) => ({ ...entry, message: clip(entry.message, HISTORY_ENTRY_CHARS) }));
 
     // Call Gemini BEFORE persisting anything. Saving the user's message first
     // left it orphaned in the history whenever the AI call failed, so reloading
@@ -111,6 +151,8 @@ const clearChatHistory = async (req, res) => {
 };
 
 module.exports = {
+  validateMessage,
+  MAX_MESSAGE_CHARS,
   sendMessage,
   getChatHistory,
   clearChatHistory

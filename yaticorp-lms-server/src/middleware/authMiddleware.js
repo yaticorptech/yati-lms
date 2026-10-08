@@ -25,6 +25,11 @@ const protectAdmin = async (req, res, next) => {
             if (!req.admin) {
                 return res.status(401).json({ message: 'Not authorized, admin not found' });
             }
+            // Signed in before the password last changed: that session ended
+            // with the change (models/Admin.js, passwordChangedAt).
+            if (req.admin.tokenPredatesPassword(decoded.iat)) {
+                return res.status(401).json({ code: 'PASSWORD_CHANGED', message: 'Your password was changed. Please sign in again.' });
+            }
 
             /**
              * An organization's admin is not a platform administrator.

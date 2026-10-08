@@ -34,7 +34,7 @@ createRoot(document.getElementById('root')).render(
     </MemoryRouter>
   </AuthContext.Provider>);`;
 
-const CARD = { cardNumber: '123456789012', cvv: 'AB12C' };
+const CARD = { cardNumber: '123456789012', cvv: 'AB12C', qrCodeNumber: 'QR123' };
 const ACCOUNT = { token: 'tok', _id: 'u1', name: 'Asha Rao', email: 'asha@gmail.com' };
 
 /** A registration that answers with whatever the server decided about the ID. */
@@ -51,10 +51,10 @@ const FILL = (orgCode) => `
     };
     await sleep(600);
 
-    // Step 1 — the card, typed rather than scanned.
+    // Step 1 — the card number, typed rather than the QR code scanned.
     click(/Type Instead/i);
     await sleep(200);
-    type($$('input')[0], 'QR-123');
+    type($$('input')[0], '1234 5678 9012');
     await sleep(100);
     $$('button').find((b) => /Verify|Continue|Next/i.test(b.innerText))?.click();
     await sleep(500);

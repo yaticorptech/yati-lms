@@ -20,6 +20,11 @@ const DESCRIPTIONS = {
   quiz_complete: 'for completing a quiz',
   quiz_pass: 'for passing a quiz',
   assignment_complete: 'for completing an assignment',
+  forum_post: 'for posting in the community forum',
+  forum_comment: 'for replying in the community forum',
+  resume_upload: 'for uploading your resume',
+  part_time_apply: 'for applying for a part-time job',
+  scholarship_search: 'for searching for scholarships',
   course_complete: 'for completing a course',
   certificate_earned: 'for earning a certificate',
   career_task: 'for completing a Career Path task',
@@ -28,7 +33,8 @@ const DESCRIPTIONS = {
   interview_practice: 'for practising an interview question',
   mock_interview: 'for completing a mock interview',
   interview_improved: 'for beating your best interview score',
-  interview_challenge: 'for completing the interview challenge'
+  interview_challenge: 'for completing the interview challenge',
+  global_quiz_win: 'for winning the Global Quiz'
 };
 
 /**

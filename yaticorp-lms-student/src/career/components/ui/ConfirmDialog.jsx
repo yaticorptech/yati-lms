@@ -1,5 +1,6 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import useBackClose from '../../../native/useBackClose';
 
 const ConfirmContext = createContext(null);
 
@@ -36,6 +37,9 @@ export function ConfirmProvider({ children }) {
     setDialog(null);
   }, []);
 
+  // Android's back button answers "no", the same as Escape.
+  useBackClose(() => close(false), Boolean(dialog));
+
   useEffect(() => {
     if (!dialog) return;
     confirmButtonRef.current?.focus();
@@ -61,11 +65,11 @@ export function ConfirmProvider({ children }) {
             className="absolute inset-0 animate-fade-in bg-slate-900/50"
             onClick={() => close(false)}
           />
-          <div className="relative w-full max-w-md animate-scale-in overflow-hidden rounded-xl bg-surface shadow-float">
+          <div className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md animate-scale-in overflow-y-auto overscroll-contain rounded-xl bg-surface shadow-float">
             <button
               onClick={() => close(false)}
               aria-label="Close dialog"
-              className="absolute top-4 right-4 rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
+              className="absolute top-3 right-3 flex h-10 w-10 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
             >
               <X className="h-4 w-4" />
             </button>
@@ -81,7 +85,7 @@ export function ConfirmProvider({ children }) {
                     className={`h-5 w-5 ${dialog.destructive ? 'text-red-600' : 'text-link'}`}
                   />
                 </div>
-                <div className="min-w-0 flex-1 pt-0.5">
+                <div className="min-w-0 flex-1 pt-0.5 pr-8">
                   <h2 id="confirm-title" className="text-lg font-bold text-ink-900">
                     {dialog.title}
                   </h2>

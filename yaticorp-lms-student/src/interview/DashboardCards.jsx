@@ -144,7 +144,6 @@ export function ImproveCard({ readiness, last, fmtDate }) {
                         </div>
                         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2.5 py-1 text-[11px] font-black text-white shadow"><Star size={11} fill="currentColor" /> {readiness.best}%</span>
                     </div>
-                    <div className="mt-2 flex justify-end"><Sparkline values={series} color="#f59e0b" width={180} height={44} /></div>
                 </div>
             ) : (
                 <div className="mb-3 rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 p-4 text-center">

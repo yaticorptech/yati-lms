@@ -18,7 +18,7 @@ const Goal = require('../models/Goal');
 const Roadmap = require('../models/Roadmap');
 const DailyPlan = require('../models/DailyPlan');
 const { startOfDay, addDays } = require('../services/dailyPlanService');
-const { calculateStreak } = require('./profileController');
+const { sharedStreak } = require('./profileController');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 /** The label a phase shows on the roadmap. */
@@ -88,7 +88,7 @@ const getToday = async (req, res) => {
       careerGoal: goal.careerGoal || '',
       studyLine: studyLine(goal),
       phase: current ? phaseTitleOf(current, Math.min(done, phases.length - 1)) : '',
-      streak: calculateStreak(completedDates.map((t) => t.completedAt).filter(Boolean)),
+      streak: await sharedStreak(req.user._id, completedDates.map((t) => t.completedAt).filter(Boolean)),
       // Whether today has been planned at all. False means the student should
       // be sent to the planner to build it, not that anything is wrong.
       planReady: Boolean(plan),

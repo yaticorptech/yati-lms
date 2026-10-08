@@ -5,6 +5,7 @@
  */
 const User = require('../models/User');
 const Card = require('../models/Card');
+const { normaliseCardNumber } = require('../utils/cardNumber');
 const Course = require('../models/Course');
 const Bundle = require('../models/Bundle');
 const Enrollment = require('../models/Enrollment');
@@ -26,20 +27,21 @@ const { normalizeOrgCode, isValidOrgCodeFormat } = require('../organizations/ser
  *
  * Every failure is soft and reported rather than thrown. The field is optional,
  * so a mistyped or unrecognised code must never cost someone their account; they
- * are told what happened and can try again from the dashboard.
+ * are told what happened and can try again from My Profile → Personal
+ * Information ("Organization/College"), where the join form now lives.
  */
 const requestOrganizationAtSignup = async (userId, rawCode) => {
     const orgCode = normalizeOrgCode(rawCode);
     if (!orgCode) return null;
 
     if (!isValidOrgCodeFormat(orgCode)) {
-        return { requested: false, orgCode, message: `"${rawCode}" does not look like an Organization ID (like st_agnes_college). You can add yours later from your dashboard.` };
+        return { requested: false, orgCode, message: `"${rawCode}" does not look like an Organization ID (like st_agnes_college). You can add yours later in My Profile → Personal Information, under "Organization/College".` };
     }
 
     try {
         const organization = await Organization.findOne({ orgCode, status: 'active' }).select('name orgCode').lean();
         if (!organization) {
-            return { requested: false, orgCode, message: `We could not find an active organization with the ID ${orgCode}. Your account is ready — you can add the right ID later from your dashboard.` };
+            return { requested: false, orgCode, message: `We could not find an active organization with the ID ${orgCode}. Your account is ready — you can add the right ID later in My Profile → Personal Information, under "Organization/College".` };
         }
 
         await OrgJoinRequest.create({ userId, organizationId: organization._id, status: 'pending' });
@@ -51,42 +53,53 @@ const requestOrganizationAtSignup = async (userId, rawCode) => {
         };
     } catch (error) {
         console.error('[registration] could not record the organization request:', error.message);
-        return { requested: false, orgCode, message: 'Your account is ready, but we could not send your organization request. You can try again from your dashboard.' };
+        return { requested: false, orgCode, message: 'Your account is ready, but we could not send your organization request. You can try again in My Profile → Personal Information, under "Organization/College".' };
     }
 };
 
-// @desc    Validate QR Code and return card details (read-only)
+// @desc    Validate a card — by its QR code (scanned) or its card number
+//          (typed) — and return the card's details (read-only)
 // @route   POST /api/auth/validate-qr
 // @access  Public
 const validateQR = async (req, res) => {
     try {
-        const { qrCodeNumber } = req.body;
+        const qrCodeNumber = String(req.body?.qrCodeNumber || '').trim().toUpperCase();
+        const cardNumber = normaliseCardNumber(req.body?.cardNumber);
+        const typed = !qrCodeNumber;
 
-        if (!qrCodeNumber || !qrCodeNumber.trim()) {
-            return res.status(400).json({ message: 'QR Code is required.' });
+        if (!qrCodeNumber && !cardNumber) {
+            return res.status(400).json({ message: 'Please enter your card number.' });
+        }
+        if (typed && cardNumber.length !== 12) {
+            return res.status(400).json({ message: 'A card number has 12 digits.' });
         }
 
-        const card = await Card.findOne({ qrCodeNumber: qrCodeNumber.trim().toUpperCase() });
+        // Card numbers are stored as digits; a few older ones carry spaces.
+        const card = qrCodeNumber
+            ? await Card.findOne({ qrCodeNumber })
+            : await Card.findOne({ CardNumber: { $in: [cardNumber, cardNumber.replace(/(\d{4})(?=\d)/g, '$1 ')] } });
 
+        const what = typed ? 'card number' : 'QR Code';
         if (!card) {
-            return res.status(404).json({ message: 'Invalid QR Code. No card found.' });
+            return res.status(404).json({ message: typed ? 'No card has that number. Check the number printed on your card.' : 'Invalid QR Code. No card found.' });
         }
         if (card.status === 'used') {
-            return res.status(400).json({ message: 'This QR Code has already been used to register an account.' });
+            return res.status(400).json({ message: `This ${what} has already been used to register an account.` });
         }
         if (card.status === 'inactive') {
-            return res.status(400).json({ message: 'This QR Code is inactive and cannot be used.' });
+            return res.status(400).json({ message: `This ${what} is inactive and cannot be used.` });
         }
 
         res.json({
             valid: true,
-            message: 'QR Code is valid.',
+            message: 'Card is valid.',
             cardNumber: card.CardNumber,
-            cvv: card.CVV
+            cvv: card.CVV,
+            qrCodeNumber: card.qrCodeNumber
         });
 
     } catch (error) {
-        res.status(500).json({ message: 'Server error during QR validation', error: error.message });
+        res.status(500).json({ message: 'Server error during card validation', error: error.message });
     }
 };
 
@@ -204,7 +217,11 @@ const registerStudent = async (req, res) => {
 
         // courseId/contentType are optional: a student may register before any
         // content is published and enrol later from the dashboard.
-        if (!name || !email || !phone || !CardNumber || !CVV || !qrCodeNumber || !password) {
+        // Every detail is required — blanks and whitespace alike.
+        if (!String(name || '').trim()) return res.status(400).json({ message: 'Please enter your full name.' });
+        if (!String(email || '').trim()) return res.status(400).json({ message: 'Please enter your email address.' });
+        if (!String(phone || '').replace(/\D/g, '')) return res.status(400).json({ message: 'Please enter your phone number.' });
+        if (!CardNumber || !CVV || !qrCodeNumber || !password) {
             return res.status(400).json({ message: 'All required fields must be provided' });
         }
 
@@ -225,15 +242,20 @@ const registerStudent = async (req, res) => {
             return res.status(400).json({ message: 'Invalid or already used Card Credentials' });
         }
 
-        // Check if user already exists
-        const userExists = await User.findOne({ $or: [{ email }, { cardNumber: CardNumber }] });
+        // Check if user already exists. The email is compared case-insensitively
+        // (a few older accounts were stored with capitals) and stored trimmed and
+        // lower-case, so "Asha@X.com" cannot register beside "asha@x.com".
+        const cleanEmail = String(email).trim().toLowerCase();
+        const escapedEmail = cleanEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const emailPattern = new RegExp('^' + escapedEmail + '$', 'i');
+        const userExists = await User.findOne({ $or: [{ email: emailPattern }, { cardNumber: CardNumber }] });
         if (userExists) {
             return res.status(400).json({ message: 'A user with this email or card number already exists' });
         }
 
         const user = await User.create({
             name,
-            email,
+            email: cleanEmail,
             phone: phone || '',
             cardNumber: CardNumber,
             serialNumber: card.SerialNumber || '',

@@ -4,6 +4,7 @@ module.exports = {
   streak: require('./streakService'),
   points: require('./rewardPointsService'),
   wallet: require('./walletService'),
+  walletRules: require('./walletRuleService'),
   badges: require('./badgeService'),
   activity: require('./activityService'),
   leaderboard: require('./leaderboardService'),

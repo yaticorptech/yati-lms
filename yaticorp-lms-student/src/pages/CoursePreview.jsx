@@ -3,7 +3,7 @@
  * @description Admin course preview page opened in new tab with preview mode banner
  */
 import React, { useState, useEffect } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { PlayCircle, FileText, HelpCircle, PenTool, Layout, ChevronDown, ChevronRight, Eye, ArrowLeft } from 'lucide-react';
 import VideoPlayer from '../components/VideoPlayer';
@@ -13,6 +13,7 @@ const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const CoursePreview = () => {
     const { courseId } = useParams();
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const token = searchParams.get('token');
 
     const [courseData, setCourseData] = useState(null);
@@ -44,6 +45,19 @@ const CoursePreview = () => {
 
     const toggleModule = (id) => setExpandedModules(prev => ({ ...prev, [id]: !prev[id] }));
 
+    // A browser only lets a script close a tab that a script opened — the
+    // course builder's Preview does, but a reloaded or pasted preview is not
+    // closable, and the button did nothing. Then: back to where the student
+    // came from (the router counts its own steps in history.state.idx), or
+    // to the home page.
+    const closeTab = () => {
+        window.close();
+        setTimeout(() => {
+            if (window.closed) return;
+            if ((window.history.state?.idx ?? 0) > 0) navigate(-1); else navigate('/', { replace: true });
+        }, 150);
+    };
+
     if (loading) return (
         <div className="flex justify-center items-center min-h-screen bg-slate-50">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
@@ -53,7 +67,7 @@ const CoursePreview = () => {
     if (error) return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 text-center p-8">
             <p className="text-red-600 font-semibold mb-4">{error}</p>
-            <button onClick={() => window.close()} className="px-5 py-2 bg-slate-800 text-white rounded-xl font-bold">Close Tab</button>
+            <button type="button" onClick={closeTab} className="px-5 py-2 bg-slate-800 text-white rounded-xl font-bold transition-colors hover:bg-slate-700">Close Tab</button>
         </div>
     );
 

@@ -6,6 +6,7 @@
  */
 const Admin = require('../models/Admin');
 const { validatePasswordStrength } = require('../middleware/validatePassword');
+const generateToken = require('../utils/generateToken');
 
 // @desc    Get all admins
 // @route   GET /api/admin/admins
@@ -44,11 +45,15 @@ const addAdmin = async (req, res) => {
             });
         }
 
-        const adminExists = await Admin.findOne({ email });
+        // Compared and stored trimmed and lower-case, so a case variant of an
+        // existing sign-in is refused here rather than becoming a second account.
+        const cleanEmail = Admin.normalizeEmail(email);
+        if (!cleanEmail) return res.status(400).json({ message: 'Enter an email address.' });
+        const adminExists = await Admin.findByLoginEmail(cleanEmail);
         if (adminExists) return res.status(400).json({ message: 'Admin already exists' });
 
         const admin = await Admin.create({
-            name, email, password,
+            name, email: cleanEmail, password,
             role: role || 'admin'
         });
 
@@ -92,12 +97,27 @@ const updateAdmin = async (req, res) => {
             admin.password = password;
         }
 
+        const cleanEmail = Admin.normalizeEmail(email);
+        if (cleanEmail && cleanEmail !== admin.email) {
+            const taken = await Admin.findByLoginEmail(cleanEmail);
+            if (taken && String(taken._id) !== String(admin._id)) {
+                return res.status(400).json({ message: 'Another admin already uses that email address.' });
+            }
+        }
+
         admin.name = name || admin.name;
-        admin.email = email || admin.email;
+        admin.email = cleanEmail || admin.email;
         admin.role = role || admin.role;
 
         const updated = await admin.save();
-        res.json({ _id: updated._id, name: updated.name, email: updated.email, role: updated.role });
+        // Changing a password ends every session made before it — including
+        // the one making this request, when an admin changes their own. So
+        // they get a fresh token instead of being signed out on the next click.
+        const ownPassword = password && String(updated._id) === String(req.admin?._id);
+        res.json({
+            _id: updated._id, name: updated.name, email: updated.email, role: updated.role,
+            ...(ownPassword ? { token: generateToken(updated._id, updated.role) } : {})
+        });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }

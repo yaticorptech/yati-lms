@@ -11,6 +11,7 @@ import BioText from './BioText';
 import { ErrorBox } from './ui';
 import Portal from '../components/Portal';
 import { pictureUrl } from '../native/pictures';
+import PriceTag from '../components/rewards/PriceTag';
 
 /** The photo on its blob, with the two little accents from the design. */
 const Portrait = ({ avatar, name }) => (
@@ -57,7 +58,7 @@ export default function BioPopup({ onClose }) {
                         <div className="flex items-center gap-2">
                             <button type="button" onClick={download} disabled={downloading || !data}
                                 className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-white px-3 py-1.5 text-sm font-bold text-violet-700 transition-colors hover:bg-violet-50 disabled:opacity-60">
-                                {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download
+                                {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download <PriceTag action="download_bio" />
                             </button>
                             <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"><X size={22} /></button>
                         </div>

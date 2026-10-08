@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { getProfileSummary, redoSkippedTask } = require('../controllers/profileController');
+const { getProfileSummary, redoSkippedTask, getLevels } = require('../controllers/profileController');
 const { protect } = require('../middleware/authMiddleware');
 const { validateObjectId } = require('../middleware/validateObjectId');
 
@@ -9,6 +9,7 @@ const { validateObjectId } = require('../middleware/validateObjectId');
 router.param('id', validateObjectId);
 
 router.get('/summary', protect, getProfileSummary);
+router.get('/levels', protect, getLevels);
 router.post('/skipped/:id/redo', protect, redoSkippedTask);
 
 module.exports = router;

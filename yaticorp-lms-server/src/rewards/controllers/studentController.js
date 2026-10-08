@@ -16,8 +16,8 @@ const page = (req, max = 100) => ({ limit: Math.min(max, Math.max(1, Number(req.
 
 // Public bits of the rulebook the UI needs to explain itself.
 const publicConfig = (c) => ({
-  enabled: c.enabled, xpRules: c.xpRules, levelThresholds: c.levelThresholds, streakMilestones: c.streakMilestones,
-  leaderboardRewards: c.leaderboardRewards, conversion: c.conversion, limits: c.limits
+  enabled: c.enabled, xpRules: c.xpRules, walletRules: c.walletRules, levelThresholds: c.levelThresholds, streakMilestones: c.streakMilestones,
+  leaderboardRewards: c.leaderboardRewards, conversion: c.conversion, limits: c.limits, games: c.games
 });
 
 // @desc  Everything the profile cards need in one call
@@ -26,6 +26,10 @@ const getSummary = async (req, res) => {
   try {
     const config = await S.config.getConfig();
     const userId = req.user._id;
+    // The opening balance and any full block of XP are in the wallet before
+    // the first figure is shown.
+    await S.wallet.grantStartingCredit(userId);
+    await S.wallet.convertXp(userId).catch(() => null);
     const week = periodWindow('weekly');
     const [user, wallet, streak, rank, badgeCount, badges, activity, weekActivity, xpWeek, dailyActivity, dailyXp] = await Promise.all([
       User.findById(userId).select('xp level accountType walletAccess institution className').lean(),
@@ -62,13 +66,17 @@ const getSummary = async (req, res) => {
     const monetary = S.eligibility.monetaryEnabledFor(user, config);
     res.json({
       xp: user.xp || 0,
+      // What each activity pays, so student pages show the admin's amounts.
+      xpRules: config.xpRules,
+      // What each priced feature costs from the wallet (0 = free).
+      walletRules: config.enabled === false ? {} : config.walletRules,
       level: S.config.levelInfo(user.xp || 0, config.levelThresholds),
       streak,
       rank,
       badges: { unlocked: badgeCount, total: badges.length, recent: badges.filter((b) => b.unlocked).sort((a, b) => new Date(b.unlockedAt) - new Date(a.unlockedAt)).slice(0, 4) },
       stats,
       series: { days, ...daily },
-      wallet: { available: wallet.available, pending: wallet.pending, totalEarned: wallet.totalEarned, totalSpent: wallet.totalSpent, totalWithdrawn: wallet.totalWithdrawn, currency: wallet.currency, rewardPoints: wallet.rewardPoints, rewardPointsValue: S.eligibility.pointsToMoney(wallet.rewardPoints, config), monetaryEnabled: monetary },
+      wallet: { available: wallet.available, spendOnly: wallet.spendOnly || 0, xpBalance: Math.max(0, (user.xp || 0) - (wallet.xpConverted || 0)), xpConverted: wallet.xpConverted || 0, withdrawable: Math.max(0, wallet.available - (wallet.spendOnly || 0)), pending: wallet.pending, totalEarned: wallet.totalEarned, totalSpent: wallet.totalSpent, totalWithdrawn: wallet.totalWithdrawn, currency: wallet.currency, rewardPoints: wallet.rewardPoints, rewardPointsValue: 0, monetaryEnabled: monetary },
       config: publicConfig(config)
     });
   } catch (error) { err(res, error); }
@@ -109,17 +117,33 @@ const getWallet = async (req, res) => {
   try {
     const config = await S.config.getConfig();
     const userId = req.user._id;
+    await S.wallet.grantStartingCredit(userId);
+    await S.wallet.convertXp(userId).catch(() => null);
     const [wallet, user, recent, open, usedThisMonth] = await Promise.all([
       S.points.getOrCreateWallet(userId),
-      User.findById(userId).select('accountType walletAccess').lean(),
-      WalletTransaction.find({ userId }).sort({ createdAt: -1 }).limit(5).lean(),
+      User.findById(userId).select('accountType walletAccess xp').lean(),
+      // Twenty: the dashboard's wallet card scrolls through them (three rows
+      // tall); the full wallet's overview still shows the first five.
+      WalletTransaction.find({ userId }).sort({ createdAt: -1 }).limit(20).lean(),
       WithdrawalRequest.findOne({ userId, status: { $in: ['pending', 'approved'] } }).lean(),
       S.wallet.redeemedThisMonth(userId)
     ]);
     const monetaryEnabled = S.eligibility.monetaryEnabledFor(user, config);
     res.json({
-      wallet: { ...wallet.toObject(), earnedBySource: Object.fromEntries(wallet.earnedBySource || new Map()) },
-      rewardPointsValue: S.eligibility.pointsToMoney(wallet.rewardPoints, config),
+      wallet: {
+        ...wallet.toObject(),
+        earnedBySource: Object.fromEntries(wallet.earnedBySource || new Map()),
+        spendOnly: wallet.spendOnly || 0,
+        withdrawable: Math.max(0, Math.round((wallet.available - (wallet.spendOnly || 0)) * 100) / 100)
+      },
+      // XP turns into money in blocks at the conversion rate. `xpBalance` is
+      // what has not been converted yet; `xp` is lifetime (level, rank).
+      xp: user.xp || 0,
+      xpBalance: Math.max(0, (user.xp || 0) - (wallet.xpConverted || 0)),
+      xpConverted: wallet.xpConverted || 0,
+      fromXp: (wallet.earnedBySource && (wallet.earnedBySource.get ? wallet.earnedBySource.get('xp_reward') : wallet.earnedBySource.xp_reward)) || 0,
+      // Reward points are a score, not money: only XP pays into the wallet.
+      rewardPointsValue: 0,
       monetaryEnabled,
       accountType: user.accountType || 'school_student',
       conversion: config.conversion,
@@ -199,8 +223,29 @@ const markEventsSeen = async (req, res) => {
 };
 
 // @route GET /api/rewards/config
+// @desc  Pay for a priced feature that has no server request of its own
+//        (opening a job listing). Once per reference: the same job again is free.
+// @route POST /api/rewards/wallet/spend  { action, ref }
+const spend = async (req, res) => {
+  try {
+    const { CLIENT_CHARGED_ACTIONS } = require('../config/constants');
+    const { chargeFor, sendShort } = require('../services/walletRuleService');
+    const action = String(req.body?.action || '');
+    if (!CLIENT_CHARGED_ACTIONS.includes(action)) return res.status(400).json({ message: 'That is not a feature you pay for here.' });
+    const ref = String(req.body?.ref || '').slice(0, 200) || null;
+    try {
+      const r = await chargeFor({ userId: req.user._id, action, referenceKey: ref });
+      if (r.charged > 0) res.setHeader('X-Wallet-Charged', String(r.charged));
+      res.json({ charged: r.charged, alreadyPaid: !!r.alreadyPaid, currency: r.currency, balance: r.balance ?? null });
+    } catch (e) {
+      if (e.code === 'INSUFFICIENT_FUNDS') return sendShort(res, e);
+      throw e;
+    }
+  } catch (error) { err(res, error); }
+};
+
 const getPublicConfig = async (req, res) => {
   try { res.json(publicConfig(await S.config.getConfig())); } catch (error) { err(res, error); }
 };
 
-module.exports = { getSummary, getStreak, getBadges, getLeaderboard, getXpHistory, getWallet, getWalletTransactions, getRewardLedger, redeem, withdraw, getWithdrawals, getUnseenEvents, markEventsSeen, getPublicConfig };
+module.exports = { getSummary, getStreak, getBadges, getLeaderboard, getXpHistory, getWallet, getWalletTransactions, getRewardLedger, redeem, withdraw, getWithdrawals, getUnseenEvents, markEventsSeen, getPublicConfig, spend };

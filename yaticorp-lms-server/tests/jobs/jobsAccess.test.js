@@ -84,3 +84,69 @@ describe('the Jobs allow list', () => {
             'blank fields must not match a blank entry');
     });
 });
+
+// ── The rule itself: five Career Path skills, each at 25% or more ──────────
+describe('the skills rule', () => {
+    const { connect, makeUser, cleanup } = require('../helpers');
+    const { jobsAccessFor } = require('../../src/services/jobsAccess');
+    const SkillProgress = require('../../src/career/models/SkillProgress');
+    let student, flagged;
+    const set = async (user, progress) => {
+        await SkillProgress.deleteMany({ userId: user._id });
+        await SkillProgress.insertMany(progress.map((p, i) => ({ userId: user._id, skillName: `Skill ${i + 1}`, progress: p })));
+    };
+
+    const { before, after } = require('node:test');
+    before(async () => {
+        await connect();
+        student = (await makeUser('JobsRule')).user;
+        flagged = (await makeUser('JobsRuleFlagged')).user;
+        flagged.jobsAlwaysOpen = true;
+    });
+    after(async () => { await cleanup([student, flagged]); });
+
+    test('five skills each at 25% open it', async () => {
+        await set(student, [25, 25, 25, 25, 25]);
+        const r = await jobsAccessFor(student);
+        assert.equal(r.open, true);
+        assert.equal(r.ready, 5);
+        assert.deepEqual(r.required, { skills: 5, percent: 25 });
+    });
+
+    test('four is not enough, however far along they are', async () => {
+        await set(student, [100, 90, 80, 70]);
+        const r = await jobsAccessFor(student);
+        assert.equal(r.open, false);
+        assert.equal(r.ready, 4);
+    });
+
+    test('each one must reach 25%: one at 20% keeps it shut', async () => {
+        await set(student, [60, 50, 40, 30, 20]);
+        const r = await jobsAccessFor(student);
+        assert.equal(r.open, false, 'an average of 40% is not five skills at 25%');
+        assert.equal(r.ready, 4);
+    });
+
+    test('any five of more: six skills with five past the bar opens it', async () => {
+        await set(student, [10, 30, 25, 40, 26, 90]);
+        const r = await jobsAccessFor(student);
+        assert.equal(r.open, true);
+        assert.deepEqual(r.skills.map((s) => s.progress), [90, 40, 30, 26, 25, 10], 'highest first, for the locked page');
+    });
+
+    test('the same skill stored twice counts once', async () => {
+        await SkillProgress.deleteMany({ userId: student._id });
+        await SkillProgress.insertMany([...['React', 'react', 'REACT', 'Node', 'SQL'].map((n) => ({ userId: student._id, skillName: n, progress: 50 }))]);
+        const r = await jobsAccessFor(student);
+        assert.equal(r.skills.length, 3);
+        assert.equal(r.open, false, 'three different skills, not five');
+    });
+
+    test('a student with no skills is shut, and an exempt account is open with none', async () => {
+        await SkillProgress.deleteMany({ userId: student._id });
+        assert.equal((await jobsAccessFor(student)).open, false);
+        const r = await jobsAccessFor(flagged);
+        assert.equal(r.open, true);
+        assert.equal(r.alwaysOpen, true);
+    });
+});

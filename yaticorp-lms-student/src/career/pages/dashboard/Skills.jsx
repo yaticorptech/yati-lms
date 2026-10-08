@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useContext } from 'react';
+import { useState, useEffect, useMemo, useContext, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../../services/api';
+import api, { getTodaysPlan } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import { ArrowRight, CheckCircle2, Flame, Lock, Target, Trophy, Zap } from 'lucide-react';
 import BuildSkillsBanner from '../../components/journey/BuildSkillsBanner';
@@ -9,6 +9,7 @@ import useCountUp from '../../../hooks/useCountUp';
 import useInView from '../../../hooks/useInView';
 import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
+import LoadError from '../../components/ui/LoadError';
 import Button from '../../components/ui/Button';
 import {
   LEVELS, initialsOf, nextLevel, progressOf, statusOf, tasksToNextLevel, tileFor, tilesFor
@@ -16,6 +17,7 @@ import {
 import { currentStreak } from '../../utils/progress';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
+import useStreak from '../../utils/useStreak';
 
 /**
  * The Skills page.
@@ -258,32 +260,46 @@ export default function Skills() {
   const [badges, setBadges] = useState([]);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  // The skill list itself not arriving. Without this a dropped connection
+  // read as "No skills tracked yet" and sent the student to the planner.
+  const [failed, setFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  const fetchAll = useCallback(async () => {
+    try {
+      // Tasks, badges and history are garnish on the skill list, so none of
+      // them failing may take the list down with it. The streak spans days,
+      // so it has to come from history — `/tasks` is today's plan only, and
+      // getTodaysPlan waits for it if the planner is still building it.
+      const [skillRes, taskRes, badgeRes, historyRes] = await Promise.all([
+        api.get('/skills'),
+        getTodaysPlan({ tries: 4 }).catch(() => null),
+        api.get('/badges').catch(() => null),
+        api.get('/tasks/history').catch(() => null)
+      ]);
+      setSkills(Array.isArray(skillRes.data) ? skillRes.data : []);
+      const t = taskRes?.data;
+      setTasks(Array.isArray(t) ? t : t?.tasks || []);
+      setBadges(Array.isArray(badgeRes?.data) ? badgeRes.data : []);
+      setHistory(Array.isArray(historyRes?.data) ? historyRes.data : []);
+      setFailed(false);
+    } catch (err) {
+      console.error(err);
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        // Tasks, badges and history are garnish on the skill list, so none of
-        // them failing may take the list down with it. The streak spans days,
-        // so it has to come from history — `/tasks` is today's plan only.
-        const [skillRes, taskRes, badgeRes, historyRes] = await Promise.all([
-          api.get('/skills'),
-          api.get('/tasks').catch(() => null),
-          api.get('/badges').catch(() => null),
-          api.get('/tasks/history').catch(() => null)
-        ]);
-        setSkills(Array.isArray(skillRes.data) ? skillRes.data : []);
-        const t = taskRes?.data;
-        setTasks(Array.isArray(t) ? t : t?.tasks || []);
-        setBadges(Array.isArray(badgeRes?.data) ? badgeRes.data : []);
-        setHistory(Array.isArray(historyRes?.data) ? historyRes.data : []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchAll();
-  }, []);
+  }, [fetchAll]);
+
+  const retry = async () => {
+    setRetrying(true);
+    await fetchAll();
+    setRetrying(false);
+  };
 
   // Today's unfinished task for each skill, by the name the task names.
   const taskFor = useMemo(() => {
@@ -310,7 +326,7 @@ export default function Skills() {
     .sort((a, b) => LEVELS.indexOf(levelOf(a)) - LEVELS.indexOf(levelOf(b)) || byName(a, b));
 
   const completed = skills.filter((s) => statusOf(s) === 'completed').length;
-  const streak = currentStreak(history);
+  const streak = useStreak(currentStreak(history));
 
   // The one honest headline: the moving skill closest to levelling up.
   const closest = useMemo(() => {
@@ -323,6 +339,7 @@ export default function Skills() {
 
   const showLoader = useMinimumLoading(loading);
   if (showLoader) return <YatiLoader label="Loading your skills" />;
+  if (failed) return <LoadError title="We couldn't load your skills" onRetry={retry} retrying={retrying} />;
 
   return (
     <div className="fp-enter grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_296px]">

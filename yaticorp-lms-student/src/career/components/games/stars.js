@@ -38,3 +38,21 @@ export const starsFor = (value, target, lowerIsBetter = false) => {
  * starsFor(starsCap(t), t) is always 3.
  */
 export const starsCap = (target) => Math.ceil(target * 1.5);
+
+/**
+ * Stars for a level with a fixed number of things to get right — a quiz of
+ * twelve questions, five rounds, three totals — where `max` is a perfect
+ * score and `pass` clears the level.
+ *
+ * starsFor's 1.5x rule cannot work there: once the pass mark is more than
+ * two-thirds of the maximum, 1.5x of it is a score the level cannot hold, and
+ * a perfect round paid two stars or one. So these grade on where the score
+ * sits between pass and perfect: perfect is three, at or past the midpoint is
+ * two, a pass is one.
+ */
+export const starsForFixed = (score, pass, max) => {
+  if (!(max > 0) || score < pass) return 0;
+  if (score >= max) return 3;
+  if (score >= Math.ceil((pass + max) / 2)) return 2;
+  return 1;
+};

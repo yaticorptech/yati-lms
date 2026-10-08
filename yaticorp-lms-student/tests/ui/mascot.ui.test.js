@@ -69,7 +69,7 @@ import MascotProvider from '${srcFile('mascot/MascotProvider.jsx')}';
 import CoursePlayer from '${srcFile('pages/CoursePlayer.jsx')}';
 ${FAST_DECODE}
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree' }, setUser: () => {} }}>
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg' }, setUser: () => {} }}>
     <MascotProvider><MemoryRouter initialEntries={['/learn/c1']}>
       <Routes><Route path="/learn/:courseId" element={<CoursePlayer />} /></Routes>
     </MemoryRouter></MascotProvider>
@@ -152,154 +152,35 @@ return { breathing, showing, after };` });
     });
 });
 
-describe('the mascot on a lesson page', { skip: skipWithoutChrome }, () => {
-    test('greets, winks at the primary button, and celebrates the lesson it just finished', async () => {
+// The lesson page no longer has the corner mascot: it is kept only on the
+// sign-in pages and the loading screen. The dock itself still works — the
+// stage tests above and the corner test below mount it directly.
+describe('the lesson page', { skip: skipWithoutChrome }, () => {
+    test('has no mascot, and finishing a lesson still works', async () => {
         const { result, errors } = await screen({
-            entry: lessonPage, api: lessonApi([]), files: ASSETS, budget: 20000, script: `${WATCH}
-const dock = $('.mascot-dock');
-const placed = { inBody: dock.parentElement === document.body, hidden: dock.getAttribute('aria-hidden'),
-  reserved: document.documentElement.hasAttribute('data-mascot-dock') };
+            entry: lessonPage, api: lessonApi([]), files: ASSETS, budget: 12000, script: `
 await sleep(2600);
-const cta = find(/Mark Complete/);
-cta.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }));
-await sleep(300); const winking = showing();
-cta.click();
-await sleep(300); const celebrating = showing();
-await sleep(2600);
-find(/Completed/).dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }));
-await sleep(300);
-return { placed, winking, celebrating, seen, completed: window.__completed };` });
+const mascot = !!$('.mascot-dock');
+const reserved = document.documentElement.hasAttribute('data-mascot-dock');
+find(/Mark Complete/).click();
+await sleep(1500);
+return { mascot, reserved, completed: window.__completed || null };` });
         assert.deepEqual(errors, []);
-        assert.deepEqual(result.placed, { inBody: true, hidden: 'true', reserved: true });
-        assert.equal(result.winking, 'wink-point');
-        assert.equal(result.celebrating, 'confetti-cheer', 'the finished lesson cuts the wink short');
+        assert.equal(result.mascot, false, 'no mascot in the corner');
+        assert.equal(result.reserved, false, 'and no space kept for one');
         assert.deepEqual(result.completed, ['l1']);
-        assert.deepEqual(result.seen, ['wave-hi', 'wink-point', 'confetti-cheer'], 'and no wink at the now-disabled button');
-    });
-
-    test('a passed quiz with three right in a row is a streak, then the lesson completes', async () => {
-        const grade = { passed: true, score: 100, creditsEarned: 0, results: [0, 1, 2].map(() => ({ isCorrect: true, providedAnswer: 0, correctAnswer: 0 })) };
-        const { result, errors } = await quiz(grade);
-        assert.deepEqual(errors, []);
-        assert.deepEqual(result.seen, ['wave-hi', 'star-celebrate', 'confetti-cheer']);
-        assert.deepEqual(result.completed, ['l2']);
-    });
-
-    test('a failed quiz is sad, and finishes nothing', async () => {
-        const grade = { passed: false, score: 33, results: [true, false, false].map((isCorrect) => ({ isCorrect, providedAnswer: 0, correctAnswer: isCorrect ? 0 : 1 })) };
-        const { result, errors } = await quiz(grade);
-        assert.deepEqual(errors, []);
-        assert.deepEqual(result.seen, ['wave-hi', 'sad']);
-        assert.equal(result.completed, null);
-    });
-
-    test('thirty seconds without input brings one meditation, not a loop', async () => {
-        const { result, errors } = await screen({
-            entry: lessonPage, api: lessonApi([]), files: ASSETS, budget: 120000, script: `${WATCH}
-await sleep(29000); const early = [...seen];
-await sleep(3000); const quiet = [...seen];
-await sleep(40000); const later = [...seen];
-window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
-await sleep(31000);
-return { early, quiet, later, again: seen };` });
-        assert.deepEqual(errors, []);
-        assert.deepEqual(result.early, ['wave-hi']);
-        assert.deepEqual(result.quiet, ['wave-hi', 'meditating']);
-        assert.deepEqual(result.later, ['wave-hi', 'meditating'], 'still quiet, so no second meditation');
-        assert.deepEqual(result.again, ['wave-hi', 'meditating', 'meditating'], 'input starts a new quiet spell');
-    });
-
-    test('a wink needs a mouse, an enabled button, and ten seconds since the last one', async () => {
-        const entry = `
-import { createRoot } from 'react-dom/client';
-import MascotProvider from '${srcFile('mascot/MascotProvider.jsx')}';
-import MascotDock from '${srcFile('mascot/MascotDock.jsx')}';
-${FAST_DECODE}
-createRoot(document.getElementById('root')).render(
-  <MascotProvider><MascotDock /><button data-mascot-cta>Go</button><button data-mascot-cta disabled>Off</button></MascotProvider>);`;
-        const { result, errors } = await screen({
-            entry, api: apiModule({}), files: ASSETS, budget: 30000, script: `${WATCH}
-const over = (label, pointerType) => find(new RegExp(label)).dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType }));
-await sleep(2600);
-over('Go', 'touch'); await sleep(300); const touch = showing();
-over('Off', 'mouse'); await sleep(300); const disabled = showing();
-over('Go', 'mouse'); await sleep(300); const mouse = showing();
-await sleep(2500);
-over('Go', 'mouse'); await sleep(300); const soon = showing();
-await sleep(8000);
-over('Go', 'mouse'); await sleep(300); const later = showing();
-return { touch, disabled, mouse, soon, later };` });
-        assert.deepEqual(errors, []);
-        assert.deepEqual(result, { touch: null, disabled: null, mouse: 'wink-point', soon: null, later: 'wink-point' });
     });
 });
 
-/** Opens the quiz lesson, answers all three questions and submits `grade`. */
-const quiz = (grade) => screen({
-    entry: lessonPage, api: lessonApi(['l1']), files: ASSETS, budget: 20000, script: `${WATCH}
-window.__grade = ${JSON.stringify(grade)};
-await sleep(2600);
-click(/Check yourself/);
-await sleep(300);
-for (const n of ['one', 'two', 'three']) {
-  $$('div.cursor-pointer').find((el) => el.innerText.trim() === 'Yes ' + n).click();
-  await sleep(50);
-  if (!click(/^Next/)) click(/Submit Assessment/);
-  await sleep(100);
-}
-await sleep(5000);
-return { seen, completed: window.__completed || null };` });
+// The dock is no longer mounted anywhere in the app, so the production build
+// leaves its stylesheet out; the dock's own CSS is put on the page here.
+const DOCK_CSS = JSON.stringify(readFileSync(path.join(ROOT, 'src', 'mascot', 'mascot.css'), 'utf8'));
 
 describe('the mascot\'s corner', { skip: skipWithoutStyles }, () => {
-    const shell = `
-import { createRoot } from 'react-dom/client';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { AuthContext } from '${srcFile('context/AuthContext.jsx')}';
-import StudentLayout from '${srcFile('layouts/StudentLayout.jsx')}';
-import MascotProvider from '${srcFile('mascot/MascotProvider.jsx')}';
-import CoursePlayer from '${srcFile('pages/CoursePlayer.jsx')}';
-import { RewardToast } from '${srcFile('components/rewards/RewardCelebration.jsx')}';
-const Page = () => <><CoursePlayer /><RewardToast text="+20 XP for finishing a lesson" onClose={() => {}} /></>;
-createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree' }, setUser: () => {} }}><MascotProvider>
-    <MemoryRouter initialEntries={['/learn/c1']}>
-      <Routes><Route path="/" element={<StudentLayout />}><Route path="learn/:courseId" element={<Page />} /></Route></Routes>
-    </MemoryRouter></MascotProvider></AuthContext.Provider>);`;
-    const api = apiModule({
-        '/user/courses/c1': COURSE([]), '/user/announcements': [], '/career/notifications': [], '/jobs/notifications': [],
-        '/user/profile': { name: 'Bhagyashree' }, '/career/profile/summary': {}
-    }, POST);
-    const MEASURE = `
-for (let i = 0; i < 80 && !$('.mascot-dock-body > div'); i++) await sleep(50);
-await sleep(500);
-const box = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return r.width ? { top: r.top, right: r.right, bottom: r.bottom, left: r.left, width: r.width } : null; };
-const toast = $$('[role="status"]').find((el) => /XP for finishing/.test(el.innerText));
-return { vw: innerWidth, vh: innerHeight, dock: box($('.mascot-dock-body > div')), nav: box($('nav[aria-label="Main sections"]')), toast: box(toast) };`;
-    const apart = (a, b) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
-
-    test('on a phone it is 120px wide and stands above the floating nav, with the toast above it', async () => {
-        const { result, errors } = await screen({ entry: shell, api, files: ASSETS, styles: true, device: DEVICES.pixel9, budget: 6000, script: MEASURE });
-        assert.deepEqual(errors, []);
-        const { vw, dock, nav, toast } = result;
-        assert.ok(Math.abs(dock.width - 120) < 1, `width ${dock.width}`);
-        assert.ok(Math.abs(vw - dock.right - 12) < 1, `${vw - dock.right}px from the right edge`);
-        assert.ok(nav && dock.bottom <= nav.top, `the mascot (bottom ${dock.bottom}) must clear the nav (top ${nav?.top})`);
-        assert.ok(toast && apart(toast, dock) && apart(toast, nav), 'the XP toast covers neither the mascot nor the nav');
-    });
-
-    test('on the desktop layout it is 200px in the corner, with the toast beside it', async () => {
-        const { result, errors } = await screen({ entry: shell, api, files: ASSETS, styles: true, width: 1400, height: 1000, script: MEASURE });
-        assert.deepEqual(errors, []);
-        const { vw, vh, dock, nav, toast } = result;
-        assert.equal(nav, null, 'no floating nav on the desktop layout');
-        assert.ok(Math.abs(dock.width - 200) < 1, `width ${dock.width}`);
-        assert.ok(Math.abs(vw - dock.right - 24) < 1 && Math.abs(vh - dock.bottom - 24) < 1, 'a 1.5rem margin from both edges');
-        assert.ok(toast && toast.right <= dock.left, 'the XP toast stands to the left of the mascot');
-    });
-
     test('it ducks below a primary button in its corner, and only for an enabled one', async () => {
         const entry = `
 import { createRoot } from 'react-dom/client';
+{ const style = document.createElement('style'); style.textContent = ${DOCK_CSS}; document.head.appendChild(style); }
 import MascotProvider from '${srcFile('mascot/MascotProvider.jsx')}';
 import MascotDock from '${srcFile('mascot/MascotDock.jsx')}';
 ${FAST_DECODE}

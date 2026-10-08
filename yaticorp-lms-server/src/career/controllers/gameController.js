@@ -3,18 +3,54 @@
  * leaderboard built from it.
  *
  * Games are still played and scored entirely in the browser. What the server
- * adds is memory across devices and a way to compare — stars and levels,
- * never XP, so a memory game cannot inflate the numbers that measure real
- * work on the roadmap.
+ * adds is memory across devices, a way to compare, the daily play limit, and
+ * XP: a level pays the admin's XP for its best stars, once per star reached
+ * (Rewards → Reward rules → Brain games). Replaying at the same stars pays
+ * nothing, and nothing is paid once the day's minutes are used up — so a
+ * memory game cannot become a way to farm XP.
+ *
+ * Because the score is the browser's word, saveProgress is strict about what
+ * it believes: real game ids only, at most one level further per request, and
+ * no change at all before any play time has been counted today. See there.
  */
 const User = require('../models/User');
 const GameProgress = require('../models/GameProgress');
 const GameStarEvent = require('../models/GameStarEvent');
-const { periodWindow } = require('../../rewards/config/constants');
+const GamePlayTime = require('../models/GamePlayTime');
+const { isGameId } = require('../data/gameIds');
+const { periodWindow, dayKey, addDays, startOfDay } = require('../../rewards/config/constants');
+const { getConfig } = require('../../rewards/services/configService');
+const { addXp } = require('../../rewards/services/xpService');
+
+// A heartbeat may claim at most this many seconds, and never more than really
+// passed since the one before.
+const MAX_BEAT_SECONDS = 30;
+// A level finished just as the clock ran out still pays.
+const GRACE_SECONDS = 60;
+
+/** XP the admin pays for a level finished with `stars` stars (0 → 0). */
+const xpForStars = (games, stars) => [0, games.xpOneStar, games.xpTwoStars, games.xpThreeStars][stars] || 0;
+
+/** Today's play time against the admin's limit, plus the XP table, for the page. */
+const playState = async (userId, config) => {
+  const games = config.games;
+  const day = dayKey();
+  const doc = await GamePlayTime.findOne({ userId, day }).lean();
+  const used = Math.round(doc?.seconds || 0);
+  const limit = Math.max(0, Math.round((games.dailyMinutes || 0) * 60));
+  return {
+    day,
+    usedSeconds: used,
+    // 0 means the admin set no limit.
+    limitSeconds: limit,
+    remainingSeconds: limit ? Math.max(0, limit - used) : null,
+    resetsAt: startOfDay(addDays(day, 1)),
+    xpByStars: { 1: games.xpOneStar, 2: games.xpTwoStars, 3: games.xpThreeStars }
+  };
+};
 
 const MAX_LEVEL = 90;
 const MAX_STARS = 3;
-const GAME_ID = /^[a-z0-9-]{2,40}$/;
 const PERIODS = ['daily', 'weekly', 'monthly', 'all'];
 const SCOPES = ['global', 'institution', 'class'];
 const BOARD_SIZE = 10;
@@ -38,8 +74,6 @@ const cleanStars = (input) => {
   return out;
 };
 
-const sumStars = (stars) => Object.values(stars).reduce((sum, n) => sum + n, 0);
-
 const shapeProgress = (doc) => ({
   gameId: doc.gameId,
   level: doc.level,
@@ -59,37 +93,151 @@ const getProgress = async (req, res) => {
 
 // @route POST /api/career/games/progress   { gameId, level, stars: { "1": 3, ... } }
 // Merge the browser's record of one game into the account's. Only ever up.
+//
+// Games are scored in the browser, so nothing here can prove a level was
+// really played. What the server can do is refuse records no honest browser
+// produces, and make a forged one slow and unpaid:
+//
+//   - Only games the app ships are accepted (data/gameIds.js).
+//   - A request may move a game at most ONE level past what the account
+//     already holds. Stars are taken only on levels up to the stored level
+//     plus one (and never past the level the browser itself claims), and the
+//     level only climbs to one past the highest starred level. An honest
+//     browser stars level N while on N, then moves to N+1, so ordinary play
+//     always fits. A browser that is further ahead than the account — it
+//     played offline, or a push failed — catches up one level per request.
+//     The browser sends again while each answer still moves it (pushGame in
+//     the student app's levels.js), so it gets there in a few requests
+//     rather than one, and a forger gains nothing over honest play by it.
+//   - Nothing moves, and nothing pays, until the server has counted some play
+//     time today (GamePlayTime, from the page's heartbeat). A record arriving
+//     without it is left in the browser, which sends it again with the next
+//     push — so an honest student loses no XP, only waits for it.
+//
+// Each level's stars are raised with their own conditional update, which
+// also hands back the value it replaced. Two saves racing on the same level
+// therefore cannot both count the same stars: one raises 0 → 3, the other
+// finds 3 already there and does nothing. The old read-merge-save let both
+// insert a GameStarEvent, and two first saves of a new game collided on the
+// unique index and answered 500.
 const saveProgress = async (req, res) => {
   try {
+    const userId = req.user._id;
     const gameId = String(req.body?.gameId || '').trim();
-    if (!GAME_ID.test(gameId)) return res.status(400).json({ message: 'Unknown game' });
+    if (!isGameId(gameId)) return res.status(400).json({ message: 'Unknown game' });
 
-    const level = Math.min(MAX_LEVEL, Math.max(1, Math.floor(Number(req.body?.level) || 1)));
+    const claimedLevel = Math.min(MAX_LEVEL, Math.max(1, Math.floor(Number(req.body?.level) || 1)));
     const incoming = cleanStars(req.body?.stars);
 
-    const doc =
-      (await GameProgress.findOne({ userId: req.user._id, gameId })) ||
-      new GameProgress({ userId: req.user._id, gameId, level: 1, stars: {} });
+    const before = await GameProgress.findOne({ userId, gameId }).lean();
+    const stored = before ? shapeProgress(before) : { gameId, level: 1, stars: {} };
+    const storedLevel = Math.max(1, stored.level || 1);
 
-    const merged = doc.stars instanceof Map ? Object.fromEntries(doc.stars) : { ...(doc.stars || {}) };
-    const events = [];
-    for (const [key, stars] of Object.entries(incoming)) {
-      const before = merged[key] || 0;
-      if (stars <= before) continue;
-      merged[key] = stars;
-      events.push({ userId: req.user._id, gameId, level: Number(key), stars: stars - before, first: before === 0 });
+    // The highest level this request may star, and the candidate gains on it.
+    const topStarrable = Math.min(storedLevel + 1, claimedLevel);
+    const candidates = Object.entries(incoming)
+      .map(([key, stars]) => ({ level: Number(key), to: stars }))
+      .filter((g) => g.level <= topStarrable && g.to > (stored.stars[String(g.level)] || 0))
+      .sort((a, b) => a.level - b.level);
+
+    // Where the level may move to: never past the claim, never more than one
+    // step, and never past one beyond the highest level holding stars once
+    // this request's stars are in.
+    const starredLevels = [...Object.keys(stored.stars).map(Number), ...candidates.map((g) => g.level)];
+    const topStarred = starredLevels.length ? Math.max(...starredLevels) : 0;
+    const nextLevel = Math.max(storedLevel, Math.min(claimedLevel, storedLevel + 1, topStarred + 1));
+
+    if (!candidates.length && nextLevel === storedLevel) {
+      return res.json({ ...stored, xpAwarded: 0 });
     }
 
-    doc.level = Math.max(doc.level || 1, level);
-    doc.stars = merged;
-    doc.starTotal = sumStars(merged);
-    doc.cleared = doc.level - 1;
-    await doc.save();
-    if (events.length) await GameStarEvent.insertMany(events);
+    const config = await getConfig();
+    const time = await playState(userId, config);
+    if (time.usedSeconds <= 0) {
+      return res.json({ ...stored, xpAwarded: 0, deferred: 'no-play-time' });
+    }
 
-    res.json(shapeProgress(doc));
+    const docId = await ensureProgressDoc(userId, gameId);
+
+    // One conditional update per level: raise it only if it is below the new
+    // best, and read back what it was. The answer — not the earlier read — is
+    // what counts as the gain.
+    const gains = [];
+    for (const g of candidates) {
+      const path = `stars.${g.level}`;
+      const prior = await GameProgress.findOneAndUpdate(
+        { _id: docId, $or: [{ [path]: { $exists: false } }, { [path]: { $lt: g.to } }] },
+        { $set: { [path]: g.to } },
+        { returnDocument: 'before', projection: { [path]: 1 } }
+      ).lean();
+      if (!prior) continue;
+      const from = Number(prior.stars?.[String(g.level)]) || 0;
+      gains.push({ level: g.level, from, to: g.to });
+    }
+
+    // The level, then the denormalised totals, computed by the database from
+    // whatever the document holds now so a concurrent save cannot leave them
+    // stale.
+    await GameProgress.updateOne({ _id: docId }, { $max: { level: nextLevel } });
+    await GameProgress.updateOne({ _id: docId }, [
+      {
+        $set: {
+          starTotal: { $sum: { $map: { input: { $objectToArray: { $ifNull: ['$stars', {}] } }, in: '$$this.v' } } },
+          cleared: { $subtract: ['$level', 1] }
+        }
+      }
+    ], { updatePipeline: true });
+
+    if (gains.length) {
+      await GameStarEvent.insertMany(
+        gains.map((g) => ({ userId, gameId, level: g.level, stars: g.to - g.from, first: g.from === 0 }))
+      );
+    }
+
+    // XP for the stars just reached: the difference between the old best and
+    // the new, keyed by game, level and stars so it is paid once. Not paid
+    // once today's minutes are used up.
+    let xpAwarded = 0;
+    const withinLimit = !time.limitSeconds || time.usedSeconds < time.limitSeconds + GRACE_SECONDS;
+    if (gains.length && withinLimit) {
+      for (const g of gains) {
+        const xp = xpForStars(config.games, g.to) - xpForStars(config.games, g.from);
+        if (xp <= 0) continue;
+        const r = await addXp({
+          userId, amount: xp, source: 'game', refId: `${gameId}:${g.level}:${g.to}`, silent: true,
+          description: `for ${g.to} star${g.to === 1 ? '' : 's'} on level ${g.level} of ${gameId.replace(/-/g, ' ')}`
+        });
+        if (r && !r.duplicate && !r.skipped && !r.missingUser) xpAwarded += xp;
+      }
+    }
+
+    const after = await GameProgress.findById(docId).lean();
+    res.json({ ...shapeProgress(after), xpAwarded });
   } catch (error) {
     fail(res, error, 'save game progress');
+  }
+};
+
+/**
+ * The id of this student's record for one game, creating it if need be.
+ *
+ * An upsert, so two first saves cannot both insert. Two upserts racing can
+ * still both miss and both try to insert, and the loser gets a duplicate-key
+ * error from the unique index — by then the winner's document exists, so
+ * trying once more simply finds it.
+ */
+const ensureProgressDoc = async (userId, gameId) => {
+  const upsert = () =>
+    GameProgress.findOneAndUpdate(
+      { userId, gameId },
+      { $setOnInsert: { level: 1, stars: {}, starTotal: 0, cleared: 0 } },
+      { upsert: true, returnDocument: 'after', projection: { _id: 1 } }
+    ).lean();
+  try {
+    return (await upsert())._id;
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+    return (await upsert())._id;
   }
 };
 
@@ -192,4 +340,35 @@ const getLeaderboard = async (req, res) => {
   }
 };
 
-module.exports = { getProgress, saveProgress, getLeaderboard, PERIODS, SCOPES };
+// @route GET /api/career/games/time
+// How much of today's play time is left, and what each star result pays.
+const getPlayTime = async (req, res) => {
+  try {
+    res.json(await playState(req.user._id, await getConfig()));
+  } catch (error) {
+    fail(res, error, 'load play time');
+  }
+};
+
+// @route POST /api/career/games/time   { seconds }
+// A heartbeat while a game is open. Clamped to the time that actually passed.
+const recordPlayTime = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const day = dayKey();
+    const now = new Date();
+    const doc = await GamePlayTime.findOneAndUpdate(
+      { userId, day },
+      { $setOnInsert: { seconds: 0 } },
+      { upsert: true, returnDocument: 'after' }
+    );
+    const sinceLast = doc.lastBeatAt ? (now - doc.lastBeatAt) / 1000 : MAX_BEAT_SECONDS;
+    const claim = Math.max(0, Math.min(Number(req.body?.seconds) || 0, MAX_BEAT_SECONDS, sinceLast + 2));
+    await GamePlayTime.updateOne({ _id: doc._id }, { $inc: { seconds: claim }, $set: { lastBeatAt: now } });
+    res.json(await playState(userId, await getConfig()));
+  } catch (error) {
+    fail(res, error, 'record play time');
+  }
+};
+
+module.exports = { getProgress, saveProgress, getLeaderboard, getPlayTime, recordPlayTime, PERIODS, SCOPES };

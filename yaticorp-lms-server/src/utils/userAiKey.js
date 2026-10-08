@@ -21,8 +21,10 @@ const ownKeyFor = async (userId) => {
     if (store && store.ownGeminiKey !== undefined && store.ownGeminiKeyFor === String(userId)) return store.ownGeminiKey;
     let key = '';
     try {
-        const user = await User.findById(userId).select('+geminiApiKey').lean();
-        key = user?.geminiApiKey ? (open(user.geminiApiKey) || '') : '';
+        const user = await User.findById(userId).select('+geminiApiKey cardNumber').lean();
+        // The demo cards run on the platform key from the environment, never
+        // a key of their own (services/fullAccess.js).
+        key = user?.geminiApiKey && !require('../services/fullAccess').hasFullAccess(user) ? (open(user.geminiApiKey) || '') : '';
     } catch (error) {
         console.error('[ai-key] Could not read the student key, using the platform key:', error.message);
     }

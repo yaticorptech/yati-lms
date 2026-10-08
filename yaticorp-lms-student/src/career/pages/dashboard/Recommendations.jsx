@@ -8,7 +8,7 @@ import IdeasHeroArt from '../../components/recommendations/IdeasHeroArt';
 import {
   Search, Sparkles, X, Lightbulb, Target, BookMarked,
   Hammer, GraduationCap, Briefcase, MonitorPlay, BadgeCheck, BookOpen, Coins,
-  Code2, TvMinimalPlay, Compass, ChevronRight
+  Code2, TvMinimalPlay, Compass, ChevronRight, RotateCw
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
@@ -16,6 +16,8 @@ import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
+import PriceTag from '../../../components/rewards/PriceTag';
+import useBackClose from '../../../native/useBackClose';
 
 /*
  * Tile palettes. Written out in full because Tailwind scans source for literal
@@ -124,6 +126,8 @@ function CategoryDialog({ title, categories, onClose }) {
   const Icon = categories.length === 1 ? categories[0].icon : null;
   const count = categories.reduce((n, c) => n + c.count, 0);
   const closeRef = useRef(null);
+  // Android's back button closes the list rather than leaving the page.
+  useBackClose(onClose);
   useEffect(() => {
     closeRef.current?.focus();
     const onKey = (e) => e.key === 'Escape' && onClose();
@@ -165,12 +169,12 @@ function CategoryDialog({ title, categories, onClose }) {
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4 sm:p-5">
           {categories.map((c) => (
             <CategoryPanel key={c.title} category={c} labelled={categories.length > 1} />
           ))}
@@ -232,14 +236,31 @@ export default function Recommendations() {
     setData(res.data);
   };
 
-  useEffect(() => {
+  // True when a read failed for a reason other than "there is none yet". The
+  // empty states below offer a PAID "Get recommendations", and a student whose
+  // existing list merely failed to load (offline, a 500) was being invited to
+  // pay to rebuild it. Only a 404 means there is nothing to show.
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  const loadAll = () => {
+    setLoading(true);
+    setLoadFailed(false);
+    const noneOn404 = (err) => {
+      if (err.response?.status !== 404) setLoadFailed(true);
+    };
     // Settled, not all: a missing roadmap must not blank out the
     // recommendations and vice versa. Either one alone is still a usable page.
     Promise.allSettled([
-      api.get('/recommendations').then((res) => setData(res.data)),
-      api.get('/roadmap').then((res) => setRoadmap(res.data?.roadmapData || null)),
+      api.get('/recommendations').then((res) => setData(res.data), noneOn404),
+      api.get('/roadmap').then((res) => setRoadmap(res.data?.roadmapData || null), noneOn404),
+      // The sidebar's badges are decoration; failing to load them is not a
+      // reason to hide the page or block generating.
       api.get('/badges').then((res) => setBadges(res.data || []))
     ]).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadAll();
   }, []);
 
   const handleGenerate = async () => {
@@ -336,7 +357,8 @@ export default function Recommendations() {
     visibleCurated.reduce((n, c) => n + c.count, 0);
 
   const hasRoadmapMaterial = roadmapDefs.some((d) => d.groups.some(([, items]) => items?.length > 0));
-  const nothingAtAll = !data && !hasRoadmapMaterial;
+  // A failed read is not "nothing": it gets a retry, never a generate button.
+  const nothingAtAll = !loadFailed && !data && !hasRoadmapMaterial;
 
   // Column count per group, so the five roadmap tiles sit on one row rather
   // than wrapping a lone fifth tile onto a line of its own.
@@ -462,6 +484,20 @@ export default function Recommendations() {
       {/* ---- Body + sidebar --------------------------------------------- */}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="min-w-0 space-y-6">
+          {loadFailed && (
+            <Card className="flex flex-wrap items-center justify-between gap-4 border-rose-200 bg-rose-50" role="alert">
+              <div>
+                <p className="font-semibold text-rose-800">Some of your resources did not load</p>
+                <p className="mt-0.5 text-sm text-rose-700">
+                  Check your connection and try again. Nothing has been lost.
+                </p>
+              </div>
+              <Button variant="secondary" icon={RotateCw} onClick={loadAll}>
+                Try again
+              </Button>
+            </Card>
+          )}
+
           {nothingAtAll && (
             <EmptyState
               icon={Lightbulb}
@@ -469,7 +505,7 @@ export default function Recommendations() {
               description="Build your roadmap first, then let your AI mentor put together internships, courses, books and scholarships that fit your goal."
               action={
                 <Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
-                  Get recommendations
+                  Get recommendations <PriceTag action="generate_ideas" />
                 </Button>
               }
             />
@@ -493,7 +529,7 @@ export default function Recommendations() {
 
           {/* Roadmap material but nothing curated yet: offer the second half
               rather than leaving the page looking finished. */}
-          {!data && hasRoadmapMaterial && (
+          {!loadFailed && !data && hasRoadmapMaterial && (
             <Card className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="font-semibold text-ink-900">Want named opportunities too?</p>
@@ -502,12 +538,12 @@ export default function Recommendations() {
                 </p>
               </div>
               <Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
-                Get recommendations
+                Get recommendations <PriceTag action="generate_ideas" />
               </Button>
             </Card>
           )}
 
-          {!nothingAtAll && matchCount === 0 && (
+          {!loadFailed && !nothingAtAll && matchCount === 0 && (
             <EmptyState
               icon={Search}
               title={searching ? 'Nothing matches that' : 'Nothing to show'}

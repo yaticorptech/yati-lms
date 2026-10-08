@@ -362,10 +362,14 @@ const BAND_FORMS = {
 /** The whole pool, every band, ordered easy to hard inside each band. */
 export const buildSyllogisms = () => {
   const out = [];
+  // One record across all three bands, not one per band: reset per band, the
+  // same question could be generated in band 1 and again in band 2, and a
+  // student climbing the ladder met it twice. Generation is still seeded, so
+  // the pool is identical on every build.
+  const seen = new Set();
   for (const band of [1, 2, 3]) {
     const rng = seeded(9300 + band);
     const forms = BAND_FORMS[band];
-    const seen = new Set();
     for (let i = 0; i < PER_BAND; i += 1) {
       const home = Math.floor((i / PER_BAND) * forms.length);
       // A form with few fillings can run dry; after a few tries the slot

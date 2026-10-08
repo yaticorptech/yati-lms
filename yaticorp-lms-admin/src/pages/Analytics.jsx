@@ -11,7 +11,7 @@ import {
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import { saveBlob } from '../native/saveFile';
 
-// ─── Student List Slide Panel ────────────────────────────────────────────────
+// ─── Student List Dialog ─────────────────────────────────────────────────────
 const StudentPanel = ({ course, onClose }) => {
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -26,6 +26,13 @@ const StudentPanel = ({ course, onClose }) => {
             .finally(() => setLoading(false));
     }, [course]);
 
+    // Escape closes it, as clicking outside does.
+    useEffect(() => {
+        const onKey = (e) => e.key === 'Escape' && onClose();
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
+
     const statusColor = (pct) => {
         if (pct >= 100) return 'bg-emerald-100 text-emerald-700';
         if (pct > 0) return 'bg-blue-100 text-blue-700';
@@ -33,14 +40,16 @@ const StudentPanel = ({ course, onClose }) => {
     };
 
     return (
-        <>
-            {/* Backdrop */}
-            <div
-                className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40"
-                onClick={onClose}
-            />
-            {/* Panel */}
-            <div className="fixed right-0 top-0 h-full w-full max-w-xl bg-white shadow-2xl z-50 flex flex-col animate-slide-in-right">
+        // Centred over the page; a sheet from the bottom on a phone, where a
+        // centred card would leave a strip of page above and below it.
+        <div
+            className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Enrolled students — ${course.title}`}
+            onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
+            <div className="sel-pop flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[85dvh] sm:max-w-2xl sm:rounded-2xl">
                 {/* Header */}
                 <div className="flex items-center justify-between gap-3 p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex-shrink-0">
                     <div className="min-w-0">
@@ -74,7 +83,7 @@ const StudentPanel = ({ course, onClose }) => {
                 </div>
 
                 {/* Student list */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-3 sm:pb-4">
                     {loading ? (
                         <div className="flex items-center justify-center py-16 text-slate-400">
                             <div className="animate-spin w-7 h-7 border-4 border-indigo-600 border-t-transparent rounded-full mr-3" />
@@ -146,7 +155,7 @@ const StudentPanel = ({ course, onClose }) => {
                     ))}
                 </div>
             </div>
-        </>
+        </div>
     );
 };
 
@@ -161,14 +170,16 @@ const SortIcon = ({ field, sortField, sortDir }) => (
 );
 
 const StatCard = ({ icon: Icon, label, value, color, sub }) => (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 xl:p-6 flex items-center gap-4 xl:gap-5 hover:shadow-md transition-shadow">
-        <div className={`w-12 h-12 xl:w-14 xl:h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${color}`}>
-            <Icon size={24} className="text-white" />
+    // A small centred tile on a phone, three to a row; icon beside the
+    // figure from md up, as before.
+    <div className="min-w-0 bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-5 xl:p-6 flex flex-col items-center gap-1.5 text-center md:flex-row md:gap-4 md:text-left xl:gap-5 hover:shadow-md transition-shadow">
+        <div className={`w-9 h-9 md:w-12 md:h-12 xl:w-14 xl:h-14 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0 ${color}`}>
+            <Icon className="h-[18px] w-[18px] md:h-6 md:w-6 text-white" />
         </div>
         <div className="min-w-0">
-            <p className="text-2xl xl:text-3xl font-black text-slate-900">{value ?? '—'}</p>
-            <p className="text-sm font-semibold text-slate-500 mt-0.5">{label}</p>
-            {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+            <p className="text-xl md:text-2xl xl:text-3xl font-black text-slate-900 tabular-nums">{value ?? '—'}</p>
+            <p className="text-[11px] md:text-sm font-semibold leading-snug text-slate-500 mt-0.5">{label}</p>
+            {sub && <p className="hidden md:block text-xs text-slate-400 mt-0.5">{sub}</p>}
         </div>
     </div>
 );
@@ -260,7 +271,7 @@ const Analytics = () => {
 
                 {/* Stat Cards */}
                 {/* Three cards: one row from md rather than a 2 + 1 split */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
+                <div className="grid grid-cols-3 gap-2.5 md:gap-4 lg:gap-6">
                     <StatCard icon={Users} label="Total Students" value={data?.totalStudents} color="bg-indigo-600" />
                     <StatCard icon={BookOpen} label="Total Enrollments" value={data?.totalEnrollments} color="bg-violet-600" />
                     <StatCard icon={Activity} label="Active This Week" value={data?.activeThisWeek} color="bg-emerald-600" sub="Students who accessed content" />
@@ -277,17 +288,22 @@ const Analytics = () => {
 
                     {/* Phones: one card per course, with the table's sort headers as buttons */}
                     <div className="md:hidden">
-                        <div className="flex flex-wrap gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200">
-                            {[['enrolledCount', 'Enrolled'], ['completedCount', 'Completed'], ['completionRate', 'Rate'], ['avgCompletion', 'Avg %']].map(([field, label]) => (
-                                <button
-                                    key={field}
-                                    type="button"
-                                    onClick={() => handleSort(field)}
-                                    className={`flex items-center px-3 py-1.5 rounded-lg border text-[10px] font-bold tracking-widest uppercase ${sortField === field ? 'bg-white border-indigo-200 text-indigo-700' : 'border-slate-200 text-slate-500'}`}
-                                >
-                                    {label} <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
-                                </button>
-                            ))}
+                        {/* One row of four equal buttons — they wrapped 3 + 1 at phone width. */}
+                        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sort by</p>
+                            <div className="grid grid-cols-4 gap-1.5">
+                                {[['enrolledCount', 'Enrolled'], ['completedCount', 'Completed'], ['completionRate', 'Rate'], ['avgCompletion', 'Avg %']].map(([field, label]) => (
+                                    <button
+                                        key={field}
+                                        type="button"
+                                        onClick={() => handleSort(field)}
+                                        aria-pressed={sortField === field}
+                                        className={`flex min-w-0 items-center justify-center gap-0.5 rounded-lg border px-1 py-1.5 text-[11px] font-bold transition-colors ${sortField === field ? 'bg-white border-indigo-200 text-indigo-700 shadow-sm' : 'border-slate-200 bg-white/60 text-slate-500'}`}
+                                    >
+                                        <span className="truncate">{label}</span> <SortIcon field={field} sortField={sortField} sortDir={sortDir} />
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         <ul className="divide-y divide-slate-100">
                             {sorted.map(c => (

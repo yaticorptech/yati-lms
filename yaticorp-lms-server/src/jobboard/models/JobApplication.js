@@ -77,6 +77,9 @@ const schema = new mongoose.Schema({
     // message: this is what stops a second press sending a second copy, and
     // staying null after a refused send is what still allows a retry.
     mailSentAt: { type: Date, default: null },
+    // When the guardian above was last set — at the start, or by Change
+    // guardian. Compared with the profile's own, so the newer of the two wins.
+    guardianSetAt: { type: Date, default: null },
     // The provider's reason the last send failed, or '' once one has gone.
     mailError: { type: String, default: '' },
     // Set by the bounce watcher when the provider reported the parent's address

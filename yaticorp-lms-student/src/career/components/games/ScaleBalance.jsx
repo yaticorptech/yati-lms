@@ -55,7 +55,9 @@ function Round({ progress, onExit }) {
   useRecordStars(progress, over, stars);
 
   const choose = (shape) => {
-    if (over) return;
+    // The answer stays on screen for the flash, so a second tap in that
+    // moment would score the same question again. Ignored, as DotCount does.
+    if (over || flash) return;
     const right = shape === puzzle.answer;
     if (right) setScore((s) => s + 1);
     setFlash(right ? 'right' : 'wrong');
@@ -127,6 +129,7 @@ function Round({ progress, onExit }) {
                 key={s}
                 type="button"
                 onClick={() => choose(s)}
+                disabled={flash !== null}
                 className={`fp-press flex h-16 w-16 items-center justify-center rounded-2xl text-3xl ring-1 transition-all ring-inset ${
                   flash === 'right' && s === puzzle.answer
                     ? 'bg-emerald-50 ring-emerald-300'

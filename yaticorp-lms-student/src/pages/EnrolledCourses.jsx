@@ -2,7 +2,7 @@
  * @author Preethesh Kulal
  * @description Student enrolled courses and bundles listing with progress bars
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PlayCircle, Clock, BookOpen, Award, X, Compass, Layers, CheckCircle2, TrendingUp, Sparkles, Building2, Loader2 } from 'lucide-react';
 import { CoursesArt, NoBundlesArt, NoCoursesArt } from '../components/PageArt';
@@ -18,12 +18,16 @@ const EnrolledCourses = () => {
     // The open tab lives in the address (?tab=organization), so it survives a
     // refresh and the back button returns to it.
     const [params, setParams] = useSearchParams();
-    const activeTab = ['bundles', 'organization'].includes(params.get('tab')) ? params.get('tab') : 'courses';
+    const requestedTab = ['bundles', 'organization'].includes(params.get('tab')) ? params.get('tab') : 'courses';
     const setActiveTab = (tab) => setParams(tab === 'courses' ? {} : { tab }, { replace: true });
     const [selectedBundle, setSelectedBundle] = useState(null);
     // The student's organization and every course it has published — null for
     // a student who is not in one, and then the tab is not shown at all.
     const [org, setOrg] = useState({ organization: null, courses: [] });
+    // ?tab=organization is only honoured while there is an organization to
+    // show: a student who was never in one, was removed from it, or whose
+    // organization could not be loaded lands on My courses instead.
+    const activeTab = requestedTab === 'organization' && !org.organization ? 'courses' : requestedTab;
     const [startingId, setStartingId] = useState(null);
     const [startError, setStartError] = useState('');
     const navigate = useNavigate();
@@ -39,7 +43,7 @@ const EnrolledCourses = () => {
                 // own courses have their own section, even once enrolled in.
                 setCourses((res.data.courses || []).filter((c) => !c.organizationId));
                 setBundles(res.data.bundles || []);
-                if (orgRes) setOrg({ organization: orgRes.data.organization, courses: orgRes.data.courses || [] });
+                if (orgRes) setOrg({ organization: orgRes.data?.organization || null, courses: orgRes.data?.courses || [] });
             } catch (err) {
                 console.error('Failed to fetch courses:', err);
             } finally {
@@ -64,6 +68,12 @@ const EnrolledCourses = () => {
     };
 
     useAutoRefresh(fetchMyCourses, 30000);
+    // Once loaded, drop a stale ?tab=organization from the address too, so a
+    // refresh or the back button does not aim at a tab that is not there. The
+    // param it writes no longer matches, so this runs at most once.
+    useEffect(() => {
+        if (!loading && requestedTab === 'organization' && !org.organization) setParams({}, { replace: true });
+    }, [loading, requestedTab, org.organization, setParams]);
     // The same loader as Career Path: the orbit, a line, a bar — held for a
     // moment so it never flickers.
     const showLoader = useMinimumLoading(loading);
@@ -91,7 +101,7 @@ const EnrolledCourses = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-12">
             <div>
-                <div className="lms-rise lms-sheen relative overflow-hidden rounded-3xl bg-[#1e1b4b] p-6 text-white shadow-xl shadow-indigo-900/30 md:p-8">
+                <div className="lms-rise lms-sheen relative overflow-hidden rounded-3xl bg-[#1e1b4b] p-5 text-white shadow-xl shadow-indigo-900/30 md:p-8">
                     <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-900 via-violet-800 to-indigo-700" />
                     <div aria-hidden className="pointer-events-none absolute -top-32 -left-24 h-80 w-80 rounded-full bg-fuchsia-500/30 blur-3xl" />
                     <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-36 h-96 w-96 rounded-full bg-amber-400/25 blur-3xl" />
@@ -111,41 +121,41 @@ const EnrolledCourses = () => {
                                 <BookOpen size={14} />
                                 Enrolled courses
                             </p>
-                            <h1 className="mt-2 text-3xl font-black leading-tight sm:text-4xl">
+                            <h1 className="mt-1.5 text-[1.6rem] font-black leading-tight sm:mt-2 sm:text-4xl">
                                 {courses.length > 0 ? (
                                     <>Pick up where you <span className="lms-shimmer bg-gradient-to-r from-amber-300 via-orange-300 to-amber-300 bg-clip-text text-transparent">left off.</span></>
                                 ) : (
                                     <>Your courses, <span className="lms-shimmer bg-gradient-to-r from-amber-300 via-orange-300 to-amber-300 bg-clip-text text-transparent">all in one place.</span></>
                                 )}
                             </h1>
-                            <p className="mt-2 max-w-lg text-sm font-medium text-indigo-200 sm:text-base">
+                            <p className="mt-1.5 max-w-lg text-[0.8rem] font-medium text-indigo-200 sm:mt-2 sm:text-base">
                                 {courses.length > 0
                                     ? 'Every course you are enrolled in, with how far you have come on each one.'
                                     : 'Once you enrol, each course lands here with its progress, ready to resume any time.'}
                             </p>
 
-                            <div className="lms-stagger mt-5 flex flex-wrap items-center gap-2.5">
+                            <div className="lms-stagger mt-4 flex flex-wrap items-center gap-1.5 sm:mt-5 sm:gap-2.5">
                                 {resume && (
                                     <Link
                                         to={`/learn/${resume._id}`}
-                                        className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-indigo-700 shadow-lg shadow-indigo-900/20 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 active:scale-[0.98]"
+                                        className="mb-1 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-indigo-700 sm:mb-0 sm:w-auto sm:justify-start shadow-lg shadow-indigo-900/20 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 active:scale-[0.98]"
                                     >
                                         <PlayCircle size={18} />
                                         Resume {resume.title.length > 28 ? `${resume.title.slice(0, 28)}…` : resume.title}
                                     </Link>
                                 )}
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums">
-                                    <BookOpen size={14} />
+                                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ring-1 ring-white/25 ring-inset tabular-nums sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs">
+                                    <BookOpen size={13} />
                                     {courses.length} {courses.length === 1 ? 'course' : 'courses'}
                                 </span>
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums">
-                                    <CheckCircle2 size={14} />
+                                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ring-1 ring-white/25 ring-inset tabular-nums sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs">
+                                    <CheckCircle2 size={13} />
                                     {finished} finished
                                 </span>
                                 {courses.length > 0 && (
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums">
-                                        <TrendingUp size={14} />
-                                        {avgProgress}% on average
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ring-1 ring-white/25 ring-inset tabular-nums sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs">
+                                        <TrendingUp size={13} />
+                                        {avgProgress}%<span className="hidden sm:inline"> on average</span><span className="sm:hidden"> avg</span>
                                     </span>
                                 )}
                             </div>
@@ -480,11 +490,17 @@ const EnrolledCourses = () => {
  */
 const OrganizationCourses = ({ org, startingId, startError, onStart }) => {
     const { organization, courses } = org;
+    // The parent only opens this tab with an organization, but an auto-refresh
+    // can take it away mid-render (the student was just removed).
+    if (!organization) return null;
     return (
         <div className="space-y-5">
             <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                {/* The logo as uploaded, whole: no tile, outline or crop.
+                    Cropped into a rounded square it cut a tall logo (the
+                    YATICORP mascot) and boxed it in (2026-10-02). */}
                 {organization.logo ? (
-                    <img src={organization.logo} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" />
+                    <img src={organization.logo} alt="" className="h-12 w-12 shrink-0 object-contain" />
                 ) : (
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Building2 size={22} /></span>
                 )}
@@ -521,7 +537,7 @@ const OrganizationCourses = ({ org, startingId, startError, onStart }) => {
                                     {course.thumbnail ? (
                                         <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                     ) : (
-                                        <div className="w-full h-full flex justify-center items-center bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white/80">
+                                        <div className="w-full h-full flex justify-center items-center bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-50 text-indigo-400">
                                             <BookOpen size={44} />
                                         </div>
                                     )}

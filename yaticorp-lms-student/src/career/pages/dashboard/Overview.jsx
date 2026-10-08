@@ -1,7 +1,9 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
-import api from '../../services/api';
+import api, { getTodaysPlan, noneIfMissing } from '../../services/api';
+import LoadError from '../../components/ui/LoadError';
+import useLevelProgress from '../../context/useLevelProgress';
 import { ArrowRight, Rocket } from 'lucide-react';
 import MomentumCard from '../../components/dashboard/MomentumCard';
 import SkillSnapshot from '../../components/dashboard/SkillSnapshot';
@@ -11,7 +13,6 @@ import NextUp from '../../components/journey/NextUp';
 import CareerJourneyStrip from '../../components/game/CareerJourneyStrip';
 import { phaseStates } from '../../utils/roadmap';
 import {
-  levelProgress,
   currentStreak,
   recentActivity,
   todaysFocus,
@@ -22,6 +23,7 @@ import {
 } from '../../utils/progress';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
+import useStreak from '../../utils/useStreak';
 
 
 /**
@@ -44,49 +46,68 @@ import useMinimumLoading from '../../../hooks/useMinimumLoading';
  */
 export default function Overview() {
   const { user } = useContext(AuthContext);
+  // The shared streak (Rewards), read up here because hooks cannot follow
+  // the early returns below; null when Rewards is locked.
+  const rewardStreak = useStreak(null);
   const [tasks, setTasks] = useState([]);
   const [history, setHistory] = useState([]);
   const [skills, setSkills] = useState([]);
   const [goal, setGoal] = useState(null);
   const [roadmap, setRoadmap] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Kept apart from "nothing yet": a failed load must never be read as a
+  // brand-new student and offered onboarding over their real history.
+  const [failed, setFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      // `/tasks` is today's plan only; anything that spans days (streak, the
+      // 7-day strip) has to come from `/tasks/history` or it can never look
+      // back past midnight. getTodaysPlan waits out a plan still being
+      // built rather than reading its empty list as "no tasks".
+      //
+      // Goal and roadmap 404 legitimately for a student who has not
+      // finished onboarding, so a 404 there is an answer ("none yet"). Any
+      // other failure fails the page: guessing would mean deciding the
+      // student is new from a request that never came back.
+      const [taskRes, historyRes, skillRes, goalRes, roadmapRes] = await Promise.all([
+        getTodaysPlan(),
+        api.get('/tasks/history'),
+        api.get('/skills'),
+        noneIfMissing(api.get('/goals')),
+        noneIfMissing(api.get('/roadmap'))
+      ]);
+      setTasks(Array.isArray(taskRes.data) ? taskRes.data : taskRes.data.tasks || []);
+      setHistory(Array.isArray(historyRes.data) ? historyRes.data : []);
+      setSkills(skillRes.data);
+      setGoal(goalRes?.data || null);
+      setRoadmap(roadmapRes?.data || null);
+      setFailed(false);
+    } catch (err) {
+      console.error(err);
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // `/tasks` is today's plan only; anything that spans days (streak, the
-        // 7-day strip) has to come from `/tasks/history` or it can never look
-        // back past midnight.
-        //
-        // Goal and roadmap are caught individually rather than allowed to
-        // reject the batch: both 404 legitimately for a student who has not
-        // finished onboarding, and one 404 must not take the streak, the tasks
-        // and the skills down with it.
-        const [taskRes, historyRes, skillRes, goalRes, roadmapRes] = await Promise.all([
-          api.get('/tasks'),
-          api.get('/tasks/history'),
-          api.get('/skills'),
-          api.get('/goals').catch(() => null),
-          api.get('/roadmap').catch(() => null)
-        ]);
-        setTasks(Array.isArray(taskRes.data) ? taskRes.data : taskRes.data.tasks || []);
-        setHistory(Array.isArray(historyRes.data) ? historyRes.data : []);
-        setSkills(skillRes.data);
-        setGoal(goalRes?.data || null);
-        setRoadmap(roadmapRes?.data || null);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
-  }, []);
+  }, [fetchData]);
+
+  const retry = async () => {
+    setRetrying(true);
+    await fetchData();
+    setRetrying(false);
+  };
 
   const completedTasks = tasks.filter((t) => t.status === 'Completed').length;
 
+  const progress = useLevelProgress(user?.xp, user?.level);
   const showLoader = useMinimumLoading(loading);
   if (showLoader) return <YatiLoader label="Loading your career path" />;
+  if (failed) return <LoadError title="We couldn't load your career path" onRetry={retry} retrying={retrying} />;
 
   // Past work still counts as "not new", so a returning student who hasn't had
   // a plan generated yet keeps their momentum tiles instead of the onboarding
@@ -95,12 +116,11 @@ export default function Overview() {
 
   // Momentum signals are multi-day by definition, so they read from history
   // (which already includes today's tasks) rather than today's plan.
-  const streak = currentStreak(history);
+  const streak = rewardStreak ?? currentStreak(history);
   const countedToday = activeDays(history).has(dayKey(new Date()));
   const activity = recentActivity(history);
   const weekly = weeklyMomentum(history);
   const focus = todaysFocus(tasks);
-  const progress = levelProgress(user?.xp, user?.level);
 
   // The phase after the one being worked on — what finishing this one opens.
   const phases = roadmap?.roadmapData?.educationRoadmap || [];

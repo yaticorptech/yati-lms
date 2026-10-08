@@ -83,6 +83,9 @@ const assertWithinBudget = async () => {
     // A student on their own Gemini key spends their own allowance, not the
     // platform's, so neither cap applies to them.
     if (await require('../../utils/userAiKey').usingOwnKey()) return;
+    // Nor to the demo cards, which run on the platform key without an
+    // allowance (services/fullAccess.js).
+    if (await require('../../services/fullAccess').fullAccessForUserId(userId)) return;
 
     const { mine, all } = await usageToday(userId);
 
@@ -119,6 +122,10 @@ const record = async ({ kind = 'unknown', model, ok = true, ms }) => {
 /** What the student has left today, for the UI to show before they spend it. */
 const remainingForStudent = async (userId) => {
   const { mine } = await usageToday(userId);
+  // A demo card has no allowance to run out of: report it full.
+  if (await require('../../services/fullAccess').fullAccessForUserId(userId)) {
+    return { used: mine, limit: PER_STUDENT, remaining: PER_STUDENT, unlimited: true, resetsAt: resetsAt() };
+  }
   return {
     used: mine,
     limit: PER_STUDENT,

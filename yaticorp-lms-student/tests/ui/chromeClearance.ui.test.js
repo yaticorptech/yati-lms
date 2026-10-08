@@ -52,7 +52,7 @@ import StudentLayout from '${srcFile('layouts/StudentLayout.jsx')}';
 ${imports}
 const Page = () => ${element};
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree' } }}><MemoryRouter initialEntries={['/jobs']}>
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg' } }}><MemoryRouter initialEntries={['/jobs']}>
     <Routes><Route path="/" element={<StudentLayout />}><Route path="jobs" element={<Page />} /></Route></Routes>
   </MemoryRouter></AuthContext.Provider>);`;
 

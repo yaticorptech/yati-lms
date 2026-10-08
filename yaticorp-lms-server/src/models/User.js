@@ -166,9 +166,74 @@ const userSchema = new mongoose.Schema({
     geminiApiKeyAddedAt: { type: Date, default: null }
 }, { timestamps: true });
 
-// Match user entered password to database password (which is plain text Verification_value)
+// ─── Passwords ───────────────────────────────────────────────────────────────
+// Student passwords used to be stored as typed (the website sync sends its
+// `Verification_value` as the first password). Nothing reads them back — no
+// screen shows one, no email repeats a stored one, and every check goes through
+// matchPassword — so they are now bcrypt-hashed on every write, and the old
+// plain-text ones are upgraded one by one as each student next signs in. No
+// bulk migration: an account nobody signs in to keeps working exactly as before.
+
+/** A value that is already a bcrypt hash, and must not be hashed again. */
+const BCRYPT_HASH = /^\$2[aby]\$\d{2}\$/;
+const isHashed = (value) => typeof value === 'string' && BCRYPT_HASH.test(value);
+const hashPassword = async (plain) => bcrypt.hash(String(plain), await bcrypt.genSalt(10));
+
+// save() and create(): registration, admin entry, bulk upload, website sync,
+// profile and password changes all write through here.
+userSchema.pre('save', async function () {
+    if (!this.isModified('password') || !this.password || isHashed(this.password)) return;
+    this.password = await hashPassword(this.password);
+});
+
+// insertMany skips save hooks; nothing inserts students that way today, but a
+// future import must not quietly bring plain text back.
+userSchema.pre('insertMany', async function (docs) {
+    const list = Array.isArray(docs) ? docs : [docs];
+    for (const doc of list) {
+        if (doc && doc.password && !isHashed(doc.password)) doc.password = await hashPassword(doc.password);
+    }
+});
+
+// Query updates skip save hooks too — the reset-password link sets the new
+// password with findOneAndUpdate. Hash a password in any update the same way.
+userSchema.pre(['findOneAndUpdate', 'updateOne', 'updateMany', 'replaceOne'], async function () {
+    const update = this.getUpdate();
+    if (!update) return;
+    for (const holder of [update, update.$set, update.$setOnInsert]) {
+        if (holder && typeof holder === 'object' && holder.password && !isHashed(holder.password)) {
+            holder.password = await hashPassword(holder.password);
+        }
+    }
+});
+
+/**
+ * Check a typed password against the stored one.
+ *
+ * A bcrypt hash is compared with bcrypt. Anything else is a password from
+ * before hashing: compared as before, and on a match replaced by its hash
+ * straight away, with a targeted update rather than save() so an older record
+ * that would fail today's validation still signs in. If the upgrade fails the
+ * sign-in still succeeds and the next one tries again.
+ */
 userSchema.methods.matchPassword = async function (enteredPassword) {
-    return enteredPassword === this.password;
+    if (typeof enteredPassword !== 'string' || !enteredPassword || typeof this.password !== 'string') return false;
+    if (isHashed(this.password)) return bcrypt.compare(enteredPassword, this.password);
+
+    if (enteredPassword !== this.password) return false;
+    try {
+        const hashed = await hashPassword(enteredPassword);
+        // Only if it is still the same plain text, so a password changed in
+        // the meantime is never overwritten with this one.
+        await this.constructor.collection.updateOne({ _id: this._id, password: this.password }, { $set: { password: hashed } });
+        this.password = hashed;
+        this.unmarkModified('password');
+    } catch (error) {
+        console.error(`[auth] could not upgrade the stored password of student ${this._id}:`, error.message);
+    }
+    return true;
 };
+
+userSchema.statics.isHashedPassword = isHashed;
 
 module.exports = mongoose.model('User', userSchema);

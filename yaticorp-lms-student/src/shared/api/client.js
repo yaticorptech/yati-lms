@@ -3,6 +3,7 @@
  * @description Shared Axios client configuration
  */
 import axios from 'axios';
+import { onWalletResponse, onWalletError } from '../../utils/walletCharge';
 
 /**
  * Creates a shared axios client that can be used by both Web and Mobile.
@@ -25,6 +26,9 @@ export const createClient = ({ baseURL, getToken }) => {
         }
         return config;
     });
+
+    // Wallet rules: a priced request refreshes the balance; a refusal is readable.
+    client.interceptors.response.use(onWalletResponse, onWalletError);
 
     return client;
 };

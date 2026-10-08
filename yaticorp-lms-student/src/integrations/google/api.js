@@ -17,7 +17,10 @@ client.interceptors.request.use((config) => {
 });
 
 export const getStatus = () => client.get('/status').then((r) => r.data);
-export const beginConnect = () => client.post('/connect').then((r) => r.data);
+// `returnTo`: the page Google should send the student back to — the one they
+// connected from. The server accepts only a plain path in this app.
+export const beginConnect = (returnTo = window.location.pathname) =>
+  client.post('/connect', { returnTo }).then((r) => r.data);
 export const disconnect = () => client.post('/disconnect').then((r) => r.data);
 export const saveFile = (payload) => client.post('/drive/save', payload).then((r) => r.data);
 

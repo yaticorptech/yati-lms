@@ -1,5 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Brain, Puzzle, Type, Zap, Play, Layers, Star, Sparkles, History } from 'lucide-react';
+import { Brain, Puzzle, Type, Zap, Play, Layers, Star, Sparkles, History, Timer, Moon } from 'lucide-react';
+import api from '../../services/api';
+import useBackClose from '../../../native/useBackClose';
+import { useToast } from '../../components/ui/Toast';
 import GameThumb from '../../components/games/GameThumb';
 import { GameTokensArt, HeroScene, PlayLearnGrow } from '../../components/games/GamesHeroArt';
 import MemoryMatch from '../../components/games/MemoryMatch';
@@ -46,7 +49,75 @@ import SoundAlike from '../../components/games/SoundAlike';
 import FractionMatch from '../../components/games/FractionMatch';
 import ClockRead from '../../components/games/ClockRead';
 import GameLeaderboard from '../../components/games/GameLeaderboard';
-import { starsForGame, pullProgress, markPlayed, lastPlayed } from '../../components/games/levels';
+import { starsForGame, levelReached, pullProgress, markPlayed, lastPlayed, setGameXpTable, GAME_XP } from '../../components/games/levels';
+
+/** 754 → "12:34". */
+const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+
+/**
+ * Today's play time against the admin's daily limit.
+ *
+ * The server keeps the count, from a heartbeat every fifteen seconds while a
+ * game is open and the tab is in view; between beats the figure ticks down
+ * here so the student sees it move. `left` is null when there is no limit.
+ */
+function usePlayTime(playing, onTimeUp) {
+  const [state, setState] = useState(null);
+  const [left, setLeft] = useState(null);
+  // Called from the timer and the server's answer, never from render or an
+  // effect body: the moment the clock reaches zero is an event, not a state.
+  const timeUp = useRef(onTimeUp);
+  useEffect(() => { timeUp.current = onTimeUp; }, [onTimeUp]);
+
+  const take = (data) => {
+    setState(data);
+    setLeft(data?.limitSeconds ? data.remainingSeconds : null);
+    setGameXpTable(data?.xpByStars);
+    if (data?.limitSeconds && data.remainingSeconds === 0) timeUp.current?.();
+  };
+
+  useEffect(() => {
+    api.get('/games/time').then(({ data }) => take(data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!playing) return undefined;
+    let last = Date.now();
+    let pending = 0;
+    const send = () => {
+      if (pending < 1) return;
+      const seconds = Math.round(pending);
+      pending = 0;
+      api.post('/games/time', { seconds }).then(({ data }) => take(data)).catch(() => {});
+    };
+    const tick = setInterval(() => {
+      const now = Date.now();
+      // Only time in view counts: a game left open in a background tab is not play.
+      if (document.visibilityState === 'visible') {
+        pending += (now - last) / 1000;
+        setLeft((l) => {
+          if (l === null) return l;
+          if (l === 1) setTimeout(() => timeUp.current?.(), 0);
+          return Math.max(0, l - 1);
+        });
+      }
+      last = now;
+    }, 1000);
+    // One second straight away, so the server has counted some play today
+    // before the first level can end: it banks and pays nothing until it
+    // has, and a quick first level would otherwise beat the first beat.
+    pending = 1;
+    send();
+    const beat = setInterval(send, 15000);
+    return () => {
+      clearInterval(tick);
+      clearInterval(beat);
+      send();
+    };
+  }, [playing]);
+
+  return { state, left, outOfTime: left === 0 };
+}
 
 /*
  * Palettes written out in full: Tailwind scans source text, so a class name
@@ -226,15 +297,6 @@ const scrollerOf = (el) => {
   return null;
 };
 
-const readProgress = () => {
-  try {
-    return JSON.parse(localStorage.getItem('yati:gameLevel') || '{}');
-  } catch {
-    // A corrupt entry must not take the hub down with it.
-    return {};
-  }
-};
-
 /** A few sparkles scattered over the artwork, as on the reference sheet. */
 const SPARKS = [
   { top: '12%', left: '9%', size: 'h-3.5 w-3.5', tint: 'text-amber-300' },
@@ -383,10 +445,32 @@ function GameCard({ game, theme, index, reached, stars, recent, onPlay }) {
  */
 export default function Games() {
   const [active, setActive] = useState(null);
+  const toast = useToast();
+  // Android's back button leaves the game for the hub, the same as the
+  // game's own exit — not the Games page, and never the app.
+  useBackClose(() => setActive(null), Boolean(active));
+  // The day's minutes ran out mid-game: the game closes, the hub says why.
+  const activeRef = useRef(null);
+  useEffect(() => { activeRef.current = active; }, [active]);
+  const onTimeUp = () => {
+    if (!activeRef.current) return;
+    activeRef.current = null;
+    setActive(null);
+    // Only levels already finished were banked: the one open when the clock
+    // ran out closes unfinished, so the toast must not promise its stars.
+    toast.info("That's today's play time. Levels you finished are saved; the one in progress wasn't — come back tomorrow.", 'Time for a break');
+  };
+  const { state: playTime, left, outOfTime } = usePlayTime(Boolean(active), onTimeUp);
+
+  // XP for a level, as soon as the server has paid it.
+  useEffect(() => {
+    const onXp = (e) => toast.success(`+${e.detail.xp} XP for your stars`, 'Level saved');
+    window.addEventListener(GAME_XP, onXp);
+    return () => window.removeEventListener(GAME_XP, onXp);
+  }, [toast]);
   // Bumped when the account's copy of progress brings something new to this
   // browser, so the tally and the level chips re-read storage.
   const [, setSynced] = useState(0);
-  const progress = readProgress();
   /* ---- Landing back where the student left ----------------------------
    *
    * The hub is never unmounted. While a game plays it stays in the page,
@@ -436,6 +520,10 @@ export default function Games() {
   // Read on every render of the hub, so coming back from a game marks it.
   const recentId = lastPlayed();
   const play = (game) => {
+    if (outOfTime) {
+      toast.info("You've used today's play time. Games open again at midnight.", 'Back tomorrow');
+      return;
+    }
     markPlayed(game.id);
     const scroller = scrollerOf(hubRef.current);
     const card = hubRef.current?.querySelector(`[data-game="${game.id}"]`);
@@ -454,6 +542,14 @@ export default function Games() {
     <div className="relative">
       {Game && (
         <div className="fp-enter space-y-5">
+          {left !== null && (
+            <p className={`mx-auto flex w-fit items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-black tabular-nums shadow-sm ring-1 ring-inset ${
+              left <= 60 ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-surface text-ink-700 ring-line-200'
+            }`}>
+              <Timer className="h-3.5 w-3.5" />
+              {clock(left)} of play left today
+            </p>
+          )}
           <Game onExit={() => setActive(null)} />
         </div>
       )}
@@ -497,6 +593,26 @@ export default function Games() {
                   Where every challenge makes you <span className="font-bold text-[#173a63]">sharper</span>. {totalGames} <span className="font-bold text-[#173a63]">quick</span> games for memory,
                   logic, words and numbers.
                 </p>
+
+                {/* Today's allowance and what a level pays, from the admin's rules. */}
+                {playTime && (
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
+                    {left !== null && (
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 shadow-sm ring-1 ring-inset ${
+                        outOfTime ? 'bg-slate-100 text-slate-600 ring-slate-200' : 'bg-white/90 text-[#173a63] ring-sky-200'
+                      }`}>
+                        {outOfTime ? <Moon className="h-3.5 w-3.5" /> : <Timer className="h-3.5 w-3.5" />}
+                        {outOfTime ? 'Play time used — back at midnight' : `${clock(left)} of play left today`}
+                      </span>
+                    )}
+                    {playTime.xpByStars?.[3] > 0 && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-amber-700 shadow-sm ring-1 ring-amber-200 ring-inset">
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                        3★ {playTime.xpByStars[3]} XP · 2★ {playTime.xpByStars[2]} · 1★ {playTime.xpByStars[1]}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -540,7 +656,7 @@ export default function Games() {
                     game={game}
                     theme={CARD_THEMES[i % CARD_THEMES.length]}
                     index={i}
-                    reached={progress[game.id] || 1}
+                    reached={levelReached(game.id)}
                     stars={starsForGame(game.id)}
                     recent={game.id === recentId}
                     onPlay={play}
@@ -552,7 +668,7 @@ export default function Games() {
         })}
 
         <p className="px-1 text-xs leading-relaxed text-ink-400">
-          Your level and stars in each game are saved to your account when a level ends, so they follow you between devices and count on the leaderboard.
+          Your level and stars in each game are saved to your account when a level ends, so they follow you between devices and count on the leaderboard. A level pays XP for its best stars, once per star — replaying at the same stars pays nothing.
         </p>
       </div>
     </div>

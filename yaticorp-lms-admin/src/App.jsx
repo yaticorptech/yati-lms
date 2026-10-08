@@ -9,6 +9,7 @@ import { useAuth } from './context/AuthContext';
 import { getViewedOrganization } from './utils/viewOrganization';
 import AdminLayout from './layouts/AdminLayout';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 
 /**
@@ -39,8 +40,8 @@ const PlatformRoute = ({ children }) => {
 };
 
 /**
- * The organization panel: an organization administrator's own, or — read-only —
- * a superadmin looking at one organization they opened from Organizations.
+ * The organization panel: an organization administrator's own, or a superadmin
+ * managing one organization they opened from Organizations.
  */
 const OrgRoute = ({ children }) => {
   const { admin, loading } = useAuth();
@@ -75,6 +76,11 @@ import OrgStudents from './pages/org/OrgStudents';
 import OrgStudentDetail from './pages/org/OrgStudentDetail';
 import OrgRequests from './pages/org/OrgRequests';
 import OrgSettings from './pages/org/OrgSettings';
+import OrgNotFound from './pages/org/OrgNotFound';
+// Games & Competitions: the platform runs inter-college competitions; colleges enter teams.
+import Competitions from './pages/Competitions';
+import CompetitionAdmin from './pages/CompetitionAdmin';
+import OrgCompetitions from './pages/org/OrgCompetitions';
 import { CourseScope, ORGANIZATION_SCOPE } from './utils/courseScope';
 
 /** The platform's course pages, working on this organization's own courses. */
@@ -84,6 +90,8 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      {/* Public: opened from the emailed link by someone who cannot sign in. */}
+      <Route path="/reset-password" element={<ResetPassword />} />
       {/* Public on purpose: nobody registering an organization has an account yet. */}
       <Route path="/register-organization" element={<RegisterOrganization />} />
 
@@ -98,7 +106,11 @@ function App() {
         <Route path="courses" element={<OrgCourses><Courses /></OrgCourses>} />
         <Route path="courses/:id" element={<OrgCourses><CourseEditor /></OrgCourses>} />
         <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
+        <Route path="competitions" element={<OrgCompetitions />} />
+        <Route path="competitions/host/:id" element={<CompetitionAdmin apiBase="/competitions/org/host" backTo="/organization/competitions?tab=host" />} />
         <Route path="settings" element={<OrgSettings />} />
+        {/* Any other address in here: said inside the shell, menu and all. */}
+        <Route path="*" element={<OrgNotFound />} />
       </Route>
 
       <Route path="/" element={<PlatformRoute><AdminLayout /></PlatformRoute>}>
@@ -119,6 +131,8 @@ function App() {
         <Route path="rewards" element={<Rewards />} />
         <Route path="global-quiz" element={<GlobalQuiz />} />
         <Route path="announcements" element={<Announcements />} />
+        <Route path="competitions" element={<Competitions />} />
+        <Route path="competitions/:id" element={<CompetitionAdmin />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

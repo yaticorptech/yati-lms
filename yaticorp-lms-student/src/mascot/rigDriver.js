@@ -331,7 +331,7 @@ const between = (rnd, [lo, hi]) => lo + rnd() * (hi - lo);
  * from one animation loop; everything else just sets what the next frames
  * blend in.
  */
-export function createRigDriver(host, { prefix = 'cm', random = Math.random } = {}) {
+export function createRigDriver(host, { prefix = 'cm', random = Math.random, reduced = () => false } = {}) {
     rig.setMode('raster');
     rig.setRaster({ base: RIG_BASE, parts });
     host.innerHTML = rig.renderStatic('idle', { expression: 'happy', prefix });
@@ -380,6 +380,10 @@ export function createRigDriver(host, { prefix = 'cm', random = Math.random } = 
         exprFrom: 'happy', exprTo: 'happy', exprT: 1,
         exprTimer: 0,
         sleeping: false,
+        // The clock the idle motion (breathing, sway) runs on. Apart from `t`
+        // so it can stand still under reduced motion while gestures and walks,
+        // which carry meaning, still play out on `t`.
+        idleT: 0,
         breathPhase: 0, breathPeriod: between(random, cfg.breathing.periodMs) / 1000,
         blinkAt: between(random, [cfg.blink.minMs, cfg.blink.maxMs]) / 1000, blink: null,
         look: null,
@@ -499,15 +503,30 @@ export function createRigDriver(host, { prefix = 'cm', random = Math.random } = 
         const expr = blend([scaleLayer(exprLayer(st.exprFrom), 1 - st.exprT), scaleLayer(exprLayer(st.exprTo), st.exprT)]);
 
         // -- breathing and the slow sway under it --
-        const period = st.sleeping ? cfg.sleep.breathingPeriodMs / 1000 : st.breathPeriod;
-        const before = st.breathPhase;
-        st.breathPhase += dt / period;
-        if (Math.floor(st.breathPhase) !== Math.floor(before)) st.breathPeriod = between(random, cfg.breathing.periodMs) / 1000;
+        // Held on the first pose when the student has asked for reduced
+        // motion: ambient movement is exactly what that setting is for, and
+        // it is also what kept the frame loop running all day.
+        const still = reduced();
+        if (!still) {
+            const period = st.sleeping ? cfg.sleep.breathingPeriodMs / 1000 : st.breathPeriod;
+            const before = st.breathPhase;
+            st.breathPhase += dt / period;
+            if (Math.floor(st.breathPhase) !== Math.floor(before)) st.breathPeriod = between(random, cfg.breathing.periodMs) / 1000;
+            st.idleT += dt;
+        }
         const breath = breathe(st.breathPhase);
-        const sway = swayLayer(st.t);
+        const sway = swayLayer(st.idleT);
 
         // -- context --
-        const mode = modeFrame();
+        // Reading's eye sweep, thinking's sway, watching's little reactions:
+        // under reduced motion the context still sets the pose, once, and
+        // then holds it.
+        let mode;
+        if (still && st.modeHeld?.mode === st.mode) mode = st.modeHeld.frame;
+        else {
+            mode = modeFrame();
+            st.modeHeld = still ? { mode: st.mode, frame: mode } : null;
+        }
 
         // -- look: eyes spring quickly, head lags --
         const want = mode.look || st.look || cfg.restGaze;
@@ -518,6 +537,8 @@ export function createRigDriver(host, { prefix = 'cm', random = Math.random } = 
         springStep(st.eyes.y, ey, dt, eyeSpring);
         const headTarget = (st.eyes.x.x / cfg.look.eyesX) * cfg.look.headDeg;
         springStep(st.head, headTarget, dt, { stiffness: 90, damping: 16 });
+        st.gazeLeft = Math.abs(ex - st.eyes.x.x) + Math.abs(ey - st.eyes.y.x) + Math.abs(headTarget - st.head.x)
+            + Math.abs(st.eyes.x.v) + Math.abs(st.eyes.y.v) + Math.abs(st.head.v);
         const lookL = lookLayer(st.eyes.x.x, st.eyes.y.x, st.head.x, (st.head.x / cfg.look.headDeg) * cfg.look.headX);
 
         // -- blink --
@@ -528,13 +549,13 @@ export function createRigDriver(host, { prefix = 'cm', random = Math.random } = 
                 if (st.blink.again) st.blink = { start: st.t + 0.09, again: false };
                 else st.blink = null;
             } else if (u >= 0) blinkL = { eyes: { sy: blinkCurve(u) } };
-        } else if (st.t >= st.blinkAt) {
+        } else if (!still && st.t >= st.blinkAt) {
             st.blink = { start: st.t, again: random() < cfg.blink.doubleChance };
             st.blinkAt = st.t + between(random, [cfg.blink.minMs, cfg.blink.maxMs]) / 1000;
         }
 
         // -- micro-idles, only while nothing else is going on --
-        if (st.microEnabled && !st.mode && !st.sleeping && !st.gesture && st.walkAmp < 0.05 && !st.clips.length && st.t >= st.microAt) {
+        if (!still && st.microEnabled && !st.mode && !st.sleeping && !st.gesture && st.walkAmp < 0.05 && !st.clips.length && st.t >= st.microAt) {
             const clip = cfg.microIdle.clips[Math.floor(random() * cfg.microIdle.clips.length)];
             if (clip === 'lookAround') {
                 st.look = { x: random() < 0.5 ? -0.9 : 0.9, y: -0.3 };
@@ -590,6 +611,15 @@ export function createRigDriver(host, { prefix = 'cm', random = Math.random } = 
 
     return {
         tick,
+        /**
+         * Nothing left to move: no gesture, clip, walk, blink or expression
+         * change under way, and the eyes have come to rest. With the idle
+         * motion held (reduced motion) the owner can stop its frame loop here
+         * until something new is asked of the rig.
+         */
+        settled: () =>
+            !st.gesture && !st.clips.length && !st.blink && st.walkTarget === 0 && st.walkAmp < 0.01
+            && st.exprT >= 1 && !st.exprTimer && !(st.gazeLeft > 0.05),
         play,
         setExpression,
         expression: () => st.exprTo,

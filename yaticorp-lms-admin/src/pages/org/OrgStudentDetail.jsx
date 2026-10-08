@@ -15,10 +15,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, BookOpen, Award, Compass, Flame, TrendingUp, GraduationCap,
-    CheckCircle2, UserMinus, Loader2, AlertTriangle, Mail, Phone
+    CheckCircle2, UserMinus, AlertTriangle, Mail, Phone
 } from 'lucide-react';
 import api from '../../utils/api';
-import { CARD, Stat, Bar, Pill, Empty, Banner, BTN2, Avatar } from '../../components/orgUi';
+import { CARD, Stat, Bar, Pill, Empty, Avatar, RemoveStudentDialog } from '../../components/orgUi';
 import { formatDate, relativeDay } from '../../utils/dates';
 
 const Section = ({ icon: Icon, title, subtitle, children, action }) => (
@@ -51,9 +51,9 @@ const OrgStudentDetail = () => {
      * between where the previous student's record sits under the new name.
      */
     const [loaded, setLoaded] = useState({ id: null, data: null, error: '' });
-    const [actionError, setActionError] = useState('');
     const [confirmRemove, setConfirmRemove] = useState(false);
     const [removing, setRemoving] = useState(false);
+    const [removeError, setRemoveError] = useState('');
 
     const loading = loaded.id !== studentId;
 
@@ -79,9 +79,9 @@ const OrgStudentDetail = () => {
             await api.delete(`/organizations/me/students/${studentId}`);
             navigate('/organization/students', { replace: true });
         } catch (err) {
-            setActionError(err.response?.data?.message || 'Could not remove that student.');
+            // Said in the dialog that asked, which stays open — as on the list.
+            setRemoveError(err.response?.data?.message || 'Could not remove that student.');
             setRemoving(false);
-            setConfirmRemove(false);
         }
     };
 
@@ -102,7 +102,7 @@ const OrgStudentDetail = () => {
     if (loaded.error || !loaded.data?.student) {
         return (
             <div className="space-y-4 animate-fade-in">
-                <Link to="/organization/students" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-600">
+                <Link to="/organization/students" className="inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-600">
                     <ArrowLeft size={16} />Back to students
                 </Link>
                 <div className={`${CARD} p-10 text-center`}>
@@ -122,11 +122,9 @@ const OrgStudentDetail = () => {
 
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
-            <Link to="/organization/students" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-600">
+            <Link to="/organization/students" className="inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-600">
                 <ArrowLeft size={16} />Back to students
             </Link>
-
-            {actionError && <Banner onClose={() => setActionError('')}>{actionError}</Banner>}
 
             {/* ── Who they are ─────────────────────────────────────────────── */}
             <div className={`${CARD} p-5 lg:p-6`}>
@@ -148,7 +146,7 @@ const OrgStudentDetail = () => {
                     </div>
 
                     <button onClick={() => setConfirmRemove(true)}
-                        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50">
+                        className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50">
                         <UserMinus size={15} />Remove from organization
                     </button>
                 </div>
@@ -156,8 +154,10 @@ const OrgStudentDetail = () => {
 
             {/* ── Overview ─────────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-                <Stat icon={TrendingUp} label="Overall progress" value={`${overview.overallPercent}%`} tone="violet" />
-                <Stat icon={BookOpen} label="Courses" value={`${overview.coursesCompleted}/${overview.coursesEnrolled}`} sub="Completed of enrolled" tone="indigo" />
+                {/* Every course they can open, platform and bundle ones included — not
+                    only yours (Certificate progress on Students shows those). */}
+                <Stat icon={TrendingUp} label="Overall progress" value={`${overview.overallPercent}%`} sub="All enrolled courses" tone="violet" />
+                <Stat icon={BookOpen} label="Courses" value={`${overview.coursesCompleted} of ${overview.coursesEnrolled}`} sub="Completed of enrolled" tone="indigo" />
                 <Stat icon={GraduationCap} label="Lessons done" value={overview.lessonsCompleted} tone="emerald" />
                 <Stat icon={Award} label="XP" value={overview.xp} sub={`Level ${overview.level}`} tone="amber" />
             </div>
@@ -290,29 +290,8 @@ const OrgStudentDetail = () => {
 
             {/* ── Remove confirmation ──────────────────────────────────────── */}
             {confirmRemove && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4" role="dialog" aria-modal="true">
-                    <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl max-h-[calc(100dvh-1.5rem)]">
-                        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 text-center sm:p-6">
-                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-                                <UserMinus size={24} className="text-amber-600" />
-                            </div>
-                            <h2 className="text-lg font-bold text-slate-800">Remove {student.name}?</h2>
-                            <p className="mt-3 text-sm text-slate-500">
-                                They stop appearing in your organization and you can no longer see their progress.
-                                Their account, courses, progress, XP and certificates are untouched — nothing is deleted.
-                            </p>
-                            <p className="mt-2 text-sm text-slate-500">They can ask to join again with your organization ID.</p>
-                        </div>
-                        <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 px-4 py-4 sm:px-6">
-                            <button onClick={() => setConfirmRemove(false)} className={BTN2} disabled={removing}>Cancel</button>
-                            <button onClick={remove} disabled={removing}
-                                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50">
-                                {removing && <Loader2 size={16} className="animate-spin" />}
-                                Remove student
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <RemoveStudentDialog student={student} busy={removing} error={removeError}
+                    onCancel={() => { setConfirmRemove(false); setRemoveError(''); }} onConfirm={remove} />
             )}
         </div>
     );

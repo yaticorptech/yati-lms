@@ -85,6 +85,8 @@ export const AuthProvider = ({ children }) => {
      * in before, and must not be shown to this student.
      */
     const enterApp = (data) => {
+        // A real sign-in ends any administrator's visit in this browser.
+        localStorage.removeItem('adminViewing');
         localStorage.setItem('studentToken', data.token);
         localStorage.setItem('studentData', JSON.stringify(data));
         setUser(data);
@@ -104,6 +106,7 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         localStorage.removeItem('studentToken');
         localStorage.removeItem('studentData');
+        localStorage.removeItem('adminViewing');
         setUser(null);
         // A full load, for the same reason as after signing in.
         window.location.assign('/login');

@@ -142,7 +142,10 @@ export default function Onboarding() {
     const checkExistingGoal = async () => {
       try {
         await api.get('/goals');
-        navigate('/career');
+        // Replace, so Back does not return to a form they cannot submit. And
+        // to the roadmap rather than the dashboard: a student whose goal
+        // saved but whose roadmap did not lands where they can build it.
+        navigate('/career/roadmap', { replace: true });
       } catch {
         // 404 means no goal, which is expected
       }
@@ -217,6 +220,9 @@ export default function Onboarding() {
       if ((ed === 'Undergraduate' || ed === 'Postgraduate') && (!formData.degree || !formData.specialization || !formData.currentYear)) {
         return setError('Please fill all required details.');
       }
+      // The goal record requires a year for a diploma too; without this the
+      // student answered every step and was refused on the last one.
+      if (ed === 'Diploma' && !formData.currentYear) return setError('Please select your current year.');
       if (ed === 'Working Professional' && (!formData.currentJob || !formData.experience)) {
         return setError('Please enter your job details.');
       }
@@ -233,12 +239,48 @@ export default function Onboarding() {
   };
   const prevStep = () => setStep(s => Math.max(1, s - 1));
 
+  /**
+   * Save the goal, then build the roadmap from it.
+   *
+   * Two requests, and the second can fail on its own (the AI's daily quota, a
+   * timeout). The goal is saved by then, so retrying used to POST it again
+   * and get "You already have an active career goal" — a student stuck on the
+   * last step with no way forward. On a retry the saved goal is updated with
+   * whatever they have changed since, and only the roadmap is asked for again.
+   */
+  const [goalSaved, setGoalSaved] = useState(false);
+
+  const saveGoal = async () => {
+    if (goalSaved) {
+      await api.put('/goals', formData);
+      return;
+    }
+    try {
+      await api.post('/goals', formData);
+    } catch (err) {
+      // Saved by an earlier attempt this page no longer remembers (a reload,
+      // another tab): update it with these answers instead.
+      if (err.response?.status === 400 && /already have an active career goal/i.test(err.response?.data?.message || '')) {
+        await api.put('/goals', formData);
+      } else {
+        throw err;
+      }
+    }
+    setGoalSaved(true);
+  };
+
   const handleSubmit = async () => {
     try {
       setError(null);
       setIsGenerating(true);
-      await api.post('/goals', formData);
-      await api.post('/roadmap/generate');
+      await saveGoal();
+      try {
+        await api.post('/roadmap/generate');
+      } catch (err) {
+        // A roadmap already exists (built in another tab): that is the
+        // outcome this step wanted. Onboarding never asks for a rebuild.
+        if (err.response?.data?.code !== 'ROADMAP_EXISTS') throw err;
+      }
       setIsGenerating(false);
       setDone(true);
     } catch (err) {
@@ -277,7 +319,7 @@ export default function Onboarding() {
 
             <button
               type="button"
-              onClick={() => navigate('/career/roadmap')}
+              onClick={() => navigate('/career/roadmap', { replace: true })}
               className="fp-sweep fp-press group relative mt-8 inline-flex items-center gap-2 overflow-hidden rounded-2xl bg-white px-7 py-3.5 text-sm font-black text-journey-800 shadow-lg shadow-journey-900/30 transition-transform hover:scale-[1.03]"
             >
               🗺️ Explore my roadmap

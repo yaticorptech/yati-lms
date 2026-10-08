@@ -45,10 +45,15 @@ export const Avatar = ({ src, name, size = 'h-16 w-16' }) => (
     </span>
 );
 
+/** Sound-wave bars, the section's own sign that something is being worked out (CSS: .iv-wave). */
+export const Waves = ({ className = '' }) => (
+    <span aria-hidden="true" className={`iv-wave flex h-4 items-center gap-[3px] ${className}`}>{Array.from({ length: 7 }).map((_, i) => <span key={i} />)}</span>
+);
+
 /** "Analyzing your learning journey…" while the first load runs. */
 export const Analyzing = ({ label = 'Analyzing your learning journey…' }) => (
     <div className="space-y-4" aria-busy="true">
-        <p className="flex items-center gap-2 text-sm font-semibold text-indigo-700"><Loader2 size={15} className="animate-spin" /> {label}</p>
+        <p className="flex items-center gap-2.5 text-sm font-semibold text-indigo-700" data-analyzing><Waves className="text-indigo-600" /> {label}</p>
         <div className="skeleton h-24 rounded-2xl" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{[0, 1, 2, 3].map((i) => <div key={i} className="skeleton h-16 rounded-xl" />)}</div>
     </div>

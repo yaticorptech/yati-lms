@@ -9,6 +9,8 @@ const {
   rankJobs, analyzeGap, resolveRole, normalizeSkillList, norm, getRole, locTokens,
   roleTitlePatterns, applySemantic,
 } = require("../services/matchService.js");
+const { searchSkills, jobsProfileFor, targetRoleFor } = require("../services/searchSkills.js");
+const { hasFullAccess } = require("../../services/fullAccess");
 const JobEmbedding = require("../models/JobEmbedding.js");
 const {
   geminiConfigured, embedOne, cosineSimilarity, profileText, quotaExhausted,
@@ -568,9 +570,16 @@ router.post("/recommend", async (req, res, next) => {
       quiet = false,
     } = req.body ?? {};
 
-    const skills = normalizeSkillList(Array.isArray(rawSkills) ? rawSkills : String(rawSkills).split(","));
-    const roleText = String(rawRole).trim();
+    // A demo card with no role in the search: the target role it set in
+    // Career Path. Everyone else: what was sent.
+    let roleText = String(rawRole).trim();
+    if (!roleText && hasFullAccess(req.user)) roleText = await targetRoleFor(req.user);
     const roleName = resolveRole(roleText);
+
+    // For the demo cards: Career Path phrases opened out into real skills and,
+    // with none given, the student's own (resume, Career Path, courses).
+    // Everyone else: what was sent. See services/searchSkills.js.
+    const { skills, fromProfile: skillsFromProfile } = await searchSkills(rawSkills, req.user);
 
     // Skills are what the ranking is mostly built on — without any, the skill
     // scorer hands every listing the same neutral score. A recognised role is
@@ -716,7 +725,7 @@ router.post("/recommend", async (req, res, next) => {
 
     res.json({
       query: {
-        skills, role: roleName, roleText, jobType,
+        skills, skillsFromProfile, role: roleName, roleText, jobType,
         location: profile.location,
         // What the location was actually understood to be, so the UI can
         // show the user we read them correctly.
@@ -810,6 +819,20 @@ router.get("/", async (req, res, next) => {
 });
 
 /** GET /api/jobs/stats — index health, shown in the UI footer. */
+/**
+ * GET /api/jobs/my-profile — what the Jobs section starts from, for a demo
+ * card (services/fullAccess.js): the Career Path target role and the skills
+ * (roadmap, resume, courses). Not offered to anyone else.
+ */
+router.get("/my-profile", async (req, res, next) => {
+  try {
+    if (!hasFullAccess(req.user)) return res.status(403).json({ error: "Not available for this account." });
+    res.json(await jobsProfileFor(req.user));
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/stats", async (_req, res, next) => {
   try {
     if (!isConnected()) return res.json({ connected: false, total: 0, sources: [] });

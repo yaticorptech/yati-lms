@@ -1,19 +1,20 @@
 /**
  * The wallet in full: the in-LMS balance the student has earned, where it
- * came from, reward points and their value, and both ledgers. Nothing here
+ * came from, the XP that feeds it, and both ledgers. Reward points are left
+ * out on purpose: they are not money and never become any, so beside the
+ * balance they only raised the question of what they were worth. Nothing here
  * decides an amount — every number is recomputed on the server when it
  * matters.
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { Wallet, Gift, ReceiptText, Loader2, Info, Lock, Check, X } from 'lucide-react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Wallet, ReceiptText, Loader2, Info, Lock, Check, X, Sparkles } from 'lucide-react';
 import api from '../../utils/api';
-import { useRewards } from '../../context/useRewards';
-import { money, num, balance, when, SOURCE_LABEL, STATUS_CLS } from './format';
+import { money, num, balance, when, SOURCE_LABEL, STATUS_CLS, txTitle } from './format';
 
 const TABS = [
     { id: 'overview', label: 'Overview', icon: Wallet },
     { id: 'transactions', label: 'Transactions', icon: ReceiptText },
-    { id: 'rewards', label: 'Reward points', icon: Gift }
+    { id: 'xp', label: 'XP', icon: Sparkles }
 ];
 
 const Pill = ({ status }) => <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${STATUS_CLS[status] || 'bg-slate-100 text-slate-600'}`}>{status}</span>;
@@ -30,7 +31,6 @@ const INPUT = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 te
 const LABEL = 'mb-1 block text-[11px] font-black uppercase tracking-wider text-slate-500';
 
 export default function WalletSection({ initialTab = 'overview' }) {
-    const { celebrate } = useRewards();
     const [tab, setTab] = useState(initialTab);
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
@@ -48,7 +48,9 @@ export default function WalletSection({ initialTab = 'overview' }) {
 
     return (
         <section id="wallet" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-2.5 border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-5">
+            {/* Right padding from sm up keeps the figures clear of the popup's
+                close button, which sits in the top-right corner over this. */}
+            <div className="flex flex-col gap-2.5 border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-4 pr-12 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-5 sm:pr-16">
                 <div>
                     <h2 className="flex items-center gap-2 text-base font-bold text-slate-900 sm:text-lg"><Wallet size={17} className="text-emerald-500" /> Wallet</h2>
                     <p className="text-[13px] leading-snug text-slate-500 sm:text-sm">Everything you have earned inside the LMS, tracked to its source.</p>
@@ -65,8 +67,8 @@ export default function WalletSection({ initialTab = 'overview' }) {
                             <p className="truncate text-base font-black tabular-nums text-slate-900 sm:text-2xl">{money(balance(data.wallet.available), currency)}</p>
                         </div>
                         <div className="min-w-0 rounded-xl bg-white/70 px-2.5 py-1.5 sm:bg-transparent sm:px-0 sm:py-0 sm:text-right">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 sm:text-[11px]">Reward points</p>
-                            <p className="truncate text-base font-black tabular-nums text-pink-600 sm:text-2xl">{num(data.wallet.rewardPoints)}</p>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 sm:text-[11px]">XP</p>
+                            <p className="truncate text-base font-black tabular-nums text-amber-600 sm:text-2xl">{num(data.xp)}</p>
                         </div>
                     </div>
                 )}
@@ -88,49 +90,27 @@ export default function WalletSection({ initialTab = 'overview' }) {
             <div className="p-4 sm:p-5">
                 {error && <Notice kind="error">{error}</Notice>}
                 {!data && !error && <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-16 rounded-2xl" />)}</div>}
-                {data && tab === 'overview' && <Overview data={data} currency={currency} reload={load} celebrate={celebrate} />}
+                {data && tab === 'overview' && <Overview data={data} currency={currency} />}
                 {data && tab === 'transactions' && <Transactions currency={currency} />}
-                {data && tab === 'rewards' && <RewardLedger />}
+                {data && tab === 'xp' && <XpLedger />}
             </div>
         </section>
     );
 }
 
-function Overview({ data, currency, reload, celebrate }) {
-    const { wallet, rewardPointsValue, monetaryEnabled, conversion, limits } = data;
-    const [points, setPoints] = useState('');
-    const [busy, setBusy] = useState(false);
-    const [notice, setNotice] = useState(null);
+function Overview({ data, currency }) {
+    const { wallet, conversion } = data;
     const unit = conversion.pointsPerUnit;
-    const minPts = Math.max(conversion.minRedeemPoints, unit);
-    const maxPts = Math.floor(wallet.rewardPoints / unit) * unit;
-    const pts = Math.round(Number(points) || 0);
-    const value = pts > 0 ? (pts / unit) * conversion.unitValue : 0;
     const sources = Object.entries(wallet.earnedBySource || {}).filter(([, v]) => v > 0);
-
-    const redeem = async (e) => {
-        e.preventDefault();
-        setBusy(true); setNotice(null);
-        try {
-            const r = await api.post('/rewards/wallet/redeem', { points: pts });
-            setNotice({ kind: 'success', text: `${money(r.data.value, currency)} added to your wallet from ${num(r.data.points)} points.` });
-            setPoints('');
-            window.dispatchEvent(new CustomEvent('yati:progress-changed'));
-            await reload();
-            celebrate([]);
-        } catch (err) {
-            setNotice({ kind: 'error', text: err.response?.data?.message || 'Could not redeem right now.' });
-        } finally { setBusy(false); }
-    };
 
     return (
         <div className="space-y-4 sm:space-y-5">
             <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
                 {[
-                    { label: 'Balance', value: money(balance(wallet.available), currency), cls: 'from-emerald-50 to-teal-50 border-emerald-200', tone: 'text-emerald-700' },
+                    { label: 'Balance', value: money(balance(wallet.available), currency), cls: 'from-emerald-50 to-teal-50 border-emerald-200', tone: 'text-emerald-700', sub: 'For courses and features' },
                     { label: 'Total earned', value: money(wallet.totalEarned, currency), cls: 'from-sky-50 to-indigo-50 border-sky-200', tone: 'text-sky-700' },
                     { label: 'Total spent', value: money(wallet.totalSpent, currency), cls: 'from-slate-50 to-slate-100 border-slate-200', tone: 'text-slate-700', sub: 'On courses and rewards' },
-                    { label: 'Points value', value: money(rewardPointsValue, currency), cls: 'from-pink-50 to-rose-50 border-pink-200', tone: 'text-pink-700', sub: `${num(wallet.rewardPoints)} reward points` }
+                    { label: 'From XP', value: money(data.fromXp, currency), cls: 'from-amber-50 to-orange-50 border-amber-200', tone: 'text-amber-700', sub: `${num(data.xpConverted)} XP converted` }
                 ].map((c) => (
                     <div key={c.label} className={`rounded-2xl border bg-gradient-to-br p-3 sm:p-4 ${c.cls}`}>
                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 sm:text-[11px]">{c.label}</p>
@@ -144,7 +124,7 @@ function Overview({ data, currency, reload, celebrate }) {
                 <div className="rounded-2xl border border-slate-200 p-3 sm:p-4">
                     <p className="text-[13px] font-bold text-slate-800 sm:text-sm">Where it came from</p>
                     {sources.length === 0 ? (
-                        <p className="mt-1.5 text-[13px] leading-snug text-slate-500 sm:mt-2 sm:text-sm">Nothing yet. Reward points you redeem, and any earnings an administrator adds, show up here by source.</p>
+                        <p className="mt-1.5 text-[13px] leading-snug text-slate-500 sm:mt-2 sm:text-sm">Nothing yet. XP you earn, and any earnings an administrator adds, show up here by source.</p>
                     ) : (
                         <ul className="mt-3 space-y-2">
                             {sources.map(([k, v]) => (
@@ -158,42 +138,21 @@ function Overview({ data, currency, reload, celebrate }) {
                     )}
                 </div>
 
-                <div className="rounded-2xl border border-pink-200 bg-gradient-to-br from-pink-50 to-rose-50 p-3 sm:p-4">
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="flex items-center gap-1.5 text-[13px] font-bold text-slate-800 sm:text-sm"><Gift size={14} className="text-pink-500" /> Reward points</p>
-                            <p className="text-xl font-black tabular-nums text-pink-600 sm:text-3xl">{num(wallet.rewardPoints)}</p>
-                            <p className="text-[11px] text-slate-500 sm:text-xs">{num(unit)} points = {money(conversion.unitValue, currency)} · ≈ {money(rewardPointsValue, currency)} value</p>
-                        </div>
-                    </div>
-                    {monetaryEnabled ? (
-                        <form onSubmit={redeem} className="mt-3 space-y-2">
-                            <div className="flex gap-2">
-                                <input type="number" inputMode="numeric" min={minPts} max={maxPts} step={unit} value={points} onChange={(e) => setPoints(e.target.value)} placeholder={`Points (multiples of ${unit})`} className={INPUT} />
-                                <button type="button" onClick={() => setPoints(String(maxPts))} disabled={maxPts < minPts} className="shrink-0 rounded-xl border border-pink-200 bg-white px-3 text-xs font-bold text-pink-700 hover:bg-pink-50 disabled:opacity-50">Max</button>
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-slate-600">
-                                <span>You get <strong className="text-slate-900">{money(value, currency)}</strong></span>
-                                {limits.monthlyCashLeft != null && <span>{money(limits.monthlyCashLeft, currency)} of {money(limits.monthlyCashCap, currency)} left this month</span>}
-                            </div>
-                            <button type="submit" disabled={busy || pts < minPts || pts % unit !== 0 || pts > wallet.rewardPoints} className="flex w-full items-center justify-center gap-2 rounded-xl bg-pink-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50">
-                                {busy ? <Loader2 size={15} className="animate-spin" /> : <Gift size={15} />} Redeem to wallet
-                            </button>
-                        </form>
-                    ) : (
-                        <div className="mt-2.5 flex items-start gap-2 rounded-xl bg-white/80 p-2.5 text-[11px] leading-snug text-slate-600 ring-1 ring-pink-100 sm:mt-3 sm:p-3 sm:text-xs">
-                            <Lock size={13} className="mt-0.5 shrink-0 text-pink-500" />
-                            <span>Your account earns learning rewards: XP, badges and reward points. Converting points into wallet balance is switched on by an administrator for eligible account types.</span>
-                        </div>
-                    )}
-                    {notice && <div className="mt-3"><Notice kind={notice.kind} onClose={() => setNotice(null)}>{notice.text}</Notice></div>}
+                {/* Only XP becomes money, automatically as it is earned. */}
+                <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3 sm:p-4">
+                    <p className="flex items-center gap-1.5 text-[13px] font-bold text-slate-800 sm:text-sm"><Sparkles size={14} className="text-amber-500" /> XP converts to money</p>
+                    <p className="text-xl font-black tabular-nums text-amber-700 sm:text-3xl">{num(unit)} XP = {money(conversion.unitValue, currency)}</p>
+                    <p className="text-[11px] text-slate-500 sm:text-xs">
+                        Each time your XP balance reaches {num(unit)}, {num(unit)} XP is taken off it and {money(conversion.unitValue, currency)} goes into your wallet — automatically. Your level never drops.
+                        Balance now: <strong className="text-slate-700">{num(data.xpBalance)} XP</strong> · {money(data.fromXp, currency)} earned from XP so far.
+                    </p>
                 </div>
             </div>
 
             {data.recent?.length > 0 && (
                 <div>
                     <p className="mb-2 text-sm font-bold text-slate-800">Recent</p>
-                    <TxnList rows={data.recent} currency={currency} />
+                    <TxnList rows={data.recent.slice(0, 5)} currency={currency} />
                 </div>
             )}
         </div>
@@ -208,7 +167,7 @@ function TxnList({ rows, currency }) {
                 <li key={t._id} className="flex items-center gap-3 bg-white px-4 py-3">
                     <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black ${t.type === 'credit' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{t.type === 'credit' ? '+' : '−'}</span>
                     <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-slate-800">{t.description || SOURCE_LABEL[t.source] || t.source}</p>
+                        <p className="truncate text-sm font-bold text-slate-800">{txTitle(t)}</p>
                         <p className="truncate text-[11px] text-slate-500">{SOURCE_LABEL[t.source] || t.source} · {when(t.createdAt)} · <span className="font-mono">{t.txnId}</span></p>
                     </div>
                     <div className="text-right">
@@ -257,23 +216,61 @@ function Transactions({ currency }) {
     );
 }
 
-function RewardLedger() {
+/** Where each XP came from, from the XP ledger itself. */
+const XP_SOURCE = {
+    lesson_complete: 'Lesson', quiz_complete: 'Quiz', quiz_pass: 'Quiz', assignment_complete: 'Assignment',
+    course_complete: 'Course', certificate_earned: 'Certificate', forum_post: 'Community', forum_comment: 'Community',
+    resume_upload: 'Resume', part_time_apply: 'Jobs', scholarship_search: 'Scholarships', interview_prep: 'Interview',
+    career: 'Career Path', career_task: 'Career Path', daily_activity: 'Career Path', game: 'Brain games',
+    game_reversal: 'Brain games', streak: 'Streak', admin: 'Bonus'
+};
+const XP_ICON = { Lesson: '📘', Quiz: '📝', Course: '🎓', Certificate: '📜', Community: '💬', 'Career Path': '🧭', 'Brain games': '🧩', Streak: '🔥', Bonus: '🎁', Interview: '🎤', Jobs: '💼' };
+
+// "for completing a lesson" → "Completing a lesson": the ledger's own words,
+// read as a title.
+const xpTitle = (t, label) => {
+    const text = (t.description || '').replace(/^for\s+/i, '').trim();
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : label;
+};
+
+/** How many XP rows show before the list scrolls. */
+const XP_ROWS_SHOWN = 4;
+
+function XpLedger() {
     const [rows, setRows] = useState(null);
-    useEffect(() => { api.get('/rewards/wallet/rewards', { params: { limit: 50 } }).then((r) => setRows(r.data.rows)).catch(() => setRows([])); }, []);
+    const listRef = useRef(null);
+    useEffect(() => { api.get('/rewards/xp/history', { params: { limit: 50 } }).then((r) => setRows(Array.isArray(r.data) ? r.data : r.data?.rows || [])).catch(() => setRows([])); }, []);
+
+    // Four rows on show, the rest a scroll away inside the list. Measured
+    // rather than written down as pixels: a row's height follows the font
+    // size and the divider, and a guessed figure left the fourth row cut off.
+    useLayoutEffect(() => {
+        const list = listRef.current;
+        if (!list || !rows || rows.length <= XP_ROWS_SHOWN) return;
+        const items = [...list.children].slice(0, XP_ROWS_SHOWN);
+        const borders = list.offsetHeight - list.clientHeight;
+        const height = items.reduce((sum, li) => sum + li.getBoundingClientRect().height, 0);
+        list.style.maxHeight = `${Math.ceil(height + borders)}px`;
+    }, [rows]);
+
     if (!rows) return <div className="skeleton h-40 rounded-2xl" />;
-    if (!rows.length) return <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">No reward points yet. Streak milestones, badges and leaderboard finishes pay points here.</p>;
+    if (!rows.length) return <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">No XP yet. Lessons, quizzes, Career Path tasks and brain games all earn XP, and it shows up here.</p>;
     return (
-        <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200">
-            {rows.map((t) => (
-                <li key={t._id} className="flex items-center gap-3 bg-white px-4 py-3">
-                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg ${t.points > 0 ? 'bg-pink-100' : 'bg-slate-100'}`} aria-hidden="true">{t.source === 'streak_milestone' ? '🔥' : t.source === 'badge' ? '🎖️' : t.source === 'leaderboard' ? '🏆' : t.source === 'redeem' ? '💰' : '🎁'}</span>
-                    <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-slate-800">{t.description || SOURCE_LABEL[t.source] || t.source}</p>
-                        <p className="text-[11px] text-slate-500">{SOURCE_LABEL[t.source] || t.source} · {when(t.createdAt)}</p>
-                    </div>
-                    <p className={`text-sm font-black tabular-nums ${t.points > 0 ? 'text-pink-600' : 'text-slate-700'}`}>{t.points > 0 ? '+' : ''}{num(t.points)} pts</p>
-                </li>
-            ))}
+        <ul ref={listRef} className="divide-y divide-slate-100 overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 [scrollbar-width:thin]" tabIndex={0} aria-label="XP history">
+            {rows.map((t) => {
+                const label = XP_SOURCE[t.source] || SOURCE_LABEL[t.source] || 'XP';
+                const gain = t.amount > 0;
+                return (
+                    <li key={t._id} className="flex items-center gap-3 bg-white px-3 py-3 sm:px-4">
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg ${gain ? 'bg-amber-100' : 'bg-slate-100'}`} aria-hidden="true">{XP_ICON[label] || '⚡'}</span>
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold text-slate-800">{xpTitle(t, label)}</p>
+                            <p className="truncate text-[11px] text-slate-500">{label} · {when(t.createdAt)}</p>
+                        </div>
+                        <p className={`shrink-0 text-sm font-black tabular-nums ${gain ? 'text-amber-600' : 'text-slate-700'}`}>{gain ? '+' : ''}{num(t.amount)} XP</p>
+                    </li>
+                );
+            })}
         </ul>
     );
 }

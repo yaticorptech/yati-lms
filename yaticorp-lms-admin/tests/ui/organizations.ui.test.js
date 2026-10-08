@@ -211,8 +211,8 @@ describe('the superadmin organizations page', { skip: skipWithoutChrome }, () =>
                 await sleep(600);
                 return { gets: window.__calls.filter(([m]) => m === 'GET').map(([, , params]) => params) };` });
         assert.deepEqual(errors, []);
-        assert.deepEqual(result.gets[0], {}, 'the first load asks for everything');
-        assert.deepEqual(result.gets.at(-1), { status: 'pending' }, 'and the chip narrows it');
+        assert.deepEqual(result.gets[0], { page: 1, limit: 25 }, 'the first load asks for the first page of everything');
+        assert.deepEqual(result.gets.at(-1), { page: 1, limit: 25, status: 'pending' }, 'and the chip narrows it');
     });
 
     test('opening one shows its full details and its decision history', async () => {
@@ -284,8 +284,7 @@ export default {
             panelBottom: Math.round(rect.bottom),
             sidewaysOverflowPx: widest,
             pageSideways: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-            // Counted from the visible text rather than by element, because both
-            // layouts are in the DOM and only one of them is displayed.
+            // Counted from the visible text: only the layout that is showing is built.
             names: new Set((panel.innerText.match(/Student \\d+/g) || [])).size
         };`;
 

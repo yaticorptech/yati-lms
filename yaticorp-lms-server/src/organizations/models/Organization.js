@@ -151,7 +151,11 @@ const organizationSchema = new mongoose.Schema({
     courseAccess: {
         enabled: { type: Boolean, default: false },
         limit: { type: Number, default: 5, min: 1, max: 500 }
-    }
+    },
+    // Whether this organization may host its own inter-college competitions
+    // (Games & Competitions). Only a superadmin changes it. Off until they
+    // switch it on; any organization can still enter its team in others'.
+    canHostCompetitions: { type: Boolean, default: false }
 }, { timestamps: true });
 
 // The superadmin list searches on name and code, and filters on type.

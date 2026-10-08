@@ -8,8 +8,11 @@ import { Section, ErrorBox, Analyzing, Empty, Btn } from '../learningbio/ui';
 import { CountUp, ScoreRing } from './ui';
 import { useNavigate } from 'react-router-dom';
 import { markReturn } from './scrollMemory';
+import { useXpRule } from '../context/useRewards';
 
 export default function InterviewHistory() {
+    // The admin's 'mock_interview' rule (Rewards → Reward rules), not a number of our own.
+    const MOCK_XP = useXpRule('mock_interview');
     const navigate = useNavigate();
     const [data, setData] = useState(undefined);
     const [error, setError] = useState(null);
@@ -38,7 +41,7 @@ export default function InterviewHistory() {
             )}
             <Section icon={History} title="Interview history">
                 {!rows.length ? (
-                    <div className="animate-fade-in-up"><Empty title="No mock interviews yet">Your first one takes about ten minutes and earns 30 XP.</Empty><div className="mt-3 text-center"><Btn tone="primary" icon={Mic} onClick={() => navigate('/interview/mock/new')}>Start my first interview</Btn></div></div>
+                    <div className="animate-fade-in-up"><Empty title="No mock interviews yet">Your first one takes about ten minutes and earns {MOCK_XP} XP.</Empty><div className="mt-3 text-center"><Btn tone="primary" icon={Mic} onClick={() => navigate('/interview/mock/new')}>Start my first interview</Btn></div></div>
                 ) : (
                     <ul className="stagger space-y-2">
                         {rows.map((s, i) => {

@@ -32,7 +32,7 @@ import StudentLayout from '${srcFile('layouts/StudentLayout.jsx')}';
 const rewards = { enabled: true, summary: { wallet: { available: ${paise}, currency: 'INR' }, level: { level: 3 }, rewardPoints: 0 },
   refresh: () => {}, celebrate: () => {}, pullEvents: () => {} };
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', cardNumber: 'YC-1029' }, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg', cardNumber: 'YC-1029' }, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
     <RewardsContext.Provider value={rewards}>
       <MemoryRouter initialEntries={['/']}>
         <Routes><Route path="/" element={<StudentLayout />}><Route index element={<div style={{ height: 900 }} />} /></Route></Routes>
@@ -56,7 +56,7 @@ const rewards = { enabled: true, summary: { wallet: { available: ${paise}, curre
   refresh: () => {}, celebrate: () => {}, pullEvents: () => {} };
 const Home = () => (<div><div style={{ height: 1600 }} /><WalletCard /><div style={{ height: 800 }} /></div>);
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', cardNumber: 'YC-1029' }, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg', cardNumber: 'YC-1029' }, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
     <RewardsContext.Provider value={rewards}>
       <MemoryRouter initialEntries={['/']}>
         <Routes><Route path="/" element={<StudentLayout />}><Route index element={<Home />} /></Route></Routes>
@@ -107,9 +107,9 @@ describe('the wallet balance on a phone', { skip: skipWithoutStyles }, () => {
         assert.equal(result.text, '', `no figure is printed on a phone, saw "${result.text}"`);
         assert.equal(result.href, '/#wallet', 'it opens the wallet card on the dashboard');
         assert.ok(result.size >= 36, `the target is ${result.size}px, too small to hit`);
-        // format.js adds OPENING_BALANCE (150000) to whatever the ledger holds,
-        // so 2,450 earned reads as 1,52,450.
-        assert.match(result.label, /1,52,450/,
+        // The balance is the server's figure as it stands: the starting credit
+        // is a real ledger entry now, no longer added on for display.
+        assert.match(result.label, /₹2,450\b/,
             `the amount still reaches a screen reader, saw "${result.label}"`);
     });
 
@@ -120,7 +120,7 @@ describe('the wallet balance on a phone', { skip: skipWithoutStyles }, () => {
         assert.ok(result.insideBar, 'it stayed in the bar');
         assert.equal(result.overlapsMenu, false, 'and did not run under the menu button');
         assert.equal(result.pageWidens, false, 'nor widen the page');
-        assert.match(result.label, /10,01,50,000/, 'the figure is still in the label');
+        assert.match(result.label, /10,00,00,000/, 'the figure is still in the label');
     });
     test('tapping it scrolls the Wallet & Rewards section into view', async () => {
         // It linked to /#wallet and the layout scrolled with behavior:'smooth'.

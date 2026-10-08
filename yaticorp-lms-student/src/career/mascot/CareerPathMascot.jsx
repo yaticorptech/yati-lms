@@ -110,6 +110,12 @@ function MascotLayer({ busRef, regions }) {
         };
     }, [busRef, regions]);
 
+    // Reduced motion switched off while the loop was resting: one
+    // measurement wakes it, and the idle motion picks up from there.
+    useEffect(() => {
+        if (!reduced) engineRef.current?.follow();
+    }, [reduced]);
+
     useEffect(() => {
         engineRef.current?.routeChanged(pathname);
         engineRef.current?.scheduleWander();

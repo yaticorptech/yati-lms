@@ -27,6 +27,14 @@ const certificateSchema = new mongoose.Schema({
     issuedAt: {
         type: Date,
         default: Date.now
+    },
+    // Set when the student deletes it from My Certificates. It is hidden from
+    // their profile, never destroyed: the record is the course's completion,
+    // which the school's dashboard, the ATS resume and the certificate's own
+    // number all rest on. Downloading it again from the course clears this.
+    hiddenAt: {
+        type: Date,
+        default: null
     }
 }, { timestamps: true });
 

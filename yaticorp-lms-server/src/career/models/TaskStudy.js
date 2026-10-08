@@ -36,7 +36,14 @@ const taskStudySchema = new mongoose.Schema(
       thumbnail: String,
       duration: String,
       durationSeconds: Number,
-      searchQuery: String
+      searchQuery: String,
+      // 'en' or 'hi' — what the video is taught in, as best we can
+      // tell ('other' when it is none of those).
+      language: String,
+      // When a video was last searched for a lesson that has none, so opening
+      // it retries at most once a day instead of spending a YouTube search on
+      // every expand. See getTaskStudy.
+      lookupAttemptedAt: Date
     },
 
     // How the student chose to learn this task.

@@ -4,7 +4,7 @@ import useCountUp from '../../../hooks/useCountUp';
 import useInView from '../../../hooks/useInView';
 import BadgeMedallion from '../rewards/BadgeMedallion';
 import { BADGE_ICONS, tierFor } from '../rewards/badgeTiers';
-import { levelProgress } from '../../utils/progress';
+import useLevelProgress from '../../context/useLevelProgress';
 import { progressOf, statusOf } from '../../utils/skills';
 
 /**
@@ -86,7 +86,7 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
   const avg = total ? Math.round(skills.reduce((sum, s) => sum + progressOf(s), 0) / total) : 0;
 
   const xp = Number(user?.xp) || 0;
-  const level = levelProgress(xp, user?.level);
+  const level = useLevelProgress(xp, user?.level);
   const shownXp = useCountUp(seen ? xp : 0, 1100);
   const xpWidth = useCountUp(seen ? level.percent : 0, 1100);
 
@@ -144,10 +144,12 @@ export default function SkillRail({ skills = [], user, badges = [] }) {
             style={{ width: `${xpWidth}%` }}
           />
         </span>
-        <p className="mt-2 text-xs font-semibold text-ink-500">
+        {/* Only once the admin's ladder has arrived; a distance worked out
+            without it would be a guess. */}
+        {level.known && <p className="mt-2 text-xs font-semibold text-ink-500">
           Level {level.nextLevel} at {level.ceiling.toLocaleString()} XP ·{' '}
           <span className="text-ink-400">{level.remaining.toLocaleString()} to go</span>
-        </p>
+        </p>}
       </RailCard>
 
       {/* ---- BADGES ---- */}

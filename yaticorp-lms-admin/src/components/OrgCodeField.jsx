@@ -36,7 +36,7 @@ const OrgCodeField = ({ id, value, onChange, onStatus, error, name, bad }) => {
                 if (asked.current !== code) return;   // a newer one was typed meanwhile
                 report(res.data.available
                     ? { state: 'available', message: 'This ID is available.' }
-                    : { state: 'taken', message: res.data.message || 'That organization ID already exists.' });
+                    : { state: 'taken', message: res.data.message || 'That Organization ID already exists.' });
             } catch {
                 if (asked.current === code) report({ state: 'unknown', message: '' });
             }

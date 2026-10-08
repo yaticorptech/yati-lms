@@ -11,7 +11,7 @@ import {
  * the hexagon, which clipped to "eckCi". Same map the Rewards page uses.
  */
 const ICONS = { Award, Flame, CheckCircle, TrendingUp, Target, Zap, Rocket: RocketIcon, Crown };
-import { levelProgress } from '../../utils/progress';
+import useLevelProgress from '../../context/useLevelProgress';
 
 /** 🚀 A small rocket for the journey card. Original, drawn from primitives. */
 function Rocket({ className = '' }) {
@@ -47,7 +47,7 @@ export default function ResourceSidebar({ user, badges = [] }) {
   // the profile, and reading progress.level here silently rendered "Level
   // undefined".
   const level = Math.max(1, Number(user?.level) || 1);
-  const progress = levelProgress(user?.xp, level);
+  const progress = useLevelProgress(user?.xp, level);
   const unlocked = badges.filter((b) => b.unlocked);
   const shown = unlocked.slice(0, 3);
 
