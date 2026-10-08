@@ -16,7 +16,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
     Globe, Plus, Trash2, Edit3, CheckCircle2, Loader2, X, Search, FolderX, ArrowLeft,
-    Send, EyeOff, Copy, Eye, Radio, AlertTriangle, ListChecks, Timer
+    Send, EyeOff, Copy, Eye, Radio, AlertTriangle, ListChecks, Timer, CalendarClock
 } from 'lucide-react';
 import api from '../utils/api';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
@@ -28,6 +28,8 @@ const SIZES = [5, 10, 15, 20];
 // Time limits offered at a click, in minutes; 0 is no limit. Any other whole
 // number of minutes can be typed in beside them.
 const TIME_LIMITS = [0, 5, 10, 15, 30];
+// Days a published quiz stays open for new attempts; 0 is no limit.
+const OPEN_DAYS = [0, 1, 3, 7, 14, 30];
 const INPUT = 'mt-1 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
 const LABEL = 'text-xs font-bold uppercase tracking-wider text-slate-500';
 const BTN = 'inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none';
@@ -38,6 +40,12 @@ const errorOf = (err, fallback) => err.response?.data?.message || fallback;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 /** "10 min limit", or "no time limit". */
 const fmtLimit = (quiz) => (quiz.timeLimitMinutes ? `${quiz.timeLimitMinutes} min limit` : 'no time limit');
+/** "open 7 days", "closes 9 Oct 2026", "closed 2 Oct 2026" or "always open". */
+const fmtOpen = (quiz) => {
+    if (!quiz.openDays) return 'always open';
+    if (!quiz.closesAt) return `open ${quiz.openDays} day${quiz.openDays === 1 ? '' : 's'} once published`;
+    return new Date(quiz.closesAt) <= new Date() ? `closed ${fmtDate(quiz.closesAt)}` : `closes ${fmtDate(quiz.closesAt)}`;
+};
 
 const StatusPill = ({ status }) => status === 'published'
     ? <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-emerald-700"><Radio size={12} /> Live</span>
@@ -82,7 +90,7 @@ const Dialog = ({ label, onClose, children, footer, wide }) => (
 function QuizForm({ quiz, limits, onClose, onSaved }) {
     const editing = Boolean(quiz?._id);
     const count = quiz?.questionCount || 0;
-    const [form, setForm] = useState({ title: quiz?.title || '', description: quiz?.description || '', size: quiz?.size || 10, timeLimitMinutes: quiz?.timeLimitMinutes || 0 });
+    const [form, setForm] = useState({ title: quiz?.title || '', description: quiz?.description || '', size: quiz?.size || 10, timeLimitMinutes: quiz?.timeLimitMinutes || 0, openDays: quiz?.openDays || 0 });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const min = Math.max(limits.min, count);
@@ -91,7 +99,7 @@ function QuizForm({ quiz, limits, onClose, onSaved }) {
         e.preventDefault();
         setBusy(true); setError('');
         try {
-            const body = { ...form, size: Number(form.size), timeLimitMinutes: Number(form.timeLimitMinutes) || 0 };
+            const body = { ...form, size: Number(form.size), timeLimitMinutes: Number(form.timeLimitMinutes) || 0, openDays: Number(form.openDays) || 0 };
             const r = editing ? await api.put(`/admin/global-quiz/quizzes/${quiz._id}`, body) : await api.post('/admin/global-quiz/quizzes', body);
             onSaved(r.data, editing);
         } catch (err) { setError(errorOf(err, 'Could not save the quiz.')); }
@@ -148,6 +156,24 @@ function QuizForm({ quiz, limits, onClose, onSaved }) {
                         </label>
                     </div>
                     <p className="mt-1 text-xs text-slate-400">Whole minutes, up to {limits.timeLimitMax || 180}. 0 means no limit.</p>
+                </div>
+                <div>
+                    <span className={LABEL}>Open for</span>
+                    <p className="mt-0.5 text-xs text-slate-500">How many days students can start it, counted from when you publish. After that no new attempts — anyone already taking it can finish.</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {OPEN_DAYS.map((n) => (
+                            <button key={n} type="button" onClick={() => setForm({ ...form, openDays: n })} aria-pressed={Number(form.openDays) === n}
+                                className={`min-w-14 rounded-xl px-4 py-2 text-sm font-bold transition-colors ${Number(form.openDays) === n ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{n ? `${n} day${n === 1 ? '' : 's'}` : 'No limit'}</button>
+                        ))}
+                        <label className="flex items-center gap-2 text-sm text-slate-500">
+                            or
+                            <input type="number" min={0} max={limits.openDaysMax || 365} value={form.openDays} aria-label="Custom number of days"
+                                onChange={(e) => setForm({ ...form, openDays: e.target.value })}
+                                className="w-20 rounded-xl border border-slate-300 px-3 py-2 text-slate-800 focus:border-indigo-500 focus:outline-none" />
+                            days
+                        </label>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400">Whole days, up to {limits.openDaysMax || 365}. 0 means it stays open while published.</p>
                 </div>
                 {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
             </Dialog>
@@ -283,93 +309,173 @@ const Confirm = ({ title, message, action, onCancel, onConfirm }) => (
 function QuizList({ quizzes, settings, onOpen, onNew, onAction, onSetting, savingSetting }) {
     const enabled = settings?.globalQuiz?.enabled !== false;
     const live = quizzes.find((q) => q.status === 'published');
+    const drafts = quizzes.filter((q) => q.status !== 'published').length;
+    const ready = quizzes.filter((q) => q.status !== 'published' && !notReady(q)).length;
+    const written = quizzes.reduce((n, q) => n + (q.questionCount || 0), 0);
+
+    // On the green live card an emerald "on" track disappears into the card,
+    // so there it is a dark track with a white ring.
+    const switchFor = (onDark) => (
+        <button type="button" role="switch" aria-checked={enabled} aria-label="Offer the Global Quiz to students"
+            onClick={() => onSetting({ enabled: !enabled })} disabled={savingSetting}
+            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                enabled ? (onDark ? 'bg-emerald-900/50 ring-1 ring-white/60' : 'bg-emerald-500') : (onDark ? 'bg-white/25 ring-1 ring-white/40' : 'bg-slate-300')}`}>
+            <span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        </button>
+    );
+    const toggle = switchFor(false);
 
     return (
-        <div className="space-y-4 sm:space-y-6 pb-12">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                    <h1 className="flex items-center gap-3 text-xl font-black text-slate-900 sm:text-2xl">
-                        <span className="rounded-xl bg-indigo-100 p-2.5 text-indigo-600"><Globe size={22} /></span>
-                        Global Quiz
-                    </h1>
-                    <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                        Write quizzes of any size — 5 questions, 10, 20 — give each a time limit if you want one, and publish the one students should take.
-                        It is practice: it awards no credits, XP or course progress.
-                    </p>
+        <div className="space-y-5 sm:space-y-6 pb-12">
+            {/* ── Header ── */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-4">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/25">
+                        <Globe size={24} />
+                    </span>
+                    <div className="min-w-0">
+                        <h1 className="text-2xl font-black tracking-tight text-slate-900 lg:text-3xl">Global Quiz</h1>
+                        <p className="mt-0.5 max-w-2xl text-sm text-slate-500">
+                            Quizzes for every student — any size, optional time limit, one live at a time. A win pays XP and starting can cost wallet balance: set both in Rewards → Reward rules.
+                        </p>
+                    </div>
                 </div>
-                <button onClick={onNew} className={`${BTN} shrink-0 px-5`}><Plus size={18} /> New quiz</button>
+                <button onClick={onNew} className={`${BTN} shrink-0 px-5 shadow-md shadow-indigo-500/20`}><Plus size={18} /> New quiz</button>
             </div>
 
-            {/* What students have right now. */}
-            {live ? (
-                <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                    <div className="flex min-w-0 items-start gap-3">
-                        <span className="mt-0.5 rounded-xl bg-emerald-100 p-2 text-emerald-700"><Radio size={18} /></span>
+            {/* ── Numbers at a glance ── */}
+            <div className="relative grid grid-cols-2 gap-2 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-2.5 shadow-sm sm:grid-cols-4 sm:gap-4 sm:p-4">
+                <div aria-hidden className="pointer-events-none absolute -top-16 -left-16 h-40 w-40 rounded-full bg-indigo-200 opacity-30 blur-3xl" />
+                <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-16 h-40 w-40 rounded-full bg-purple-200 opacity-30 blur-3xl" />
+                {[
+                    { label: 'Quizzes', value: quizzes.length, icon: ListChecks, tone: 'text-slate-800', chip: 'bg-slate-100 text-slate-600' },
+                    { label: 'Live now', value: live ? 1 : 0, icon: Radio, tone: 'text-emerald-600', chip: 'bg-emerald-100 text-emerald-700' },
+                    { label: ready ? `Drafts · ${ready} ready` : 'Drafts', value: drafts, icon: Edit3, tone: 'text-amber-600', chip: 'bg-amber-100 text-amber-700' },
+                    { label: 'Questions', value: written, icon: CheckCircle2, tone: 'text-indigo-600', chip: 'bg-indigo-100 text-indigo-700' }
+                ].map(({ label, value, icon: Icon, tone, chip }) => (
+                    <div key={label} className="relative flex min-w-0 items-center gap-2.5 rounded-xl bg-white/70 p-3 backdrop-blur-sm sm:gap-3 sm:p-4">
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${chip}`}><Icon size={17} /></span>
                         <div className="min-w-0">
-                            <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Live for students</p>
-                            <p className="truncate font-bold text-slate-900" title={live.title}>{live.title}</p>
-                            <p className="text-xs text-emerald-800">{live.questionCount} question{live.questionCount === 1 ? '' : 's'} · {fmtLimit(live)} · published {fmtDate(live.publishedAt)}{!enabled ? ' · but the Global Quiz is switched off below' : ''}</p>
+                            <p className={`text-xl font-black tabular-nums leading-none sm:text-2xl ${tone}`}>{value}</p>
+                            {/* Wraps rather than cutting off: "Drafts · 1 ready" was "Drafts · 1 re…" on a phone. */}
+                            <p className="mt-1 text-[11px] font-bold uppercase leading-snug tracking-wide text-slate-500 [overflow-wrap:anywhere]">{label}</p>
                         </div>
                     </div>
-                    <button onClick={() => onOpen(live._id)} className={`${BTN2} shrink-0`}>Open quiz</button>
+                ))}
+            </div>
+
+            {/* ── What students have right now, and the switch that offers it ── */}
+            {live ? (
+                <div className={`relative overflow-hidden rounded-2xl p-4 text-white shadow-lg sm:p-6 ${enabled ? 'bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 shadow-emerald-500/20' : 'bg-gradient-to-br from-slate-500 to-slate-700 shadow-slate-500/20'}`}>
+                    <div aria-hidden className="pointer-events-none absolute -top-20 -right-10 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+                    <div className="relative flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+                            <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 sm:h-12 sm:w-12 sm:rounded-2xl">
+                                <Radio className="h-[18px] w-[18px] sm:h-[22px] sm:w-[22px]" />
+                                {enabled && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" /><span className="relative inline-flex h-3 w-3 rounded-full bg-white" /></span>}
+                            </span>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/80 sm:text-[11px] sm:tracking-[0.18em]">{enabled ? 'Live for students' : 'Published · hidden from students'}</p>
+                                {/* Wraps on a phone rather than cutting the quiz's name short. */}
+                                <p className="mt-0.5 text-lg font-black leading-snug [overflow-wrap:anywhere] sm:truncate sm:text-xl" title={live.title}>{live.title}</p>
+                                <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold sm:gap-2 sm:text-xs">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1"><ListChecks size={13} /> {live.questionCount} question{live.questionCount === 1 ? '' : 's'}</span>
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1"><Timer size={13} /> {fmtLimit(live)}</span>
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1"><Send size={13} /> published {fmtDate(live.publishedAt)}</span>
+                                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${live.closesAt && new Date(live.closesAt) <= new Date() ? 'bg-rose-500/80' : 'bg-white/15'}`}><CalendarClock size={13} /> {fmtOpen(live)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        {/* One row of two equal halves on a phone; side by side from sm. */}
+                        <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+                            <label className="flex min-w-0 items-center justify-between gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-white/20 sm:justify-start sm:gap-3">
+                                <span className="text-xs font-bold leading-tight sm:text-sm">{enabled ? 'Shown on dashboard' : 'Hidden'}</span>
+                                {switchFor(true)}
+                            </label>
+                            <button onClick={() => onOpen(live._id)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black text-emerald-700 shadow-sm transition-transform hover:-translate-y-0.5"><Eye size={16} /> Open quiz</button>
+                        </div>
+                    </div>
                 </div>
             ) : (
-                <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 sm:p-5">
-                    <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-                    <p><span className="font-bold">No quiz is published.</span> Students see “No quiz questions yet” until you publish one. A quiz can be published once all its questions are added.</p>
+                <div className="flex flex-col gap-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3 text-sm text-amber-800">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100"><AlertTriangle size={18} /></span>
+                        <p><span className="block font-black text-amber-900">No quiz is live</span>Students see “No quiz questions yet” until you publish one. A quiz can be published once all its questions are added.</p>
+                    </div>
+                    <label className="flex shrink-0 items-center gap-3 rounded-xl bg-white px-3 py-2 ring-1 ring-amber-200">
+                        <span className="text-sm font-bold text-slate-700">Offer to students</span>
+                        {toggle}
+                    </label>
                 </div>
             )}
 
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-                <div className="min-w-0">
-                    <p className="font-semibold text-slate-800">Offer the Global Quiz to students</p>
-                    <p className="text-sm text-slate-500">Switching this off removes the tab from their dashboard, whatever is published.</p>
-                </div>
-                <button type="button" role="switch" aria-checked={enabled} aria-label="Offer the Global Quiz to students"
-                    onClick={() => onSetting({ enabled: !enabled })} disabled={savingSetting}
-                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}>
-                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                </button>
-            </div>
-
+            {/* ── Every quiz ── */}
             <div>
-                <h2 className="mb-3 font-bold text-slate-800">Your quizzes <span className="text-sm font-semibold text-slate-400">{quizzes.length}</span></h2>
+                <div className="mb-3 flex items-center gap-2">
+                    <h2 className="font-black text-slate-800">Your quizzes</h2>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">{quizzes.length}</span>
+                </div>
                 {quizzes.length === 0 ? (
-                    <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white px-6 py-12 text-center">
-                        <ListChecks size={32} className="mx-auto text-slate-300" />
-                        <p className="mt-2 font-bold text-slate-700">No quizzes yet</p>
+                    <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+                        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500"><ListChecks size={28} /></span>
+                        <p className="mt-3 font-black text-slate-800">No quizzes yet</p>
                         <p className="mt-1 text-sm text-slate-500">Create a quiz, choose how many questions it has, fill it, and publish it.</p>
-                        <button onClick={onNew} className={`${BTN} mt-4`}><Plus size={18} /> New quiz</button>
+                        <button onClick={onNew} className={`${BTN} mt-5`}><Plus size={18} /> New quiz</button>
                     </div>
                 ) : (
                     <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {quizzes.map((q) => {
                             const reason = notReady(q);
+                            const isLive = q.status === 'published';
+                            const stripe = isLive ? 'from-emerald-400 to-teal-500' : reason ? 'from-slate-200 to-slate-300' : 'from-indigo-500 to-violet-500';
                             return (
-                                <li key={q._id} aria-label={`Quiz: ${q.title}`} className={`flex min-w-0 flex-col rounded-2xl border bg-white p-5 shadow-sm ${q.status === 'published' ? 'border-emerald-300 ring-1 ring-emerald-100' : 'border-slate-200'}`}>
-                                    <div className="flex items-start justify-between gap-3">
-                                        <button onClick={() => onOpen(q._id)} className="min-w-0 text-left">
-                                            <p className="truncate font-bold text-slate-900 hover:text-indigo-700" title={q.title}>{q.title}</p>
-                                            {q.description && <p className="mt-0.5 line-clamp-2 text-sm text-slate-500 [overflow-wrap:anywhere]" title={q.description}>{q.description}</p>}
-                                        </button>
-                                        <StatusPill status={q.status} />
+                                <li key={q._id} aria-label={`Quiz: ${q.title}`} className={`group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${isLive ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-slate-200'}`}>
+                                    <span aria-hidden className={`h-1.5 bg-gradient-to-r ${stripe}`} />
+                                    <div className="flex flex-1 flex-col p-5">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <button onClick={() => onOpen(q._id)} className="flex min-w-0 items-start gap-3 text-left">
+                                                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isLive ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}><ListChecks size={18} /></span>
+                                                <span className="min-w-0">
+                                                    <span className="block truncate font-black text-slate-900 group-hover:text-indigo-700" title={q.title}>{q.title}</span>
+                                                    {q.description && <span className="mt-0.5 line-clamp-2 block text-sm text-slate-500 [overflow-wrap:anywhere]" title={q.description}>{q.description}</span>}
+                                                </span>
+                                            </button>
+                                            <StatusPill status={q.status} />
+                                        </div>
+
+                                        <div className="mt-4 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-500">
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 ring-1 ring-slate-100"><Timer size={12} /> {fmtLimit(q)}</span>
+                                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ring-1 ${q.closesAt && new Date(q.closesAt) <= new Date() ? 'bg-rose-50 text-rose-600 ring-rose-100' : 'bg-slate-50 ring-slate-100'}`}><CalendarClock size={12} /> {fmtOpen(q)}</span>
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 ring-1 ring-slate-100">{q.categories.length} categor{q.categories.length === 1 ? 'y' : 'ies'}</span>
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 ring-1 ring-slate-100">updated {fmtDate(q.updatedAt)}</span>
+                                        </div>
+
+                                        <div className="mt-4"><Meter count={q.questionCount} size={q.size} /></div>
+                                        {reason && !isLive && <p className="mt-2 text-xs font-semibold text-amber-600">{reason}.</p>}
+
+                                        <div className="min-h-4 flex-1" />
+                                        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+                                            <button onClick={() => onOpen(q._id)} className={`${BTN2} px-3 py-2`}><Edit3 size={15} /> Open</button>
+                                            {isLive
+                                                ? <button onClick={() => onAction('unpublish', q)} className={`${BTN2} px-3 py-2`}><EyeOff size={15} /> Unpublish</button>
+                                                : <button onClick={() => onAction('publish', q)} disabled={Boolean(reason)} title={reason || undefined} className={`${BTN} px-3 py-2`}><Send size={15} /> Publish</button>}
+                                            <span className="ml-auto flex gap-1">
+                                                <button onClick={() => onAction('duplicate', q)} aria-label={`Duplicate ${q.title}`} title="Duplicate" className="rounded-lg p-2 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600"><Copy size={16} /></button>
+                                                <button onClick={() => onAction('delete', q)} aria-label={`Delete ${q.title}`} title="Delete" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={16} /></button>
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="mt-4"><Meter count={q.questionCount} size={q.size} /></div>
-                                    <p className="mt-2 text-xs text-slate-400">{q.categories.length} categor{q.categories.length === 1 ? 'y' : 'ies'} · {fmtLimit(q)} · updated {fmtDate(q.updatedAt)}</p>
-                                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-                                        <button onClick={() => onOpen(q._id)} className={`${BTN2} px-3 py-2`}><Edit3 size={15} /> Open</button>
-                                        {q.status === 'published'
-                                            ? <button onClick={() => onAction('unpublish', q)} className={`${BTN2} px-3 py-2`}><EyeOff size={15} /> Unpublish</button>
-                                            : <button onClick={() => onAction('publish', q)} disabled={Boolean(reason)} title={reason || undefined} className={`${BTN} px-3 py-2`}><Send size={15} /> Publish</button>}
-                                        <span className="ml-auto flex gap-1">
-                                            <button onClick={() => onAction('duplicate', q)} aria-label={`Duplicate ${q.title}`} title="Duplicate" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-indigo-600"><Copy size={16} /></button>
-                                            <button onClick={() => onAction('delete', q)} aria-label={`Delete ${q.title}`} title="Delete" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={16} /></button>
-                                        </span>
-                                    </div>
-                                    {reason && q.status !== 'published' && <p className="mt-2 text-xs text-slate-400">{reason}.</p>}
                                 </li>
                             );
                         })}
+                        {/* A quiet way to start the next one, where the eye already is. */}
+                        <li>
+                            <button onClick={onNew} className="group flex h-full min-h-[14rem] w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-white/60 p-5 text-slate-500 transition-colors hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-600">
+                                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 transition-colors group-hover:bg-indigo-100"><Plus size={20} /></span>
+                                <span className="font-black">Add a quiz</span>
+                                <span className="text-xs">5, 10, 15 or 20 questions</span>
+                            </button>
+                        </li>
                     </ul>
                 )}
             </div>

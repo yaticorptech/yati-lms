@@ -1,33 +1,34 @@
 /**
- * "Add organization" — one button in the dashboard hero, and the popup behind it.
+ * "Organization/College" — the student's organization, and the popup behind it.
  *
- * The dashboard deliberately carries a button and nothing more. A student's home
- * screen is about their learning, and most students either have no institution or
- * joined one when they signed up, so a whole panel about it earned no space. It
- * sits at the end of the hero's row beside the card number, email and phone, and
- * changes to show the organization's name once there is one.
- *
- * It is styled solid against that row on purpose. The pills beside it are facts
- * you cannot act on; this is the only control among them, so it must not look
- * like a fourth fact.
+ * It lives in My Profile → Personal Information, drawn as a value among Full
+ * Name, Email and the rest (variant 'plain'): the organization's name once
+ * there is one, "Add organization" until then. The dashboard hero no longer
+ * carries it — a student's home screen is about their learning, and most
+ * students either have no institution or joined one when they signed up. The
+ * solid 'pill' variant is kept for anywhere a standalone button is wanted.
  *
  * Everything else lives in the popup: finding an organization by its ID, asking
  * to join, and seeing a request that is still waiting. Typing an ID never joins
  * anything — it confirms which institution the student means, and that
  * organization's own admin decides.
  *
- * There is no way to leave from here. Ending a membership is the organization's
- * decision, made from its own students page, and the server has no endpoint for
- * a student to do it. A student can still withdraw a request nobody has answered
- * yet, which is their own request rather than a membership.
+ * Ending a membership with a working organization is the organization's
+ * decision, made from its own students page. The one way out from here is for
+ * an organization that is no longer active (suspended, inactive): its students
+ * would otherwise be stuck in it and could never join another, so the popup
+ * offers "Leave organization" — and the server refuses it for an active one.
+ * A student can also withdraw a request nobody has answered yet, which is
+ * their own request rather than a membership. When a membership was ended for
+ * them, the popup says so ("You are no longer a member of …") above the form.
  *
  * The other place this is offered is the signup form, which takes the ID as an
- * optional field. Neither one is the dashboard panel it replaced.
+ * optional field.
  */
 import React, { useState, useEffect } from 'react';
 import {
     Building2, Plus, Search, Loader2, CheckCircle2, AlertCircle, Clock, XCircle,
-    Copy, Check, ExternalLink, X, ChevronRight
+    Copy, Check, ExternalLink, X, ChevronRight, LogOut
 } from 'lucide-react';
 import organizationApi from './api';
 import Portal from '../components/Portal';
@@ -64,7 +65,7 @@ const Code = ({ code, className = '' }) => {
         } catch { /* refused over plain HTTP; the code is on screen anyway */ }
     };
     return (
-        <button onClick={copy} aria-label={`Copy organization ID ${code}`}
+        <button onClick={copy} aria-label={`Copy Organization ID ${code}`}
             className={`group inline-flex items-center gap-1.5 font-mono font-semibold ${className}`}>
             {code}
             {copied ? <Check size={13} className="text-emerald-600" /> : <Copy size={12} className="opacity-40 group-hover:opacity-100" />}
@@ -101,17 +102,28 @@ const OrganizationButton = ({ variant = 'pill' }) => {
     const [found, setFound] = useState(null);
     const [joining, setJoining] = useState(false);
     const [busy, setBusy] = useState(false);       // withdrawing a request
+    const [confirmLeave, setConfirmLeave] = useState(false);
+    const [leaving, setLeaving] = useState(false);
+    const [retrying, setRetrying] = useState(false);
 
     const load = async () => {
         try {
             setState(await organizationApi.me());
         } catch {
-            // A failed read leaves the chip reading "Add organization" rather than
-            // putting an error on a dashboard that has plenty else on it.
-            setState({ member: false, organization: null, request: null });
+            // A failed read is not "no organization": a member must not be shown
+            // "Add organization". Keep what was last known, and with nothing
+            // known yet the button stays neutral and the popup offers a retry.
+            // No error on the dashboard itself, which has plenty else on it.
+            setState((prev) => (prev && !prev.failed ? prev : { failed: true, member: false, organization: null, request: null }));
         } finally {
             setLoading(false);
         }
+    };
+
+    const retry = async () => {
+        setRetrying(true);
+        await load();
+        setRetrying(false);
     };
 
     useEffect(() => { load(); }, []);
@@ -152,6 +164,8 @@ const OrganizationButton = ({ variant = 'pill' }) => {
             await load();
         } catch (err) {
             setNotice({ type: 'error', text: err.response?.data?.message || 'Could not send your request.' });
+            // Already a member after all (joined elsewhere meanwhile): show that membership.
+            if (err.response?.data?.code === 'ALREADY_MEMBER') { setFound(null); load(); }
         } finally {
             setJoining(false);
         }
@@ -170,7 +184,25 @@ const OrganizationButton = ({ variant = 'pill' }) => {
         }
     };
 
+    /** Leave an organization that is no longer active, then read the membership again. */
+    const leave = async () => {
+        setLeaving(true); setNotice(null);
+        try {
+            const res = await organizationApi.leave();
+            setNotice({ type: 'ok', text: res.message || 'You have left your organization.' });
+            setConfirmLeave(false);
+            await load();
+        } catch (err) {
+            setNotice({ type: 'error', text: err.response?.data?.message || 'Could not leave the organization.' });
+        } finally {
+            setLeaving(false);
+        }
+    };
+
     const request = state?.request;
+    const removed = state?.removed;
+    // A member whose organization has stopped (suspended, inactive) may leave it.
+    const canLeave = Boolean(state?.member && state.organization?.status && state.organization.status !== 'active');
     const pending = request?.status === 'pending';
     const rejected = request?.status === 'rejected';
 
@@ -187,24 +219,31 @@ const OrganizationButton = ({ variant = 'pill' }) => {
         );
     }
 
-    const label = state.member
-        ? state.organization.name
-        : pending
-            ? 'Organization pending'
-            : 'Add organization';
+    const failed = Boolean(state.failed);
+    const label = failed
+        ? 'Organization'
+        : state.member
+            ? state.organization.name
+            : pending
+                ? 'Organization pending'
+                : 'Add organization';
 
     return (
         <>
             <button
                 type="button"
-                onClick={() => { setOpen(true); setNotice(null); }}
+                // Re-read on open: the organization may have approved or removed
+                // the student since the page loaded.
+                onClick={() => { setOpen(true); setNotice(null); setConfirmLeave(false); load(); }}
                 className={plain
                     ? `${PLAIN} ${state.member ? PLAIN_TONE.member : pending ? PLAIN_TONE.pending : PLAIN_TONE.add}`
                     : `${BUTTON} ${state.member ? TONE.member : pending ? TONE.pending : TONE.add}`}
-                aria-label={state.member ? `Your organization: ${state.organization.name}` : pending ? 'Your organization request' : 'Add your organization'}
-                title={state.member ? `${state.organization.name} · ${state.organization.orgCode}` : 'Join your school, college or company'}
+                aria-label={failed ? 'Your organization' : state.member ? `Your organization: ${state.organization.name}` : pending ? 'Your organization request' : 'Add your organization'}
+                title={failed ? 'Your organization could not be loaded' : state.member ? `${state.organization.name} · ${state.organization.orgCode}` : 'Join your school, college or company'}
             >
-                {state.member ? (
+                {failed ? (
+                    !plain && <Building2 size={15} className="shrink-0 text-indigo-500" />
+                ) : state.member ? (
                     !plain && <Building2 size={15} className="shrink-0 text-indigo-500" />
                 ) : pending ? (
                     <Clock size={15} className="shrink-0" />
@@ -233,7 +272,7 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                                         <Building2 size={18} />
                                     </span>
                                     <h2 id="organization-popup-title" className="truncate font-bold text-slate-800">
-                                        {state.member ? 'Your organization' : pending ? 'Your request' : 'Add organization'}
+                                        {failed || state.member ? 'Your organization' : pending ? 'Your request' : 'Add organization'}
                                     </h2>
                                 </div>
                                 <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600" aria-label="Close">
@@ -242,8 +281,19 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                             </div>
 
                             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-5">
-                                {/* ── A member ─────────────────────────────────── */}
-                                {state.member ? (
+                                {/* ── Could not be read, and nothing known yet ──── */}
+                                {failed ? (
+                                    <div role="alert" className="space-y-3 text-center">
+                                        <p className="text-sm text-slate-600">Unable to load your organization. Please try again.</p>
+                                        <button onClick={retry} disabled={retrying}
+                                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                                            {retrying && <Loader2 size={16} className="animate-spin" />}
+                                            Retry
+                                        </button>
+                                    </div>
+
+                                /* ── A member ─────────────────────────────────── */
+                                ) : state.member ? (
                                     <>
                                         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
                                             <div className="flex items-start gap-3">
@@ -280,10 +330,39 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                                         <p className="text-xs text-slate-500">
                                             Your organization can see your learning progress. They cannot change your account or your work.
                                         </p>
-                                        <p className="text-xs text-slate-500">
-                                            To be taken out of {state.organization.name}, ask them — an organization manages its
-                                            own list of students.
-                                        </p>
+                                        {canLeave ? (
+                                            confirmLeave ? (
+                                                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm">
+                                                    <p className="font-semibold text-red-800">Leave {state.organization.name}?</p>
+                                                    <p className="mt-1 text-xs text-red-700">
+                                                        They will no longer see your progress, and you can join another organization.
+                                                        Your account, courses and progress stay exactly as they are.
+                                                    </p>
+                                                    <div className="mt-3 flex flex-wrap gap-2">
+                                                        <button onClick={() => setConfirmLeave(false)} disabled={leaving}
+                                                            className="inline-flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                                                            Cancel
+                                                        </button>
+                                                        <button onClick={leave} disabled={leaving}
+                                                            className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                                                            {leaving && <Loader2 size={16} className="animate-spin" />}
+                                                            Leave organization
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <button onClick={() => setConfirmLeave(true)}
+                                                    className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
+                                                    <LogOut size={16} />
+                                                    Leave organization
+                                                </button>
+                                            )
+                                        ) : (
+                                            <p className="text-xs text-slate-500">
+                                                To be taken out of {state.organization.name}, ask them — an organization manages its
+                                                own list of students.
+                                            </p>
+                                        )}
                                     </>
 
                                 /* ── Waiting for a decision ───────────────────── */
@@ -318,6 +397,28 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                                 /* ── Not a member: find one ───────────────────── */
                                 ) : (
                                     <>
+                                        {/* A membership that was ended for them — said, rather
+                                            than an empty form with no explanation. */}
+                                        {removed && (
+                                            <div role="status" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                                                <span>
+                                                    <span className="font-semibold">You are no longer a member of {removed.organizationName || 'your organization'}.</span>
+                                                    {removed.reason && <span className="block text-xs text-amber-700">{removed.reason}{removed.at ? ` · ${new Date(removed.at).toLocaleDateString()}` : ''}</span>}
+                                                    <span className="block text-xs text-amber-700">Your courses and progress are unchanged. You can join an organization again below.</span>
+                                                </span>
+                                            </div>
+                                        )}
+                                        {/* A request the organization closed before deciding it
+                                            (it stopped taking members): its reason, said. */}
+                                        {!removed && request?.status === 'cancelled' && request.decisionReason && (
+                                            <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                                                <span>
+                                                    Your request to join {request.organization?.name || 'that organization'} was closed: {request.decisionReason}.
+                                                </span>
+                                            </p>
+                                        )}
                                         {rejected ? (
                                             <p className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                                                 <XCircle size={16} className="mt-0.5 shrink-0" />

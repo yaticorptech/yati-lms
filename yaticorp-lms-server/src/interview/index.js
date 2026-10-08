@@ -23,6 +23,7 @@ const ai = require('./aiInterviewer');
 const template = require('./templateInterviewer');
 const { readiness } = require('./readinessService');
 const { safeRecordActivity } = require('../rewards/services/activityService');
+const { chargeWallet } = require('../rewards/services/walletRuleService');
 const { coursesForSkills } = require('../jobboard/services/lmsCourses');
 const comms = require('./communicationService');
 const { assess } = require('./answerCheck');
@@ -207,7 +208,8 @@ const askNext = async (session, context, userId, { judge = false } = {}) => {
     return { turn: session.turns[session.turns.length - 1] };
 };
 
-router.post('/sessions', async (req, res, next) => {
+// Wallet rules: a new mock interview is a priced feature (refunded if it fails to start).
+router.post('/sessions', chargeWallet('start_mock_interview', { when: (req) => TYPES.includes(String(req.body?.type || 'full').toLowerCase()) }), async (req, res, next) => {
     try {
         const type = String(req.body?.type || 'full').toLowerCase();
         if (!TYPES.includes(type)) return res.status(400).json({ message: 'Choose a valid interview type.' });

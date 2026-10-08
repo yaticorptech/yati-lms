@@ -72,7 +72,7 @@ export default function LegalShell({ title, intro, updated, children }) {
 
         {children}
 
-        <footer className="mt-14 border-t border-slate-200 pt-6 text-sm text-slate-600">
+        <footer data-explain="contact" className="mt-14 border-t border-slate-200 pt-6 text-sm text-slate-600">
           <p className="font-bold text-slate-900">Contact</p>
           <p className="mt-1">
             {COMPANY.legalName}, {COMPANY.address}

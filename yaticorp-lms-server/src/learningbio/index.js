@@ -16,6 +16,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { protectUser } = require('../middleware/authMiddleware');
+const { chargeWallet } = require('../rewards/services/walletRuleService');
 const LearningBio = require('./model');
 const { collect } = require('./learningDataService');
 const { strength } = require('./bioStrengthService');
@@ -136,7 +137,7 @@ router.get('/', async (req, res, next) => {
     try { const out = await build(req.user._id); if (!out) return res.status(404).json({ message: 'Account not found.' }); res.json(out); } catch (err) { next(err); }
 });
 
-router.get('/pdf', async (req, res, next) => {
+router.get('/pdf', chargeWallet('download_bio'), async (req, res, next) => {
     try {
         const full = await build(req.user._id);
         if (!full) return res.status(404).json({ message: 'Account not found.' });
@@ -153,7 +154,7 @@ router.get('/summary', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.post('/regenerate', async (req, res, next) => {
+router.post('/regenerate', chargeWallet('regenerate_bio'), async (req, res, next) => {
     try {
         const out = await build(req.user._id, { force: true, manual: true });
         if (out?.bio?.generation?.reason === 'daily-cap') return res.status(429).json({ message: `You have regenerated your bio ${MANUAL_REGEN_PER_DAY} times today. Try again tomorrow.`, code: 'DAILY_CAP' });

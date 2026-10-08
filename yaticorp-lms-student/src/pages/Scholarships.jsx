@@ -11,7 +11,7 @@ import scholarshipView from './scholarshipView';
 import ScholarshipProfileForm from '../components/ScholarshipProfileForm';
 import { Link } from 'react-router-dom';
 import {
-  GraduationCap, Search, X, ExternalLink, CalendarDays, BadgeCheck, Sparkles, Coins, ShieldCheck, Compass, Building2, Loader2
+  GraduationCap, Search, X, ExternalLink, CalendarDays, BadgeCheck, Sparkles, Coins, ShieldCheck, Compass, Building2, Loader2, RotateCw
 } from 'lucide-react';
 import api from '../career/services/api';
 import AiBudgetNotice from '../career/components/AiBudgetNotice';
@@ -19,6 +19,7 @@ import { readAiBudgetError } from '../career/utils/aiBudget';
 import { FundedArt, SearchFundingArt } from '../components/ScholarshipArt';
 import YatiLoader from '../components/YatiLoader';
 import useMinimumLoading from '../hooks/useMinimumLoading';
+import PriceTag from '../components/rewards/PriceTag';
 
 // A deadline that reads as a real date gets a "soon" flag when it is inside a
 // month; anything the mentor wrote as prose ("Rolling", "Every March") is
@@ -38,12 +39,28 @@ export default function Scholarships() {
   const [query, setQuery] = useState('');
   const [asking, setAsking] = useState(false);
 
-  useEffect(() => {
+  // Why the first read failed, when it did: 'locked' for the Career Path
+  // switch being off, 'error' for anything else. Every failure used to be
+  // read as hasGoal:false, which sent a student who already had a goal and a
+  // list off to set up Career Path again because of one dropped request.
+  // Only the server saying hasGoal:false means there is no goal.
+  const [loadFailure, setLoadFailure] = useState(null);
+
+  const load = () => {
+    setLoading(true);
+    setLoadFailure(null);
     api
       .get('/scholarships')
       .then((res) => setData(res.data))
-      .catch(() => setData({ items: [], hasGoal: false, hasProfile: false, generatedAt: null }))
+      .catch((err) => {
+        const locked = err.response?.status === 403 && err.response?.data?.code === 'CAREER_PATH_LOCKED';
+        setLoadFailure(locked ? 'locked' : 'error');
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
   }, []);
 
   const find = async () => {
@@ -74,6 +91,37 @@ export default function Scholarships() {
   const shown = q ? all.filter((s) => JSON.stringify(s).toLowerCase().includes(q)) : all;
 
   if (showLoader) return <YatiLoader label="Finding scholarships for you" />;
+
+  if (loadFailure) {
+    const locked = loadFailure === 'locked';
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <div
+          role="alert"
+          className={`rounded-2xl border p-6 ${locked ? 'border-slate-200 bg-slate-50 text-slate-700' : 'border-rose-200 bg-rose-50 text-rose-800'}`}
+        >
+          <h1 className="text-lg font-black">
+            {locked ? 'Scholarships are unavailable right now' : 'Your scholarships did not load'}
+          </h1>
+          <p className="mt-1 text-sm">
+            {locked
+              ? 'Career Path has been switched off for the moment. Please check back later.'
+              : 'Check your connection and try again. Your saved list has not changed.'}
+          </p>
+          {!locked && (
+            <button
+              type="button"
+              onClick={load}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-rose-700 shadow-sm ring-1 ring-rose-200 transition-colors hover:bg-rose-100"
+            >
+              <RotateCw size={16} />
+              Try again
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   /*
    * Which screen to show. The rule lives in scholarshipView.js and is covered
@@ -119,6 +167,8 @@ export default function Scholarships() {
     );
   }
 
+  const closingSoon = all.filter((s) => { const d = daysUntil(s.deadline); return d !== null && d >= 0 && d <= 30; }).length;
+
   return (
     <div className="lms-stagger mx-auto max-w-5xl space-y-6 pb-12">
       {/* ---- Hero ------------------------------------------------------- */}
@@ -138,17 +188,40 @@ export default function Scholarships() {
 
         <div className="relative grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
           <div className="min-w-0">
+            {/* Phones: the cap, small, in the corner beside the headline —
+                the big art column is desktop only, and without it the banner
+                was a wall of purple text. */}
+            <FundedArt className="mc-pop pointer-events-none absolute -top-2 -right-2 h-20 w-20 drop-shadow-lg md:hidden" />
             <p className="flex items-center gap-2 text-[0.7rem] font-black tracking-[0.18em] text-pink-100 uppercase">
               <GraduationCap size={14} />
               Scholarships
             </p>
-            <h1 className="mt-2 text-3xl font-black leading-tight sm:text-4xl">
+            <h1 className="mt-2 pr-16 text-[1.75rem] font-black leading-[1.1] sm:text-4xl md:pr-0">
               Your dreams, <span className="lms-shimmer bg-gradient-to-r from-pink-200 via-white to-pink-200 bg-clip-text text-transparent">fully funded.</span>
             </h1>
-            <p className="mt-2 max-w-lg text-sm font-medium text-pink-100 sm:text-base">
+            <p className="mt-2.5 text-sm font-medium text-pink-100 md:hidden">
+              Scholarships matched to your goal, so money is never the reason you stop.
+            </p>
+            <p className="mt-2 hidden max-w-lg text-base font-medium text-pink-100 md:block">
               Real scholarships matched to your goal and stage, with who they are for and when to apply. Let money never be the reason you stop.
             </p>
-            <div className="lms-stagger mt-5 flex flex-wrap items-center gap-2.5">
+
+            {/* Phones: the two counts as a pair of tiles rather than two
+                pills stacked under the button. */}
+            <div className="mt-3.5 grid grid-cols-2 gap-2 md:hidden">
+              <div className="flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 ring-1 ring-white/20 ring-inset">
+                <Coins size={14} className="shrink-0 text-pink-100" />
+                <span className="text-sm font-black tabular-nums">{all.length}</span>
+                <span className="truncate text-xs font-semibold text-pink-100">matched</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 ring-1 ring-white/20 ring-inset">
+                <CalendarDays size={14} className="shrink-0 text-pink-100" />
+                <span className="text-sm font-black tabular-nums">{closingSoon}</span>
+                <span className="truncate text-xs font-semibold text-pink-100">closing soon</span>
+              </div>
+            </div>
+
+            <div className="lms-stagger mt-4 flex flex-wrap items-center gap-2.5 md:mt-5 [&>a]:w-full [&>a]:justify-center [&>button]:w-full [&>button]:justify-center md:[&>a]:w-auto md:[&>button]:w-auto">
               {data.hasGoal ? (
                 <button
                   type="button"
@@ -168,13 +241,13 @@ export default function Scholarships() {
                   Set up your Career Path first
                 </Link>
               )}
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums">
+              <span className="hidden items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums md:inline-flex">
                 <Coins size={14} />
                 {all.length} {all.length === 1 ? 'scholarship' : 'scholarships'}
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums">
+              <span className="hidden items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums md:inline-flex">
                 <CalendarDays size={14} />
-                {all.filter((s) => { const d = daysUntil(s.deadline); return d !== null && d >= 0 && d <= 30; }).length} closing this month
+                {closingSoon} closing this month
               </span>
             </div>
           </div>
@@ -245,7 +318,7 @@ export default function Scholarships() {
               style={{ animationDelay: '0.3s' }}
             >
               {finding ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              {finding ? 'Finding scholarships…' : 'Find scholarships for me'}
+              {finding ? 'Finding scholarships…' : <>Find scholarships for me <PriceTag action="find_scholarship" /></>}
             </button>
           ) : (
             <Link

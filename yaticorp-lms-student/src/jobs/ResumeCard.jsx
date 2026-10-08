@@ -17,6 +17,7 @@ import {
     FileText, Upload, Loader2, X, Check, GraduationCap, BadgeCheck, ShieldCheck
 } from 'lucide-react';
 import { jobsApi } from './api';
+import PriceTag from '../components/rewards/PriceTag';
 
 const ACCEPT = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
 // A Word .docx is taken from the demo cards only (`acceptWord`).
@@ -161,6 +162,7 @@ export default function ResumeCard({ profile, onProfile, onApply, acceptWord = f
                         {acceptWord && <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-blue-700">DOCX</span>}
                         <span className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-sky-700">IMAGE</span>
                         <span className="text-xs font-semibold text-slate-400">Max 5 MB</span>
+                        <PriceTag action="upload_resume" className="text-xs text-indigo-600" />
                     </div>
                 </div>
             )}

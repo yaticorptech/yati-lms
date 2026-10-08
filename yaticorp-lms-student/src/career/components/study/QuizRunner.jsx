@@ -102,13 +102,21 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
 
   // Switching skills must not carry the previous quiz's answers over.
   //
-  // Adjusted during render against a remembered id rather than reset from an
+  // Adjusted during render against a remembered key rather than reset from an
   // effect. An effect would let one frame paint with the old answers attached
   // to the new quiz's questions, and it costs a second render every time.
   // https://react.dev/learn/you-might-not-need-an-effect
-  const [quizId, setQuizId] = useState(material?._id);
-  if (material?._id !== quizId) {
-    setQuizId(material?._id);
+  //
+  // Keyed on the questions, not just the document id: a rebuild upserts the
+  // same document, so the id stays put while every question changes, and the
+  // old answers and verdicts were shown against the new quiz.
+  const contentKey = [
+    material?._id,
+    ...(material?.quiz || []).map((q) => q._id || q.question)
+  ].join('|');
+  const [quizId, setQuizId] = useState(contentKey);
+  if (contentKey !== quizId) {
+    setQuizId(contentKey);
     setAnswers({});
     setResult(null);
     setIndex(0);
@@ -258,9 +266,13 @@ export default function QuizRunner({ material, onSubmit, submitting, requireAllC
                   <Zap className="h-4 w-4" />+{result.xpAwarded} XP
                 </span>
               )}
-              <Button variant="secondary" size="sm" icon={RotateCcw} onClick={handleRetry} data-mascot-target="retry">
-                Try again
-              </Button>
+              {/* A pass is final: retrying is only offered while there is
+                  still something to fix. */}
+              {!result.passed && (
+                <Button variant="secondary" size="sm" icon={RotateCcw} onClick={handleRetry} data-mascot-target="retry">
+                  Try again
+                </Button>
+              )}
             </div>
           </div>
         </div>

@@ -8,6 +8,8 @@ const SkillProgress = require('../models/SkillProgress');
 const PlannerContext = require('../models/PlannerContext');
 const Recommendation = require('../models/Recommendation');
 const MilestoneBadge = require('../models/MilestoneBadge');
+const DailyPlan = require('../models/DailyPlan');
+const { startOfDay } = require('../services/dailyPlanService');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // @desc    Generate a new roadmap for the user's goal
@@ -47,6 +49,63 @@ const seedSkillTracker = async (userId, roadmapData) => {
   return names.length;
 };
 
+/**
+ * Refuse to replace a roadmap the student did not ask to replace.
+ *
+ * POST /generate used to overwrite whatever was there, and every caller that
+ * reached it by accident — a retry on onboarding, a stale "Map my journey"
+ * button shown after a failed load — threw away the roadmap, its tasks and its
+ * tracked skills. Replacing one is now an explicit `{ rebuild: true }`, which
+ * only the Settings page's "Delete and rebuild" sends.
+ *
+ * Mounted before the wallet charge as well as checked inside the controller:
+ * a refused rebuild should never be priced, even if a refund would follow.
+ */
+const ROADMAP_EXISTS = 'ROADMAP_EXISTS';
+
+const wantsRebuild = (req) => req.body?.rebuild === true;
+
+const refuseExisting = (res) =>
+  res.status(409).json({
+    code: ROADMAP_EXISTS,
+    message: 'You already have a roadmap. Rebuild it from Settings if you want a new one.'
+  });
+
+const requireRebuildConsent = async (req, res, next) => {
+  try {
+    if (!wantsRebuild(req) && (await Roadmap.exists({ userId: req.user._id }))) {
+      return refuseExisting(res);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Throw out everything that belonged to the roadmap being replaced.
+ *
+ * Only ever called once the new roadmap is in hand. It used to run before the
+ * Gemini call, so a quota 429, a timeout or a reply that would not parse left
+ * the student with no roadmap, no tasks and no skills — the rebuild failed and
+ * took the old journey with it.
+ *
+ * Milestone badges are deliberately not here: each one is a public share link
+ * the student may already have posted, and it renders from its own snapshot.
+ */
+const clearOldJourney = async (userId) => {
+  await Roadmap.findOneAndDelete({ userId });
+  await Task.deleteMany({ userId });
+  await SkillProgress.deleteMany({ userId });
+  await PlannerContext.findOneAndDelete({ userId });
+  await Recommendation.deleteMany({ userId });
+  // Today's planner claim. The day is claimed once and then only read, so
+  // with the claim left in place the planner sat empty for the rest of the
+  // day — its tasks were just deleted above, and nothing would build new ones
+  // until tomorrow. Earlier days stay: they number the student's days.
+  await DailyPlan.deleteMany({ userId, date: { $gte: startOfDay() } });
+};
+
 const generateRoadmap = async (req, res) => {
   try {
     const goal = await Goal.findOne({ userId: req.user._id });
@@ -54,19 +113,8 @@ const generateRoadmap = async (req, res) => {
       return res.status(404).json({ message: 'No career goal found. Please create a goal first.' });
     }
 
-    // Check if roadmap already exists
-    let roadmap = await Roadmap.findOne({ userId: req.user._id });
-    if (roadmap) {
-      // You could choose to delete the old one or just return it. 
-      // Assuming we regenerate and overwrite if called again.
-      await Roadmap.findOneAndDelete({ userId: req.user._id });
-      
-      // Also delete all associated old data to ensure a clean slate for the new career
-      await Task.deleteMany({ userId: req.user._id });
-      await SkillProgress.deleteMany({ userId: req.user._id });
-      await PlannerContext.findOneAndDelete({ userId: req.user._id });
-      await Recommendation.deleteMany({ userId: req.user._id });
-    }
+    const existing = await Roadmap.exists({ userId: req.user._id });
+    if (existing && !wantsRebuild(req)) return refuseExisting(res);
 
     // Call Gemini API
     // The roadmap is written knowing which YATICORP courses this student can
@@ -75,8 +123,24 @@ const generateRoadmap = async (req, res) => {
     const { prompt: courseContext } = await getStudentCourseContext(req.user._id);
     const roadmapData = await generateRoadmapFromAI(goal, courseContext);
 
+    // A reply with no phases is not a roadmap, and saving it would replace a
+    // real one with an empty page. 502: the model answered, but not usefully —
+    // and a 5xx is what makes the wallet refund the charge.
+    const phases = roadmapData?.educationRoadmap;
+    if (!Array.isArray(phases) || !phases.length) {
+      return res.status(502).json({
+        message: 'The AI returned a roadmap with no phases. Nothing was changed — please try again.'
+      });
+    }
+
+    // generateRoadmapFromAI has already stripped finished stages against this
+    // goal, so the read-time repair below has nothing to do for this record.
+    roadmapData.stageRepair = STAGE_REPAIR_VERSION;
+
+    if (existing) await clearOldJourney(req.user._id);
+
     // Save to DB
-    roadmap = await Roadmap.create({
+    const roadmap = await Roadmap.create({
       userId: req.user._id,
       goalId: goal._id,
       roadmapData
@@ -104,6 +168,19 @@ const generateRoadmap = async (req, res) => {
 };
 
 /**
+ * Which version of the stage repair below a roadmap has been through.
+ *
+ * Stored inside roadmapData (a free-form object, so no schema change) and set
+ * at generation, since generateRoadmapFromAI already strips the same phases.
+ * The repair used to run on every GET against the CURRENT goal: a student who
+ * later edited their goal had real phases spliced out of a roadmap written for
+ * the old one, their progress shifted, and the badges on those phases deleted
+ * — killing /b/<code> links they had already posted. Running it once per
+ * roadmap fixes the legacy records it exists for and then leaves them alone.
+ */
+const STAGE_REPAIR_VERSION = 1;
+
+/**
  * Drop phases a saved roadmap should never have contained.
  *
  * The prompt now refuses to write them, but a roadmap generated before that
@@ -119,11 +196,37 @@ const generateRoadmap = async (req, res) => {
  * list of them, and every milestone badge stores one. Removing a phase from
  * the middle therefore has to shift both, or a student's finished phases and
  * their badges quietly slide onto the wrong entries.
+ *
+ * Badges are never deleted. A badge is a public, permanent link; if the
+ * student earned one for a phase this would drop, that phase is evidently
+ * real to them, and the roadmap is left exactly as it is.
  */
 const dropCompletedStages = async (roadmap, goal) => {
+  if (roadmap.roadmapData?.stageRepair >= STAGE_REPAIR_VERSION) return false;
+
+  // Recorded without touching updatedAt: marking a record as checked is not a
+  // change to the roadmap the student would want to see dated.
+  const markDone = () =>
+    Roadmap.updateOne(
+      { _id: roadmap._id },
+      { $set: { 'roadmapData.stageRepair': STAGE_REPAIR_VERSION } },
+      { timestamps: false }
+    );
+
   const phases = roadmap.roadmapData?.educationRoadmap;
   const drop = completedStageIndices(phases, goal);
-  if (!drop.length) return false;
+  if (!drop.length) {
+    await markDone();
+    return false;
+  }
+
+  const badged = await MilestoneBadge.exists({
+    userId: roadmap.userId, roadmapId: roadmap._id, phaseIndex: { $in: drop }
+  });
+  if (badged) {
+    await markDone();
+    return false;
+  }
 
   const dropped = new Set(drop);
   // Where an index lands once the phases before it are gone.
@@ -131,7 +234,8 @@ const dropCompletedStages = async (roadmap, goal) => {
 
   roadmap.roadmapData = {
     ...roadmap.roadmapData,
-    educationRoadmap: phases.filter((_, i) => !dropped.has(i))
+    educationRoadmap: phases.filter((_, i) => !dropped.has(i)),
+    stageRepair: STAGE_REPAIR_VERSION
   };
   // Mongoose cannot see a mutation inside a free-form Object field.
   roadmap.markModified('roadmapData');
@@ -140,13 +244,11 @@ const dropCompletedStages = async (roadmap, goal) => {
     .map(shift);
   await roadmap.save();
 
-  // Badges for a phase that no longer exists go with it; the rest move down.
-  // Deleted first, and then shifted in ascending order, so each index a badge
-  // moves into has been vacated before the unique { userId, roadmapId,
-  // phaseIndex } index is asked to accept it.
-  await MilestoneBadge.deleteMany({
-    userId: roadmap.userId, roadmapId: roadmap._id, phaseIndex: { $in: drop }
-  });
+  // The badges after a removed phase move down with it. No badge sits on a
+  // removed index (checked above), and they are shifted in ascending order, so
+  // each index a badge moves into is already free before the unique
+  // { userId, roadmapId, phaseIndex } index is asked to accept it. The share
+  // code and the snapshot title do not change, so posted links keep working.
   const survivors = await MilestoneBadge
     .find({ userId: roadmap.userId, roadmapId: roadmap._id })
     .select('phaseIndex')
@@ -188,8 +290,10 @@ const getRoadmap = async (req, res) => {
 
     // Likewise for a phase the student had already finished when the roadmap
     // was written. Needs the goal, since what counts as already-finished is
-    // decided by where the student actually is.
-    const goal = await Goal.findOne({ userId: req.user._id }).select('educationLevel').lean();
+    // decided by where the student actually is — and the year, since a PG
+    // "Year N" phase is only finished when N is behind them. Runs once per
+    // roadmap; see STAGE_REPAIR_VERSION.
+    const goal = await Goal.findOne({ userId: req.user._id }).select('educationLevel currentYear').lean();
     if (goal) await dropCompletedStages(roadmap, goal);
 
     res.status(200).json(roadmap);
@@ -263,6 +367,8 @@ const deleteRoadmap = async (req, res) => {
 };
 
 module.exports = {
+  requireRebuildConsent,
+  ROADMAP_EXISTS,
   generateRoadmap,
   getRoadmap,
   togglePhase,

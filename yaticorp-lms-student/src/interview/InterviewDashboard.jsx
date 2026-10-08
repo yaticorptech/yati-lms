@@ -141,11 +141,21 @@ export default function InterviewDashboard() {
                     to a word per line. Below xl it stacks, as on a tablet. */}
                 <div className="relative grid items-center gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
                     <div>
-                        <h1 className="text-2xl font-black leading-tight text-slate-900 sm:text-[2rem]">
+                        {/* Phones: the name as a small greeting line, then a
+                            headline that cannot break "interview-ready" across
+                            two lines the way the desktop one did at 360px. */}
+                        <div className="sm:hidden">
+                            <p className="text-xl font-black text-slate-900">Hi <span className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">{data.student.firstName}</span> 👋</p>
+                            <h1 className="mt-1 text-[1.6rem] font-black leading-[1.15] text-slate-900">
+                                Get <span className="whitespace-nowrap">interview-ready</span>{data.student.goal ? <> for <span className="text-violet-600">{data.student.goal}!</span></> : '!'}
+                            </h1>
+                            <p className="mt-2 text-sm text-slate-600">Practise with an AI mock interview. Every round earns XP 🚀</p>
+                        </div>
+                        <h1 className="hidden text-[2rem] font-black leading-tight text-slate-900 sm:block">
                             Hi {data.student.firstName},<br />Let&apos;s get you interview-ready{data.student.goal ? <><br />for <span className="text-violet-600">{data.student.goal}!</span></> : '!'}
                         </h1>
-                        <p className="mt-3 max-w-md text-sm text-slate-600">Learn, practise, take an AI mock interview, get feedback, improve, and retake. Every round earns XP! 🚀</p>
-                        <p className="mt-4 inline-flex items-center gap-2.5 rounded-2xl bg-white/80 px-4 py-2.5 text-sm font-bold text-indigo-700 shadow-sm ring-1 ring-white">
+                        <p className="mt-3 hidden max-w-md text-sm text-slate-600 sm:block">Learn, practise, take an AI mock interview, get feedback, improve, and retake. Every round earns XP! 🚀</p>
+                        <p className="mt-4 hidden sm:inline-flex items-center gap-2.5 rounded-2xl bg-white/80 px-4 py-2.5 text-sm font-bold text-indigo-700 shadow-sm ring-1 ring-white">
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600"><Lightbulb size={15} /></span>
                             &ldquo;You&apos;re one step closer to your dream job!&rdquo;
                         </p>
@@ -153,9 +163,10 @@ export default function InterviewDashboard() {
 
                     <div className="rounded-3xl bg-white p-4 shadow-lg shadow-indigo-100 ring-1 ring-indigo-50">
                         <div className="flex items-center gap-3">
-                            <ScoreRing value={r.overall} size={104} stroke={9} label="Readiness" />
+                            <div className="shrink-0 sm:hidden"><ScoreRing value={r.overall} size={84} stroke={8} label="Ready" /></div>
+                            <div className="hidden shrink-0 sm:block"><ScoreRing value={r.overall} size={104} stroke={9} label="Readiness" /></div>
                             <div className="min-w-0">
-                                <p className="text-base font-black leading-tight text-slate-900">Interview<br />Readiness</p>
+                                <p className="text-base font-black leading-tight text-slate-900"><span className="sm:hidden">Interview Readiness</span><span className="hidden sm:inline">Interview<br />Readiness</span></p>
                                 <p className="mt-1 text-xs text-slate-500">{r.prep.mocks === 0 ? 'Take your first mock interview: your readiness comes from how you do.' : r.overall >= 75 ? 'You are ready — book that interview.' : r.overall >= 50 ? 'Getting there. A mock interview will lift this.' : 'Every mock interview and practice question raises this.'}</p>
                             </div>
                         </div>
@@ -201,7 +212,9 @@ export default function InterviewDashboard() {
                 <section className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm animate-fade-in-up sm:p-6">
                     <CardHead icon={Mic} tint="bg-violet-100 text-violet-600" title="Take a Mock Interview"
                         action={<Link to="/interview/history" className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100">View all <ArrowRight size={13} /></Link>}>
-                        The AI interviewer asks about your real skills and projects, and follows up on your answers.
+                        {/* Squeezed beside "View all" on a phone the full sentence ran to four lines. */}
+                        <span className="sm:hidden">Real questions on your skills, with follow-ups.</span>
+                        <span className="hidden sm:inline">The AI interviewer asks about your real skills and projects, and follows up on your answers.</span>
                     </CardHead>
 
                     <div className="stagger grid grid-cols-1 gap-2.5 sm:grid-cols-2">

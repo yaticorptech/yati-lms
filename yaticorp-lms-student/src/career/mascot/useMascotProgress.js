@@ -24,8 +24,11 @@ const write = (value) => {
 /**
  * Streak, path progress and badges, read from the endpoints the Career Path
  * pages already use (/tasks/history, /roadmap, /badges), and whether today's
- * plan still has an open task (/tasks) — the one fact the mascot needs that
- * the Progress page does not load itself. Each achievement is announced
+ * plan still has an open task (/today) — the one fact the mascot needs that
+ * the Progress page does not load itself. /today rather than /tasks because
+ * /tasks BUILDS the day when it is missing: asked from here at the same moment
+ * as the planner's own load, it raced it into a second build of the day.
+ * /today only reports, and `task` is its next open task, or null. Each achievement is announced
  * through `emit` once, ever — the keys already celebrated are kept in
  * localStorage — and the very first check announces nothing: what the
  * student held before the mascot arrived is not news.
@@ -46,9 +49,9 @@ export default function useMascotProgress(emit, setFact) {
             api.get('/tasks/history').then((res) => (Array.isArray(res.data) ? res.data : []), () => []),
             api.get('/roadmap').then((res) => res.data || null, () => null),
             api.get('/badges').then((res) => (Array.isArray(res.data) ? res.data : []), () => []),
-            api.get('/tasks').then((res) => (Array.isArray(res.data) ? res.data : res.data?.tasks || []), () => [])
+            api.get('/today').then((res) => res.data || null, () => null)
         ]);
-        factRef.current?.('pendingTasks', today.some((t) => t && t.status !== 'Completed'));
+        factRef.current?.('pendingTasks', Boolean(today?.task));
         const held = achievementsFrom({ history, roadmap, badges });
         const stored = read();
         let seen;

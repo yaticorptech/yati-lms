@@ -95,8 +95,14 @@ export default function WelcomeBanner({
                     named only the next one, and read as though they were on it. */}
                 <span className="block text-sm text-slate-700">
                     <strong className="font-bold text-indigo-600">Level {level}</strong>
-                    <span className="text-slate-400"> · </span>
-                    {xpRemaining.toLocaleString('en-IN')} XP to the next level
+                    {/* Left out until the admin's level ladder has loaded, rather
+                        than claiming "0 XP to the next level" for a moment. */}
+                    {xpRemaining != null && (
+                        <>
+                            <span className="text-slate-400"> · </span>
+                            {xpRemaining.toLocaleString('en-IN')} XP to the next level
+                        </>
+                    )}
                 </span>
                 <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-indigo-100"
                     role="progressbar" aria-label={`Progress through level ${level}`}

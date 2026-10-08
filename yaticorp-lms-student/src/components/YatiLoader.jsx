@@ -16,7 +16,7 @@ import './yatiLoader.css';
  */
 const LINES = [
   'Small steps. Big dreams.',
-  'Every finished task is +10 XP.',
+  'Every finished task earns XP.',
   'Your next step is on its way…',
   'Consistency is the skill behind every other skill.',
   'Show up today. Future you is watching.',

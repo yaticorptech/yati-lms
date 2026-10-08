@@ -56,7 +56,13 @@ const readQuiz = (body, current = 0) => {
     if (!Number.isInteger(timeLimitMinutes) || timeLimitMinutes < 0 || timeLimitMinutes > GlobalQuiz.TIME_LIMIT_MAX) {
         return { error: `The time limit is in whole minutes, up to ${GlobalQuiz.TIME_LIMIT_MAX}; leave it at 0 for no limit.` };
     }
-    return { value: { title, size, timeLimitMinutes, description: String(body?.description || '').trim().slice(0, 300) } };
+    // Days it stays open after publishing; left out, blank or 0 means no limit.
+    const rawDays = body?.openDays;
+    const openDays = rawDays === undefined || rawDays === null || rawDays === '' ? 0 : Number(rawDays);
+    if (!Number.isInteger(openDays) || openDays < 0 || openDays > GlobalQuiz.OPEN_DAYS_MAX) {
+        return { error: `The day limit is in whole days, up to ${GlobalQuiz.OPEN_DAYS_MAX}; leave it at 0 for no limit.` };
+    }
+    return { value: { title, size, timeLimitMinutes, openDays, description: String(body?.description || '').trim().slice(0, 300) } };
 };
 
 /** A quiz as the panel shows it: its fields, how full it is, what it covers. */
@@ -69,7 +75,7 @@ const withCounts = async (quizzes) => {
     const by = Object.fromEntries(rows.map((r) => [String(r._id), r]));
     return quizzes.map((q) => {
         const r = by[String(q._id)];
-        return { ...q, questionCount: r?.count || 0, categories: r?.categories || [] };
+        return { ...q, questionCount: r?.count || 0, categories: r?.categories || [], closesAt: GlobalQuiz.closesAt(q) };
     });
 };
 
@@ -83,7 +89,7 @@ const listQuizzes = async (req, res) => {
     try {
         await ensureMigrated();
         const quizzes = await GlobalQuiz.find({}).sort({ status: -1, updatedAt: -1 }).lean();
-        res.json({ quizzes: await withCounts(quizzes), limits: { min: GlobalQuiz.SIZE_MIN, max: GlobalQuiz.SIZE_MAX, timeLimitMax: GlobalQuiz.TIME_LIMIT_MAX } });
+        res.json({ quizzes: await withCounts(quizzes), limits: { min: GlobalQuiz.SIZE_MIN, max: GlobalQuiz.SIZE_MAX, timeLimitMax: GlobalQuiz.TIME_LIMIT_MAX, openDaysMax: GlobalQuiz.OPEN_DAYS_MAX } });
     } catch (error) { fail(res, error); }
 };
 
@@ -165,7 +171,7 @@ const duplicateQuiz = async (req, res) => {
         const quiz = await findQuiz(req.params.quizId);
         if (!quiz) return res.status(404).json({ message: 'No such quiz.' });
         const copy = await GlobalQuiz.create({
-            title: `Copy of ${quiz.title}`.slice(0, 80), description: quiz.description, size: quiz.size, timeLimitMinutes: quiz.timeLimitMinutes || 0, createdBy: req.admin?._id || null
+            title: `Copy of ${quiz.title}`.slice(0, 80), description: quiz.description, size: quiz.size, timeLimitMinutes: quiz.timeLimitMinutes || 0, openDays: quiz.openDays || 0, createdBy: req.admin?._id || null
         });
         const questions = await GlobalQuestion.find({ quizId: quiz._id }).lean();
         if (questions.length) {

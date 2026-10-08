@@ -16,7 +16,7 @@ const oid = (v) => mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.Objec
 const getOverview = async (req, res) => {
   try {
     const [wallets, pendingWithdrawals, pendingAmount, pointsIssued, activeStreaks, badgesUnlocked, xpWeek, recentActivity] = await Promise.all([
-      Wallet.aggregate([{ $group: { _id: null, available: { $sum: '$available' }, pending: { $sum: '$pending' }, points: { $sum: '$rewardPoints' }, withdrawn: { $sum: '$totalWithdrawn' }, count: { $sum: 1 } } }]),
+      Wallet.aggregate([{ $group: { _id: null, available: { $sum: '$available' }, pending: { $sum: '$pending' }, points: { $sum: '$rewardPoints' }, withdrawn: { $sum: '$totalWithdrawn' }, spent: { $sum: '$totalSpent' }, count: { $sum: 1 } } }]),
       WithdrawalRequest.countDocuments({ status: 'pending' }),
       WithdrawalRequest.aggregate([{ $match: { status: { $in: ['pending', 'approved'] } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
       RewardTransaction.aggregate([{ $match: { points: { $gt: 0 } } }, { $group: { _id: '$source', points: { $sum: '$points' }, n: { $sum: 1 } } }]),
@@ -26,7 +26,7 @@ const getOverview = async (req, res) => {
       LearningActivity.aggregate([{ $match: { createdAt: { $gte: new Date(Date.now() - 14 * 86400000) } } }, { $group: { _id: '$day', n: { $sum: 1 } } }, { $sort: { _id: 1 } }])
     ]);
     res.json({
-      wallets: wallets[0] || { available: 0, pending: 0, points: 0, withdrawn: 0, count: 0 },
+      wallets: wallets[0] || { available: 0, pending: 0, points: 0, withdrawn: 0, spent: 0, count: 0 },
       pendingWithdrawals, pendingWithdrawalAmount: pendingAmount[0]?.total || 0,
       pointsIssuedBySource: pointsIssued, activeStreaks, badgesUnlocked,
       xpLast7Days: xpWeek[0] || { xp: 0, n: 0 }, activityByDay: recentActivity
@@ -59,7 +59,8 @@ const listBadges = async (req, res) => {
 };
 const badgeBody = (b) => ({
   title: String(b.title || '').trim(), description: String(b.description || '').trim(), emoji: String(b.emoji || '🎖️').slice(0, 8),
-  metric: b.metric, target: Math.round(Number(b.target)), rewardPoints: Math.max(0, Math.round(Number(b.rewardPoints) || 0)),
+  // Badges no longer pay points — points unlock them (metric 'reward_points').
+  metric: b.metric, target: Math.round(Number(b.target)), rewardPoints: 0,
   order: Number.isFinite(Number(b.order)) ? Number(b.order) : 100, isActive: b.isActive !== false
 });
 // @route POST /api/rewards/admin/badges
@@ -109,11 +110,36 @@ const listWallets = async (req, res) => {
       userFilter = await User.find({ $or: [{ name: rx }, { email: rx }, { cardNumber: rx }] }).distinct('_id');
     }
     const q = userFilter ? { userId: { $in: userFilter } } : {};
-    const [wallets, total] = await Promise.all([
+    const [wallets, total, sums] = await Promise.all([
       Wallet.find(q).sort({ updatedAt: -1 }).skip(skip).limit(limit).populate('userId', 'name email cardNumber accountType walletAccess xp level').lean(),
-      Wallet.countDocuments(q)
+      Wallet.countDocuments(q),
+      // Totals across every wallet matched, for the strip above the table.
+      Wallet.aggregate([{ $match: q }, { $group: {
+        _id: null,
+        available: { $sum: '$available' },
+        startingCredit: { $sum: { $ifNull: ['$spendOnly', 0] } },
+        xpConverted: { $sum: { $ifNull: ['$xpConverted', 0] } },
+        fromXp: { $sum: { $ifNull: ['$earnedBySource.xp_reward', 0] } },
+        spent: { $sum: '$totalSpent' }
+      } }])
     ]);
-    res.json({ rows: wallets.map((w) => ({ ...w, earnedBySource: w.earnedBySource || {} })), total, limit, skip });
+    res.json({
+      rows: wallets.map((w) => {
+        const xp = w.userId?.xp || 0;
+        return {
+          ...w,
+          earnedBySource: w.earnedBySource || {},
+          // XP: lifetime, what is still waiting to convert, and what has been.
+          xp,
+          xpConverted: w.xpConverted || 0,
+          xpBalance: Math.max(0, xp - (w.xpConverted || 0)),
+          fromXp: (w.earnedBySource && w.earnedBySource.xp_reward) || 0,
+          startingCredit: w.spendOnly || 0
+        };
+      }),
+      totals: sums[0] || { available: 0, startingCredit: 0, xpConverted: 0, fromXp: 0, spent: 0 },
+      total, limit, skip
+    });
   } catch (error) { err(res, error); }
 };
 // @route GET /api/rewards/admin/transactions?userId=&source=&status=&type=
@@ -244,6 +270,11 @@ const runAudit = async (req, res) => {
       if (!a.ok) audits.push(a);
     }
     const recentJobs = await RewardJobRun.find({}).sort({ createdAt: -1 }).limit(10).lean();
+    // Names, so a finding reads "Asha — …" rather than a raw ObjectId.
+    const ids = [...dupActivity, ...dupClaims, ...dupRefs].map((r) => r._id.u).concat(audits.map((a) => a.userId)).filter(Boolean);
+    const names = Object.fromEntries((await User.find({ _id: { $in: ids } }).select('name').lean()).map((u) => [String(u._id), u.name]));
+    const named = (rows, idOf) => rows.forEach((r) => { r.name = names[String(idOf(r))]; });
+    named(dupActivity, (r) => r._id.u); named(dupClaims, (r) => r._id.u); named(dupRefs, (r) => r._id.u); named(audits, (r) => r.userId);
     res.json({ duplicateActivities: dupActivity, duplicateClaims: dupClaims, duplicateReferences: dupRefs, walletMismatches: audits, walletsChecked: wallets.length, recentJobs, ok: !dupActivity.length && !dupClaims.length && !dupRefs.length && !audits.length });
   } catch (error) { err(res, error); }
 };

@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // public/loop-walker is the vendored Loop Walker runtime: as shipped, apart
+  // from the edits marked "YATICORP change" (phone size, sharpness, buttons, same size up and down the screen).
+  globalIgnores(['dist', 'public/loop-walker']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

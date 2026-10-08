@@ -15,6 +15,7 @@ import {
 import api from '../utils/api';
 import { Tile, Feature, Artwork } from './profileBlocks';
 import Portal from './Portal';
+import PriceTag from './rewards/PriceTag';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
@@ -329,7 +330,7 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                                     {item.source === 'course' ? (
                                         <button type="button" onClick={() => onDownload(item.raw)} disabled={downloadingId === item.raw._id}
                                             className="inline-flex min-h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-60">
-                                            {downloadingId === item.raw._id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF
+                                            {downloadingId === item.raw._id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF <PriceTag action="download_certificate" />
                                         </button>
                                     ) : (
                                         <a href={item.fileUrl} target="_blank" rel="noopener noreferrer"

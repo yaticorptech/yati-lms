@@ -37,7 +37,28 @@ const authLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+/**
+ * Lookups that answer "does this organization ID exist?" — the public
+ * /api/organizations/code-available and the student's /student/lookup/:code.
+ *
+ * Each is asked once per keystroke-pause, so a person never comes near 60 a
+ * minute; a script walking the ID space does. Its own counter rather than
+ * authLimiter's, so typing an ID cannot use up someone's sign-in attempts.
+ */
+const lookupLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 60, // 60 lookups per IP per minute
+    message: {
+        status: 429,
+        success: false,
+        message: 'Too many lookups from this IP, please wait a minute and try again'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 module.exports = {
     globalLimiter,
-    authLimiter
+    authLimiter,
+    lookupLimiter
 };

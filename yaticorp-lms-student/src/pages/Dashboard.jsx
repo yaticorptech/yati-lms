@@ -19,6 +19,8 @@ import GlobalQuiz from '../components/GlobalQuiz';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { BookOpen, Award, PlayCircle, Clock, X, ArrowRight, Layers, CheckCircle2, Bookmark, CalendarDays, Globe } from 'lucide-react';
 import Portal from '../components/Portal';
+import { useRewards } from '../context/useRewards';
+import { money } from '../components/rewards/format';
 
 
 const getInitials = (title = '') => title.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
@@ -228,6 +230,9 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
         }
     }, [activeTab, markEdges, moveInk]);
     const [enrollModal, setEnrollModal] = useState(null); // { _id, title }
+    // The wallet pays for a priced course, so the dialog shows what is there.
+    const rewards = useRewards();
+    const wallet = rewards.enabled ? rewards.summary?.wallet : null;
     const [enrolling, setEnrolling] = useState(false);
 
     const getProgressVal = (id, isBundle = false) => {
@@ -257,11 +262,14 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
         setEnrolling(true);
         try {
             await enrollCourse(enrollModal._id);
+            // The price came out of the wallet: the balance in the header re-reads.
+            window.dispatchEvent(new CustomEvent('yati:progress-changed'));
             setEnrollModal(null);
             // To the new course, on the page that lists what they are enrolled in.
             navigate('/enrolled-courses');
         } catch (error) {
-            alert(error.response?.data?.message || 'Enrollment failed');
+            // A short wallet gets the app-wide dialog with the way to earn more.
+            if (error.response?.status !== 402) alert(error.response?.data?.message || 'Enrollment failed');
         } finally {
             setEnrolling(false);
         }
@@ -465,7 +473,7 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                     )
                 ) : activeTab === 'available' ? (
                     availableCourses.length > 0 ? (
-                        <div className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div data-explain="pricing" className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {availableCourses.map(course => (
                                 <div key={course._id} className="group relative flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100">
                                     {/* cover */}
@@ -570,6 +578,27 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                     <span>Total</span>
                                     <span className="text-emerald-600">{enrollModal.price > 0 ? `₹${enrollModal.price}` : 'Free'}</span>
                                 </div>
+                                {enrollModal.price > 0 && wallet && (
+                                    <>
+                                        <div className="flex justify-between text-sm text-slate-600">
+                                            <span>Paid from wallet · balance</span>
+                                            <span className="font-semibold tabular-nums">{money(wallet.available, wallet.currency || 'INR')}</span>
+                                        </div>
+                                        {wallet.available < enrollModal.price && (
+                                            <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 ring-1 ring-amber-200">
+                                                Not enough in your wallet yet. Earn XP on{' '}
+                                                <Link to="/career" onClick={() => setEnrollModal(null)} className="font-bold text-indigo-600 underline">Career Path</Link>
+                                                {' '}— every block of XP adds money to your wallet.
+                                            </p>
+                                        )}
+                                        <div className="flex justify-between text-sm text-slate-600">
+                                            <span>Balance after</span>
+                                            <span className={`font-semibold tabular-nums ${wallet.available < enrollModal.price ? 'text-rose-600' : ''}`}>
+                                                {wallet.available < enrollModal.price ? 'Not enough' : money(wallet.available - enrollModal.price, wallet.currency || 'INR')}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                             <div className="flex w-full space-x-3">
                                 <button
@@ -580,10 +609,10 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                 </button>
                                 <button
                                     onClick={handleConfirmEnroll}
-                                    disabled={enrolling}
+                                    disabled={enrolling || (enrollModal.price > 0 && wallet && wallet.available < enrollModal.price)}
                                     className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors"
                                 >
-                                    {enrolling ? 'Enrolling...' : 'Confirm Enroll'}
+                                    {enrolling ? 'Enrolling...' : enrollModal.price > 0 && wallet ? `Pay ₹${enrollModal.price} & Enroll` : 'Confirm Enroll'}
                                 </button>
                             </div>
                         </div>

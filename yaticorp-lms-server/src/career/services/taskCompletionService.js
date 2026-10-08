@@ -5,7 +5,8 @@ const Task = require('../models/Task');
 const { addXP } = require('./gamificationService');
 const { tokenise, overlapScore } = require('./lmsContext');
 
-const TASK_XP = 10;
+// XP for a finished task: the admin's 'career_task' rule (Rewards → Reward rules).
+const { xpFor } = require('../../rewards/services/configService');
 
 // How much one finished task moves the skill it was about. Twenty tasks on the
 // same skill take it from nothing to the next level, which is a real amount of
@@ -62,6 +63,8 @@ const skillAdvancedBy = (task, skills) => {
  * the request that completed the task, or the student loses the completion too.
  */
 const runCompletionSideEffects = async (userId, task) => {
+  // What was actually paid, so the caller can report it rather than the rule.
+  let xpPaid = 0;
   try {
     await User.findByIdAndUpdate(userId, { lastActiveDate: new Date() });
 
@@ -75,7 +78,10 @@ const runCompletionSideEffects = async (userId, task) => {
     if (tasksCompleted === 1) await checkAndAward('First Step', 'Completed your very first task.');
     if (tasksCompleted === 10) await checkAndAward('Getting Serious', 'Completed 10 tasks.');
 
-    await addXP(userId, TASK_XP, `completing "${task.title}"`);
+    // Keyed on the task, so the ledger refuses a second payout for it even if
+    // two completions race past the creditedAt check below.
+    const taskXp = await xpFor('career_task');
+    if (taskXp > 0) xpPaid = await addXP(userId, taskXp, `completing "${task.title}"`, { refId: `task:${task._id}` });
 
     // A finished task is a meaningful learning activity: it advances the
     // daily streak and counts toward badges. XP was paid just above, so the
@@ -107,6 +113,7 @@ const runCompletionSideEffects = async (userId, task) => {
   } catch (error) {
     console.error('Gamification error:', error);
   }
+  return xpPaid;
 };
 
 /**
@@ -121,8 +128,8 @@ const runCompletionSideEffects = async (userId, task) => {
  * tell a fresh completion from a no-op and only celebrate the former.
  */
 const completeTask = async (userId, task) => {
-  if (!task) return { completed: false, task: null };
-  if (task.status === 'Completed') return { completed: false, task };
+  if (!task) return { completed: false, task: null, xp: 0 };
+  if (task.status === 'Completed') return { completed: false, task, xp: 0 };
 
   task.status = 'Completed';
   // Stamp the first completion only, so re-saving never shifts the date this
@@ -139,15 +146,14 @@ const completeTask = async (userId, task) => {
   if (!alreadyCredited) task.creditedAt = new Date();
   await task.save();
 
-  if (!alreadyCredited) await runCompletionSideEffects(userId, task);
+  const xp = alreadyCredited ? 0 : await runCompletionSideEffects(userId, task);
 
-  return { completed: true, task, credited: !alreadyCredited };
+  return { completed: true, task, credited: !alreadyCredited, xp };
 };
 
 module.exports = {
   completeTask,
   runCompletionSideEffects,
-  TASK_XP,
   // Exported for tests: pure, and the part most worth pinning down.
   skillAdvancedBy
 };

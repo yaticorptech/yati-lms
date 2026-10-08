@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Compass, Sparkles, ArrowRight } from 'lucide-react';
+import { Compass, Sparkles, ArrowRight, RotateCw } from 'lucide-react';
 import api from '../../services/api';
 import RoadmapDisplay from '../../components/RoadmapDisplay';
 import PageHeader from '../../components/ui/PageHeader';
@@ -35,25 +35,43 @@ export default function RoadmapPage() {
   const celebrate = useCelebrate();
   const mascot = useMascot();
 
+  // Set when either read failed for a reason other than "there is none". The
+  // page then shows a retry instead of the empty state, because the empty
+  // state offers to generate — and a student whose roadmap merely failed to
+  // load must never be invited to build a new one over it.
+  const [loadError, setLoadError] = useState(null);
+
+  // Only a 404 means "none". Anything else — offline, a 500, an expired
+  // session — is a failed read, and is rethrown rather than read as absence.
+  const noneOn404 = (request) =>
+    request.catch((err) => {
+      if (err.response?.status === 404) return null;
+      throw err;
+    });
+
+  const fetchRoadmap = async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      // Both 404 legitimately — no goal yet, or a goal with no roadmap
+      // behind it — so neither is allowed to reject the other.
+      const [roadmapRes, goalRes] = await Promise.all([
+        noneOn404(api.get('/roadmap')),
+        noneOn404(api.get('/goals'))
+      ]);
+      setRoadmap(roadmapRes ? roadmapRes.data.roadmapData : null);
+      setCompletedPhases(roadmapRes?.data.completedPhases || []);
+      setGoal(goalRes?.data || null);
+    } catch (err) {
+      setLoadError(err.response?.data?.message || 'We could not load your roadmap. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchRoadmap = async () => {
-      try {
-        // Both 404 legitimately — no goal yet, or a goal with no roadmap
-        // behind it — so neither is allowed to reject the other.
-        const [roadmapRes, goalRes] = await Promise.all([
-          api.get('/roadmap').catch(() => null),
-          api.get('/goals').catch(() => null)
-        ]);
-        if (roadmapRes) {
-          setRoadmap(roadmapRes.data.roadmapData);
-          setCompletedPhases(roadmapRes.data.completedPhases || []);
-        }
-        setGoal(goalRes?.data || null);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchRoadmap();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Only ever called from the empty state. Generating is destructive on the
@@ -75,6 +93,11 @@ export default function RoadmapPage() {
         setAiBudget(budget);
       } else if (err.response?.status === 404) {
         setError('You need to complete onboarding first.');
+      } else if (err.response?.data?.code === 'ROADMAP_EXISTS') {
+        // There is a roadmap after all (built in another tab, or the first
+        // read failed). Show it rather than offering to replace it — this
+        // page never sends { rebuild: true }; only Settings does.
+        fetchRoadmap();
       } else {
         setError(err.response?.data?.message || 'Failed to generate roadmap');
       }
@@ -163,7 +186,7 @@ export default function RoadmapPage() {
       {/* The page title is the destination itself once a roadmap exists, and
           it is rendered inside the hero below. A generic "Your path, one step
           at a time" above it was a second heading saying less than the first. */}
-      {!roadmap && !generating && (
+      {!roadmap && !generating && !loadError && (
         <PageHeader
           eyebrow="My Roadmap"
           title="Your path, one step at a time"
@@ -185,6 +208,16 @@ export default function RoadmapPage() {
           section that is genuinely worth watching deserves to be watched. */}
       {generating ? (
         <GeneratingRoadmap />
+      ) : loadError ? (
+        <section className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-rose-800" role="alert">
+          <h2 className="text-lg font-bold">Your roadmap did not load</h2>
+          <p className="mt-1 text-sm">{loadError}</p>
+          <div className="mt-4">
+            <Button icon={RotateCw} onClick={fetchRoadmap}>
+              Try again
+            </Button>
+          </div>
+        </section>
       ) : roadmap ? (
         <RoadmapDisplay
           data={roadmap}

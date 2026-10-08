@@ -40,7 +40,11 @@ const Tickets = () => {
 
     const fetchTickets = async () => {
         try {
-            const res = await api.get(`/admin/tickets${filterStatus ? `?status=${filterStatus}` : ''}`);
+            // Every ticket, always: the counts need them all, and the tab filter
+            // is applied below. Filtering on the server here never worked — the
+            // auto-refresh keeps the first copy of this function, so it only
+            // ever asked with the filter the page opened with.
+            const res = await api.get('/admin/tickets');
             setTickets(res.data);
         } catch (err) {
             console.error(err);
@@ -118,6 +122,7 @@ const Tickets = () => {
         }
     };
 
+    const shown = filterStatus ? tickets.filter(t => t.status === filterStatus) : tickets;
     const openCount = tickets.filter(t => t.status === 'open').length;
     const inProgressCount = tickets.filter(t => t.status === 'in-progress').length;
     const resolvedCount = tickets.filter(t => t.status === 'resolved').length;
@@ -132,41 +137,27 @@ const Tickets = () => {
                 </div>
             </div>
 
-            {/* Summary Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white rounded-2xl p-4 lg:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-red-50 rounded-2xl text-red-500 shadow-sm border border-red-100">
-                            <AlertCircle size={24} />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Open</p>
-                            <p className="text-2xl font-bold text-slate-900">{openCount}</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-2xl p-4 lg:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-amber-50 rounded-2xl text-amber-500 shadow-sm border border-amber-100">
-                            <Clock size={24} />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active</p>
-                            <p className="text-2xl font-bold text-slate-900">{inProgressCount}</p>
+            {/* Summary Stats — three across at every size. On a phone each is a
+                small centred tile (icon over label over number); from sm up the
+                icon sits beside the figure, as before. */}
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
+                {[
+                    { label: 'Open', value: openCount, Icon: AlertCircle, tone: 'bg-red-50 text-red-500 border-red-100' },
+                    { label: 'Active', value: inProgressCount, Icon: Clock, tone: 'bg-amber-50 text-amber-500 border-amber-100' },
+                    { label: 'Resolved', value: resolvedCount, Icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-500 border-emerald-100' }
+                ].map(({ label, value, Icon, tone }) => (
+                    <div key={label} className="min-w-0 bg-white rounded-2xl p-3 sm:p-4 lg:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex flex-col items-center gap-1.5 text-center sm:flex-row sm:gap-4 sm:text-left">
+                            <div className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl shadow-sm border ${tone}`}>
+                                <Icon className="h-[18px] w-[18px] sm:h-6 sm:w-6" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider sm:tracking-widest">{label}</p>
+                                <p className="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">{value}</p>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div className="bg-white rounded-2xl p-4 lg:p-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-500 shadow-sm border border-emerald-100">
-                            <CheckCircle2 size={24} />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resolved</p>
-                            <p className="text-2xl font-bold text-slate-900">{resolvedCount}</p>
-                        </div>
-                    </div>
-                </div>
+                ))}
             </div>
 
             {/* Filter */}
@@ -186,7 +177,7 @@ const Tickets = () => {
                     ))}
                 </div>
                 <div className="px-4 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-tighter sm:text-right">
-                    Found {tickets.length} records
+                    Found {shown.length} records
                 </div>
             </div>
 
@@ -194,14 +185,14 @@ const Tickets = () => {
             <div className="space-y-3">
                 {loading ? (
                     <div className="text-center py-12 text-slate-400">Loading tickets...</div>
-                ) : tickets.length === 0 ? (
+                ) : shown.length === 0 ? (
                     <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-12 text-center">
                         <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
                             <MessageCircleQuestion size={28} className="text-slate-300" />
                         </div>
                         <p className="text-slate-500 font-medium">No tickets found</p>
                     </div>
-                ) : tickets.map(ticket => (
+                ) : shown.map(ticket => (
                     <div key={ticket._id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                         {/* Ticket Header. On a phone the status sits above the
                             subject and the date moves under it, so the subject

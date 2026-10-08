@@ -97,7 +97,7 @@ const FEATURES = [
 ];
 
 export const FeatureRow = ({ className = '' }) => (
-    <ul className={`grid gap-4 sm:grid-cols-3 ${className}`}>
+    <ul data-explain="features" className={`grid gap-4 sm:grid-cols-3 ${className}`}>
         {FEATURES.map(({ icon: Icon, title, sub, tile }) => (
             <li key={title} className="flex items-center gap-3">
                 <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${tile}`}><Icon size={21} /></span>

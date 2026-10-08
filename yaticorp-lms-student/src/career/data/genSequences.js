@@ -232,10 +232,14 @@ const BAND_FAMILIES = {
 /** The whole pool, every band, ordered easy to hard inside each band. */
 export const buildSequences = () => {
   const out = [];
+  // One record across all three bands, not one per band: reset per band, the
+  // same question could be generated in band 1 and again in band 2, and a
+  // student climbing the ladder met it twice. Generation is still seeded, so
+  // the pool is identical on every build.
+  const seen = new Set();
   for (const band of [1, 2, 3]) {
     const rng = seeded(7100 + band);
     const families = BAND_FAMILIES[band];
-    const seen = new Set();
     for (let i = 0; i < PER_BAND; i += 1) {
       const home = Math.floor((i / PER_BAND) * families.length);
       // A family can land on the same numbers twice, and a small family (the

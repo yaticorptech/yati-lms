@@ -7,11 +7,14 @@
  * decides the rest. Only active organizations can be found at all, so a pending,
  * rejected or suspended organization cannot collect members.
  *
- * Leaving is deliberately absent. A student cannot take themselves out of an
- * organization: membership is the institution's record of who its students are,
- * so ending it belongs to that organization, from its own students page, or to a
- * superadmin. A student may still withdraw a request that has not been decided —
- * that is their own request, not a membership.
+ * Leaving an active organization is deliberately absent. Membership is the
+ * institution's record of who its students are, so ending it belongs to that
+ * organization, from its own students page, or to a superadmin. The one
+ * exception is an organization that is no longer active (suspended, inactive,
+ * rejected) or no longer exists: nobody there can remove the student, and
+ * without a way out they could never join another — see leaveOrganization. A
+ * student may also withdraw a request that has not been decided — that is
+ * their own request, not a membership.
  */
 const Organization = require('../models/Organization');
 const JoinRequest = require('../models/JoinRequest');
@@ -31,6 +34,28 @@ const publicShape = (organization) => ({
     website: organization.website || ''
 });
 
+/**
+ * Reasons that mean a membership ended. A withdrawn request, or one closed
+ * because the organization stopped accepting members, was never a membership
+ * — the request itself (status and decisionReason) already says so.
+ */
+const REMOVAL_REASONS = [
+    'Removed by the organization',
+    'Removed by a platform administrator',
+    'Left the organization'
+];
+
+/** `{ organizationName, reason, at }` when the newest request records a removal. */
+const removedFrom = (request, organization) => {
+    if (!request || request.status !== 'cancelled' || organization) return null;
+    if (!REMOVAL_REASONS.includes(request.decisionReason)) return null;
+    return {
+        organizationName: request.organizationId?.name || 'your organization',
+        reason: request.decisionReason,
+        at: request.decidedAt || request.updatedAt || null
+    };
+};
+
 // @desc    My organization, or my request if I am still waiting
 // @route   GET /api/organizations/student/me
 // @access  Private/Student
@@ -38,6 +63,8 @@ const getMyMembership = async (req, res) => {
     try {
         const student = await User.findById(req.user._id).select('organizationId organizationJoinedAt').lean();
 
+        // A pointer to an organization that no longer exists reads as no
+        // organization here, in createRequest and in leaveOrganization alike.
         const organization = student?.organizationId
             ? await Organization.findById(student.organizationId).lean()
             : null;
@@ -71,7 +98,12 @@ const getMyMembership = async (req, res) => {
                     name: request.organizationId.name,
                     orgCode: request.organizationId.orgCode
                 } : null
-            } : null
+            } : null,
+            // Added only when it applies: the newest request is a membership
+            // that was ended for them (removed, or the organization stopped
+            // taking members), so the app can say "You are no longer a member
+            // of X" instead of showing an empty form with no explanation.
+            ...(removedFrom(request, organization) ? { removed: removedFrom(request, organization) } : {})
         });
     } catch (error) {
         console.error('[organizations] membership read failed:', error);
@@ -141,12 +173,20 @@ const createRequest = async (req, res) => {
         }
 
         const student = await User.findById(req.user._id).select('organizationId');
-        if (student.organizationId) {
+        // A dangling pointer (the organization was deleted) is no membership,
+        // the same reading getMyMembership gives the student.
+        const current = student.organizationId
+            ? await Organization.findById(student.organizationId).select('status').lean()
+            : null;
+        if (current) {
             const same = String(student.organizationId) === String(organization._id);
+            if (same) return res.status(409).json({ message: 'You are already a member of this organization.' });
             return res.status(409).json({
-                message: same
-                    ? 'You are already a member of this organization.'
-                    : 'You already belong to an organization. Leave it before joining another one.'
+                code: 'ALREADY_MEMBER',
+                currentStatus: current.status,
+                message: current.status === 'active'
+                    ? 'You already belong to an organization. Ask your organization to remove you before joining another one.'
+                    : 'You still belong to an organization that is no longer active. Choose "Leave organization" first, then join another one.'
             });
         }
 
@@ -207,7 +247,64 @@ const cancelRequest = async (req, res) => {
     }
 };
 
+/**
+ * @desc    Leave my organization — only one that is no longer active
+ * @route   POST /api/organizations/student/leave
+ * @access  Private/Student
+ *
+ * A suspended, inactive or rejected organization has no administrator who can
+ * sign in to remove anyone, and a deleted one has nobody at all, so without
+ * this the student would be held there forever and could never join another.
+ * An active organization answers 409: ending that membership stays with the
+ * organization (its students page) or a superadmin.
+ *
+ * Clears the membership only. Courses, progress, XP and certificates are the
+ * student's own and stay; the approved request is marked as ended so the
+ * history reads truthfully.
+ */
+const leaveOrganization = async (req, res) => {
+    try {
+        const student = await User.findById(req.user._id).select('organizationId').lean();
+        if (!student?.organizationId) {
+            return res.status(400).json({ message: 'You do not belong to an organization.' });
+        }
+
+        const organization = await Organization.findById(student.organizationId).select('name status').lean();
+        if (organization && organization.status === 'active') {
+            return res.status(409).json({
+                code: 'ORGANIZATION_ACTIVE',
+                message: `${organization.name} is active. Ask your organization to remove you; you cannot leave it yourself.`
+            });
+        }
+
+        // Conditional on the same organization still being set, so a superadmin
+        // assigning them somewhere at this moment is not undone.
+        const result = await User.updateOne(
+            { _id: req.user._id, organizationId: student.organizationId },
+            { $set: { organizationId: null, organizationJoinedAt: null } }
+        );
+        if (result.modifiedCount !== 1) {
+            return res.status(409).json({ message: 'Your membership changed just now. Refresh and try again.' });
+        }
+
+        await JoinRequest.updateMany(
+            { userId: req.user._id, organizationId: student.organizationId, status: 'approved' },
+            { $set: { status: 'cancelled', decisionReason: 'Left the organization', decidedAt: new Date(), decidedBy: null } }
+        );
+
+        res.json({
+            message: organization
+                ? `You have left ${organization.name}. Your courses and progress are unchanged.`
+                : 'You have left your organization. Your courses and progress are unchanged.'
+        });
+    } catch (error) {
+        console.error('[organizations] leave failed:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 module.exports = {
+    leaveOrganization,
     getMyMembership,
     lookupOrganization,
     createRequest,

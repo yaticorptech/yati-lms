@@ -24,10 +24,11 @@
  * first attempt of a lesson's own quiz, inside the course player.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Globe, CheckCircle2, XCircle, Loader2, Info, ArrowRight, Tag, Play, Timer, ListChecks, Lock, Trophy, X } from 'lucide-react';
+import { Globe, CheckCircle2, XCircle, Loader2, Info, ArrowRight, Tag, Play, Timer, ListChecks, Lock, Trophy, X, CalendarClock } from 'lucide-react';
 import Portal from './Portal';
 import api from '../utils/api';
 import { GlobeScene, Waves, ScriptNote } from './quiz/QuizArt';
+import PriceTag from './rewards/PriceTag';
 
 /** A span of time as the clock shows it: m:ss, or h:mm:ss past an hour. */
 const clock = (ms) => {
@@ -127,7 +128,12 @@ export default function GlobalQuiz() {
         savedRef.current = key;
         let cancelled = false;
         api.post('/user/quizzes/global/finish', { timedOut })
-            .then((r) => { if (!cancelled) setWork((prev) => (prev.key === key ? { ...prev, saved: true, result: resultOf(r.data?.attempt) || prev.result } : prev)); })
+            .then((r) => {
+                if (cancelled) return;
+                setWork((prev) => (prev.key === key ? { ...prev, saved: true, result: resultOf(r.data?.attempt) || prev.result, win: r.data?.win || null } : prev));
+                // A win paid XP: the header's XP and wallet figures re-read.
+                if (r.data?.win?.xp > 0) window.dispatchEvent(new CustomEvent('yati:progress-changed'));
+            })
             .catch((e) => { if (!cancelled) { savedRef.current = null; setMarkError(e.response?.data?.message || 'Your result could not be saved. Check your connection.'); } });
         return () => { cancelled = true; };
     }, [ready, started, showScore, saved, timedOut, key]);
@@ -256,6 +262,14 @@ export default function GlobalQuiz() {
                 <div className="rounded-2xl bg-violet-50 px-2 py-2.5"><p role="timer" aria-label={`Time taken ${clock(elapsed)}`} className="text-lg font-black tabular-nums text-violet-700">{clock(elapsed)}</p><p className="text-[11px] font-bold text-violet-700/70">Time taken</p></div>
             </div>
             {total - answered > 0 && <p className="mt-2 text-xs font-semibold text-slate-500">{total - answered} left unanswered</p>}
+            {w.win?.won && (
+                <p className="mx-auto mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3.5 py-1.5 text-sm font-black text-amber-700 ring-1 ring-amber-200">
+                    🏆 You won!{w.win.xp > 0 ? ` +${w.win.xp} XP` : ''}
+                </p>
+            )}
+            {w.win && !w.win.won && w.win.winScore != null && (
+                <p className="mt-3 text-xs font-semibold text-slate-500">Score {w.win.winScore}% or more to win XP.</p>
+            )}
         </>
     );
 
@@ -282,7 +296,14 @@ export default function GlobalQuiz() {
                             {paper.available} general question{paper.available === 1 ? '' : 's'}
                             {paper.categories?.length ? ` across ${paper.categories.length} categor${paper.categories.length === 1 ? 'y' : 'ies'}` : ''}, mixed into one paper.
                         </p>
-                        <p className="mt-1.5 flex max-w-lg items-start gap-1.5 text-[13px] leading-snug text-slate-500"><Info size={14} className="mt-px shrink-0 text-violet-400" /> One attempt each. It does not change your progress, credits or XP.</p>
+                        <p className="mt-1.5 flex max-w-lg items-start gap-1.5 text-[13px] leading-snug text-slate-500"><Info size={14} className="mt-px shrink-0 text-violet-400" /> One attempt each. A winning score earns XP.</p>
+                        {/* The admin's day limit: until when a new attempt can be started. */}
+                        {paper.quiz?.closesAt && (
+                            <p className={`mt-1.5 flex max-w-lg items-start gap-1.5 text-[13px] font-semibold leading-snug ${paper.quiz.closed ? 'text-rose-600' : 'text-slate-500'}`}>
+                                <CalendarClock size={14} className={`mt-px shrink-0 ${paper.quiz.closed ? 'text-rose-500' : 'text-violet-400'}`} />
+                                {paper.quiz.closed ? 'Closed on ' : 'Open until '}{new Date(paper.quiz.closesAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </p>
+                        )}
                     </div>
                     {/* The note and the globe share the right-hand end: the note
                         flows, and the spacer holds open the room the globe is
@@ -325,10 +346,16 @@ export default function GlobalQuiz() {
                         {limit ? `You have ${minutes(limit)} for the whole paper; the clock starts when you press Start.` : 'There is no time limit, but the clock shows how long you take.'}
                     </p>
                     {markError && <p className="mx-auto mt-3 max-w-md rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700">{markError}</p>}
+                    {paper.quiz?.closed ? (
+                        <p className="mx-auto mt-5 inline-flex max-w-md items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-bold text-rose-700">
+                            <CalendarClock size={16} /> This quiz is closed. Watch for the next one.
+                        </p>
+                    ) : (
                     <button type="button" onClick={start} disabled={starting}
                         className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-8 py-3 text-base font-black text-white shadow-md shadow-violet-200 hover:bg-violet-700 disabled:cursor-wait disabled:opacity-60">
-                        {starting ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />} Start quiz
+                        {starting ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />} Start quiz <PriceTag action="start_global_quiz" />
                     </button>
+                    )}
                 </div>
             )}
 

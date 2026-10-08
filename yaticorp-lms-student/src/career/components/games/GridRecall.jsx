@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsFor, starsOn } from './levels';
+import useGameProgress, { between, starsForFixed, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
 
 const shuffle = (list) => {
@@ -43,7 +43,9 @@ function Round({ progress, onExit }) {
   const over = started && round >= config.rounds;
   const lit = sets[Math.min(round, config.rounds - 1)];
   const passed = hits >= config.target;
-  const stars = over ? starsFor(hits, config.target) : 0;
+  // Five rounds whatever the level, so graded on the rounds: with a target of
+  // four or five, starsFor's 1.5x was a sixth or seventh round that never came.
+  const stars = over ? starsForFixed(hits, config.target, config.rounds) : 0;
   useRecordStars(progress, over, stars);
 
   // Each round shows its tiles for a moment, then hides them.

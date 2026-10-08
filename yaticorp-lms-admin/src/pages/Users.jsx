@@ -11,10 +11,25 @@ import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 import { Html5Qrcode } from 'html5-qrcode';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import Select from '../components/Select';
+import { useAuth } from '../context/AuthContext';
+
+/** The student app, where "Dashboard" opens a student's own view. */
+const STUDENT_APP = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5173';
 
 // The same four actions on the table row and on the phone card.
-const UserActions = ({ user, onManage, onEdit, onToggle, onDelete }) => (
+const UserActions = ({ user, onManage, onEdit, onToggle, onDelete, onOpenDashboard }) => (
     <>
+        {/* Superadmins only (onOpenDashboard is absent otherwise), and only
+            for an active student: a blocked one cannot be signed in as. */}
+        {onOpenDashboard && user.status === 'active' && (
+            <button
+                onClick={() => onOpenDashboard(user)}
+                title={`Open ${user.name}'s dashboard in a new tab, signed in as them`}
+                className="text-violet-600 hover:text-violet-800 font-medium text-sm transition-colors"
+            >
+                Dashboard
+            </button>
+        )}
         <button
             onClick={() => onManage(user)}
             className="text-indigo-600 hover:text-indigo-900 font-medium text-sm transition-colors"
@@ -49,6 +64,7 @@ const StatusBadge = ({ status }) => (
 );
 
 const Users = () => {
+    const { admin } = useAuth();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -184,6 +200,29 @@ const Users = () => {
         setUserDetails(null);
         setSelectedAssignId('');
     };
+
+    /**
+     * A student's own dashboard, in a new tab, signed in as them. The tab is
+     * opened before the request so a popup blocker sees it come from the
+     * click; the sign-in travels in the URL fragment, which the browser never
+     * sends to any server, and the student app takes it out of the address bar
+     * at once.
+     */
+    const openStudentDashboard = async (user) => {
+        const tab = window.open('', '_blank');
+        try {
+            const { data } = await api.post(`/admin/users/${user._id}/dashboard-access`);
+            const target = `${STUDENT_APP.replace(/\/$/, '')}/admin-access#access=${encodeURIComponent(JSON.stringify(data))}`;
+            if (tab) tab.location.href = target;
+            else window.location.assign(target);
+        } catch (err) {
+            if (tab) tab.close();
+            setAlertType('error');
+            setAlertMessage(err.response?.data?.message || 'Could not open this student\'s dashboard.');
+            setShowAlert(true);
+        }
+    };
+    const dashboardAction = admin?.role === 'superadmin' ? openStudentDashboard : undefined;
 
     const toggleStatus = async (user) => {
         const newStatus = user.status === 'active' ? 'blocked' : 'active';
@@ -646,7 +685,7 @@ const Users = () => {
                                         <StatusBadge status={user.status} />
                                     </td>
                                     <td className="sticky right-0 bg-white group-hover:bg-slate-50 transition-colors px-4 2xl:px-6 py-4 text-right whitespace-nowrap space-x-3" onClick={(e) => e.stopPropagation()}>
-                                        <UserActions user={user} onManage={openUserModal} onEdit={openEditModal} onToggle={toggleStatus} onDelete={confirmDeleteUser} />
+                                        <UserActions user={user} onManage={openUserModal} onEdit={openEditModal} onToggle={toggleStatus} onDelete={confirmDeleteUser} onOpenDashboard={dashboardAction} />
                                     </td>
                                 </tr>
                             ))}
@@ -683,7 +722,7 @@ const Users = () => {
                                     </div>
                                 </dl>
                                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2" onClick={(e) => e.stopPropagation()}>
-                                    <UserActions user={user} onManage={openUserModal} onEdit={openEditModal} onToggle={toggleStatus} onDelete={confirmDeleteUser} />
+                                    <UserActions user={user} onManage={openUserModal} onEdit={openEditModal} onToggle={toggleStatus} onDelete={confirmDeleteUser} onOpenDashboard={dashboardAction} />
                                 </div>
                             </li>
                         ))}

@@ -53,7 +53,12 @@ const lms = apiModule({
     '/user/announcements': [], '/career/notifications': [], '/jobs/notifications': [], '/career/profile/summary': {},
     '/user/courses/c1': COURSE
 });
-const modules = { 'career/services/api': career };
+// The stub replaces the whole module, so the named helpers the pages import
+// from it are given here too: the 404-means-none rule and today's plan read.
+const careerModule = `${career}
+export const noneIfMissing = (promise) => promise.catch(() => null);
+export const getTodaysPlan = () => Promise.resolve({ data: routes['/tasks'] });`;
+const modules = { 'career/services/api': careerModule };
 
 /** The whole app, as main.jsx mounts it, signed in, at `route`. */
 const app = (route, { entered = true } = {}) => `
@@ -133,22 +138,27 @@ const apart = (a, b) => a.right <= b.left || b.right <= a.left || a.bottom <= b.
 const FIXED = (left, top, w = 140, h = 44) => `style={{ position: 'fixed', left: ${left}, top: ${top}, width: ${w}, height: ${h} }}`;
 
 describe('the Career Path mascot', { skip: skipWithoutChrome }, () => {
-    test('lives in the Career Path and nowhere else, and is driven by hand, not by the kit\'s keyframes', async () => {
-        const outside = await screen({ entry: app('/learn/c1'), api: lms, modules, files: ASSETS, budget: 8000, script: `
-for (let i = 0; i < 60 && !$('.mascot-dock'); i++) await sleep(50);
-await sleep(1500);
+    // The mascot was taken off the website's pages: it stays on the sign-in
+    // pages and the loading screen only. The component itself still works —
+    // every test below mounts it directly — so it can be put back.
+    test('is not on the Career Path pages or the lesson page any more', async () => {
+        for (const route of ['/career/planner', '/learn/c1']) {
+            const { result, errors } = await screen({ entry: app(route), api: lms, modules, files: ASSETS, budget: 8000, script: `
+await sleep(2500);
 return { mascot: !!$('.career-mascot'), lessonMascot: !!$('.mascot-dock') };` });
-        assert.deepEqual(outside.errors, []);
-        assert.deepEqual(outside.result, { mascot: false, lessonMascot: true }, 'the lesson page keeps its corner mascot and gets no Career Path mascot');
+            assert.deepEqual(errors, [], route);
+            assert.deepEqual(result, { mascot: false, lessonMascot: false }, `no mascot on ${route}`);
+        }
+    });
 
-        const inside = await screen({ entry: app('/career/planner'), api: lms, modules, files: ASSETS, budget: 10000, script: `${WATCH}
+    test('mounted, it is driven by hand, not by the kit\'s keyframes, and clicks pass through it', async () => {
+        const inside = await screen({ entry: alone(''), api: apiModule({}), modules, files: ASSETS, budget: 10000, script: `${WATCH}
 await sleep(1200);
 const rig = $('.career-mascot-rig svg');
-return { mascot: true, lessonMascot: !!$('.mascot-dock'), hidden: $('.career-mascot').getAttribute('aria-hidden'),
+return { hidden: $('.career-mascot').getAttribute('aria-hidden'),
   pointer: getComputedStyle($('.career-mascot')).pointerEvents, keyframes: rig.innerHTML.includes('@keyframes'),
   pivots: rig.querySelectorAll('[data-pivot]').length };` });
         assert.deepEqual(inside.errors, []);
-        assert.equal(inside.result.lessonMascot, false);
         assert.equal(inside.result.hidden, 'true');
         assert.equal(inside.result.pointer, 'none', 'clicks pass through it');
         assert.equal(inside.result.keyframes, false, 'no baked CSS loops');
@@ -195,38 +205,6 @@ return { log, target: boxOf($('[data-mascot-target="start-quest"]')), entered: s
         assert.ok(log.states.includes('pointing'));
         assert.equal(result.entered, '1');
         assert.equal(result.state, 'idle', 'back to idle once the pointing is done');
-    });
-
-    test('a returning student gets no entrance: it fades in at its corner and goes to the page\'s target', async () => {
-        const { result, errors } = await screen({ height: 4200, entry: app('/career/planner'), api: lms, modules, files: ASSETS, budget: 12000, script: `${WATCH}
-await sleep(6000);
-return { log, target: boxOf(tick('Write a README')), vw: innerWidth, vh: innerHeight };` });
-        assert.deepEqual(errors, []);
-        assert.ok(!result.log.gestures.includes('wave'), 'no wave for a returning student');
-        assert.deepEqual(result.log.gestures, ['point']);
-        assert.deepEqual(result.log.lines, ["Here's your next step"]);
-        assert.ok(result.log.xs[0] > result.vw / 2, `it started in its corner (${result.log.xs[0]})`);
-        assert.ok(apart(result.log.atPoint.box, result.target));
-    });
-
-    test('a finished step: it waits out the celebration card, jumps, then points at the next task', async () => {
-        const { result, errors } = await screen({ height: 4200, entry: app('/career/planner'), api: lms, modules, files: ASSETS, budget: 30000, script: `${WATCH}
-await sleep(6500);
-const seen = [...log.stills];
-const seenGestures = log.gestures.length;
-tick('Write a README').click();
-await sleep(900);
-const card = !!$('[role="alertdialog"]');
-const beforeDismiss = log.gestures.slice(seenGestures);
-$('[role="alertdialog"] button[aria-label="Dismiss"]').click();
-await sleep(11000);
-return { card, beforeDismiss, gestures: log.gestures.slice(seenGestures), lines: log.lines, target: boxOf(tick('Sketch a landing page')), spot: spotBox() };` });
-        assert.deepEqual(errors, []);
-        assert.ok(result.card, 'the page\'s own celebration card came up');
-        assert.deepEqual(result.beforeDismiss, [], 'nothing plays over the card');
-        assert.deepEqual(result.gestures, ['clap', 'celebrate', 'point']);
-        assert.ok(result.lines.filter((l) => l === "Here's your next step").length >= 1);
-        assert.ok(apart(result.spot, result.target));
     });
 
     // Tall enough that Try again is on screen: the mascot points only at what the student can see.

@@ -10,11 +10,17 @@ import { Plus, Edit2, Trash2, LayoutList, FilePlus, ArrowUpDown, Filter, Calenda
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import { useCourseScope } from '../utils/courseScope';
 import OrgLogoStep from '../components/OrgLogoStep';
+import { Banner, LoadFailed, SearchInput } from '../components/orgUi';
 const Courses = () => {
     // Platform courses, or an organization's own — see utils/courseScope.js.
     const S = useCourseScope();
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(true);
+    // Whether the list has ever arrived. A failed first load must not read as
+    // "no courses", nor (for an organization) fall through to an unlimited page.
+    const [loaded, setLoaded] = useState(false);
+    // A publish or delete the server refused, said on the page.
+    const [actionError, setActionError] = useState('');
     // For an organization: whether courses are switched on, and its limit.
     const [access, setAccess] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -50,12 +56,17 @@ const Courses = () => {
     };
 
     const handleTogglePublish = async (course) => {
+        setActionError('');
         try {
             await api.put(`${S.api}/courses/${course._id}`, { ...course, isPublished: !course.isPublished });
             fetchCourses();
             setOpenDropdown(null);
         } catch (err) {
             console.error('Failed to toggle publish status:', err);
+            // Publishing is refused for reasons the admin can act on (no
+            // lessons yet, no logo), so the server's own words are shown.
+            setActionError(err.response?.data?.message || `Could not ${course.isPublished ? 'unpublish' : 'publish'} this course. Please try again.`);
+            setOpenDropdown(null);
         }
     };
 
@@ -65,10 +76,11 @@ const Courses = () => {
                 const a = await api.get(`${S.api}/course-access`);
                 setAccess(a.data);
                 // Switched off by the platform, or no logo yet: nothing to list or build.
-                if (!a.data.enabled || !a.data.hasLogo) return;
+                if (!a.data.enabled || !a.data.hasLogo) { setLoaded(true); return; }
             }
             const res = await api.get(`${S.api}/courses`);
             setCourses(res.data);
+            setLoaded(true);
         } catch (err) {
             console.error(err);
         } finally {
@@ -122,6 +134,7 @@ const Courses = () => {
 
     const executeDelete = async () => {
         if (!courseToDelete) return;
+        setActionError('');
         try {
             await api.delete(`${S.api}/courses/${courseToDelete._id}`);
             fetchCourses();
@@ -129,6 +142,8 @@ const Courses = () => {
             setShowDeleteModal(false); // Close modal after successful delete
         } catch (err) {
             console.error(err);
+            // The confirmation has already closed itself, so the page says it.
+            setActionError(err.response?.data?.message || 'Could not delete this course. Please try again.');
         }
     };
 
@@ -155,7 +170,7 @@ const Courses = () => {
     const [sortOrder, setSortOrder] = useState('newest');
 
     const filteredCourses = courses
-        .filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()))
+        .filter(c => (c.title || '').toLowerCase().includes(searchTerm.toLowerCase()))
         .filter(c => statusFilter === 'published' ? c.isPublished : statusFilter === 'draft' ? !c.isPublished : true)
         .sort((a, b) => sortOrder === 'newest' ? new Date(b.createdAt) - new Date(a.createdAt) : new Date(a.createdAt) - new Date(b.createdAt));
 
@@ -193,13 +208,16 @@ const Courses = () => {
                 <button
                     onClick={() => { setEditId(null); setFormData({ title: '', description: '', thumbnail: '', isPublished: false, price: 0, pricePoints: 0, duration: 31 }); setShowModal(true); }}
                     aria-label="Create Course"
-                    disabled={atLimit}
+                    // An organization's limit is not known until course access loads.
+                    disabled={atLimit || Boolean(S.organization && !access)}
                     title={atLimit ? `Your organization can have ${access.limit} course${access.limit === 1 ? '' : 's'}. Delete one, or ask the platform administrator for more.` : undefined}
                     className="flex shrink-0 items-center justify-center gap-2 px-4 sm:px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                 >
                     <Plus size={18} /> <span className="hidden sm:inline">Create Course</span><span className="sm:hidden">New</span>
                 </button>
             </div>
+
+            {actionError && <Banner onClose={() => setActionError('')}>{actionError}</Banner>}
 
             {/* How many of its allowed courses the organization has used. */}
             {S.organization && access && (
@@ -218,6 +236,10 @@ const Courses = () => {
 
             {/* Search and Filter */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                {/* An organization's panel uses its one shared search box. */}
+                {S.organization ? (
+                    <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search by title..." label="Search courses" className="lg:w-96" />
+                ) : (
                 <div className="relative w-full lg:w-96">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                         <Filter size={18} className="text-slate-400" />
@@ -235,6 +257,7 @@ const Courses = () => {
                         </button>
                     )}
                 </div>
+                )}
                 <div className="flex items-stretch gap-2 sm:gap-3">
                     <div className="flex flex-1 gap-1 bg-slate-100 p-1 rounded-xl lg:flex-none">
                         {['all', 'published', 'draft'].map(f => (
@@ -287,6 +310,10 @@ const Courses = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6 pb-20">
                 {loading ? (
                     <div className="col-span-full py-12 text-center text-slate-500">Loading your courses...</div>
+                ) : !loaded ? (
+                    <div className="col-span-full rounded-2xl border border-slate-200 bg-white">
+                        <LoadFailed what="your courses" onRetry={() => { setLoading(true); fetchCourses(); }} />
+                    </div>
                 ) : filteredCourses.map(course => (
                     <div key={course._id} className="bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100 overflow-visible hover:shadow-[0_12px_36px_-4px_rgba(0,0,0,0.1)] lg:hover:-translate-y-1 transition-all duration-300 flex flex-col group relative">
                         <Link to={`${S.base}/courses/${course._id}`} aria-label={`Open ${course.title} in the builder`}
@@ -356,21 +383,27 @@ const Courses = () => {
                                     </span>
                                 )}
                                 <Link to={`${S.base}/courses/${course._id}`} title="Course Builder"
-                                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
+                                    className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
                                     <LayoutList size={16} /> Builder
                                 </Link>
                                 <div className="relative" data-course-menu>
                                     <button
                                         onClick={() => setOpenDropdown(openDropdown === course._id ? null : course._id)}
                                         aria-label={`More actions for ${course.title}`} aria-haspopup="menu" aria-expanded={openDropdown === course._id}
-                                        className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 hover:text-indigo-600"
+                                        className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-indigo-600"
                                     >
                                         <MoreVertical size={18} />
                                     </button>
                                     {openDropdown === course._id && (
                                         <div role="menu" className="absolute bottom-full right-0 z-40 mb-2 w-48 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl animate-fade-in">
                                             <button role="menuitem"
-                                                onClick={() => { setEditId(course._id); setFormData(course); setShowModal(true); setOpenDropdown(null); }}
+                                                onClick={() => {
+                                                    // Every field the form reads, filled: a course saved without a
+                                                    // description (or thumbnail) used to crash the page on .length.
+                                                    setEditId(course._id);
+                                                    setFormData({ ...course, title: course.title || '', description: course.description || '', thumbnail: course.thumbnail || '', isPublished: !!course.isPublished, price: course.price ?? 0, pricePoints: course.pricePoints ?? 0 });
+                                                    setShowModal(true); setOpenDropdown(null);
+                                                }}
                                                 className="flex w-full items-center px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-indigo-600"
                                             >
                                                 <Settings size={16} className="mr-3 text-slate-400" /> Edit Details
@@ -431,8 +464,8 @@ const Courses = () => {
                                     <p className="text-red-500 text-xs mt-1 font-medium">
                                         {titleError}
                                     </p>
-                                )}                                <p className={`text-xs mt-1 text-right ${formData.title.length >= 90 ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>
-                                    {formData.title.length}/100 characters
+                                )}                                <p className={`text-xs mt-1 text-right ${(formData.title || '').length >= 90 ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>
+                                    {(formData.title || '').length}/100 characters
                                 </p>
                             </div>
                             <div>
@@ -445,8 +478,8 @@ const Courses = () => {
                                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                     placeholder="Brief description of what students will learn"
                                 ></textarea>
-                                <p className={`text-xs mt-1 text-right ${formData.description.length >= 450 ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>
-                                    {formData.description.length}/500 characters
+                                <p className={`text-xs mt-1 text-right ${(formData.description || '').length >= 450 ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>
+                                    {(formData.description || '').length}/500 characters
                                 </p>
                             </div>
                             <div>
@@ -476,26 +509,18 @@ const Courses = () => {
                                 <label htmlFor="isPublished" className="text-sm font-semibold text-slate-700 cursor-pointer">Published to Students</label>
                             </div>
                             {!S.organization && (
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Price (₹)</label>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">Price — from wallet balance (₹)</label>
+                                <div className="relative">
+                                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">₹</span>
                                     <input
                                         type="number" min="0" value={formData.price ?? ''}
                                         onChange={e => setFormData({ ...formData, price: e.target.value === '' ? '' : Number(e.target.value) })}
-                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                        className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                         placeholder="0"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-1">Wallet points</label>
-                                    <input
-                                        type="number" min="0" step="1"
-                                        value={formData.pricePoints ?? ''}
-                                        onChange={e => setFormData({ ...formData, pricePoints: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })}
-                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="0"
-                                    />
-                                </div>
+                                <p className="mt-1 text-xs text-slate-500">Deducted from the student&apos;s wallet balance when they enroll. 0 = free.</p>
                             </div>
                             )}
 

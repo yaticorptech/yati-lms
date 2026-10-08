@@ -117,9 +117,68 @@ const OTHER_LANGUAGE = new RegExp(
 const NON_LATIN_RUN =
   /[\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0600-\u06FF\u0400-\u04FF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]{3,}/;
 
-const isAnotherLanguage = (video) => {
+/**
+ * Channels that teach in Hindi under English titles. The title checks above
+ * cannot see these — "Verify JWT Token in Node.js" from Thapa Technical is
+ * spoken in Hindi — and the keyless search path has no audio-language field to
+ * fall back on. Lower-case, compared against the whole channel name.
+ */
+const HINDI_CHANNELS = new Set([
+  'thapa technical', 'codewithharry', 'code with harry', 'apna college', 'chai aur code',
+  'hitesh choudhary', 'geeky shows', 'technical suneja', 'wscube tech', 'love babbar',
+  'coder army', 'anuj bhaiya', 'sheryians coding school', 'yahoo baba', 'learn code with durgesh',
+  'easy engineering classes', 'gate smashers', 'knowledge gate', 'knowledgegate', 'codehelp - by babbar',
+  'technical guftgu', 'satish dhawale', 'piyush garg', 'rohit negi', 'ritik saxena', 'bhanu priya',
+  'code step by step', 'study glance', 'great learning hindi', 'edureka hindi', 'simplilearn hindi',
+  'intellipaat hindi', 'ultimate code', 'pw skills', 'physics wallah', 'skillvertex hindi',
+  'college wallah', 'code with sk', 'tech gun', 'coding wallah', 'lecture by sumit'
+]);
+
+const DEVANAGARI = /[\u0900-\u097F]/g;
+
+/** The audio language YouTube reports, e.g. 'en', 'en-IN', 'hi'. Empty when unknown. */
+const audioOf = (video) => String(video?.audioLanguage || '').toLowerCase();
+
+const isHindiChannel = (video) => HINDI_CHANNELS.has(String(video?.channel || '').trim().toLowerCase());
+
+/**
+ * Spoken in Hindi, as far as we can tell. A known Hindi-teaching channel wins
+ * outright: several of them (Thapa Technical, Piyush Garg) label their Hindi
+ * videos as English audio, so YouTube's own field cannot be trusted over it.
+ * Otherwise the audio language when the API gives one, else a title that says
+ * so, or a description with real Devanagari text in it (a few glyphs are
+ * boilerplate; a sentence's worth is the creator writing in Hindi).
+ */
+const isHindi = (video) => {
+  if (isHindiChannel(video)) return true;
+  const audio = audioOf(video);
+  if (audio) return audio.startsWith('hi');
   const title = String(video?.title || '');
-  return OTHER_LANGUAGE.test(title) || NON_LATIN_RUN.test(title);
+  const description = String(video?.description || '');
+  return (
+    /\bhindi\b/i.test(title) ||
+    /[\u0900-\u097F]{3,}/.test(title) ||
+    (description.match(DEVANAGARI) || []).length >= 15
+  );
+};
+
+/** The languages a student can ask for, with the name used in the search. */
+const LANGUAGES = { en: 'English', hi: 'Hindi' };
+
+/** 'en' or 'hi' for a video we can place; 'other' for anything else. */
+const languageOf = (video) => {
+  if (isHindi(video)) return 'hi';
+  return isAnotherLanguage(video) ? 'other' : 'en';
+};
+
+const isAnotherLanguage = (video) => {
+  if (isHindiChannel(video)) return true;
+  const title = String(video?.title || '');
+  if (OTHER_LANGUAGE.test(title) || NON_LATIN_RUN.test(title)) return true;
+  // The audio language decides the rest when YouTube reports one.
+  const audio = audioOf(video);
+  if (audio) return !audio.startsWith('en');
+  return isHindi(video);
 };
 
 const keywords = (text) =>
@@ -139,15 +198,32 @@ const keywords = (text) =>
  * how much of the search topic appears in the title, and where YouTube itself
  * ranked it — with views only breaking ties between equally relevant videos.
  */
-const rankCandidates = (candidates, query = '', topic = '') => {
+// Titles of things that are not a lesson on one topic: long compilations,
+// whole courses, streams and shorts. Penalised, not banned — sometimes they
+// are all a niche topic has.
+const NOT_A_LESSON = /\b(compilation|full course|complete course|one shot|marathon|live stream|livestream|#shorts?|podcast)\b/i;
+
+/** '45 mins' / '2 hours' / '1.5 hrs' -> minutes, or 0 when it cannot be read. */
+const parseBudgetMinutes = (text) => {
+  const match = /(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)\b/i.exec(String(text || ''));
+  if (!match) return 0;
+  const n = Number(match[1]);
+  return /^h/i.test(match[2]) ? n * 60 : n;
+};
+
+const rankCandidates = (candidates, query = '', topic = '', lang = 'en', { budgetMinutes = 0 } = {}) => {
   const usable = candidates.filter((v) => v.videoId && v.durationSeconds >= MIN_USEFUL_SECONDS);
   if (!usable.length) return [];
 
-  // English first. Kept as a preference rather than a hard filter: if every
-  // candidate is in another language, a video the student can follow along
-  // with visually still beats no video at all.
+  // The student's language first — English unless they asked for Hindi. Kept
+  // as a preference rather than a hard filter: if every candidate is in
+  // another language, a video they can follow along with visually still beats
+  // no video at all.
+  const preferred = usable.filter((v) => (lang === 'hi' ? isHindi(v) : !isAnotherLanguage(v)));
+  // No video in the asked-for language falls back to English before anything
+  // else.
   const english = usable.filter((v) => !isAnotherLanguage(v));
-  const pool = english.length ? english : usable;
+  const pool = preferred.length ? preferred : english.length ? english : usable;
 
   // The search phrase is written by a model and can drift from the task it came
   // from ("practise CSS flexbox alignment" -> "css tutorial"). Scoring against
@@ -182,10 +258,17 @@ const rankCandidates = (candidates, query = '', topic = '') => {
     // A task is half an hour; a three-hour conference talk is not a lesson for
     // it however popular. The penalty grows with the overrun instead of being a
     // flat nudge that popularity simply absorbed.
-    const overrun = video.durationSeconds / MAX_USEFUL_SECONDS;
+    // The ceiling follows the task's own time budget when it has one — a video
+    // should leave time to read the notes and take the quiz — within 10 to 45
+    // minutes.
+    const maxSeconds = budgetMinutes
+      ? Math.min(MAX_USEFUL_SECONDS, Math.max(10 * 60, budgetMinutes * 60 * 0.75))
+      : MAX_USEFUL_SECONDS;
+    const overrun = video.durationSeconds / maxSeconds;
     const tooLong = overrun > 1 ? Math.min(1 + (overrun - 1), 3) : 0;
+    const notALesson = NOT_A_LESSON.test(video.title) ? 1 : 0;
 
-    return relevance * 3 + searchRank * 1 + popularity * 0.5 - tooLong;
+    return relevance * 3 + searchRank * 1 + popularity * 0.5 - tooLong - notALesson;
   };
 
   return pool
@@ -194,7 +277,36 @@ const rankCandidates = (candidates, query = '', topic = '') => {
     .map((entry) => entry.video);
 };
 
-const pickBest = (candidates, query, topic) => rankCandidates(candidates, query, topic)[0] || null;
+/**
+ * The candidates in the order to try them: ranked, minus any to skip (the
+ * video the student just asked to replace), with the chooser's pick moved to
+ * the front. The chooser reads only the top of the ranking — that is where
+ * the on-topic videos are, and a short list keeps its call cheap.
+ *
+ * `rejected` is true when the chooser read the shortlist and said none of it
+ * teaches the task; `retry` is the search it suggested instead. A chooser that
+ * fails leaves the ranking as it is — picking the video is never worth
+ * failing the lesson over.
+ */
+const SHORTLIST = 8;
+const orderCandidates = async (candidates, query, topic, { lang = 'en', exclude = [], choose, budgetMinutes } = {}) => {
+  const skip = new Set(exclude.filter(Boolean));
+  const ranked = rankCandidates(candidates, query, topic, lang, { budgetMinutes }).filter((v) => !skip.has(v.videoId));
+  if (!choose || !ranked.length) return { ordered: ranked, rejected: false, retry: null };
+
+  try {
+    const shortlist = ranked.slice(0, SHORTLIST);
+    const answer = await choose(shortlist);
+    const index = typeof answer === 'number' ? answer : Number(answer?.index ?? -1);
+    if (index >= 0 && index < shortlist.length) {
+      return { ordered: [shortlist[index], ...ranked.filter((_, i) => i !== index)], rejected: false, retry: null };
+    }
+    return { ordered: ranked, rejected: true, retry: typeof answer === 'object' ? answer?.search || null : null };
+  } catch (error) {
+    console.warn('Video choice failed, using the ranking:', error.message);
+    return { ordered: ranked, rejected: false, retry: null };
+  }
+};
 
 const BROWSER_HEADERS = {
   'User-Agent':
@@ -275,10 +387,8 @@ const isEmbeddable = async (videoId) => {
 };
 
 /** The best-ranked candidate that will actually play inline. */
-const firstEmbeddable = async (candidates, query, topic, limit = 6) => {
-  const ranked = rankCandidates(candidates, query, topic).slice(0, limit);
-
-  for (const video of ranked) {
+const firstEmbeddable = async (ordered, limit = 6) => {
+  for (const video of ordered.slice(0, limit)) {
     if (await isEmbeddable(video.videoId)) return video;
     console.warn(`Skipping "${video.title}" — owner disabled embedding.`);
   }
@@ -289,10 +399,11 @@ const firstEmbeddable = async (candidates, query, topic, limit = 6) => {
 const enrich = async (video) => {
   if (!video) return null;
   const details = await fetchVideoDetails(video.videoId);
-  if (!details) return video;
+  if (!details) return { ...video, language: languageOf(video) };
 
   return {
     ...video,
+    language: languageOf(video),
     // The watch-page description is the full text; keep the snippet only if the
     // fetch came back empty.
     description: details.description || video.description,
@@ -321,21 +432,22 @@ const parseViews = (text) => Number(String(text || '').replace(/[^\d]/g, '')) ||
  * inline), and it is slower than the API. Setting YOUTUBE_API_KEY switches back
  * to the supported path automatically.
  *
- * Any failure returns null, which degrades to the plain search link.
+ * Returns the candidates found; any failure returns none, which degrades to
+ * the plain search link.
  */
-const searchWithoutKey = async (query, topic) => {
+const candidatesWithoutKey = async (query) => {
   try {
     const response = await fetch(searchUrlFor(query), {
       // Without a browser-ish UA YouTube serves a stripped page with no results.
       headers: BROWSER_HEADERS
     });
-    if (!response.ok) return null;
+    if (!response.ok) return [];
 
     const html = await response.text();
     const match =
       /var ytInitialData\s*=\s*(\{.*?\});\s*<\/script>/s.exec(html) ||
       /ytInitialData"\]\s*=\s*(\{.*?\});/s.exec(html);
-    if (!match) return null;
+    if (!match) return [];
 
     const data = JSON.parse(match[1]);
 
@@ -366,10 +478,10 @@ const searchWithoutKey = async (query, topic) => {
     };
     walk(data);
 
-    return await enrich(await firstEmbeddable(found, query, topic));
+    return found;
   } catch (error) {
     console.warn('Keyless YouTube search failed:', error.message);
-    return null;
+    return [];
   }
 };
 
@@ -383,54 +495,93 @@ const searchWithoutKey = async (query, topic) => {
  * @param {string} query  the search phrase written for this task
  * @param {string} [topic] the task's own title, used to keep ranking anchored
  *                         to what was actually asked when the phrase drifts
+ * @param {object} [options]
+ * @param {'en'|'hi'} [options.lang] the language the student wants the video in
+ * @param {string[]} [options.exclude] video ids not to return (the one being replaced)
+ * @param {string} [options.budget] the task's time budget, e.g. '45 mins'
+ * @param {(shortlist: object[]) => Promise<number>} [options.choose] picks the
+ *        best of the top candidates for the task; -1 for none
  * @returns {Promise<object|null>} video metadata, or null when nothing suitable
  */
-const findVideoForTopic = async (query, topic = '') => {
-  // No key: fall back to resolving an ID from YouTube's public search page so
-  // the lesson can still embed a real player rather than sending the student
-  // off-site. See searchWithoutKey for the caveats.
-  if (!hasApiKey()) return searchWithoutKey(query, topic);
+const findVideoForTopic = async (query, topic = '', { lang = 'en', exclude = [], budget, choose } = {}) => {
+  if (!LANGUAGES[lang]) lang = 'en';
+  const options = { lang, exclude, choose, budgetMinutes: parseBudgetMinutes(budget) };
+  // Asking for Hindi says so in the search itself; YouTube's
+  // relevanceLanguage alone barely moves the results for Indian tech topics.
+  const inLanguage = (q) => (lang !== 'en' && !new RegExp(LANGUAGES[lang], 'i').test(q) ? `${q} in ${LANGUAGES[lang]}` : q);
 
+  // No key: fall back to resolving IDs from YouTube's public search page so
+  // the lesson can still embed a real player rather than sending the student
+  // off-site. See candidatesWithoutKey for the caveats.
+  const fetchCandidates = (q) => (hasApiKey() ? candidatesFromApi(q, lang) : candidatesWithoutKey(q));
+  const pass = async (q) => orderCandidates(await fetchCandidates(q), q, topic, options);
+
+  let result = await pass(inLanguage(query));
+
+  // The chooser read the whole shortlist and none of it teaches the task —
+  // a vague search ("solve 2 LeetCode problems") or an unusual topic. One more
+  // search with the phrase it suggested, and keep it only if that one finds a
+  // fit; a second search is 100 quota units, so it is spent only here.
+  if (result.rejected && result.retry) {
+    try {
+      const second = await pass(inLanguage(result.retry));
+      if (!second.rejected && second.ordered.length) result = second;
+    } catch (error) {
+      console.warn('Second video search failed:', error.message);
+    }
+  }
+
+  const pick = hasApiKey() ? result.ordered[0] : await firstEmbeddable(result.ordered);
+  return await enrich(pick || null);
+};
+
+/**
+ * One search through the official API.
+ *
+ * Two calls: search returns matches but no duration, so a second videos.list
+ * call fetches contentDetails/statistics for ranking.
+ */
+const candidatesFromApi = async (query, lang) => {
   const search = await callApi(SEARCH_URL, {
     part: 'snippet',
     q: query,
     type: 'video',
-    maxResults: '10',
+    // Wide enough that the English pick survives a first page dominated by
+    // Hindi-language tutorials; a search costs the same 100 units either way.
+    maxResults: '25',
     // Embeddable-only: a video the owner has blocked from embedding would render
     // as a blank player inside the planner.
     videoEmbeddable: 'true',
     videoSyndicated: 'true',
     safeSearch: 'strict',
-    relevanceLanguage: 'en'
+    relevanceLanguage: lang
   });
 
   const ids = (search.items || []).map((item) => item.id?.videoId).filter(Boolean);
-  if (!ids.length) return null;
+  if (!ids.length) return [];
 
   const details = await callApi(VIDEOS_URL, {
     part: 'snippet,contentDetails,statistics',
     id: ids.join(',')
   });
 
-  const candidates = (details.items || [])
-    .map((item) => {
-      const seconds = parseDuration(item.contentDetails?.duration);
-      const views = Number(item.statistics?.viewCount || 0);
-      return {
-        videoId: item.id,
-        title: item.snippet?.title || '',
-        channel: item.snippet?.channelTitle || '',
-        description: item.snippet?.description || '',
-        thumbnail:
-          item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '',
-        publishedAt: item.snippet?.publishedAt,
-        durationSeconds: seconds,
-        duration: formatDuration(seconds),
-        views
-      };
-    });
-
-  return await enrich(pickBest(candidates, query, topic));
+  return (details.items || []).map((item) => {
+    const seconds = parseDuration(item.contentDetails?.duration);
+    return {
+      videoId: item.id,
+      title: item.snippet?.title || '',
+      channel: item.snippet?.channelTitle || '',
+      description: item.snippet?.description || '',
+      thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '',
+      publishedAt: item.snippet?.publishedAt,
+      // What YouTube says is spoken. The reliable signal when it is set —
+      // titles are English on plenty of Hindi tutorials.
+      audioLanguage: item.snippet?.defaultAudioLanguage || '',
+      durationSeconds: seconds,
+      duration: formatDuration(seconds),
+      views: Number(item.statistics?.viewCount || 0)
+    };
+  });
 };
 
 module.exports = {
@@ -440,5 +591,8 @@ module.exports = {
   searchUrlFor,
   // Exported for tests: both are pure and decide which video a student gets.
   rankCandidates,
-  isAnotherLanguage
+  isAnotherLanguage,
+  isHindi,
+  languageOf,
+  LANGUAGES
 };

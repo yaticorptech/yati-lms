@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useCallback } from 'react';
 import api from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import ShareBadgeDialog from '../../components/roadmap/ShareBadgeDialog';
@@ -7,12 +7,15 @@ import {
   ArrowRight, Award, Trophy, Zap, Share2, Medal, Sparkles, Flag, Lock, Gift
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
+import LoadError from '../../components/ui/LoadError';
+import useLevelProgress from '../../context/useLevelProgress';
 import BadgeMedallion from '../../components/rewards/BadgeMedallion';
 import RewardsHeroArt from '../../components/rewards/RewardsHeroArt';
 import useCountUp from '../../../hooks/useCountUp';
 import { BADGE_ICONS, tierFor } from '../../components/rewards/badgeTiers';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
+import { useXpRule } from '../../../context/useRewards';
 
 const iconMap = BADGE_ICONS;
 
@@ -24,41 +27,12 @@ const earnedOn = (value) => {
     : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 };
 
-/**
- * Where this level starts and ends, mirroring calculateLevel() in
- * backend/services/gamificationService.js.
- *
- * Levels 1–5 use a fixed table. Above that the backend switches to
- * `floor(sqrt(xp / 100)) + 2`, so level n begins at 100 × (n − 2)².
- *
- * The old version assumed a flat 500 XP step forever after 1500, which is not
- * what the backend does. It printed impossible readings for anyone past that
- * point — "2100 / 500 XP" at level 8, "8500 / 500" at 10,000 XP — and named the
- * wrong next level on the way. The bar itself looked fine only because the
- * overflow was clipped.
- */
-const FIXED_FLOORS = [0, 100, 300, 600, 1000]; // levels 1 to 5
+// Level, XP-to-next and the bar all come from useLevelProgress: the admin's
+// ladder, the one the server levels students with. This page used to carry
+// its own copy of an older ladder and named the wrong next level the moment
+// the two differed.
 
-const calculateLevel = (xp) => {
-  if (xp < 100) return 1;
-  if (xp < 300) return 2;
-  if (xp < 600) return 3;
-  if (xp < 1000) return 4;
-  if (xp < 1500) return 5;
-  return Math.floor(Math.sqrt(xp / 100)) + 2;
-};
-
-/** Where level n begins. */
-const floorOf = (level) => (level <= 5 ? FIXED_FLOORS[level - 1] : 100 * (level - 2) ** 2);
-
-const levelBounds = (xp) => {
-  const level = calculateLevel(xp);
-  return { floor: floorOf(level), ceiling: floorOf(level + 1) };
-};
-
-// XP one finished task pays, mirroring TASK_XP in
-// backend/services/taskCompletionService.js.
-const TASK_XP = 10;
+// XP one finished task pays: the admin's 'career_task' rule (useXpRule below).
 
 /**
  * The four figures in the rail, and the colour each one owns.
@@ -120,7 +94,7 @@ const RewardStat = ({ icon: Icon, label, value, detail, tone = 'xp' }) => {
          white where it reads hardest. An earlier pass ran the tint up from
          the bottom-left while the glow sat top-right, which gave one small
          card two light sources pointing at each other. */
-      className={`group relative overflow-hidden rounded-2xl bg-gradient-to-bl via-surface to-surface p-4 shadow-card ring-1 ring-inset transition-transform duration-300 hover:-translate-y-0.5 ${t.card}`}
+      className={`group relative min-w-0 overflow-hidden rounded-2xl bg-gradient-to-bl via-surface to-surface p-3.5 lg:p-4 shadow-card ring-1 ring-inset transition-transform duration-300 hover:-translate-y-0.5 ${t.card}`}
     >
       {/* The card's own light, off in the corner and well behind the words. */}
       <span
@@ -128,9 +102,9 @@ const RewardStat = ({ icon: Icon, label, value, detail, tone = 'xp' }) => {
         className={`pointer-events-none absolute -top-12 -right-12 h-28 w-28 rounded-full blur-2xl ${t.glow}`}
       />
 
-      <div className="relative flex items-start justify-between gap-3">
-        <p className="pt-1 text-sm font-bold text-ink-900">{label}</p>
-
+      {/* Phones and tablets: compact, the icon beside the words rather than
+          above a tall, mostly empty card — two sit side by side. */}
+      <div className="relative flex items-start gap-3 lg:hidden">
         <span aria-hidden className="relative h-10 w-10 shrink-0">
           <span className={`absolute inset-x-0 top-1.5 bottom-0 rounded-2xl ${t.lip}`} />
           <span
@@ -140,14 +114,41 @@ const RewardStat = ({ icon: Icon, label, value, detail, tone = 'xp' }) => {
             <span className="absolute inset-x-1.5 top-1 h-1.5 rounded-full bg-white/45" />
           </span>
         </span>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold leading-snug text-ink-700">{label}</p>
+          <p
+            className={`mt-0.5 bg-gradient-to-br bg-clip-text text-2xl leading-tight font-black text-transparent tabular-nums ${t.figure}`}
+          >
+            {value}
+          </p>
+          {detail && <p className="mt-0.5 text-[11px] font-semibold leading-snug text-ink-500">{detail}</p>}
+        </div>
       </div>
 
-      <p
-        className={`relative mt-2.5 bg-gradient-to-br bg-clip-text text-[2.1rem] leading-none font-black text-transparent tabular-nums ${t.figure}`}
-      >
-        {value}
-      </p>
-      {detail && <p className="relative mt-1.5 text-xs font-semibold text-ink-500">{detail}</p>}
+      {/* Laptop and desktop: the card as it was designed. */}
+      <div className="relative hidden lg:block">
+        <div className="relative flex items-start justify-between gap-3">
+          <p className="pt-1 text-sm font-bold text-ink-900">{label}</p>
+
+          <span aria-hidden className="relative h-10 w-10 shrink-0">
+            <span className={`absolute inset-x-0 top-1.5 bottom-0 rounded-2xl ${t.lip}`} />
+            <span
+              className={`absolute inset-x-0 top-0 bottom-1.5 flex items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br text-white shadow-md ${t.chip}`}
+            >
+              <Icon className="h-4 w-4" strokeWidth={2.5} />
+              <span className="absolute inset-x-1.5 top-1 h-1.5 rounded-full bg-white/45" />
+            </span>
+          </span>
+        </div>
+
+        <p
+          className={`relative mt-2.5 bg-gradient-to-br bg-clip-text text-[2.1rem] leading-none font-black text-transparent tabular-nums ${t.figure}`}
+        >
+          {value}
+        </p>
+        {detail && <p className="relative mt-1.5 text-xs font-semibold text-ink-500">{detail}</p>}
+      </div>
     </section>
   );
 };
@@ -185,6 +186,8 @@ function LevelBadge({ level, percent }) {
 }
 
 export default function Badges() {
+  // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
+  const TASK_XP = useXpRule('career_task');
   const { user } = useContext(AuthContext);
   // Celebrating poses, changing every few seconds — this is the page for it.
 
@@ -193,38 +196,51 @@ export default function Badges() {
   const [milestones, setMilestones] = useState([]);
   const [sharingBadge, setSharingBadge] = useState(null);
   const [loading, setLoading] = useState(true);
+  // A failed load, kept apart from "no badges yet" so a dropped connection
+  // does not tell a student they have earned nothing.
+  const [failed, setFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const xp = user?.xp || 0;
-  const level = calculateLevel(xp);
+  const progress = useLevelProgress(xp, user?.level);
+  const level = progress.level;
   const animatedXp = useCountUp(xp);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [achRes, badgeRes, milestoneRes] = await Promise.all([
-          api.get('/achievements'),
-          api.get('/badges'),
-          // Best-effort: a student who has finished no phase simply has none.
-          api.get('/milestones').catch(() => ({ data: [] }))
-        ]);
-        setAchievements(achRes.data);
-        setBadges(badgeRes.data);
-        setMilestones(milestoneRes.data || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      const [achRes, badgeRes, milestoneRes] = await Promise.all([
+        api.get('/achievements'),
+        api.get('/badges'),
+        // Best-effort: a student who has finished no phase simply has none.
+        api.get('/milestones').catch(() => ({ data: [] }))
+      ]);
+      setAchievements(Array.isArray(achRes.data) ? achRes.data : []);
+      setBadges(Array.isArray(badgeRes.data) ? badgeRes.data : []);
+      setMilestones(milestoneRes.data || []);
+      setFailed(false);
+    } catch (err) {
+      console.error(err);
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const retry = async () => {
+    setRetrying(true);
+    await fetchData();
+    setRetrying(false);
+  };
 
   const showLoader = useMinimumLoading(loading);
   if (showLoader) return <YatiLoader label="Loading your rewards" />;
+  if (failed) return <LoadError title="We couldn't load your rewards" onRetry={retry} retrying={retrying} />;
 
-  const { floor, ceiling } = levelBounds(xp);
-  const percent = Math.round(((xp - floor) / Math.max(1, ceiling - floor)) * 100);
-  const xpToLevel = Math.max(0, ceiling - xp);
+  const { ceiling, percent, remaining: xpToLevel, known: ladderKnown } = progress;
   const tasksToLevel = Math.max(1, Math.ceil(xpToLevel / TASK_XP));
   const unlockedCount = badges.filter((b) => b.unlocked).length;
 
@@ -312,9 +328,11 @@ export default function Badges() {
             <div className="col-span-2 max-w-md sm:col-span-1 sm:col-start-2">
               <div className="mb-1.5 flex flex-wrap justify-between gap-x-3 text-xs font-bold text-ink-600">
                 <span className="whitespace-nowrap">Progress to Level {level + 1}</span>
-                <span className="whitespace-nowrap tabular-nums">
-                  {xp} / {ceiling} XP
-                </span>
+                {ladderKnown && (
+                  <span className="whitespace-nowrap tabular-nums">
+                    {xp} / {ceiling} XP
+                  </span>
+                )}
               </div>
               <div
                 role="progressbar"
@@ -342,7 +360,7 @@ export default function Badges() {
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
               <span className="text-xs font-bold text-ink-500">
-                {xpToLevel > 0 ? (
+                {!ladderKnown ? null : xpToLevel > 0 ? (
                   <>
                     <span className="text-ink-900 tabular-nums">
                       {tasksToLevel} {tasksToLevel === 1 ? 'task' : 'tasks'}
@@ -579,7 +597,8 @@ export default function Badges() {
       </div>
 
       {/* ---- The rail ---------------------------------------------------- */}
-      <aside className="grid gap-4 sm:grid-cols-2 xl:sticky xl:top-4 xl:grid-cols-1">
+      {/* Two across on a phone and tablet; from lg up, exactly as before. */}
+      <aside className="grid grid-cols-2 gap-3 lg:gap-4 xl:sticky xl:top-4 xl:grid-cols-1 [&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1">
         <RewardStat
           icon={Medal}
           label="Badges earned"
@@ -598,7 +617,7 @@ export default function Badges() {
           icon={Zap}
           label="Total XP"
           value={animatedXp}
-          detail={`${xpToLevel} XP to Level ${level + 1}`}
+          detail={ladderKnown ? `${xpToLevel} XP to Level ${level + 1}` : null}
           tone="xp"
         />
         {milestones.length > 0 && (

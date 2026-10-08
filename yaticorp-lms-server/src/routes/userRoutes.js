@@ -6,6 +6,9 @@ const express = require('express');
 const router = express.Router();
 const { getUserProfile, updateUserProfile, uploadProfilePicture } = require('../controllers/userAuthController');
 const { protectUser } = require('../middleware/authMiddleware');
+// Wallet rules: priced features charge the wallet first, refunded if they fail.
+const { chargeWallet } = require('../rewards/services/walletRuleService');
+const { xpOnSuccess, today } = require('../rewards/services/xpHooks');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { updatePassword } = require('../controllers/userPasswordController');
 const { upload } = require('../middleware/uploadMiddleware');
@@ -26,7 +29,7 @@ const pictureFile = (req, res, next) => upload.single('profilePicture')(req, res
     if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'That photo is too large. Choose one under 5 MB.' });
     return res.status(400).json({ message: err.message || 'That file could not be read as a photo.' });
 });
-router.post('/profile/picture', protectUser, pictureFile, uploadProfilePicture);
+router.post('/profile/picture', protectUser, xpOnSuccess('profile_picture', () => 'picture'), pictureFile, uploadProfilePicture);
 
 // Course and Progress Routes
 router.get('/courses', protectUser, getMyCourses);
@@ -63,7 +66,7 @@ router.post('/lessons/:lessonId/quiz/submit', protectUser, submitQuizAnswers);
 router.get('/quizzes/global', protectUser, getGlobalQuiz);
 router.post('/quizzes/global/start', protectUser, startGlobalQuiz);
 router.post('/quizzes/global/submit', protectUser, submitGlobalQuiz);
-router.post('/quizzes/global/finish', protectUser, finishGlobalQuiz);
+router.post('/quizzes/global/finish', protectUser, xpOnSuccess('global_quiz_complete', () => `global:${today()}`), finishGlobalQuiz);
 
 // Ticket Routes
 router.post('/tickets', protectUser, createTicket);
@@ -75,17 +78,18 @@ router.get('/certificates', protectUser, getMyCertificates);
 // Achievements — certificates the student uploads themselves (profile frame)
 const { listAchievements, createAchievement, updateAchievement, deleteAchievement } = require('../controllers/achievementController');
 router.get('/achievements', protectUser, listAchievements);
-router.post('/achievements', protectUser, createAchievement);
+router.post('/achievements', protectUser, xpOnSuccess('achievement_added', () => `achievement:${today()}`), createAchievement);
 router.put('/achievements/:id', protectUser, updateAchievement);
 router.delete('/achievements/:id', protectUser, deleteAchievement);
 
 // Resume — the student's own file, and the ATS resume built from their courses
 const { getResume, uploadResume, deleteResume, getAtsData, downloadAts } = require('../controllers/resumeController');
 router.get('/resume', protectUser, getResume);
-router.post('/resume', protectUser, uploadResume);
+// Priced under Wallet rules → Upload a resume; refunded if the upload fails.
+router.post('/resume', protectUser, chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () => 'resume'), uploadResume);
 router.delete('/resume', protectUser, deleteResume);
 router.get('/resume/ats/data', protectUser, getAtsData);
-router.get('/resume/ats', protectUser, downloadAts);
+router.get('/resume/ats', protectUser, chargeWallet('download_resume'), downloadAts);
 
 // Announcements Route (read-only for students)
 router.get('/announcements', protectUser, getAnnouncementsForUser);

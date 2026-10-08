@@ -24,7 +24,12 @@ const RETURNED = {
   failed: 'Something went wrong at Google. Please try again.'
 };
 
-export default function GoogleConnectionCard() {
+/**
+ * @param {boolean} [compact] My Profile's version: half the width beside the
+ *   AI key card, so the connected account, where things go and Disconnect are
+ *   packed into two lines instead of five. The Calendar keeps the full card.
+ */
+export default function GoogleConnectionCard({ compact = false }) {
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const [busy, setBusy] = useState('');
   // Read straight from the URL at first render rather than set in an effect:
@@ -89,22 +94,59 @@ export default function GoogleConnectionCard() {
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
           <ShieldCheck className="h-5 w-5" />
         </span>
+        {/* On a phone the badge sits under the title, inside the text column:
+            beside it, it squeezed the description into a narrow strip of
+            one or two words a line. From sm up it goes back to the corner. */}
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-black text-ink-900">Your Google account</h2>
+          {state.connected && (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[0.68rem] font-black text-emerald-700 sm:hidden">
+              <Check className="h-3 w-3" />
+              Connected
+            </span>
+          )}
           <p className="mt-0.5 text-xs text-ink-500">
             Keep your certificates, resume and learning bio in your own Google Drive, and your exam
             dates in your own Google Calendar.
           </p>
         </div>
         {state.connected && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-[0.68rem] font-black text-emerald-700">
+          <span className="hidden shrink-0 items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-[0.68rem] font-black text-emerald-700 sm:inline-flex">
             <Check className="h-3 w-3" />
             Connected
           </span>
         )}
       </div>
 
-      {state.connected ? (
+      {state.connected && compact && state.calendarConnected ? (
+        // On a phone the button drops under the account rather than squeezing
+        // it, and the address wraps instead of being cut off — the student
+        // should be able to read which account it is.
+        <div className="mt-3 flex flex-col gap-2.5 rounded-xl bg-surface-50 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-ink-600 sm:truncate" title={state.email || ''}>
+              Linked to <span className="break-all font-mono text-ink-900">{state.email || 'your Google account'}</span>
+            </p>
+            <p className="mt-0.5 flex items-start gap-1.5 text-[0.7rem] text-ink-500">
+              <FolderOpen className="mt-0.5 h-3 w-3 shrink-0" />
+              <span className="min-w-0 sm:truncate">
+                {state.folderName === state.calendarName
+                  ? `Files and exam dates go to “${state.folderName}”`
+                  : `Files go to “${state.folderName}” · exam dates to “${state.calendarName}”`}
+              </span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={unlink}
+            disabled={!!busy}
+            className="fp-press inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-lg bg-white px-3 py-2 text-[0.7rem] font-black text-ink-600 ring-1 ring-line-200 hover:text-rose-600 disabled:opacity-60 sm:py-1.5"
+          >
+            {busy === 'disconnect' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Unlink className="h-3 w-3" />}
+            Disconnect
+          </button>
+        </div>
+      ) : state.connected ? (
         <>
           <p className="mt-3 text-xs font-semibold text-ink-600">
             Linked to <span className="font-mono text-ink-900">{state.email || 'your Google account'}</span>

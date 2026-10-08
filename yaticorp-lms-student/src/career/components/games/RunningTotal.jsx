@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsFor, starsOn } from './levels';
+import useGameProgress, { between, starsForFixed, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
 
 const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -80,9 +80,12 @@ function Round({ progress, onExit }) {
   }, [started, playing, shown, config.stepMs]);
 
   const done = round > config.rounds;
-  const passed = score >= Math.ceil(config.rounds * 0.67);
+  // Two of three. It was Math.ceil(rounds * 0.67), which is 3 of 3 — every
+  // pass was a perfect round, and starsFor's 1.5x rule then paid one star.
+  const passMark = Math.round((config.rounds * 2) / 3);
+  const passed = score >= passMark;
   const finishedRound = done;
-  const stars = finishedRound ? starsFor(score, Math.ceil(config.rounds * 0.67), false) : 0;
+  const stars = finishedRound ? starsForFixed(score, passMark, config.rounds) : 0;
   useRecordStars(progress, finishedRound, stars);
 
   const answer = (value) => {
@@ -102,7 +105,7 @@ function Round({ progress, onExit }) {
   return (
     <GameShell
       title="Running Total"
-      blurb={`Keep the total in your head. Get ${Math.ceil(config.rounds * 0.67)} of ${config.rounds}.`}
+      blurb={`Keep the total in your head. Get ${passMark} of ${config.rounds}.`}
       tone="bg-gradient-to-br from-emerald-500 to-teal-700"
       score={`${score}/${config.rounds}`}
       progress={progress}
@@ -113,7 +116,7 @@ function Round({ progress, onExit }) {
           ? {
               gameId: progress.gameId,
               level: progress.level,
-              objective: `Get ${Math.ceil(config.rounds * 0.67)} of ${config.rounds} totals right.`,
+              objective: `Get ${passMark} of ${config.rounds} totals right.`,
               stars: starsOn(progress.gameId, progress.level),
               onStart: () => setStarted(true)
             }

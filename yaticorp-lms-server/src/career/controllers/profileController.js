@@ -37,6 +37,26 @@ const calculateStreak = (completedDates) => {
   return streak;
 };
 
+/**
+ * The streak Career Path shows: the Rewards streak — +1 for any day with at
+ * least one learning activity (finished tasks included), back to 1 after a
+ * missed day — so this page, the profile and the header show one number.
+ * The count from task completions above is the fallback for when an admin
+ * has locked Rewards.
+ */
+const sharedStreak = async (userId, completedDates) => {
+  try {
+    const config = await require('../../rewards/services/configService').getConfig();
+    if (config.enabled !== false) {
+      const s = await require('../../rewards/services/streakService').summary(userId, config);
+      if (typeof s?.current === 'number') return s.current;
+    }
+  } catch (error) {
+    console.error('[career] rewards streak unavailable, using task history:', error.message);
+  }
+  return calculateStreak(completedDates);
+};
+
 // @desc    Everything the profile page shows: goal, progress, streak, misses
 // @route   GET /api/profile/summary
 // @access  Private
@@ -61,6 +81,15 @@ const getProfileSummary = async (req, res) => {
     const skipped = allTasks.filter((t) => t.status === 'Skipped');
     const pending = allTasks.filter((t) => t.status === 'Pending');
 
+    // Titles already back on today's plan. A row stands for one piece of work
+    // however many times it was missed, so once "Do it today" has put a copy
+    // back the whole row is handled — listing it again would invite a second
+    // copy of the same task onto the same day.
+    const today = startOfDay();
+    const plannedTitles = new Set(
+      pending.filter((t) => t.assignedDate && t.assignedDate >= today).map((t) => t.title)
+    );
+
     // Rate over *decided* tasks only. Counting today's still-open work as failure
     // would make the number sink every morning and recover every evening.
     const decided = completed.length + skipped.length;
@@ -70,6 +99,7 @@ const getProfileSummary = async (req, res) => {
     // with a count, which is the thing actually worth acting on.
     const byTitle = new Map();
     for (const task of skipped) {
+      if (plannedTitles.has(task.title)) continue;
       const existing = byTitle.get(task.title);
       if (existing) {
         existing.times += 1;
@@ -111,7 +141,7 @@ const getProfileSummary = async (req, res) => {
         pending: pending.length,
         total: allTasks.length,
         completionRate,
-        streak: calculateStreak(completed.map((t) => t.completedAt).filter(Boolean)),
+        streak: await sharedStreak(userId, completed.map((t) => t.completedAt).filter(Boolean)),
         daysPlanned
       },
       skills,
@@ -137,6 +167,23 @@ const redoSkippedTask = async (req, res) => {
       return res.status(404).json({ message: 'Skipped task not found.' });
     }
 
+    // The profile shows a task missed several times as one row, under the id
+    // of one of those misses. If that work is already on today's plan (another
+    // of its misses was redone, or a second tap raced the first), moving this
+    // one too would put the same task on the day twice — so it is answered
+    // with the copy already there. The other misses stay Skipped: they did
+    // happen, and the skipped count and completion rate keep saying so; the
+    // summary simply stops offering the row while it is planned.
+    const alreadyPlanned = await Task.findOne({
+      userId: req.user._id,
+      title: task.title,
+      status: 'Pending',
+      assignedDate: { $gte: startOfDay() }
+    });
+    if (alreadyPlanned) {
+      return res.status(200).json(alreadyPlanned);
+    }
+
     // Moved to today rather than duplicated, so the history keeps one record of
     // this piece of work instead of one per attempt.
     task.status = 'Pending';
@@ -151,10 +198,34 @@ const redoSkippedTask = async (req, res) => {
   }
 };
 
+// @desc    The level ladder, and where the student stands on it
+// @route   GET /api/profile/levels
+// @access  Private
+//
+// The thresholds are an admin rule (Rewards → Level thresholds), so the
+// student app reads them rather than keeping a copy that drifts the first time
+// an admin edits the ladder. The rewards summary carries them too, but only
+// while Rewards is switched on — XP and levels keep accruing either way, and
+// the level ring in Career Path still needs to know how far the next one is.
+const getLevels = async (req, res) => {
+  try {
+    const { getConfig, levelInfo } = require('../../rewards/services/configService');
+    const config = await getConfig();
+    res.status(200).json({
+      thresholds: config.levelThresholds,
+      ...levelInfo(Number(req.user.xp) || 0, config.levelThresholds)
+    });
+  } catch (error) {
+    res.status(statusFor(error)).json(aiAwareBody(error));
+  }
+};
+
 module.exports = {
   getProfileSummary,
   redoSkippedTask,
+  getLevels,
   // todayController counts the streak the same way; without this export it
   // imported undefined and /career/today answered 500 on every page load.
-  calculateStreak
+  calculateStreak,
+  sharedStreak
 };

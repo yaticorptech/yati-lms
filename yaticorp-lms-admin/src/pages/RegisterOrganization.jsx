@@ -125,10 +125,10 @@ const RegisterOrganization = () => {
                         Your organization registration has been submitted. Our administrator will review your request.
                     </p>
                     <div className="mt-5 rounded-xl bg-slate-50 p-4 text-left">
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Your organization ID</p>
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Your Organization ID</p>
                         <div className="mt-1 flex items-center justify-between gap-3">
                             <p className="min-w-0 truncate font-mono text-lg font-bold text-slate-900">{done.orgCode}</p>
-                            <button type="button" onClick={copyCode} aria-label={`Copy organization ID ${done.orgCode}`}
+                            <button type="button" onClick={copyCode} aria-label={`Copy Organization ID ${done.orgCode}`}
                                 className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${copied ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'}`}>
                                 {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
                             </button>

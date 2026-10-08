@@ -40,7 +40,9 @@ createRoot(document.getElementById('root')).render(
     </AuthContext.Provider>
   </MemoryRouter>
 );`;
-const api = 'export default {}';
+// The LMS client: the resource sidebar's level ring asks it for the admin's
+// level ladder (/career/profile/levels).
+const api = "export default { get: () => Promise.resolve({ data: { thresholds: [0, 100, 300, 600, 1000] } }) };";
 
 const OPEN = (tile) => `
     await sleep(1500);

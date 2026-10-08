@@ -12,10 +12,19 @@ import { buildSyllogisms } from '../../data/genSyllogisms';
 export default function Deduction({ onExit }) {
   // Sixty generated arguments per band (genSyllogisms.js) and the
   // hand-written ones, which keep their place because several are the exact
-  // textbook traps worth meeting verbatim.
-  const questions = useMemo(
-    () =>
-      [...buildSyllogisms(), ...SYLLOGISMS].map((q) => ({
+  // textbook traps worth meeting verbatim. An argument that appears in both
+  // is kept once, the first time, as OddOneOut does: two copies in different
+  // bands were the same question asked twice on the way up.
+  const questions = useMemo(() => {
+    const seen = new Set();
+    return [...buildSyllogisms(), ...SYLLOGISMS]
+      .filter((q) => {
+        const key = `${q.premises.join('|')}>${q.conclusion}`.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((q) => ({
         premises: q.premises,
         conclusion: q.conclusion,
         answer: q.answer,
@@ -23,9 +32,8 @@ export default function Deduction({ onExit }) {
         note: q.why,
         level: q.level,
         tier: q.tier
-      })),
-    []
-  );
+      }));
+  }, []);
 
   return (
     <QuizGame

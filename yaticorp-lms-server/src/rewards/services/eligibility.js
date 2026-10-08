@@ -12,9 +12,10 @@ const monetaryEnabledFor = (user, config) => {
   return allowed.includes(user.accountType || 'school_student');
 };
 
-const pointsToMoney = (points, config) => {
-  const { pointsPerUnit = 100, unitValue = 10 } = config.conversion || {};
-  return Math.round(((points / pointsPerUnit) * unitValue) * 100) / 100;
-};
+// What reward points are worth in money: nothing. Only XP pays into the
+// wallet (walletService.convertXp); points are a score. Kept as a function so
+// the celebrations that report a "value" all say the same thing.
+// eslint-disable-next-line no-unused-vars
+const pointsToMoney = (points, config) => 0;
 
 module.exports = { monetaryEnabledFor, pointsToMoney };

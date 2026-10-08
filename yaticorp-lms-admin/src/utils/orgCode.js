@@ -19,7 +19,7 @@ export const tidyOrgCode = (value) => String(value || '')
 
 /** Why `code` cannot be used, or '' if it can. */
 export const orgCodeProblem = (code) => {
-    if (!code) return 'Choose an organization ID.';
+    if (!code) return 'Choose an Organization ID.';
     if (code.length < 3) return 'At least 3 characters.';
     if (code.length > ORG_CODE_MAX) return `At most ${ORG_CODE_MAX} characters.`;
     if (!/^[a-z0-9._]+$/.test(code)) return 'Use only letters, numbers, underscores (_) and full stops (.).';
