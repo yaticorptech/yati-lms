@@ -7,12 +7,13 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { connect, makeUser, startApp, cleanup } = require('../helpers');
 
-let app, me, api, courses;
+let app, me, other, api, courses;
 
 before(async () => {
     await connect();
     app = startApp({ mount: '/api/certificates', router: require('../../src/routes/certificateRoutes') });
     me = await makeUser('Cert'); api = app.call(me.token);
+    other = await makeUser('CertOther');
     const Course = require('../../src/models/Course');
     const Progress = require('../../src/models/Progress');
     courses = [await Course.create({ title: 'Cert course A' }), await Course.create({ title: 'Cert course B' }), await Course.create({ title: 'Cert course C' })];
@@ -22,7 +23,7 @@ before(async () => {
 
 after(async () => {
     await require('../../src/models/Course').deleteMany({ _id: { $in: courses.map(c => c._id) } });
-    await cleanup([me.user], app.server);
+    await cleanup([me.user, other.user], app.server);
 });
 
 const issued = () => require('../../src/models/Certificate').find({ userId: me.user._id }).sort({ createdAt: 1 }).lean();
@@ -54,4 +55,28 @@ test('the listing shows the numbers', async () => {
     const r = await api('GET', '/');
     assert.equal(r.status, 200);
     assert.deepEqual(r.body.map(c => c.certificateNumber).sort(), [`YATI${me.user.cardNumber}-01`, `YATI${me.user.cardNumber}-02`]);
+});
+
+test('Delete takes a certificate off the profile, and it keeps its number', async () => {
+    const [first] = await issued();
+    const r = await api('DELETE', `/${first._id}`);
+    assert.equal(r.status, 200);
+    const listed = (await api('GET', '/')).body.map(c => c.certificateNumber);
+    assert.deepEqual(listed, [`YATI${me.user.cardNumber}-02`], 'the deleted one is no longer listed');
+    // Hidden, not destroyed: the school and the resume still see the course done.
+    assert.equal((await issued()).length, 2, 'the record itself is kept');
+});
+
+test('downloading it again from the course puts it back, with the same number', async () => {
+    assert.equal((await api('POST', '/generate', { courseId: courses[0]._id })).status, 200);
+    const listed = (await api('GET', '/')).body.map(c => c.certificateNumber).sort();
+    assert.deepEqual(listed, [`YATI${me.user.cardNumber}-01`, `YATI${me.user.cardNumber}-02`]);
+});
+
+test('another student cannot delete it', async () => {
+    const [first] = await issued();
+    const r = await app.call(other.token)('DELETE', `/${first._id}`);
+    assert.equal(r.status, 404);
+    assert.equal((await api('GET', '/')).body.length, 2, 'still on the owner\'s profile');
+    assert.equal((await app.call(other.token)('DELETE', '/not-an-id')).status, 404);
 });

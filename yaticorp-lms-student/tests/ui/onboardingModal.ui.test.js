@@ -56,7 +56,7 @@ const data = { band: 'teen',
 const Page = () => <div className="space-y-5 animate-fade-in pb-12"><div className="animate-fade-in">
   <OpportunitiesTab data={data} onData={() => {}} careerPathEnabled location="Bengaluru" onLocation={() => {}} /></div></div>;
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree' } }}>
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg' } }}>
     <MemoryRouter initialEntries={['/jobs']}>
       <Routes><Route path="/" element={<StudentLayout />}><Route path="jobs" element={<Page />} /></Route></Routes>
     </MemoryRouter>

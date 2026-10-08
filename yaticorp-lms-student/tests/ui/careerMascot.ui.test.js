@@ -70,7 +70,7 @@ import { AuthProvider } from '${srcFile('context/AuthContext.jsx')}';
 import MascotProvider from '${srcFile('mascot/MascotProvider.jsx')}';
 ${FAST_DECODE}
 localStorage.setItem('studentToken', 't');
-localStorage.setItem('studentData', JSON.stringify({ _id: 'u1', name: 'Bhagyashree' }));
+localStorage.setItem('studentData', JSON.stringify({ _id: 'u1', name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg' }));
 localStorage.setItem('yati.careerMascot.celebrated', '[]');
 ${entered ? ENTERED : ''}
 createRoot(document.getElementById('root')).render(

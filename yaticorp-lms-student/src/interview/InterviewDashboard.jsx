@@ -5,7 +5,7 @@
  * interviewer, the five parts of that readiness, the interview picker, and
  * underneath the practice bank, recommended topics and what to work on.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
     Mic, Target, ArrowRight, Award, Lightbulb, X, BarChart3,
@@ -13,6 +13,7 @@ import {
     MessageSquare, Star, Gauge
 } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
+import { AuthContext } from '../context/AuthContext';
 import { interviewApi, TYPE_META, fmtDate, ROLES, ROLE_OTHER as OTHER } from './api';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
 import { TopicsCard, PracticeCard, ImproveCard } from './DashboardCards';
@@ -83,17 +84,30 @@ const CardHead = ({ icon: Icon, tint, title, children, action }) => (
 
 export default function InterviewDashboard() {
     const navigate = useNavigate();
-    const [data, setData] = useState(undefined);
+    const { user } = useContext(AuthContext);
+    // The last answer is kept on this device and shown at once on the next
+    // visit, while the fresh one is fetched; so the section does not sit on a
+    // loader every time it is opened, however far away the server is.
+    const cacheKey = `interview:dashboard:${user?._id || user?.id || user?.cardNumber || ''}`;
+    const [data, setData] = useState(() => {
+        try {
+            const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+            return cached?.readiness && cached?.practice && cached?.student ? cached : undefined;
+        } catch { return undefined; }   // a bad or missing cache is simply no cache
+    });
     const [error, setError] = useState(null);
     const [type, setType] = useState('full');
-    const [role, setRole] = useState('');
+    const [role, setRole] = useState(() => data?.student?.goal || '');
     const [customRole, setCustomRole] = useState('');
     const [starting, setStarting] = useState(false);
     const [tipOpen, setTipOpen] = useState(() => { try { return localStorage.getItem(TIP_DISMISS_KEY) !== new Date().toDateString(); } catch { return true; } });
     // One tip a day, fixed for the day so it does not change as you look at it.
     const [tip] = useState(() => TIPS[Math.floor(Date.now() / 86_400_000) % TIPS.length]);
 
-    const load = useCallback(() => interviewApi.dashboard().then((d) => { setData(d); setRole((r) => r || d.student.goal || ROLES[0]); setError(null); }).catch((e) => { setError(e); setData(null); }), []);
+    const load = useCallback(() => interviewApi.dashboard().then((d) => {
+        setData(d); setRole((r) => r || d.student.goal || ROLES[0]); setError(null);
+        try { localStorage.setItem(cacheKey, JSON.stringify(d)); } catch { /* private mode */ }
+    }).catch((e) => { setError(e); setData((cur) => cur || null); }), [cacheKey]);
     useEffect(() => { load(); }, [load]);
     // Back from a practice, report or history page lands where the student left off.
     const rootRef = useReturnScroll(Boolean(data));
@@ -153,7 +167,7 @@ export default function InterviewDashboard() {
                             <div className="hidden shrink-0 sm:block"><ScoreRing value={r.overall} size={104} stroke={9} label="Readiness" /></div>
                             <div className="min-w-0">
                                 <p className="text-base font-black leading-tight text-slate-900"><span className="sm:hidden">Interview Readiness</span><span className="hidden sm:inline">Interview<br />Readiness</span></p>
-                                <p className="mt-1 text-xs text-slate-500">{r.overall >= 75 ? 'You are ready — book that interview.' : r.overall >= 50 ? 'Getting there. A mock interview will lift this.' : 'Every question and mock interview raises this.'}</p>
+                                <p className="mt-1 text-xs text-slate-500">{r.prep.mocks === 0 ? 'Take your first mock interview: your readiness comes from how you do.' : r.overall >= 75 ? 'You are ready — book that interview.' : r.overall >= 50 ? 'Getting there. A mock interview will lift this.' : 'Every mock interview and practice question raises this.'}</p>
                             </div>
                         </div>
                         <p className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-600">
@@ -182,7 +196,7 @@ export default function InterviewDashboard() {
             <div className="grid gap-5 lg:grid-cols-2">
                 {/* ── Readiness ───────────────────────────────────── */}
                 <section className="lift flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm animate-fade-in-up sm:p-6">
-                    <CardHead icon={BarChart3} tint="bg-indigo-100 text-indigo-600" title="Your Readiness">Based on your courses, skills, assessments, projects and past interviews.</CardHead>
+                    <CardHead icon={BarChart3} tint="bg-indigo-100 text-indigo-600" title="Your Readiness">{r.prep.mocks === 0 ? 'All at 0% until your first mock interview, then worked out from how you do in it.' : 'Based on how you did in your mock interviews, the most recent counting most.'}</CardHead>
                     <div className="space-y-3.5">{r.breakdown.map((b) => <PartRow key={b.key} part={b.key} label={b.label} value={b.value} />)}</div>
                     <div className="stagger mt-5 grid grid-cols-3 gap-2">
                         <StatTile icon={BookOpen} tone="text-indigo-500" value={<CountUp value={r.prep.total} />} label="Practice questions" />

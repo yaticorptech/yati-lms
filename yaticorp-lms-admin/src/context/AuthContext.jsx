@@ -4,7 +4,7 @@
  *              platform administrator or an organization administrator to their own panel
  */
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import api from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 
@@ -46,6 +46,28 @@ export const AuthProvider = ({ children }) => {
     // No async bootstrap phase remains; kept in the context shape for consumers.
     const loading = false;
     const navigate = useNavigate();
+
+    /*
+     * One browser, one signed-in administrator. The login is kept in
+     * localStorage, which every tab shares, but each tab reads who is signed
+     * in once, when it opens. So after an organization admin signed in in a
+     * second tab, a platform tab kept showing the platform panel while its
+     * requests went out with the organization's login, and every page said
+     * "Organization administrators cannot access platform administration".
+     * Now, the moment the saved login changes in another tab, this tab
+     * reloads and shows the panel of the account it is really using. Two
+     * accounts side by side need two browsers, or a private window.
+     */
+    useEffect(() => {
+        const onStorage = (e) => {
+            // e.key is null when storage was cleared altogether.
+            if (e.key !== null && e.key !== 'adminToken') return;
+            if (e.key === 'adminToken' && e.oldValue === e.newValue) return;
+            window.location.reload();
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+    }, []);
 
    const login = async (email, password) => {
     try {

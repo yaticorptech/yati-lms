@@ -10,13 +10,14 @@ import WalletShortDialog from '../components/rewards/WalletShortDialog';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet, Mic } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet, Mic, Trophy } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
 import { pictureUrl } from '../native/pictures';
 import PullToRefresh from '../components/PullToRefresh';
 import { ADMIN_VIEW_KEY } from '../pages/AdminAccess';
+import ProfilePictureGate from '../components/ProfilePictureGate';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -329,6 +330,9 @@ const StudentLayout = () => {
     }, []);
 
     const isActive = (path) => location.pathname === path;
+    // Games & Competitions is laid out to fill the window, edge to edge,
+    // rather than sit in the centred column the other pages use.
+    const wide = location.pathname === '/competitions' || location.pathname.startsWith('/competitions/');
     // Career Path is the one nav entry with screens beneath it, so it stays lit
     // on /career/planner, /career/roadmap and the rest — not just on /career.
     const isSectionActive = (path) =>
@@ -338,45 +342,43 @@ const StudentLayout = () => {
     const getInitials = (name = '') =>
         name.trim().split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
+    // The menu, in the groups a student thinks in: what to learn, their
+    // career, and activities. Dashboard sits alone at the top; My Profile is
+    // not in the menu, it is the student's own row in the footer.
+    // Jobs and Scholarships (and Career Path) are withdrawn entirely when an
+    // admin locks them, rather than shown disabled: a tab that cannot be
+    // opened only invites the question of when it will be.
+    const groups = [
+        { items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true }] },
+        { title: 'Learn', items: [
+            { to: '/enrolled-courses', label: 'My Courses', icon: BookOpen, exact: true },
+            { to: '/community', label: 'Community', icon: MessageSquare }
+        ] },
+        { title: 'Career', items: [
+            isCareerPathEnabled && { to: '/career', label: 'Career Path', icon: Compass },
+            { to: '/interview', label: 'Interview Prep', icon: Mic },
+            isJobsEnabled && { to: '/jobs', label: 'Jobs', icon: Briefcase },
+            isCareerPathEnabled && { to: '/scholarships', label: 'Scholarships', icon: GraduationCap }
+        ].filter(Boolean) },
+        { title: 'Activities', items: [{ to: '/competitions', label: 'Games & Competitions', icon: Trophy }] }
+    ];
+    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.to));
+
     // Render helpers, not components: inlining them keeps the subtree from
     // remounting on every parent render.
-    const renderNavLinks = (onClick) => (
-        <>
-            <Link to="/" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
-                <LayoutDashboard size={20} /> <span>Dashboard</span>
-            </Link>
-            <Link to="/enrolled-courses" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/enrolled-courses') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
-                <BookOpen size={20} /> <span>Enrolled Courses</span>
-            </Link>
-            {isCareerPathEnabled && (
-                <Link to="/career" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/career') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
-                    <Compass size={20} /> <span>Career Path</span>
-                </Link>
-            )}
-            <Link to="/community" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/community') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
-                <MessageSquare size={20} /> <span>Community</span>
-            </Link>
-            {/* Both sections are withdrawn entirely when an admin locks them,
-                rather than shown disabled: a tab that cannot be opened only
-                invites the question of when it will be. */}
-            {isJobsEnabled && (
-                <Link to="/jobs" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/jobs') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
-                    <Briefcase size={20} /> <span>Jobs</span>
-                </Link>
-            )}
-            {/* Scholarships come from the student's Career Path resources, so
-                the tab follows that switch. */}
-            {isCareerPathEnabled && (
-                <Link to="/scholarships" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/scholarships') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
-                    <GraduationCap size={20} /> <span>Scholarships</span>
-                </Link>
-            )}
-            {/* Interview Ready: preparation and AI mock interviews. */}
-            <Link to="/interview" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/interview') ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
-                <Mic size={20} /> <span>Interview</span>
-            </Link>
-        </>
-    );
+    const renderNavLinks = (onClick) => groups.map((g, i) => (
+        <div key={g.title || 'top'} className={i ? 'pt-1' : ''}>
+            {g.title && <p className="mb-0.5 px-2.5 pt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{g.title}</p>}
+            <div className="space-y-1">
+                {g.items.map((item) => (
+                    <Link key={item.to} to={item.to} onClick={onClick} aria-current={isLit(item) ? 'page' : undefined}
+                        className={`flex items-center space-x-3 rounded-lg px-2.5 py-2 font-medium transition-colors duration-200 ${isLit(item) ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+                        <item.icon size={20} aria-hidden="true" /> <span>{item.label}</span>
+                    </Link>
+                ))}
+            </div>
+        </div>
+    ));
 
     const renderNotificationBell = () => (
     <div ref={notifRef} className="relative">
@@ -543,12 +545,12 @@ const StudentLayout = () => {
 
             {/* Desktop Sidebar */}
             <aside className="hidden sidebar:flex w-64 bg-white text-slate-700 border-r border-slate-200 flex-col z-10">
-                <div className="p-6 flex items-center justify-center border-b border-slate-100 bg-white">
+                <div className="flex items-center justify-center border-b border-slate-100 bg-white px-6 py-4">
                     {/* Dark-lettered logo: the original is white artwork for a dark ground. */}
                     <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
                 </div>
 
-                <nav className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
+                <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
                     {renderNavLinks()}
                 </nav>
 
@@ -557,7 +559,7 @@ const StudentLayout = () => {
                     its currency, and advertising a locked feature from the
                     sidebar of every page is worse than showing nothing. */}
                 {isCareerPathEnabled && (
-                    <div className="hidden shrink-0 px-4 pb-2 [@media(min-height:820px)]:block">
+                    <div className="hidden shrink-0 px-4 pb-2 [@media(min-height:960px)]:block">
                         <SidebarProgressCard user={progressUser || user} />
                     </div>
                 )}
@@ -652,7 +654,7 @@ const StudentLayout = () => {
                                 <X size={24} aria-hidden="true" />
                             </button>
                         </div>
-                        <nav className="flex-1 p-4 space-y-2">
+                        <nav className="flex-1 p-4">
                             {renderNavLinks(() => setMobileMenuOpen(false))}
                         </nav>
                         <div className="p-4 border-t border-slate-100 bg-slate-50/60 space-y-3">
@@ -848,10 +850,12 @@ const StudentLayout = () => {
                     it and the padding landed mid-page instead of after the
                     last card — which is why the end of long pages sat under
                     the bar. `min-h` keeps short pages filling the screen. */}
-                <div className="mx-auto min-h-[calc(100vh-4rem)] max-w-7xl p-4 pb-[7.5rem] sidebar:p-8 sidebar:pb-8">
+                <div className={`mx-auto min-h-[calc(100vh-4rem)] p-4 pb-[7.5rem] sidebar:p-8 sidebar:pb-8 ${wide ? 'max-w-none' : 'max-w-7xl'}`}>
                     <Outlet />
                 </div>
             </main>
+            {/* No profile picture yet: choose one before going on. */}
+            <ProfilePictureGate />
         </div>
     );
 };

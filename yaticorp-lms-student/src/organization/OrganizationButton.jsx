@@ -78,10 +78,12 @@ const Code = ({ code, className = '' }) => {
  * variant 'plain' — the same control drawn as a value: the organization's name
  *   as text, for My Profile's Personal Information list, where it sits among
  *   Full Name, Email and the rest. It still opens the same popup, so linking
- *   an organization works from there too.
+ *   an organization works from there too, and the whole tile is its target.
  */
 // No size or weight of its own: it takes the value styling of wherever it sits.
-const PLAIN = 'group inline-flex max-w-full items-center gap-1.5 rounded text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
+// The ::after stretches the click target over the nearest positioned box —
+// on My Profile, the whole Organization/College tile.
+const PLAIN = "group inline-flex max-w-full items-center gap-1.5 rounded text-left transition-colors after:absolute after:inset-0 after:rounded-2xl after:content-[''] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400";
 const PLAIN_TONE = {
     add: 'text-indigo-600 hover:text-indigo-700',
     pending: 'text-amber-700 hover:text-amber-800',

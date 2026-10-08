@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    LayoutDashboard, Users, UserPlus, BookOpen, Settings, LogOut, RefreshCw,
+    LayoutDashboard, Users, UserPlus, BookOpen, Settings, LogOut, RefreshCw, Trophy,
     Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft
 } from 'lucide-react';
 import api from '../utils/api';
@@ -33,6 +33,8 @@ const NAV = [
     { to: '/organization/students', label: 'Students', short: 'Students', icon: Users },
     { to: '/organization/requests', label: 'Student requests', short: 'Requests', icon: UserPlus, badge: 'pendingRequests' },
     { to: '/organization/courses', label: 'Courses', short: 'Courses', icon: BookOpen },
+    // Inter-college competitions: register the college's team, pick players.
+    { to: '/organization/competitions', label: 'Competitions', short: 'Compete', icon: Trophy },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
 

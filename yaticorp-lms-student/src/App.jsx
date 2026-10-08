@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
-import useCourseCompletion from './hooks/useCourseCompletion';
+import useJobsAccess from './hooks/useJobsAccess';
 import JobsLockedNotice from './jobs/JobsLockedNotice';
 import { useContext } from 'react';
 import { AuthContext } from './context/AuthContext';
@@ -25,6 +25,10 @@ const LearningBioPage = React.lazy(() => import('./learningbio/LearningBioPage')
 const SharedBioPage = React.lazy(() => import('./learningbio/SharedBioPage'));
 // Interview Ready — preparation, AI mock interviews, reports and history.
 const InterviewDashboard = React.lazy(() => import('./interview/InterviewDashboard'));
+// Games & Competitions: online Chess, Ludo, Carrom and UNO, and inter-college competitions.
+const CompetitionsHome = React.lazy(() => import('./competitions/CompetitionsHome'));
+const CompetitionDetail = React.lazy(() => import('./competitions/CompetitionDetail'));
+const GamePage = React.lazy(() => import('./competitions/GamePage'));
 const PracticePage = React.lazy(() => import('./interview/PracticePage'));
 const MockInterview = React.lazy(() => import('./interview/MockInterview'));
 const InterviewReport = React.lazy(() => import('./interview/InterviewReport'));
@@ -92,22 +96,24 @@ const JobsGate = () => {
 
 /**
  * The second lock on Jobs, and the student's own to open: the section stays
- * shut until a quarter of their enrolled learning is behind them.
+ * shut until five of their Career Path skills are each at 25% or more (the
+ * rule is the server's — see hooks/useJobsAccess). A few accounts are exempt.
  *
  * It shows a message rather than redirecting. A student who clicks Jobs has
- * asked a question, and "finish these two courses first" answers it, where a
- * silent bounce back to the home page would not.
+ * asked a question, and "two more skills to 25%" answers it, where a silent
+ * bounce back to the home page would not.
  */
-const CoursesCompleteGate = () => {
-  const { loading, unlocked, total, percent, required } = useCourseCompletion();
+const SkillsGate = () => {
+  const { isCareerPathEnabled } = useContext(AuthContext);
+  const access = useJobsAccess();
   // There used to be a VITE_JOBS_GATE_BYPASS flag here. It was read from the
   // build, which meant it opened Jobs for every account that signed in on the
   // machine that had it set, and opened nothing for those same accounts
   // anywhere else. Exemptions are per account now and come from the server
   // (JOBS_ALWAYS_OPEN), so they follow the person rather than the computer.
-  if (loading) return <CareerFallback />;
-  if (unlocked) return <Outlet />;
-  return <JobsLockedNotice total={total} percent={percent} required={required} />;
+  if (access.loading) return <CareerFallback />;
+  if (access.open) return <Outlet />;
+  return <JobsLockedNotice {...access} careerPathEnabled={isCareerPathEnabled} />;
 };
 
 const CareerGate = () => {
@@ -226,6 +232,9 @@ function App() {
         <Route index element={<Profile key="dashboard" />} />
         <Route path="enrolled-courses" element={<EnrolledCourses />} />
         <Route path="learning-bio" element={<React.Suspense fallback={<CareerFallback />}><LearningBioPage /></React.Suspense>} />
+        <Route path="competitions" element={<React.Suspense fallback={<CareerFallback />}><CompetitionsHome /></React.Suspense>} />
+        <Route path="competitions/play/:gameId" element={<React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense>} />
+        <Route path="competitions/:id" element={<React.Suspense fallback={<CareerFallback />}><CompetitionDetail /></React.Suspense>} />
         <Route path="interview" element={<React.Suspense fallback={<CareerFallback />}><InterviewDashboard /></React.Suspense>} />
         <Route path="interview/practice" element={<React.Suspense fallback={<CareerFallback />}><PracticePage /></React.Suspense>} />
         <Route path="interview/mock/:id" element={<React.Suspense fallback={<CareerFallback />}><MockInterview /></React.Suspense>} />
@@ -241,7 +250,7 @@ function App() {
             is a focused five-step flow — the section's tab strip has nothing to
             offer until it has been through once. */}
         <Route element={<JobsGate />}>
-          <Route element={<CoursesCompleteGate />}>
+          <Route element={<SkillsGate />}>
             <Route
               path="jobs"
               element={<React.Suspense fallback={<CareerFallback />}><Jobs /></React.Suspense>}

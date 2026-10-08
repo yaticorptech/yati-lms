@@ -18,6 +18,7 @@
  *     GET    /admin/:id/audit            the latest 100 audit rows
  *     PUT    /admin/:id/status           approve, reject, suspend, reinstate
  *     POST   /admin/:id/send-password-reset  email its admin a one-use reset link (never sets a password)
+ *     PUT    /admin/:id/competition-hosting  let it host competitions { enabled }
  *     GET    /admin/:id/students         its students, with progress (?page= opt-in)
  *     GET    /admin/:id/assignable       students who could be put into it
  *     POST   /admin/:id/students         put a student into it
@@ -87,6 +88,7 @@ router.get('/admin/:id/audit', superCtrl.getAuditLog);
 router.put('/admin/:id/status', superCtrl.setOrganizationStatus);
 router.post('/admin/:id/send-password-reset', superCtrl.sendAdminPasswordReset);
 router.put('/admin/:id/course-access', superCtrl.setCourseAccess);
+router.put('/admin/:id/competition-hosting', superCtrl.setCompetitionHosting);
 router.get('/admin/:id/students', superCtrl.getOrganizationStudents);
 // Putting a student into an organization directly, and taking them back out.
 // Ahead of nothing else, but note the assignable list is a literal segment.

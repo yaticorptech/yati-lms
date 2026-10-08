@@ -182,7 +182,12 @@ router.put('/profile', async (req, res, next) => {
                     : { status: 'not-required' }),
                 phone: guardianPhone,
                 email: guardianEmail || existing?.guardian?.email || '',
-                guardianName: guardianName || existing?.guardian?.guardianName || ''
+                guardianName: guardianName || existing?.guardian?.guardianName || '',
+                // A new name or email: applications not yet answered follow it
+                // (see refreshFromProfile in routes/applications.js).
+                setAt: (guardianName && guardianName !== (existing?.guardian?.guardianName || ''))
+                    || (guardianEmail && guardianEmail !== (existing?.guardian?.email || ''))
+                    ? new Date() : (existing?.guardian?.setAt || null)
             }
         };
 

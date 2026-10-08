@@ -152,7 +152,7 @@ function Overview({ data, currency }) {
             {data.recent?.length > 0 && (
                 <div>
                     <p className="mb-2 text-sm font-bold text-slate-800">Recent</p>
-                    <TxnList rows={data.recent} currency={currency} />
+                    <TxnList rows={data.recent.slice(0, 5)} currency={currency} />
                 </div>
             )}
         </div>

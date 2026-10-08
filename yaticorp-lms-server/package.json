@@ -37,6 +37,7 @@
     "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
     "canvas": "^3.2.1",
+    "chess.js": "^1.4.0",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
     "crypto": "^1.0.1",

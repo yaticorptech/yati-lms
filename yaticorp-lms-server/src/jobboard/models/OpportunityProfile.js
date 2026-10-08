@@ -24,7 +24,10 @@ const guardianSchema = new mongoose.Schema(
     phone: { type: String, default: "" },
     requestedAt: { type: Date, default: null },
     decidedAt: { type: Date, default: null },
-    note: { type: String, default: "" }
+    note: { type: String, default: "" },
+    // When the name or email above last changed. An application not yet
+    // answered takes its guardian from here when this is newer than its own.
+    setAt: { type: Date, default: null }
   },
   { _id: false }
 );

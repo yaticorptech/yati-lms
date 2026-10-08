@@ -12,6 +12,13 @@ const SAVE_INTERVAL_MS = 5000;
 const STALL_GRACE_MS = 30000;
 // Automatic reload attempts after a media error, with backoff (1s, 2s, 4s).
 const MAX_AUTO_RETRIES = 3;
+// A spot the browser still cannot decode after a fresh reload is stepped
+// over, further on each attempt (1s, then 2s past it).
+const DECODE_SKIP_SECONDS = 1;
+// Playback must get this far past a recovery point before the retry budget
+// is refilled. Chrome fires `playing` just before it hits a bad frame again,
+// so `playing` alone proves nothing.
+const RECOVERED_AFTER_SECONDS = 1;
 
 const formatClock = (seconds) => {
     const total = Math.max(0, Math.floor(seconds));
@@ -30,6 +37,10 @@ const formatClock = (seconds) => {
  * Retrying will not help them, so say so and point them at the instructor.
  */
 const failureText = (at, code) => {
+    if (at > 0 && code === 3) return {
+        title: 'This part of the video cannot be played.',
+        hint: 'The file is damaged at this point. You can try again, and please let your instructor know.'
+    };
     if (at > 0) return { title: 'Playback was interrupted.', hint: 'Check your connection, then try again.' };
     if (code === 4) return {
         title: 'This video cannot be played in your browser.',
@@ -40,6 +51,20 @@ const failureText = (at, code) => {
         hint: 'The file appears to be damaged. Please let your instructor know.'
     };
     return { title: 'The video could not be loaded.', hint: 'Check your connection, then try again.' };
+};
+
+/**
+ * The same file under a URL the browser has not cached. Chrome keeps a large
+ * video in its HTTP cache as pieces and stitches cached and fresh bytes
+ * together on the next read; for some files the stitch comes out wrong and
+ * the decoder fails at the same point every time (the "Mastering ChatGPT"
+ * lesson failed 4.4s in, every load, while the CDN's bytes were correct).
+ * A new cache key reads the file afresh. A CDN ignores the extra parameter,
+ * but a signed URL would stop matching its signature, so those are left alone.
+ */
+const uncachedUrl = (url) => {
+    if (!url || /[?&](X-Amz-Signature|Signature|token)=/i.test(url)) return url;
+    return `${url}${url.includes('?') ? '&' : '?'}r=${Date.now()}`;
 };
 
 /**
@@ -75,6 +100,7 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
     const recoveringRef = useRef(false);    // between our own load() and its loadedmetadata
     const shouldPlayRef = useRef(false);    // whether to press play once a recovery has loaded
     const retriesRef = useRef(0);
+    const recoveredAtRef = useRef(null);    // position that, once played past, refills the retries
     const lastSaveRef = useRef(0);
     const stallTimerRef = useRef(null);
     const retryTimerRef = useRef(null);
@@ -100,8 +126,11 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
         stallTimerRef.current = null;
     };
 
-    /** Throw the current media resource away and fetch it again at `seconds`. */
-    const restartAt = useCallback((seconds, play) => {
+    /**
+     * Throw the current media resource away and fetch it again at `seconds`.
+     * With `fresh`, under a URL the browser has not cached (see uncachedUrl).
+     */
+    const restartAt = useCallback((seconds, play, fresh = false) => {
         const v = videoRef.current;
         if (!v) return;
         clearStallTimer();
@@ -109,8 +138,12 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
         shouldPlayRef.current = play;
         recoveringRef.current = true;
         if (seconds > 0) writePosition(lessonId, seconds);
-        v.load();
-    }, [lessonId]);
+        const next = fresh ? uncachedUrl(url) : null;
+        // Setting src starts the load itself. React keeps rendering `url`,
+        // which has not changed, so it leaves this one alone.
+        if (next && next !== url) v.src = next;
+        else v.load();
+    }, [lessonId, url]);
 
     const positionNow = () => {
         const v = videoRef.current;
@@ -142,6 +175,10 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
         if (!v || recoveringRef.current) return;
         if (v.currentTime > maxWatchedRef.current) maxWatchedRef.current = v.currentTime;
         lastTimeRef.current = v.currentTime;
+        if (recoveredAtRef.current != null && v.currentTime >= recoveredAtRef.current) {
+            recoveredAtRef.current = null;
+            retriesRef.current = 0;
+        }
         const now = Date.now();
         if (now - lastSaveRef.current >= SAVE_INTERVAL_MS) {
             lastSaveRef.current = now;
@@ -164,7 +201,6 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
 
     const handlePlaying = () => {
         clearStallTimer();
-        retriesRef.current = 0;
         setInterruptedAt(null);
     };
 
@@ -227,8 +263,19 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
         }
         const delay = 1000 * 2 ** retriesRef.current;
         retriesRef.current += 1;
+        // A decode failure is reloaded past the browser's cache, first at the
+        // same spot; if the file itself is damaged there, the next attempts
+        // step past it. Never as far as the last seconds, which would count
+        // as finished.
+        const decode = v.error.code === v.error.MEDIA_ERR_DECODE;
+        let resumeAt = at;
+        if (decode) {
+            resumeAt = at + DECODE_SKIP_SECONDS * (retriesRef.current - 1);
+            if (Number.isFinite(v.duration)) resumeAt = Math.max(at, Math.min(resumeAt, v.duration - 3));
+        }
+        recoveredAtRef.current = resumeAt + RECOVERED_AFTER_SECONDS;
         clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = setTimeout(() => restartAt(at, play), delay);
+        retryTimerRef.current = setTimeout(() => restartAt(resumeAt, play, decode), delay);
     };
 
     const retryNow = () => {
@@ -236,7 +283,7 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
         retriesRef.current = 0;
         setInterruptedAt(null);
         setErrorCode(null);
-        restartAt(at, true);
+        restartAt(at, true, errorCode === 3);
     };
 
     // The position is written when the page is hidden or unloaded, and when

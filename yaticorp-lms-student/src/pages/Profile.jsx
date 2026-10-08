@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
@@ -7,10 +7,9 @@ import CertificatesFrame from '../components/CertificatesFrame';
 import ResumeSection from '../components/ResumeSection';
 import AiKeySettings from '../components/AiKeySettings';
 import GoogleConnectionCard from '../integrations/google/GoogleConnectionCard';
-import Cropper from 'react-easy-crop';
 import {
-    Award, Loader2, Check, X, ZoomIn, ZoomOut,
-    Flame, Gem, Coins, CalendarDays, Upload, Trash2, Sparkles, Building2
+    Award, Loader2, Check, X,
+    Flame, Gem, Coins, CalendarDays, Building2
 } from 'lucide-react';
 import { currentStreak, recentActivity } from '../career/utils/progress';
 import useLevelProgress from '../career/context/useLevelProgress';
@@ -27,35 +26,7 @@ import Portal from '../components/Portal';
 import { saveBlob } from '../native/saveFile';
 import { pictureUrl } from '../native/pictures';
 import { isShortOfFunds, serverMessage } from '../utils/walletCharge';
-
-// Helper: convert crop area to a cropped blob
-const getCroppedBlob = (imageSrc, pixelCrop) =>
-    new Promise((resolve) => {
-        const image = new Image();
-        image.src = imageSrc;
-        image.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = pixelCrop.width;
-            canvas.height = pixelCrop.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height);
-            canvas.toBlob(resolve, 'image/jpeg', 0.92);
-        };
-    });
-
-// Ready-made avatars for students who would rather not upload a photo,
-// grouped the way people look for them: boys, girls, kids, and elders.
-// The tiles are flat vector illustrations in pastel circles, shipped with
-// the app under public/avatars/<group>/<n>.png. Elders are middle-aged
-// uncles and aunties rather than grandparents. The server turns the
-// relative path into an absolute URL on save so the same picture also
-// shows in the admin panel.
-const AVATAR_GROUPS = [
-    { id: 'boys', label: 'Boys', count: 6 },
-    { id: 'girls', label: 'Girls', count: 6 },
-    { id: 'kids', label: 'Kids', count: 6 },
-    { id: 'elders', label: 'Elders', count: 9 },
-].map(g => ({ ...g, tiles: Array.from({ length: g.count }, (_, i) => `/avatars/${g.id}/${i + 1}.jpg`) }));
+import PhotoPicker from '../components/PhotoPicker';
 
 /**
  * The Dashboard and My Profile are two pages drawn by this one component,
@@ -113,28 +84,12 @@ const Profile = ({ view = 'dashboard' }) => {
     const [saving, setSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
-    // Profile picture
-    const [uploadingPhoto, setUploadingPhoto] = useState(false);
-    const photoInputRef = useRef(null);
-
-    // Photo chooser: upload a photo, or pick a ready-made avatar instead
+    // Photo chooser (components/PhotoPicker): upload a photo, or pick a
+    // ready-made avatar instead
     const [pickerOpen, setPickerOpen] = useState(false);
-    const [avatarGroup, setAvatarGroup] = useState(AVATAR_GROUPS[0].id);
-    const [selectedAvatar, setSelectedAvatar] = useState(null);
-    // Avatar pictures that failed to load, so their tiles drop out instead of
-    // showing a broken image.
-    const [brokenAvatars, setBrokenAvatars] = useState([]);
-    const [savingAvatar, setSavingAvatar] = useState(false);
 
     // Photo viewer
     const [viewingPhoto, setViewingPhoto] = useState(false);
-
-    // Crop modal
-    const [cropSrc, setCropSrc] = useState(null);       // raw data URL of selected image
-    const [crop, setCrop] = useState({ x: 0, y: 0 });
-    const [zoom, setZoom] = useState(1);
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-    const onCropComplete = useCallback((_, pixels) => setCroppedAreaPixels(pixels), []);
 
     useEffect(() => {
         const fetchCertificates = async () => {
@@ -208,64 +163,7 @@ const Profile = ({ view = 'dashboard' }) => {
         }
     };
 
-    // Save a picture URL straight to the profile: a chosen avatar, or '' to
-    // go back to initials. No upload involved, so it goes through PUT /profile.
-    const savePictureUrl = async (profilePicture) => {
-        setSavingAvatar(true);
-        try {
-            const res = await api.put('/user/profile', { profilePicture });
-            const updated = { ...user, ...res.data };
-            setUser(updated);
-            localStorage.setItem('studentData', JSON.stringify(updated));
-            setPickerOpen(false);
-            setSelectedAvatar(null);
-        } catch (err) {
-            alert(err.response?.data?.message || 'Failed to update photo. Please try again.');
-        } finally {
-            setSavingAvatar(false);
-        }
-    };
-
-    const openPicker = () => {
-        setSelectedAvatar(null);
-        setPickerOpen(true);
-    };
-
-    // Step 1: user picks a file → open crop modal
-    const handlePhotoSelect = (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
-        if (file.size > 10 * 1024 * 1024) { alert('Image must be under 10MB.'); return; }
-        const reader = new FileReader();
-        reader.onload = () => { setPickerOpen(false); setCropSrc(reader.result); setCrop({ x: 0, y: 0 }); setZoom(1); };
-        reader.readAsDataURL(file);
-        e.target.value = '';
-    };
-
-    // Step 2: user confirms crop → send cropped blob to backend → Cloudinary → MongoDB
-    const handleCropConfirm = async () => {
-        if (!croppedAreaPixels || !cropSrc) return;
-        setUploadingPhoto(true);
-        setCropSrc(null);
-        try {
-            const blob = await getCroppedBlob(cropSrc, croppedAreaPixels);
-            const fd = new FormData();
-            fd.append('profilePicture', blob, 'profile.jpg');
-            // POST to our backend — it uploads to Cloudinary and saves URL to MongoDB
-            const res = await api.post('/user/profile/picture', fd, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            const profilePicture = res.data.profilePicture;
-            const updated = { ...user, profilePicture };
-            setUser(updated);
-            localStorage.setItem('studentData', JSON.stringify(updated));
-        } catch {
-            alert('Failed to upload photo. Please try again.');
-        } finally {
-            setUploadingPhoto(false);
-        }
-    };
+    const openPicker = () => setPickerOpen(true);
 
     const handleDownloadCertificate = async (cert) => {
         setDownloadingId(cert._id);
@@ -346,11 +244,11 @@ const Profile = ({ view = 'dashboard' }) => {
                     <PersonalInfoCard
                         user={user}
                         level={level}
+                        levelTo={isCareerPathEnabled ? '/career' : undefined}
                         editing={editing}
                         onEdit={openEdit}
                         onViewPhoto={() => setViewingPhoto(true)}
                         onChangePhoto={openPicker}
-                        uploadingPhoto={uploadingPhoto}
                     >
                         <div className="w-full space-y-4 text-slate-800 animate-pop-in">
                         <div className="mb-1 flex items-center justify-between">
@@ -403,8 +301,6 @@ const Profile = ({ view = 'dashboard' }) => {
                         </div>
                     </div>
                     </PersonalInfoCard>
-                    {/* The picker's "Upload a photo" opens this. */}
-                    <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
                 </>
             ) : (
                 <>
@@ -480,6 +376,7 @@ const Profile = ({ view = 'dashboard' }) => {
                     certError={certError}
                     downloadingId={downloadingId}
                     onDownload={handleDownloadCertificate}
+                    onRemoved={(id) => setCertificates((rows) => rows.filter((c) => c._id !== id))}
                 />
             )}
 
@@ -527,170 +424,8 @@ const Profile = ({ view = 'dashboard' }) => {
                 </Portal>
             )}
 
-            {/* ── Photo / Avatar Picker Modal ── */}
-            {pickerOpen && (
-                <Portal>
-                    <div
-                        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-                        onClick={() => !savingAvatar && setPickerOpen(false)}
-                    >
-                        <div
-                            className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-                            onClick={e => e.stopPropagation()}
-                            role="dialog" aria-modal="true" aria-labelledby="picker-title"
-                        >
-                            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                                <h3 id="picker-title" className="font-bold text-slate-800">Change photo</h3>
-                                <button onClick={() => setPickerOpen(false)} disabled={savingAvatar} className="text-slate-400 hover:text-slate-600" aria-label="Close"><X size={18} /></button>
-                            </div>
-
-                            <div className="overflow-y-auto px-5 py-4">
-                                {/* Upload your own, or drop back to initials */}
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => photoInputRef.current?.click()}
-                                        disabled={savingAvatar}
-                                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
-                                    >
-                                        <Upload size={15} /> Upload a photo
-                                    </button>
-                                    {user?.profilePicture && (
-                                        <button
-                                            onClick={() => savePictureUrl('')}
-                                            disabled={savingAvatar}
-                                            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
-                                            title="Remove photo and show initials"
-                                        >
-                                            <Trash2 size={15} /> Remove
-                                        </button>
-                                    )}
-                                </div>
-
-                                <div className="my-4 flex items-center gap-3 text-[11px] font-black uppercase tracking-wider text-slate-400">
-                                    <span className="h-px flex-1 bg-slate-200" />
-                                    <span className="flex items-center gap-1"><Sparkles size={12} /> or pick an avatar</span>
-                                    <span className="h-px flex-1 bg-slate-200" />
-                                </div>
-
-                                {/* Group chips: boys, girls, kids, elders */}
-                                <div className="flex flex-wrap gap-1.5">
-                                    {AVATAR_GROUPS.map(g => (
-                                        <button
-                                            key={g.id}
-                                            onClick={() => { setAvatarGroup(g.id); setSelectedAvatar(null); }}
-                                            className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${avatarGroup === g.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                        >
-                                            {g.label}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                {/* Avatar grid */}
-                                {(AVATAR_GROUPS.find(g => g.id === avatarGroup) || AVATAR_GROUPS[0]).tiles.every((u) => brokenAvatars.includes(u)) && (
-                                    <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                                        The ready-made avatars are not available on this server. Upload a photo instead.
-                                    </p>
-                                )}
-                                <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
-                                    {(AVATAR_GROUPS.find(g => g.id === avatarGroup) || AVATAR_GROUPS[0]).tiles.filter((u) => !brokenAvatars.includes(u)).map((url, i) => {
-                                        // The saved picture may be the absolute form of this path.
-                                        const active = selectedAvatar === url || (!selectedAvatar && !!user?.profilePicture && user.profilePicture.endsWith(url));
-                                        return (
-                                            <button
-                                                key={url}
-                                                onClick={() => setSelectedAvatar(url)}
-                                                disabled={savingAvatar}
-                                                className={`relative aspect-square overflow-hidden rounded-full border-4 bg-white transition-transform hover:scale-105 ${active ? 'border-indigo-600 ring-2 ring-indigo-200' : 'border-transparent'}`}
-                                                aria-label={`Avatar ${i + 1}`}
-                                                aria-pressed={active}
-                                            >
-                                                <img src={url} alt="" loading="lazy" className="h-full w-full object-cover"
-                                                    onError={() => setBrokenAvatars((b) => (b.includes(url) ? b : [...b, url]))} />
-                                                {active && (
-                                                    <span className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"><Check size={12} /></span>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
-                                <button
-                                    onClick={() => setPickerOpen(false)}
-                                    disabled={savingAvatar}
-                                    className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={() => selectedAvatar && savePictureUrl(selectedAvatar)}
-                                    disabled={!selectedAvatar || savingAvatar}
-                                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {savingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Use this avatar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </Portal>
-            )}
-
-            {/* ── Crop Modal ── */}
-            {cropSrc && (
-                <Portal>
-                    <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-                                <h3 className="font-bold text-slate-800">Crop Photo</h3>
-                                <button onClick={() => setCropSrc(null)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
-                            </div>
-
-                            {/* Crop area */}
-                            <div className="relative w-full bg-slate-900" style={{ height: 300 }}>
-                                <Cropper
-                                    image={cropSrc}
-                                    crop={crop}
-                                    zoom={zoom}
-                                    aspect={1}
-                                    cropShape="round"
-                                    showGrid={false}
-                                    onCropChange={setCrop}
-                                    onZoomChange={setZoom}
-                                    onCropComplete={onCropComplete}
-                                />
-                            </div>
-
-                            {/* Zoom slider */}
-                            <div className="px-5 py-3 flex items-center gap-3 border-t border-slate-100">
-                                <ZoomOut size={16} className="text-slate-400 flex-shrink-0" />
-                                <input
-                                    type="range" min={1} max={3} step={0.05}
-                                    value={zoom}
-                                    onChange={e => setZoom(Number(e.target.value))}
-                                    className="flex-1 accent-indigo-600"
-                                />
-                                <ZoomIn size={16} className="text-slate-400 flex-shrink-0" />
-                            </div>
-
-                            <div className="flex gap-3 px-5 pb-5">
-                                <button
-                                    onClick={() => setCropSrc(null)}
-                                    className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-sm hover:bg-slate-50 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleCropConfirm}
-                                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <Check size={14} /> Apply & Upload
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </Portal>
-            )}
+            {/* ── Photo / Avatar Picker ── */}
+            {pickerOpen && <PhotoPicker onClose={() => setPickerOpen(false)} />}
         </div>
     );
 };

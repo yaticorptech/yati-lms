@@ -202,6 +202,8 @@ const inOrder = (order, rows) => {
 const safeQuestion = (q) => ({ questionId: String(q._id), questionText: q.question, options: q.options, category: q.category || 'General', difficulty: q.difficulty || 'medium' });
 
 const quizConfig = async () => (await Setting.findOne().select('globalQuiz').lean())?.globalQuiz || {};
+// The demo cards see every section, the quiz included (services/fullAccess.js).
+const { hasFullAccess } = require('../services/fullAccess');
 const quizOff = (res) => res.status(403).json({ code: 'GLOBAL_QUIZ_OFF', message: 'The global quiz is currently unavailable.' });
 
 const timeUp = (attempt, quiz) => (quiz.timeLimitMinutes || 0) > 0 && Date.now() - attempt.startedAt.getTime() > quiz.timeLimitMinutes * 60_000 + TIME_GRACE_MS;
@@ -268,7 +270,7 @@ const isClosed = (quiz) => { const at = closesAtOf(quiz); return !!at && Date.no
 const getGlobalQuiz = async (req, res) => {
     try {
         const config = await quizConfig();
-        if (config.enabled === false) return quizOff(res);
+        if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
         // No published quiz: an empty paper, which the student app already
         // shows as "No quiz questions yet".
         const { live, attempt, byId } = await paperFor(req.user);
@@ -297,7 +299,7 @@ const getGlobalQuiz = async (req, res) => {
 const startGlobalQuiz = async (req, res) => {
     try {
         const config = await quizConfig();
-        if (config.enabled === false) return quizOff(res);
+        if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
         const found = await paperFor(req.user);
         const { live, byId } = found;
         let { attempt } = found;
@@ -349,7 +351,7 @@ const startGlobalQuiz = async (req, res) => {
 const submitGlobalQuiz = async (req, res) => {
     try {
         const config = await quizConfig();
-        if (config.enabled === false) return quizOff(res);
+        if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
         const answers = Array.isArray(req.body?.answers) ? req.body.answers.slice(0, MAX_QUESTIONS) : null;
         if (!answers || !answers.length) return res.status(400).json({ message: 'Answer at least one question first.' });
 
@@ -402,7 +404,7 @@ const submitGlobalQuiz = async (req, res) => {
 const finishGlobalQuiz = async (req, res) => {
     try {
         const config = await quizConfig();
-        if (config.enabled === false) return quizOff(res);
+        if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
         const found = await paperFor(req.user);
         const { live, byId } = found;
         let { attempt } = found;

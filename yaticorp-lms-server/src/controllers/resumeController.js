@@ -16,6 +16,7 @@ const { localParse } = require('../jobboard/services/localResumeParse');
 const { normalizeSkillList } = require('../jobboard/services/matchService');
 const { uploadToBunny } = require('../utils/bunnyStorage');
 const { buildResumeData, renderAtsPdf } = require('../services/atsResumeService');
+const { hasFullAccess } = require('../services/fullAccess');
 
 const PARSES_PER_DAY = 5;
 // How long the upload request waits for the skill reader before answering
@@ -26,10 +27,13 @@ const PARSE_WAIT_MS = 8_000;
 const MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 // Word documents are kept as the student's file but not read: neither reader
 // speaks the format, so the skills come from the courses (and from Career
-// Path) until the student uploads a PDF.
+// Path) until the student uploads a PDF. The one exception is a .docx from
+// a demo card (services/fullAccess.js), which the local reader opens (it is
+// a zip of XML); the AI reader does not take Word files, so it is skipped.
+const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const STORE_ONLY = {
     doc: 'application/msword',
-    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    docx: DOCX
 };
 
 const upload = multer({
@@ -81,8 +85,9 @@ const uploadResume = (req, res) => {
             if (!req.file) return res.status(400).json({ message: 'Attach your resume.' });
 
             const ext = String(req.file.originalname || '').toLowerCase().split('.').pop();
-            const storeOnly = !!(STORE_ONLY[ext] || Object.values(STORE_ONLY).includes(req.file.mimetype));
-            const mime = Object.values(MIME).includes(req.file.mimetype) ? req.file.mimetype : MIME[ext] || (storeOnly ? STORE_ONLY[ext] || req.file.mimetype : 'application/pdf');
+            const isDocx = (ext === 'docx' || req.file.mimetype === DOCX) && hasFullAccess(req.user);
+            const storeOnly = !isDocx && !!(STORE_ONLY[ext] || Object.values(STORE_ONLY).includes(req.file.mimetype));
+            const mime = isDocx ? DOCX : Object.values(MIME).includes(req.file.mimetype) ? req.file.mimetype : MIME[ext] || (storeOnly ? STORE_ONLY[ext] || req.file.mimetype : 'application/pdf');
             const filename = String(req.file.originalname || 'resume.pdf').slice(0, 200);
             const existing = await ResumeProfile.findOne({ userId: req.user._id }).lean();
 
@@ -103,7 +108,8 @@ const uploadResume = (req, res) => {
             const uploadedAt = new Date();
             const local = storeOnly ? null : localParse(req.file.buffer, mime);
             const set = {
-                userId, filename, fileUrl, objectPath, parsedAt: uploadedAt, parseStatus: 'stored',
+                // A .docx is only ever read locally, so what it found is final.
+                userId, filename, fileUrl, objectPath, parsedAt: uploadedAt, parseStatus: isDocx && local?.skills?.length ? 'parsed' : 'stored',
                 skills: local?.skills || [], skillsRaw: local?.skillsRaw || [], experienceYears: local?.experienceYears || 0,
                 seniority: 'Fresher', education: { level: '', degree: '', specialization: '' }, pastRoles: [], headline: ''
             };
@@ -118,7 +124,7 @@ const uploadResume = (req, res) => {
             let parsing = false;
             const key = `resume:${userId}:${new Date().toISOString().slice(0, 10)}`;
             const day = await ApiUsage.findOne({ key }).lean();
-            if (!storeOnly && (day?.calls ?? 0) < PARSES_PER_DAY) {
+            if (!storeOnly && !isDocx && ((day?.calls ?? 0) < PARSES_PER_DAY || hasFullAccess(req.user))) {
                 await ApiUsage.updateOne({ key }, { $inc: { calls: 1 }, $setOnInsert: { provider: 'resume-user', month: new Date().toISOString().slice(0, 10) } }, { upsert: true });
                 await ResumeProfile.updateOne({ userId }, { $set: { parseStatus: 'parsing' } });
                 const job = parseResume(req.file.buffer, filename, mime)

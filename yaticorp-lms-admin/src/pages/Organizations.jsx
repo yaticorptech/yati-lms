@@ -21,7 +21,7 @@ import { startViewingOrganization } from '../utils/viewOrganization';
 import {
     Building2, Plus, Users, CheckCircle2, XCircle, AlertTriangle,
     Loader2, Copy, Check, ExternalLink, Ban, RotateCcw, Mail, Phone, MapPin, Globe, X,
-    UserPlus, UserMinus, ArrowRight, BookOpen, LayoutDashboard, Trash2, ChevronDown, History
+    UserPlus, UserMinus, ArrowRight, BookOpen, LayoutDashboard, Trash2, ChevronDown, History, Trophy
 } from 'lucide-react';
 import api from '../utils/api';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
@@ -98,6 +98,41 @@ const CoursesCell = ({ org, onOpen }) => {
             <BookOpen size={13} />
             {on ? <span className="tabular-nums">{org.courseCount || 0} / {org.courseAccess.limit}</span> : 'Enable'}
         </button>
+    );
+};
+
+/**
+ * Whether an organization may host its own competitions (Games &
+ * Competitions), on its row: "Enable" while it may not, "Can host" once it
+ * may. Off for every organization until switched on here; switching it off
+ * asks first, and keeps the competitions it already made, which the platform
+ * admin then runs.
+ */
+const HostingCell = ({ org, onChanged }) => {
+    const [value, setValue] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const on = value ?? Boolean(org.canHostCompetitions);
+    const flip = () => {
+        if (on && !window.confirm(`Stop ${org.name} hosting competitions? Competitions it already made stay, and you run them from Competitions.`)) return;
+        setBusy(true); setError('');
+        api.put(`/organizations/admin/${org._id}/competition-hosting`, { enabled: !on })
+            .then((r) => { setValue(r.data.canHostCompetitions); onChanged(); })
+            .catch((err) => setError(err.response?.data?.message || 'Could not change it. Try again.'))
+            .finally(() => setBusy(false));
+    };
+    return (
+        <span className="inline-flex flex-col items-start">
+            <button onClick={flip} disabled={busy} aria-pressed={on} aria-label={`${org.name} can host competitions`}
+                title={on ? 'This organization can host its own competitions — switch off' : 'Let this organization host its own competitions'}
+                className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors disabled:opacity-60 ${on
+                    ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700'}`}>
+                {busy ? <Loader2 size={13} className="animate-spin" /> : <Trophy size={13} />}
+                {on ? 'Can host' : 'Enable'}
+            </button>
+            {error && <span role="alert" className="mt-1 max-w-[10rem] text-[11px] leading-tight text-rose-600">{error}</span>}
+        </span>
     );
 };
 
@@ -480,13 +515,14 @@ const Organizations = () => {
                             its own, and Actions is pinned to the right edge: with
                             eight columns the actions were the part that fell off
                             the end, half a button showing at a normal laptop width. */}
-                        <table className="w-full text-left border-collapse min-w-[900px]">
+                        <table className="w-full text-left border-collapse min-w-[1000px]">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-xs tracking-wider text-slate-500 uppercase">
                                     <th className="px-5 py-3.5 font-semibold">Organization</th>
                                     <th className="px-3 py-3.5 font-semibold">Contact</th>
                                     <th className="px-3 py-3.5 font-semibold">Students</th>
                                     <th className="px-3 py-3.5 font-semibold">Courses</th>
+                                    <th className="px-3 py-3.5 font-semibold">Competitions</th>
                                     <th className="px-3 py-3.5 font-semibold">Status</th>
                                     <th className="px-3 py-3.5 font-semibold">Registered</th>
                                     <th className="sticky right-0 bg-slate-50 px-5 py-3.5 font-semibold text-right">Actions</th>
@@ -541,6 +577,7 @@ const Organizations = () => {
                                             )}
                                         </td>
                                         <td className="px-3 py-3.5"><CoursesCell org={org} onOpen={setCourseAccessFor} /></td>
+                                        <td className="px-3 py-3.5"><HostingCell org={org} onChanged={reload} /></td>
                                         <td className="px-3 py-3.5"><StatusPill status={org.status} /></td>
                                         <td className="whitespace-nowrap px-3 py-3.5 text-sm text-slate-600">{formatDate(org.createdAt)}</td>
                                         <td className="sticky right-0 bg-white px-5 py-3.5 transition-colors group-hover:bg-slate-50">
@@ -594,6 +631,10 @@ const Organizations = () => {
                                         <dd className="mt-1 text-xs font-medium text-slate-700">{formatDate(org.createdAt)}</dd>
                                     </div>
                                 </dl>
+                                <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Host competitions</span>
+                                    <HostingCell org={org} onChanged={reload} />
+                                </div>
 
                                 <p className="mt-3 text-xs text-slate-500">
                                     <span className="font-medium text-slate-700">{org.contactPerson || '—'}</span>

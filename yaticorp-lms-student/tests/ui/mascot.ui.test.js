@@ -69,7 +69,7 @@ import MascotProvider from '${srcFile('mascot/MascotProvider.jsx')}';
 import CoursePlayer from '${srcFile('pages/CoursePlayer.jsx')}';
 ${FAST_DECODE}
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree' }, setUser: () => {} }}>
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg' }, setUser: () => {} }}>
     <MascotProvider><MemoryRouter initialEntries={['/learn/c1']}>
       <Routes><Route path="/learn/:courseId" element={<CoursePlayer />} /></Routes>
     </MemoryRouter></MascotProvider>

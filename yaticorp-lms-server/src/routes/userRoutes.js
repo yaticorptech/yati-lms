@@ -12,7 +12,7 @@ const { xpOnSuccess, today } = require('../rewards/services/xpHooks');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { updatePassword } = require('../controllers/userPasswordController');
 const { upload } = require('../middleware/uploadMiddleware');
-const { getMyCourses, getBundles, getBundleContent, getCourseContent, updateProgress, getAvailableCourses, getOrganizationCourses, enrollCourse, searchContent } = require('../controllers/userCourseController');
+const { getMyCourses, getJobsAccess, getBundles, getBundleContent, getCourseContent, updateProgress, getAvailableCourses, getOrganizationCourses, enrollCourse, searchContent } = require('../controllers/userCourseController');
 const { createTicket, getMyTickets } = require('../controllers/ticketController');
 const { getMyCertificates } = require('../controllers/certificateController');
 const { getAnnouncementsForUser, clearUserNotifications } = require('../controllers/announcementController');
@@ -21,11 +21,19 @@ const { getAnnouncementsForUser, clearUserNotifications } = require('../controll
 router.get('/profile', protectUser, getUserProfile);
 router.put('/profile', protectUser, updateUserProfile);
 router.put('/update-password', protectUser, updatePassword);
-// Profile picture upload (server-side → Cloudinary → MongoDB)
-router.post('/profile/picture', protectUser, xpOnSuccess('profile_picture', () => 'picture'), upload.single('profilePicture'), uploadProfilePicture);
+// Profile picture upload (server-side → Bunny Storage → MongoDB). A file over
+// the limit, or not an image, gets a message the student can act on rather
+// than a bare server error.
+const pictureFile = (req, res, next) => upload.single('profilePicture')(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'That photo is too large. Choose one under 5 MB.' });
+    return res.status(400).json({ message: err.message || 'That file could not be read as a photo.' });
+});
+router.post('/profile/picture', protectUser, xpOnSuccess('profile_picture', () => 'picture'), pictureFile, uploadProfilePicture);
 
 // Course and Progress Routes
 router.get('/courses', protectUser, getMyCourses);
+router.get('/jobs-access', protectUser, getJobsAccess);
 router.get('/courses/available', protectUser, getAvailableCourses);
 router.get('/courses/organization', protectUser, getOrganizationCourses);
 router.get('/courses/:id', protectUser, getCourseContent);

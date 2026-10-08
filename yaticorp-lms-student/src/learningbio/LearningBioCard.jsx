@@ -26,7 +26,11 @@ export default function LearningBioCard() {
     const [editing, setEditing] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
-    const load = useCallback(() => bioApi.summary().then((d) => { setData(d); setError(null); }).catch((e) => { setError(e); setData(null); }), []);
+    // An answer without the profile in it is an error, not a blank bio: the
+    // card is on My Profile, and must never take the whole page down.
+    const load = useCallback(() => bioApi.summary()
+        .then((d) => { if (!d?.user || !d?.bio) throw new Error('The Learning Bio could not be loaded.'); setData(d); setError(null); })
+        .catch((e) => { setError(e); setData(null); }), []);
     useEffect(() => {
         load();
         // Any learning event the rewards layer announces re-reads the bio.

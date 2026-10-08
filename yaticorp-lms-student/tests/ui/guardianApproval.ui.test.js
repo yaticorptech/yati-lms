@@ -196,6 +196,45 @@ describe('the student applying', { skip: skipWithoutStyles }, () => {
         assert.equal(result.goDisabled, false);
     });
 
+    test('Continue application can be pressed once; after that it reads "Application continued" and cannot be pressed again', async () => {
+        // A new application offers the way on; once taken, it is done
+        // (the account owner's call, 2026-10-02).
+        const continued = application('continued');
+        const { result, errors } = await screen({
+            entry, api: api(application('approved'), { continue: continued }), styles: true, script: `
+                await sleep(700);
+                const go = $$('button').find((b) => /Continue application/i.test(b.innerText));
+                const before = go ? go.disabled : null;
+                if (go) go.click();
+                await sleep(500);
+                const after = $$('button').find((b) => /Application continued/i.test(b.innerText));
+                return { before, after: after ? after.disabled : null,
+                         calls: window.__calls.filter((c) => /continue/.test(c[1])).length };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.before, false, 'a new application can be continued');
+        assert.equal(result.calls, 1, 'pressing it continues the application');
+        assert.equal(result.after, true, 'and then it reads "Application continued" and cannot be pressed again');
+    });
+
+    test('a guardian changed after the answer is the one on the card, just as before', async () => {
+        // The student swapped Reshma for Geetha on the details form after
+        // Reshma had agreed. The card shows Geetha, name and email, and no
+        // more — a line about who answered was taken off again (2026-10-02).
+        const answered = application('continued', {
+            guardian: { name: 'Reshma', email: 're••••@example.com', phone: '' },
+            currentGuardian: { name: 'Geetha', email: 'ge••••@example.com', phone: '' }
+        });
+        const { result, errors } = await screen({
+            entry, api: api(answered), styles: true, script: `
+                await sleep(700);
+                const card = $$('p').find((p) => p.innerText.trim() === 'Geetha');
+                return { card: !!card, body: text(document.body) };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.card, true, 'the guardian card names Geetha');
+        assert.match(result.body, /ge••••@example\.com/, 'with her address, masked');
+        assert.equal(/answered this request/.test(result.body), false, 'and nothing more under it');
+    });
+
     test('a declined request blocks the application and offers another job', async () => {
         const declined = application('declined', { declineReason: 'School exams that week.' });
         const { result } = await screen({

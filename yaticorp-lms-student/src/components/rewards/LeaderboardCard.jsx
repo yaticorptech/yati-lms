@@ -183,8 +183,10 @@ export default function LeaderboardCard() {
  * left, name above the details that would have been their own columns, XP and
  * the movement on the right.
  */
+// The student's own row is not tinted (the account owner's call, 2026-10-02):
+// "You", the bold name and the ringed photo mark it.
 const StackedRow = ({ e }) => (
-    <li className={`flex items-center gap-3 py-3 ${e.isMe ? 'bg-indigo-50/80' : ''}`}>
+    <li className="flex items-center gap-3 py-3">
         <span className="w-5 shrink-0 text-center font-bold tabular-nums text-slate-700">{e.rank}</span>
         <Avatar e={e} size="h-9 w-9" ring={e.isMe ? 'ring-2 ring-rose-300' : ''} />
         <div className="min-w-0 flex-1">
@@ -203,7 +205,7 @@ const StackedRow = ({ e }) => (
 );
 
 const Row = ({ e }) => (
-    <tr className={e.isMe ? 'rounded-xl bg-indigo-50/80' : ''}>
+    <tr>
         <td className="px-2 py-3 font-bold tabular-nums text-slate-700">{e.rank}</td>
         <td className="px-2 py-3"><div className="flex items-center gap-2"><Avatar e={e} size="h-8 w-8" ring={e.isMe ? 'ring-2 ring-rose-300' : ''} /><span className={`truncate font-semibold ${e.isMe ? 'font-black text-slate-900' : 'text-slate-800'}`}>{e.isMe ? 'You' : e.name}</span></div></td>
         <td className="px-2 py-3 whitespace-nowrap"><span className="rounded-lg bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700">Lv. {e.level}</span></td>
