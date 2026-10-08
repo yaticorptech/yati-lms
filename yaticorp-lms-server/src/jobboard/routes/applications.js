@@ -90,39 +90,91 @@ const jobSnapshot = (opp) => ({
 const mine = (req, id) => Application.findOne({ _id: id, userId: req.user._id });
 
 /**
- * An application that has not gone anywhere yet follows the profile.
+ * An application follows the profile until a parent has answered it.
  *
  * The age and the guardian's details are copied onto the application when it
- * is started, and a student who then corrects their date of birth found the
- * old age still on it — "You are 23" over a profile that said sixteen — with
- * the guardian step decided by the wrong number. Until a request has been
- * sent, nothing rests on the snapshot, so it is taken again from the profile
- * each time the application is opened. Once a parent has been asked, it is
- * left alone: their answer was to the application as it was sent.
+ * is started, and a student who then corrected their date of birth found the
+ * old age still on it — "You are 23" over a profile that said sixteen. Until a
+ * request has been sent, nothing rests on the age, so it is taken again from
+ * the profile each time the application is opened.
+ *
+ * The guardian follows too, whichever was set more recently: a new parent on
+ * the details form (profile guardian.setAt) replaces the one on an application
+ * nobody has answered yet, and a Change guardian on the application itself
+ * (guardianSetAt) is not undone by an older profile. A student who swapped
+ * Reshma for Geetha used to find Reshma still on every application
+ * (2026-10-02). If the request had already gone to the old address, it is
+ * marked unsent, so Send goes to the new one.
+ *
+ * Once a parent has answered, the record stays theirs — the status lines say
+ * "Reshma has agreed", because she did. The guardian now on the profile is
+ * returned beside it as `current`, for the card to show.
+ * @returns {Promise<{row, current: {name, email, phone}|null}>}
  */
 const refreshFromProfile = async (row, userId) => {
+    const profile = await OpportunityProfile.findOne({ userId }).lean();
+    if (!profile) return { row, current: null };
+    const pg = profile.guardian || {};
+    const fromProfile = { name: pg.guardianName || '', email: pg.email || '', phone: pg.phone || '' };
+    const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+    const differs = (g) => !same(fromProfile.name, g?.name) || !same(fromProfile.email, g?.email);
+    // Rows and profiles from before these dates were kept: the profile's last
+    // save and the application's start stand in for them.
+    const profileAt = new Date(pg.setAt || profile.updatedAt || 0);
+    const rowAt = new Date(row.guardianSetAt || row.createdAt || 0);
+    const profileNewer = !!(fromProfile.name || fromProfile.email) && profileAt > rowAt && differs(row.guardian);
+
+    const answered = !!row.decidedAt || ['awaiting-admin', 'approved', 'declined', 'rejected'].includes(row.status)
+        || (row.status === 'continued' && !!row.requestedAt);
+    if (answered) return { row, current: profileNewer ? fromProfile : null };
+
+    let dirty = false;
+    if (profileNewer) {
+        const moved = !same(fromProfile.email, row.guardian?.email);
+        row.guardian = {
+            name: fromProfile.name || row.guardian?.name || '',
+            email: fromProfile.email || row.guardian?.email || '',
+            phone: fromProfile.phone || row.guardian?.phone || ''
+        };
+        row.guardianSetAt = new Date();
+        if (moved && row.status === 'awaiting-guardian') {
+            row.mailSentAt = null;
+            row.mailBouncedAt = null;
+            row.fallbackSentAt = null;
+            row.mailError = '';
+        }
+        dirty = true;
+    }
+
     // "Continued" without a request ever sent was a student going straight on
     // because the age at the time allowed it; if it no longer does, the parent
     // has to be asked after all.
     const untouched = row.status === 'ready' || row.status === 'needs-guardian' || (row.status === 'continued' && !row.requestedAt);
-    if (!untouched) return row;
-    const profile = await OpportunityProfile.findOne({ userId }).lean();
-    if (!profile) return row;
-    const age = ageFrom(profile.dateOfBirth);
-    const guardian = {
-        name: row.guardian?.name || profile.guardian?.guardianName || '',
-        email: row.guardian?.email || profile.guardian?.email || '',
-        phone: row.guardian?.phone || profile.guardian?.phone || ''
-    };
-    const status = age != null && age >= GUARDIAN_AGE ? (row.status === 'continued' ? 'continued' : 'ready') : 'needs-guardian';
-    const changed = age !== row.student?.age || status !== row.status
-        || ['name', 'email', 'phone'].some((k) => guardian[k] !== (row.guardian?.[k] || ''));
-    if (!changed) return row;
-    row.student = { ...(row.student || {}), age };
-    row.status = status;
-    row.guardian = guardian;
-    await row.save();
-    return row;
+    if (untouched) {
+        const age = ageFrom(profile.dateOfBirth);
+        const guardian = {
+            name: row.guardian?.name || fromProfile.name,
+            email: row.guardian?.email || fromProfile.email,
+            phone: row.guardian?.phone || fromProfile.phone
+        };
+        const status = age != null && age >= GUARDIAN_AGE ? (row.status === 'continued' ? 'continued' : 'ready') : 'needs-guardian';
+        const changed = age !== row.student?.age || status !== row.status
+            || ['name', 'email', 'phone'].some((k) => guardian[k] !== (row.guardian?.[k] || ''));
+        if (changed) {
+            row.student = { ...(row.student || {}), age };
+            row.status = status;
+            row.guardian = guardian;
+            dirty = true;
+        }
+    }
+    if (dirty) await row.save();
+    return { row, current: null };
+};
+
+/** The student's view of an application, opened afresh against the profile. */
+const freshView = async (row, userId) => {
+    const { row: fresh, current } = await refreshFromProfile(row, userId);
+    return studentView(fresh, { currentGuardian: current });
 };
 
 /* ── Start, or pick up where it was left ──────────────────────────────── */
@@ -138,7 +190,7 @@ router.post('/', async (req, res, next) => {
         if (!opportunityId) return res.status(400).json({ error: 'Which job is this for?' });
 
         const existing = await Application.findOne({ userId: req.user._id, opportunityId });
-        if (existing) return res.json({ application: studentView(await refreshFromProfile(existing, req.user._id)) });
+        if (existing) return res.json({ application: await freshView(existing, req.user._id) });
 
         const opp = await Opportunity.findById(opportunityId).lean().catch(() => null);
         if (!opp) return res.status(404).json({ error: 'That job is no longer listed.' });
@@ -162,6 +214,7 @@ router.post('/', async (req, res, next) => {
                     email: profile.guardian?.email || '',
                     phone: profile.guardian?.phone || ''
                 },
+                guardianSetAt: new Date(),
                 status: age != null && age >= GUARDIAN_AGE ? 'ready' : 'needs-guardian'
             });
         } catch (err) {
@@ -185,7 +238,7 @@ router.get('/:id', async (req, res, next) => {
     try {
         const row = await mine(req, req.params.id);
         if (!row) return res.status(404).json({ error: 'Application not found.' });
-        res.json({ application: studentView(await refreshFromProfile(row, req.user._id)) });
+        res.json({ application: await freshView(row, req.user._id) });
     } catch (err) { next(err); }
 });
 
@@ -208,6 +261,7 @@ router.put('/:id/guardian', async (req, res, next) => {
         const why = await mailer.recipientProblem(email, { own: req.user?.email });
         if (why) return res.status(400).json({ error: why });
         row.guardian = { name, email, phone };
+        row.guardianSetAt = new Date();
         await row.save();
         res.json({ application: studentView(row) });
     } catch (err) { next(err); }

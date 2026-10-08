@@ -223,7 +223,9 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
                         ? <GuardianForm guardian={guardian} busy={busy === 'guardian'} error={formError}
                             onCancel={() => { setEditing(false); setFormError(''); }}
                             onSave={(name, email) => run('guardian', () => applicationApi.setGuardian(app.id, name, email)).then(() => setEditing(false)).catch(() => {})} />
-                        : <GuardianRow guardian={guardian} disabled={approved || declined}
+                        // The guardian now on the student's details, when they
+                        // have changed it since this one was answered.
+                        : <GuardianRow guardian={app.currentGuardian || guardian} disabled={approved || declined}
                             onChange={approved || declined ? null : () => setEditing(true)} />}
 
                     {formError && !editing && <p className="text-xs font-semibold text-rose-600">{formError}</p>}
@@ -363,6 +365,10 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
                         <p className="min-w-0 flex-1 basis-48 text-sm font-bold text-emerald-900">
                             {status === 'ready' ? 'Nothing is waiting on anyone. Carry on with your application.' : 'Everything is agreed. Carry on with your application.'}
                         </p>
+                        {/* Pressed once: a new application offers Continue
+                            application, and after that it reads "Application
+                            continued" and cannot be pressed again (the account
+                            owner's call, 2026-10-02). */}
                         <button type="button" disabled={busy === 'continue' || status === 'continued'}
                             onClick={() => run('continue', () => applicationApi.continue(app.id)).then((d) => onContinue?.(d.application)).catch(() => {})}
                             className={`${btn.primary} w-full sm:w-auto`}>

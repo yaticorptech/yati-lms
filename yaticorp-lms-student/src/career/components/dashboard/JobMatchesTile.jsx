@@ -19,7 +19,10 @@
  * the "latest search" the daily job alerts re-run.
  *
  * Renders nothing rather than an error in every failure mode: Jobs locked by
- * an admin, no goal yet, the index empty, the request failing. A dashboard
+ * an admin, no goal yet, the index empty, the request failing — and for a
+ * student the Jobs section is still shut to (five skills at 25%, see
+ * hooks/useJobsAccess). It used to list jobs to everyone, which made the lock
+ * on the Jobs page as good as absent. A dashboard
  * tile that apologises for itself earns its place on no day at all.
  */
 import { useContext, useEffect, useState } from 'react';
@@ -30,11 +33,16 @@ import { Briefcase, ArrowRight, MapPin } from 'lucide-react';
 // the admin lock on Jobs, and jobs/api carries the profile the prefill uses —
 // reusing it keeps "what Career Path tells the job board" defined once.
 import { AuthContext as LmsAuthContext } from '../../../context/AuthContext';
-import { jobsApi, careerPrefill } from '../../../jobs/api';
+import { jobsApi, careerPrefill, learnerSkills, interleaveSkills, demoJobsProfile } from '../../../jobs/api';
+import useJobsAccess from '../../../hooks/useJobsAccess';
 import Card, { CardHeader } from '../ui/Card';
 
 export default function JobMatchesTile() {
   const { isJobsEnabled } = useContext(LmsAuthContext);
+  // The same answer the Jobs page's gate gets, so the tile never shows what
+  // the page would not.
+  const { open: jobsOpen, fullAccess } = useJobsAccess();
+  const allowed = isJobsEnabled && jobsOpen;
   const [jobs, setJobs] = useState(null);
   const [role, setRole] = useState('');
   // Whether the query carried any progressed skills. Without them the ranking
@@ -43,12 +51,30 @@ export default function JobMatchesTile() {
   const [hadSkills, setHadSkills] = useState(false);
 
   useEffect(() => {
-    if (!isJobsEnabled) return;
+    if (!allowed) return;
     let alive = true;
 
     (async () => {
       try {
-        const profile = await careerPrefill();
+        // The demo cards (server: services/fullAccess.js): the goal's role,
+        // and the student's own skills — Career Path's opened out into real
+        // skills, the uploaded resume's and the courses'. Everyone else, as
+        // before: Career Path's goal and skills.
+        const goal = await careerPrefill();
+        let profile = goal;
+        if (fullAccess) {
+            // The target role and the role's roadmap skills, worked out on
+            // the server (GET /jobs/my-profile); the browser's own merge if
+            // that cannot be read.
+            const mine = await demoJobsProfile();
+            if (mine?.skills?.length || mine?.role) {
+                profile = { role: mine.role || goal?.role || '', skills: mine.skills };
+            } else {
+                const learned = await learnerSkills();
+                const skills = interleaveSkills([learned.bySource.career?.length ? learned.bySource.career : (goal?.skills ?? []), learned.bySource.resume, learned.bySource.course], 30);
+                profile = { role: goal?.role ?? '', skills };
+            }
+        }
         if (!profile?.role && !profile?.skills?.length) return;
 
         const res = await jobsApi.recommend({
@@ -72,9 +98,9 @@ export default function JobMatchesTile() {
     })();
 
     return () => { alive = false; };
-  }, [isJobsEnabled]);
+  }, [allowed, fullAccess]);
 
-  if (!isJobsEnabled || !jobs?.length) return null;
+  if (!allowed || !jobs?.length) return null;
 
   return (
     // The grid cell lives here, not in Overview: when this tile has nothing

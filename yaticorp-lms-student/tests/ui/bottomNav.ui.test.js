@@ -1,10 +1,10 @@
 /**
- * The phone's bottom bar: all seven sections fit, Career Path right after
- * Courses, and My Profile is not in it.
+ * The phone's bottom bar: all eight sections fit, Career Path right after
+ * Courses, Games & Competitions last, and My Profile is not in it.
  *
- * Seven cells share a floating bar that is 344px wide on the narrowest phone
- * we support, so each cell is about 49px. The short labels are written to fit
- * that; a label that grows, or an eighth item, would cut a word or run two
+ * Eight cells share a floating bar that is 344px wide on the narrowest phone
+ * we support, so each cell is about 43px. The short labels are written to fit
+ * that; a label that grows, or a ninth item, would cut a word or run two
  * together, and nothing else on the page would notice.
  *
  * Measured at true phone widths. Headless Chrome will not open a window under
@@ -41,13 +41,14 @@ const PHONES = ['galaxyZFold6Folded', 'galaxyA55', 'pixel9', 'iPhone16ProMax'];
 
 describe('phone bottom bar', { skip: skipWithoutStyles }, () => {
     for (const name of PHONES) {
-        test(`${name} (${DEVICES[name].width}px): Career after Courses, seven labels whole and apart`, async () => {
+        test(`${name} (${DEVICES[name].width}px): Career after Courses, eight labels whole and apart`, async () => {
             const { result, errors } = await screen({ entry, api: 'export default {};', styles: true, device: DEVICES[name], script: measure });
             assert.deepEqual(errors, []);
             assert.equal(result.vw, DEVICES[name].width, 'the page is laid out at the phone\'s width');
 
             assert.deepEqual(result.items.map((i) => i.label),
-                ['Home', 'Courses', 'Career', 'Forum', 'Jobs', 'Grants', 'Interview']);
+                ['Home', 'Courses', 'Career', 'Forum', 'Jobs', 'Grants', 'Interview', 'Games']);
+            assert.equal(result.items.at(-1).href, '/competitions');
             assert.ok(!result.items.some((i) => i.href === '/profile'), 'My Profile is not in the bar');
             assert.equal(result.items[2].href, '/career');
             assert.equal(result.items[2].current, 'page', 'Career Path is marked as the page you are on');

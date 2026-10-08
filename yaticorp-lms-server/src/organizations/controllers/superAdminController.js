@@ -87,7 +87,8 @@ const listOrganizations = async (req, res) => {
                 pendingRequests: pending.get(String(o._id)) || 0,
                 // Whether it may publish its own courses, and how many it has.
                 courseAccess: { enabled: Boolean(o.courseAccess?.enabled), limit: o.courseAccess?.limit || 5 },
-                courseCount: courses.get(String(o._id)) || 0
+                courseCount: courses.get(String(o._id)) || 0,
+                canHostCompetitions: Boolean(o.canHostCompetitions)
             })),
             totals: Organization.STATUSES.reduce((acc, s) => {
                 acc[s] = totals.find((t) => t._id === s)?.count || 0;
@@ -122,7 +123,8 @@ const getOrganization = async (req, res) => {
             organization: {
                 ...organization,
                 typeLabel: Organization.TYPE_LABELS[organization.organizationType] || 'Other',
-                courseAccess: { enabled: Boolean(organization.courseAccess?.enabled), limit: organization.courseAccess?.limit || 5 }
+                courseAccess: { enabled: Boolean(organization.courseAccess?.enabled), limit: organization.courseAccess?.limit || 5 },
+                canHostCompetitions: Boolean(organization.canHostCompetitions)
             },
             admins,
             studentCount,
@@ -166,6 +168,29 @@ const setCourseAccess = async (req, res) => {
                 : `Courses are switched off for ${organization.name}.`,
             courseAccess: organization.courseAccess,
             courseCount
+        });
+    } catch (error) {
+        if (error.name === 'CastError') return res.status(404).json({ message: 'Organization not found' });
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    Let an organization host its own competitions, or stop it
+// @route   PUT /api/organizations/admin/:id/competition-hosting { enabled }
+// @access  Private/SuperAdmin
+// Switching it off keeps the competitions it already made; the platform
+// admin runs them from then on.
+const setCompetitionHosting = async (req, res) => {
+    try {
+        const { enabled } = req.body || {};
+        if (typeof enabled !== 'boolean') return res.status(400).json({ message: 'Say whether hosting is on or off.' });
+        const organization = await Organization.findByIdAndUpdate(req.params.id, { $set: { canHostCompetitions: enabled } }, { returnDocument: 'after' });
+        if (!organization) return res.status(404).json({ message: 'Organization not found' });
+        res.json({
+            message: enabled
+                ? `${organization.name} can now host competitions.`
+                : `${organization.name} can no longer host competitions.`,
+            canHostCompetitions: organization.canHostCompetitions
         });
     } catch (error) {
         if (error.name === 'CastError') return res.status(404).json({ message: 'Organization not found' });
@@ -619,6 +644,7 @@ module.exports = {
     listOrganizations,
     getOrganization,
     setCourseAccess,
+    setCompetitionHosting,
     createOrganization,
     updateOrganization,
     setOrganizationStatus,

@@ -103,8 +103,11 @@ export default function WalletCard() {
                         {data.recent.length === 0 ? (
                             <p className="p-6 text-center text-sm text-slate-500">No transactions yet. Streak milestones and badges pay reward points; redeem them here to fill your wallet.</p>
                         ) : (
-                            <ul className="divide-y divide-slate-100">
-                                {data.recent.slice(0, 4).map((t) => {
+                            // Three rows tall, the rest scrolling inside the card
+                            // (the account owner's call, 2026-10-05): every recent
+                            // transaction is there, and the card never grows.
+                            <ul data-transactions className="scroll-fade max-h-[194px] divide-y divide-slate-100 overflow-y-auto overscroll-contain rounded-b-2xl">
+                                {data.recent.map((t) => {
                                     const { Icon, cls } = ICON[t.source] || ICON.admin_adjustment;
                                     const credit = t.type === 'credit';
                                     return (

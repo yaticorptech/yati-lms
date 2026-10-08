@@ -686,6 +686,85 @@ describe('the parent\'s details, entered once', () => {
     });
 });
 
+describe('a new guardian on the details form', () => {
+    // A student swapped Reshma for Geetha on the form and still found Reshma
+    // on their applications (2026-10-02).
+    let app, call, fourth, appId;
+    const saveGuardian = async (guardianName, guardianEmail) => {
+        await new Promise((r) => setTimeout(r, 15));   // strictly later than what came before
+        const from = new Date(); const to = new Date(from); to.setDate(to.getDate() + 20);
+        const r = await call('PUT', '/opportunities/profile', {
+            dateOfBirth: bornYearsAgo(13).toISOString().slice(0, 10),
+            wantFrom: from.toISOString().slice(0, 10), wantTo: to.toISOString().slice(0, 10),
+            interests: ['events'], guardianName, guardianEmail, guardianPhone: '7635492435'
+        });
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+    };
+    const open = async () => (await call('GET', `/opportunities/applications/${appId}`)).body.application;
+
+    before(async () => {
+        app = startApp({ mount: '/api/jobs', router: require('../../src/jobboard') });
+        call = app.call(young.token);
+        const starts = new Date(); starts.setDate(starts.getDate() + 11);
+        fourth = await Opportunity.create({
+            slug: `stall-help-${Date.now()}`, title: 'Book Fair Stall Help',
+            organization: { name: 'ABC Company', verified: true },
+            category: 'events', opportunityType: 'event-support',
+            startsAt: starts, endsAt: starts, hoursPerSession: '1-2',
+            minimumAge: 13, location: { area: 'Whitefield', city: 'Bengaluru' },
+            status: 'open', guardianApprovalRequired: true
+        });
+        await saveGuardian('Devaki', 'devaki.rao@example.com');
+        appId = (await call('POST', '/opportunities/applications', { opportunityId: String(fourth._id) })).body.application.id;
+    });
+    after(async () => {
+        app.server.close();
+        if (fourth) await Opportunity.deleteOne({ _id: fourth._id });
+        // Back to the guardian the rest of this file expects.
+        await OpportunityProfile.updateOne({ userId: young.user._id }, { $set: { 'guardian.guardianName': 'Devaki', 'guardian.email': 'devaki.rao@example.com' } });
+    });
+
+    test('an application nobody has answered takes the new guardian', async () => {
+        await saveGuardian('Geetha', 'geetha.k@example.com');
+        const a = await open();
+        assert.equal(a.guardian.name, 'Geetha');
+        assert.match(a.guardian.email, /^ge•+@example\.com$/);
+        assert.equal(a.currentGuardian, null, 'nothing to explain: Geetha is the guardian on it');
+    });
+
+    test('a guardian changed on the application itself is not undone by an older form', async () => {
+        const put = await call('PUT', `/opportunities/applications/${appId}/guardian`, { name: 'Asha', email: 'asha.r@example.com' });
+        assert.equal(put.status, 200, JSON.stringify(put.body));
+        assert.equal((await open()).guardian.name, 'Asha', 'the form still says Geetha, but Asha came later');
+    });
+
+    test('a request already sent to the old guardian is marked unsent, so it goes to the new one', async () => {
+        const sent = await call('POST', `/opportunities/applications/${appId}/request`);
+        assert.equal(sent.status, 200, JSON.stringify(sent.body));
+        assert.ok(sent.body.application.mailSentAt, 'it went to Asha');
+        await saveGuardian('Meera', 'meera.s@example.com');
+        const a = await open();
+        assert.equal(a.status, 'awaiting-guardian');
+        assert.equal(a.guardian.name, 'Meera');
+        assert.equal(a.mailSentAt, null, 'not yet sent to Meera');
+        const again = await call('POST', `/opportunities/applications/${appId}/request`);
+        assert.equal(again.status, 200, JSON.stringify(again.body));
+        assert.match(sentHere.at(-1).to, /meera\.s@example\.com/, 'and sending now reaches Meera');
+    });
+
+    test('once a parent has answered, the record stays theirs and the new guardian is shown beside it', async () => {
+        await Application.updateOne({ _id: appId }, { $set: {
+            status: 'approved', decidedAt: new Date(), guardianSetAt: new Date(),
+            guardian: { name: 'Reshma', email: 'reshma.n@example.com', phone: '' } } });
+        await saveGuardian('Geetha', 'geetha.k@example.com');
+        const a = await open();
+        assert.equal(a.status, 'approved', 'the answer stands');
+        assert.equal(a.guardian.name, 'Reshma', 'she is the one who agreed');
+        assert.equal(a.currentGuardian?.name, 'Geetha', 'and the guardian now on the profile comes with it');
+        assert.match(a.currentGuardian.email, /^ge•+@example\.com$/);
+    });
+});
+
 describe('what an operator sees', () => {
     test('every application, its guardian and where the permission stands', async () => {
         const r = await adminApi('GET', '/admin/opportunities/applications');

@@ -32,7 +32,7 @@ import StudentLayout from '${srcFile('layouts/StudentLayout.jsx')}';
 const rewards = { enabled: true, summary: { wallet: { available: ${paise}, currency: 'INR' }, level: { level: 3 }, rewardPoints: 0 },
   refresh: () => {}, celebrate: () => {}, pullEvents: () => {} };
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', cardNumber: 'YC-1029' }, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg', cardNumber: 'YC-1029' }, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
     <RewardsContext.Provider value={rewards}>
       <MemoryRouter initialEntries={['/']}>
         <Routes><Route path="/" element={<StudentLayout />}><Route index element={<div style={{ height: 900 }} />} /></Route></Routes>
@@ -56,7 +56,7 @@ const rewards = { enabled: true, summary: { wallet: { available: ${paise}, curre
   refresh: () => {}, celebrate: () => {}, pullEvents: () => {} };
 const Home = () => (<div><div style={{ height: 1600 }} /><WalletCard /><div style={{ height: 800 }} /></div>);
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', cardNumber: 'YC-1029' }, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg', cardNumber: 'YC-1029' }, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
     <RewardsContext.Provider value={rewards}>
       <MemoryRouter initialEntries={['/']}>
         <Routes><Route path="/" element={<StudentLayout />}><Route index element={<Home />} /></Route></Routes>

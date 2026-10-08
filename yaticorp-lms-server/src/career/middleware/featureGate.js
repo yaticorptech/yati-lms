@@ -36,6 +36,8 @@ const isCareerPathEnabled = async () => {
 const requireCareerPathEnabled = async (req, res, next) => {
     try {
         if (await isCareerPathEnabled()) return next();
+        // The demo cards see every section (services/fullAccess.js).
+        if (await require('../../services/fullAccess').fullAccessFromRequest(req)) return next();
         // 403, not 404: the section exists and the student's token is fine. The
         // student app reads this to fall back to its "locked" screen.
         return res.status(403).json({

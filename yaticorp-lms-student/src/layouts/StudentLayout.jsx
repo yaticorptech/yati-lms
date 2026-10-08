@@ -9,12 +9,13 @@ import ContinuePanel from '../components/ContinuePanel';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet, Mic } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet, Mic, Trophy } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
 import { pictureUrl } from '../native/pictures';
 import PullToRefresh from '../components/PullToRefresh';
+import ProfilePictureGate from '../components/ProfilePictureGate';
 
 // Contact Support Modal
 const ContactModal = ({ onClose, user }) => {
@@ -297,6 +298,9 @@ const StudentLayout = () => {
     }, []);
 
     const isActive = (path) => location.pathname === path;
+    // Games & Competitions is laid out to fill the window, edge to edge,
+    // rather than sit in the centred column the other pages use.
+    const wide = location.pathname === '/competitions' || location.pathname.startsWith('/competitions/');
     // Career Path is the one nav entry with screens beneath it, so it stays lit
     // on /career/planner, /career/roadmap and the rest — not just on /career.
     const isSectionActive = (path) =>
@@ -306,47 +310,73 @@ const StudentLayout = () => {
     const getInitials = (name = '') =>
         name.trim().split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
+    // The menu, in the groups a student thinks in: what to learn, their
+    // career, activities, and themselves. Dashboard sits alone at the top.
+    // Jobs and Scholarships (and Career Path) are withdrawn entirely when an
+    // admin locks them, rather than shown disabled: a tab that cannot be
+    // opened only invites the question of when it will be.
+    const groups = [
+        { items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true }] },
+        { title: 'Learn', items: [
+            { to: '/enrolled-courses', label: 'My Courses', icon: BookOpen, exact: true },
+            { to: '/community', label: 'Community', icon: MessageSquare }
+        ] },
+        { title: 'Career', items: [
+            isCareerPathEnabled && { to: '/career', label: 'Career Path', icon: Compass },
+            { to: '/interview', label: 'Interview Prep', icon: Mic },
+            isJobsEnabled && { to: '/jobs', label: 'Jobs', icon: Briefcase },
+            isCareerPathEnabled && { to: '/scholarships', label: 'Scholarships', icon: GraduationCap }
+        ].filter(Boolean) },
+        { title: 'Activities', items: [{ to: '/competitions', label: 'Games & Competitions', icon: Trophy }] },
+        // Learning Bio is reached from My Profile, where its card lives.
+        { title: 'Me', items: [{ to: '/profile', label: 'My Profile', icon: User }] }
+    ];
+    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.to));
+
     // Render helpers, not components: inlining them keeps the subtree from
     // remounting on every parent render.
-    const renderNavLinks = (onClick) => (
-        <>
-            <Link to="/profile" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/profile') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                <User size={20} /> <span>My Profile</span>
-            </Link>
-            <Link to="/" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                <LayoutDashboard size={20} /> <span>Dashboard</span>
-            </Link>
-            <Link to="/enrolled-courses" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/enrolled-courses') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                <BookOpen size={20} /> <span>Enrolled Courses</span>
-            </Link>
-            <Link to="/community" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/community') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                <MessageSquare size={20} /> <span>Community</span>
-            </Link>
-            {/* Both sections are withdrawn entirely when an admin locks them,
-                rather than shown disabled: a tab that cannot be opened only
-                invites the question of when it will be. */}
-            {isJobsEnabled && (
-                <Link to="/jobs" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/jobs') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                    <Briefcase size={20} /> <span>Jobs</span>
-                </Link>
-            )}
-            {/* Scholarships come from the student's Career Path resources, so
-                the tab follows that switch. */}
-            {isCareerPathEnabled && (
-                <Link to="/scholarships" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isActive('/scholarships') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                    <GraduationCap size={20} /> <span>Scholarships</span>
-                </Link>
-            )}
-            {isCareerPathEnabled && (
-                <Link to="/career" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/career') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                    <Compass size={20} /> <span>Career Path</span>
-                </Link>
-            )}
-            {/* Interview Ready: preparation and AI mock interviews. */}
-            <Link to="/interview" onClick={onClick} className={`flex items-center space-x-3 rounded-lg p-2.5 font-medium transition-colors duration-200 ${isSectionActive('/interview') ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-                <Mic size={20} /> <span>Interview</span>
-            </Link>
-        </>
+    const renderNavLinks = (onClick) => groups.map((g, i) => (
+        <div key={g.title || 'top'} className={i ? 'pt-1' : ''}>
+            {g.title && <p className="mb-0.5 px-2.5 pt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">{g.title}</p>}
+            <div className="space-y-1">
+                {g.items.map((item) => (
+                    <Link key={item.to} to={item.to} onClick={onClick} aria-current={isLit(item) ? 'page' : undefined}
+                        className={`flex items-center space-x-3 rounded-lg px-2.5 py-2 font-medium transition-colors duration-200 ${isLit(item) ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+                        <item.icon size={20} aria-hidden="true" /> <span>{item.label}</span>
+                    </Link>
+                ))}
+            </div>
+        </div>
+    ));
+
+    // Support and Logout side by side, then the student's card: the same
+    // footer on the desktop sidebar and in the phone menu.
+    const renderMenuFooter = (close = () => {}) => (
+        <div className="space-y-2.5 border-t border-slate-800 bg-slate-950/50 p-3">
+            <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => { close(); setShowContact(true); }}
+                    className="flex w-full items-center justify-center space-x-2 rounded-xl border border-indigo-500/20 bg-indigo-500/10 py-3 font-bold text-indigo-300 transition-all duration-200 hover:bg-indigo-600 hover:text-white">
+                    <MessageCircleQuestion size={20} aria-hidden="true" /> <span>Support</span>
+                </button>
+                <button type="button" onClick={() => { close(); handleLogout(); }}
+                    className="flex w-full items-center justify-center space-x-2 rounded-xl border border-rose-500/20 bg-rose-500/10 py-3 font-bold text-rose-300 transition-all duration-200 hover:bg-rose-600 hover:text-white">
+                    <LogOut size={20} aria-hidden="true" /> <span>Logout</span>
+                </button>
+            </div>
+            <div className="rounded-xl border border-slate-700 bg-slate-800/50 px-3.5 py-3" data-student-card>
+                <div className="mb-1 flex items-start justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-indigo-400">Student</p>
+                    {isCreditSystemEnabled && (
+                        <div className="flex items-center rounded bg-indigo-500/20 px-2 py-0.5 text-xs font-bold text-indigo-300">
+                            <Award size={12} className="mr-1" aria-hidden="true" />
+                            {user?.credits || 0} Credits
+                        </div>
+                    )}
+                </div>
+                <p className="truncate font-bold text-white">{user?.name}</p>
+                <p className="mt-1 font-mono text-xs text-slate-400">{user?.cardNumber}</p>
+            </div>
+        </div>
     );
 
     const renderNotificationBell = () => (
@@ -501,11 +531,11 @@ const StudentLayout = () => {
 
             {/* Desktop Sidebar */}
             <aside className="hidden sidebar:flex w-64 bg-slate-900 text-white flex-col z-10 shadow-xl">
-                <div className="p-6 flex items-center justify-center border-b border-slate-800 bg-slate-900">
+                <div className="flex items-center justify-center border-b border-slate-800 bg-slate-900 px-6 py-4">
                     <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
                 </div>
 
-                <nav className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
+                <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
                     {renderNavLinks()}
                 </nav>
 
@@ -514,20 +544,12 @@ const StudentLayout = () => {
                     its currency, and advertising a locked feature from the
                     sidebar of every page is worse than showing nothing. */}
                 {isCareerPathEnabled && (
-                    <div className="hidden shrink-0 px-4 pb-2 [@media(min-height:820px)]:block">
+                    <div className="hidden shrink-0 px-4 pb-2 [@media(min-height:960px)]:block">
                         <SidebarProgressCard user={progressUser || user} />
                     </div>
                 )}
 
-                {/* Sidebar footer — contact support only */}
-                <div className="p-4 border-t border-slate-800 bg-slate-950/50">
-                    <button
-                        onClick={() => setShowContact(true)}
-                        className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-2.5 rounded-lg transition-all duration-200 font-medium"
-                    >
-                        <MessageCircleQuestion size={18} /> <span>Contact Support</span>
-                    </button>
-                </div>
+                {renderMenuFooter()}
             </aside>
 
             {/* Mobile Header */}
@@ -588,45 +610,13 @@ const StudentLayout = () => {
                                 <X size={24} aria-hidden="true" />
                             </button>
                         </div>
-                        <nav className="flex-1 p-4 space-y-2">
+                        <nav className="flex-1 p-4">
                             {renderNavLinks(() => setMobileMenuOpen(false))}
                         </nav>
-                        <div className="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
-                            {/* Logout sits in this pinned footer, beside
-                                Contact Support, so it is always on screen. At
-                                the end of the scrolling nav it was hidden below
-                                the fold, and nothing hinted the list scrolled. */}
-                            <div className="mb-3 grid grid-cols-2 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => { setMobileMenuOpen(false); setShowContact(true); }}
-                                    className="flex items-center justify-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
-                                >
-                                    <MessageCircleQuestion size={20} /> <span>Support</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-                                    className="flex items-center justify-center space-x-2 bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
-                                >
-                                    <LogOut size={20} /> <span>Logout</span>
-                                </button>
-                            </div>
-                            {/* Profile card in mobile drawer */}
-                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-                                <div className="flex justify-between items-start mb-1">
-                                    <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Student</p>
-                                    {isCreditSystemEnabled && (
-                                        <div className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-xs font-bold flex items-center">
-                                            <Award size={12} className="mr-1" />
-                                            {user?.credits || 0} Credits
-                                        </div>
-                                    )}
-                                </div>
-                                <p className="font-bold text-white truncate">{user?.name}</p>
-                                <p className="text-xs text-slate-400 font-mono mt-1">{user?.cardNumber}</p>
-                            </div>
-                        </div>
+                        {/* Logout sits in this pinned footer, beside Support, so
+                            it is always on screen. At the end of the scrolling
+                            nav it was hidden below the fold. */}
+                        {renderMenuFooter(() => setMobileMenuOpen(false))}
                     </div>
                 </div>
             )}
@@ -762,10 +752,12 @@ const StudentLayout = () => {
                     it and the padding landed mid-page instead of after the
                     last card — which is why the end of long pages sat under
                     the bar. `min-h` keeps short pages filling the screen. */}
-                <div className="mx-auto min-h-[calc(100vh-4rem)] max-w-7xl p-4 pb-[7.5rem] sidebar:p-8 sidebar:pb-8">
+                <div className={`mx-auto min-h-[calc(100vh-4rem)] p-4 pb-[7.5rem] sidebar:p-8 sidebar:pb-8 ${wide ? 'max-w-none' : 'max-w-7xl'}`}>
                     <Outlet />
                 </div>
             </main>
+            {/* No profile picture yet: choose one before going on. */}
+            <ProfilePictureGate />
         </div>
     );
 };

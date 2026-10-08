@@ -90,3 +90,20 @@ To rebuild both derived files after replacing `calendar-hero.png`, run
 `node scripts/buildCalendarHero.js` from `yaticorp-lms-server`, which is the
 workspace `canvas` is installed in. It reads the banner from this directory
 and writes both derived files back into it.
+
+## Games & Competitions
+
+| File | Where it appears |
+|---|---|
+| `games-hero-bg.png` | the Games & Competitions banner background — this is the one the page loads |
+| `games-hero-art.png` | the scene alone (trophy, controller, confetti); the source `games-hero-bg.png` is built from |
+| `../games/<game>.jpg` | the photo at the top of each game card: `chess`, `ludo`, `carrom`, `uno` |
+| `../games/<game>-icon.png` | the small square icon beside each game's name |
+
+All of them are cut from the supplied design screenshot by
+`yaticorp-lms-server/scripts/buildGamesArt.js` (the workspace `canvas` is
+installed in): the art is everything right of the painted headline, and the
+background widens it leftwards to 3400 px the same way as the Career Path
+hero, so `cover` never crops the trophy. The headline, the sentence and the
+four feature pills are real elements, not paint. The "2 Players" pill painted
+into each photo sits under a real one with the same words.

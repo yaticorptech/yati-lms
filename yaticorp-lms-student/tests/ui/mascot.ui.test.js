@@ -69,7 +69,7 @@ import MascotProvider from '${srcFile('mascot/MascotProvider.jsx')}';
 import CoursePlayer from '${srcFile('pages/CoursePlayer.jsx')}';
 ${FAST_DECODE}
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree' }, setUser: () => {} }}>
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg' }, setUser: () => {} }}>
     <MascotProvider><MemoryRouter initialEntries={['/learn/c1']}>
       <Routes><Route path="/learn/:courseId" element={<CoursePlayer />} /></Routes>
     </MemoryRouter></MascotProvider>
@@ -261,7 +261,7 @@ import CoursePlayer from '${srcFile('pages/CoursePlayer.jsx')}';
 import { RewardToast } from '${srcFile('components/rewards/RewardCelebration.jsx')}';
 const Page = () => <><CoursePlayer /><RewardToast text="+20 XP for finishing a lesson" onClose={() => {}} /></>;
 createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Bhagyashree' }, setUser: () => {} }}><MascotProvider>
+  <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg' }, setUser: () => {} }}><MascotProvider>
     <MemoryRouter initialEntries={['/learn/c1']}>
       <Routes><Route path="/" element={<StudentLayout />}><Route path="learn/:courseId" element={<Page />} /></Route></Routes>
     </MemoryRouter></MascotProvider></AuthContext.Provider>);`;

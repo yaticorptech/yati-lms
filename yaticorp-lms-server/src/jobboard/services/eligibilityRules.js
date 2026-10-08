@@ -118,6 +118,9 @@ const clientRules = (band) => band && ({
   label: band.label,
   employment: band.employment,
   guardianApproval: band.guardianApproval,
+  // The age under which a parent or guardian has to agree, so the board can
+  // say so in words ("under 18") rather than leave the student guessing why.
+  guardianAge: require('../models/JobApplication').GUARDIAN_AGE,
   exposeContact: band.exposeContact,
   exposeCompensation: band.exposeCompensation,
   allowedTypes: band.allowedTypes || TYPES.map((t) => t.id),

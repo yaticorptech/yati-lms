@@ -7,6 +7,17 @@
 process.env.INTERVIEW_AI = 'template';
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env'), quiet: true });
+// Tests never run against a live database: they create and delete records as
+// they go. Whatever database .env names (it was pointed at production on
+// 2026-10-08), the tests use the testing database on the same cluster.
+const TEST_DB = 'yati_lms_test';
+for (const k of ['MONGO_URI', 'MONGODB_URI']) {
+    if (!process.env[k]) continue;
+    try {
+        const u = new URL(process.env[k]);
+        if (!u.pathname.replace(/^\//, '').endsWith('_test')) { u.pathname = `/${TEST_DB}`; process.env[k] = u.toString(); }
+    } catch { /* not a URL: left as it is */ }
+}
 // Tests never send real email. With the mailbox from .env they did: every run
 // of the organization tests mailed made-up example.com contacts, and each one
 // came back as an "Address not found" bounce in the LMS's own inbox — about

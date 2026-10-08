@@ -31,6 +31,13 @@ const generateCertificate = async (req, res) => {
         let existingCert = await Certificate.findOne({ userId, courseId });
         let issuedDate = existingCert ? existingCert.issuedAt : new Date();
 
+        // Downloaded again after the student deleted it from their profile:
+        // they want it, so it goes back in the frame, with its own number.
+        if (existingCert?.hiddenAt) {
+            existingCert.hiddenAt = null;
+            await existingCert.save();
+        }
+
         const course = await Course.findById(courseId);
         const user = await User.findById(userId);
 
@@ -138,8 +145,32 @@ const generateCertificate = async (req, res) => {
 // @access  Private/User
 const getMyCertificates = async (req, res) => {
     try {
-        const certs = await Certificate.find({ userId: req.user._id }).populate('courseId', 'title');
+        // Not the ones the student deleted from their profile (see hiddenAt).
+        const certs = await Certificate.find({ userId: req.user._id, hiddenAt: null }).populate('courseId', 'title');
         res.json(certs);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    Delete a certificate from the student's profile (My Certificates)
+// @route   DELETE /api/certificates/:id
+// @access  Private/User
+// Hidden, not destroyed — see hiddenAt on the model. Deleting the record would
+// take the completion off the school's dashboard and the resume, break the
+// number its QR code verifies, and issue a new number on the next download.
+const removeFromProfile = async (req, res) => {
+    try {
+        if (!require('mongoose').isValidObjectId(req.params.id)) {
+            return res.status(404).json({ message: 'Certificate not found.' });
+        }
+        const cert = await Certificate.findOneAndUpdate(
+            { _id: req.params.id, userId: req.user._id },
+            { hiddenAt: new Date() },
+            { new: true }
+        );
+        if (!cert) return res.status(404).json({ message: 'Certificate not found.' });
+        res.json({ removed: true, id: cert._id });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -147,5 +178,6 @@ const getMyCertificates = async (req, res) => {
 
 module.exports = {
     generateCertificate,
-    getMyCertificates
+    getMyCertificates,
+    removeFromProfile
 };
