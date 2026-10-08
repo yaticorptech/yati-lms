@@ -132,7 +132,7 @@ describe('an inter-college chess competition, start to finish', () => {
         assert.ok(orgList.body.competitions.some((c) => c.id === comp.id && c.registrationOpen));
     });
 
-    test('the platform admin viewing a college\'s panel sees its Competitions tab, read-only', async () => {
+    test('the platform admin viewing a college\'s panel sees its Competitions tab, and works in it as the college', async () => {
         const base = `http://127.0.0.1:${app.server.address().port}/api/competitions`;
         const viewAs = (orgId) => (method, path, body) => fetch(`${base}${path}`, {
             method, body: body ? JSON.stringify(body) : undefined,
@@ -145,9 +145,12 @@ describe('an inter-college chess competition, start to finish', () => {
         assert.ok(list.body.competitions.some((c) => c.id === comp.id), 'the published competition is there');
         assert.deepEqual((await view('GET', '/org/hosting')).body, { canHost: false });
         assert.equal((await view('GET', '/org/students')).status, 200);
+        // View mode is not read-only: a superadmin may change what the college
+        // could change itself (organizations/middleware/authMiddleware.js), so
+        // the request reaches the team rules, which refuse an empty team.
         const put = await view('PUT', `/org/${comp.id}/team`, { teamName: 'Not theirs', players: [] });
-        assert.equal(put.status, 403);
-        assert.equal(put.body.code, 'READ_ONLY_VIEW', 'only the college itself can register');
+        assert.equal(put.status, 400, JSON.stringify(put.body));
+        assert.notEqual(put.body.code, 'READ_ONLY_VIEW');
     });
 
     test('a coordinator registers a team of their own students — and only their own', async () => {
