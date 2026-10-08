@@ -116,9 +116,13 @@ window.__run = async () => {
   sessionStorage.setItem('viewOrganization', JSON.stringify({ id: 'o1', name: 'ABC College' }));
   const panel = (await api.get('/organizations/me/dashboard', { adapter })).data;
   const platform = (await api.get('/admin/courses', { adapter })).data;
+  const compete = (await api.get('/competitions/org', { adapter })).data;
+  const host = (await api.get('/competitions/org/host', { adapter })).data;
+  const platformCompete = (await api.get('/competitions/admin', { adapter })).data;
   sessionStorage.removeItem('viewOrganization');
   const after = (await api.get('/organizations/me/dashboard', { adapter })).data;
-  return { panel: panel['X-View-Organization'], platform: platform['X-View-Organization'], after: after['X-View-Organization'] };
+  return { panel: panel['X-View-Organization'], platform: platform['X-View-Organization'], after: after['X-View-Organization'],
+           compete: compete['X-View-Organization'], host: host['X-View-Organization'], platformCompete: platformCompete['X-View-Organization'] };
 };`;
 
     test("names the viewed organization on the panel's requests only", async () => {
@@ -127,5 +131,8 @@ window.__run = async () => {
         assert.equal(result.panel, 'o1');
         assert.equal(result.platform, undefined, 'not on the platform API');
         assert.equal(result.after, undefined, 'and not once the view has ended');
+        assert.equal(result.compete, 'o1', "the panel's Competitions tab too");
+        assert.equal(result.host, 'o1');
+        assert.equal(result.platformCompete, undefined, "not the platform's own Competitions");
     });
 });

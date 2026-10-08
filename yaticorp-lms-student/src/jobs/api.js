@@ -112,6 +112,40 @@ export async function learnerSkills() {
     }
 }
 
+/**
+ * For a demo card: the Career Path target role and the skills the Jobs section
+ * starts from (roadmap, resume, courses), worked out on the server. Null for
+ * anyone else, or on any failure.
+ * @returns {Promise<{ role: string, skills: string[] } | null>}
+ */
+export const demoJobsProfile = () => client.get('/jobs/my-profile').then((r) => r.data || null).catch(() => null);
+
+/** Is the signed-in student one of the demo cards? Any doubt is "no". */
+export const isDemoCard = () => client.get('/user/jobs-access').then((r) => r.data?.fullAccess === true).catch(() => false);
+
+/**
+ * Several skill lists made into one, taking from each in turn — one from the
+ * resume, one from Career Path, one from the courses, and round again — so a
+ * long list from one place cannot crowd the others out of the first `cap`.
+ * Case-insensitive duplicates keep their first spelling.
+ * @param {string[][]} lists  in order of preference
+ */
+export function interleaveSkills(lists, cap = 30) {
+    const out = [];
+    const seen = new Set();
+    const queues = lists.map((l) => (Array.isArray(l) ? [...l] : []));
+    while (out.length < cap && queues.some((q) => q.length)) {
+        for (const q of queues) {
+            while (q.length) {
+                const s = String(q.shift() || '').trim();
+                if (s && !seen.has(s.toLowerCase())) { seen.add(s.toLowerCase()); out.push(s); break; }
+            }
+            if (out.length >= cap) break;
+        }
+    }
+    return out;
+}
+
 export async function careerPrefill() {
     const [goalRes, skillsRes] = await Promise.allSettled([
         client.get('/career/goals'),

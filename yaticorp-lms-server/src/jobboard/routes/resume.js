@@ -14,7 +14,8 @@ const router = express.Router();
 const ResumeProfile = require('../models/ResumeProfile');
 const ApiUsage = require('../models/ApiUsage');
 const { parseResume } = require('../services/resumeService');
-const { localParse } = require('../services/localResumeParse');
+const { localParse, DOCX_MIME } = require('../services/localResumeParse');
+const { hasFullAccess } = require('../../services/fullAccess');
 const { normalizeSkillList } = require('../services/matchService');
 const { isConnected } = require('../config/db');
 
@@ -35,19 +36,26 @@ const BY_EXTENSION = {
     pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp'
 };
 
-/** The MIME type to hand the parser, or null when the file is neither kind. */
-const mimeFor = (file) => {
+/**
+ * The MIME type to hand the parser, or null when the file is neither kind.
+ * A Word .docx is taken from the demo cards only (services/fullAccess.js) and
+ * read by the local reader alone — the AI reader does not take Word files.
+ */
+const mimeFor = (file, user) => {
     if (ACCEPTED[file.mimetype]) return ACCEPTED[file.mimetype];
     const ext = String(file.originalname || '').toLowerCase().split('.').pop();
+    if ((file.mimetype === DOCX_MIME || ext === 'docx') && hasFullAccess(user)) return DOCX_MIME;
     return BY_EXTENSION[ext] || null;
 };
 
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-        if (mimeFor(file)) return cb(null, true);
-        cb(new Error('Resumes must be a PDF or an image (PNG, JPG, WebP) — export your document and try again.'));
+    fileFilter: (req, file, cb) => {
+        if (mimeFor(file, req.user)) return cb(null, true);
+        cb(new Error(hasFullAccess(req.user)
+            ? 'Resumes must be a PDF, a Word file (DOCX) or an image (PNG, JPG, WebP) — export your document and try again.'
+            : 'Resumes must be a PDF or an image (PNG, JPG, WebP) — export your document and try again.'));
     }
 });
 
@@ -79,7 +87,7 @@ router.post('/', (req, res, next) => {
 
             const key = dayKey(req.user._id);
             const day = await ApiUsage.findOne({ key }).lean();
-            if ((day?.calls ?? 0) >= PARSES_PER_DAY) {
+            if ((day?.calls ?? 0) >= PARSES_PER_DAY && !hasFullAccess(req.user)) {
                 return res.status(429).json({
                     error: `That's ${PARSES_PER_DAY} parses today — the daily limit. Try again tomorrow, or edit the skills by hand.`
                 });
@@ -95,11 +103,24 @@ router.post('/', (req, res, next) => {
             // and seniority when it answers. If the AI reader is unavailable
             // and the local reader found nothing either, that is the error
             // the student sees; a PDF with recognisable skills always lands.
-            const mime = mimeFor(req.file);
+            const mime = mimeFor(req.file, req.user);
             const userId = req.user._id;
             const parsedAt = new Date();
             const local = localParse(req.file.buffer, mime);
             const filename = String(req.file.originalname || 'resume.pdf').slice(0, 120);
+
+            // A Word file (demo cards only): the local reading is the whole reading.
+            if (mime === DOCX_MIME) {
+                if (!local?.skills?.length) {
+                    return res.status(422).json({ error: 'No skills could be found in that Word file. Check it lists your skills, or add them below by hand.' });
+                }
+                const profile = await ResumeProfile.findOneAndUpdate(
+                    { userId },
+                    { $set: { userId, parsedAt, filename, skills: local.skills, skillsRaw: local.skillsRaw, experienceYears: local.experienceYears || 0, parseStatus: 'parsed' } },
+                    { upsert: true, returnDocument: 'after' }
+                ).lean();
+                return res.json({ profile, aiRead: false, parsing: false });
+            }
 
             // The AI reader gets a few seconds inline. If it is still going,
             // the student gets the local reading now and the AI reading is

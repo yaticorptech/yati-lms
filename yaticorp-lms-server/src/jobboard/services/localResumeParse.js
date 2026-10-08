@@ -9,10 +9,61 @@
  * board's own skill vocabulary. Deterministic, instant, and good enough to
  * prefill a search; the AI parser overrides it when it does answer.
  *
- * Images cannot be read this way and return nothing.
+ * A Word document (.docx) is read the same way: it is a zip of XML, and the
+ * text is in word/document.xml. Images, and the old binary .doc, cannot be
+ * read this way and return nothing.
  */
 const zlib = require('zlib');
 const { ALL_SKILLS, SKILL_ALIASES } = require('../data/roles');
+
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+// ── Word (.docx) text ───────────────────────────────────────────────────────
+
+/**
+ * The text of a .docx: find word/document.xml in the zip's central directory,
+ * inflate it, and turn the XML into lines. Null when the file is not a zip
+ * holding that part.
+ */
+const extractDocxText = (buffer) => {
+  try {
+    if (!buffer || buffer.length < 22 || buffer.readUInt32LE(0) !== 0x04034b50) return null;
+    // The end-of-central-directory record sits in the last 64 KB.
+    let eocd = -1;
+    for (let i = buffer.length - 22; i >= Math.max(0, buffer.length - 65557); i -= 1) {
+      if (buffer.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) return null;
+    const count = buffer.readUInt16LE(eocd + 10);
+    let at = buffer.readUInt32LE(eocd + 16);
+    for (let n = 0; n < count && at + 46 <= buffer.length; n += 1) {
+      if (buffer.readUInt32LE(at) !== 0x02014b50) return null;
+      const method = buffer.readUInt16LE(at + 10);
+      const size = buffer.readUInt32LE(at + 20);
+      const nameLen = buffer.readUInt16LE(at + 28);
+      const extraLen = buffer.readUInt16LE(at + 30);
+      const commentLen = buffer.readUInt16LE(at + 32);
+      const local = buffer.readUInt32LE(at + 42);
+      const name = buffer.slice(at + 46, at + 46 + nameLen).toString('utf8');
+      if (name === 'word/document.xml') {
+        const start = local + 30 + buffer.readUInt16LE(local + 26) + buffer.readUInt16LE(local + 28);
+        const raw = buffer.slice(start, start + size);
+        const xml = (method === 8 ? zlib.inflateRawSync(raw) : raw).toString('utf8');
+        return xml
+          .replace(/<w:tab\/>/g, '\t')
+          .replace(/<\/w:p>|<w:br\/>/g, '\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+          .replace(/[ \t]+/g, ' ')
+          .trim() || null;
+      }
+      at += 46 + nameLen + extraLen + commentLen;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
 
 // ── PDF text ────────────────────────────────────────────────────────────────
 
@@ -114,15 +165,16 @@ const experienceFromText = (text) => {
 
 /**
  * @returns {{ skills: string[], skillsRaw: string[], experienceYears: number, text: string } | null}
- *          null when the file is not a PDF this reader can open.
+ *          null when the file is not a PDF or .docx this reader can open.
  */
 const localParse = (buffer, mimeType = 'application/pdf') => {
-  if (!buffer || mimeType !== 'application/pdf') return null;
-  if (buffer.slice(0, 5).toString('latin1') !== '%PDF-') return null;
-  const text = extractPdfText(buffer);
+  if (!buffer) return null;
+  let text = null;
+  if (mimeType === DOCX_MIME) text = extractDocxText(buffer);
+  else if (mimeType === 'application/pdf' && buffer.slice(0, 5).toString('latin1') === '%PDF-') text = extractPdfText(buffer);
   if (!text) return null;
   const skills = skillsFromText(text);
   return { skills, skillsRaw: [...skills], experienceYears: experienceFromText(text), text };
 };
 
-module.exports = { localParse, extractPdfText, skillsFromText };
+module.exports = { localParse, extractPdfText, extractDocxText, skillsFromText, DOCX_MIME };

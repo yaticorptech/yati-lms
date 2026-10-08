@@ -26,9 +26,11 @@ api.interceptors.request.use(config => {
         config.headers.Authorization = `Bearer ${token}`;
     }
     // A superadmin looking at an organization's panel: say which one, on that
-    // panel's own requests only. See utils/viewOrganization.js.
+    // panel's own requests only — its pages and its Competitions tab. See
+    // utils/viewOrganization.js.
     const viewed = getViewedOrganization();
-    if (viewed && String(config.url || '').startsWith('/organizations/me')) {
+    const url = String(config.url || '');
+    if (viewed && (url.startsWith('/organizations/me') || url.startsWith('/competitions/org'))) {
         config.headers['X-View-Organization'] = viewed.id;
     }
     return config;

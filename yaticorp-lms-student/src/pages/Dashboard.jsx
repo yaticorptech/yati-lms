@@ -16,7 +16,7 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import GlobalQuiz from '../components/GlobalQuiz';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { BookOpen, Award, PlayCircle, Clock, X, ArrowRight, Layers, CheckCircle2, Bookmark, CalendarDays, Globe } from 'lucide-react';
 import Portal from '../components/Portal';
 
@@ -155,7 +155,9 @@ const TABS = [
 ];
 
 const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, buyingCourseId, enrollCourse, refresh, weeklyActivity }) => {
-    const [activeTab, setActiveTab] = useState('available');
+    // The sidebar's Explore Courses opens straight on Available Courses (?tab=).
+    const [params] = useSearchParams();
+    const [activeTab, setActiveTab] = useState(() => (TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'available'));
     const navigate = useNavigate();
     // An administrator can take the Global Quiz away; its tab goes with it.
     const { isGlobalQuizEnabled } = useContext(AuthContext);
@@ -471,20 +473,24 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                         {course.thumbnail ? (
                                             <img src={course.thumbnail} alt={course.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                                         ) : (
-                                            <div className="relative flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500">
-                                                <span aria-hidden="true" className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-white/10" />
-                                                <span aria-hidden="true" className="absolute -bottom-12 right-6 h-36 w-36 rounded-full bg-white/10" />
-                                                <span aria-hidden="true" className="absolute right-10 top-8 text-white/30">✦</span>
-                                                <span className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 text-white shadow-lg backdrop-blur">
+                                            // A light cover for a course without a picture (the account
+                                            // owner's call, 2026-10-02): the deep purple one weighed down
+                                            // the whole list.
+                                            <div className="relative flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-50">
+                                                <span aria-hidden="true" className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-indigo-100/70" />
+                                                <span aria-hidden="true" className="absolute -bottom-12 right-6 h-36 w-36 rounded-full bg-fuchsia-100/60" />
+                                                <span aria-hidden="true" className="absolute right-10 top-8 text-indigo-300">✦</span>
+                                                <span className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-indigo-600 shadow-md shadow-indigo-100 ring-1 ring-indigo-100">
                                                     <BookOpen size={30} />
                                                 </span>
                                             </div>
                                         )}
-                                        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-900/50 to-transparent" />
-                                        <span className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-black shadow-sm ${course.price > 0 ? 'bg-white text-indigo-600' : 'bg-emerald-500 text-white'}`}>
+                                        {/* Only over a photo, where the label needs the contrast. */}
+                                        {course.thumbnail && <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-900/50 to-transparent" />}
+                                        <span className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-black shadow-sm ${course.price > 0 ? 'bg-white text-indigo-600 ring-1 ring-indigo-100' : 'bg-emerald-500 text-white'}`}>
                                             {course.price > 0 ? `₹${course.price}` : 'Free'}
                                         </span>
-                                        <span className="absolute bottom-3 left-4 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-700 backdrop-blur">
+                                        <span className="absolute bottom-3 left-4 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-indigo-100 backdrop-blur">
                                             <Clock size={12} className="text-indigo-500" /> Self-paced
                                         </span>
                                     </div>

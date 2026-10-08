@@ -7,7 +7,8 @@
  */
 const mongoose = require('mongoose');
 
-const SOURCES = ['streak_milestone', 'badge', 'leaderboard', 'referral', 'admin', 'campaign', 'redeem', 'reversal'];
+// 'competition': prizes from Games & Competitions (src/competitions).
+const SOURCES = ['streak_milestone', 'badge', 'leaderboard', 'referral', 'admin', 'campaign', 'redeem', 'reversal', 'competition'];
 
 const rewardTransactionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },

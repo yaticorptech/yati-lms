@@ -4,10 +4,11 @@
  */
 const express = require('express');
 const router = express.Router();
-const { generateCertificate, getMyCertificates } = require('../controllers/certificateController');
+const { generateCertificate, getMyCertificates, removeFromProfile } = require('../controllers/certificateController');
 const { protectUser } = require('../middleware/authMiddleware');
 
 router.post('/generate', protectUser, generateCertificate);
 router.get('/', protectUser, getMyCertificates);
+router.delete('/:id', protectUser, removeFromProfile);
 
 module.exports = router;

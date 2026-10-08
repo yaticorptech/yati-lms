@@ -1,9 +1,11 @@
 /**
- * Who may open the Jobs section before they have earned it.
+ * Who may open the Jobs section, and who may open it before they have earned it.
  *
- * The section is normally shut until a student is a quarter of the way through
- * their enrolled learning. A short list of accounts is exempt — the people
- * building and demonstrating the product, who have no course progress at all.
+ * The rule (the account owner's, 2026-10-02): the section opens once at least
+ * five of the student's Career Path skills are each at 25% or more. It used to
+ * be a quarter of the way through their enrolled courses. A short list of
+ * accounts is exempt — the people building and demonstrating the product
+ * (both Bhagyashree accounts and Yaticorp), who carry the flag below.
  *
  * This lives on the server, keyed to the account, for two reasons the previous
  * arrangement got wrong. It was a build-time flag (VITE_JOBS_GATE_BYPASS) baked
@@ -34,6 +36,8 @@ const allowList = () => String(process.env.JOBS_ALWAYS_OPEN || '')
  */
 const jobsAlwaysOpen = (user) => {
     if (!user) return false;
+    // The demo cards see everything (services/fullAccess.js).
+    if (require('./fullAccess').hasFullAccess(user)) return true;
     // The account's own flag comes first: it lives in the database, so it
     // travels with the card to any machine and any server pointed at that
     // database. The environment list below is only a convenience for setting
@@ -50,4 +54,44 @@ const jobsAlwaysOpen = (user) => {
     return mine.some((value) => list.includes(value));
 };
 
-module.exports = { jobsAlwaysOpen, allowList };
+/** The rule: at least SKILLS_REQUIRED Career Path skills, each at SKILL_PERCENT or more. */
+const SKILLS_REQUIRED = 5;
+const SKILL_PERCENT = 25;
+
+/**
+ * Whether this account may open the Jobs section, with what the locked page
+ * needs to say how far along the student is.
+ *
+ * Skills come from the Career Path tracker, highest first. A skill stored
+ * twice under different capitalisation counts once, at its better figure —
+ * the tracker has drifted that way before (see SkillProgress.MAX_TRACKED).
+ * @returns {Promise<{open: boolean, alwaysOpen: boolean, ready: number,
+ *   required: {skills: number, percent: number}, skills: {name: string, progress: number}[]}>}
+ */
+const jobsAccessFor = async (user) => {
+    const SkillProgress = require('../career/models/SkillProgress');
+    const rows = user?._id ? await SkillProgress.find({ userId: user._id }).select('skillName progress').lean() : [];
+    const best = new Map();
+    for (const r of rows) {
+        const name = String(r.skillName || '').trim();
+        if (!name) continue;
+        const progress = Math.max(0, Math.min(100, Math.round(Number(r.progress) || 0)));
+        const key = name.toLowerCase();
+        if (!best.has(key) || best.get(key).progress < progress) best.set(key, { name, progress });
+    }
+    const skills = [...best.values()].sort((a, b) => b.progress - a.progress || a.name.localeCompare(b.name));
+    const ready = skills.filter((s) => s.progress >= SKILL_PERCENT).length;
+    const alwaysOpen = jobsAlwaysOpen(user);
+    return {
+        open: alwaysOpen || ready >= SKILLS_REQUIRED,
+        alwaysOpen,
+        // One of the demo cards (services/fullAccess.js): the Jobs section
+        // reads their skills from Career Path and their resume in full.
+        fullAccess: require('./fullAccess').hasFullAccess(user),
+        ready,
+        required: { skills: SKILLS_REQUIRED, percent: SKILL_PERCENT },
+        skills
+    };
+};
+
+module.exports = { jobsAlwaysOpen, allowList, jobsAccessFor, SKILLS_REQUIRED, SKILL_PERCENT };

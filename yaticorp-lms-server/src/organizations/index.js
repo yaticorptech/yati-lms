@@ -15,6 +15,7 @@
  *     GET    /admin/:id                  one organization in full
  *     PUT    /admin/:id                  edit its details
  *     PUT    /admin/:id/status           approve, reject, suspend, reinstate
+ *     PUT    /admin/:id/competition-hosting  let it host competitions { enabled }
  *     GET    /admin/:id/students         its students, with progress
  *     GET    /admin/:id/assignable       students who could be put into it
  *     POST   /admin/:id/students         put a student into it
@@ -78,6 +79,7 @@ router.get('/admin/students/:studentId', superCtrl.getAnyStudentProgress);
 router.route('/admin/:id').get(superCtrl.getOrganization).put(superCtrl.updateOrganization);
 router.put('/admin/:id/status', superCtrl.setOrganizationStatus);
 router.put('/admin/:id/course-access', superCtrl.setCourseAccess);
+router.put('/admin/:id/competition-hosting', superCtrl.setCompetitionHosting);
 router.get('/admin/:id/students', superCtrl.getOrganizationStudents);
 // Putting a student into an organization directly, and taking them back out.
 // Ahead of nothing else, but note the assignable list is a literal segment.

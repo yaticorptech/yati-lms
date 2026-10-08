@@ -7,8 +7,9 @@
 import React, { useEffect, useState } from 'react';
 import { KeyRound, ExternalLink, Trash2, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import api from '../utils/api';
+import useJobsAccess from '../hooks/useJobsAccess';
 
-const AiKeySettings = () => {
+const AiKeyForm = () => {
     const [status, setStatus] = useState(null);      // { hasKey, masked, addedAt, platformKeyAvailable }
     const [key, setKey] = useState('');
     const [show, setShow] = useState(false);
@@ -137,6 +138,18 @@ const AiKeySettings = () => {
             )}
         </section>
     );
+};
+
+/**
+ * Not shown to the demo cards (the account owner's rule, 2026-10-08; the
+ * list is on the server, services/fullAccess.js). Shown once the check says
+ * this is not one of them, so it never flashes up for a demo card first; a
+ * check that fails shows it, as it always did.
+ */
+const AiKeySettings = () => {
+    const { loading, fullAccess } = useJobsAccess();
+    if (loading || fullAccess) return null;
+    return <AiKeyForm />;
 };
 
 export default AiKeySettings;

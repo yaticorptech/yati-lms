@@ -483,8 +483,11 @@ const OrganizationCourses = ({ org, startingId, startError, onStart }) => {
     return (
         <div className="space-y-5">
             <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                {/* The logo as uploaded, whole: no tile, outline or crop.
+                    Cropped into a rounded square it cut a tall logo (the
+                    YATICORP mascot) and boxed it in (2026-10-02). */}
                 {organization.logo ? (
-                    <img src={organization.logo} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover ring-1 ring-slate-200" />
+                    <img src={organization.logo} alt="" className="h-12 w-12 shrink-0 object-contain" />
                 ) : (
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Building2 size={22} /></span>
                 )}
@@ -521,7 +524,7 @@ const OrganizationCourses = ({ org, startingId, startError, onStart }) => {
                                     {course.thumbnail ? (
                                         <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                     ) : (
-                                        <div className="w-full h-full flex justify-center items-center bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white/80">
+                                        <div className="w-full h-full flex justify-center items-center bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-50 text-indigo-400">
                                             <BookOpen size={44} />
                                         </div>
                                     )}

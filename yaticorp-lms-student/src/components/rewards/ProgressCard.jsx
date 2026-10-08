@@ -14,16 +14,25 @@ import Sparkline from './Sparkline';
  * the type scales with the tile's own width (container units) and the
  * sparkline only appears once there is room beside the text. Every line
  * stays a single line, whole, at any width.
+ *
+ * On a phone they go two to a row (one each made a column five screens'
+ * worth of cards). Half a phone is too narrow for the icon beside the text,
+ * so there the icon sits above it, at a smaller size, and a line may wrap
+ * rather than be cut. A `wide` tile spans the row and keeps the side-by-side
+ * layout, at the same type sizes as the rest.
  */
-const Tile = ({ icon: Icon, label, value, suffix = '', sub, tone, series }) => {
+const Tile = ({ icon: Icon, label, value, suffix = '', sub, tone, series, wide = false }) => {
     const n = useCountUp(value);
+    const phone = !wide;
     return (
-        <div className={`lift @container relative flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl border p-3 @[300px]:gap-3.5 @[300px]:p-4 ${tone.card}`}>
-            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-sm @[300px]:h-14 @[300px]:w-14 ${tone.icon}`}><Icon size={24} /></span>
+        <div className={`lift @container relative flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl border p-3 @[300px]:gap-3.5 @[300px]:p-4 ${phone ? 'max-sm:flex-col max-sm:items-start max-sm:gap-2' : 'col-span-2 lg:col-span-1'} ${tone.card}`}>
+            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-sm @[300px]:h-14 @[300px]:w-14 ${phone ? 'max-sm:h-9 max-sm:w-9 max-sm:rounded-xl' : ''} ${tone.icon}`}>
+                <Icon size={24} className={phone ? 'max-sm:h-5 max-sm:w-5' : ''} />
+            </span>
             <div className="min-w-0 flex-1">
-                <p className="whitespace-nowrap text-[clamp(0.65rem,5cqw,0.875rem)] font-semibold text-slate-600">{label}</p>
-                <p className="whitespace-nowrap text-[clamp(1.3rem,12cqw,1.875rem)] font-black tabular-nums leading-tight text-slate-900">{n.toLocaleString('en-IN')}{suffix}</p>
-                {sub && <p className={`whitespace-nowrap text-[clamp(0.65rem,5cqw,0.875rem)] font-semibold ${series ? '@[300px]:pr-12' : ''} ${tone.sub}`}>{sub}</p>}
+                <p className="whitespace-nowrap text-[clamp(0.65rem,5cqw,0.875rem)] font-semibold text-slate-600 max-sm:whitespace-normal max-sm:text-xs max-sm:leading-snug">{label}</p>
+                <p className="whitespace-nowrap text-[clamp(1.3rem,12cqw,1.875rem)] font-black tabular-nums leading-tight text-slate-900 max-sm:mt-0.5 max-sm:text-2xl">{n.toLocaleString('en-IN')}{suffix}</p>
+                {sub && <p className={`whitespace-nowrap text-[clamp(0.65rem,5cqw,0.875rem)] font-semibold ${series ? '@[300px]:pr-12' : ''} max-sm:mt-0.5 max-sm:whitespace-normal max-sm:text-[11px] max-sm:leading-snug ${tone.sub}`}>{sub}</p>}
             </div>
             {series && <span className="pointer-events-none absolute bottom-2.5 right-3 hidden opacity-90 @[300px]:block"><Sparkline values={series} color={tone.line} width={48} height={22} /></span>}
         </div>
@@ -48,24 +57,27 @@ export default function ProgressCard({ summary, courses = [] }) {
     const cheer = overall >= 100 ? 'Everything finished — outstanding! 🏆' : overall >= 60 ? "Keep going! You're doing great! 🚀" : overall > 0 ? 'Good start — one lesson at a time. 💪' : 'Open a course to get your progress moving. ✨';
 
     return (
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="mb-4">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            <div className="mb-3 sm:mb-4">
                 <h2 className="flex items-center gap-2.5 text-xl font-black text-slate-900"><TrendingUp size={22} className="text-indigo-600" /> Your Progress</h2>
             </div>
-            <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="stagger grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-5">
                 <Tile icon={BookOpen} label="Courses Enrolled" value={enrolled} sub={`${inProgress} in progress`} tone={TONES.indigo} series={t.courses} />
                 <Tile icon={CheckCircle2} label="Lessons Completed" value={s.lessons.total || 0} sub={`+${num(s.lessons.thisWeek || 0)} this week`} tone={TONES.emerald} series={t.lessons} />
                 <Tile icon={Star} label="Quizzes Passed" value={s.quizzes.passed || 0} sub={s.quizzes.avgScore != null ? `${s.quizzes.avgScore}% success rate` : 'No quizzes yet'} tone={TONES.amber} series={t.quizzes} />
                 <Tile icon={Sparkles} label="XP Earned" value={summary.xp} sub={`+${num(s.xpThisWeek || 0)} this week · Level ${summary.level.level}`} tone={TONES.sky} series={t.xp} />
-                <Tile icon={Flame} label="Current Streak" value={summary.streak.current} suffix={summary.streak.current === 1 ? ' day' : ' days'} sub={`Best: ${num(summary.streak.longest)} ${summary.streak.longest === 1 ? 'day' : 'days'}`} tone={TONES.rose} series={t.streak} />
+                <Tile icon={Flame} label="Current Streak" value={summary.streak.current} suffix={summary.streak.current === 1 ? ' day' : ' days'} sub={`Best: ${num(summary.streak.longest)} ${summary.streak.longest === 1 ? 'day' : 'days'}`} tone={TONES.rose} series={t.streak} wide />
             </div>
-            <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-                <p className="shrink-0 text-sm font-semibold text-slate-600">Overall Progress</p>
-                <div className="h-3 min-w-[140px] flex-1 overflow-hidden rounded-full bg-slate-200">
+            {/* On a phone the label and the figure share a line and the bar runs
+                under them, full width; left to wrap, the figure dropped onto a
+                line of its own. From sm up: label, bar, figure in one row. */}
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 sm:mt-5">
+                <p className="order-1 shrink-0 text-sm font-semibold text-slate-600">Overall Progress</p>
+                <div className="order-3 h-3 min-w-[140px] basis-full overflow-hidden rounded-full bg-slate-200 sm:order-2 sm:flex-1 sm:basis-auto">
                     <div className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-violet-500 transition-[width] duration-1000 ease-out" style={{ width: `${overall}%` }} />
                 </div>
-                <span className="shrink-0 text-lg font-black tabular-nums text-indigo-600">{pct}%</span>
-                <span className="hidden shrink-0 text-sm font-semibold text-slate-600 lg:block">{cheer}</span>
+                <span className="order-2 ml-auto shrink-0 text-lg font-black tabular-nums text-indigo-600 sm:order-3 sm:ml-0">{pct}%</span>
+                <span className="order-4 hidden shrink-0 text-sm font-semibold text-slate-600 lg:block">{cheer}</span>
             </div>
         </section>
     );

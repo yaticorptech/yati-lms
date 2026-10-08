@@ -34,6 +34,8 @@ const isJobsEnabled = async () => {
 const requireJobsEnabled = async (req, res, next) => {
     try {
         if (await isJobsEnabled()) return next();
+        // The demo cards see every section (services/fullAccess.js).
+        if (await require('../../services/fullAccess').fullAccessFromRequest(req)) return next();
         // 403, not 404: the section exists and the student's token is fine.
         return res.status(403).json({
             code: 'JOBS_LOCKED',

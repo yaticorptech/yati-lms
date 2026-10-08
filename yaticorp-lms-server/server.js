@@ -11,6 +11,8 @@ const { connectDB } = require('./src/config/db');
 connectDB();
 // Guardian requests whose parent address bounced: see src/utils/bounceWatcher.js.
 if (process.env.NODE_ENV !== 'test') require('./src/utils/bounceWatcher').start();
+// Keeps online games moving when nobody is looking: turn timeouts, join windows, match start times.
+if (process.env.NODE_ENV !== 'test') require('./src/competitions/services/sweeper').start();
 
 const app = express();
 
@@ -118,6 +120,9 @@ app.use('/api/organizations', require('./src/organizations'));
 app.use('/api/integrations/google', require('./src/integrations/google/routes'));
 // Interview Ready — preparation, AI mock interviews and evaluation.
 app.use('/api/interview', require('./src/interview'));
+// Games & Competitions: online Chess, Ludo, Carrom and UNO, friendly rooms and
+// inter-college competitions run by the platform admin (src/competitions).
+app.use('/api/competitions', require('./src/competitions'));
 // Public share links for Career Path milestone badges: /b/<code> renders the
 // page a student's followers open, /b/<code>/image.png is what LinkedIn, X and
 // WhatsApp embed. Deliberately outside /api and deliberately unauthenticated —

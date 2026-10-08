@@ -5,6 +5,7 @@
  */
 const User = require('../models/User');
 const Card = require('../models/Card');
+const { normaliseCardNumber } = require('../utils/cardNumber');
 const Course = require('../models/Course');
 const Bundle = require('../models/Bundle');
 const Enrollment = require('../models/Enrollment');
@@ -55,38 +56,49 @@ const requestOrganizationAtSignup = async (userId, rawCode) => {
     }
 };
 
-// @desc    Validate QR Code and return card details (read-only)
+// @desc    Validate a card — by its QR code (scanned) or its card number
+//          (typed) — and return the card's details (read-only)
 // @route   POST /api/auth/validate-qr
 // @access  Public
 const validateQR = async (req, res) => {
     try {
-        const { qrCodeNumber } = req.body;
+        const qrCodeNumber = String(req.body?.qrCodeNumber || '').trim().toUpperCase();
+        const cardNumber = normaliseCardNumber(req.body?.cardNumber);
+        const typed = !qrCodeNumber;
 
-        if (!qrCodeNumber || !qrCodeNumber.trim()) {
-            return res.status(400).json({ message: 'QR Code is required.' });
+        if (!qrCodeNumber && !cardNumber) {
+            return res.status(400).json({ message: 'Please enter your card number.' });
+        }
+        if (typed && cardNumber.length !== 12) {
+            return res.status(400).json({ message: 'A card number has 12 digits.' });
         }
 
-        const card = await Card.findOne({ qrCodeNumber: qrCodeNumber.trim().toUpperCase() });
+        // Card numbers are stored as digits; a few older ones carry spaces.
+        const card = qrCodeNumber
+            ? await Card.findOne({ qrCodeNumber })
+            : await Card.findOne({ CardNumber: { $in: [cardNumber, cardNumber.replace(/(\d{4})(?=\d)/g, '$1 ')] } });
 
+        const what = typed ? 'card number' : 'QR Code';
         if (!card) {
-            return res.status(404).json({ message: 'Invalid QR Code. No card found.' });
+            return res.status(404).json({ message: typed ? 'No card has that number. Check the number printed on your card.' : 'Invalid QR Code. No card found.' });
         }
         if (card.status === 'used') {
-            return res.status(400).json({ message: 'This QR Code has already been used to register an account.' });
+            return res.status(400).json({ message: `This ${what} has already been used to register an account.` });
         }
         if (card.status === 'inactive') {
-            return res.status(400).json({ message: 'This QR Code is inactive and cannot be used.' });
+            return res.status(400).json({ message: `This ${what} is inactive and cannot be used.` });
         }
 
         res.json({
             valid: true,
-            message: 'QR Code is valid.',
+            message: 'Card is valid.',
             cardNumber: card.CardNumber,
-            cvv: card.CVV
+            cvv: card.CVV,
+            qrCodeNumber: card.qrCodeNumber
         });
 
     } catch (error) {
-        res.status(500).json({ message: 'Server error during QR validation', error: error.message });
+        res.status(500).json({ message: 'Server error during card validation', error: error.message });
     }
 };
 
@@ -204,7 +216,11 @@ const registerStudent = async (req, res) => {
 
         // courseId/contentType are optional: a student may register before any
         // content is published and enrol later from the dashboard.
-        if (!name || !email || !phone || !CardNumber || !CVV || !qrCodeNumber || !password) {
+        // Every detail is required — blanks and whitespace alike.
+        if (!String(name || '').trim()) return res.status(400).json({ message: 'Please enter your full name.' });
+        if (!String(email || '').trim()) return res.status(400).json({ message: 'Please enter your email address.' });
+        if (!String(phone || '').replace(/\D/g, '')) return res.status(400).json({ message: 'Please enter your phone number.' });
+        if (!CardNumber || !CVV || !qrCodeNumber || !password) {
             return res.status(400).json({ message: 'All required fields must be provided' });
         }
 

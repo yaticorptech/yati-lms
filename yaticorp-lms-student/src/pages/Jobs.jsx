@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 import { AuthContext } from '../context/AuthContext';
-import { jobsApi, detectLocation, autoDetectLocation, careerPrefill, learnerSkills } from '../jobs/api';
+import { jobsApi, detectLocation, autoDetectLocation, careerPrefill, learnerSkills, interleaveSkills, isDemoCard, demoJobsProfile } from '../jobs/api';
 import { comparePay } from '../jobs/pay';
 import { FIELD_LABEL, FIELD_INPUT, FIELD_OK, FIELD_BAD } from '../jobs/ui';
 import SkillInput from '../jobs/SkillInput';
@@ -263,6 +263,9 @@ export default function Jobs() {
        card hides rather than inviting an upload that may already exist);
        null = fetched, none stored. */
     const [resumeProfile, setResumeProfile] = useState(undefined);
+    // One of the demo cards (server: services/fullAccess.js) — they may also
+    // upload a Word resume here.
+    const [demoCard, setDemoCard] = useState(false);
 
     /* Resume, course and Career Path skills, and which came from where. The
        skill box says so underneath, and the match tabs search on all three. */
@@ -306,6 +309,12 @@ export default function Jobs() {
     const bootstrapped = useRef(false);
     // Identifies the newest request so a slow earlier one cannot overwrite it.
     const requestId = useRef(0);
+    // The tab the student is on now, for work that finishes later — a search,
+    // the first-visit set-up — so it never drags them back to a tab they have
+    // left. Going to Part-Time Jobs while a search was still loading used to
+    // end with the page jumping back to Jobs when the results arrived.
+    const tabRef = useRef(tab);
+    useEffect(() => { tabRef.current = tab; }, [tab]);
 
     const update = (patch) => {
         // Clear a field's complaint as soon as it is touched, rather than
@@ -391,6 +400,10 @@ export default function Jobs() {
         const f = { ...base, ...TAB_QUERY[target] };
 
         const id = ++requestId.current;
+        // A search from Saved Jobs lands on Jobs: switch now, as it starts,
+        // never when the results arrive — by then the student may have gone
+        // to another tab, and must be left there.
+        if (tabRef.current !== target) { tabRef.current = target; setTab(target); }
         setLoading(true);
         setStatus({ message: 'Searching global job sources…', error: false });
 
@@ -422,7 +435,6 @@ export default function Jobs() {
             setData(res);
             setFetchedFor(target);
             setVisibleCount(PAGE);
-            setTab(target);
 
             // res.ingest is the per-source report array, present only when a
             // blocking cold-start fetch ran for this very search.
@@ -470,6 +482,7 @@ export default function Jobs() {
     };
 
     const switchTab = (id) => {
+        tabRef.current = id;
         setTab(id);
         setTabParam(id);
         // Match and Hidden work from the resume, not the form.
@@ -506,11 +519,17 @@ export default function Jobs() {
             // someone's deliberate search, not a blank slate. Resume skills
             // come first in the merge: they are evidence the student put in
             // writing, where roadmap progress is the LMS's own bookkeeping.
-            const [fromCareer, resumeRes, learnedNow] = await Promise.all([
+            const [fromCareer, resumeRes, learnedNow, demo] = await Promise.all([
                 careerPrefill().catch(() => null),
                 jobsApi.resumeGet().catch(() => ({ profile: null })),
-                learnerSkills()
+                learnerSkills(),
+                isDemoCard()
             ]);
+            setDemoCard(demo);
+            // A demo card's own starting point: the target role it set in
+            // Career Path, and the role's roadmap skills with the resume's
+            // and the courses' (server: GET /jobs/my-profile).
+            const demoProfile = demo ? await demoJobsProfile() : null;
             setLearned(learnedNow);
             setCareerGoal(fromCareer?.role ?? null);
             const resume = resumeRes.profile ?? null;
@@ -532,19 +551,29 @@ export default function Jobs() {
             }
 
             if (!inbound.skills.length && !inbound.role.trim()) {
-                // Resume first — it is what the student wrote about themselves —
-                // then what this LMS actually taught them, then Career Path
-                // practice. A course finished here is evidence too.
-                const skills = [...new Set([
-                    ...(learnedNow.bySource.resume ?? []),
-                    ...(resume?.skills ?? []),
-                    ...(learnedNow.bySource.course ?? []),
-                    ...(fromCareer?.skills ?? []),
-                    ...(learnedNow.bySource.career ?? [])
-                ])].slice(0, 15);
+                // The demo cards (services/fullAccess.js on the server): the
+                // resume, Career Path (already opened out — "HTML5 / CSS3" →
+                // HTML, CSS) and the courses, taken in turn so each is
+                // represented, up to 30. Everyone else, as before: resume
+                // first, then what this LMS taught them, then Career Path
+                // practice, the first 15.
+                const skills = demo
+                    ? interleaveSkills([
+                        [...(learnedNow.bySource.resume ?? []), ...(resume?.skills ?? [])],
+                        demoProfile?.skills?.length ? demoProfile.skills : learnedNow.bySource.career?.length ? learnedNow.bySource.career : (fromCareer?.skills ?? []),
+                        learnedNow.bySource.course ?? []
+                    ], 30)
+                    : [...new Set([
+                        ...(learnedNow.bySource.resume ?? []),
+                        ...(resume?.skills ?? []),
+                        ...(learnedNow.bySource.course ?? []),
+                        ...(fromCareer?.skills ?? []),
+                        ...(learnedNow.bySource.career ?? [])
+                    ])].slice(0, 15);
+                const targetRole = (demo && demoProfile?.role) || fromCareer?.role;
                 const prefill = {
                     ...(skills.length ? { skills } : {}),
-                    ...(fromCareer?.role ? { role: fromCareer.role } : {})
+                    ...(targetRole ? { role: targetRole } : {})
                 };
                 if (Object.keys(prefill).length) {
                     extra = { ...extra, ...prefill };
@@ -572,12 +601,15 @@ export default function Jobs() {
                 }
             }
 
-            // A link straight to Saved Jobs or Opportunities is a request to
-            // see them, not to run a search that would flip the page onto Jobs.
-            if (inboundTab === 'saved' || inboundTab === 'opportunities') return;
+            // The first search is for Jobs, and only if the student is still
+            // there. Setting up takes a few seconds (the location lookup), and
+            // a student who had gone on to Part-Time Jobs meanwhile was pulled
+            // back to Jobs when it ran. A link straight to another tab is a
+            // request to see that tab, not to search.
+            if (inboundTab !== 'jobs' || tabRef.current !== 'jobs') return;
 
             const candidate = { ...inbound, ...extra };
-            if (!Object.keys(validate(candidate)).length) search(candidate, inboundTab);
+            if (!Object.keys(validate(candidate)).length) search(candidate, 'jobs');
         };
 
         boot();
@@ -739,6 +771,7 @@ export default function Jobs() {
                     className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5 lg:sticky lg:top-6"
                 >
                     <ResumeCard
+                        acceptWord={demoCard}
                         profile={resumeProfile}
                         onProfile={setResumeProfile}
                         onApply={applyResume}

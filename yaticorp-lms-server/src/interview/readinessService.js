@@ -1,51 +1,56 @@
 /**
- * Interview Readiness: one number and five parts, from what the LMS knows.
+ * Interview Readiness: one number and five parts, from how the student does
+ * in their mock interviews — and nothing before the first one (the account
+ * owner's rule, 2026-10-08). It used to start from guesses: communication and
+ * confidence at 50–60% before a single answer, and technical skill and
+ * problem solving from courses and projects, so a student who had never been
+ * interviewed was already a fifth of the way to "ready".
  *
- *   Technical        skills by evidence-backed status, blended with quiz scores
- *   Problem solving  assessments passed, projects built, and past interview scores
- *   Communication    past interviews' communication score; a modest default before any
- *   Confidence       past interviews' confidence score; a modest default before any
+ *   Communication    the interviews' communication score
+ *   Technical        the interviews' technical score
+ *   Problem solving  the interviews' problem-solving score
+ *   Confidence       the interviews' confidence score
  *   Practice         questions practised and mock interviews completed
  *
- * Interview scores count for more the more recent they are, so improvement
- * shows up quickly.
+ * Every part is 0 until a mock interview has been completed and scored; from
+ * then on each follows the last three interviews, the most recent counting
+ * most, so improvement shows up quickly. A report without one of the scores
+ * stands in with its overall score.
  */
 const { InterviewSession, InterviewPrep } = require('./models');
 
-const STATUS_SCORE = { Advanced: 100, Proficient: 75, Developing: 50, Learning: 25 };
 const clamp = (n) => Math.max(0, Math.min(100, Math.round(n)));
+const WEIGHTS = [3, 2, 1];
 
-/** Weighted mean of the last three interviews' score for one dimension. */
-const recentScore = (sessions, key) => {
-    const rows = sessions.filter((s) => s.report?.scores?.[key] != null).slice(0, 3);
+/** Weighted mean of the last three interviews' figure, or null when none has it. */
+const recentMean = (sessions, pick) => {
+    const rows = sessions.map(pick).filter((v) => v != null && Number.isFinite(Number(v))).slice(0, 3);
     if (!rows.length) return null;
-    const weights = [3, 2, 1];
     let sum = 0, w = 0;
-    rows.forEach((s, i) => { sum += s.report.scores[key] * weights[i]; w += weights[i]; });
+    rows.forEach((v, i) => { sum += Number(v) * WEIGHTS[i]; w += WEIGHTS[i]; });
     return sum / w;
 };
+
+/** One dimension from the interviews; the report's overall where it lacks that score. */
+const fromInterviews = (sessions, key) =>
+    recentMean(sessions, (s) => s.report?.scores?.[key]) ?? recentMean(sessions, (s) => s.report?.overall) ?? 0;
 
 const readiness = async (userId, context) => {
     const [sessions, prep] = await Promise.all([
         InterviewSession.find({ userId, status: 'completed' }).sort({ completedAt: -1 }).select('report type completedAt').lean(),
         InterviewPrep.findOne({ userId }).select('practiced questions').lean()
     ]);
-    const skills = context.skills.slice(0, 10);
-    const skillScore = skills.length ? skills.reduce((a, s) => a + STATUS_SCORE[s.status], 0) / skills.length : 0;
-    const quiz = context.assessments.averageScore;
-    const technical = clamp(quiz != null ? skillScore * 0.7 + quiz * 0.3 : skillScore * 0.9);
+    // Only an interview that was scored counts.
+    const scored = sessions.filter((s) => s.report && (s.report.overall != null || s.report.scores));
+    const interviewed = scored.length > 0;
 
-    const evidence = clamp(Math.min(100, context.assessments.passed * 12 + context.projects.length * 15));
-    const psInterview = recentScore(sessions, 'problemSolving');
-    const problemSolving = clamp(psInterview != null ? evidence * 0.4 + psInterview * 0.6 : evidence * 0.8);
-
-    const comm = recentScore(sessions, 'communication');
-    const communication = clamp(comm != null ? comm : 55 + (context.projects.length ? 5 : 0) + (context.completedCourses.length ? 5 : 0));
-    const conf = recentScore(sessions, 'confidence');
-    const confidence = clamp(conf != null ? conf : 50 + Math.min(10, context.strongSkills.length * 3));
+    const communication = interviewed ? clamp(fromInterviews(scored, 'communication')) : 0;
+    const technical = interviewed ? clamp(fromInterviews(scored, 'technical')) : 0;
+    const problemSolving = interviewed ? clamp(fromInterviews(scored, 'problemSolving')) : 0;
+    const confidence = interviewed ? clamp(fromInterviews(scored, 'confidence')) : 0;
 
     const practicedCount = prep?.practiced?.length || 0;
-    const practice = clamp(Math.min(100, practicedCount * 4 + sessions.length * 25));
+    const practice = interviewed ? clamp(Math.min(100, practicedCount * 4 + sessions.length * 25)) : 0;
 
     const overall = clamp(technical * 0.3 + communication * 0.2 + problemSolving * 0.2 + confidence * 0.15 + practice * 0.15);
 
@@ -65,8 +70,11 @@ const readiness = async (userId, context) => {
         practice: 'Take a mock interview this week — every one you finish lifts this score.'
     }[b.key]));
     // The last report's own improvement notes come first: they are specific.
+    // Before any interview there is one thing to do.
     const lastReport = sessions[0]?.report;
-    const areas = [...(lastReport?.improvements || []).slice(0, 2), ...improvements].slice(0, 4);
+    const areas = interviewed
+        ? [...(lastReport?.improvements || []).slice(0, 2), ...improvements].slice(0, 4)
+        : ['Take your first mock interview: your readiness is worked out from how you do in it.'];
 
     return {
         overall, breakdown,

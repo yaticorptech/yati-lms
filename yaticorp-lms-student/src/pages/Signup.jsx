@@ -89,7 +89,7 @@ const Sparkle = ({ className, delay = 0, size = 'text-base' }) => (
 );
 
 const STEPS = [
-    ['Verify your card', 'Scan the QR code on your card, or type it in.'],
+    ['Verify your card', 'Scan the QR code on your card, or type your card number.'],
     ['Your details', 'Tell us your name, email and phone number.'],
     ['Set a password', 'Choose a strong password to protect your account.'],
 ];
@@ -118,8 +118,11 @@ const Signup = () => {
      * the dashboard, so this costs the common case nothing.
      */
 
-    // QR validation state
+    // Card validation state: the QR code (scanned, or returned for a typed
+    // card number — registration needs it) and the card number as typed.
     const [qrCodeNumber, setQrCodeNumber] = useState('');
+    const [typedCard, setTypedCard] = useState('');
+    const typedDigits = typedCard.replace(/\D/g, '');
     const [_qrValidated, setQrValidated] = useState(false);
     const [qrValidating, setQrValidating] = useState(false);
     // Card details fetched from backend after QR validation (stored internally)
@@ -189,36 +192,48 @@ const Signup = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    // Step 1: Validate QR code
+    // Step 1: validate the card — the scanned QR code, or the typed card number
     const handleValidateQR = async (e) => {
         e.preventDefault();
         setError(null);
 
-        if (!qrCodeNumber.trim()) {
-            return setError('Please enter your QR Code.');
+        const byNumber = mode === 'manual';
+        if (byNumber ? typedDigits.length !== 12 : !qrCodeNumber.trim()) {
+            return setError(byNumber ? 'Please enter the 12-digit card number printed on your card.' : 'Please scan the QR code on your card.');
         }
 
         setQrValidating(true);
         try {
-            const res = await api.post('/auth/validate-qr', { qrCodeNumber: qrCodeNumber.trim() });
+            const res = await api.post('/auth/validate-qr', byNumber ? { cardNumber: typedDigits } : { qrCodeNumber: qrCodeNumber.trim() });
             // Store card details internally — never shown as editable inputs
             setCardDetails({ CardNumber: res.data.cardNumber, CVV: res.data.cvv });
+            if (res.data.qrCodeNumber) setQrCodeNumber(String(res.data.qrCodeNumber));
             setQrValidated(true);
             setStep(2);
         } catch (err) {
-            setError(err.response?.data?.message || 'Invalid QR Code. Please try again.');
+            setError(err.response?.data?.message || (byNumber ? 'That card number was not accepted. Please try again.' : 'Invalid QR Code. Please try again.'));
         } finally {
             setQrValidating(false);
         }
     };
 
+    // Every detail is required: nothing moves on, and no account is created,
+    // until the name, a Gmail address and a phone number are all filled in.
+    const phoneOk = (formData.phoneCode || '+91') === '+91' ? formData.phone.length === 10 : formData.phone.length >= 8 && formData.phone.length <= 12;
+    const detailsComplete = formData.name.trim().length >= 2 && /^[^\s@]+@gmail\.com$/i.test(formData.email.trim()) && phoneOk;
+    const passwordsFilled = formData.password.length > 0 && formData.confirmPassword.length > 0;
+
     const handlePersonalDetailsNext = (e) => {
         e.preventDefault();
         setError(null);
 
+        if (formData.name.trim().length < 2) return setError('Please enter your full name.');
+        if (!formData.email.trim()) return setError('Please enter your email address.');
         if (!formData.email.toLowerCase().endsWith('@gmail.com')) {
             return setError('Only @gmail.com email addresses are allowed.');
         }
+        if (!formData.phone) return setError('Please enter your phone number.');
+        if (!phoneOk) return setError((formData.phoneCode || '+91') === '+91' ? 'Please enter a 10-digit phone number.' : 'Please enter a valid phone number.');
 
         // The Organization ID is optional, so an empty box is fine. A filled one
         // has to look like an ID: the shape is worth checking now, while the
@@ -397,12 +412,12 @@ const Signup = () => {
                                     </div>
                                 ) : (
                                     <div>
-                                        <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><QrCode size={15} className="text-slate-500" /> QR Code</label>
-                                        <input type="text" required maxLength={11} value={qrCodeNumber}
-                                            onChange={(e) => setQrCodeNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                                        <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><CreditCard size={15} className="text-slate-500" /> Card Number</label>
+                                        <input type="text" required inputMode="numeric" autoComplete="off" maxLength={14} value={typedCard}
+                                            onChange={(e) => setTypedCard(e.target.value.replace(/\D/g, '').slice(0, 12).replace(/(\d{4})(?=\d)/g, '$1 '))}
                                             className={`${inputClass} font-mono tracking-widest`}
-                                            placeholder="e.g. QR12345678" />
-                                        <p className="mt-1.5 text-xs text-slate-500">Found on the back of your physical or digital card.</p>
+                                            placeholder="e.g. 2401 0001 9664" aria-label="Card Number" />
+                                        <p className="mt-1.5 text-xs text-slate-500">The 12-digit number printed on your physical or digital card.</p>
                                     </div>
                                 )}
 
@@ -412,7 +427,7 @@ const Signup = () => {
                                     </p>
                                 )}
 
-                                <button type="submit" disabled={qrValidating || !qrCodeNumber.trim()} className={primaryBtn}>
+                                <button type="submit" disabled={qrValidating || (mode === 'manual' ? typedDigits.length !== 12 : !qrCodeNumber.trim())} className={primaryBtn}>
                                     {qrValidating ? 'Verifying your card…' : 'Verify Card'}
                                     {!qrValidating && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
                                 </button>
@@ -465,6 +480,7 @@ const Signup = () => {
                                             required
                                             inputMode="numeric"
                                             placeholder="Phone number"
+                                            maxLength={12}
                                             value={formData.phone}
                                             onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
                                             className={`${inputClass} flex-1`}
@@ -500,7 +516,7 @@ const Signup = () => {
 
                                 <div className="flex gap-3">
                                     <button type="button" onClick={() => { setError(null); setStep(1); setQrValidated(false); }} className={backBtn}><ArrowLeft size={15} /> Back</button>
-                                    <button type="submit" className={primaryBtn}>
+                                    <button type="submit" disabled={!detailsComplete} className={primaryBtn} title={detailsComplete ? undefined : 'Fill in your name, Gmail address and phone number to continue'}>
                                         Continue
                                         <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>
                                     </button>
@@ -573,7 +589,7 @@ const Signup = () => {
 
                                 <div className="flex gap-3">
                                     <button type="button" onClick={() => { setError(null); setStep(2); }} className={backBtn}><ArrowLeft size={15} /> Back</button>
-                                    <button type="submit" disabled={loading} className={primaryBtn}>
+                                    <button type="submit" disabled={loading || !passwordsFilled} className={primaryBtn} title={passwordsFilled ? undefined : 'Enter and confirm a password to create your account'}>
                                         {loading ? 'Creating your account…' : 'Create Account'}
                                         {!loading && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
                                     </button>

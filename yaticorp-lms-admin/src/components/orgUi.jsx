@@ -66,12 +66,15 @@ export const PageHeader = ({ icon: Icon, title, subtitle, children }) => (
  * A row of mutually exclusive choices — a sort order, a tab. Scrolls sideways
  * on a narrow phone rather than wrapping onto a second line.
  */
-export const Segmented = ({ options, value, onChange, counts = {} }) => (
+// `locked`: { key: reason } for an option shown but not open yet — it stays in
+// place, dimmed, and a click says why (onLocked) instead of switching to it.
+export const Segmented = ({ options, value, onChange, counts = {}, locked = {}, onLocked }) => (
     <div className="-mx-1 overflow-x-auto px-1 no-scrollbar">
         <div className="inline-flex gap-1 rounded-xl bg-slate-100 p-1">
             {options.map(([key, label]) => (
-                <button key={key} onClick={() => onChange(key)} aria-pressed={value === key}
-                    className={`whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${value === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                <button key={key} onClick={() => (locked[key] ? onLocked?.(key) : onChange(key))} aria-pressed={value === key}
+                    aria-disabled={locked[key] ? 'true' : undefined} title={locked[key] || undefined}
+                    className={`whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${value === key ? 'bg-white text-indigo-600 shadow-sm' : locked[key] ? 'cursor-not-allowed text-slate-500 opacity-50' : 'text-slate-500 hover:text-slate-700'}`}>
                     {label}
                     {counts[key] > 0 && (
                         <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-black ${value === key ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>

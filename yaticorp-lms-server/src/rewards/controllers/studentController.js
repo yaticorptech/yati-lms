@@ -112,7 +112,9 @@ const getWallet = async (req, res) => {
     const [wallet, user, recent, open, usedThisMonth] = await Promise.all([
       S.points.getOrCreateWallet(userId),
       User.findById(userId).select('accountType walletAccess').lean(),
-      WalletTransaction.find({ userId }).sort({ createdAt: -1 }).limit(5).lean(),
+      // Twenty: the dashboard's wallet card scrolls through them (three rows
+      // tall); the full wallet's overview still shows the first five.
+      WalletTransaction.find({ userId }).sort({ createdAt: -1 }).limit(20).lean(),
       WithdrawalRequest.findOne({ userId, status: { $in: ['pending', 'approved'] } }).lean(),
       S.wallet.redeemedThisMonth(userId)
     ]);

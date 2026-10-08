@@ -59,7 +59,7 @@ const maskPhone = (phone) => {
 };
 
 /** The student's own view: everything except the guardian's full number. */
-const studentView = (row) => ({
+const studentView = (row, { currentGuardian = null } = {}) => ({
     id: String(row._id),
     opportunityId: row.opportunityId,
     status: row.status,
@@ -75,6 +75,14 @@ const studentView = (row) => ({
         email: maskEmail(row.guardian?.email),
         phone: maskPhone(row.guardian?.phone)
     },
+    // The guardian now on the student's profile, when a different one has
+    // already answered this application (see refreshFromProfile): the card
+    // shows the current one, and says who answered.
+    currentGuardian: currentGuardian ? {
+        name: currentGuardian.name || '',
+        email: maskEmail(currentGuardian.email),
+        phone: maskPhone(currentGuardian.phone)
+    } : null,
     steps: stepsFor(row.status),
     guardianAge: GUARDIAN_AGE,
     // Whether a parent had to agree at all. A student of GUARDIAN_AGE or over

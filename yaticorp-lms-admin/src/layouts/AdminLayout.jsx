@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Layers, LogOut,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2 } from 'lucide-react';
+    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 
@@ -183,6 +183,10 @@ const AdminLayout = () => {
                     </Link>
                     <Link to="/announcements" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/announcements') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                         <Megaphone size={20} /> <span className="font-medium">Announcements</span>
+                    </Link>
+                    {/* Inter-college competitions (Chess, Ludo, Carrom, UNO). The super admin runs them. */}
+                    <Link to="/competitions" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/competitions') || location.pathname.startsWith('/competitions/') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                        <Trophy size={20} /> <span className="font-medium">Competitions</span>
                     </Link>
                 </nav>
 

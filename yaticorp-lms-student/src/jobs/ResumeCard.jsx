@@ -19,14 +19,17 @@ import {
 import { jobsApi } from './api';
 
 const ACCEPT = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
+// A Word .docx is taken from the demo cards only (`acceptWord`).
+const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const MAX_BYTES = 5 * 1024 * 1024;
 
 // The type is the browser's guess and is sometimes blank, so the extension
 // gets a say — the server checks the same way.
-const looksAccepted = (file) =>
-    ACCEPT.includes(file.type) || /\.(pdf|png|jpe?g|webp)$/i.test(file.name || '');
+const looksAccepted = (file, word) =>
+    ACCEPT.includes(file.type) || /\.(pdf|png|jpe?g|webp)$/i.test(file.name || '')
+    || (word && (file.type === DOCX || /\.docx$/i.test(file.name || '')));
 
-export default function ResumeCard({ profile, onProfile, onApply }) {
+export default function ResumeCard({ profile, onProfile, onApply, acceptWord = false }) {
     const [uploading, setUploading] = useState(false);
     const [dragging, setDragging] = useState(false);
     const [error, setError] = useState('');
@@ -44,8 +47,8 @@ export default function ResumeCard({ profile, onProfile, onApply }) {
         setError('');
         // Both are checked again server-side; failing here just saves a
         // 5 MB round trip that ends in the same sentence.
-        if (!looksAccepted(file)) {
-            setError('That isn’t a PDF or an image — export your resume as PDF, PNG or JPG.');
+        if (!looksAccepted(file, acceptWord)) {
+            setError(acceptWord ? 'That isn’t a PDF, a Word file (DOCX) or an image — export your resume as one of those.' : 'That isn’t a PDF or an image — export your resume as PDF, PNG or JPG.');
             return;
         }
         if (file.size > MAX_BYTES) {
@@ -129,7 +132,7 @@ export default function ResumeCard({ profile, onProfile, onApply }) {
                 <div
                     role="button"
                     tabIndex={0}
-                    aria-label="Upload your resume — PDF or image, up to 5 MB"
+                    aria-label={`Upload your resume — PDF${acceptWord ? ', Word (DOCX)' : ''} or image, up to 5 MB`}
                     aria-busy={uploading}
                     onClick={() => !uploading && inputRef.current?.click()}
                     onKeyDown={(e) => {
@@ -155,6 +158,7 @@ export default function ResumeCard({ profile, onProfile, onApply }) {
                     </p>
                     <div className="mt-3 flex items-center justify-center gap-2">
                         <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-rose-600">PDF</span>
+                        {acceptWord && <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-blue-700">DOCX</span>}
                         <span className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-sky-700">IMAGE</span>
                         <span className="text-xs font-semibold text-slate-400">Max 5 MB</span>
                     </div>
@@ -164,7 +168,7 @@ export default function ResumeCard({ profile, onProfile, onApply }) {
             <input
                 ref={inputRef}
                 type="file"
-                accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+                accept={`.pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp${acceptWord ? `,.docx,${DOCX}` : ''}`}
                 className="hidden"
                 onChange={(e) => handleFile(e.target.files?.[0])}
             />

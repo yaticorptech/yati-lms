@@ -56,7 +56,7 @@ describe('the part-time applications panel', { skip: skipWithoutChrome }, () => 
                 await sleep(800);
                 return { body: text(document.body), asked: window.__calls.map((c) => c[1]) };` });
         assert.deepEqual(errors, []);
-        for (const bit of ['Sowndarya', 'Under 15', 'Front Desk Assistant', 'ABC Company', 'Devaki', '+91 •••••43210']) {
+        for (const bit of ['Sowndarya', 'Under 18', 'Front Desk Assistant', 'ABC Company', 'Devaki', '+91 •••••43210']) {
             assert.ok(result.body.includes(bit), `"${bit}" should be listed`);
         }
         assert.ok(result.asked.some((u) => /admin\/opportunities\/applications/.test(u)));
@@ -105,7 +105,7 @@ describe('the part-time applications panel', { skip: skipWithoutChrome }, () => 
         // word boundary keeps the past tense out of it.
         const deciding = result.buttons.filter((b) => /\b(approve|decline|reject|accept)\b/i.test(b));
         assert.deepEqual(deciding, [], `nothing here may decide, found ${JSON.stringify(deciding)}`);
-        assert.match(result.body, /only once the parent has agreed/i,
+        assert.match(result.body, /Approve and Reject once the parent has agreed/i,
             'and the panel says when a row becomes theirs to answer');
     });
 

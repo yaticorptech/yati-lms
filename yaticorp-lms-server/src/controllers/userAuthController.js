@@ -6,7 +6,6 @@ const User = require('../models/User');
 const { findUserByCardNumber } = require('../utils/cardNumber');
 const Enrollment = require('../models/Enrollment');
 const generateToken = require('../utils/generateToken');
-const { uploadToCloudinary } = require('../middleware/uploadMiddleware');
 
 // @desc    Auth user & get token
 // @route   POST /api/user/login
@@ -72,9 +71,10 @@ const getUserProfile = async (req, res) => {
     }
 };
 
-// Pictures set through the plain profile update must be an empty string
-// (back to initials), one of the avatar illustrations bundled with the
-// student app, a DiceBear avatar, or a Cloudinary upload we already hold.
+// Pictures set through the plain profile update must be one of the avatar
+// illustrations bundled with the student app, a DiceBear avatar, or a
+// Cloudinary upload we already hold — never empty: a profile picture is
+// compulsory, so it can be changed but not removed.
 // Anything else could turn the avatar into a link to any image online.
 // Bundled avatars arrive as a relative path; when FRONTEND_URL is set they
 // are stored absolute so the admin panel, on its own origin, can show them.
@@ -117,6 +117,9 @@ const updateUserProfile = async (req, res) => {
             user.phone = req.body.phone || user.phone;
             if (req.body.profilePicture !== undefined) {
                 const pic = normalizePictureUrl(String(req.body.profilePicture || '').trim());
+                if (pic === '') {
+                    return res.status(400).json({ message: 'A profile picture is required. Upload a photo or choose an avatar.' });
+                }
                 if (pic === null) {
                     return res.status(400).json({ message: 'Profile picture must be an uploaded photo or a chosen avatar' });
                 }
@@ -148,17 +151,21 @@ const updateUserProfile = async (req, res) => {
     }
 };
 
-// @desc    Upload / update profile picture via Cloudinary (server-side)
+// @desc    Upload / update profile picture (server-side → Bunny Storage → MongoDB)
 // @route   POST /api/user/profile/picture
 // @access  Private/User
+// Stored on Bunny, where the platform's other images live. It was Cloudinary,
+// until that account was disabled ("401 disabled customer") and every upload
+// failed. The student app crops the photo square and shrinks it first.
 const uploadProfilePicture = async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ message: 'No image file provided' });
         }
 
-        // Upload buffer to Cloudinary
-        const profilePicture = await uploadToCloudinary(req.file.buffer, 'lms_profile');
+        // Looked up at call time, so a test can stand in for the storage.
+        const { uploadToBunny } = require('../utils/bunnyStorage');
+        const profilePicture = await uploadToBunny(req.file.buffer, 'profile.jpg', 'profile-pictures');
 
         // Save URL to MongoDB
         const user = await User.findByIdAndUpdate(
@@ -169,8 +176,8 @@ const uploadProfilePicture = async (req, res) => {
 
         res.json({ profilePicture: user.profilePicture });
     } catch (error) {
-        console.error('Profile picture upload error:', error);
-        res.status(500).json({ message: 'Upload failed', error: error.message });
+        console.error('Profile picture upload error:', error.message);
+        res.status(502).json({ message: 'Your photo could not be saved just now. Please try again, or pick an avatar.' });
     }
 };
 

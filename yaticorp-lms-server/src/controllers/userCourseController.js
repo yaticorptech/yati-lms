@@ -131,14 +131,27 @@ const getMyCourses = async (req, res) => {
             progress: bundleProgress(bundle, progressByCourse)
         }));
 
-        // Whether this account skips the 25% rule for the Jobs section. Decided
+        // Whether this account skips the rule for the Jobs section. Decided
         // here, on the account, so it travels with the person to any machine.
+        // The Jobs gate itself reads GET /user/jobs-access.
         const { jobsAlwaysOpen } = require('../services/jobsAccess');
         res.json({
             courses: coursesWithProgress,
             bundles: bundlesWithProgress,
             jobsAlwaysOpen: jobsAlwaysOpen(req.user)
         });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    Whether the student may open the Jobs section, and how far along they are
+// @route   GET /api/user/jobs-access
+// @access  Private/User
+const getJobsAccess = async (req, res) => {
+    try {
+        const { jobsAccessFor } = require('../services/jobsAccess');
+        res.json(await jobsAccessFor(req.user));
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -517,6 +530,7 @@ const searchContent = async (req, res) => {
 
 module.exports = {
     getMyCourses,
+    getJobsAccess,
     getBundles,
     getBundleContent,
     getCourseContent,
