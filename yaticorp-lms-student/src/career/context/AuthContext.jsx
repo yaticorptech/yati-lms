@@ -15,7 +15,7 @@
  * by CareerShell on every navigation within the section — in the standalone app
  * a full page load did the same job.
  */
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import lmsApi from '../../utils/api';
 import { AuthContext as LmsAuthContext } from '../../context/AuthContext';
 
@@ -25,6 +25,8 @@ export const AuthProvider = ({ children }) => {
   const { user: lmsUser, loading: lmsLoading, isCreditSystemEnabled } = useContext(LmsAuthContext);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  // The XP and level last seen, to tell a real change from a routine re-read.
+  const seen = useRef(null);
 
   const refresh = useCallback(async () => {
     if (!lmsUser) {
@@ -37,13 +39,25 @@ export const AuthProvider = ({ children }) => {
       const fresh = data?.user ?? data;
       setUser(fresh);
 
-      // Tell the rest of the app. The sidebar card and the header pills live in
-      // StudentLayout, outside this provider, and only refetched on navigation
-      // — so finishing a task that crossed a level left the nav chip reading
-      // "Level 3" while the sidebar beside it still said "Level 2 · 295 XP".
-      // A plain DOM event rather than lifted state: nothing else about these
-      // two trees needs to know about each other.
-      window.dispatchEvent(new CustomEvent('yati:progress-changed'));
+      // Measured against the last read — or, on the first, against the
+      // session the rest of the app started from.
+      const before =
+        seen.current?.id === fresh?._id ? seen.current : { xp: lmsUser.xp, level: lmsUser.level };
+      seen.current = { id: fresh?._id, xp: fresh?.xp, level: fresh?.level };
+      const moved = before.xp !== fresh?.xp || before.level !== fresh?.level;
+
+      // Tell the rest of the app. The sidebar card and the header pills live
+      // in StudentLayout, outside this provider, and only refetched on
+      // navigation — so finishing a task that crossed a level left the nav
+      // chip reading "Level 3" while the sidebar beside it still said "Level
+      // 2 · 295 XP". A plain DOM event rather than lifted state: nothing else
+      // about these two trees needs to know about each other.
+      //
+      // Only when something moved, though. This runs on every navigation in
+      // the section, and the event also empties the Career Path read cache
+      // (services/api.js), so firing it each time wiped the cache on every
+      // tab change and it never served a read.
+      if (moved) window.dispatchEvent(new CustomEvent('yati:progress-changed'));
       // Handed back as well as stored. A caller that has just completed
       // something needs the new XP total in the same tick to work out what the
       // server actually awarded, and `setUser` will not have landed by then.

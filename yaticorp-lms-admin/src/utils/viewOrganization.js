@@ -1,11 +1,11 @@
 /**
- * A superadmin looking at one organization's own panel, read-only.
+ * A superadmin managing one organization's own panel.
  *
  * Which organization, kept per tab (sessionStorage): opening one in a tab
  * does not change what another tab shows, and closing the tab ends it. The
  * API client sends it as the X-View-Organization header on the
  * organization panel's requests; the server lets only a superadmin use it,
- * and only to read.
+ * and lets them change anything but the organization's password.
  */
 const KEY = 'viewOrganization';
 

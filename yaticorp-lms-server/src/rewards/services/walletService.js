@@ -8,7 +8,7 @@ const { Wallet, WalletTransaction, RewardTransaction, WithdrawalRequest } = requ
 const User = require('../../models/User');
 const { runInTransaction, isDuplicate } = require('./tx');
 const { getConfig } = require('./configService');
-const { monetaryEnabledFor, pointsToMoney } = require('./eligibility');
+const { monetaryEnabledFor } = require('./eligibility');
 const { getOrCreateWallet } = require('./rewardPointsService');
 const { notify, celebrate } = require('./notify');
 const { periodWindow } = require('../config/constants');
@@ -20,16 +20,20 @@ const money = (n) => Math.round(Number(n) * 100) / 100;
  * Add money. `referenceKey` makes the credit idempotent per user.
  * Returns { duplicate: true } when that key has already been credited.
  */
-const credit = async ({ userId, amount, source, referenceKey = null, description = '', meta = {}, createdBy = 'system', status = 'completed' }) => {
+const credit = async ({ userId, amount, source, referenceKey = null, description = '', meta = {}, createdBy = 'system', status = 'completed', spendOnly = false }) => {
   amount = money(amount);
   if (!(amount > 0)) throw fail('Amount must be greater than zero');
   try {
     return await runInTransaction(async (session) => {
       const [txn] = await WalletTransaction.create([{ userId, type: 'credit', amount, source, referenceKey, description, meta, createdBy, status }], { session });
       await getOrCreateWallet(userId, session);
-      const inc = status === 'completed'
-        ? { available: amount, totalEarned: amount, [`earnedBySource.${source}`]: amount }
-        : { pending: amount };
+      // A spend-only credit (the starting balance) is not earnings: it adds to
+      // what can be spent and to the non-withdrawable part, nothing else.
+      const inc = status !== 'completed'
+        ? { pending: amount }
+        : spendOnly
+          ? { available: amount, spendOnly: amount }
+          : { available: amount, totalEarned: amount, [`earnedBySource.${source}`]: amount };
       const wallet = await Wallet.findOneAndUpdate({ userId }, { $inc: inc }, { returnDocument: 'after', session });
       await WalletTransaction.updateOne({ _id: txn._id }, { $set: { balanceAfter: wallet.available } }, { session });
       return { txn, wallet, duplicate: false };
@@ -45,7 +49,7 @@ const credit = async ({ userId, amount, source, referenceKey = null, description
  * is conditional on the balance, so two spends racing for the last rupee
  * cannot both succeed.
  */
-const debit = async ({ userId, amount, source, referenceKey = null, description = '', meta = {}, createdBy = 'system', hold = false }) => {
+const debit = async ({ userId, amount, source, referenceKey = null, description = '', meta = {}, createdBy = 'system', hold = false, spendCreditFirst = false }) => {
   amount = money(amount);
   if (!(amount > 0)) throw fail('Amount must be greater than zero');
   try {
@@ -54,23 +58,19 @@ const debit = async ({ userId, amount, source, referenceKey = null, description 
       const inc = hold ? { available: -amount, pending: amount } : { available: -amount, totalSpent: amount };
       const wallet = await Wallet.findOneAndUpdate({ userId, available: { $gte: amount } }, { $inc: inc }, { returnDocument: 'after', session });
       if (!wallet) throw fail('Insufficient wallet balance', 400, 'INSUFFICIENT_FUNDS');
-      const [txn] = await WalletTransaction.create([{ userId, type: 'debit', amount, source, referenceKey, description, meta, createdBy, status: hold ? 'pending' : 'completed', balanceAfter: wallet.available }], { session });
+      // A purchase uses the starting credit first, so earned money stays
+      // withdrawable; anything else only keeps the spend-only part within
+      // what is left.
+      const fromSpendOnly = spendCreditFirst ? Math.min(Math.max(0, wallet.spendOnly || 0), amount) : 0;
+      const spendOnlyAfter = Math.min(Math.max(0, (wallet.spendOnly || 0) - fromSpendOnly), wallet.available);
+      if (spendOnlyAfter !== (wallet.spendOnly || 0)) await Wallet.updateOne({ userId }, { $set: { spendOnly: spendOnlyAfter } }, { session });
+      const [txn] = await WalletTransaction.create([{ userId, type: 'debit', amount, source, referenceKey, description, meta: { ...meta, fromSpendOnly }, createdBy, status: hold ? 'pending' : 'completed', balanceAfter: wallet.available }], { session });
       return { txn, wallet, duplicate: false };
     });
   } catch (err) {
     if (isDuplicate(err)) return { duplicate: true };
     throw err;
   }
-};
-
-// Which wallet source a reward-point source becomes when it is cashed out.
-const WALLET_SOURCE_FOR = {
-  streak_milestone: 'learning_reward',
-  badge: 'learning_reward',
-  campaign: 'learning_reward',
-  admin: 'learning_reward',
-  leaderboard: 'leaderboard_reward',
-  referral: 'referral_reward'
 };
 
 // ₹ already cashed out of reward points this month, against the monthly cap.
@@ -90,70 +90,12 @@ const redeemedThisMonth = async (userId) => {
  * points consumed, so a redemption of 300 points that were 200 from a streak
  * and 100 from a leaderboard week produces two wallet credits, not one.
  */
+// eslint-disable-next-line no-unused-vars
 const redeemPoints = async ({ user, points }) => {
-  const config = await getConfig();
-  if (!config.enabled) throw fail('Rewards are currently unavailable', 403, 'REWARDS_LOCKED');
-  if (!monetaryEnabledFor(user, config)) throw fail('Your account type can use reward points for learning rewards, but not cash. Ask an administrator if you think this is wrong.', 403, 'NOT_ELIGIBLE');
-  points = Math.round(Number(points) || 0);
-  const { pointsPerUnit, minRedeemPoints, unitValue } = config.conversion;
-  if (!(unitValue > 0)) throw fail('Redemption is not available right now', 400, 'CONVERSION_OFF');
-  if (points < Math.max(minRedeemPoints, pointsPerUnit)) throw fail(`Minimum redemption is ${Math.max(minRedeemPoints, pointsPerUnit)} points`);
-  if (points % pointsPerUnit !== 0) throw fail(`Points must be a multiple of ${pointsPerUnit}`);
-  const value = pointsToMoney(points, config);
-  const cap = config.limits.monthlyCashCap;
-  if (cap > 0) {
-    const used = await redeemedThisMonth(user._id);
-    if (used + value > cap + 1e-9) throw fail(`Monthly cash reward limit is ${config.conversion.currency} ${cap}. You have ${config.conversion.currency} ${money(cap - used)} left this month.`, 400, 'MONTHLY_CAP');
-  }
-
-  const userId = user._id;
-  return runInTransaction(async (session) => {
-    // 1. Take the points, conditionally on having them.
-    const wallet = await Wallet.findOneAndUpdate(
-      { userId, rewardPoints: { $gte: points } },
-      { $inc: { rewardPoints: -points, rewardPointsRedeemed: points } },
-      { returnDocument: 'after', session }
-    );
-    if (!wallet) throw fail('Not enough reward points', 400, 'INSUFFICIENT_POINTS');
-    const [redeemRow] = await RewardTransaction.create([{ userId, points: -points, source: 'redeem', claimKey: `redeem:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`, description: `Redeemed ${points} points for ${config.conversion.currency} ${value}`, balanceAfter: wallet.rewardPoints }], { session });
-
-    // 2. Consume earned points oldest-first, grouped by where they came from.
-    let remaining = points;
-    const bySource = {};
-    const earned = await RewardTransaction.find({ userId, points: { $gt: 0 }, status: 'completed' }).sort({ createdAt: 1 }).session(session);
-    for (const row of earned) {
-      if (remaining <= 0) break;
-      const free = row.points - (row.redeemedPoints || 0);
-      if (free <= 0) continue;
-      const take = Math.min(free, remaining);
-      row.redeemedPoints = (row.redeemedPoints || 0) + take;
-      await row.save({ session });
-      const ws = WALLET_SOURCE_FOR[row.source] || 'learning_reward';
-      bySource[ws] = (bySource[ws] || 0) + take;
-      remaining -= take;
-    }
-    if (remaining > 0) bySource.learning_reward = (bySource.learning_reward || 0) + remaining; // points with no traceable origin
-
-    // 3. One wallet credit per source. Rounding is settled on the last one so
-    //    the credits add up to exactly the value promised.
-    const entries = Object.entries(bySource);
-    let booked = 0;
-    const txns = [];
-    for (let i = 0; i < entries.length; i++) {
-      const [source, pts] = entries[i];
-      const amount = i === entries.length - 1 ? money(value - booked) : pointsToMoney(pts, config);
-      booked = money(booked + amount);
-      if (!(amount > 0)) continue;
-      const [txn] = await WalletTransaction.create([{ userId, type: 'credit', amount, source, referenceKey: `redeem:${redeemRow._id}:${source}`, description: `${pts} reward points redeemed`, createdBy: 'user', meta: { points: pts, redeemId: redeemRow._id } }], { session });
-      const w = await Wallet.findOneAndUpdate({ userId }, { $inc: { available: amount, totalEarned: amount, [`earnedBySource.${source}`]: amount } }, { returnDocument: 'after', session });
-      await WalletTransaction.updateOne({ _id: txn._id }, { $set: { balanceAfter: w.available } }, { session });
-      txns.push(txn);
-    }
-    const finalWallet = await Wallet.findOne({ userId }).session(session);
-    await celebrate(userId, 'wallet', `${config.conversion.currency} ${value} added to your wallet`, `${points} reward points redeemed.`, { amount: value, points });
-    await notify(userId, 'Wallet credited', `${config.conversion.currency} ${value} from ${points} reward points.`);
-    return { value, points, txns, wallet: finalWallet };
-  });
+  // Only XP becomes money now, automatically in blocks (convertXp).
+  // Reward points stay a score — badges, streaks, the leaderboard — and are
+  // never cashed out. A clear refusal for any old page still asking.
+  throw fail('Reward points no longer convert into wallet balance. XP you earn is paid into your wallet automatically.', 410, 'POINTS_NOT_REDEEMABLE');
 };
 
 // A payout destination the student typed; refused unless it is well-formed.
@@ -170,27 +112,11 @@ const validateMethod = (method) => {
  * Kept server-side for operators; the student wallet is an in-LMS balance
  * and does not offer this itself.
  */
+// eslint-disable-next-line no-unused-vars
 const requestWithdrawal = async ({ user, amount, method }) => {
-  const config = await getConfig();
-  if (!config.enabled) throw fail('Rewards are currently unavailable', 403, 'REWARDS_LOCKED');
-  if (!monetaryEnabledFor(user, config)) throw fail('Withdrawals are not enabled for your account type', 403, 'NOT_ELIGIBLE');
-  amount = money(amount);
-  if (!(amount > 0)) throw fail('Enter an amount');
-  if (amount < config.limits.minWithdrawal) throw fail(`Minimum withdrawal is ${config.conversion.currency} ${config.limits.minWithdrawal}`);
-  if (config.limits.maxWithdrawal > 0 && amount > config.limits.maxWithdrawal) throw fail(`Maximum withdrawal is ${config.conversion.currency} ${config.limits.maxWithdrawal}`);
-  const m = validateMethod(method);
-  const open = await WithdrawalRequest.countDocuments({ userId: user._id, status: { $in: ['pending', 'approved'] } });
-  if (open > 0) throw fail('You already have a withdrawal in progress. Wait for it to be processed first.', 400, 'WITHDRAWAL_OPEN');
-
-  return runInTransaction(async (session) => {
-    await getOrCreateWallet(user._id, session);
-    const wallet = await Wallet.findOneAndUpdate({ userId: user._id, available: { $gte: amount } }, { $inc: { available: -amount, pending: amount } }, { returnDocument: 'after', session });
-    if (!wallet) throw fail('Insufficient wallet balance', 400, 'INSUFFICIENT_FUNDS');
-    const [txn] = await WalletTransaction.create([{ userId: user._id, type: 'debit', amount, source: 'withdrawal', status: 'pending', description: `Withdrawal to ${m.type === 'upi' ? m.upiId : `bank ****${m.accountNumber.slice(-4)}`}`, createdBy: 'user', balanceAfter: wallet.available }], { session });
-    const [request] = await WithdrawalRequest.create([{ userId: user._id, amount, currency: config.conversion.currency, method: m, walletTransactionId: txn._id }], { session });
-    await WalletTransaction.updateOne({ _id: txn._id }, { $set: { referenceKey: `withdrawal:${request._id}`, 'meta.requestId': request._id } }, { session });
-    return { request, wallet };
-  });
+  // Wallet money stays inside the LMS: it pays for courses and the features
+  // priced under Wallet rules, and is never paid out to a bank or UPI.
+  throw fail('Wallet balance cannot be withdrawn. Use it to enroll in courses and for features inside the LMS.', 410, 'WITHDRAWALS_OFF');
 };
 
 /**
@@ -252,4 +178,119 @@ const auditWallet = async (userId) => {
   };
 };
 
-module.exports = { credit, debit, redeemPoints, requestWithdrawal, decideWithdrawal, auditWallet, redeemedThisMonth, money };
+/**
+ * The opening balance, once, as spend-only money — for students who
+ * registered after the starting credit was introduced, and for earlier
+ * students whose wallet is at ₹0.
+ * Safe to call on every wallet read: the reference key makes a second credit
+ * a no-op, and a per-process memo skips even the lookups after the first time.
+ */
+const credited = new Set();
+let creditFrom = null;
+const startingCreditFrom = async () => {
+  if (creditFrom) return creditFrom;
+  const { RewardConfig } = require('../models');
+  // First time ever: the cut-off is now. Conditional, so two servers starting
+  // together agree on one moment.
+  await RewardConfig.updateOne({ $or: [{ startingCreditFrom: null }, { startingCreditFrom: { $exists: false } }] }, { $set: { startingCreditFrom: new Date() } });
+  const doc = await RewardConfig.findOne().select('startingCreditFrom').lean();
+  creditFrom = doc?.startingCreditFrom || new Date();
+  return creditFrom;
+};
+const grantStartingCredit = async (userId) => {
+  const id = String(userId);
+  if (credited.has(id)) return null;
+  const config = await getConfig();
+  const amount = money(config.startingCredit || 0);
+  if (!(amount > 0)) return null;
+  // Accounts from before the credit existed — judged both by when the student
+  // registered and by whether they already had a wallet then — get it only
+  // while their wallet stands at ₹0 (the user, 2026-10-07: students already
+  // using the app with a zero balance get the ₹1,50,000 too). One with money
+  // in the wallet keeps what it has. Either way it is paid at most once: the
+  // 'starting-credit' reference key is unique per student.
+  const cutoff = await startingCreditFrom();
+  const [user, wallet] = await Promise.all([
+    User.findById(userId).select('createdAt').lean(),
+    Wallet.findOne({ userId }).select('createdAt available').lean()
+  ]);
+  if (!user) {
+    credited.add(id);
+    return null;
+  }
+  const existing = !user.createdAt || user.createdAt < cutoff || (wallet?.createdAt && wallet.createdAt < cutoff);
+  if (existing && money(wallet?.available || 0) !== 0) {
+    credited.add(id);
+    return null;
+  }
+  const result = await credit({
+    userId, amount, source: 'starting_credit', referenceKey: 'starting-credit', spendOnly: true,
+    description: 'Starting wallet credit'
+  });
+  credited.add(id);
+  return result;
+};
+
+/**
+ * Turn XP into money in whole blocks, at the admin's rate: every
+ * `pointsPerUnit` XP (e.g. 1,000) on the student's XP balance is deducted and
+ * `unitValue` (e.g. ₹10) added to the wallet — repeated for every full block.
+ * Every account type. Called after each XP award and on each wallet read.
+ *
+ * The XP balance is lifetime XP minus what has been converted; lifetime XP
+ * (level, leaderboard, XP badges) is never touched. The conversion claims its
+ * block by moving `xpConverted` on from the value it read, so two awards
+ * landing together cannot convert the same XP twice.
+ */
+const convertXp = async (userId) => {
+  const config = await getConfig();
+  if (!config.enabled) return null;
+  const { pointsPerUnit, unitValue, currency } = config.conversion;
+  const unit = Math.max(1, Math.round(Number(pointsPerUnit) || 0));
+  const value = money(unitValue);
+  if (!(value > 0)) return null;
+  const user = await User.findById(userId).select('xp').lean();
+  if (!user) return null;
+  await grantStartingCredit(userId);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const w = await getOrCreateWallet(userId);
+    const converted = w.xpConverted || 0;
+    const blocks = Math.floor(((user.xp || 0) - converted) / unit);
+    if (blocks <= 0) return null;
+    const xp = blocks * unit;
+    const amount = money(blocks * value);
+    const upTo = converted + xp;
+    try {
+      const result = await runInTransaction(async (session) => {
+        const claimed = await Wallet.findOneAndUpdate(
+          { userId, xpConverted: converted === 0 ? { $in: [0, null] } : converted },
+          { $set: { xpConverted: upTo } },
+          { returnDocument: 'after', session }
+        );
+        if (!claimed) return null; // another award converted first; read again
+        const [txn] = await WalletTransaction.create([{
+          userId, type: 'credit', amount, source: 'xp_reward', referenceKey: `xp-convert:${upTo}`,
+          description: `${xp.toLocaleString('en-IN')} XP converted`,
+          meta: { xp, rate: { pointsPerUnit: unit, unitValue: value, currency }, xpConvertedTo: upTo }
+        }], { session });
+        const wallet = await Wallet.findOneAndUpdate(
+          { userId },
+          { $inc: { available: amount, totalEarned: amount, 'earnedBySource.xp_reward': amount } },
+          { returnDocument: 'after', session }
+        );
+        await WalletTransaction.updateOne({ _id: txn._id }, { $set: { balanceAfter: wallet.available } }, { session });
+        return { xp, amount, wallet };
+      });
+      if (!result) continue;
+      await notify(userId, 'XP converted', `${xp.toLocaleString('en-IN')} XP became ${currency} ${amount} in your wallet.`);
+      return result;
+    } catch (err) {
+      if (isDuplicate(err)) return null;
+      throw err;
+    }
+  }
+  return null;
+};
+
+module.exports = { credit, debit, redeemPoints, requestWithdrawal, decideWithdrawal, auditWallet, redeemedThisMonth, money, grantStartingCredit, startingCreditFrom, convertXp };

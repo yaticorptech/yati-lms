@@ -57,10 +57,10 @@ const XpValueCard = () => {
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:p-6 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+        <div className="col-span-2 sm:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 lg:p-6 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
             <div className="flex justify-between items-start gap-3">
                 <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">XP value</p>
+                    <p className="text-[11px] sm:text-sm font-semibold text-slate-500 uppercase tracking-wide sm:tracking-wider">XP value</p>
 
                     {state.loading ? (
                         <div className="animate-pulse h-9 w-32 bg-slate-100 rounded-xl mt-2" />
@@ -101,8 +101,8 @@ const XpValueCard = () => {
 
                     {state.error && <p className="mt-1 text-xs font-semibold text-rose-600">{state.error}</p>}
                 </div>
-                <div className="p-3 rounded-xl bg-amber-500 shrink-0">
-                    <Zap size={24} className="text-white" />
+                <div className="p-2 sm:p-3 rounded-xl bg-amber-500 shrink-0">
+                    <Zap className="h-[18px] w-[18px] sm:h-6 sm:w-6 text-white" />
                 </div>
             </div>
         </div>
@@ -112,18 +112,19 @@ const XpValueCard = () => {
 const StatCard = ({ title, value, icon, colorClass, loading }) => {
     const Icon = icon;
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:p-6 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
-            <div className="flex justify-between items-start gap-3">
+        <div className="min-w-0 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 lg:p-6 flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+            <div className="flex justify-between items-start gap-2 sm:gap-3">
                 <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{title}</p>
+                    {/* Wraps on a phone, where two cards share a row. */}
+                    <p className="text-[11px] sm:text-sm font-semibold text-slate-500 uppercase tracking-wide sm:tracking-wider leading-snug">{title}</p>
                     {loading ? (
-                        <div className="animate-pulse h-9 w-20 bg-slate-100 rounded-xl mt-2" />
+                        <div className="animate-pulse h-8 w-16 bg-slate-100 rounded-xl mt-2" />
                     ) : (
-                        <p className="text-3xl font-bold text-slate-900 mt-2">{value ?? '—'}</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1.5 sm:mt-2 tabular-nums">{value ?? '—'}</p>
                     )}
                 </div>
-                <div className={`p-3 rounded-xl shrink-0 ${colorClass}`}>
-                    {Icon && <Icon size={24} className="text-white" />}
+                <div className={`p-2 sm:p-3 rounded-xl shrink-0 ${colorClass}`}>
+                    {Icon && <Icon className="h-[18px] w-[18px] sm:h-6 sm:w-6 text-white" />}
                 </div>
             </div>
         </div>
@@ -172,7 +173,8 @@ const Dashboard = () => {
             </div>
 
             {/* Stat Cards: four across only once each has room for its label and number */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 lg:gap-6">
+            {/* Two across on a phone (four tall cards stacked was most of the screen). */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4 lg:gap-6">
                 <StatCard loading={loading} title="Total Students" value={analytics?.totalStudents} icon={Users} colorClass="bg-blue-500" />
                 <StatCard loading={loading} title="Total Enrollments" value={analytics?.totalEnrollments} icon={UserPlus} colorClass="bg-emerald-500" />
                 <StatCard loading={loading} title="Active This Week" value={analytics?.activeThisWeek ?? 0} icon={Activity} colorClass="bg-indigo-500" />
@@ -185,7 +187,6 @@ const Dashboard = () => {
                 <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:p-6 hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between gap-3 mb-5">
                         <h2 className="text-lg font-bold text-slate-900">Top Courses by Enrollment</h2>
-                        <Link to="/analytics" className="shrink-0 py-1 text-xs font-bold text-indigo-600 hover:underline">View all</Link>
                     </div>
                     {loading ? (
                         <div className="space-y-3">
@@ -248,9 +249,6 @@ const Dashboard = () => {
                             ))}
                         </div>
                     )}
-                    <Link to="/analytics" className="w-full mt-5 py-3 text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-600 hover:text-white rounded-xl transition-all flex items-center justify-center gap-2 block">
-                        <TrendingUp size={15} /> View Full Analytics
-                    </Link>
                 </div>
             </div>
         </div>

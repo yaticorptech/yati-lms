@@ -24,7 +24,6 @@ import api from './services/api';
 import { AuthContext } from './context/AuthContext';
 import CareerProviders from './CareerProviders';
 import WhatsNew from './components/WhatsNew';
-import CareerPathMascot from './mascot/CareerPathMascot';
 
 /**
  * The section's ten screens, in the order the standalone app grouped them:
@@ -276,11 +275,11 @@ function CareerFrame() {
 export default function CareerShell() {
   return (
     <CareerProviders>
-      {/* Mounted here, around every tab, so the mascot lives through tab
-          switches instead of starting over on each page. */}
-      <CareerPathMascot>
-        <CareerFrame />
-      </CareerPathMascot>
+      {/* No walking mascot here any more: it is kept only on the sign-in
+          pages and the loading screen. The pages still call useMascot(),
+          which does nothing without CareerPathMascot around them, so it can
+          come back by wrapping CareerFrame in it again. */}
+      <CareerFrame />
     </CareerProviders>
   );
 }

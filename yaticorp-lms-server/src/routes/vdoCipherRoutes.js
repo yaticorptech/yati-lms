@@ -11,11 +11,12 @@ const { protectAdmin, protectUser } = require('../middleware/authMiddleware');
 router.post('/upload-credentials', protectAdmin, vdoCipherController.getUploadCredentials);
 
 // Status is polled by the admin lesson editor; OTP playback is requested by logged-in students
-router.get('/status/:videoId', protectAdmin, vdoCipherController.getVideoStatus);
+// A malformed id is refused (400) before anything reaches VdoCipher.
+router.get('/status/:videoId', protectAdmin, vdoCipherController.requireVideoId, vdoCipherController.getVideoStatus);
 router.post('/generate-otp', protectUser, vdoCipherController.generateOTP);
 
 // Manual Admin Deletion
-router.delete('/video/:videoId', protectAdmin, async (req, res) => {
+router.delete('/video/:videoId', protectAdmin, vdoCipherController.requireVideoId, async (req, res) => {
     const success = await vdoCipherController.deleteVideo(req.params.videoId);
     if (success) res.status(200).json({ message: "Video deleted" });
     else res.status(500).json({ message: "Failed to delete video" });

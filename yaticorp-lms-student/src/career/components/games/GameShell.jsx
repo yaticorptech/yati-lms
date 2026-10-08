@@ -1,7 +1,7 @@
 import { ArrowLeft, RotateCcw, Star, Timer, Trophy, Layers, Zap } from 'lucide-react';
 import { LevelIntro, LevelResult } from './LevelPanels';
 import MissionArt from '../plan/MissionArt';
-import { starsForGame, starsOn } from './levels';
+import { starsForGame, starsOn, gameXpTable } from './levels';
 
 /**
  * The frame every game sits in: who you are playing, how you are doing, which
@@ -109,6 +109,10 @@ export default function GameShell({
      through the same store. */
   const earnedHere = progress ? starsOn(progress.gameId, progress.level) : 0;
   const bankedStars = progress ? starsForGame(progress.gameId) : 0;
+  // XP still to be had on this level: three stars' worth, less what its best
+  // so far has already paid.
+  const xpTable = gameXpTable();
+  const xpLeft = xpTable ? Math.max(0, (xpTable[3] || 0) - (xpTable[earnedHere] || 0)) : null;
 
   return (
     <section data-mascot-target="game" className="overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card">
@@ -268,8 +272,8 @@ export default function GameShell({
             </div>
 
             {/* Right rail: what this level is worth, and what has been banked
-                so far. Stars, not XP — these games award no XP by design, and
-                a panel promising some would be promising what is not paid. */}
+                so far. The XP is the admin's star table, less what this
+                level's best has already paid. */}
             <aside className="hidden flex-col gap-2.5 xl:flex">
               <RailCard
                 tint="bg-amber-50 ring-amber-100"
@@ -278,6 +282,15 @@ export default function GameShell({
                 label="Stars on offer"
                 value={<StarRow earned={earnedHere} />}
               />
+              {xpLeft !== null && (
+                <RailCard
+                  tint="bg-sky-50 ring-sky-100"
+                  icon={Zap}
+                  iconTint="bg-sky-500 text-white"
+                  label="XP still on offer"
+                  value={xpLeft ? `${xpLeft} XP` : 'All earned'}
+                />
+              )}
               <RailCard
                 tint="bg-violet-50 ring-violet-100"
                 icon={Layers}

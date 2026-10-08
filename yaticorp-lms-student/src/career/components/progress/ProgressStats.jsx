@@ -17,7 +17,7 @@ function Sparkline({ series }) {
   const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
 
   return (
-    <svg viewBox="0 0 100 34" preserveAspectRatio="none" className="h-9 w-full" aria-hidden>
+    <svg viewBox="0 0 100 34" preserveAspectRatio="none" className="h-7 w-full sm:h-9" aria-hidden>
       <path d={`${d} L100 34 L0 34 Z`} fill="#fb923c" opacity="0.14" />
       <path d={d} fill="none" stroke="#f97316" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       {pts.map(([x, y], i) => (
@@ -31,7 +31,7 @@ function Sparkline({ series }) {
 function Bars({ series }) {
   const max = Math.max(1, ...series);
   return (
-    <div className="flex h-9 items-end gap-1" aria-hidden>
+    <div className="flex h-7 items-end gap-1 sm:h-9" aria-hidden>
       {series.map((v, i) => (
         <span
           key={i}
@@ -48,7 +48,7 @@ function Ring({ percent }) {
   const r = 26;
   const c = 2 * Math.PI * r;
   return (
-    <svg viewBox="0 0 64 64" className="h-14 w-14 shrink-0" aria-hidden>
+    <svg viewBox="0 0 64 64" className="h-10 w-10 shrink-0 sm:h-14 sm:w-14" aria-hidden>
       <circle cx="32" cy="32" r={r} fill="none" stroke="#ede9fe" strokeWidth="7" />
       <circle
         cx="32"
@@ -68,11 +68,11 @@ function Ring({ percent }) {
 function StatShell({ icon: Icon, label, tone, children, index = 0 }) {
   return (
     <section
-      className="animate-fade-in-up rounded-2xl border border-line-200/80 bg-surface p-4 shadow-card"
+      className="animate-fade-in-up min-w-0 rounded-2xl border border-line-200/80 bg-surface p-3 shadow-card sm:p-4"
       style={{ animationDelay: `${0.1 + index * 0.07}s` }}
     >
-      <p className="flex items-center gap-2 text-sm font-bold text-ink-900">
-        <span className={`flex h-7 w-7 items-center justify-center rounded-lg ring-1 ring-inset ${tone}`}>
+      <p className="flex items-center gap-2 text-xs leading-snug font-bold text-ink-900 sm:text-sm">
+        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset sm:h-7 sm:w-7 ${tone}`}>
           <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
         </span>
         {label}
@@ -98,9 +98,10 @@ export default function ProgressStats({ stats, series = [], activeDays = 0 }) {
 
 
   return (
-    <aside className="grid gap-4 sm:grid-cols-2 xl:sticky xl:top-4 xl:grid-cols-1">
+    // Two across on a phone too, compact; from sm up, exactly as before.
+    <aside className="grid grid-cols-2 gap-3 sm:gap-4 xl:sticky xl:top-4 xl:grid-cols-1">
       <StatShell icon={Flame} label="Day streak" tone="bg-orange-50 text-orange-500 ring-orange-100" index={0}>
-        <p className="mt-2 text-4xl leading-none font-black text-ink-900 tabular-nums">
+        <p className="mt-2 text-2xl leading-none font-black text-ink-900 tabular-nums sm:text-4xl">
           {stats?.streak ?? 0}
         </p>
         <p className="mt-1 text-xs font-semibold text-ink-500">
@@ -112,7 +113,7 @@ export default function ProgressStats({ stats, series = [], activeDays = 0 }) {
       </StatShell>
 
       <StatShell icon={CheckCircle2} label="Tasks done" tone="bg-emerald-50 text-emerald-600 ring-emerald-100" index={1}>
-        <p className="mt-2 text-4xl leading-none font-black text-ink-900 tabular-nums">{completed}</p>
+        <p className="mt-2 text-2xl leading-none font-black text-ink-900 tabular-nums sm:text-4xl">{completed}</p>
         <p className="mt-1 text-xs font-semibold text-ink-500 tabular-nums">
           Across {activeDays} {activeDays === 1 ? 'day' : 'days'}
         </p>
@@ -124,9 +125,9 @@ export default function ProgressStats({ stats, series = [], activeDays = 0 }) {
       <StatShell icon={TrendingUp} label="Completion rate" tone="bg-journey-50 text-journey-600 ring-journey-100" index={2}>
         <div className="mt-2 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-4xl leading-none font-black text-ink-900 tabular-nums">
+            <p className="text-2xl leading-none font-black text-ink-900 tabular-nums sm:text-4xl">
               {rate}
-              <span className="text-xl">%</span>
+              <span className="text-base sm:text-xl">%</span>
             </p>
             <p className="mt-1 text-xs font-semibold text-ink-500 tabular-nums">
               {completed} of {decided} finished
@@ -137,7 +138,7 @@ export default function ProgressStats({ stats, series = [], activeDays = 0 }) {
       </StatShell>
 
       <StatShell icon={ClipboardList} label="Still to do" tone="bg-sky-50 text-sky-600 ring-sky-100" index={3}>
-        <p className="mt-2 text-4xl leading-none font-black text-ink-900 tabular-nums">{skipped}</p>
+        <p className="mt-2 text-2xl leading-none font-black text-ink-900 tabular-nums sm:text-4xl">{skipped}</p>
         <p className="mt-1 text-xs font-semibold text-ink-500">
           {skipped ? 'Pick any back up below' : 'Nothing left behind'}
         </p>

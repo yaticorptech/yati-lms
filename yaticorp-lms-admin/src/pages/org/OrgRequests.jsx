@@ -8,10 +8,11 @@
  *
  * Oldest first: whoever has been waiting longest is dealt with first.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { UserPlus, CheckCircle2, XCircle, Loader2, Mail, Phone, Clock } from 'lucide-react';
 import api from '../../utils/api';
-import { CARD, LABEL, INPUT, BTN2, Empty, Banner, Rows, Pill, PageHeader, Segmented, Avatar } from '../../components/orgUi';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
+import { CARD, LABEL, INPUT, BTN2, Empty, Banner, Rows, Pill, PageHeader, Segmented, Avatar, LoadFailed, Dialog, DialogTitle } from '../../components/orgUi';
 import { formatDate, relativeDay } from '../../utils/dates';
 
 const TABS = [
@@ -26,70 +27,80 @@ const OrgRequests = () => {
     const [pendingCount, setPendingCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    // The open tab's own load failed, so there is no list for it to show —
+    // not the same as an empty one.
+    const [loadFailed, setLoadFailed] = useState(false);
     const [notice, setNotice] = useState('');
     const [asking, setAsking] = useState(null);   // { request, decision }
 
-    // Bumped after a decision so the effect below reloads through the one code
-    // path that knows which tab is open.
-    const [reloadKey, setReloadKey] = useState(0);
-
     /**
-     * Load the open tab, and keep it fresh every 30 seconds.
-     *
-     * A plain effect keyed on the tab rather than the shared useAutoRefresh hook,
-     * whose interval holds its first fetch function for the life of the page — it
-     * would keep pulling the "waiting" list back over whichever tab was chosen.
+     * Load the open tab, again whenever the tab changes, and keep it fresh
+     * every 30 seconds — through the shared hook, which now always calls the
+     * newest load (so a tick reloads the tab that is open, not the first one),
+     * pauses while the browser tab is hidden, and drops an answer that a
+     * newer request has overtaken.
      */
-    useEffect(() => {
-        let alive = true;
+    const load = async ({ signal, isCurrent = () => true, fresh = true } = {}) => {
+        if (fresh) setLoading(true);
+        try {
+            const res = await api.get('/organizations/me/requests', { params: { status: tab }, signal });
+            if (!isCurrent()) return;
+            setRequests(res.data.requests || []);
+            setPendingCount(res.data.pendingCount || 0);
+            setLoadFailed(false);
+            setError('');
+        } catch (err) {
+            if (!isCurrent()) return;
+            setError(err.response?.data?.message || 'Could not load the requests.');
+            // A tab opened fresh has nothing of its own yet; the rows still
+            // in state belong to the previous tab and must not show under this one.
+            if (fresh) { setRequests([]); setLoadFailed(true); }
+        } finally {
+            if (isCurrent()) setLoading(false);
+        }
+    };
+    const reload = useAutoRefresh(load, 30000, [tab]);
 
-        const load = async (withSkeleton) => {
-            if (withSkeleton) setLoading(true);
-            try {
-                const res = await api.get('/organizations/me/requests', { params: { status: tab } });
-                if (!alive) return;
-                setRequests(res.data.requests || []);
-                setPendingCount(res.data.pendingCount || 0);
-                setError('');
-            } catch (err) {
-                if (alive) setError(err.response?.data?.message || 'Could not load the requests.');
-            } finally {
-                if (alive) setLoading(false);
-            }
-        };
-
-        load(true);
-        const id = setInterval(() => load(false), 30000);
-        return () => { alive = false; clearInterval(id); };
-    }, [tab, reloadKey]);
-
+    /** Resolves to an error message for the dialog to show, or nothing on success. */
     const decide = async (reason) => {
         const { request, decision } = asking;
         try {
             const res = await api.put(`/organizations/me/requests/${request._id}`, { decision, reason });
             setNotice(res.data.message);
             setAsking(null);
-            setReloadKey((n) => n + 1);
+            reload();
+            // The waiting count in the menu and the bottom bar is the layout's;
+            // tell it a request has been decided, so it never shows a stale number.
+            window.dispatchEvent(new Event('organization-requests-changed'));
             setTimeout(() => setNotice(''), 5000);
+            return '';
         } catch (err) {
-            setError(err.response?.data?.message || 'That did not go through.');
-            setAsking(null);
+            // The dialog stays open with the reason still typed, and the list
+            // reloads behind it: the usual cause is that the request was
+            // already decided elsewhere (or the student joined another
+            // organization meanwhile — 409 JOINED_ELSEWHERE, and the request
+            // is now cancelled), and the list should show that.
+            reload();
+            window.dispatchEvent(new Event('organization-requests-changed'));
+            return err.response?.data?.message || 'That did not go through.';
         }
     };
 
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
-            <PageHeader icon={UserPlus} title="Student Requests"
-                subtitle="Students who entered your organization ID and asked to join. Approving one makes them a member." />
+            <PageHeader icon={UserPlus} title="Student requests"
+                subtitle="Students who entered your Organization ID and asked to join. Approving one makes them a member." />
 
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
-            {error && <Banner onClose={() => setError('')}>{error}</Banner>}
+            {error && !loadFailed && <Banner onClose={() => setError('')}>{error}</Banner>}
 
             <Segmented options={TABS} value={tab} onChange={setTab} counts={{ pending: pendingCount }} />
 
             <div className={`${CARD} overflow-hidden`}>
                 {loading ? (
                     <Rows count={3} height="h-16" />
+                ) : loadFailed ? (
+                    <LoadFailed what="the requests" onRetry={reload} />
                 ) : requests.length === 0 ? (
                     <Empty icon={tab === 'pending' ? Clock : UserPlus}>
                         {tab === 'pending'
@@ -105,12 +116,16 @@ const OrgRequests = () => {
                                     <div className="min-w-0">
                                         <p className="truncate font-semibold text-slate-800">{r.student.name}</p>
                                         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500">
-                                            <span className="inline-flex min-w-0 items-center gap-1.5 break-all"><Mail size={12} className="shrink-0" />{r.student.email}</span>
+                                            {/* A decided request from someone who is not a member
+                                                (any more) comes without their contact details. */}
+                                            {r.student.contactHidden || !r.student.email
+                                                ? <span className="text-xs italic text-slate-400">Contact hidden (not a member)</span>
+                                                : <span className="inline-flex min-w-0 items-center gap-1.5 break-all"><Mail size={12} className="shrink-0" />{r.student.email}</span>}
                                             {r.student.phone && <span className="inline-flex items-center gap-1.5"><Phone size={12} />{r.student.phone}</span>}
                                         </div>
                                         <p className="mt-1 text-xs text-slate-500">
                                             Requested {relativeDay(r.requestedAt).toLowerCase()}
-                                            {r.student.status !== 'active' && <> · account is {r.student.status}</>}
+                                            {r.student.status && r.student.status !== 'active' && <> · account is {r.student.status}</>}
                                         </p>
                                         {r.decisionReason && (
                                             <p className="mt-1 text-xs text-slate-600">
@@ -123,11 +138,11 @@ const OrgRequests = () => {
                                 {r.status === 'pending' ? (
                                     <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
                                         <button onClick={() => setAsking({ request: r, decision: 'reject' })}
-                                            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-sm font-bold text-red-600 transition-colors hover:bg-red-50">
+                                            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-sm font-bold text-red-600 transition-colors hover:bg-red-50">
                                             <XCircle size={15} />Reject
                                         </button>
                                         <button onClick={() => setAsking({ request: r, decision: 'approve' })}
-                                            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-colors hover:bg-emerald-700">
+                                            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-colors hover:bg-emerald-700">
                                             <CheckCircle2 size={15} />Approve
                                         </button>
                                     </div>
@@ -151,51 +166,53 @@ const OrgRequests = () => {
 const DecideModal = ({ asking, onCancel, onConfirm }) => {
     const [reason, setReason] = useState('');
     const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
     const approving = asking.decision === 'approve';
     const name = asking.request.student.name;
 
     const submit = async () => {
         setBusy(true);
-        await onConfirm(reason.trim());
+        setError('');
+        const failed = await onConfirm(reason.trim());
+        if (failed) setError(failed);
         setBusy(false);
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4" role="dialog" aria-modal="true">
-            <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl max-h-[calc(100dvh-1.5rem)]">
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
-                    <div className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full ${approving ? 'bg-emerald-100' : 'bg-red-100'}`}>
-                        {approving ? <CheckCircle2 size={24} className="text-emerald-600" /> : <XCircle size={24} className="text-red-600" />}
-                    </div>
-                    <h2 className="text-center text-lg font-bold text-slate-800">
-                        {approving ? `Approve ${name}?` : `Reject ${name}?`}
-                    </h2>
-                    <p className="mt-3 text-center text-sm text-slate-500">
-                        {approving
-                            ? 'They become a member of your organization, and you will be able to see their learning progress.'
-                            : 'They stay outside your organization. They keep their account and everything they have learned, and can ask again later.'}
-                    </p>
+        <Dialog onClose={() => { if (!busy) onCancel(); }}>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
+                <div className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full ${approving ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                    {approving ? <CheckCircle2 size={24} className="text-emerald-600" /> : <XCircle size={24} className="text-red-600" />}
+                </div>
+                <DialogTitle className="text-center text-lg font-bold text-slate-800">
+                    {approving ? `Approve ${name}?` : `Reject ${name}?`}
+                </DialogTitle>
+                <p className="mt-3 text-center text-sm text-slate-500">
+                    {approving
+                        ? 'They become a member of your organization, and you will be able to see their learning progress.'
+                        : 'They stay outside your organization. They keep their account and everything they have learned, and can ask again later.'}
+                </p>
 
-                    {!approving && (
-                        <div className="mt-4">
-                            <label className={LABEL} htmlFor="reject-reason">Reason (optional — the student sees this)</label>
-                            <textarea id="reject-reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)}
-                                placeholder="For example: we could not find you on our student roll." className={INPUT} />
-                        </div>
-                    )}
-                </div>
-                <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 px-4 py-4 sm:px-6">
-                    <button onClick={onCancel} className={BTN2} disabled={busy}>Cancel</button>
-                    <button onClick={submit} disabled={busy}
-                        className={approving
-                            ? 'inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50'
-                            : 'inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50'}>
-                        {busy && <Loader2 size={16} className="animate-spin" />}
-                        {approving ? 'Approve' : 'Reject'}
-                    </button>
-                </div>
+                {!approving && (
+                    <div className="mt-4">
+                        <label className={LABEL} htmlFor="reject-reason">Reason (optional — the student sees this)</label>
+                        <textarea id="reject-reason" rows={3} data-autofocus value={reason} onChange={(e) => setReason(e.target.value)}
+                            placeholder="For example: we could not find you on our student roll." className={INPUT} />
+                    </div>
+                )}
+                {error && <div className="mt-4"><Banner>{error}</Banner></div>}
             </div>
-        </div>
+            <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 px-4 py-4 sm:px-6">
+                <button onClick={onCancel} className={BTN2} disabled={busy} data-autofocus={approving || undefined}>Cancel</button>
+                <button onClick={submit} disabled={busy}
+                    className={approving
+                        ? 'inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50'
+                        : 'inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50'}>
+                    {busy && <Loader2 size={16} className="animate-spin" />}
+                    {approving ? 'Approve' : 'Reject'}
+                </button>
+            </div>
+        </Dialog>
     );
 };
 

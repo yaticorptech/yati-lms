@@ -11,8 +11,11 @@ import { Link } from 'react-router-dom';
 import { Users, UserCheck, TrendingUp, Award, UserPlus, GraduationCap, Copy, Check, Activity, Share2, ChevronRight } from 'lucide-react';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
-import { CARD, Stat, Bar, Empty, Banner, Rows, Avatar } from '../../components/orgUi';
+import { CARD, Stat, Bar, Empty, Banner, Rows, Avatar, LoadFailed } from '../../components/orgUi';
 import { relativeDay } from '../../utils/dates';
+
+// The card stays a card; the link only adds a lift on hover and a focus ring.
+const STAT_LINK = 'block rounded-2xl transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 [&>div]:h-full';
 
 const OrgDashboard = () => {
     const [data, setData] = useState(null);
@@ -33,6 +36,7 @@ const OrgDashboard = () => {
     };
 
     useAutoRefresh(fetchDashboard, 30000);
+    const retry = () => { setLoading(true); fetchDashboard(); };
 
     const organization = data?.organization;
     const stats = data?.stats;
@@ -52,7 +56,7 @@ const OrgDashboard = () => {
         try {
             await navigator.share({
                 title: organization.name,
-                text: `Join ${organization.name} on YatiCorp LMS with organization ID ${organization.orgCode}`
+                text: `Join ${organization.name} on YatiCorp LMS with Organization ID ${organization.orgCode}`
             });
         } catch { /* dismissed — nothing to do */ }
     };
@@ -82,16 +86,16 @@ const OrgDashboard = () => {
                         <div className="relative shrink-0 rounded-xl bg-white/10 p-4 ring-1 ring-white/20 backdrop-blur-sm sm:min-w-[240px]">
                             <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-100">Organization ID</p>
                             <div className="mt-1 flex items-center justify-between gap-3">
-                                <button onClick={copyCode} aria-label={`Copy organization ID ${organization.orgCode}`}
-                                    className="group inline-flex min-w-0 items-center gap-2 font-mono text-lg font-bold hover:text-indigo-100">
+                                <button onClick={copyCode} aria-label={`Copy Organization ID ${organization.orgCode}`}
+                                    className="group inline-flex min-h-10 min-w-0 items-center gap-2 font-mono text-lg font-bold hover:text-indigo-100">
                                     <span className="truncate">{organization.orgCode}</span>
                                     {copied
                                         ? <Check size={16} className="shrink-0 text-emerald-300" />
                                         : <Copy size={15} className="shrink-0 text-indigo-200 group-hover:text-white" />}
                                 </button>
                                 {canShare && (
-                                    <button onClick={shareCode} aria-label="Share organization ID"
-                                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-indigo-700 shadow-sm hover:bg-indigo-50">
+                                    <button onClick={shareCode} aria-label="Share Organization ID"
+                                        className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-indigo-700 shadow-sm hover:bg-indigo-50">
                                         <Share2 size={13} />Share
                                     </button>
                                 )}
@@ -113,17 +117,30 @@ const OrgDashboard = () => {
                 )}
             </div>
 
-            {error && <Banner onClose={() => setError('')}>{error}</Banner>}
+            {/* A failed refresh keeps the last numbers and says so; a failed
+                first load has none, and says that below with a Retry. */}
+            {error && data && <Banner onClose={() => setError('')}>{error}</Banner>}
 
             {/* ── Headline numbers: two across on a phone, three on a desktop ── */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-                <Stat icon={Users} label="Students" value={stats?.students} loading={loading} tone="indigo" />
-                <Stat icon={UserCheck} label="Active students" value={stats?.activeStudents} loading={loading} tone="emerald"
-                    sub="Learned in the last 30 days" />
+                {/* A number with a list behind it opens that list: the Students
+                    page, filtered to exactly the students it counts. */}
+                <Link to="/organization/students" aria-label={`Students: ${stats?.students ?? '…'} — see them all`} className={STAT_LINK}>
+                    <Stat icon={Users} label="Students" value={stats?.students} loading={loading} tone="indigo" />
+                </Link>
+                <Link to="/organization/students?filter=active30" aria-label={`Active students: ${stats?.activeStudents ?? '…'} — see who`} className={STAT_LINK}>
+                    <Stat icon={UserCheck} label="Active students" value={stats?.activeStudents} loading={loading} tone="emerald"
+                        sub="Learned in the last 30 days" />
+                </Link>
+                {/* Progress and completions here count every course a student
+                    can open — platform and bundle courses too, not only yours —
+                    and Certificates are the ones the platform has issued. */}
                 <Stat icon={TrendingUp} label="Average progress" value={stats ? `${stats.averageProgress}%` : undefined} loading={loading} tone="violet"
-                    sub="Across students with courses" />
-                <Stat icon={Award} label="Certificates" value={stats?.certificates} loading={loading} tone="amber" />
-                <Stat icon={GraduationCap} label="Courses completed" value={stats?.coursesCompleted} loading={loading} tone="emerald" />
+                    sub="Overall, across all enrolled courses" />
+                <Stat icon={Award} label="Certificates" value={stats?.certificates} loading={loading} tone="amber"
+                    sub="Issued by the platform" />
+                <Stat icon={GraduationCap} label="Courses completed" value={stats?.coursesCompleted} loading={loading} tone="emerald"
+                    sub="Across all enrolled courses" />
                 <Stat icon={Activity} label="Total XP earned" value={stats?.totalXp} loading={loading} tone="amber" />
             </div>
 
@@ -131,14 +148,16 @@ const OrgDashboard = () => {
             <div className={`${CARD} overflow-hidden`}>
                 <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 lg:px-6">
                     <h2 className="font-bold text-slate-800">Recent student activity</h2>
-                    <Link to="/organization/students" className="inline-flex shrink-0 items-center text-sm font-semibold text-indigo-600 hover:text-indigo-800">
+                    <Link to="/organization/students" className="inline-flex min-h-10 shrink-0 items-center text-sm font-semibold text-indigo-600 hover:text-indigo-800">
                         All students<ChevronRight size={16} />
                     </Link>
                 </div>
 
                 {loading ? (
                     <Rows count={4} height="h-10" />
-                ) : !data?.recentActivity?.length ? (
+                ) : !data ? (
+                    <LoadFailed what="your dashboard" onRetry={retry} />
+                ) : !data.recentActivity?.length ? (
                     <Empty icon={Activity}>
                         {stats?.students
                             ? 'None of your students has started a course yet.'
@@ -157,9 +176,9 @@ const OrgDashboard = () => {
                                             {s.coursesEnrolled} course{s.coursesEnrolled === 1 ? '' : 's'} · last active {relativeDay(s.lastActive).toLowerCase()}
                                         </p>
                                     </div>
-                                    <div className="w-20 shrink-0 sm:w-36">
+                                    <div className="w-20 shrink-0 sm:w-36" title="Overall progress (all enrolled courses)">
                                         <div className="mb-1 flex justify-between text-xs font-semibold text-slate-600 tabular-nums">
-                                            <span className="hidden sm:inline">Progress</span>
+                                            <span className="hidden sm:inline">Overall</span>
                                             <span className="ml-auto">{s.progressPercent}%</span>
                                         </div>
                                         <Bar percent={s.progressPercent} tone={s.progressPercent >= 100 ? 'emerald' : 'indigo'} />

@@ -15,14 +15,15 @@ const organizationApi = {
     /** Ask to join. The organization's own admin decides. */
     requestJoin: (orgCode) => api.post('/organizations/student/requests', { orgCode }).then((r) => r.data),
 
+    /** Withdraw a request that has not been decided yet. */
+    cancelRequest: (requestId) => api.delete(`/organizations/student/requests/${requestId}`).then((r) => r.data),
+
     /**
-     * Withdraw a request that has not been decided yet.
-     *
-     * The only thing a student can take back. There is deliberately no "leave":
-     * ending a membership belongs to the organization, not to its student, and
-     * the server has no endpoint for it either.
+     * Leave my organization — only once it is no longer active (suspended,
+     * inactive). Ending a membership with a working organization is still the
+     * organization's decision: the server answers 409 with its reason.
      */
-    cancelRequest: (requestId) => api.delete(`/organizations/student/requests/${requestId}`).then((r) => r.data)
+    leave: () => api.post('/organizations/student/leave').then((r) => r.data)
 };
 
 export default organizationApi;

@@ -1,13 +1,13 @@
 /**
- * A superadmin opening an organization's own dashboard, read-only, without
+ * A superadmin opening an organization's own dashboard, to manage it, without
  * that organization's password.
  *
  * From Organizations, an active organization has a Dashboard button. It opens
  * the organization panel as that organization sees it, with a bar across the
- * top saying whose it is and that it is read-only, and an Exit back. The API
+ * top saying whose it is and that changes are saved to it, and an Exit back. The API
  * client names the organization (X-View-Organization) on the panel's own
  * requests and nowhere else; the server lets only a superadmin use it, and
- * only to read.
+ * lets them change anything but the organization's password.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -74,8 +74,8 @@ describe("a superadmin viewing an organization's dashboard", { skip: skipWithout
         assert.equal(result.count, 1, 'only for the active one, not the pending one');
         assert.deepEqual(result.stored, { id: 'o1', name: 'ABC College' });
         assert.equal(result.path, '/organization');
-        assert.match(result.bar, /Viewing ABC College/);
-        assert.match(result.bar, /read-only/);
+        assert.match(result.bar, /Managing ABC College/);
+        assert.match(result.bar, /changes are saved to this organization/);
     });
 
     test('the panel says whose it is, and Exit goes back to Organizations', async () => {
@@ -87,7 +87,7 @@ describe("a superadmin viewing an organization's dashboard", { skip: skipWithout
             await sleep(600);
             return { bar, dashboard, path: window.__path, stored: sessionStorage.getItem('viewOrganization') };` });
         assert.deepEqual(errors, []);
-        assert.match(result.bar, /Viewing ABC College as the platform administrator · read-only/);
+        assert.match(result.bar, /Managing ABC College as the platform administrator · changes are saved to this organization/);
         assert.match(result.dashboard, /ABC College/);
         assert.equal(result.path, '/organizations');
         assert.equal(result.stored, null, 'the view ends with Exit');

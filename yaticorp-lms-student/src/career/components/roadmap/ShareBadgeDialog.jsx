@@ -10,11 +10,12 @@
  * only route to Instagram, Snapchat and the rest — but never in place of the
  * explicit buttons. See canUseSystemShare below for why.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import saveToDrive from '../../../integrations/google/saveToDrive';
 import { Linkedin, MessageCircle, Link2, Download, X, Check, Share2 } from 'lucide-react';
 import { openExternal, saveBlob } from '../../../native/saveFile';
+import useBackClose from '../../../native/useBackClose';
 
 /**
  * Does this browser have an OS share sheet?
@@ -30,6 +31,7 @@ const canUseSystemShare = () =>
 export default function ShareBadgeDialog({ badge, onClose }) {
   const [copied, setCopied] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const closeRef = useRef(null);
 
   // Escape closes it, like every other dialog in the section.
   useEffect(() => {
@@ -51,6 +53,16 @@ export default function ShareBadgeDialog({ badge, onClose }) {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Android's back button closes the sheet too, and only the sheet — the
+  // phase dialog it was opened from stays, as with Escape.
+  useBackClose(onClose, Boolean(badge));
+
+  // Focus starts inside the sheet, so a keyboard or screen-reader user is not
+  // left on the button behind it. Close is the one control certain to exist.
+  useEffect(() => {
+    if (badge) closeRef.current?.focus();
+  }, [badge]);
 
   if (!badge) return null;
 
@@ -107,6 +119,8 @@ export default function ShareBadgeDialog({ badge, onClose }) {
   const downloadImage = async () => {
     try {
       const res = await fetch(badge.imageUrl);
+      // An error page is a blob too; saved, it would be a broken "PNG".
+      if (!res.ok) throw new Error(`Badge image request failed (${res.status})`);
       const blob = await res.blob();
       const name = `career-path-milestone-${badge.phaseIndex + 1}.png`;
       await saveBlob(blob, name, { title: 'Career Path milestone' });
@@ -137,25 +151,30 @@ export default function ShareBadgeDialog({ badge, onClose }) {
       aria-modal="true"
       aria-label="Share your milestone badge"
     >
+      {/* Capped at the viewport with the body scrolling under a fixed header,
+          so Close stays on screen on a short phone held sideways. The page
+          scrolls in <main>, not <body>, so overscroll-contain is what keeps a
+          fling inside the sheet from moving the roadmap behind it. */}
       <div
-        className="w-full max-w-lg overflow-hidden rounded-2xl bg-surface shadow-float"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-surface shadow-float"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-line-200 px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-line-200 py-2 pr-2 pl-5">
           <div className="flex items-center gap-2">
             <Share2 className="h-4 w-4 text-link" />
             <h2 className="text-base font-bold text-ink-900">Share your milestone</h2>
           </div>
           <button
+            ref={closeRef}
             onClick={onClose}
             aria-label="Close"
-            className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-surface-100 hover:text-ink-700"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
           {/* The badge itself. Shown at the aspect ratio the feed will crop to,
               so what the student approves is what their followers see. */}
           <div className="relative overflow-hidden rounded-xl bg-surface-100" style={{ aspectRatio: '1200 / 630' }}>

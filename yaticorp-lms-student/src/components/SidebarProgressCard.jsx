@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
-import { levelProgress } from '../career/utils/progress';
+import useLevelProgress from '../career/context/useLevelProgress';
 
 /**
  * The level ring: the card's own numbers, drawn rather than described twice.
@@ -58,7 +58,7 @@ function LevelRing({ level, percent, nextLevel }) {
           fill="none"
           stroke="currentColor"
           strokeWidth={STROKE}
-          className="text-slate-800"
+          className="text-slate-200"
         />
         <circle
           cx={SIZE / 2}
@@ -91,7 +91,7 @@ function LevelRing({ level, percent, nextLevel }) {
         y="64%"
         textAnchor="middle"
         dominantBaseline="middle"
-        className="fill-white text-2xl font-black tabular-nums"
+        className="fill-slate-900 text-2xl font-black tabular-nums"
       >
         {level}
       </text>
@@ -110,7 +110,7 @@ function LevelRing({ level, percent, nextLevel }) {
 export default function SidebarProgressCard({ user, onNavigate }) {
   const level = user?.level || 1;
   const xp = user?.xp || 0;
-  const progress = levelProgress(xp, level);
+  const progress = useLevelProgress(xp, level);
   // The card reads as a total against the next threshold, which is how a level
   // bar is read everywhere else — not as "XP into this level".
   const ceiling = xp + progress.remaining;
@@ -119,22 +119,22 @@ export default function SidebarProgressCard({ user, onNavigate }) {
     <Link
       to="/career/badges"
       onClick={onNavigate}
-      className="group block rounded-2xl bg-slate-900/70 p-3.5 text-center ring-1 ring-slate-800 transition-colors hover:bg-slate-900 hover:ring-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+      className="group block rounded-2xl bg-slate-50 p-3.5 text-center ring-1 ring-slate-200 transition-colors hover:bg-indigo-50/60 hover:ring-indigo-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
     >
       <div className="flex justify-center">
         <LevelRing level={level} percent={progress.percent} nextLevel={progress.nextLevel} />
       </div>
 
-      <p className="mt-2 text-sm font-bold text-white">Keep going, champ!</p>
-      <p className="mt-1 text-xs leading-relaxed text-slate-400">
+      <p className="mt-2 text-sm font-bold text-slate-900">Keep going, champ!</p>
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
         Every step today builds your tomorrow.
       </p>
 
       {/* The ring says the proportion; this says the actual numbers. The flat
           bar that used to sit here said the proportion a second time. */}
-      <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-slate-950/70 p-2.5 ring-1 ring-slate-800">
-        <span className="text-xs font-semibold text-slate-400 tabular-nums">
-          <span className="font-black text-white">{xp}</span> / {ceiling} XP
+      <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-white p-2.5 ring-1 ring-slate-200">
+        <span className="text-xs font-semibold text-slate-500 tabular-nums">
+          <span className="font-black text-slate-900">{xp}</span> / {ceiling} XP
         </span>
         <Zap className="h-4 w-4 shrink-0 fill-amber-400/30 text-amber-400" />
       </div>

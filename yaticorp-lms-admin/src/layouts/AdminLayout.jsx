@@ -11,8 +11,12 @@ import {
     ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
+import useCenterTabs from '../hooks/useCenterTabs';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const AdminLayout = () => {
+    // Tapping a tab in a sideways-scrolling strip centres it (phones).
+    useCenterTabs();
     const { showSessionModal, confirmLogout } = useAutoLogout(); 
     const { admin, logout } = useAuth();
     const location = useLocation();
@@ -127,61 +131,62 @@ const AdminLayout = () => {
 
             {/* Sidebar */}
             <aside className={`
-                fixed inset-y-0 left-0 w-64 bg-slate-900 text-white flex flex-col shadow-2xl z-50 
+                fixed inset-y-0 left-0 w-64 bg-white text-slate-700 border-r border-slate-200 flex flex-col shadow-2xl lg:shadow-none z-50 
                 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
-                <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-                    <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-8 object-contain" />
-                    <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white p-1">
+                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                    {/* The dark-lettered logo: the original is white artwork for a dark ground. */}
+                    <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 object-contain" />
+                    <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-slate-700 p-1">
                         <X size={24} />
                     </button>
                 </div>
 
                 <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
-                    <Link to="/" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <LayoutDashboard size={20} /> <span className="font-medium">Dashboard</span>
                     </Link>
-                    <Link to="/users" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/users') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/users" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/users') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Users size={20} /> <span className="font-medium">Users</span>
                     </Link>
-                    <Link to="/courses" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/courses') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/courses" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/courses') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <BookOpen size={20} /> <span className="font-medium">Courses</span>
                     </Link>
-                    <Link to="/bundles" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/bundles') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/bundles" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/bundles') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Layers size={20} /> <span className="font-medium">Bundles</span>
                     </Link>
-                    <Link to="/community" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/community') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/community" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/community') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <MessageSquare size={20} /> <span className="font-medium">Community</span>
                     </Link>
-                    <Link to="/enrollments" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/enrollments') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/enrollments" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/enrollments') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Network size={20} /> <span className="font-medium">Enrollments</span>
                     </Link>
-                    <Link to="/organizations" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/organizations') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/organizations" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/organizations') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Building2 size={20} /> <span className="font-medium">Organizations</span>
                     </Link>
-                    <Link to="/tickets" className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${isActive('/tickets') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/tickets" className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${isActive('/tickets') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <div className="flex items-center space-x-3">
                             <MessageCircleQuestion size={20} /> <span className="font-medium">Support</span>
                         </div>
                         {openTickets > 0 && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isActive('/tickets') ? 'bg-white/20 text-white' : 'bg-red-500 text-white animate-pulse'}`}>{openTickets}</span>}
                     </Link>
-                    <Link to="/global-quiz" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/global-quiz') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/global-quiz" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/global-quiz') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Globe size={20} /> <span className="font-medium">Global Quiz</span>
                     </Link>
-                    <Link to="/analytics" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/analytics') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/analytics" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/analytics') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <BarChart2 size={20} /> <span className="font-medium">Analytics</span>
                     </Link>
-                    <Link to="/career-path" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/career-path') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/career-path" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/career-path') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Compass size={20} /> <span className="font-medium">Career Path</span>
                     </Link>
-                    <Link to="/jobs" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/jobs') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/jobs" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/jobs') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Briefcase size={20} /> <span className="font-medium">Jobs</span>
                     </Link>
-                    <Link to="/rewards" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/rewards') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/rewards" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/rewards') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Gift size={20} /> <span className="font-medium">Rewards</span>
                     </Link>
-                    <Link to="/announcements" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/announcements') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    <Link to="/announcements" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/announcements') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Megaphone size={20} /> <span className="font-medium">Announcements</span>
                     </Link>
                     {/* Inter-college competitions (Chess, Ludo, Carrom, UNO). The super admin runs them. */}
@@ -191,12 +196,12 @@ const AdminLayout = () => {
                 </nav>
 
                 {/* Sidebar footer — student portal link only */}
-                <div className="p-4 border-t border-slate-800 bg-slate-950/30">
+                <div className="p-4 border-t border-slate-100 bg-slate-50/60">
                     <a
                         href={import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center space-x-3 p-3 text-indigo-400 hover:text-white hover:bg-indigo-600/10 rounded-xl transition-all"
+                        className="flex items-center space-x-3 p-3 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-all"
                     >
                         <ExternalLink size={18} /> <span className="font-medium text-sm">Student Portal</span>
                     </a>
@@ -212,9 +217,8 @@ const AdminLayout = () => {
                         <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg" aria-label="Open menu">
                             <Menu size={24} />
                         </button>
-                        {/* The logo is white artwork, so it keeps the sidebar's dark ground */}
-                        <Link to="/" className="flex items-center min-w-0 bg-slate-900 rounded-lg px-2.5 py-1.5">
-                            <img src="/assets/YATICORP.png" alt="Yaticorp LMS" className="h-5 sm:h-6 w-auto max-w-full object-contain" />
+                        <Link to="/" className="flex items-center min-w-0 py-1.5">
+                            <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-5 sm:h-6 w-auto max-w-full object-contain" />
                         </Link>
                     </div>
 
@@ -292,7 +296,7 @@ const AdminLayout = () => {
                 {/* Page Content Area */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
                     <div className="max-w-7xl mx-auto w-full">
-                        <Outlet />
+                        <ErrorBoundary resetKey={location.pathname}><Outlet /></ErrorBoundary>
                     </div>
                 </div>
             </main>

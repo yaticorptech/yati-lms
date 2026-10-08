@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Check, Flame, PartyPopper, Trophy, Zap } from 'lucide-react';
+import useBackClose from '../../../native/useBackClose';
 
 /**
  * The reward moment.
@@ -112,6 +113,8 @@ function CelebrationOverlay({ event, onDismiss }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onDismiss]);
+  // And so does Android's back button, rather than leaving the page under it.
+  useBackClose(onDismiss);
 
   return (
     <div
@@ -155,8 +158,14 @@ function CelebrationOverlay({ event, onDismiss }) {
 
         {/* The numbers that moved. This is the part worth showing — a student
             who cannot see what their work bought has no reason to repeat it. */}
-        {(event.xp > 0 || event.streak > 0 || event.progress) && (
+        {(event.score || event.xp > 0 || event.streak > 0 || event.progress) && (
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+            {event.score && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-700 ring-1 ring-emerald-100 ring-inset tabular-nums">
+                <Check className="h-4 w-4" strokeWidth={3} />
+                {event.score}
+              </span>
+            )}
             {event.xp > 0 && (
               <span className="animate-xp-rise inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1.5 text-sm font-bold text-violet-700 ring-1 ring-violet-100 ring-inset">
                 <Zap className="h-4 w-4" />+{event.xp} XP

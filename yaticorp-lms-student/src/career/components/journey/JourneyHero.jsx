@@ -1,4 +1,4 @@
-import { Rocket } from 'lucide-react';
+import { Rocket, Target } from 'lucide-react';
 import CurrentMission from './CurrentMission';
 import './careerHero.css';
 
@@ -31,9 +31,11 @@ const MOTES = [
   { right: '10%', top: '18%', size: 'h-1 w-1', tint: 'bg-amber-100', delay: '6.2s' }
 ];
 
-export default function JourneyHero({ task, completedToday = 0, totalToday = 0 }) {
+export default function JourneyHero({ goal, task, completedToday = 0, totalToday = 0 }) {
+  const careerGoal = goal?.careerGoal;
+
   return (
-    <section className="ch-hero relative overflow-hidden rounded-3xl bg-gradient-to-r from-white via-[#f7fbff] to-[#e9f1ff] shadow-card ring-1 ring-slate-100 ring-inset">
+    <section className="ch-hero relative overflow-hidden rounded-3xl bg-white lg:bg-gradient-to-r from-white via-[#f7fbff] to-[#e9f1ff] shadow-card ring-1 ring-slate-100 ring-inset">
       {/* ---- The scene ----
           Behind the words on a wide screen, beneath them on a narrow one.
           A phone has no room to the left of the illustration for a sentence
@@ -57,32 +59,37 @@ export default function JourneyHero({ task, completedToday = 0, totalToday = 0 }
         style={{ backgroundImage: "url('/illustrations/career-hero-bg.png')" }}
       />
 
-      {/* Narrow screens: the whole picture, as the background.
-          Expanded to fill the card, which costs a crop: the picture is
-          1.8:1 and the card is nearer 1.3:1, so filling one dimension always
-          spends the other. Anchored right rather than centred, because that
-          is what decides *which* crop — from the right, the trophy, the
-          script and the pins all survive and only the far left of the sky is
-          trimmed. Centred at this height the trophy is the first thing lost.
-
-          The card is kept near 275px for the same reason: below that the
-          whole scene including the book pin is in frame, above it the crop
-          starts eating real content. */}
-      <div
-        aria-hidden
-        className="ch-art pointer-events-none absolute inset-0 bg-cover bg-right bg-no-repeat lg:hidden"
-        style={{ backgroundImage: "url('/illustrations/career-hero-art.png')" }}
-      />
-
-      {/* Even, not graded. The picture is whole here rather than cropped to
-          its calm half, so the pins sit under the paragraph — a gradient
-          that lightened only the top would leave the worst of it exposed.
-          70%: at 66% the body text measured 4.44:1 over a pin — the most
-          saturated thing in the scene — which is under the line. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-white/70 lg:hidden"
-      />
+      {/* Narrow screens: the picture as a band across the top, at full
+          colour. As a washed-out background it sat directly under the
+          paragraph — the script "Small steps, big dreams" collided with the
+          sentence and the 70% white veil left the whole card looking hazy.
+          On its own band the scene is the bright part of the card and the
+          words below sit on plain white. Scaled a touch so the artwork's own
+          white rounded frame is cropped away. */}
+      <div className="relative aspect-[2/1] overflow-hidden lg:hidden">
+        <img
+          src="/illustrations/career-hero-art.png"
+          alt=""
+          aria-hidden
+          className="ch-art h-full w-full scale-[1.06] object-cover object-[60%_25%]"
+        />
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-b from-transparent to-white" />
+        {/* The student's own goal, where the generic badge was: the first
+            thing on the page now says where *they* are headed. */}
+        <span className="ch-badge absolute top-3 left-3 inline-flex max-w-[78%] items-center gap-1.5 rounded-full bg-white/85 px-2.5 py-1 text-[0.72rem] font-black text-violet-700 shadow-sm ring-1 ring-white/70 backdrop-blur">
+          {careerGoal ? (
+            <>
+              <Target className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+              <span className="truncate">{careerGoal}</span>
+            </>
+          ) : (
+            <>
+              <Rocket className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+              Build Your Future
+            </>
+          )}
+        </span>
+      </div>
 
       {/* Wide screens: a wash under the words only, finishing before the
           scene begins. The artwork starts around 63% of the panel at the
@@ -107,13 +114,13 @@ export default function JourneyHero({ task, completedToday = 0, totalToday = 0 }
       </div>
 
       {/* ---- What this section is for ---- */}
-      <div className="relative px-6 pt-6 pb-5 sm:px-8 sm:pt-7 sm:pb-6 lg:w-[62%] lg:px-9 lg:py-8">
-        <span className="ch-badge inline-flex items-center gap-1.5 rounded-full bg-violet-100/80 px-2.5 py-1 text-[0.7rem] font-black text-violet-700 ring-1 ring-violet-200/70 ring-inset lg:gap-2 lg:px-3.5 lg:py-1.5 lg:text-sm">
+      <div className="relative px-5 pt-1 pb-5 sm:px-8 sm:pb-6 lg:pt-0 lg:w-[62%] lg:px-9 lg:py-8">
+        <span className="ch-badge hidden lg:inline-flex items-center gap-1.5 rounded-full bg-violet-100/80 px-2.5 py-1 text-[0.7rem] font-black text-violet-700 ring-1 ring-violet-200/70 ring-inset lg:gap-2 lg:px-3.5 lg:py-1.5 lg:text-sm">
           <Rocket className="h-4 w-4 text-orange-500" />
           Build Your Future
         </span>
 
-        <h1 className="mt-3 text-[1.6rem] leading-[1.14] font-black tracking-tight text-slate-900 sm:text-[1.9rem] lg:text-[2.1rem] xl:text-[2.4rem]">
+        <h1 className="text-[1.55rem] leading-[1.14] lg:mt-3 font-black tracking-tight text-slate-900 sm:text-[1.9rem] lg:text-[2.1rem] xl:text-[2.4rem]">
           <span className="ch-in block" style={{ animationDelay: '0.08s' }}>
             Your Career Journey
           </span>
@@ -136,16 +143,17 @@ export default function JourneyHero({ task, completedToday = 0, totalToday = 0 }
           </span>
         </h1>
 
-        <p className="ch-in mt-2.5 max-w-md text-[0.86rem] leading-[1.45] text-slate-600 lg:mt-4 lg:text-[0.95rem] lg:leading-relaxed" style={{ animationDelay: '0.28s' }}>
+        <p className="ch-in mt-4 hidden max-w-md text-[0.95rem] leading-relaxed text-slate-600 lg:block" style={{ animationDelay: '0.28s' }}>
           Explore. Learn. Grow. Turn your goals into achievements with a step-by-step career
           path designed just for you.
         </p>
+
 
         {/* The one action. A "View My Progress" button stood beside it and
             has been removed: My Progress is a tab in the strip above, so the
             hero offered a second route to a page that was never hard to
             reach, at the cost of splitting attention with the quest. */}
-        <div className="ch-in mt-4 flex flex-wrap items-center gap-2.5 lg:mt-5 lg:gap-3" style={{ animationDelay: '0.38s' }}>
+        <div className="ch-in mt-5 flex flex-wrap items-center gap-2.5 lg:gap-3 [&>a]:w-full [&>a]:justify-center lg:[&>a]:w-auto" style={{ animationDelay: '0.38s' }}>
           {/* Unchanged: it already carries the XP chip, the three states and
               the beacon that makes it findable. */}
           <CurrentMission task={task} completedToday={completedToday} totalToday={totalToday} />

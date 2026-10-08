@@ -99,7 +99,9 @@ describe('the organization shell', { skip: skipWithoutStyles }, () => {
         assert.match(result.tabs[2], /Requests/);
         assert.match(result.tabs[2], /3/, 'the waiting count rides on the Requests tab');
         assert.match(result.current, /Home/, 'the open section is marked');
-        assert.equal(result.heading, 'Dashboard', 'the header names the page');
+        // The page opens with its own title ("Welcome back, …"); the header
+        // carries whose panel this is instead of saying the title twice.
+        assert.equal(result.heading, 'ABC College', 'the header names the organization, not the page again');
         assert.ok(result.contentBottom <= result.navTop, `scrolled to the end, nothing sits under the bar (${result.contentBottom} > ${result.navTop})`);
         assert.ok(!result.pageSideways, 'and nothing runs off the side');
     });
@@ -110,7 +112,7 @@ describe('the organization shell', { skip: skipWithoutStyles }, () => {
         });
         assert.deepEqual(errors, []);
         assert.match(result.current, /Students/);
-        assert.equal(result.heading, 'Students');
+        assert.equal(result.heading, 'ABC College', 'the page\'s own "Students" title is not repeated in the header');
         assert.ok(result.contentBottom <= result.navTop, 'the last student is clear of the bar');
         assert.ok(!result.pageSideways);
     });

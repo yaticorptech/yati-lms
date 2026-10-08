@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import api from '../../services/api';
+import { gameKey, currentStudentId } from './gameStorage';
 
 // The star rules live in stars.js so a test can load them; see there.
-export { starsFor, starsCap } from './stars';
+export { starsFor, starsCap, starsForFixed } from './stars';
 
 /**
  * Levels inside one difficulty band, and the ladder as a whole.
@@ -36,12 +37,15 @@ export const between = (from, to, stepNo) => Math.round(from + (to - from) * ram
 
 
 
+// Per student, not per device: see gameStorage.js. Passed through gameKey()
+// at every read and write, so signing out and in as someone else switches
+// records without a reload.
 const LEVEL_KEY = 'yati:gameLevel';
 const STAR_KEY = 'yati:gameStars';
 
 const read = (key) => {
   try {
-    return JSON.parse(localStorage.getItem(key) || '{}');
+    return JSON.parse(localStorage.getItem(gameKey(key)) || '{}');
   } catch {
     // A corrupt entry must not take the games down with it.
     return {};
@@ -50,7 +54,7 @@ const read = (key) => {
 
 const write = (key, value) => {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(gameKey(key), JSON.stringify(value));
   } catch {
     // Private mode or a blocked origin: the game still plays.
   }
@@ -69,6 +73,18 @@ const write = (key, value) => {
 /** Fired after the server has taken a game's record, so boards can refresh. */
 export const GAMES_SYNCED = 'yati:games-synced';
 
+/** Fired when a saved level paid XP: detail { xp, gameId }. */
+export const GAME_XP = 'yati:game-xp';
+
+/**
+ * The admin's XP per star result ({ 1, 2, 3 }), as last read from the server
+ * by the games page. Module state rather than context: sixty games render
+ * GameShell, and none of them should have to pass it along.
+ */
+let xpTable = null;
+export const setGameXpTable = (table) => { xpTable = table || null; };
+export const gameXpTable = () => xpTable;
+
 /** This browser's record of one game, in the shape the server takes. */
 const localGame = (gameId) => {
   const stars = {};
@@ -79,16 +95,41 @@ const localGame = (gameId) => {
   return { gameId, level: read(LEVEL_KEY)[gameId] || 1, stars };
 };
 
+// The level each game's last push came back at, so a catch-up run of pushes
+// can tell whether the one before moved anything.
+const pushedLevel = new Map();
+
 /**
  * Send one game's record to the account. Fire-and-forget: a failed or
  * offline push loses nothing, because the next push or the next pull sends
  * the whole record again.
+ *
+ * The server takes at most one level further per request (see saveProgress),
+ * so a browser that is several levels ahead — played offline, or a push was
+ * lost — sends again while each answer still moves the account up, up to
+ * `rounds` times. It stops as soon as an answer moves nothing: the server
+ * has it all, or is holding it back until today's play time is counted.
  */
-export const pushGame = (gameId) =>
-  api
-    .post('/games/progress', localGame(gameId))
-    .then(() => window.dispatchEvent(new CustomEvent(GAMES_SYNCED, { detail: { gameId } })))
+export const pushGame = (gameId, rounds = 10) => {
+  // Nobody signed in: the record is a guest's and belongs to no account.
+  if (!currentStudentId()) return Promise.resolve();
+  const sent = localGame(gameId);
+  return api
+    .post('/games/progress', sent)
+    .then(({ data }) => {
+      window.dispatchEvent(new CustomEvent(GAMES_SYNCED, { detail: { gameId } }));
+      if (data?.xpAwarded > 0) {
+        window.dispatchEvent(new CustomEvent(GAME_XP, { detail: { xp: data.xpAwarded, gameId } }));
+        // XP is money now too: the wallet and the XP figures re-read.
+        window.dispatchEvent(new CustomEvent('yati:progress-changed'));
+      }
+      const moved = !data?.deferred && (data?.xpAwarded > 0 || (data?.level || 0) > (pushedLevel.get(gameId) || 0));
+      pushedLevel.set(gameId, data?.level || 0);
+      if (moved && rounds > 1 && (data?.level || 0) < sent.level) return pushGame(gameId, rounds - 1);
+      return undefined;
+    })
     .catch(() => {});
+};
 
 /**
  * Merge the account's record into this browser, and send back any game this
@@ -96,6 +137,7 @@ export const pushGame = (gameId) =>
  * knows to redraw its numbers.
  */
 export const pullProgress = async () => {
+  if (!currentStudentId()) return false;
   let games;
   try {
     ({ data: { games } } = await api.get('/games/progress'));
@@ -186,7 +228,7 @@ export const starsForGame = (gameId) =>
 export const levelReached = (gameId) => read(LEVEL_KEY)[gameId] || 1;
 
 /* ---- The game played most recently -----------------------------------
- * One id, kept in this browser, so the hub can mark where the student left
+ * One id, kept in this browser for the signed-in student, so the hub can mark where the student left
  * off. Deliberately not sent to the account: it is a pointer back into the
  * page, not progress, and the level and star records already follow the
  * student between devices.
@@ -196,7 +238,7 @@ const RECENT_KEY = 'yati:gameRecent';
 /** Note that a game has just been opened. */
 export const markPlayed = (gameId) => {
   try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify({ gameId, at: Date.now() }));
+    localStorage.setItem(gameKey(RECENT_KEY), JSON.stringify({ gameId, at: Date.now() }));
   } catch {
     // Private mode or a blocked origin: the hub simply shows no marker.
   }
@@ -205,7 +247,7 @@ export const markPlayed = (gameId) => {
 /** The id of the game opened most recently, or null. */
 export const lastPlayed = () => {
   try {
-    const { gameId } = JSON.parse(localStorage.getItem(RECENT_KEY) || '{}');
+    const { gameId } = JSON.parse(localStorage.getItem(gameKey(RECENT_KEY)) || '{}');
     return typeof gameId === 'string' ? gameId : null;
   } catch {
     return null;

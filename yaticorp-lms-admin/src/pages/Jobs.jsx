@@ -191,26 +191,61 @@ const Jobs = () => {
             {!focusApplication && <PartTimeApplicationsPanel />}
 
             {/* ── Index health ─────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <Stat icon={Database} label="Active listings" value={(idx.active ?? 0).toLocaleString()}
-                    sub={`${(idx.total ?? 0).toLocaleString()} stored in total`} />
-                <Stat icon={MapPin} label="Distance-rankable" value={`${locatedPct}%`}
-                    sub={`${(idx.withCoords ?? 0).toLocaleString()} listings carry coordinates`} tone="emerald" />
-                <Stat icon={Search} label="Searches, 30 days" value={(searches.last30Days ?? 0).toLocaleString()}
-                    sub={`${(searches.total ?? 0).toLocaleString()} all-time`} />
-                {/* Amber when the embeddings share Career Path's key: Google
-                    meters per project per day, so a big embed run can spend
-                    the very allowance a mentor conversation needs mid-class.
-                    The fix is one env var — say so here, where the operator
-                    who will feel it is already looking. */}
-                <Stat icon={Sparkles} label="Semantic matching" value={gemini.configured ? 'On' : 'Off'}
-                    sub={!gemini.configured
-                        ? 'No Gemini key — literal matching only'
-                        : gemini.keyScope === 'shared'
-                            ? 'Shares Career Path\u2019s Gemini allowance — set JOBS_GEMINI_API_KEY to separate them'
-                            : `Dedicated key · ${gemini.model}`}
-                    tone={!gemini.configured ? 'slate' : gemini.keyScope === 'shared' ? 'amber' : 'emerald'} />
-            </div>
+            {/* One compact panel, not four tall cards: two across on a phone,
+                four on a wide screen, each figure with a line under it. */}
+            {(() => {
+                const semantic = !gemini.configured ? 'off' : gemini.keyScope === 'shared' ? 'shared' : 'on';
+                const tiles = [
+                    { icon: Database, tone: 'bg-indigo-50 text-indigo-600', label: 'Active listings', value: (idx.active ?? 0).toLocaleString(), sub: `of ${(idx.total ?? 0).toLocaleString()} stored` },
+                    { icon: MapPin, tone: 'bg-emerald-50 text-emerald-600', label: 'Location ranked', value: `${locatedPct}%`, sub: `${(idx.withCoords ?? 0).toLocaleString()} with coordinates`, bar: locatedPct },
+                    { icon: Search, tone: 'bg-sky-50 text-sky-600', label: 'Searches (30 days)', value: (searches.last30Days ?? 0).toLocaleString(), sub: `${(searches.total ?? 0).toLocaleString()} all-time` },
+                    {
+                        icon: Sparkles,
+                        tone: semantic === 'on' ? 'bg-emerald-50 text-emerald-600' : semantic === 'shared' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500',
+                        label: 'Semantic matching',
+                        value: semantic === 'off' ? 'Off' : 'On',
+                        valueTone: semantic === 'off' ? 'text-slate-400' : semantic === 'shared' ? 'text-amber-600' : 'text-emerald-600',
+                        sub: semantic === 'off' ? 'Literal matching only' : semantic === 'shared' ? 'Shared Gemini key' : `Dedicated key · ${gemini.model}`
+                    }
+                ];
+                return (
+                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 sm:px-5">
+                            <Database size={15} className="text-slate-400" />
+                            <h2 className="text-sm font-bold text-slate-800">Job index</h2>
+                        </div>
+                        <div className="grid grid-cols-2 divide-slate-100 lg:grid-cols-4 lg:divide-x [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(-n+2)]:border-slate-100 lg:[&>*:nth-child(-n+2)]:border-b-0 [&>*:nth-child(odd)]:border-r [&>*:nth-child(odd)]:border-slate-100 lg:[&>*:nth-child(odd)]:border-r-0">
+                            {tiles.map((t) => (
+                                <div key={t.label} className="min-w-0 p-4 sm:p-5">
+                                    <div className="flex items-start gap-2">
+                                        <span className={`shrink-0 rounded-lg p-1.5 ${t.tone}`}><t.icon size={14} /></span>
+                                        {/* Wraps rather than truncating: a narrow tile cut
+                                            "Distance-rankable" to "Distance-ranka…". */}
+                                        <p className="min-w-0 pt-0.5 text-[11px] font-bold uppercase leading-snug tracking-wide text-slate-500 [overflow-wrap:anywhere]">{t.label}</p>
+                                    </div>
+                                    <p className={`mt-2 text-2xl font-bold tabular-nums sm:text-[1.65rem] ${t.valueTone || 'text-slate-900'}`}>{t.value}</p>
+                                    {t.bar !== undefined && (
+                                        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                                            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, t.bar)}%` }} />
+                                        </div>
+                                    )}
+                                    <p className="mt-1 text-xs leading-snug text-slate-500">{t.sub}</p>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Amber when the embeddings share Career Path's key: Google
+                            meters per project per day, so a big embed run can spend
+                            the very allowance a mentor conversation needs mid-class.
+                            The fix is one env var — said here, where the operator
+                            who will feel it is already looking. */}
+                        {semantic === 'shared' && (
+                            <p className="border-t border-amber-100 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-800 sm:px-5">
+                                Semantic matching shares Career Path&apos;s Gemini allowance. Set <code className="rounded bg-amber-100 px-1 py-0.5 text-[11px]">JOBS_GEMINI_API_KEY</code> to give it its own.
+                            </p>
+                        )}
+                    </section>
+                );
+            })()}
 
             {/* ── Demand ───────────────────────────────────────────────── */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

@@ -1,16 +1,18 @@
-import { useState, useEffect, useMemo, useContext, useRef } from 'react';
-import api from '../../services/api';
+import { useState, useEffect, useMemo, useContext, useRef, useCallback } from 'react';
+import api, { noneIfMissing } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, Circle, SkipForward, CalendarDays, Plus, Pencil, Trash2, Check, CalendarClock
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
+import LoadError from '../../components/ui/LoadError';
 import Button from '../../components/ui/Button';
 import { monthBounds, monthIndexOfDate } from '../../utils/calendar';
 import { getSnapshot as googleSnapshot, refresh as refreshGoogle } from '../../../integrations/google/googleStore';
 import GoogleConnectionCard from '../../../integrations/google/GoogleConnectionCard';
-import { currentStreak, greeting, levelProgress } from '../../utils/progress';
+import { currentStreak, greeting } from '../../utils/progress';
+import useLevelProgress from '../../context/useLevelProgress';
 import JourneyBanner from '../../components/journey/JourneyBanner';
 import MonthStats from '../../components/dashboard/MonthStats';
 import ComingUpNext from '../../components/dashboard/ComingUpNext';
@@ -21,6 +23,7 @@ import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
 import './calendarMotion.css';
 import { useMascot } from '../../mascot/useMascot';
+import useStreak from '../../utils/useStreak';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -36,6 +39,23 @@ const EVENT_TYPES = ['Exam', 'Assignment', 'Class', 'Holiday', 'Other'];
 const dayKey = (date) => {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/** The first and last day of a month, as the from/to /tasks/history takes. */
+const monthRange = (year, month) => ({
+  from: dayKey(new Date(year, month, 1)),
+  to: dayKey(new Date(year, month + 1, 0))
+});
+
+/**
+ * Adds a batch of tasks to what is already loaded, one copy of each.
+ * The calendar loads month by month as the student pages, plus the newest
+ * stretch for the streak, so the same task can arrive twice.
+ */
+const mergeTasks = (current, incoming) => {
+  const byId = new Map(current.map((t) => [t._id, t]));
+  for (const task of incoming) byId.set(task._id, task);
+  return [...byId.values()];
 };
 
 /** The day before `key`, in the same YYYY-MM-DD form. */
@@ -67,11 +87,38 @@ const EVENT_STYLE = {
 
 const styleFor = (type) => EVENT_STYLE[type] || EVENT_STYLE.Other;
 
-const STATUS_DOT = {
-  Completed: 'bg-emerald-500',
-  Skipped: 'bg-rose-400',
-  Pending: 'bg-indigo-500'
+/**
+ * One mark per task status — a shape as well as a colour.
+ *
+ * Colour alone failed twice: a colour-blind student could not tell a missed
+ * day from a finished one, and on today's square (white on the brand
+ * gradient) every dot turned the same white and said nothing at all. A filled
+ * dot is done, a ring is still open, a dash is missed — readable in any
+ * colour, including none. Skipped is the stored status; "Missed" is the word
+ * the page uses for it everywhere, since the day ran out rather than the
+ * student choosing to skip.
+ */
+const STATUS_MARK = {
+  Completed: { label: 'Completed', shape: 'h-1.5 w-1.5 rounded-full', colour: 'bg-emerald-500', onToday: 'bg-white' },
+  Pending: { label: 'Pending', shape: 'h-1.5 w-1.5 rounded-full border-[1.5px] bg-transparent', colour: 'border-indigo-500', onToday: 'border-white' },
+  Skipped: { label: 'Missed', shape: 'h-[3px] w-2 rounded-full', colour: 'bg-rose-400', onToday: 'bg-rose-200' }
 };
+
+function StatusMark({ status, onToday = false }) {
+  const mark = STATUS_MARK[status] || STATUS_MARK.Pending;
+  return <span aria-hidden className={`inline-block shrink-0 ${mark.shape} ${onToday ? mark.onToday : mark.colour}`} />;
+}
+
+/** "3 tasks: 1 completed, 1 pending, 1 missed" — what the marks say, aloud. */
+function taskCountsLabel(dayTasks) {
+  if (!dayTasks.length) return 'no tasks';
+  const count = (status) => dayTasks.filter((t) => (STATUS_MARK[t.status] ? t.status : 'Pending') === status).length;
+  const parts = ['Completed', 'Pending', 'Skipped']
+    .map((status) => [count(status), STATUS_MARK[status].label.toLowerCase()])
+    .filter(([n]) => n > 0)
+    .map(([n, word]) => `${n} ${word}`);
+  return `${dayTasks.length} ${dayTasks.length === 1 ? 'task' : 'tasks'}: ${parts.join(', ')}`;
+}
 
 export default function CalendarView() {
   const { user } = useContext(AuthContext);
@@ -87,7 +134,17 @@ export default function CalendarView() {
   const [panel, setPanel] = useState('calendar');
   const mascot = useMascot();
   const [loading, setLoading] = useState(true);
+  // The task history or the student's events not arriving. Shown as a
+  // failure: an empty calendar would read as a month with nothing done.
+  const [failed, setFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [cursor, setCursor] = useState(new Date());
+  // The day the student onboarded. The first plan cannot be older, so it is
+  // how far back the arrows may go — the tasks themselves now arrive a month
+  // at a time and cannot say where the history starts.
+  const [startKey, setStartKey] = useState(null);
+  // Months whose tasks are in hand (or on their way), as "year-month".
+  const loadedMonths = useRef(new Set());
   // Which way the last month change went, so the grid can arrive from the
   // side it came from. 0 is the first paint, which has no direction and
   // therefore no slide.
@@ -107,19 +164,59 @@ export default function CalendarView() {
   const toast = useToast();
   const confirm = useConfirm();
 
-  useEffect(() => {
-    // History, not /tasks — the planner endpoint returns today only, which would
-    // leave every other square on the calendar empty.
-    Promise.allSettled([
-      api
-        .get('/tasks/history')
-        .then(({ data }) => setTasks(Array.isArray(data) ? data : data.tasks || [])),
+  /** One month of tasks, by date range: older months were empty when only
+   *  the newest 200 tasks were ever fetched. */
+  const loadMonth = useCallback((year, month) => {
+    const key = `${year}-${month}`;
+    loadedMonths.current.add(key);
+    return api
+      .get('/tasks/history', { params: monthRange(year, month) })
+      .then(({ data }) => setTasks((current) => mergeTasks(current, Array.isArray(data) ? data : data.tasks || [])))
+      .catch((error) => {
+        // Forgotten, so paging back to it tries again.
+        loadedMonths.current.delete(key);
+        throw error;
+      });
+  }, []);
+
+  const load = useCallback(() => {
+    const now = new Date();
+    loadedMonths.current = new Set();
+    // History, not /tasks — the planner endpoint returns today only, which
+    // would leave every other square on the calendar empty. The month on
+    // screen comes by range; the newest stretch comes too, because the streak
+    // runs back across month boundaries. The timetable has its own face and
+    // its own empty state, so only the tasks and events can fail the page.
+    return Promise.allSettled([
+      Promise.all([
+        loadMonth(now.getFullYear(), now.getMonth()),
+        api
+          .get('/tasks/history')
+          .then(({ data }) => setTasks((current) => mergeTasks(current, Array.isArray(data) ? data : data.tasks || [])))
+      ]),
       api.get('/events').then(({ data }) => setEvents(Array.isArray(data) ? data : [])),
       api
         .get('/timetable')
-        .then(({ data }) => setTimetable(Array.isArray(data?.slots) ? data.slots : []))
-    ]).finally(() => setLoading(false));
-  }, []);
+        .then(({ data }) => setTimetable(Array.isArray(data?.slots) ? data.slots : [])),
+      noneIfMissing(api.get('/goals')).then((res) => {
+        const at = res?.data?.createdAt;
+        setStartKey(at ? dayKey(at) : null);
+      })
+    ]).then(([history, own]) => {
+      setFailed(history.status === 'rejected' || own.status === 'rejected');
+      setLoading(false);
+    });
+  }, [loadMonth]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const retry = async () => {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  };
 
   /**
    * Catch Google up on everything that was already here.
@@ -214,8 +311,8 @@ export default function CalendarView() {
   // towards it as well as tasks, so an event saved in an earlier month keeps
   // that month reachable.
   const bounds = useMemo(
-    () => monthBounds([...byDay.keys(), ...eventsByDay.keys()]),
-    [byDay, eventsByDay]
+    () => monthBounds([...byDay.keys(), ...eventsByDay.keys(), ...(startKey ? [startKey] : [])]),
+    [byDay, eventsByDay, startKey]
   );
 
   const resetForm = () => {
@@ -282,6 +379,22 @@ export default function CalendarView() {
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
+
+  // Paging to a month not yet loaded fetches it. Until it lands the squares
+  // and the month's stats are empty, briefly, rather than wrong for good.
+  // The toast API is a new object each render, so it is read through a ref:
+  // as a dependency it would re-run this after every render, and after a
+  // failure (the month is forgotten) that meant a retry and a toast per render.
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  });
+  useEffect(() => {
+    if (loading || loadedMonths.current.has(`${year}-${month}`)) return;
+    loadMonth(year, month).catch(() =>
+      toastRef.current.error(`Could not load ${MONTHS[month]} ${year}. Page away and back to try again.`)
+    );
+  }, [year, month, loading, loadMonth]);
   const cursorIndex = year * 12 + month;
 
   // Backwards is bounded at the first month with anything in it: months before
@@ -407,8 +520,9 @@ export default function CalendarView() {
     return { completed, pending, events };
   }, [byDay, eventsByDay, year, month]);
 
-  const streak = useMemo(() => currentStreak(tasks), [tasks]);
-  const progress = levelProgress(user?.xp, user?.level);
+  const taskStreak = useMemo(() => currentStreak(tasks), [tasks]);
+  const streak = useStreak(taskStreak);
+  const progress = useLevelProgress(user?.xp, user?.level);
 
   const selectedTasks = byDay.get(selectedKey) || [];
   const selectedEvents = eventsByDay.get(selectedKey) || [];
@@ -430,6 +544,7 @@ export default function CalendarView() {
   // "since August 2026" — the month the first plan landed in.
   const showLoader = useMinimumLoading(loading);
   if (showLoader) return <YatiLoader label="Loading your calendar" />;
+  if (failed) return <LoadError title="We couldn't load your calendar" onRetry={retry} retrying={retrying} />;
 
   return (
     // No page header. It printed "🗓️ Learning calendar" directly above a card
@@ -466,16 +581,14 @@ export default function CalendarView() {
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {/* On phones too, smaller: the marks mean nothing without it,
+                  and a phone is where most of this page is read. */}
               {panel === 'calendar' && (
-                <div className="hidden items-center gap-3 text-xs font-semibold text-ink-500 sm:flex">
-                  {[
-                    ['bg-emerald-500', 'Completed'],
-                    ['bg-indigo-500', 'Pending'],
-                    ['bg-rose-400', 'Missed']
-                  ].map(([dot, label]) => (
-                    <span key={label} className="flex items-center gap-1.5">
-                      <span className={`h-2 w-2 rounded-full ${dot}`} />
-                      {label}
+                <div className="flex items-center gap-2.5 text-[0.68rem] font-semibold text-ink-500 sm:gap-3 sm:text-xs">
+                  {['Completed', 'Pending', 'Skipped'].map((status) => (
+                    <span key={status} className="flex items-center gap-1.5">
+                      <StatusMark status={status} />
+                      {STATUS_MARK[status].label}
                     </span>
                   ))}
                 </div>
@@ -642,9 +755,9 @@ export default function CalendarView() {
                     // A half-typed event belongs to the day it was started on.
                     resetForm();
                   }}
-                  aria-label={`${day} ${MONTHS[date.getMonth()]}, ${dayTasks.length} ${
-                    dayTasks.length === 1 ? 'task' : 'tasks'
-                  }${dayEvents.length ? `, ${dayEvents.length} of your own events` : ''}`}
+                  aria-label={`${day} ${MONTHS[date.getMonth()]}, ${taskCountsLabel(dayTasks)}${
+                    dayEvents.length ? `, ${dayEvents.length} of your own events` : ''
+                  }`}
                   aria-pressed={isSelected}
                   aria-current={isToday ? 'date' : undefined}
                   data-mascot-target={isToday ? 'calendar-day' : undefined}
@@ -737,12 +850,7 @@ export default function CalendarView() {
                   {dayTasks.length > 0 && (
                     <span className="mt-auto flex flex-wrap items-center gap-1 pt-1.5">
                       {dayTasks.slice(0, 4).map((t) => (
-                        <span
-                          key={t._id}
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            isToday ? 'bg-white/90' : STATUS_DOT[t.status] || STATUS_DOT.Pending
-                          }`}
-                        />
+                        <StatusMark key={t._id} status={t.status} onToday={isToday} />
                       ))}
                       {dayTasks.length > 4 && (
                         <span

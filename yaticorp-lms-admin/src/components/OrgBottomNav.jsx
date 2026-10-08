@@ -67,7 +67,7 @@ export default function OrgBottomNav({ items, counts = {} }) {
                                 to={item.to}
                                 aria-label={count > 0 ? `${item.label}, ${count} waiting` : item.label}
                                 aria-current={active ? 'page' : undefined}
-                                className={`mbn-press relative z-10 flex min-w-0 flex-1 flex-col items-center justify-start gap-0.5 pt-0.5 pb-1.5 text-[0.65rem] font-bold tracking-tight transition-colors duration-300 ${
+                                className={`mbn-press relative z-10 flex min-w-0 flex-1 flex-col items-center justify-start gap-0.5 pt-0.5 pb-1.5 text-[11px] font-bold tracking-tight transition-colors duration-300 ${
                                     active ? 'text-white' : 'text-slate-400'
                                 }`}
                             >

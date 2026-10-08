@@ -18,6 +18,7 @@ import { createSpeaker, createListener, requestMicrophone, listenerErrorMessage 
 import { isNative } from '../native/platform';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
 import { markReturn } from './scrollMemory';
+import PriceTag from '../components/rewards/PriceTag';
 
 const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 const PHASE = {
@@ -102,6 +103,8 @@ function Intro({ session, onStart, starting, error }) {
                 <hr className="my-6 border-violet-100" />
 
                 {/* ── What kind of interview ───────────────────────── */}
+                {/* Each type's length sits beside it in the list, so there is
+                    no separate duration box that looked like a field. */}
                 <div className="grid gap-4 sm:grid-cols-2">
                     <label className="block">
                         <span className={label}>Interview type</span>
@@ -110,28 +113,20 @@ function Intro({ session, onStart, starting, error }) {
                             <Dropdown
                                 label="Interview type" icon={Briefcase} disabled={resuming} className={field}
                                 value={type} onChange={setType}
-                                options={Object.entries(TYPE_META).map(([id, m]) => ({ value: id, label: m.label }))} />
+                                options={Object.entries(TYPE_META).map(([id, m]) => ({ value: id, label: m.label, hint: DURATION[id]?.replace('minutes', 'min') }))} />
                         </div>
                     </label>
-                    <div>
-                        <span className={label}>Duration</span>
+                    <label className="block">
+                        <span className={label}>Job role</span>
                         <div className="relative mt-2">
-                            <Clock size={17} className={leading} />
-                            <p className={`${field} pr-4`}>{DURATION[type]}</p>
+                            <Code2 size={17} className={leading} />
+                            <Dropdown
+                                label="Job role" icon={Code2} disabled={resuming} className={field}
+                                value={roleOptions.includes(role) ? role : ROLE_OTHER} onChange={setRole}
+                                options={[...roleOptions.map((x) => ({ value: x, label: x })), { value: ROLE_OTHER, label: 'Other role…' }]} />
                         </div>
-                    </div>
+                    </label>
                 </div>
-
-                <label className="mt-4 block">
-                    <span className={label}>Job role</span>
-                    <div className="relative mt-2">
-                        <Code2 size={17} className={leading} />
-                        <Dropdown
-                            label="Job role" icon={Code2} disabled={resuming} className={field}
-                            value={roleOptions.includes(role) ? role : ROLE_OTHER} onChange={setRole}
-                            options={[...roleOptions.map((x) => ({ value: x, label: x })), { value: ROLE_OTHER, label: 'Other role…' }]} />
-                    </div>
-                </label>
                 {role === ROLE_OTHER && !resuming && (
                     <input autoFocus value={customRole} onChange={(e) => setCustomRole(e.target.value)} maxLength={80}
                         placeholder="Type the role you are preparing for"
@@ -139,7 +134,24 @@ function Intro({ session, onStart, starting, error }) {
                 )}
 
                 {/* ── Why the microphone ───────────────────────────── */}
-                <div className="mt-6 flex flex-col gap-4 rounded-[1.4rem] bg-violet-100/50 px-5 py-4 sm:flex-row sm:items-center">
+                {/* Phones: a compact note — icon beside the title, the gist in
+                    one sentence, privacy as a closing line. The full version
+                    ran to eight lines of small print here. */}
+                <div className="mt-5 rounded-2xl bg-violet-100/50 px-4 py-3.5 sm:hidden">
+                    <p className="flex items-center gap-2.5 text-sm font-black text-violet-800">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-violet-600 shadow-sm"><Mic size={16} /></span>
+                        Why we need your microphone
+                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-violet-900/70">
+                        {listenerSupported
+                            ? 'Your voice is turned into text on your device. Nothing is recorded, and you can type instead anytime.'
+                            : 'This browser can’t turn speech into text, so you’ll type your answers. Chrome, Edge or Safari support voice.'}
+                    </p>
+                    <p className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-violet-700">
+                        <ShieldCheck size={13} className="shrink-0" /> Your privacy is safe with us.
+                    </p>
+                </div>
+                <div className="mt-6 hidden flex-col gap-4 rounded-[1.4rem] bg-violet-100/50 px-5 py-4 sm:flex sm:flex-row sm:items-center">
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-violet-600 shadow-sm"><Mic size={21} /></span>
                     <div className="min-w-0 flex-1">
                         <p className="text-base font-black text-violet-800">Why we ask for your microphone</p>
@@ -159,7 +171,7 @@ function Intro({ session, onStart, starting, error }) {
 
                 <Btn tone="primary" icon={Mic} onClick={() => onStart({ type, role: chosenRole })} loading={starting}
                     className="mt-6 w-full !rounded-2xl !py-4 !text-base">
-                    {starting ? 'Preparing your interviewer…' : resuming ? `Continue interview (${answered} answered)` : 'Start Interview'}
+                    {starting ? 'Preparing your interviewer…' : resuming ? `Continue interview (${answered} answered)` : <>Start Interview <PriceTag action="start_mock_interview" /></>}
                     {!starting && <ArrowRight size={18} className="ml-1" />}
                 </Btn>
                 <p className="mt-3 text-center text-xs text-slate-500">{meta.hint}</p>

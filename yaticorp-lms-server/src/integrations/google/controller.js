@@ -20,10 +20,20 @@ const appUrl = () => process.env.PUBLIC_APP_URL || process.env.CLIENT_URL || '';
 /**
  * Where the consent flow puts the student back.
  *
- * The Calendar page, because that is where the connection is offered and
- * where its effect is visible — the exam dates it syncs are on that screen.
+ * The page they connected from — the Calendar or My Profile both offer it —
+ * carried through Google inside the signed state. The Calendar is the fallback
+ * for an older client that sends none.
  */
 const RETURN_TO = '/career/calendar';
+
+/**
+ * A path inside the student app, and only that: one leading slash (never two,
+ * which a browser reads as another host), plain path characters, no query.
+ * It is appended to the app's own URL in any case, so this keeps the redirect
+ * on our site even if the check were wrong.
+ */
+const SAFE_RETURN = /^\/(?!\/)[A-Za-z0-9/_-]{0,80}$/;
+const returnPath = (value) => (typeof value === 'string' && SAFE_RETURN.test(value) ? value : RETURN_TO);
 
 const fail = (res, error, what) => {
   console.error(`[google] ${what}:`, error);
@@ -65,7 +75,11 @@ const beginConnect = async (req, res) => {
     }
     // The redirect comes back without a session, so the state carries who
     // started it. Signed and short-lived, so it cannot be forged or replayed.
-    const state = jwt.sign({ uid: String(req.user._id) }, process.env.JWT_SECRET, { expiresIn: STATE_TTL });
+    const state = jwt.sign(
+      { uid: String(req.user._id), rt: returnPath(req.body?.returnTo) },
+      process.env.JWT_SECRET,
+      { expiresIn: STATE_TTL }
+    );
     res.json({ url: consentUrl(state) });
   } catch (error) {
     fail(res, error, 'start the Google connection');
@@ -75,11 +89,16 @@ const beginConnect = async (req, res) => {
 // @route GET /api/integrations/google/callback
 // Google sends the student's browser here. No session, so trust only `state`.
 const handleCallback = async (req, res) => {
-  const back = (status) => res.redirect(`${appUrl()}${RETURN_TO}?google=${status}`);
+  // Where to send them is read from the state when it verifies; a denied or
+  // expired consent still has an unverified state worth honouring for the
+  // path alone, since it is re-checked against SAFE_RETURN either way.
+  let to = RETURN_TO;
+  const back = (status) => res.redirect(`${appUrl()}${to}?google=${status}`);
 
   try {
-    if (req.query.error) return back('denied');
     const { code, state } = req.query;
+    if (state) to = returnPath(jwt.decode(String(state))?.rt);
+    if (req.query.error) return back('denied');
     if (!code || !state) return back('failed');
 
     let uid;

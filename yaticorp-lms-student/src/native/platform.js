@@ -5,6 +5,15 @@ import { showHttpImages } from './httpImages';
 export const isNative = () => Capacitor.isNativePlatform();
 
 /**
+ * The hardware back press, offered to whatever overlay is open before it
+ * navigates. A dialog listening for `yati:back` calls preventDefault() and
+ * closes itself (see useBackClose). Returns false when something consumed it.
+ */
+export const BACK_EVENT = 'yati:back';
+export const dispatchBack = () =>
+    window.dispatchEvent(new Event(BACK_EVENT, { cancelable: true }));
+
+/**
  * What the native shell needs from the web app, done once at start-up and
  * only inside the app; on the website every branch here is skipped.
  *
@@ -27,10 +36,14 @@ export async function initNative() {
     ]);
 
     requestAnimationFrame(() => setTimeout(() => SplashScreen.hide().catch(() => {}), 50));
-    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
-    if (Capacitor.getPlatform() === 'android') StatusBar.setBackgroundColor({ color: '#0f172a' }).catch(() => {});
+    // Dark icons on white, to sit on the white top bar (Style.Light = for a light background).
+    StatusBar.setStyle({ style: Style.Light }).catch(() => {});
+    if (Capacitor.getPlatform() === 'android') StatusBar.setBackgroundColor({ color: '#ffffff' }).catch(() => {});
 
     App.addListener('backButton', ({ canGoBack }) => {
+        // An open dialog gets the press first: Android users expect back to
+        // close it, not to leave the screen (or the app) underneath it.
+        if (!dispatchBack()) return;
         if (canGoBack && window.history.length > 1) window.history.back();
         else App.exitApp();
     });

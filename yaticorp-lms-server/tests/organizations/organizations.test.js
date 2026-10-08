@@ -930,9 +930,12 @@ describe('an organization changing its own password', () => {
 
     after(async () => {
         // Put it back, so the later describes can still sign in as this admin.
-        await orgApi(adminA.token)('PUT', '/me/password', {
+        // A password change ends older sessions, so the fresh token it returns
+        // is the one the later describes carry on with.
+        const back = await orgApi(adminA.token)('PUT', '/me/password', {
             currentPassword: NEW_PASSWORD, newPassword: GOOD_PASSWORD, confirmPassword: GOOD_PASSWORD
         });
+        if (back.body.token) adminA.token = back.body.token;
     });
 
     test('the current password is required, and checked', async () => {
@@ -966,6 +969,14 @@ describe('an organization changing its own password', () => {
             currentPassword: GOOD_PASSWORD, newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD
         });
         assert.equal(r.status, 200);
+        assert.ok(r.body.token, 'a fresh token comes back');
+        adminA.token = r.body.token;
+        // The session from before the change has ended; the fresh one works.
+        // (iat is in whole seconds, so the old token is backdated to be clearly older.)
+        const jwt = require('jsonwebtoken');
+        const stale = jwt.sign({ id: String(adminA.adminId), iat: Math.floor(Date.now() / 1000) - 5 }, process.env.JWT_SECRET);
+        assert.equal((await orgApi(stale)('GET', '/me')).status, 401, 'a token from before the change is refused');
+        assert.equal((await orgApi(adminA.token)('GET', '/me')).status, 200, 'the fresh one works');
 
         const Admin = require('../../src/models/Admin');
         const account = await Admin.findById(adminA.adminId);

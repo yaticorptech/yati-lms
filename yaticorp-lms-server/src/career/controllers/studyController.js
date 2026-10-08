@@ -9,7 +9,8 @@ const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 // XP for a quiz is awarded once, on the first pass, so replaying an easy quiz
 // cannot be farmed for levels.
 const QUIZ_PASS_MARK = 0.6;
-const QUIZ_XP = 25;
+// XP for a first pass: the admin's 'skill_quiz' rule (Rewards → Reward rules).
+const { xpFor } = require('../../rewards/services/configService');
 
 /**
  * Strip the answer key before sending a quiz to the browser. Grading happens on
@@ -138,15 +139,18 @@ const submitQuiz = async (req, res) => {
     material.bestScore = Math.max(material.bestScore, score);
     await material.save();
 
-    if (earnsXp) {
-      await addXP(req.user._id, QUIZ_XP, `passing the ${material.skillName} quiz`);
-    }
+    // Keyed on the material, so a second tab submitting the same first pass
+    // cannot be paid twice; what is reported is what the ledger accepted.
+    const quizRule = earnsXp ? await xpFor('skill_quiz') : 0;
+    const quizXp = quizRule > 0
+      ? await addXP(req.user._id, quizRule, `passing the ${material.skillName} quiz`, { refId: `skillquiz:${material._id}` })
+      : 0;
 
     res.status(200).json({
       score,
       total,
       passed,
-      xpAwarded: earnsXp ? QUIZ_XP : 0,
+      xpAwarded: quizXp,
       bestScore: material.bestScore,
       attempts: material.attempts,
       results

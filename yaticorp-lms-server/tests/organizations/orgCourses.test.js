@@ -95,8 +95,13 @@ describe('an organization building its courses', () => {
 
         assert.equal((await asA('POST', '/me/logo')).status, 400, 'an upload with no image says so');
 
-        // The upload itself goes to the CDN; its result is the logo URL saved here.
+        // A logo cannot be typed in through PUT /me — only the upload sets it.
         assert.equal((await asA('PUT', '/me', { logo: 'https://cdn.example.com/a-logo.png' })).status, 200);
+        assert.equal((await asA('GET', '/me/course-access')).body.hasLogo, false, 'PUT /me ignores logo');
+
+        // The upload itself goes to the CDN; its result is the logo URL saved
+        // on the organization, as here.
+        await require('../../src/organizations/models/Organization').updateOne({ _id: orgA._id }, { $set: { logo: 'https://cdn.example.com/a-logo.png' } });
         assert.equal((await asA('GET', '/me/course-access')).body.hasLogo, true);
     });
 
@@ -315,15 +320,22 @@ describe("a superadmin looking at an organization's own panel", () => {
         assert.ok(!b.body.some((c) => c._id === courseA._id), 'and each organization only its own');
     });
 
-    test('but only looks: every change is refused', async () => {
+    test('and can edit it, as the organization would', async () => {
         const view = asViewer(boss.token, orgA._id);
-        for (const [method, path, body] of [['PUT', '/me', { name: 'Hijacked' }], ['POST', '/me/courses', { title: 'Not mine' }], ['DELETE', `/me/courses/${courseA._id}`]]) {
-            const r = await view(method, path, body);
-            assert.equal(r.status, 403, `${method} ${path}`);
-            assert.equal(r.body.code, 'READ_ONLY_VIEW');
-        }
         const Organization = require('../../src/organizations/models/Organization');
-        assert.equal((await Organization.findById(orgA._id).lean()).name, orgA.name, 'nothing changed');
+        const saved = await view('PUT', '/me', { name: 'Edited by the platform' });
+        assert.equal(saved.status, 200);
+        assert.equal((await Organization.findById(orgA._id).lean()).name, 'Edited by the platform');
+        // Put the name back for the tests that follow.
+        assert.equal((await view('PUT', '/me', { name: orgA.name })).status, 200);
+        const b = await asViewer(boss.token, orgB._id)('GET', '/me');
+        assert.equal(b.body.organization.name, orgB.name, 'and only the organization named');
+    });
+
+    test('except the sign-in password, which is not theirs to change', async () => {
+        const r = await asViewer(boss.token, orgA._id)('PUT', '/me/password', { currentPassword: 'x', newPassword: 'Another#Pass123', confirmPassword: 'Another#Pass123' });
+        assert.equal(r.status, 403);
+        assert.equal(r.body.code, 'NOT_YOUR_PASSWORD');
     });
 
     test('only a superadmin, only with an organization named, and only a real one', async () => {

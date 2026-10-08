@@ -6,11 +6,15 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 const SOURCES = [
+  'xp_reward',           // XP earned, turned into money at the admin's rate
+  'starting_credit',     // the one-off opening balance; spend-only
   'learning_reward',     // reward points from streaks/badges/campaigns, redeemed
   'leaderboard_reward',  // reward points from leaderboard finishes, redeemed
   'referral_reward',
   'job_earning',
   'purchase',            // spent inside the LMS
+  'feature_charge',      // a feature priced under Wallet rules (download, interview…)
+  'feature_refund',      // that charge returned because the action failed
   'withdrawal',
   'withdrawal_refund',   // a rejected withdrawal returning to available
   'admin_adjustment'

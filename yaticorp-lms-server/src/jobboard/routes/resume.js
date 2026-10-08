@@ -8,6 +8,7 @@
  * to them for review before anything uses it and deletable at will.
  */
 const express = require('express');
+const { chargeWallet } = require('../../rewards/services/walletRuleService');
 const multer = require('multer');
 const router = express.Router();
 
@@ -73,7 +74,9 @@ router.get('/', async (req, res, next) => {
 });
 
 /** POST /api/jobs/resume — multipart field "resume". Parses and stores. */
-router.post('/', (req, res, next) => {
+// Priced under Wallet rules → Upload a resume, the same rule as the profile
+// upload; refunded if the upload or the parse fails.
+router.post('/', chargeWallet('upload_resume'), (req, res, next) => {
     upload.single('resume')(req, res, async (uploadErr) => {
         try {
             if (uploadErr) {

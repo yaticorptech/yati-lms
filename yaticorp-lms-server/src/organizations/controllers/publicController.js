@@ -13,6 +13,7 @@ const Admin = require('../../models/Admin');
 const { checkNewOrgCode, isDuplicateOrgCode } = require('../services/orgCode');
 const { validatePasswordStrength } = require('../../middleware/validatePassword');
 const { sendEmail } = require('../../utils/emailService');
+const { escapeHtml, plainHeader } = require('../../utils/escapeHtml');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -47,20 +48,30 @@ const validate = ({ name, organizationType, email, phone, contactPerson, website
 const notify = async (organization) => {
     const reviewUrl = `${process.env.ADMIN_URL || ''}/organizations`.replace(/\/+$/, '') || 'the admin panel';
 
+    // Everything below except the review address was typed into a public,
+    // unauthenticated form, so it is escaped for the body and flattened to one
+    // line for headers — otherwise anyone could have the platform mail its own
+    // markup and links, to the applicant's address or to ours.
+    const name = escapeHtml(organization.name);
+    const contact = escapeHtml(organization.contactPerson);
+    const orgCode = escapeHtml(organization.orgCode);
+    const email = escapeHtml(organization.email);
+    const greetName = escapeHtml(organization.contactPerson || organization.name);
+
     try {
         await sendEmail({
             to: organization.email,
-            toName: organization.contactPerson || organization.name,
+            toName: plainHeader(organization.contactPerson || organization.name),
             subject: 'We have received your organization registration',
             htmlContent: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
                     <h2 style="color: #4F46E5;">Registration received</h2>
-                    <p>Hi <strong>${organization.contactPerson || organization.name}</strong>,</p>
-                    <p>Thank you for registering <strong>${organization.name}</strong> with YATICORP LMS.
+                    <p>Hi <strong>${greetName}</strong>,</p>
+                    <p>Thank you for registering <strong>${name}</strong> with YATICORP LMS.
                        Our administrator will review your request and you will hear from us once a
                        decision has been made.</p>
                     <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                        <p style="margin: 0 0 8px 0;"><strong>Organization ID:</strong> ${organization.orgCode}</p>
+                        <p style="margin: 0 0 8px 0;"><strong>Organization ID:</strong> ${orgCode}</p>
                         <p style="margin: 0;"><strong>Status:</strong> Pending review</p>
                     </div>
                     <p style="color: #6b7280; font-size: 0.9em;">You can already sign in with the email and
@@ -76,14 +87,14 @@ const notify = async (organization) => {
             await sendEmail({
                 to: process.env.ADMIN_EMAIL,
                 toName: 'Platform Administrator',
-                subject: `New organization registration: ${organization.name}`,
+                subject: plainHeader(`New organization registration: ${organization.name}`),
                 htmlContent: `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
                         <h2 style="color: #4F46E5;">An organization is waiting for review</h2>
-                        <p><strong>${organization.name}</strong> (${organization.orgCode}) has registered
+                        <p><strong>${name}</strong> (${orgCode}) has registered
                            and is awaiting approval.</p>
-                        <p>Contact: ${organization.contactPerson || '—'} &lt;${organization.email}&gt;</p>
-                        <p>Review it in ${reviewUrl}.</p>
+                        <p>Contact: ${contact || '—'} &lt;${email}&gt;</p>
+                        <p>Review it in ${escapeHtml(reviewUrl)}.</p>
                     </div>`
             });
         } catch (error) {
@@ -123,7 +134,8 @@ const registerOrganization = async (req, res) => {
         if (await Organization.findOne({ email: cleanEmail })) {
             return res.status(400).json({ message: 'An organization is already registered with that email address.' });
         }
-        if (await Admin.findOne({ email: cleanEmail })) {
+        // Case-insensitive, like the login, so a case variant is refused too.
+        if (await Admin.findByLoginEmail(cleanEmail)) {
             return res.status(400).json({ message: 'That email address is already in use on this platform.' });
         }
 

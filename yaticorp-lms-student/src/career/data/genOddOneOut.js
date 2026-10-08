@@ -148,9 +148,13 @@ const numberSet = (rng, band) => {
 /** The whole pool, every band, ordered easy to hard inside each band. */
 export const buildOddOneOut = () => {
   const out = [];
+  // One record across all three bands, not one per band: reset per band, the
+  // same question could be generated in band 1 and again in band 2, and a
+  // student climbing the ladder met it twice. Generation is still seeded, so
+  // the pool is identical on every build.
+  const seen = new Set();
   for (const band of [1, 2, 3]) {
     const rng = seeded(4400 + band);
-    const seen = new Set();
     let i = 0;
     let guard = 0;
     while (i < PER_BAND && guard < PER_BAND * 60) {

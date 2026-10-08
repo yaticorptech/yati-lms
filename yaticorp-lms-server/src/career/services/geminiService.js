@@ -53,6 +53,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // property name" downstream. Ask for the model's full output budget.
 const MAX_OUTPUT_TOKENS = 8192;
 
+// One attempt's ceiling. The SDK sets none, so a request Google never answered
+// held the student's spinner — and the wallet charge — open until the socket
+// gave up, which could be minutes. A full roadmap is the slowest call in the
+// module and comfortably finishes inside this.
+const GENERATE_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 45000;
+
 // 4 attempts rather than 3: 503 "model overloaded" spells often outlast two
 // retries. Failed calls do not consume the daily quota, so the only cost of
 // another attempt is latency.
@@ -90,13 +96,32 @@ const generateWithRetry = async (
   };
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    // A fresh signal per attempt: an aborted controller stays aborted, and
+    // reusing it would fail every retry instantly.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), GENERATE_TIMEOUT_MS);
     try {
-      const response = await ai.models.generateContent({ model: MODEL, contents: prompt, config });
+      const response = await ai.models.generateContent({
+        model: MODEL,
+        contents: prompt,
+        config: { ...config, abortSignal: ctrl.signal }
+      });
       meter(true);
       return response;
     } catch (error) {
       if (attempt === attempts) meter(false);
       const isLastAttempt = attempt === attempts;
+
+      // Ours, not the network's. Not retried: a call that hung for 45 seconds
+      // will usually hang again, and four of them is three minutes of a
+      // student staring at a spinner. 504 keeps it a 5xx, so whatever the
+      // request was charged is refunded.
+      if (ctrl.signal.aborted) {
+        meter(false);
+        const timedOut = new Error('The AI service took too long to answer. Please try again in a moment.');
+        timedOut.status = 504;
+        throw timedOut;
+      }
 
       if (error.status === 429) {
         const quota = getQuotaInfo(error);
@@ -151,6 +176,8 @@ const generateWithRetry = async (
       const delayMs = 1000 * 2 ** (attempt - 1); // 1s, 2s
       console.warn(`Gemini ${error.status}, retrying in ${delayMs}ms (attempt ${attempt}/${attempts})`);
       await sleep(delayMs);
+    } finally {
+      clearTimeout(timer);
     }
   }
 };
@@ -504,7 +531,7 @@ const PAST_SCHOOL = ['Diploma', 'Undergraduate', 'Postgraduate', 'Working Profes
  * where they actually are and must survive.
  */
 const PG_ENTRY_PHASE_PATTERN =
-  /^\s*(?:phase\s*\d+\s*[:-]\s*)?(?:post[\s-]?grad(?:uate)?|pg|master'?s?)\s*(?:degree\s*)?(?:year|yr)\s*\d+/i;
+  /^\s*(?:phase\s*\d+\s*[:-]\s*)?(?:post[\s-]?grad(?:uate)?|pg|master'?s?)\s*(?:degree\s*)?(?:year|yr)\s*(\d+)/i;
 
 /**
  * Remove phases the student has demonstrably already completed.
@@ -522,6 +549,8 @@ const completedStageIndices = (phases, goal) => {
   if (!Array.isArray(phases) || !PAST_SCHOOL.includes(goal?.educationLevel)) return [];
 
   const pgEntry = goal.educationLevel === 'Postgraduate';
+  // "2nd Year" -> 2. Null when the goal does not say, which drops no PG phase.
+  const currentYear = Number(String(goal.currentYear || '').match(/\d+/)?.[0]) || null;
 
   const drop = [];
   phases.forEach((stage, i) => {
@@ -533,7 +562,16 @@ const completedStageIndices = (phases, goal) => {
     // A student already reading for a master's does not go back and start one.
     // Never the first phase, which Rule Zero reserves for where they are now —
     // a PG Year 1 student's own stage may legitimately be titled this way.
-    if (pgEntry && i > 0 && PG_ENTRY_PHASE_PATTERN.test(title)) drop.push(i);
+    //
+    // And only a year they have already reached. "Postgraduate Year 2" on an
+    // MCA Year 1 student's roadmap is the year still ahead of them, not one
+    // they finished; dropping it removed half the degree they are reading. A
+    // year we cannot read is left alone — a wrong guess deletes a real phase.
+    if (pgEntry && i > 0) {
+      const match = title.match(PG_ENTRY_PHASE_PATTERN);
+      const phaseYear = match ? Number(match[1]) : NaN;
+      if (Number.isFinite(phaseYear) && currentYear && phaseYear <= currentYear) drop.push(i);
+    }
   });
 
   // Never empty a roadmap: if the rules would remove every phase the titles are
@@ -1843,27 +1881,112 @@ Rules:
  * Kept deliberately cheap — one short call, and the caller falls back to the raw
  * title if it fails, so a lesson is never blocked on phrasing.
  */
+/** What the student is aiming at, in one line, so a search phrase can be pitched at it. */
+const describeLearner = (goal) =>
+  [
+    goal?.educationLevel,
+    goal?.degree,
+    goal?.specialization,
+    goal?.careerGoal && `aiming to become ${goal.careerGoal}`
+  ]
+    .filter(Boolean)
+    .join(', ') || 'Not specified';
+
+/** The task as the model should read it: title, what it asks, its steps and its time budget. */
+const describeTask = (task) =>
+  [
+    `Title: ${task.title}`,
+    task.description && `What it asks: ${task.description}`,
+    task.skill && `Skill: ${task.skill}`,
+    task.guidance?.length && `Steps: ${task.guidance.slice(0, 5).join(' / ')}`,
+    task.duration && `Time budget: ${task.duration}`
+  ]
+    .filter(Boolean)
+    .join('\n');
+
 const generateVideoSearchQuery = async (task, goal) => {
   const ai = await geminiClient();
 
   const prompt = `
-Turn this study task into the best possible YouTube search phrase for finding a tutorial that teaches it.
+Turn this study task into the best possible YouTube search phrase for finding a tutorial that teaches EXACTLY what the task asks.
 
-Task title: ${task.title}
-Task description: ${task.description || 'Not specified'}
-Student's education level: ${goal?.educationLevel || 'Not specified'}
+${describeTask(task)}
+Student: ${describeLearner(goal)}
 
 Rules:
-- Return the SUBJECT to learn, not the instruction. "Spend 45 minutes practising CSS Flexbox" becomes "CSS flexbox tutorial for beginners".
-- Include a level word (for beginners / explained / crash course) when it helps.
-- Drop time budgets, "practise", "revise", and any wording specific to this student.
-- 3 to 8 words. Plain text only — no quotes, no punctuation, no explanation.
+- Name the specific concept AND the technology or subject it belongs to. "Protect routes with JWT middleware in Express" becomes "Express JWT middleware protect routes tutorial", not "JWT tutorial".
+- Read the description and steps, not just the title: if the task is hands-on (build, implement, set up), search for a build-along ("how to …", "step by step"); if it is a concept, search for an explanation.
+- Return the SUBJECT to learn, not the instruction. Drop time budgets, "practise", "revise" and anything personal to this student.
+- Add "for beginners" only when the student is new to the subject. Never add "advanced", "full course" or "complete course" — those surface long general courses instead of the one topic.
+- For school subjects, keep it at the student's class level (e.g. "class 8 linear equations").
+- 3 to 9 words. Plain text only — no quotes, no punctuation, no explanation.
 
 Return ONLY the search phrase on a single line.
 `;
 
   const response = await generateWithRetry(ai, prompt, { kind: 'video-search-query' });
   return (response.text || '').trim().split('\n')[0].replace(/^["']|["']$/g, '').slice(0, 120);
+};
+
+/**
+ * Pick the video that teaches this task, from a shortlist the search already
+ * ranked.
+ *
+ * Title-word overlap gets a video onto the right shelf but cannot tell a build
+ * of "JWT middleware in Express" from a "what is JWT" explainer, or a focused
+ * lesson from a 44-minute compilation. Reading the shortlist against the task
+ * can. Returns { index, search }: the index into `candidates`, or -1 when none
+ * of them teaches it — and then `search`, a better phrase to look again with.
+ */
+const chooseVideoForTask = async (task, goal, candidates, language = 'English') => {
+  if (!candidates?.length) return { index: -1, search: null };
+  const ai = await geminiClient();
+
+  const list = candidates
+    .map((v, i) =>
+      [
+        `[${i}] "${v.title}"`,
+        `channel: ${v.channel || 'unknown'}`,
+        `length: ${v.duration || 'unknown'}`,
+        v.description && `about: ${String(v.description).replace(/\s+/g, ' ').slice(0, 220)}`
+      ]
+        .filter(Boolean)
+        .join(' | ')
+    )
+    .join('\n');
+
+  const prompt = `
+A student has this study task. Choose the ONE YouTube video below that best teaches exactly what the task asks.
+
+${describeTask(task)}
+Student: ${describeLearner(goal)}
+Wanted language: ${language}
+
+Candidates:
+${list}
+
+Judge each against the task, in this order:
+1. Topic: it teaches the specific thing the task asks — not a broader overview, a neighbouring topic, or a different technology.
+2. Kind: a build-along for a hands-on task, an explanation for a concept task.
+3. Level and audience: made for a learner like this student — not a kids' video for an engineer, not an expert talk for a beginner, and not a video aimed at teachers or parents.
+4. Length: watchable inside the time budget. Reject compilations, live streams, full courses and shorts unless nothing else fits.
+5. Language: spoken in the wanted language.
+
+An open-ended task ("solve 2 LeetCode problems", "practise mental maths") has no single topic: a video that teaches HOW to do that kind of work — the approach, or a worked walkthrough of a typical problem at the right level — teaches it. Do not reject every candidate just because none matches word for word.
+A task that asks for several things (one array problem AND one tree problem) is served by a video that teaches one of them well, or the shared approach — no video covers everything.
+Use -1 only when every candidate is off-topic, the wrong level, or unwatchable in the time.
+
+Return JSON only: {"index": <number>, "reason": "<one short sentence>", "search": "<phrase or empty>"}.
+If none of them teaches this task, use index -1 and put in "search" a better YouTube search phrase (3 to 9 words, plain text) that would find a video teaching it. Otherwise leave "search" empty.
+`;
+
+  const response = await generateWithRetry(ai, prompt, { json: true, maxOutputTokens: 250, kind: 'video-choice' });
+  const parsed = parseJsonObject(response.text);
+  const index = Number(parsed?.index);
+  const search = String(parsed?.search || '').replace(/["']/g, '').trim().slice(0, 120) || null;
+  return Number.isInteger(index) && index >= 0 && index < candidates.length
+    ? { index, search: null }
+    : { index: -1, search };
 };
 
 module.exports = {
@@ -1889,5 +2012,6 @@ module.exports = {
   generateTaskStudyFromVideo,
   generateReadingLesson,
   generateExtraQuizQuestions,
-  generateVideoSearchQuery
+  generateVideoSearchQuery,
+  chooseVideoForTask
 };

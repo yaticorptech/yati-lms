@@ -5,11 +5,14 @@
 const Course = require('../models/Course');
 const Module = require('../models/Module');
 const Lesson = require('../models/Lesson');
+const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 const vdoCipherController = require('./vdoCipherController');
 const { uploadToBunny, uploadStreamToBunny } = require('../utils/bunnyStorage');
 const { unplayableReason } = require('../utils/webVideo');
+const { stripOperators, pick } = require('../utils/sanitizeUpdate');
+const videoOwnership = require('../organizations/services/videoOwnership');
 
 // ==========================
 // COURSE OPERATIONS
@@ -23,6 +26,56 @@ const { unplayableReason } = require('../utils/webVideo');
  */
 const ownerOf = (req) => req.organization?._id || null;
 const titlePattern = (title) => new RegExp(`^${String(title).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
+/**
+ * What an organization's administrator may change by editing: exactly what
+ * the course builder sends (pages/CourseEditor.jsx and LessonEditor.jsx in
+ * the admin app). Never the owner, the id, a price or a timestamp. A moved
+ * module or lesson (`courseId`, `moduleId`) is checked again below. Platform
+ * administrators keep editing every field, minus Mongo operators.
+ */
+const ORG_EDITABLE = {
+    course: ['title', 'description', 'thumbnail', 'instructor', 'isPublished'],
+    module: ['title', 'description', 'dripDays', 'courseId', 'order'],
+    lesson: [
+        'title', 'type', 'isPublished', 'allowDownload', 'attachments', 'order', 'moduleId',
+        'videoSource', 'videoId', 'videoUrl', 'libraryId', 'vdocipherStatus', 'pdfUrl', 'quizId', 'assignmentId'
+    ]
+};
+/** The body an update may use: operators stripped always, and the allowlist for an organization. */
+const editableBody = (req, kind) => {
+    const body = stripOperators(req.body || {});
+    return ownerOf(req) ? pick(body, ORG_EDITABLE[kind]) : body;
+};
+const NOT_FOUND = { message: 'Not found' };
+const isScalarId = (id) => typeof id === 'string' || typeof id === 'number';
+/** Whether a course / module is `owner`'s. The org routes guard this too; checked again on the cleaned body. */
+const courseOwnedBy = async (courseId, owner) => {
+    if (!isScalarId(courseId)) return false;
+    const course = await Course.findById(String(courseId)).select('organizationId').lean();
+    return Boolean(course?.organizationId) && String(course.organizationId) === String(owner);
+};
+const moduleOwnedBy = async (moduleId, owner) => {
+    if (typeof moduleId !== 'string' || !mongoose.isValidObjectId(moduleId)) return false;
+    const mod = await Module.findById(moduleId).select('courseId').lean();
+    return Boolean(mod) && courseOwnedBy(mod.courseId, owner);
+};
+
+/**
+ * Delete from VdoCipher the videos of lessons about to be deleted — but only
+ * a video no other lesson still uses, and, when an organization is deleting,
+ * only a video that organization owns (services/videoOwnership.js). Anything
+ * else stays on VdoCipher; the lesson documents are deleted regardless.
+ */
+const removeLessonVideos = async (lessons, req) => {
+    const removing = lessons.map((l) => l._id);
+    const videoIds = [...new Set(lessons.filter((l) => l.videoSource === 'vdocipher' && l.videoId).map((l) => l.videoId))];
+    for (const videoId of videoIds) {
+        if (await videoOwnership.mayDeleteFromProvider(videoId, { organizationId: ownerOf(req), removing })) {
+            await vdoCipherController.deleteVideo(videoId);
+        }
+    }
+};
 
 const getCourses = async (req, res) => {
     try {
@@ -110,7 +163,7 @@ const createCourse = async (req, res) => {
             return res.status(400).json({ message: 'Course with this title already exists' });
         }
 
-        const course = await Course.create({
+        const fields = {
             title: title.trim(),
             description,
             thumbnail,
@@ -122,7 +175,36 @@ const createCourse = async (req, res) => {
             price: owner ? 0 : price,
             // Blank in the form means "not sold for points", not NaN.
             pricePoints: owner ? 0 : (Number(pricePoints) || 0)
-        });
+        };
+
+        // A course id is a random five-digit number (models/Course.js), so two
+        // courses can draw the same one. Each try draws a fresh id; the format
+        // is unchanged, only a collision is retried instead of answered as 500.
+        let course;
+        for (let attempt = 1; ; attempt += 1) {
+            try {
+                course = await Course.create(fields);
+                break;
+            } catch (error) {
+                const idClash = error.code === 11000 && (error.keyPattern?._id || /_id_/.test(error.message));
+                if (!idClash || attempt >= 5) throw error;
+            }
+        }
+
+        // An organization's limit, settled after the write: two creates at
+        // once both pass the count in withinCourseLimit, so the one that
+        // landed past the limit is taken back out here.
+        if (owner) {
+            const { overCourseLimit } = require('../organizations/controllers/orgCourseController');
+            const limit = await overCourseLimit(course, req.organization);
+            if (limit !== null) {
+                await Course.deleteOne({ _id: course._id });
+                return res.status(409).json({
+                    code: 'COURSE_LIMIT',
+                    message: `Your organization can have ${limit} course${limit === 1 ? '' : 's'}. Delete one, or ask the platform administrator for a higher limit.`
+                });
+            }
+        }
 
         res.status(201).json(course);
     } catch (error) {
@@ -132,8 +214,9 @@ const createCourse = async (req, res) => {
 
 const updateCourse = async (req, res) => {
     try {
-        // Who owns a course is never changed by editing it.
-        const { title, organizationId: _owner, _id: _id, ...rest } = req.body;
+        // Who owns a course is never changed by editing it — nor, through a
+        // `$set`/`$unset` operator, anything else the fields below guard.
+        const { title, organizationId: _owner, _id: _id, ...rest } = editableBody(req, 'course');
         const current = await Course.findById(req.params.id).select('organizationId').lean();
         if (!current) return res.status(404).json({ message: 'Course not found' });
 
@@ -155,7 +238,7 @@ const updateCourse = async (req, res) => {
         }
         const course = await Course.findByIdAndUpdate(
             req.params.id,
-            { ...rest, ...(title ? { title: title.trim() } : {}) },
+            { ...rest, ...(title ? { title: String(title).trim() } : {}) },
             { new: true }
         );
 
@@ -180,11 +263,7 @@ const deleteCourse = async (req, res) => {
         const moduleIds = modules.map(m => m._id);
 
         const allLessons = await Lesson.find({ moduleId: { $in: moduleIds } });
-        for (const lesson of allLessons) {
-            if (lesson.videoSource === 'vdocipher' && lesson.videoId) {
-                await vdoCipherController.deleteVideo(lesson.videoId);
-            }
-        }
+        await removeLessonVideos(allLessons, req);
 
         await Lesson.deleteMany({ moduleId: { $in: moduleIds } });
         await Module.deleteMany({ courseId: course._id });
@@ -215,11 +294,13 @@ const deleteCourse = async (req, res) => {
 const addModule = async (req, res) => {
     try {
         const { courseId, title, description, dripDays } = req.body;
+        if (!title || !String(title).trim()) return res.status(400).json({ message: 'Give the session a title' });
 
         // 🔴 CHECK DUPLICATE SESSION (MODULE) NAME INSIDE SAME COURSE
+        // (escaped: the title is matched as text, never as a pattern)
         const existingModule = await Module.findOne({
             courseId,
-            title: { $regex: `^${title.trim()}$`, $options: 'i' }
+            title: titlePattern(title)
         });
 
         if (existingModule) {
@@ -232,7 +313,7 @@ const addModule = async (req, res) => {
 
         const newModule = await Module.create({
             courseId,
-            title: title.trim(),
+            title: String(title).trim(),
             description,
             dripDays: Number(dripDays) || 0,
             order
@@ -246,12 +327,22 @@ const addModule = async (req, res) => {
 
 const updateModule = async (req, res) => {
     try {
-        const { title, courseId } = req.body;
+        const body = editableBody(req, 'module');
+        const { title, courseId } = body;
+        const current = await Module.findById(req.params.id).select('courseId').lean();
+        if (!current) return res.status(404).json({ message: 'Module not found' });
+
+        // An organization's module moves only into another of its own courses.
+        if (ownerOf(req) && courseId !== undefined && !(await courseOwnedBy(courseId, ownerOf(req)))) {
+            return res.status(404).json(NOT_FOUND);
+        }
 
         if (title) {
+            // Against the course it will be in: the editor sends no courseId
+            // when it only renames, and the check then ran across every course.
             const existingModule = await Module.findOne({
-                courseId,
-                title: { $regex: `^${title.trim()}$`, $options: 'i' },
+                courseId: String(courseId ?? current.courseId),
+                title: titlePattern(title),
                 _id: { $ne: req.params.id }
             });
 
@@ -262,7 +353,7 @@ const updateModule = async (req, res) => {
 
         const updatedModule = await Module.findByIdAndUpdate(
             req.params.id,
-            { ...req.body, title: title?.trim() },
+            { ...body, ...(title !== undefined ? { title: String(title).trim() } : {}) },
             { new: true }
         );
 
@@ -281,11 +372,7 @@ const deleteModule = async (req, res) => {
 
         // Hard delete all Vdocipher videos attached to these lessons
         const lessons = await Lesson.find({ moduleId: module._id });
-        for (const lesson of lessons) {
-            if (lesson.videoSource === 'vdocipher' && lesson.videoId) {
-                await vdoCipherController.deleteVideo(lesson.videoId);
-            }
-        }
+        await removeLessonVideos(lessons, req);
 
         await Lesson.deleteMany({ moduleId: module._id });
         await Module.deleteOne({ _id: module._id });
@@ -333,7 +420,29 @@ const addLesson = async (req, res) => {
 
 const updateLesson = async (req, res) => {
     try {
-        const updatedLesson = await Lesson.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const body = editableBody(req, 'lesson');
+        const owner = ownerOf(req);
+        if (owner) {
+            const current = await Lesson.findById(req.params.id).select('videoSource videoId').lean();
+            if (!current) return res.status(404).json({ message: 'Lesson not found' });
+            // An organization's lesson moves only into another of its own modules.
+            if (body.moduleId !== undefined && !(await moduleOwnedBy(body.moduleId, owner))) {
+                return res.status(404).json(NOT_FOUND);
+            }
+            // And plays only a VdoCipher video it uploaded itself (or keeps the
+            // one it has): every VdoCipher video sits in the platform's one
+            // account, including the paid platform ones.
+            const source = body.videoSource !== undefined ? body.videoSource : current.videoSource;
+            const videoId = body.videoId !== undefined ? body.videoId : current.videoId;
+            const unchanged = current.videoSource === 'vdocipher' && current.videoId === videoId;
+            if (source === 'vdocipher' && videoId && !unchanged) {
+                if (!vdoCipherController.isVideoId(videoId)) return res.status(400).json({ message: 'Invalid video id' });
+                if (!(await videoOwnership.orgOwnsVideo(videoId, owner))) {
+                    return res.status(403).json({ code: 'VIDEO_NOT_OWNED', message: 'That video was not uploaded by your organization.' });
+                }
+            }
+        }
+        const updatedLesson = await Lesson.findByIdAndUpdate(req.params.id, body, { new: true });
         if (!updatedLesson) return res.status(404).json({ message: 'Lesson not found' });
         res.json(updatedLesson);
     } catch (error) {
@@ -346,10 +455,8 @@ const deleteLesson = async (req, res) => {
         const lesson = await Lesson.findById(req.params.id);
         if (!lesson) return res.status(404).json({ message: 'Lesson not found' });
 
-        // Hard delete physical video
-        if (lesson.videoSource === 'vdocipher' && lesson.videoId) {
-            await vdoCipherController.deleteVideo(lesson.videoId);
-        }
+        // Hard delete physical video (when it is ours to delete — see removeLessonVideos)
+        await removeLessonVideos([lesson], req);
 
         await Lesson.deleteOne({ _id: lesson._id });
         res.json({ message: 'Lesson removed from LMS and VdoCipher' });

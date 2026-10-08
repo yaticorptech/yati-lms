@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import GameShell from './GameShell';
-import useGameProgress, { between, starsFor, starsOn } from './levels';
+import useGameProgress, { between, starsOn } from './levels';
 import useRecordStars from './useRecordStars';
 
 /** Pressing a tile flips it and its four neighbours. */
@@ -46,6 +46,17 @@ const makeBoard = (size, shuffles) => {
   return board.some(Boolean) ? board : press(board, 0, size);
 };
 
+/**
+ * Stars for a solve in `moves`: three for the scramble's own length or
+ * fewer, two up to halfway from there to the budget, one within the budget.
+ */
+const starsForMoves = (moves, best, budget) => {
+  if (moves > budget) return 0;
+  if (moves <= best) return 3;
+  if (moves <= Math.floor((best + budget) / 2)) return 2;
+  return 1;
+};
+
 const configFor = (difficulty, levelNo) => {
   const size = difficulty === 1 ? 3 : difficulty === 2 ? 4 : 5;
   // The board size cannot change inside a band, so the shuffle count carries
@@ -83,7 +94,13 @@ function Round({ progress, onExit }) {
   const outOfMoves = !solved && moves >= config.moveBudget;
   const passed = solved;
   const finishedRound = (solved || outOfMoves);
-  const stars = finishedRound ? starsFor(moves, config.moveBudget, true) : 0;
+  // Stars only for a dark board: running out of moves used the whole budget,
+  // which starsFor read as "within budget" and paid a star for failing.
+  // Graded on the scramble itself rather than 70% of the budget: the board
+  // was made with `shuffles` presses, so that many always solves it, and that
+  // is three stars. 70% of the budget fell below `shuffles` at the top of the
+  // hardest band, where a perfect solve could earn only two.
+  const stars = solved ? starsForMoves(moves, config.shuffles, config.moveBudget) : 0;
   useRecordStars(progress, finishedRound, stars);
 
   const tap = (index) => {

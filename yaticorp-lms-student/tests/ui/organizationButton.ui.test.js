@@ -64,6 +64,53 @@ const TYPE = `
     };`;
 
 describe('the dashboard organization button', { skip: skipWithoutChrome }, () => {
+    test('a failed read is not "no organization": no Add organization, and the popup offers Retry', async () => {
+        // The first read fails; the retry finds the student a member.
+        const flaky = `
+            window.__calls = []; let reads = 0;
+            export default {
+              get: (url) => { window.__calls.push(['GET', url]); reads += 1;
+                if (reads === 1) return Promise.reject(Object.assign(new Error('down'), { response: { status: 500, data: {} } }));
+                return Promise.resolve({ data: ${JSON.stringify(MEMBER)} }); },
+              post: () => Promise.resolve({ data: {} }), put: () => Promise.resolve({ data: {} }), delete: () => Promise.resolve({ data: {} })
+            };`;
+        const { result, errors } = await screen({
+            entry, api: flaky,
+            script: `
+                await sleep(500);
+                const label = text($('button'));
+                $('button').click(); await sleep(400);
+                return { label, popup: text($('[aria-labelledby="organization-popup-title"]')), reads: window.__calls.length };
+                `
+        });
+        assert.deepEqual(errors, []);
+        assert.doesNotMatch(result.label, /Add organization/, 'a member is never told to add one');
+        assert.equal(result.reads, 2, 'opening the popup reads the membership again');
+        assert.match(result.popup, /ABC College/, 'and shows what that read found');
+    });
+
+    test('with every read failing, the popup says so and offers Retry', async () => {
+        const down = `
+            window.__calls = [];
+            export default {
+              get: (url) => { window.__calls.push(['GET', url]); return Promise.reject(Object.assign(new Error('down'), { response: { status: 500, data: {} } })); },
+              post: () => Promise.resolve({ data: {} }), put: () => Promise.resolve({ data: {} }), delete: () => Promise.resolve({ data: {} })
+            };`;
+        const { result, errors } = await screen({
+            entry, api: down,
+            script: `
+                await sleep(500);
+                $('button').click(); await sleep(400);
+                const popup = $('[aria-labelledby="organization-popup-title"]');
+                return { popup: text(popup), form: !!$('#org-code'), retry: $$('button').some((b) => /^Retry$/.test(text(b))) };
+                `
+        });
+        assert.deepEqual(errors, []);
+        assert.match(result.popup, /Unable to load your organization\. Please try again\./);
+        assert.ok(result.retry);
+        assert.ok(!result.form, 'no join form on a guess that they have no organization');
+    });
+
     test('with no organization it is one button, and nothing else', async () => {
         const { result, errors } = await screen({
             entry, api: stub(NOT_A_MEMBER),
@@ -397,5 +444,72 @@ createRoot(document.getElementById('root')).render(
         assert.equal(result.label, 'ABC College');
         assert.equal(alpha(result.button.background), 1, 'still solid once there is an organization');
         assert.ok(hasDropShadow(result.button.shadow), 'and still raised');
+    });
+});
+
+/**
+ * A membership that ended, and a way out of an organization that stopped.
+ *
+ * A student removed by their organization used to open the popup onto an empty
+ * form with no word of what happened; now it says so. And a student whose
+ * organization was suspended was stuck in it for good — the server lets them
+ * leave such an organization, and the popup offers it, behind a confirmation.
+ */
+describe('removed, and leaving an organization that is not active', { skip: skipWithoutChrome }, () => {
+    const REMOVED = {
+        ...NOT_A_MEMBER,
+        removed: { organizationName: 'ABC College', reason: 'Removed by the organization', at: '2026-09-25T10:00:00.000Z' }
+    };
+    const SUSPENDED = { ...MEMBER, organization: { ...MEMBER.organization, status: 'suspended', accessNote: 'This organization is not currently active on the platform.' } };
+
+    test('a removed student is told, above the join form', async () => {
+        const { result, errors } = await screen({
+            entry, api: stub(REMOVED),
+            script: `
+                await sleep(500);
+                $('button').click(); await sleep(400);
+                const popup = text($('[aria-labelledby="organization-popup-title"]'));
+                return { popup, form: !!$('#org-code'), before: popup.indexOf('no longer a member') < popup.indexOf('Organization ID') };
+                `
+        });
+        assert.deepEqual(errors, []);
+        assert.match(result.popup, /You are no longer a member of ABC College\./);
+        assert.match(result.popup, /Removed by the organization/);
+        assert.ok(result.form, 'and can join again');
+        assert.ok(result.before, 'said before the form');
+    });
+
+    test('a member of a suspended organization can leave it, after confirming', async () => {
+        const { result, errors } = await screen({
+            entry, api: apiModule({
+                '/organizations/student/leave': { message: 'You have left ABC College. Your courses and progress are unchanged.' },
+                '/organizations/student/me': SUSPENDED
+            }),
+            script: `
+                await sleep(500);
+                $('button').click(); await sleep(400);
+                const offered = $$('button').some((b) => /^Leave organization$/.test(text(b)));
+                $$('button').find((b) => /^Leave organization$/.test(text(b))).click(); await sleep(200);
+                const asking = text($('[aria-labelledby="organization-popup-title"]'));
+                const postsBefore = window.__calls.filter(([m]) => m === 'POST').length;
+                $$('button').filter((b) => /^Leave organization$/.test(text(b))).at(-1).click(); await sleep(500);
+                return { offered, asking, postsBefore, posts: window.__calls.filter(([m]) => m === 'POST').map(([, u]) => u), popup: text($('[aria-labelledby="organization-popup-title"]')) };
+                `
+        });
+        assert.deepEqual(errors, []);
+        assert.ok(result.offered);
+        assert.match(result.asking, /Leave ABC College\?/, 'it asks first');
+        assert.equal(result.postsBefore, 0);
+        assert.deepEqual(result.posts, ['/organizations/student/leave']);
+        assert.match(result.popup, /You have left ABC College/);
+    });
+
+    test('a member of an active organization is not offered Leave', async () => {
+        const { result } = await screen({
+            entry, api: stub(MEMBER),
+            script: `await sleep(500); $('button').click(); await sleep(400);
+                return { leave: $$('button').some((b) => /Leave organization/.test(text(b))) };`
+        });
+        assert.ok(!result.leave);
     });
 });

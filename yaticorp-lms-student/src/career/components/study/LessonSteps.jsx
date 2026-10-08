@@ -1,4 +1,4 @@
-import { Check, MonitorPlay, FileText, HelpCircle, PartyPopper, ArrowRight, Zap } from 'lucide-react';
+import { Check, MonitorPlay, FileText, HelpCircle, Zap } from 'lucide-react';
 
 /**
  * The three gates, made visible — as a journey rather than a status readout.
@@ -16,26 +16,9 @@ import { Check, MonitorPlay, FileText, HelpCircle, PartyPopper, ArrowRight, Zap 
  * omitted entirely rather than shown as permanently unmet.
  */
 const STEP_META = {
-  video: {
-    icon: MonitorPlay,
-    label: 'Watch',
-    // Spliced into "Next up: …", so these are imperatives.
-    action: 'watch the video',
-    // Spliced into "once you've …", so these are past participles.
-    pending: 'watched the video'
-  },
-  notes: {
-    icon: FileText,
-    label: 'Read',
-    action: 'read the notes',
-    pending: 'read the notes'
-  },
-  quiz: {
-    icon: HelpCircle,
-    label: 'Quiz',
-    action: 'get every quiz answer right',
-    pending: 'answered every quiz question correctly'
-  }
+  video: { icon: MonitorPlay, label: 'Watch' },
+  notes: { icon: FileText, label: 'Read' },
+  quiz: { icon: HelpCircle, label: 'Quiz' }
 };
 
 export default function LessonSteps({ gates, completed }) {
@@ -53,7 +36,6 @@ export default function LessonSteps({ gates, completed }) {
   // The first unfinished step. Highlighting it is the difference between a
   // progress display and an instruction.
   const currentIndex = steps.findIndex((s) => !s.done);
-  const remaining = steps.filter((s) => !s.done);
 
   // Every gate met counts as finished even if the task object in the list has
   // not caught up yet — there is a beat between the last gate landing and the
@@ -148,33 +130,6 @@ export default function LessonSteps({ gates, completed }) {
             );
           })}
         </ol>
-      </div>
-
-      {/* ---- What to do about it ---- */}
-      <div className="relative mt-5">
-        {finished ? (
-          <p className="flex items-center justify-center gap-2 rounded-xl bg-surface/90 px-4 py-3 text-sm font-black text-emerald-700 ring-1 ring-emerald-200 ring-inset">
-            <PartyPopper className="h-4 w-4" />
-            Done and ticked off — nothing left to submit.
-          </p>
-        ) : (
-          <p className="flex items-start gap-2.5 rounded-xl bg-surface/90 px-4 py-3 text-sm leading-relaxed text-ink-600 ring-1 ring-journey-100 ring-inset">
-            <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-journey-600" />
-            <span>
-            <span className="font-black text-ink-900">
-              Next: {STEP_META[steps[currentIndex].key].action}.
-            </span>{' '}
-            {remaining.length > 1 ? (
-              <>
-                This task ticks itself off once you&apos;ve{' '}
-                {remaining.map((s) => STEP_META[s.key].pending).join(' and ')}.
-              </>
-            ) : (
-              <>That&apos;s the last step — the task completes itself the moment you do.</>
-            )}
-            </span>
-          </p>
-        )}
       </div>
     </div>
   );

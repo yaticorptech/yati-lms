@@ -1,18 +1,19 @@
 /**
  * Achievements. Each badge names a metric and a target; when the metric gets
- * there the badge unlocks once (unique index) and pays its points once
- * (claim key).
+ * there the badge unlocks once (unique index).
+ *
+ * Badges no longer pay reward points: points are what UNLOCK some of them
+ * (metric 'reward_points' — lifetime points earned, never spent). A badge
+ * paying points would also loop, a points badge paying the points for the next.
  */
 const User = require('../../models/User');
-const { RewardBadge, RewardUserBadge, LearningActivity, Streak } = require('../models');
+const { RewardBadge, RewardUserBadge, LearningActivity, Streak, Wallet } = require('../models');
 const { seedBadges } = require('./configService');
-const { awardPoints } = require('./rewardPointsService');
 const { isDuplicate } = require('./tx');
 const { notify, celebrate } = require('./notify');
-const { pointsToMoney } = require('./eligibility');
 
 const computeStats = async (userId) => {
-  const [user, streak, counts, prep] = await Promise.all([
+  const [user, streak, counts, prep, wallet] = await Promise.all([
     User.findById(userId).select('xp level').lean(),
     Streak.findOne({ userId }).lean(),
     LearningActivity.aggregate([
@@ -20,7 +21,8 @@ const computeStats = async (userId) => {
       { $group: { _id: '$type', n: { $sum: 1 }, perfect: { $sum: { $cond: [{ $eq: ['$meta.score', 100] }, 1, 0] } } } }
     ]),
     // Required lazily: the interview module also requires this service.
-    require('../../interview/models').InterviewPrep.findOne({ userId }).select('readiness').lean().catch(() => null)
+    require('../../interview/models').InterviewPrep.findOne({ userId }).select('readiness').lean().catch(() => null),
+    Wallet.findOne({ userId }).select('rewardPointsEarned').lean()
   ]);
   const by = Object.fromEntries(counts.map((c) => [c._id, c]));
   return {
@@ -35,7 +37,9 @@ const computeStats = async (userId) => {
     current_streak: streak?.current || 0,
     top10_weeks: streak?.top10Weeks || 0,
     mock_interviews: by.mock_interview?.n || 0,
-    interview_readiness: prep?.readiness || 0
+    interview_readiness: prep?.readiness || 0,
+    // Lifetime points earned: a points badge, once reached, stays reached.
+    reward_points: wallet?.rewardPointsEarned || 0
   };
 };
 
@@ -43,6 +47,7 @@ const computeStats = async (userId) => {
  * Unlock whatever the student now qualifies for. Returns the newly unlocked
  * badges (already paid and announced).
  */
+// eslint-disable-next-line no-unused-vars
 const evaluate = async (userId, config) => {
   await seedBadges();
   const [catalogue, owned, stats] = await Promise.all([
@@ -61,10 +66,9 @@ const evaluate = async (userId, config) => {
       if (isDuplicate(err)) continue;
       throw err;
     }
-    const paid = badge.rewardPoints > 0 ? await awardPoints({ userId, points: badge.rewardPoints, source: 'badge', claimKey: `badge:${badge.key}`, description: `${badge.title} badge`, meta: { badgeKey: badge.key }, quiet: true }) : null;
-    await notify(userId, `${badge.emoji} Badge unlocked: ${badge.title}`, `${badge.description}${paid ? ` +${badge.rewardPoints} reward points.` : ''}`);
-    await celebrate(userId, 'badge', `${badge.title} unlocked!`, badge.description, { key: badge.key, emoji: badge.emoji, rewardPoints: paid ? badge.rewardPoints : 0, value: paid ? pointsToMoney(badge.rewardPoints, config) : 0 });
-    unlocked.push({ key: badge.key, title: badge.title, emoji: badge.emoji, rewardPoints: paid ? badge.rewardPoints : 0 });
+    await notify(userId, `${badge.emoji} Badge unlocked: ${badge.title}`, badge.description);
+    await celebrate(userId, 'badge', `${badge.title} unlocked!`, badge.description, { key: badge.key, emoji: badge.emoji, rewardPoints: 0, value: 0 });
+    unlocked.push({ key: badge.key, title: badge.title, emoji: badge.emoji, rewardPoints: 0 });
   }
   return unlocked;
 };
@@ -80,7 +84,7 @@ const listForUser = async (userId) => {
   const ownedAt = Object.fromEntries(owned.map((o) => [o.badgeKey, o.unlockedAt]));
   return catalogue.map((b) => {
     const value = Math.min(stats[b.metric] || 0, b.target);
-    return { key: b.key, title: b.title, description: b.description, emoji: b.emoji, metric: b.metric, target: b.target, rewardPoints: b.rewardPoints, unlocked: !!ownedAt[b.key], unlockedAt: ownedAt[b.key] || null, progress: value, percent: Math.round((value / b.target) * 100) };
+    return { key: b.key, title: b.title, description: b.description, emoji: b.emoji, metric: b.metric, target: b.target, rewardPoints: 0, unlocked: !!ownedAt[b.key], unlockedAt: ownedAt[b.key] || null, progress: value, percent: Math.round((value / b.target) * 100) };
   });
 };
 

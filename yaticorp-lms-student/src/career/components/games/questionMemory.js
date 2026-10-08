@@ -1,3 +1,6 @@
+// With the extension: the quiz-pool tests load this file under plain node.
+import { gameKey } from './gameStorage.js';
+
 /**
  * Which questions a student has already been asked, and which they got right.
  *
@@ -15,9 +18,9 @@
  * before anything comes back, and what comes back first is what the student
  * has NOT got right.
  *
- * Kept per game and per band, in localStorage beside the level and star
- * records, because it is progress: it must survive a reload, and it means
- * nothing on another game's ladder.
+ * Kept per student, per game and per band, in localStorage beside the level
+ * and star records, because it is progress: it must survive a reload, and it
+ * means nothing on another game's ladder or to another student.
  *
  * This does not abolish repetition — a band asks about two hundred and fifty
  * questions over its thirty levels, and no amount of bookkeeping invents
@@ -27,11 +30,12 @@
  * useful as it can be.
  */
 
+// Per student, like the level and star records: see gameStorage.js.
 const KEY = 'yati:gameSeen';
 
 const read = () => {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || '{}');
+    return JSON.parse(localStorage.getItem(gameKey(KEY)) || '{}');
   } catch {
     // A corrupt entry must not take the games down with it.
     return {};
@@ -40,7 +44,7 @@ const read = () => {
 
 const write = (value) => {
   try {
-    localStorage.setItem(KEY, JSON.stringify(value));
+    localStorage.setItem(gameKey(KEY), JSON.stringify(value));
   } catch {
     // Private mode or a blocked origin: the game still plays, it just forgets.
   }
@@ -58,9 +62,10 @@ const write = (value) => {
 export const keyOf = (question) => {
   if (!question) return '';
   // Options are sorted (below); a question's difficulty grading is not part
-  // of what makes it that question, and a borrowed one carries a shift.
+  // of what makes it that question, and a borrowed one carries a shift and
+  // the band it was borrowed from.
   // eslint-disable-next-line no-unused-vars
-  const { options, tier, tierShift, ...rest } = question;
+  const { options, tier, tierShift, fromBand, ...rest } = question;
   const shape = JSON.stringify({
     ...rest,
     options: Array.isArray(options) ? [...options].map(String).sort() : options
@@ -73,6 +78,19 @@ export const keyOf = (question) => {
 };
 
 const bucketFor = (gameId, band) => `${gameId}:${band}`;
+
+/**
+ * The band a question belongs to, for its record: the band it was borrowed
+ * from when it carries one (QuizGame tags borrowed questions `fromBand`),
+ * otherwise the band being played.
+ *
+ * Borrowed questions used to be remembered under the band that borrowed
+ * them. When the student then reached the band they came from, its record
+ * had never heard of them, so they were dealt again as fresh — the same
+ * question on level 28 and level 31.
+ */
+export const bandFor = (question, band) =>
+  Number.isInteger(question?.fromBand) ? question.fromBand : band;
 
 /** What this student has done with each question of one game's band. */
 export const recordFor = (gameId, band) => read()[bucketFor(gameId, band)] || {};
@@ -88,7 +106,7 @@ export const remember = (gameId, band, question, wasCorrect) => {
   const key = keyOf(question);
   if (!key) return;
   const all = read();
-  const bucket = bucketFor(gameId, band);
+  const bucket = bucketFor(gameId, bandFor(question, band));
   const entry = all[bucket]?.[key] || { asked: 0, correct: 0 };
   all[bucket] = {
     ...all[bucket],
@@ -125,12 +143,20 @@ export const remember = (gameId, band, question, wasCorrect) => {
  */
 export const pickQuestions = (pool, size, gameId, band, focus = null) => {
   if (!Array.isArray(pool) || !pool.length) return [];
-  const record = recordFor(gameId, band);
+  // Each question is looked up in its OWN band's record: a question borrowed
+  // from the band above was remembered there (see bandFor), and must count as
+  // seen when that band's levels come round.
+  const records = {};
+  const recordOf = (question) => {
+    const b = bandFor(question, band);
+    if (!records[b]) records[b] = recordFor(gameId, b);
+    return records[b];
+  };
   const last = Math.max(1, pool.length - 1);
 
   const ranked = pool
     .map((question, i) => {
-      const seen = record[keyOf(question)] || { asked: 0, correct: 0, at: 0 };
+      const seen = recordOf(question)[keyOf(question)] || { asked: 0, correct: 0, at: 0 };
       const tier = (typeof question.tier === 'number' ? question.tier : i / last) + (question.tierShift || 0);
       const distance = focus === null ? 0 : Math.abs(tier - focus);
       return { question, seen, i, distance };

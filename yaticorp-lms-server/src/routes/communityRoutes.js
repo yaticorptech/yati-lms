@@ -22,13 +22,15 @@ const {
 } = require('../controllers/adminCommunityController');
 
 const { protectUser, protectAdmin } = require('../middleware/authMiddleware');
+// Optional XP rules (Reward rules): a forum post / reply, once a day each.
+const { xpOnSuccess, today } = require('../rewards/services/xpHooks');
 
 // ================= USER ROUTES =================
 
 // GET all posts + CREATE post
 router.route('/')
     .get(protectUser, getPosts)
-    .post(protectUser, createPost);
+    .post(protectUser, xpOnSuccess('forum_post', () => `post:${today()}`), createPost);
 
 // GET single + UPDATE + DELETE post  ✅ UPDATED
 router.route('/:id')
@@ -38,7 +40,7 @@ router.route('/:id')
 
 // Add comment
 router.route('/:id/comments')
-    .post(protectUser, addComment);
+    .post(protectUser, xpOnSuccess('forum_comment', () => `comment:${today()}`), addComment);
 
 
 // ================= ADMIN ROUTES =================

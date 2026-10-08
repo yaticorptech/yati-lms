@@ -102,6 +102,20 @@ const generateScholarships = async (req, res) => {
       );
     }
 
+    /*
+     * Nothing survived. Writing [] here wiped a list the student already had
+     * and answered 201, so the charge stood for an empty page. Keep the old
+     * list, and answer with a 5xx — the model answered, just not usefully —
+     * which is what makes chargeWallet refund the search.
+     */
+    if (!items.length) {
+      return res.status(502).json({
+        message: shaped.length
+          ? 'None of the scholarships found this time had a working application link. Your previous list is unchanged — please try again.'
+          : 'The AI did not return any scholarships this time. Your previous list is unchanged — please try again.'
+      });
+    }
+
     const doc = await Scholarship.findOneAndUpdate(
       { userId: req.user._id },
       { items, builtFor: goal.careerGoal || '', generatedAt: new Date() },

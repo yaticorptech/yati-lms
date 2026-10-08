@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { CalendarDays, CheckCircle2, Clock3, Trophy } from 'lucide-react';
 import useCountUp from '../../../hooks/useCountUp';
+import { useXpRule } from '../../../context/useRewards';
 
 /**
  * A month's shape, as a filled curve.
@@ -140,15 +141,16 @@ function StatTile({ card, value, series, hint }) {
 /**
  * The four numbers above the calendar.
  *
- * XP is the one derived value: the server awards 10 XP for a completed task, so
+ * XP is the one derived value: a completed task pays the admin's 'career_task' rule, so
  * a month's completions are worth ten times as much. It is labelled "from
  * tasks" rather than "earned" because the daily activity pays 5 XP too and this
  * page cannot see those — claiming a total it has not counted would be worse
  * than naming what it has.
  */
-const XP_PER_TASK = 10;
 
 export default function MonthStats({ summary, series, monthName }) {
+  // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
+  const XP_PER_TASK = useXpRule('career_task');
   const values = {
     completed: summary.completed,
     pending: summary.pending,

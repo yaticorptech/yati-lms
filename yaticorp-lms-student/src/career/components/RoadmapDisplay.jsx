@@ -64,7 +64,9 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
         : goal?.currentClass || goal?.educationLevel || null;
 
   return (
-    <div className="space-y-6">
+    // A column with gap rather than space-y, so `order` can move the header
+    // below the map on a phone without the spacing following the old order.
+    <div className="flex flex-col gap-6">
       {/* ---------------------------------------------------------------
           The destination header.
 
@@ -75,9 +77,13 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
           drawn under it, and the current phase sits inside that context
           instead of standing in for it.
       --------------------------------------------------------------- */}
+      {/* On a phone it comes after the map: the road, starting from where the
+          student began, is what they opened this page to see, and this
+          header filled the whole first screen before a single platform.
+          From md up — where the map is drawn wide — it leads again. */}
       <section
         {...hero}
-        className="animate-fade-in-up relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset"
+        className="animate-fade-in-up relative order-last overflow-hidden rounded-3xl md:order-none bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset"
       >
         {/* Two depths, so the background separates from the card as the pointer
             crosses it rather than sliding with it. Both keep the ambient float

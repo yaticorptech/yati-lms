@@ -35,6 +35,9 @@ const api = apiModule({
     '/user/available-courses': [],
     '/rewards/summary': {
         xp: 315, level: { level: 3 }, streak: { current: 4, longest: 6 }, badges: [],
+        // The admin's level ladder: the banner's "XP to the next level" is read
+        // against it, never against a table in the page.
+        config: { levelThresholds: [0, 100, 300, 600, 1000, 1600, 2500, 3600, 4900, 6400] },
         stats: { lessons: { total: 12, thisWeek: 2 }, quizzes: { total: 3, passed: 3, thisWeek: 1 }, courses: { enrolled: 1, total: 1 }, xpThisWeek: 40 },
         series: {}
     },
@@ -465,23 +468,29 @@ createRoot(document.getElementById('root')).render(
     </RewardsContext.Provider>
   </AuthContext.Provider>);`;
 
-    test('the sidebar is grouped — Dashboard, then Learn, Career, Activities, Me — and My Profile goes to /profile', async () => {
+    test('the sidebar is grouped — Dashboard, then Learn, Career, Activities — and My Profile sits at the foot beside Contact Support', async () => {
         const { result, errors } = await screen({
             entry: layout('/'), api, styles: true, width: DESKTOP, script: `
                 await sleep(600);
-                const nav = $('aside nav');
-                const links = $$('aside nav a').map((a) => ({ text: a.innerText.trim(), href: a.getAttribute('href') }));
+                const aside = $('aside');
+                const links = $$('aside nav a').map((a) => a.innerText.trim());
                 const heads = $$('aside nav p').map((p) => p.innerText.trim());
-                const mine = links.find((l) => l.text === 'My Profile');
-                $$('a').find((a) => a.innerText.trim() === 'My Profile').click();
+                const mine = [...aside.querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'My Profile');
+                const inNav = !!mine && !!mine.closest('nav');
+                const footer = mine && mine.parentElement;
+                const support = footer && [...footer.querySelectorAll('button')].some((b) => b.innerText.includes('Contact Support'));
+                mine.click();
                 await sleep(300);
-                return { links: links.map((l) => l.text), heads, mine, now: text($('#where')),
-                         lit: $$('a').find((a) => a.innerText.trim() === 'My Profile').className.includes('bg-indigo-600') };` });
+                return { links, heads, href: mine.getAttribute('href'), inNav, support,
+                         now: text($('#where')),
+                         lit: [...$('aside').querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'My Profile').className.includes('bg-indigo-600') };` });
         assert.deepEqual(errors, []);
-        assert.deepEqual(result.heads, ['LEARN', 'CAREER', 'ACTIVITIES', 'ME']);
-        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Community', 'Career Path', 'Interview Prep', 'Jobs', 'Scholarships', 'Games & Competitions', 'My Profile']);
-        assert.deepEqual(result.mine, { text: 'My Profile', href: '/profile' });
-        assert.equal(result.now, '/profile', 'clicking My Profile opens it');
+        assert.deepEqual(result.heads, ['LEARN', 'CAREER', 'ACTIVITIES']);
+        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Community', 'Career Path', 'Interview Prep', 'Jobs', 'Scholarships', 'Games & Competitions']);
+        assert.equal(result.href, '/profile');
+        assert.equal(result.inNav, false, 'My Profile is not in the menu list');
+        assert.equal(result.support, true, 'it sits in the footer with Contact Support');
+        assert.equal(result.now, '/profile', 'and clicking it opens My Profile');
         assert.equal(result.lit, true, 'which it then shows as the current page');
     });
 

@@ -4,21 +4,24 @@
  * suspend actions.
  *
  * Status and type are filtered on the server, because both are discrete and one
- * fetch per change is cheap. The search box filters the rows already in hand, so
- * typing stays instant and does not hit the API per keystroke — the same
- * client-side search every other list in this panel uses.
+ * fetch per change is cheap. The list is asked for a page at a time (25), with
+ * the search sent along a beat after the last keystroke; a server that does not
+ * page yet answers with every organization and no `total`, and then the search
+ * box filters the rows already in hand, instantly, as it always did.
  *
- * Nothing here deletes an organization. Rejecting or suspending withdraws access
- * and keeps the record, the memberships and every student's learning history.
+ * Rejecting or suspending withdraws access and keeps the record, the
+ * memberships and every student's learning history. The one deletion is of a
+ * registration that never became anything — rejected, never approved, no
+ * students — and the server refuses it for anything else.
  */
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { startViewingOrganization } from '../utils/viewOrganization';
 import {
-    Building2, Search, Plus, Users, CheckCircle2, XCircle, AlertTriangle,
+    Building2, Plus, Users, CheckCircle2, XCircle, AlertTriangle,
     Loader2, Copy, Check, ExternalLink, Ban, RotateCcw, Mail, Phone, MapPin, Globe, X,
-    UserPlus, UserMinus, ArrowRight, BookOpen, LayoutDashboard, Trophy
+    UserPlus, UserMinus, ArrowRight, BookOpen, LayoutDashboard, Trash2, ChevronDown, History, Trophy
 } from 'lucide-react';
 import api from '../utils/api';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
@@ -27,6 +30,10 @@ import { formatDate } from '../utils/dates';
 import Select from '../components/Select';
 import OrgCodeField from '../components/OrgCodeField';
 import { orgCodeProblem } from '../utils/orgCode';
+import { LoadFailed, SearchInput, Pager } from '../components/orgUi';
+import useAutoRefresh from '../hooks/useAutoRefresh';
+import useDialog from '../hooks/useDialog';
+import useMediaQuery from '../hooks/useMediaQuery';
 
 const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40';
 const LABEL = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500';
@@ -41,8 +48,17 @@ const STATUS_TONE = {
     inactive: 'bg-slate-100 text-slate-600'
 };
 
-/** A pending organization has not been approved yet, so nobody is put into it. */
-const canAssignTo = (org) => Boolean(org) && org.status !== 'pending';
+/**
+ * A pending organization has not been approved yet, so nobody is put into it;
+ * nor into a rejected one, which never will be.
+ */
+const canAssignTo = (org) => Boolean(org) && !['pending', 'rejected'].includes(org.status);
+
+/** How many organizations, or students in one, a page of the list holds. */
+const LIST_PAGE = 25;
+
+/** A ✕ or copy button's 40px tap target, with the icon in the middle. */
+const ICON_BTN = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600';
 
 /** The organization's logo, or its first letters until it has uploaded one. */
 const OrgLogo = ({ org, size = 'h-10 w-10' }) => (org?.logo ? (
@@ -76,7 +92,7 @@ const CoursesCell = ({ org, onOpen }) => {
     return (
         <button onClick={() => onOpen(org)} aria-label={`Course access for ${org.name}`}
             title={on ? `${org.courseCount || 0} of ${org.courseAccess.limit} courses used — change` : 'Let this organization publish its own courses'}
-            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors ${on
+            className={`inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors ${on
                 ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
                 : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700'}`}>
             <BookOpen size={13} />
@@ -121,28 +137,31 @@ const HostingCell = ({ org, onChanged }) => {
 };
 
 /** The Course access settings on their own, opened from a row's Courses button. */
-const CourseAccessModal = ({ org, onClose, onSaved }) => (
+const CourseAccessModal = ({ org, onClose, onSaved }) => {
+    const { dialogProps, titleId } = useDialog(onClose);
+    return (
     // Centred at every width — on a phone too, rather than a sheet at the bottom.
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`Course access: ${org.name}`}
+    <div {...dialogProps} className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/60 p-4 outline-none backdrop-blur-sm" aria-label={`Course access: ${org.name}`}
         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
         <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
                 <div className="min-w-0">
-                    <h2 className="truncate text-lg font-bold text-slate-800">{org.name}</h2>
+                    <h2 id={titleId} className="truncate text-lg font-bold text-slate-800">{org.name}</h2>
                     <p className="font-mono text-xs text-slate-500">{org.orgCode}</p>
                 </div>
-                <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X size={20} /></button>
+                <button onClick={onClose} className={ICON_BTN} aria-label="Close"><X size={20} /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5">
                 <CourseAccessCard organization={org} courseCount={org.courseCount} onSaved={onSaved} />
             </div>
         </div>
     </div>
-);
+    );
+};
 
 const RowActions = ({ org, onDetail, onDecide }) => {
     const navigate = useNavigate();
-    // The organization's own panel, as it sees it — read-only, no password.
+    // The organization's own panel, as it sees it — editable, no password.
     const openDashboard = () => { startViewingOrganization(org); navigate('/organization'); };
     return (
     <>
@@ -150,7 +169,7 @@ const RowActions = ({ org, onDetail, onDecide }) => {
             {org.status === 'pending' ? 'Review' : 'View'}
         </button>
         {org.status === 'active' && (
-            <button onClick={openDashboard} title={`Open ${org.name}'s dashboard, read-only`}
+            <button onClick={openDashboard} title={`Open and manage ${org.name}'s dashboard`}
                 className="inline-flex items-center gap-1 text-violet-600 hover:text-violet-800 font-medium text-sm transition-colors">
                 <LayoutDashboard size={14} />Dashboard
             </button>
@@ -180,7 +199,7 @@ const FILTERS = [
     ['rejected', 'Rejected']
 ];
 
-/** The organization ID is meant to be handed to students, so make it one tap to copy. */
+/** The Organization ID is meant to be handed to students, so make it one tap to copy. */
 const CopyableCode = ({ code, small = false }) => {
     const [copied, setCopied] = useState(false);
 
@@ -198,9 +217,12 @@ const CopyableCode = ({ code, small = false }) => {
     return (
         <button
             onClick={copy}
-            title="Copy organization ID"
-            aria-label={`Copy organization ID ${code}`}
-            className={`group inline-flex min-w-0 items-center gap-1.5 font-mono hover:text-indigo-600 ${small ? 'text-xs font-medium text-slate-600' : 'whitespace-nowrap text-sm font-semibold text-slate-700'}`}
+            title="Copy Organization ID"
+            aria-label={`Copy Organization ID ${code}`}
+            // 40px tall to tap, without making the row it sits in any taller.
+            // Not for the small ID under a name: it can wrap past 40px, and the
+            // negative margin then drew it over the name above.
+            className={`group ${small ? '' : '-my-3 min-h-10'} inline-flex min-w-0 items-center gap-1.5 font-mono hover:text-indigo-600 ${small ? 'text-xs font-medium text-slate-600' : 'whitespace-nowrap text-sm font-semibold text-slate-700'}`}
         >
             <span className={small ? 'break-all text-left' : 'truncate'}>{code}</span>
             {copied
@@ -216,11 +238,20 @@ const Organizations = () => {
     const [types, setTypes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    // The list's own load failed with these filters, so there is nothing to
+    // show for them — not the same as no organizations.
+    const [loadFailed, setLoadFailed] = useState(false);
     const [notice, setNotice] = useState('');
 
     const [status, setStatus] = useState('all');
     const [type, setType] = useState('all');
     const [search, setSearch] = useState('');
+    // The search as sent to the server: a beat behind the box, one request
+    // per pause in typing rather than per letter.
+    const [query, setQuery] = useState('');
+    const [page, setPage] = useState(1);
+    // Set when the server paged the list (its answer carried `total`).
+    const [total, setTotal] = useState(null);
 
     const [detail, setDetail] = useState(null);       // { organization, admins, studentCount, pendingRequests }
     const [detailLoading, setDetailLoading] = useState(false);
@@ -230,61 +261,73 @@ const Organizations = () => {
     const [decision, setDecision] = useState(null);   // { org, status, needsReason, title, verb }
     const [showCreate, setShowCreate] = useState(false);
 
-    // Bumped after a decision to make the effect below re-run, so the list is
-    // reloaded through the one code path that knows the current filters.
-    const [reloadKey, setReloadKey] = useState(0);
+    useEffect(() => {
+        const next = search.trim();
+        if (next === query) return undefined;
+        const timer = setTimeout(() => { setQuery(next); setPage(1); }, 300);
+        return () => clearTimeout(timer);
+    }, [search, query]);
 
     /**
-     * Load the list, and keep it fresh every 30 seconds.
+     * Load the list, again whenever a filter, the search or the page changes,
+     * and keep it fresh every 30 seconds.
      *
-     * Written as a plain effect keyed on the filters rather than through the
-     * shared useAutoRefresh hook: that hook deliberately has an empty dependency
-     * array, so its interval would hold the very first fetch function forever and
-     * a tick 30 seconds later would quietly replace the filtered list with the
-     * unfiltered one. Restarting the interval whenever the filters change is
-     * what keeps the screen showing what was asked for.
+     * Through the shared useAutoRefresh hook, which calls the newest load on
+     * each tick (it used to hold the first one forever, which is why this page
+     * once polled on its own), pauses while the browser tab is hidden, skips a
+     * tick while the last request is still out, and drops an answer that a
+     * newer request has overtaken — so a slow reply for the old filter can
+     * never land on top of the new one.
      */
-    useEffect(() => {
-        let alive = true;
-
-        const load = async (withSkeleton) => {
-            if (withSkeleton) setLoading(true);
-            try {
-                const params = {};
-                if (status !== 'all') params.status = status;
-                if (type !== 'all') params.type = type;
-                const res = await api.get('/organizations/admin', { params });
-                if (!alive) return;
-                setOrganizations(res.data.organizations || []);
-                setTotals(res.data.totals || {});
-                setTypes(res.data.types || []);
-                setError('');
-            } catch (err) {
-                if (alive) setError(err.response?.data?.message || 'Could not load organizations.');
-            } finally {
-                if (alive) setLoading(false);
-            }
-        };
-
-        load(true);
+    const load = async ({ signal, isCurrent = () => true, fresh = true } = {}) => {
         // A background refresh leaves the rows in place; only a filter change
         // is worth blanking the table for.
-        const id = setInterval(() => load(false), 30000);
-        return () => { alive = false; clearInterval(id); };
-    }, [status, type, reloadKey]);
+        if (fresh) setLoading(true);
+        try {
+            const params = { page, limit: LIST_PAGE };
+            if (status !== 'all') params.status = status;
+            if (type !== 'all') params.type = type;
+            if (query) params.search = query;
+            const res = await api.get('/organizations/admin', { params, signal });
+            if (!isCurrent()) return;
+            setOrganizations(res.data.organizations || []);
+            setTotals(res.data.totals || {});
+            setTypes(res.data.types || []);
+            const paged = typeof res.data.total === 'number';
+            setTotal(paged ? res.data.total : null);
+            if (paged && page > 1 && page > Math.ceil(res.data.total / LIST_PAGE)) setPage(Math.max(1, Math.ceil(res.data.total / LIST_PAGE)));
+            setLoadFailed(false);
+            setError('');
+        } catch (err) {
+            if (!isCurrent()) return;
+            setError(err.response?.data?.message || 'Could not load organizations.');
+            // A filter change has no rows of its own yet; the ones in state
+            // were for the previous filter and must not show under this one.
+            if (fresh) { setOrganizations([]); setLoadFailed(true); }
+        } finally {
+            if (isCurrent()) setLoading(false);
+        }
+    };
 
-    const reload = () => setReloadKey((n) => n + 1);
+    const reload = useAutoRefresh(load, 30000, [status, type, query, page]);
+    const pickStatus = (value) => { setStatus(value); setPage(1); };
+    const pickType = (value) => { setType(value); setPage(1); };
 
+    // A paging server has already searched; without one, the search box
+    // narrows the rows in hand, as it always has.
     const visible = useMemo(() => {
-        const query = search.trim().toLowerCase();
-        if (!query) return organizations;
+        const q = search.trim().toLowerCase();
+        if (total !== null || !q) return organizations;
         return organizations.filter((o) =>
-            o.name?.toLowerCase().includes(query) ||
-            o.orgCode?.toLowerCase().includes(query) ||
-            o.email?.toLowerCase().includes(query) ||
-            o.contactPerson?.toLowerCase().includes(query)
+            o.name?.toLowerCase().includes(q) ||
+            o.orgCode?.toLowerCase().includes(q) ||
+            o.email?.toLowerCase().includes(q) ||
+            o.contactPerson?.toLowerCase().includes(q)
         );
-    }, [organizations, search]);
+    }, [organizations, search, total]);
+
+    // Only the layout that is showing is built: the table from md up, cards below.
+    const wide = useMediaQuery('(min-width: 768px)');
 
     const openDetail = async (organizationId, focus = null) => {
         setDetailFocus(typeof focus === 'string' ? focus : null);
@@ -301,26 +344,56 @@ const Organizations = () => {
         }
     };
 
-    const openStudents = async (organization) => {
-        setStudents({ organization, students: null });
+    /**
+     * One organization's students, a page at a time with the popup's search
+     * applied. A server that does not page answers with everyone and no
+     * `total`; the popup then searches what it has, as before.
+     *
+     * Numbered, so an answer for an older page or search that arrives late is
+     * dropped rather than shown under the newer one.
+     */
+    const studentsSeq = useRef(0);
+    const fetchStudents = async (organization, { page: at = 1, search: text = '' } = {}) => {
+        const seq = ++studentsSeq.current;
+        const params = { page: at, limit: LIST_PAGE };
+        if (text.trim()) params.search = text.trim();
+        const res = await api.get(`/organizations/admin/${organization._id}/students`, { params });
+        if (seq !== studentsSeq.current) return null;
+        return { ...res.data, page: at, search: text };
+    };
+
+    const openStudents = async (organization, query = {}) => {
+        setStudents((prev) => (prev && prev.organization?._id === organization._id && query.page
+            ? { ...prev, busy: true }
+            : { organization, students: null, search: query.search || '' }));
         try {
-            const res = await api.get(`/organizations/admin/${organization._id}/students`);
-            setStudents(res.data);
-        } catch (err) {
-            setStudents(null);
-            setError(err.response?.data?.message || 'Could not load those students.');
+            const data = await fetchStudents(organization, query);
+            if (data) setStudents(data);
+        } catch {
+            // Said inside the popup, with a Retry: it may have been opened from
+            // the detail popup, which would hide the page banner.
+            setStudents({ organization, students: null, failed: true, search: query.search || '' });
         }
     };
 
     /** After assigning or removing, both this popup and the counts behind it. */
-    const refreshStudents = async (organization) => {
+    const refreshStudents = async (current) => {
         try {
-            const res = await api.get(`/organizations/admin/${organization._id}/students`);
-            setStudents(res.data);
+            const data = await fetchStudents(current.organization, { page: current.page || 1, search: current.search || '' });
+            if (data) setStudents(data);
         } catch { /* the popup keeps what it has rather than emptying */ }
         reload();
     };
 
+    /** A registration that never became an organization, gone. */
+    const onDeleted = (message) => {
+        setDetail(null);
+        setNotice(message || 'The registration was deleted.');
+        reload();
+        setTimeout(() => setNotice(''), 5000);
+    };
+
+    /** Resolves to an error message for the confirmation to show, or nothing on success. */
     const applyDecision = async (reason) => {
         const { org, status: next } = decision;
         try {
@@ -330,15 +403,19 @@ const Organizations = () => {
             setDetail(null);
             reload();
             setTimeout(() => setNotice(''), 5000);
+            return '';
         } catch (err) {
-            setError(err.response?.data?.message || 'That did not go through.');
-            setDecision(null);
+            // The confirmation stays open with the reason still typed: the page
+            // banner would sit under the detail popup it was opened from.
+            return err.response?.data?.message || 'That did not go through.';
         }
     };
 
     const ask = (org, next) => {
         const wording = {
-            active: { title: org.status === 'pending' ? 'Approve this organization?' : 'Reinstate this organization?', verb: 'Approve', needsReason: false },
+            active: org.status === 'pending'
+                ? { title: 'Approve this organization?', verb: 'Approve', needsReason: false }
+                : { title: 'Reinstate this organization?', verb: 'Reinstate', needsReason: false },
             rejected: { title: 'Reject this registration?', verb: 'Reject', needsReason: true },
             suspended: { title: 'Suspend this organization?', verb: 'Suspend', needsReason: true },
             inactive: { title: 'Deactivate this organization?', verb: 'Deactivate', needsReason: true }
@@ -360,16 +437,7 @@ const Organizations = () => {
                     </p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    <div className="relative">
-                        <input
-                            type="text"
-                            placeholder="Search by name, ID, email or contact..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 text-sm shadow-sm transition-all"
-                        />
-                        <Search className="absolute left-3.5 top-3 text-slate-400" size={18} />
-                    </div>
+                    <SearchInput value={search} onChange={setSearch} placeholder="Search by name, ID, email or contact..." label="Search organizations" className="sm:w-72" />
                     <button onClick={() => setShowCreate(true)} className={`${BTN} whitespace-nowrap`}>
                         <Plus size={18} /><span>Add Organization</span>
                     </button>
@@ -380,14 +448,14 @@ const Organizations = () => {
                 <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
                     <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
                     <span className="flex-1">{notice}</span>
-                    <button onClick={() => setNotice('')} aria-label="Dismiss"><X size={14} /></button>
+                    <button onClick={() => setNotice('')} aria-label="Dismiss" className="-my-2.5 -mr-2.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg opacity-70 hover:opacity-100"><X size={14} /></button>
                 </div>
             )}
-            {error && (
+            {error && !loadFailed && (
                 <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
                     <XCircle size={16} className="mt-0.5 shrink-0" />
                     <span className="flex-1">{error}</span>
-                    <button onClick={() => setError('')} aria-label="Dismiss"><X size={14} /></button>
+                    <button onClick={() => setError('')} aria-label="Dismiss" className="-my-2.5 -mr-2.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg opacity-70 hover:opacity-100"><X size={14} /></button>
                 </div>
             )}
 
@@ -398,7 +466,7 @@ const Organizations = () => {
                     {FILTERS.map(([value, label]) => (
                         <button
                             key={value}
-                            onClick={(e) => { setStatus(value); e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'center' }); }}
+                            onClick={(e) => { pickStatus(value); e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'center' }); }}
                             aria-pressed={status === value}
                             className={`shrink-0 snap-start rounded-full px-4 py-1.5 text-sm font-semibold transition-all whitespace-nowrap ${status === value ? 'bg-white text-indigo-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}
                         >
@@ -409,7 +477,7 @@ const Organizations = () => {
                         </button>
                     ))}
                 </div>
-                <Select value={type} onChange={(e) => setType(e.target.value)} className={`${INPUT} sm:max-w-[220px]`} aria-label="Filter by organization type">
+                <Select value={type} onChange={(e) => pickType(e.target.value)} className={`${INPUT} sm:max-w-[220px]`} aria-label="Filter by organization type">
                     <option value="all">All types</option>
                     {types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </Select>
@@ -421,6 +489,8 @@ const Organizations = () => {
                     <div className="p-8 space-y-3">
                         {[0, 1, 2].map((i) => <div key={i} className="animate-pulse h-12 bg-slate-100 rounded-xl" />)}
                     </div>
+                ) : loadFailed ? (
+                    <LoadFailed what="organizations" onRetry={reload} />
                 ) : visible.length === 0 ? (
                     <div className="px-6 py-16 text-center">
                         <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -438,8 +508,9 @@ const Organizations = () => {
                     <>
                     {/* From md up, the full table. Seven columns on a phone is a
                         sideways scroll nobody uses, so below that it becomes the
-                        card list underneath. */}
-                    <div className="hidden overflow-x-auto md:block">
+                        card list underneath — only one of them is built. */}
+                    {wide ? (
+                    <div className="overflow-x-auto">
                         {/* The ID sits under the name rather than in a column of
                             its own, and Actions is pinned to the right edge: with
                             eight columns the actions were the part that fell off
@@ -492,7 +563,7 @@ const Organizations = () => {
                                             <button
                                                 onClick={() => openStudents(org)}
                                                 title={org.studentCount || !canAssignTo(org) ? 'View its students' : 'No students yet — assign one'}
-                                                className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-slate-700 hover:text-indigo-600"
+                                                className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-slate-700 hover:text-indigo-600"
                                             >
                                                 <Users size={14} />{org.studentCount}
                                                 {org.studentCount === 0 && canAssignTo(org) && (
@@ -510,7 +581,7 @@ const Organizations = () => {
                                         <td className="px-3 py-3.5"><StatusPill status={org.status} /></td>
                                         <td className="whitespace-nowrap px-3 py-3.5 text-sm text-slate-600">{formatDate(org.createdAt)}</td>
                                         <td className="sticky right-0 bg-white px-5 py-3.5 transition-colors group-hover:bg-slate-50">
-                                            <div className="flex items-center justify-end gap-1 whitespace-nowrap [&>button]:rounded-lg [&>button]:px-2.5 [&>button]:py-1.5 [&>button:hover]:bg-slate-100">
+                                            <div className="flex items-center justify-end gap-1 whitespace-nowrap [&>button]:min-h-10 [&>button]:rounded-lg [&>button]:px-2.5 [&>button]:py-1.5 [&>button:hover]:bg-slate-100">
                                                 <RowActions org={org} onDetail={openDetail} onDecide={ask} />
                                             </div>
                                         </td>
@@ -519,9 +590,9 @@ const Organizations = () => {
                             </tbody>
                         </table>
                     </div>
-
-                    {/* Phones: one card per organization, same information. */}
-                    <ul className="divide-y divide-slate-100 md:hidden">
+                    ) : (
+                    /* Phones: one card per organization, same information. */
+                    <ul className="divide-y divide-slate-100">
                         {visible.map((org) => (
                             <li key={org._id} className="p-4">
                                 <div className="flex items-start gap-3">
@@ -542,7 +613,7 @@ const Organizations = () => {
                                         <dd className="mt-1">
                                             <button onClick={() => openStudents(org)}
                                                 title={org.studentCount || !canAssignTo(org) ? 'View its students' : 'No students yet — assign one'}
-                                                className="inline-flex items-center gap-1 text-sm font-bold tabular-nums text-indigo-600">
+                                                className="inline-flex min-h-10 items-center gap-1 text-sm font-bold tabular-nums text-indigo-600">
                                                 <Users size={13} />{org.studentCount}
                                                 {org.studentCount === 0 && canAssignTo(org) && <span className="text-xs">· Assign</span>}
                                             </button>
@@ -570,12 +641,14 @@ const Organizations = () => {
                                     <span className="break-all"> · {org.email}</span>
                                 </p>
 
-                                <div className="mt-3 flex flex-wrap gap-2 [&>button]:rounded-lg [&>button]:border [&>button]:border-slate-200 [&>button]:px-3.5 [&>button]:py-1.5">
+                                <div className="mt-3 flex flex-wrap gap-2 [&>button]:min-h-10 [&>button]:rounded-lg [&>button]:border [&>button]:border-slate-200 [&>button]:px-3.5 [&>button]:py-1.5">
                                     <RowActions org={org} onDetail={openDetail} onDecide={ask} />
                                 </div>
                             </li>
                         ))}
                     </ul>
+                    )}
+                    {total !== null && <Pager page={page} limit={LIST_PAGE} total={total} onPage={setPage} noun="organizations" />}
                     </>
                 )}
             </div>
@@ -593,6 +666,7 @@ const Organizations = () => {
                         onClose={() => setDetail(null)}
                         onDecide={ask}
                         onStudents={openStudents}
+                        onDeleted={onDeleted}
                     />
                 )}
                 {courseAccessFor && (
@@ -601,10 +675,12 @@ const Organizations = () => {
                 {students && (
                     <StudentsModal
                         data={students}
+                        onRetry={() => openStudents(students.organization, { page: students.page || 1, search: students.search || '' })}
+                        onQuery={(query) => openStudents(students.organization, query)}
                         onClose={() => setStudents(null)}
                         onChanged={(message) => {
                             setNotice(message);
-                            refreshStudents(students.organization);
+                            refreshStudents(students);
                             setTimeout(() => setNotice(''), 5000);
                         }}
                     />
@@ -715,9 +791,172 @@ const CourseAccessCard = ({ organization, courseCount, onSaved, highlight }) => 
     );
 };
 
-const DetailModal = ({ detail, focus, onCourseAccessSaved, loading, onClose, onDecide, onStudents }) => {
+/**
+ * For an organization locked out of its account. Emails its admin the same
+ * one-hour, one-use link as "Forgot password?" on the sign-in page; there is
+ * deliberately no way here to type a password in for them.
+ */
+const SendResetLink = ({ organization }) => {
+    const [busy, setBusy] = useState(false);
+    const [message, setMessage] = useState(null);   // { kind: 'ok' | 'error', text }
+    const send = async () => {
+        if (!window.confirm(`Email ${organization.name}'s administrator a link to choose a new password?`)) return;
+        setBusy(true); setMessage(null);
+        try {
+            const r = await api.post(`/organizations/admin/${organization._id}/send-password-reset`);
+            setMessage({ kind: 'ok', text: r.data.message });
+        } catch (err) {
+            setMessage({ kind: 'error', text: err.response?.data?.message || 'Could not send the reset link.' });
+        } finally { setBusy(false); }
+    };
+    return (
+        <span className="mt-1 block">
+            <button type="button" onClick={send} disabled={busy}
+                className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:underline disabled:opacity-50">
+                {busy && <Loader2 size={12} className="animate-spin" />} Send password reset link
+            </button>
+            {message && <span role="status" className={`mt-0.5 block text-xs font-semibold ${message.kind === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>{message.text}</span>}
+        </span>
+    );
+};
+
+/**
+ * Deleting a registration — offered only for one that never became anything:
+ * rejected, never approved, and with no students. Everything else is kept and
+ * reinstated instead, and the server refuses the rest (409) with its reason,
+ * which is shown here, in the popup that asked.
+ */
+const canDelete = (org, studentCount) => Boolean(org) && org.status === 'rejected' && !org.approvedAt && !studentCount;
+
+const DeleteRegistration = ({ organization, onDeleted }) => {
+    const [asking, setAsking] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+
+    const remove = async () => {
+        setBusy(true);
+        setError('');
+        try {
+            const res = await api.delete(`/organizations/admin/${organization._id}`);
+            onDeleted(res.data?.message);
+        } catch (err) {
+            setError(err.response?.data?.message || 'Could not delete this registration.');
+            setBusy(false);
+        }
+    };
+
+    if (!asking) {
+        return (
+            <button type="button" onClick={() => setAsking(true)}
+                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50">
+                <Trash2 size={16} />Delete registration
+            </button>
+        );
+    }
+    return (
+        <section aria-label="Delete registration" className="rounded-2xl border border-red-200 bg-red-50 p-4 sm:p-5">
+            <h3 className="flex items-center gap-2 text-sm font-bold text-red-800"><Trash2 size={16} /> Delete this registration?</h3>
+            <p className="mt-1 text-sm text-red-700">
+                {organization.name} was rejected, never approved and has no students. Deleting removes the registration
+                and its sign-in for good; it cannot be undone. Its activity log is kept.
+            </p>
+            {error && <p role="alert" className="mt-3 rounded-xl border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
+            <div className="mt-4 flex flex-wrap justify-end gap-3">
+                <button type="button" onClick={() => { setAsking(false); setError(''); }} disabled={busy} className={BTN2} data-autofocus>Cancel</button>
+                <button type="button" onClick={remove} disabled={busy}
+                    className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">
+                    {busy && <Loader2 size={16} className="animate-spin" />}Delete registration
+                </button>
+            </div>
+        </section>
+    );
+};
+
+/** What the server's audit log calls each action, said in words. */
+const AUDIT_ACTIONS = {
+    'course-access': 'Changed course access',
+    edit: 'Edited details',
+    'send-password-reset': 'Sent a password reset link',
+    status: 'Changed status',
+    'assign-student': 'Assigned a student',
+    'unassign-student': 'Removed a student',
+    delete: 'Deleted the registration'
+};
+
+/**
+ * Who did what to this organization from the platform side — the latest 100
+ * entries of its audit log. Closed until asked for, and only then fetched.
+ */
+const ActivityLog = ({ organizationId }) => {
+    const [open, setOpen] = useState(false);
+    const [entries, setEntries] = useState(null);
+    const [failed, setFailed] = useState(false);
+
+    const load = async () => {
+        setFailed(false);
+        try {
+            const res = await api.get(`/organizations/admin/${organizationId}/audit`);
+            const data = res.data;
+            setEntries(Array.isArray(data) ? data : data?.entries || []);
+        } catch {
+            setFailed(true);
+        }
+    };
+    const toggle = () => {
+        setOpen((v) => !v);
+        if (!open && entries === null) load();
+    };
+
+    const describe = (entry) => {
+        const d = entry.details || {};
+        if (entry.action === 'status' && d.to) return `Status ${d.from ? `${d.from} → ` : 'set to '}${d.to}${d.reason ? ` — ${d.reason}` : ''}`;
+        if (d.movedFrom?.name && d.studentName) return `Moved ${d.studentName} here from ${d.movedFrom.name}`;
+        if (d.movedTo?.name && d.studentName) return `Moved ${d.studentName} to ${d.movedTo.name}`;
+        if (Array.isArray(d.fields) && d.fields.length) return `${AUDIT_ACTIONS[entry.action] || entry.action}: ${d.fields.join(', ')}`;
+        if (d.studentName) return `${AUDIT_ACTIONS[entry.action] || entry.action}: ${d.studentName}`;
+        return AUDIT_ACTIONS[entry.action] || String(entry.action || '').replace(/[-_]/g, ' ');
+    };
+
+    return (
+        <div>
+            <button type="button" onClick={toggle} aria-expanded={open}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-100">
+                <History size={15} /> Activity log
+                <ChevronDown size={15} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+            {open && (
+                <div className="mt-2">
+                    {failed ? (
+                        <LoadFailed what="the activity log" onRetry={load} />
+                    ) : entries === null ? (
+                        <div className="space-y-2">{[0, 1].map((i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}</div>
+                    ) : entries.length === 0 ? (
+                        <p className="text-sm text-slate-500">Nothing has been recorded for this organization yet.</p>
+                    ) : (
+                        <ol className="space-y-2" aria-label="Activity log entries">
+                            {entries.map((entry, i) => (
+                                <li key={entry._id || i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+                                    <span className="font-medium text-slate-800">{describe(entry)}</span>
+                                    <span className="text-slate-500">{formatDate(entry.at)}</span>
+                                    {(entry.adminName || entry.name) && <span className="text-slate-500">by {entry.adminName || entry.name}</span>}
+                                    {/* An action without a name of its own: what was asked of the server. */}
+                                    {!AUDIT_ACTIONS[entry.action] && entry.path && (
+                                        <span className="w-full break-all font-mono text-xs text-slate-400">{entry.method} {entry.path}</span>
+                                    )}
+                                </li>
+                            ))}
+                        </ol>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const DetailModal = ({ detail, focus, onCourseAccessSaved, loading, onClose, onDecide, onStudents, onDeleted }) => {
     const org = detail.organization;
     const coursesRef = useRef(null);
+    const { dialogProps, titleId } = useDialog(onClose);
     // Opened from the Courses column: go straight to the Course access card.
     useEffect(() => {
         if (focus === 'courses' && org && !loading) coursesRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -732,17 +971,17 @@ const DetailModal = ({ detail, focus, onCourseAccessSaved, loading, onClose, onD
            the screen. `min-h-0` on the body is what actually fixes that; the
            rest keeps the panel inside the viewport on a phone, where `dvh`
            accounts for the browser's own chrome. */
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-fade-in text-left" role="dialog" aria-modal="true" aria-label="Organization details">
+        <div {...dialogProps} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-fade-in text-left outline-none" aria-label="Organization details">
             <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-3xl flex flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden">
                 <div className="flex shrink-0 justify-between items-center gap-3 p-4 sm:p-6 border-b border-slate-200 bg-slate-50">
                     <div className="flex min-w-0 items-center gap-3">
                         {org && <OrgLogo org={org} size="h-12 w-12" />}
                         <div className="min-w-0">
-                            <h2 className="text-lg font-bold text-slate-800 truncate">{org?.name || 'Loading…'}</h2>
+                            <h2 id={titleId} className="text-lg font-bold text-slate-800 truncate">{org?.name || 'Loading…'}</h2>
                             {org && <p className="mt-0.5 font-mono text-sm text-slate-500">{org.orgCode}</p>}
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">✕</button>
+                    <button onClick={onClose} className={`text-xl leading-none ${ICON_BTN}`} aria-label="Close">✕</button>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-6 custom-scrollbar">
@@ -799,6 +1038,7 @@ const DetailModal = ({ detail, focus, onCourseAccessSaved, loading, onClose, onD
                                         {detail.admins?.length
                                             ? detail.admins.map((a) => a.email).join(', ')
                                             : 'No account — this organization cannot sign in'}
+                                        {detail.admins?.length > 0 && <SendResetLink organization={org} />}
                                     </Row>
                                 </div>
                             </div>
@@ -821,6 +1061,12 @@ const DetailModal = ({ detail, focus, onCourseAccessSaved, loading, onClose, onD
                                         ))}
                                     </ol>
                                 </div>
+                            )}
+
+                            <ActivityLog key={org._id} organizationId={org._id} />
+
+                            {canDelete(org, detail.studentCount) && (
+                                <DeleteRegistration key={`delete-${org._id}`} organization={org} onDeleted={onDeleted} />
                             )}
                         </>
                     )}
@@ -861,30 +1107,34 @@ const DetailModal = ({ detail, focus, onCourseAccessSaved, loading, onClose, onD
 const DecisionModal = ({ decision, onCancel, onConfirm }) => {
     const [reason, setReason] = useState('');
     const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
     const blocked = decision.needsReason && !reason.trim();
+    const { dialogProps, titleId } = useDialog(() => { if (!busy) onCancel(); });
 
     const submit = async () => {
         if (blocked) return;
         setBusy(true);
-        await onConfirm(reason.trim());
+        setError('');
+        const failed = await onConfirm(reason.trim());
+        if (failed) setError(failed);
         setBusy(false);
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4"
-            role="dialog" aria-modal="true" aria-label="Confirm this decision">
+        <div {...dialogProps} className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 outline-none sm:p-4"
+            aria-label="Confirm this decision">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[calc(100dvh-1.5rem)] overflow-hidden">
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6">
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
                         <AlertTriangle size={24} className="text-amber-600" />
                     </div>
-                    <h2 className="text-center text-lg font-bold text-slate-800">{decision.title}</h2>
+                    <h2 id={titleId} className="text-center text-lg font-bold text-slate-800">{decision.title}</h2>
                     <p className="mt-2 text-center text-sm text-slate-500">
                         {decision.org.name} · <span className="font-mono">{decision.org.orgCode}</span>
                     </p>
                     <p className="mt-3 text-center text-sm text-slate-500">
                         {decision.status === 'active'
-                            ? 'Its administrator will be able to sign in, and students will be able to join with its organization ID.'
+                            ? 'Its administrator will be able to sign in, and students will be able to join with its Organization ID.'
                             : 'Its administrator loses access and no new students can join. Existing members and all their learning progress are kept.'}
                     </p>
 
@@ -893,6 +1143,7 @@ const DecisionModal = ({ decision, onCancel, onConfirm }) => {
                             <label className={LABEL} htmlFor="decision-reason">Reason (the organization is told this)</label>
                             <textarea
                                 id="decision-reason"
+                                data-autofocus
                                 rows={3}
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
@@ -901,9 +1152,12 @@ const DecisionModal = ({ decision, onCancel, onConfirm }) => {
                             />
                         </div>
                     )}
+                    {error && (
+                        <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>
+                    )}
                 </div>
                 <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 px-4 py-4 sm:px-6">
-                    <button onClick={onCancel} className={BTN2} disabled={busy}>Cancel</button>
+                    <button onClick={onCancel} className={BTN2} disabled={busy} data-autofocus={!decision.needsReason || undefined}>Cancel</button>
                     <button
                         onClick={submit}
                         disabled={blocked || busy}
@@ -930,15 +1184,37 @@ const DecisionModal = ({ decision, onCancel, onConfirm }) => {
  * it may also move a student who already belongs elsewhere — and the picker says
  * which organization each candidate is currently in, so that is never a surprise.
  */
-const StudentsModal = ({ data, onClose, onChanged }) => {
+const StudentsModal = ({ data, onClose, onChanged, onRetry, onQuery }) => {
     const [adding, setAdding] = useState(false);
+    const { dialogProps, titleId } = useDialog(onClose);
+    // The table from sm up; one card per student below that — only one is built.
+    const wide = useMediaQuery('(min-width: 640px)');
+
+    // A server that pages answered with `total`: it searches, a beat after the
+    // last keystroke. One that does not sent everyone; the box narrows those here.
+    const paged = typeof data.total === 'number';
+    const [text, setText] = useState(data.search || '');
+    useEffect(() => {
+        if (!paged || text.trim() === (data.search || '').trim()) return undefined;
+        const timer = setTimeout(() => onQuery({ page: 1, search: text }), 300);
+        return () => clearTimeout(timer);
+    }, [text]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const rows = useMemo(() => {
+        const list = data.students || [];
+        const q = text.trim().toLowerCase();
+        if (paged || !q) return list;
+        return list.filter((s) => s.name?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q));
+    }, [data.students, text, paged]);
+    const searching = Boolean((paged ? data.search : text)?.trim());
 
     return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4" role="dialog" aria-modal="true" aria-label="Organization students">
+    <div {...dialogProps} className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 outline-none sm:p-4" aria-label="Organization students">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl flex flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden">
-            <div className="flex shrink-0 justify-between items-center gap-3 p-4 sm:p-6 border-b border-slate-200 bg-slate-50">
+            <div className="shrink-0 border-b border-slate-200 bg-slate-50 p-4 sm:p-6">
+            <div className="flex justify-between items-center gap-3">
                 <div className="min-w-0">
-                    <h2 className="truncate text-lg font-bold text-slate-800">{data.organization?.name}</h2>
+                    <h2 id={titleId} className="truncate text-lg font-bold text-slate-800">{data.organization?.name}</h2>
                     <p className="mt-0.5 font-mono text-sm text-slate-500">{data.organization?.orgCode}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -947,64 +1223,76 @@ const StudentsModal = ({ data, onClose, onChanged }) => {
                         a button with no name at all.
 
                         Not offered while the organization is pending: it has to
-                        be approved before anyone is put into it. A suspended one
-                        can still be stocked; the picker says plainly when its
-                        administrator cannot see the students yet. */}
+                        be approved before anyone is put into it — nor once it is
+                        rejected. A suspended one can still be stocked; the picker
+                        says plainly when its administrator cannot see the
+                        students yet. */}
                     {canAssignTo(data.organization) && (
                         <button onClick={() => setAdding(true)}
                             aria-label="Assign student"
                             title="Assign student"
-                            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition-colors hover:bg-indigo-700">
+                            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition-colors hover:bg-indigo-700">
                             <UserPlus size={15} /><span className="hidden sm:inline">Assign student</span>
                         </button>
                     )}
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">✕</button>
+                    <button onClick={onClose} className={`text-xl leading-none ${ICON_BTN}`} aria-label="Close">✕</button>
                 </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
-                {data.students === null ? (
+            {/* Only once there is somebody to look for. */}
+            {(searching || (data.students?.length > 0) || (paged && data.total > 0)) && (
+                <div className="mt-4">
+                    <SearchInput value={text} onChange={setText} placeholder="Search students by name or email..." label="Search this organization's students" className="sm:max-w-sm" />
+                </div>
+            )}
+            </div>
+            <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar ${data.busy ? 'opacity-60' : ''}`} aria-busy={data.busy || undefined}>
+                {data.failed ? (
+                    <LoadFailed what="these students" onRetry={onRetry} />
+                ) : data.students === null ? (
                     <div className="p-8 space-y-3">
                         {[0, 1, 2].map((i) => <div key={i} className="animate-pulse h-10 bg-slate-100 rounded-xl" />)}
                     </div>
-                ) : data.students.length === 0 ? (
+                ) : rows.length === 0 && searching ? (
+                    <div className="px-6 py-16 text-center">
+                        <p className="font-medium text-slate-500">No student matches that search.</p>
+                    </div>
+                ) : rows.length === 0 ? (
                     <div className="px-6 py-16 text-center">
                         <p className="font-medium text-slate-500">No students have joined this organization yet.</p>
                         {data.organization?.status === 'pending' ? (
                             <p className="mx-auto mt-3 max-w-sm rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
                                 This organization is pending. Approve it before assigning students to it.
                             </p>
-                        ) : (
+                        ) : canAssignTo(data.organization) ? (
                             <p className="mt-1 text-sm text-slate-400">Use “Assign student” to put one in directly.</p>
-                        )}
-                        {data.organization?.status && !['active', 'pending'].includes(data.organization.status) && (
+                        ) : null}
+                        {data.organization?.status && !['active', 'pending', 'rejected'].includes(data.organization.status) && (
                             <p className="mx-auto mt-3 max-w-sm rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
                                 This organization is {data.organization.status}. You can add students now, but its
                                 administrator cannot sign in to see them until it is active.
                             </p>
                         )}
                     </div>
-                ) : (
-                    <>
-                    {/* The table from sm up; one card per student below that. */}
-                    <table className="hidden w-full text-left border-collapse sm:table">
+                ) : wide ? (
+                    <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold tracking-widest text-slate-400 uppercase">
                                 <th className="px-4 py-3 sm:px-6">Student</th>
                                 <th className="px-4 py-3 sm:px-6">Courses</th>
-                                <th className="px-4 py-3 sm:px-6">Progress</th>
+                                <th className="px-4 py-3 sm:px-6" title="Average across all the student's enrolled courses">Overall progress</th>
                                 <th className="px-4 py-3 sm:px-6">XP</th>
                                 <th className="px-4 py-3 sm:px-6">Last active</th>
                                 <th className="px-4 py-3 sm:px-6" />
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {data.students.map((s) => (
+                            {rows.map((s) => (
                                 <tr key={s._id} className="hover:bg-slate-50/50">
                                     <td className="px-4 py-3 sm:px-6">
                                         <div className="font-medium text-slate-800">{s.name}</div>
                                         <div className="text-sm text-slate-500 break-all">{s.email}</div>
                                     </td>
-                                    <td className="px-4 py-3 text-sm text-slate-600 tabular-nums sm:px-6">{s.coursesCompleted}/{s.coursesEnrolled}</td>
+                                    <td className="px-4 py-3 text-sm text-slate-600 tabular-nums sm:px-6">{s.coursesCompleted} of {s.coursesEnrolled}</td>
                                     <td className="px-4 py-3 text-sm font-semibold text-slate-700 tabular-nums sm:px-6">{s.progressPercent}%</td>
                                     <td className="px-4 py-3 text-sm text-slate-600 tabular-nums sm:px-6">{s.xp}</td>
                                     <td className="px-4 py-3 text-sm text-slate-500 sm:px-6">{s.lastActive ? formatDate(s.lastActive) : 'Never'}</td>
@@ -1015,15 +1303,15 @@ const StudentsModal = ({ data, onClose, onChanged }) => {
                             ))}
                         </tbody>
                     </table>
-
-                    <ul className="divide-y divide-slate-100 sm:hidden">
-                        {data.students.map((s) => (
+                ) : (
+                    <ul className="divide-y divide-slate-100">
+                        {rows.map((s) => (
                             <li key={s._id} className="p-4">
                                 <p className="font-medium text-slate-800">{s.name}</p>
                                 <p className="break-all text-sm text-slate-500">{s.email}</p>
                                 <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                                    <div><dt className="inline text-slate-400">Courses: </dt><dd className="inline font-medium text-slate-700 tabular-nums">{s.coursesCompleted}/{s.coursesEnrolled}</dd></div>
-                                    <div><dt className="inline text-slate-400">Progress: </dt><dd className="inline font-medium text-slate-700 tabular-nums">{s.progressPercent}%</dd></div>
+                                    <div><dt className="inline text-slate-400">Courses: </dt><dd className="inline font-medium text-slate-700 tabular-nums">{s.coursesCompleted} of {s.coursesEnrolled}</dd></div>
+                                    <div><dt className="inline text-slate-400">Overall progress: </dt><dd className="inline font-medium text-slate-700 tabular-nums">{s.progressPercent}%</dd></div>
                                     <div><dt className="inline text-slate-400">XP: </dt><dd className="inline font-medium text-slate-700 tabular-nums">{s.xp}</dd></div>
                                     <div><dt className="inline text-slate-400">Last active: </dt><dd className="inline text-slate-600">{s.lastActive ? formatDate(s.lastActive) : 'Never'}</dd></div>
                                 </dl>
@@ -1033,9 +1321,12 @@ const StudentsModal = ({ data, onClose, onChanged }) => {
                             </li>
                         ))}
                     </ul>
-                    </>
                 )}
             </div>
+            {paged && !data.failed && (
+                <Pager page={data.page || 1} limit={data.limit || LIST_PAGE} total={data.total}
+                    onPage={(n) => onQuery({ page: n, search: data.search || '' })} />
+            )}
         </div>
 
         {adding && (
@@ -1053,16 +1344,19 @@ const StudentsModal = ({ data, onClose, onChanged }) => {
 const RemoveFromOrganization = ({ organization, student, onDone }) => {
     const [asking, setAsking] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
 
     const remove = async () => {
         setBusy(true);
+        setError('');
         try {
             const res = await api.delete(`/organizations/admin/${organization._id}/students/${student._id}`);
             setAsking(false);
             onDone(res.data.message);
         } catch (err) {
-            onDone(err.response?.data?.message || 'Could not remove that student.');
-            setAsking(false);
+            // Shown here, in red, in the dialog that asked. Handed to onDone it
+            // became the page's green notice, under the students popup.
+            setError(err.response?.data?.message || 'Could not remove that student.');
         } finally {
             setBusy(false);
         }
@@ -1071,34 +1365,56 @@ const RemoveFromOrganization = ({ organization, student, onDone }) => {
     return (
         <>
             <button onClick={() => setAsking(true)}
-                className="text-sm font-medium text-red-500 transition-colors hover:text-red-700">
+                className="inline-flex min-h-10 items-center rounded-lg px-2 text-sm font-medium text-red-500 transition-colors hover:bg-red-50 hover:text-red-700">
                 Remove
             </button>
 
             {asking && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4" role="dialog" aria-modal="true">
-                    <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl">
-                        <div className="p-5 text-center sm:p-6">
-                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-                                <UserMinus size={24} className="text-amber-600" />
-                            </div>
-                            <h3 className="text-lg font-bold text-slate-800">Remove {student.name}?</h3>
-                            <p className="mt-3 text-sm text-slate-500">
-                                They leave {organization.name}. Their account, courses, progress, XP and certificates
-                                are untouched — nothing is deleted.
-                            </p>
-                        </div>
-                        <div className="flex justify-end gap-3 border-t border-slate-100 px-4 py-4 sm:px-6">
-                            <button onClick={() => setAsking(false)} className={BTN2} disabled={busy}>Cancel</button>
-                            <button onClick={remove} disabled={busy}
-                                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">
-                                {busy && <Loader2 size={16} className="animate-spin" />}Remove
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ConfirmDialog
+                    label={`Remove ${student.name}`}
+                    icon={<UserMinus size={24} className="text-amber-600" />}
+                    title={`Remove ${student.name}?`}
+                    busy={busy}
+                    error={error}
+                    confirm="Remove"
+                    onCancel={() => { setAsking(false); setError(''); }}
+                    onConfirm={remove}
+                >
+                    They leave {organization.name}. Their account, courses, progress, XP and certificates
+                    are untouched — nothing is deleted.
+                </ConfirmDialog>
             )}
         </>
+    );
+};
+
+/**
+ * A small "are you sure?" over another popup — removing a student, moving one
+ * between organizations. Escape and Cancel back out; nothing is sent until the
+ * red or amber button is pressed, and an error stays in here, in red.
+ */
+const ConfirmDialog = ({ label, icon, title, children, busy, error, confirm, tone = 'red', onCancel, onConfirm }) => {
+    const { dialogProps, titleId } = useDialog(() => { if (!busy) onCancel(); });
+    return (
+        <div {...dialogProps} aria-label={label} className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 outline-none sm:p-4">
+            <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl">
+                <div className="p-5 text-center sm:p-6">
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">{icon}</div>
+                    <h3 id={titleId} className="text-lg font-bold text-slate-800">{title}</h3>
+                    <p className="mt-3 text-sm text-slate-500">{children}</p>
+                    {error && (
+                        <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>
+                    )}
+                </div>
+                <div className="flex justify-end gap-3 border-t border-slate-100 px-4 py-4 sm:px-6">
+                    <button onClick={onCancel} className={BTN2} disabled={busy} data-autofocus>Cancel</button>
+                    <button onClick={onConfirm} disabled={busy}
+                        className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50 ${tone === 'amber' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-red-600 hover:bg-red-700'}`}>
+                        {busy && <Loader2 size={16} className="animate-spin" />}{confirm}
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -1133,6 +1449,9 @@ const AssignStudentModal = ({ organization, onClose, onAssigned }) => {
      * search always starts short.
      */
     const [showing, setShowing] = useState(PAGE);
+    // A student who already belongs elsewhere, waiting for "Move here" to be confirmed.
+    const [moving, setMoving] = useState(null);
+    const { dialogProps, titleId } = useDialog(() => { if (!assigning) onClose(); });
 
     // Reloads as the search is typed, a beat after the last keystroke so it is
     // one request per pause rather than one per letter.
@@ -1163,6 +1482,7 @@ const AssignStudentModal = ({ organization, onClose, onAssigned }) => {
         setError('');
         try {
             const res = await api.post(`/organizations/admin/${organization._id}/students`, { studentId: student._id });
+            setMoving(null);
             onAssigned(res.data.message);
         } catch (err) {
             setError(err.response?.data?.message || 'Could not assign that student.');
@@ -1170,19 +1490,23 @@ const AssignStudentModal = ({ organization, onClose, onAssigned }) => {
         }
     };
 
+    // Taking a student out of their institution is asked about first; adding
+    // one who belongs nowhere is not.
+    const choose = (student) => (student.currentOrganization ? setMoving(student) : assign(student));
+
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4"
-            role="dialog" aria-modal="true" aria-label="Assign a student">
+        <div {...dialogProps} className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 outline-none sm:p-4"
+            aria-label="Assign a student">
             <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)]">
                 <div className="shrink-0 border-b border-slate-200 bg-slate-50 p-4 sm:p-6">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <h2 className="text-lg font-bold text-slate-800">Assign a student</h2>
+                            <h2 id={titleId} className="text-lg font-bold text-slate-800">Assign a student</h2>
                             <p className="mt-0.5 truncate text-sm text-slate-500">
                                 into {organization.name} · <span className="font-mono">{organization.orgCode}</span>
                             </p>
                         </div>
-                        <button onClick={onClose} className="shrink-0 text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">✕</button>
+                        <button onClick={onClose} className={`text-xl leading-none ${ICON_BTN}`} aria-label="Close">✕</button>
                     </div>
 
                     {organization.status && organization.status !== 'active' && (
@@ -1192,15 +1516,8 @@ const AssignStudentModal = ({ organization, onClose, onAssigned }) => {
                         </p>
                     )}
 
-                    <div className="relative mt-4">
-                        <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search by name, email or card number..."
-                            autoFocus
-                            className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm shadow-sm focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600"
-                        />
-                        <Search className="absolute left-3.5 top-3 text-slate-400" size={18} />
+                    <div className="mt-4">
+                        <SearchInput value={search} onChange={setSearch} placeholder="Search by name, email or card number..." label="Search students to assign" className="" data-autofocus />
                     </div>
                 </div>
 
@@ -1235,7 +1552,7 @@ const AssignStudentModal = ({ organization, onClose, onAssigned }) => {
                                         )}
                                     </div>
                                     <button
-                                        onClick={() => assign(student)}
+                                        onClick={() => choose(student)}
                                         disabled={Boolean(assigning)}
                                         className={student.currentOrganization
                                             ? 'inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-bold text-amber-700 hover:bg-amber-50 disabled:opacity-50'
@@ -1276,6 +1593,23 @@ const AssignStudentModal = ({ organization, onClose, onAssigned }) => {
                     )}
                 </div>
             </div>
+
+            {moving && (
+                <ConfirmDialog
+                    label="Confirm move"
+                    icon={<ArrowRight size={24} className="text-amber-600" />}
+                    title={`Move ${moving.name} from ${moving.currentOrganization.name} to ${organization.name}?`}
+                    busy={assigning === moving._id}
+                    error={error}
+                    confirm="Move"
+                    tone="amber"
+                    onCancel={() => { setMoving(null); setError(''); }}
+                    onConfirm={() => assign(moving)}
+                >
+                    They leave {moving.currentOrganization.name}, which can no longer see their progress, and
+                    join {organization.name}. Their account, courses, progress, XP and certificates are untouched.
+                </ConfirmDialog>
+            )}
         </div>
     );
 };
@@ -1294,6 +1628,7 @@ const CreateModal = ({ types, onClose, onCreated }) => {
     const [codeStatus, setCodeStatus] = useState({ state: '' });
 
     const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+    const { dialogProps, titleId } = useDialog(() => { if (!busy) onClose(); });
 
     const submit = async (e) => {
         e.preventDefault();
@@ -1314,22 +1649,22 @@ const CreateModal = ({ types, onClose, onCreated }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4" role="dialog" aria-modal="true" aria-label="Add organization">
+        <div {...dialogProps} className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 outline-none sm:p-4" aria-label="Add organization">
             <form onSubmit={submit} className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden">
                 <div className="flex shrink-0 justify-between items-center p-4 sm:p-6 border-b border-slate-200 bg-slate-50">
-                    <h2 className="text-lg font-bold text-slate-800">Add an organization</h2>
-                    <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">✕</button>
+                    <h2 id={titleId} className="text-lg font-bold text-slate-800">Add an organization</h2>
+                    <button type="button" onClick={onClose} className={`text-xl leading-none ${ICON_BTN}`} aria-label="Close">✕</button>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
                     <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
                         An organization you add here opens <strong>active</strong> straight away — you are admitting it
-                        yourself, so there is nothing left to approve. Type the organization ID its students will use.
+                        yourself, so there is nothing left to approve. Type the Organization ID its students will use.
                     </p>
 
                     <div>
                         <label className={LABEL} htmlFor="org-name">Organization name <span className="text-red-500">*</span></label>
-                        <input id="org-name" required value={form.name} onChange={set('name')} className={INPUT} />
+                        <input id="org-name" required value={form.name} onChange={set('name')} className={INPUT} data-autofocus />
                     </div>
                     <div>
                         <label className={LABEL} htmlFor="org-code">Organization ID <span className="text-red-500">*</span></label>

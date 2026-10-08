@@ -181,6 +181,7 @@ export default function Dropdown({
                         }`}>
                         <Check size={15} aria-hidden="true" className={on ? `shrink-0 ${tone.tick}` : 'shrink-0 text-transparent'} />
                         <span className="min-w-0 flex-1">{o.label}</span>
+                        {o.hint && <span className="shrink-0 text-xs font-medium text-slate-400">{o.hint}</span>}
                     </li>
                 );
             })}
@@ -197,7 +198,10 @@ export default function Dropdown({
                 className={className}
             >
                 {Icon && <Icon size={17} className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 ${tone.icon}`} aria-hidden="true" />}
-                <span className="block truncate text-left">{selected ? selected.label : ''}</span>
+                <span className="block truncate text-left">
+                    {selected ? selected.label : ''}
+                    {selected?.hint && <span className="ml-1.5 text-xs font-medium text-slate-400">· {selected.hint}</span>}
+                </span>
                 <ChevronDown size={17} aria-hidden="true"
                     className={`pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
             </button>
