@@ -322,13 +322,20 @@ const MineTab = () => {
                 <Box>
                     <ul className="divide-y divide-slate-100">
                         {data.competitions.map((c) => (
-                            <li key={c.id} className="flex flex-wrap items-center gap-3 py-3">
-                                <span className="text-2xl" aria-hidden="true">{c.emoji}</span>
+                            <li key={c.id} className="flex items-start gap-3 py-3">
+                                <span className="text-2xl leading-none" aria-hidden="true">{c.emoji}</span>
+                                {/* The chip sits beside the name only, and the
+                                    details run the full width under both. Beside
+                                    the whole block, on a phone, the chip squeezed
+                                    the name to "Inter c…" and the details to a
+                                    column two words wide. */}
                                 <span className="min-w-0 flex-1">
-                                    <Link to={`/competitions/${c.id}`} className="block truncate text-sm font-bold text-slate-900 hover:text-indigo-700">{c.name}</Link>
-                                    <span className="block text-xs text-slate-500">Team: {c.myTeam?.teamName} · {c.myTeam?.status === 'approved' ? 'Approved' : 'Pending approval'} · {fmtDateTime(c.startsAt)}</span>
+                                    <span className="flex items-start justify-between gap-2">
+                                        <Link to={`/competitions/${c.id}`} className="min-w-0 break-words text-sm font-bold text-slate-900 hover:text-indigo-700">{c.name}</Link>
+                                        <span className="shrink-0"><StatusChip status={c.status} phase={c.phase} /></span>
+                                    </span>
+                                    <span className="mt-0.5 block text-xs text-slate-500">Team: {c.myTeam?.teamName} · {c.myTeam?.status === 'approved' ? 'Approved' : 'Pending approval'} · {fmtDateTime(c.startsAt)}</span>
                                 </span>
-                                <StatusChip status={c.status} phase={c.phase} />
                             </li>
                         ))}
                     </ul>
