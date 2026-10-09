@@ -21,6 +21,9 @@ const achievementSchema = new mongoose.Schema({
     fileType: { type: String, enum: ['image', 'pdf'], required: true },
     storage: { type: String, enum: ['bunny', 'cloudinary'], default: 'bunny' },
     objectPath: { type: String, default: '' },   // Bunny
+    // A PDF's page-one picture, drawn by the student's browser at upload
+    // (Bunny has no PDF renderer); stored beside it, removed with it.
+    thumbnailObjectPath: { type: String, default: '' },
     publicId: { type: String, default: '' },     // Cloudinary
     originalName: { type: String, default: '' }
 }, { timestamps: true });

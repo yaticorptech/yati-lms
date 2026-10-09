@@ -15,6 +15,8 @@ const { completeTask } = require('../services/taskCompletionService');
 const { xpFor } = require('../../rewards/services/configService');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 const { toISODate } = require('../services/dailyPlanService');
+const { hasFullAccess } = require('../../services/fullAccess');
+const { safeRecordActivity } = require('../../rewards/services/activityService');
 
 // Every question must be right. A task is completed by its lesson, so "passed"
 // has to mean the student actually understood the material — not that they got
@@ -27,6 +29,15 @@ const { toISODate } = require('../services/dailyPlanService');
 // Deliberately NOT shared with the skill-level quiz in studyController, which
 // is revision rather than a completion gate and keeps its own 60% mark.
 const QUIZ_PASS_MARK = 1;
+
+// The demo cards (services/fullAccess.js) pass with one right answer — the
+// account owner's rule, 2026-10-09, for the cards used to show the product.
+const DEMO_QUIZ_PASS_SCORE = 1;
+
+/** How many right answers pass a lesson quiz of `total` questions, for this student. */
+const passMarkFor = (total, user) => (total > 0 && hasFullAccess(user)
+  ? Math.min(DEMO_QUIZ_PASS_SCORE, total)
+  : Math.ceil(total * QUIZ_PASS_MARK));
 
 // A video counts as watched at 90% rather than 100%: end cards, outros and
 // sponsor reads mean the last tenth is rarely the lesson, and demanding the
@@ -41,9 +52,13 @@ const VIDEO_WATCHED_FRACTION = 0.9;
  * exist would strand the task permanently. `allMet` additionally requires at
  * least one real step, so a lesson that generated nothing never silently
  * completes the task it belongs to.
+ *
+ * `user` is the student the lesson belongs to: it sets the quiz's pass mark
+ * (see passMarkFor). Without one, the usual mark — every answer.
  */
-const lessonGates = (study) => {
+const lessonGates = (study, user) => {
   const total = study.quiz?.length || 0;
+  const passMark = passMarkFor(total, user);
 
   const needsVideo = !!study.video?.videoId;
   const needsNotes = !!(study.notes?.summary || study.notes?.sections?.length);
@@ -51,7 +66,7 @@ const lessonGates = (study) => {
 
   const videoWatched = !needsVideo || !!study.progress?.videoWatched;
   const notesRead = !needsNotes || !!study.progress?.notesRead;
-  const quizPassed = !needsQuiz || (study.bestScore || 0) / total >= QUIZ_PASS_MARK;
+  const quizPassed = !needsQuiz || (study.bestScore || 0) >= passMark;
 
   const stepCount = [needsVideo, needsNotes, needsQuiz].filter(Boolean).length;
 
@@ -62,7 +77,7 @@ const lessonGates = (study) => {
     videoWatched,
     notesRead,
     quizPassed,
-    passMark: Math.ceil(total * QUIZ_PASS_MARK),
+    passMark,
     allMet: stepCount > 0 && videoWatched && notesRead && quizPassed
   };
 };
@@ -73,12 +88,12 @@ const lessonGates = (study) => {
  * Called after any progress change. `completeTask` is idempotent, so the
  * repeated calls this produces cannot double-award XP.
  */
-const maybeAutoComplete = async (userId, study) => {
-  const gates = lessonGates(study);
+const maybeAutoComplete = async (user, study) => {
+  const gates = lessonGates(study, user);
   if (!gates.allMet) return { gates, autoCompleted: false, task: null, completionXp: 0 };
 
-  const task = await Task.findOne({ _id: study.taskId, userId });
-  const { completed, xp } = await completeTask(userId, task);
+  const task = await Task.findOne({ _id: study.taskId, userId: user._id });
+  const { completed, xp } = await completeTask(user._id, task);
 
   if (completed) {
     study.autoCompletedAt = new Date();
@@ -96,10 +111,68 @@ const maybeAutoComplete = async (userId, study) => {
 };
 
 /**
+ * The demo cards' lesson videos come watched (the account owner's rule,
+ * 2026-10-09).
+ *
+ * The ten cards in services/fullAccess.js are used to show the product, so
+ * whenever one of them opens or builds a task's lesson, the video counts as
+ * watched to its last second: the watch bar reads 100%, and nothing waits on
+ * the student sitting through it — or stops them skipping about in it. Every
+ * day, on any computer. Read and Quiz stay theirs to do: the task completes
+ * the usual way, once the notes are read and the quiz passed by hand. Every
+ * other account is untouched.
+ *
+ * The watch pays what it pays any student, under the same once-only ledger
+ * key: opening the lesson again pays nothing twice. Never throws — a problem
+ * here must not cost the card its lesson.
+ */
+const watchForDemoCard = async (user, study) => {
+  if (!study || !hasFullAccess(user)) return null;
+  try {
+    const gates = lessonGates(study, user);
+    let changed = false;
+
+    if (gates.needsVideo) {
+      if (!study.progress?.videoWatched) {
+        study.set('progress.videoWatched', true);
+        study.set('progress.videoWatchedAt', new Date());
+        changed = true;
+        // What PUT /study/progress pays for a watched video (see taskRoutes).
+        if (await xpFor('task_video_watched')) {
+          await safeRecordActivity({ userId: user._id, type: 'task_video_watched', refId: `video:${study.taskId}` });
+        }
+      }
+      const full = Number(study.video?.durationSeconds) || 0;
+      if (full > (study.progress?.watchedSeconds || 0)) {
+        study.set('progress.watchedSeconds', full);
+        changed = true;
+      }
+    }
+
+    if (changed) await study.save();
+    // The video may have been the last step left — notes read and quiz passed
+    // before a "Different video" swap, or a lesson that has nothing else.
+    return await maybeAutoComplete(user, study);
+  } catch (error) {
+    console.error('Could not mark a demo card video watched:', error.message);
+    return null;
+  }
+};
+
+/**
+ * What a lesson response adds when the watched video just completed the task,
+ * in the shape the progress and quiz answers use, so the planner marks the
+ * task done and celebrates it once.
+ */
+const completionFields = (outcome) => (outcome?.autoCompleted
+  ? { autoCompleted: true, task: outcome.task, completionXp: outcome.completionXp }
+  : {});
+
+/**
  * Strip the answer key before sending a lesson to the browser. Grading happens
  * on the server; shipping correctIndex would put every answer in the page source.
  */
-const publicView = (study) => {
+const publicView = (study, user) => {
   const doc = study.toObject ? study.toObject() : study;
   return {
     ...doc,
@@ -108,7 +181,7 @@ const publicView = (study) => {
       question: q.question,
       options: q.options
     })),
-    gates: lessonGates(study)
+    gates: lessonGates(study, user)
   };
 };
 
@@ -163,7 +236,8 @@ const getTaskStudy = async (req, res) => {
       }
     }
 
-    res.status(200).json(publicView(study));
+    const outcome = await watchForDemoCard(req.user, study);
+    res.status(200).json({ ...publicView(study, req.user), ...completionFields(outcome) });
   } catch (error) {
     res.status(statusFor(error)).json(aiAwareBody(error));
   }
@@ -228,7 +302,8 @@ const swapVideoOnly = async (req, res, { task, goal, study, lang }) => {
   study.set('progress.watchedSeconds', 0);
   await study.save();
 
-  return res.status(201).json(publicView(study));
+  const outcome = await watchForDemoCard(req.user, study);
+  return res.status(201).json({ ...publicView(study, req.user), ...completionFields(outcome) });
 };
 
 // @desc    Build (or rebuild) the video + notes + quiz lesson for one task
@@ -349,7 +424,8 @@ const generateTaskStudy = async (req, res) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    res.status(201).json(publicView(study));
+    const outcome = await watchForDemoCard(req.user, study);
+    res.status(201).json({ ...publicView(study, req.user), ...completionFields(outcome) });
   } catch (error) {
     console.error('Task study generation error:', error);
     res.status(statusFor(error)).json(aiAwareBody(error, 'Failed to build the lesson.'));
@@ -386,10 +462,12 @@ const submitTaskQuiz = async (req, res) => {
 
     const score = results.filter((r) => r.correct).length;
     const total = study.quiz.length;
-    const passed = score / total >= QUIZ_PASS_MARK;
+    // Every answer, or one for a demo card (see passMarkFor).
+    const passMark = passMarkFor(total, req.user);
+    const passed = score >= passMark;
 
     // First pass only — a quiz already beaten cannot be re-farmed for XP.
-    const earnsXp = passed && study.bestScore / total < QUIZ_PASS_MARK;
+    const earnsXp = passed && study.bestScore < passMark;
 
     study.attempts += 1;
     study.lastAttemptAt = new Date();
@@ -411,7 +489,7 @@ const submitTaskQuiz = async (req, res) => {
 
     // Passing is usually the last of the three gates, so this is where the task
     // most often finishes itself.
-    const { gates, autoCompleted, completionXp } = await maybeAutoComplete(req.user._id, study);
+    const { gates, autoCompleted, completionXp } = await maybeAutoComplete(req.user, study);
 
     res.status(200).json({
       score,
@@ -465,7 +543,7 @@ const updateStudyProgress = async (req, res) => {
 
     await study.save();
 
-    const { gates, autoCompleted, task, completionXp } = await maybeAutoComplete(req.user._id, study);
+    const { gates, autoCompleted, task, completionXp } = await maybeAutoComplete(req.user, study);
 
     res.status(200).json({
       progress: study.progress,

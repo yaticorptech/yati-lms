@@ -34,6 +34,7 @@
     "chart.js": "^4.5.1",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.575.0",
+    "pdfjs-dist": "^6.4.299",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
