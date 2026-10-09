@@ -627,7 +627,10 @@ const StudentLayout = () => {
                     <div className="shrink-0 [&_button]:text-emerald-600 [&_button:hover]:bg-slate-100 [&_svg]:text-emerald-600">
                         {renderNotificationBell()}
                     </div>
-                    <button onClick={() => setMobileMenuOpen(true)} aria-label="Open menu" className="shrink-0 p-2 text-slate-700">
+                    {/* data-loop-quiet: the mascot does not explain the menu
+                        button (or its Close partner) — it talked over every
+                        opening of the sidebar. */}
+                    <button onClick={() => setMobileMenuOpen(true)} aria-label="Open menu" data-loop-quiet className="shrink-0 p-2 text-slate-700">
                         <Menu size={24} aria-hidden="true" />
                     </button>
                 </div>
@@ -650,7 +653,7 @@ const StudentLayout = () => {
                     <div className="relative w-4/5 max-w-sm bg-white text-slate-700 h-full flex flex-col overflow-y-auto shadow-2xl animate-fade-in border-r border-slate-200">
                         <div className="sticky top-0 z-10 p-4 flex items-center justify-between border-b border-slate-100 bg-white">
                             <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 object-contain" />
-                            <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu" className="p-2 text-slate-400 hover:text-slate-700">
+                            <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu" data-loop-quiet className="p-2 text-slate-400 hover:text-slate-700">
                                 <X size={24} aria-hidden="true" />
                             </button>
                         </div>
