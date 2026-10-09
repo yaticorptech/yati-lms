@@ -130,6 +130,10 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
         // Tell the planner this task is gated by a lesson, so it drops the
         // manual tick even if the list was fetched before the lesson existed.
         if (data) onLessonReady?.(task._id);
+        // A demo card's video arrives watched (see watchForDemoCard on the
+        // server). When that was the last step, the task completed with it,
+        // and the planner hears it here.
+        if (data?.autoCompleted) applyOutcome(data);
       })
       .catch(() => {
         if (!cancelled) setStudy(null);
@@ -177,6 +181,8 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
       if (!replaceVideo) setQuizStarted(false);
       // The task is gated from now on — the planner drops its manual tick.
       onLessonReady?.(task._id);
+      // A demo card's new video comes watched; if nothing else was left, the task is done.
+      if (data?.autoCompleted) applyOutcome(data);
       toast.success(
         replaceVideo
           ? 'Here is a different video. Your notes and quiz are unchanged.'
@@ -503,7 +509,8 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               material={study}
               onSubmit={handleSubmitQuiz}
               submitting={submitting}
-              requireAllCorrect
+              // The server's pass mark: every answer, or one for a demo card.
+              requireAllCorrect={!(study.gates?.passMark < study.quiz.length)}
             />
           ) : (
             <QuizStartCard
@@ -533,8 +540,9 @@ function QuizStartCard({ total, best, attempts, passed, onStart }) {
         ? 'So close! One more go?'
         : 'Ready for another try?'
       : 'Ready to test yourself?';
+  // A demo card passes with fewer than every answer right (see passMarkFor on the server).
   const subline = passed
-    ? 'Every answer right — this step is done.'
+    ? best >= total ? 'Every answer right — this step is done.' : 'Passed — this step is done.'
     : attempts > 0
       ? 'Take your time — every answer is explained after you submit.'
       : 'Quick questions on what you just learnt.';

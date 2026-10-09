@@ -127,8 +127,8 @@ const CareerGate = () => {
 const CareerFallback = () => <YatiLoader label="Loading this page" />;
 
 // ─── Loop Walker ─────────────────────────────────────────────────────────────
-// Loop walks over and explains any element tagged data-explain="<key>", and any
-// button. The words live here, module-level so every render hands the mascot
+// Loop explains, from its corner, any element tagged data-explain="<key>", and
+// any button. The words live here, module-level so every render hands the mascot
 // the same objects. On a touch screen there is no cursor, so Loop says "tap"
 // rather than "click".
 const LOOP_TOUCH = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
@@ -138,7 +138,7 @@ const LOOP_HIDDEN_ON = ['/login', '/signup'];
 const LOOP_GREETING = {
   text: LOOP_TOUCH
     ? "Hi, I'm Loop, your YATICORP LMS guide! Tap anything and I'll explain it."
-    : "Hi, I'm Loop, your YATICORP LMS guide! Move the cursor and I'll follow — pause on anything and I'll explain it."
+    : "Hi, I'm Loop, your YATICORP LMS guide! Pause on any button and I'll explain it."
 };
 const LOOP_EXPLAIN = {
   // Dashboard → Available courses: the price tag on every course card.
@@ -206,9 +206,15 @@ function App() {
   return (
     <>
     {/* 120px on a laptop (the package's 170 filled too much of the screen);
-        140px on a phone, where the package's width cap held it to ~94px.
-        hint={false}: no "Drag to lead it…" pill in the corner, on any screen. */}
-    {showLoop && <LoopWalker greeting={LOOP_GREETING} explain={LOOP_EXPLAIN} describeButton={describeLoopButton} height={120} mobileHeight={140} hint={false} />}
+        86px on a phone (screens under 640px): standing in the corner at
+        140px it covered the buttons it was explaining (2026-10-09).
+        hint={false}: no "Drag to lead it…" pill in the corner, on any screen.
+        mode="stand": Loop stands still in the bottom right corner and does
+        not walk around the page (the account owner's call, 2026-10-09; the
+        walking modes are still in the package if they want it back). On a
+        phone it stands above the bottom bar, not on it. */}
+    {showLoop && <LoopWalker greeting={LOOP_GREETING} explain={LOOP_EXPLAIN} describeButton={describeLoopButton} height={120} mobileHeight={86} hint={false}
+      mode="stand" side="right" standAbove='nav[aria-label="Main sections"]' />}
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />

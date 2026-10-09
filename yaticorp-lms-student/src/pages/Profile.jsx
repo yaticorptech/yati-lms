@@ -392,8 +392,9 @@ const Profile = ({ view = 'dashboard' }) => {
             {onProfile && (
                 // min-w-0 on each card: a grid item will not shrink below its
                 // content otherwise, and a long Google address widened a phone
-                // page past the screen.
-                <div className="grid gap-4 lg:grid-cols-2 lg:items-start [&>*]:min-w-0">
+                // page past the screen. Side by side, the two are one height —
+                // the taller card's — so the row reads as a pair.
+                <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch [&>*]:min-w-0">
                     <GoogleConnectionCard compact />
                     <AiKeySettings />
                 </div>
