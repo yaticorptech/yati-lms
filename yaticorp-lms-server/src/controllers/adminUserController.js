@@ -451,6 +451,36 @@ const updateUser = async (req, res) => {
     }
 };
 
+/**
+ * @desc    A student's current password, as text
+ * @route   GET /api/admin/users/:id/password
+ * @access  Private/Admin
+ *
+ * Read from the sealed copy kept beside the hash (models/User.js). An account
+ * hashed before that copy existed has none until the student next signs in, and
+ * answers `available: false` rather than a wrong password. Fetched only when the
+ * admin presses Show, never part of the student list or detail, and every read
+ * is logged with who asked.
+ */
+const getUserPassword = async (req, res) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'User not found' });
+        const user = await User.findById(req.params.id).select('+passwordSealed password cardNumber');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const password = await user.readablePassword();
+        console.info(`[admin] ${req.admin.email} (${req.admin._id}) viewed the password of student ${user._id} (card ${user.cardNumber})${password ? '' : ' — not available'}`);
+
+        res.set('Cache-Control', 'no-store');
+        if (!password) {
+            return res.json({ available: false, message: 'Not available yet: it will show after the student next signs in, or set a new one with Edit.' });
+        }
+        res.json({ available: true, password });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 // @desc    Reset a user's course progress
 // @route   DELETE /api/admin/users/:id/progress/:courseId
 // @access  Private/Admin
@@ -688,5 +718,6 @@ module.exports = {
     deleteUser,
     updateUser,
     resetProgress,
-    bulkAddUsers
+    bulkAddUsers,
+    getUserPassword
 };
