@@ -35,7 +35,8 @@
   function wrapAngle(a) { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; }
   function ease(dt, rate) { return 1 - Math.exp(-dt * rate); }
   var listeners = [];                                              // every page/window listener, so destroy() can remove them
-  function on(target, type, fn, o) { target.addEventListener(type, fn, o); listeners.push([target, type, fn]); }
+  // YATICORP change: the options are kept, so a capture listener is removed as one (see scrollQuietUntil).
+  function on(target, type, fn, o) { target.addEventListener(type, fn, o); listeners.push([target, type, fn, o]); }
 
   /* ================= action units ================= */
   // L / R are the viewer's left and right.
@@ -762,6 +763,7 @@
     return { times: times, dur: tt };
   }
   function say(label, text, secs, emo) {
+    if (hiddenOnTouch()) return;                                           // YATICORP change: see hiddenOnTouch
     bLabel.textContent = label;
     bFeel.textContent = emo ? ' \u00B7 ' + EMO[emo].name.toLowerCase() : '';
     bShown.textContent = '';
@@ -784,6 +786,26 @@
   }
   function finishTalk() { talk.on = false; bubble.classList.add('done'); }
   function hush() { bubble.classList.remove('on'); bubbleOn = false; talk.on = false; }
+
+  // YATICORP change, not in the shipped package: on a phone or tablet Loop says nothing while something is drawn
+  // over it — a dialog's dimmed backdrop, most often. The bubble sits a layer above everything, so it used to float
+  // over the dialog by itself while Loop stood hidden behind it. Asks the page what is on top at Loop's middle, and
+  // compares the outermost layer there with Loop's own; at most every 0.3 s, since it reads styles.
+  var coverAt = -1, covered = false;
+  function hiddenOnTouch() {
+    if (!(coarse || W < 640) || !rigReady) return false;
+    if (coverAt >= 0 && t - coverAt < 0.3) return covered;
+    coverAt = t; covered = false;
+    var feet = toScreen(pos), x = (feet.x + headScreen.x) / 2, y = (feet.y + headScreen.y) / 2;
+    if (!(x >= 0 && y >= 0 && x < W && y < H)) return false;
+    var base = parseInt(getComputedStyle(root).getPropertyValue('--lw-z'), 10) || 40, layer = null;
+    for (var n = document.elementFromPoint(x, y); n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      var cs = getComputedStyle(n);
+      if (cs.position !== 'static' && cs.zIndex !== 'auto') layer = parseInt(cs.zIndex, 10);
+    }
+    covered = layer !== null && layer > base;
+    return covered;
+  }
   function placeBubble() {
     if (!bubbleOn || !ready) return;
     var bw = bubbleSize.w, bh = bubbleSize.h;
@@ -853,6 +875,7 @@
   }
   function startGuide(k, el) {
     if (!P.explain || !el) return;
+    if (hiddenOnTouch()) return;                                                 // YATICORP change: see hiddenOnTouch
     var ex = explainFor(k, el);
     if (!ex) return;
     if (!EMO[ex.emo]) ex.emo = 'content';
@@ -972,6 +995,8 @@
     cursorSpeed *= Math.exp(-dt / 0.22);
     if (cursorSpeed < 1) cursorSpeed = 0;
     if (bubbleOn && t > bubbleUntil) hush();
+    // YATICORP change: a dialog opened over Loop while it was talking takes the bubble away with it.
+    if (bubbleOn && hiddenOnTouch()) { if (guide) endGuide(false); else hush(); }
     var h = figW();
 
     // pause on something -> explain it
@@ -1664,7 +1689,7 @@
     resume: function () { if (!running) { running = true; last = -1; rafId = requestAnimationFrame(frame); } return api; },
     destroy: function () {
       running = false; cancelAnimationFrame(rafId);
-      listeners.forEach(function (l) { l[0].removeEventListener(l[1], l[2]); });
+      listeners.forEach(function (l) { l[0].removeEventListener(l[1], l[2], l[3]); });
       if (renderer) renderer.dispose();
       if (root.parentNode) root.parentNode.removeChild(root);
       markExplained(null);
@@ -1727,6 +1752,17 @@
     fail("Loop's 3D file didn't load (" + (err && err.message ? err.message : err) + ')');
   });
 
+  // YATICORP change, not in the shipped package: on a phone or tablet Loop stops drawing while the page scrolls.
+  // A full-screen 3D view redrawn every frame took the frames the scroll needed — measured on a phone-speed CPU,
+  // 3 frames a second scrolling with Loop and 60 without — and standing in its corner, Loop has nothing to show
+  // while the page moves under it. It carries on a moment after the scroll stops. Captured on the document, since
+  // the student pages scroll inside the layout's <main> and a scroll there does not bubble.
+  var scrollQuietUntil = 0;
+  function onScrollish() { if (coarse || W < 640) scrollQuietUntil = performance.now() + 300; }
+  on(document, 'scroll', onScrollish, { capture: true, passive: true });
+  on(document, 'touchstart', onScrollish, { passive: true });   // a finger landing: no scroll starts mid-frame
+  on(document, 'touchmove', onScrollish, { passive: true });
+
   // rAF timestamps can trail performance.now(), so the clock starts on the first callback and dt is never negative
   var last = -1, frameN = 0;
   var running = true, rafId = 0;
@@ -1734,6 +1770,7 @@
     if (!running) return;
     rafId = requestAnimationFrame(frame);
     if (last < 0 || document.hidden) { last = now; return; }
+    if (performance.now() < scrollQuietUntil) { last = now; return; }      // YATICORP change: see scrollQuietUntil
     var rawDt = (now - last) / 1000, dt = clamp(rawDt, 0, 0.05);
     last = now;
     if (!rigReady) return;

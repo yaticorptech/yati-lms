@@ -46,6 +46,8 @@ export default function CompetitionDetail() {
     }
     const { competition: c, teams, rounds } = data;
     const myTeamId = c.myTeam?.status === 'approved' ? c.myTeam.id : null;
+    // A college's own competition: for its students only, in teams it makes.
+    const own = !!c.hostOrganizationId;
     const download = () => {
         setSaving(true);
         competitionsApi.certificate(c.id).then((blob) => saveBlob(blob, `Certificate_${c.name.replace(/\s+/g, '_')}.pdf`, { title: 'Certificate' }))
@@ -64,7 +66,7 @@ export default function CompetitionDetail() {
                 <div className="flex flex-wrap items-start gap-4">
                     <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-3xl" aria-hidden="true">{c.emoji}</span>
                     <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap gap-1.5"><StatusChip status={c.status} phase={c.phase} /><GameChip emoji={c.emoji} label={c.gameLabel} /><span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">Inter-College</span></div>
+                        <div className="flex flex-wrap gap-1.5"><StatusChip status={c.status} phase={c.phase} /><GameChip emoji={c.emoji} label={c.gameLabel} /><span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">{own ? 'Your college' : 'Inter-College'}</span></div>
                         <h1 className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">{c.name}</h1>
                         <p className="text-sm text-slate-500">Organized by {c.organizedBy}</p>
                         {c.description && <p className="mt-2 max-w-3xl text-sm text-slate-600">{c.description}</p>}
@@ -90,15 +92,16 @@ export default function CompetitionDetail() {
                 <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                     <Fact icon={CalendarClock} label="Date & time">{fmtDateTime(c.startsAt)}</Fact>
                     <Fact icon={Clock} label="Registration">{c.registrationOpensAt && c.phase === 'registration-soon' ? `Opens ${fmtDateTime(c.registrationOpensAt)}` : `Closes ${fmtDateTime(c.registrationDeadline)}`}</Fact>
-                    <Fact icon={Users} label="Player / team requirements">{c.maxTeams} colleges · up to {c.playersPerTeam} player{c.playersPerTeam === 1 ? '' : 's'} each{c.playersPerSide > 1 ? ` · ${c.playersPerSide} play a match` : ''}</Fact>
+                    <Fact icon={Users} label="Player / team requirements">{c.maxTeams} {own ? 'teams' : 'colleges'} · up to {c.playersPerTeam} player{c.playersPerTeam === 1 ? '' : 's'} each{c.playersPerSide > 1 ? ` · ${c.playersPerSide} play a match` : ''}</Fact>
                     <Fact icon={Swords} label="Each match">{c.teamsPerMatch} teams · the winner goes through</Fact>
                 </div>
 
                 {/* Registering is the college coordinator's step, in the college's own panel. */}
                 {!c.myTeam && ['registration-open', 'closing-soon', 'registration-soon'].includes(c.phase) && (
                     <div data-register-note className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                        <p className="font-bold">{c.phase === 'registration-soon' ? `Registration opens ${fmtDateTime(c.registrationOpensAt)}` : 'Registration is open'}</p>
-                        <p className="mt-0.5">Colleges register through their coordinator. If you want to play, ask your college's coordinator to register the college and add you to the team.</p>
+                        <p className="font-bold">{own ? 'Your college is making the teams' : c.phase === 'registration-soon' ? `Registration opens ${fmtDateTime(c.registrationOpensAt)}` : 'Registration is open'}</p>
+                        <p className="mt-0.5">{own ? 'This competition is for your college\'s students only. If you want to play, ask your college\'s coordinator to put you in a team.'
+                            : 'Colleges register through their coordinator. If you want to play, ask your college\'s coordinator to register the college and add you to the team.'}</p>
                     </div>
                 )}
                 </div>
@@ -148,13 +151,13 @@ export default function CompetitionDetail() {
             </div>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><Building2 size={19} className="text-indigo-600" aria-hidden="true" /> Participating colleges <span className="text-sm font-semibold text-slate-400">({teams.length})</span></h2>
-                {teams.length === 0 ? <p className="text-sm text-slate-500">{c.status === 'registration' ? 'Colleges are registering now.' : 'No colleges yet.'}</p> : (
+                <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><Building2 size={19} className="text-indigo-600" aria-hidden="true" /> {own ? 'Teams' : 'Participating colleges'} <span className="text-sm font-semibold text-slate-400">({teams.length})</span></h2>
+                {teams.length === 0 ? <p className="text-sm text-slate-500">{own ? 'Your college is making the teams.' : c.status === 'registration' ? 'Colleges are registering now.' : 'No colleges yet.'}</p> : (
                     <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                         {teams.map((t) => (
                             <li key={t.id} className={`rounded-2xl border p-3 ${t.id === c.myTeam?.id ? 'border-violet-200 bg-violet-50/50' : 'border-slate-200'}`}>
                                 <p className="truncate text-sm font-bold text-slate-900">{t.teamName} {t.place && <span className="text-amber-600">· {ORDINAL[t.place]}</span>}</p>
-                                <p className="truncate text-xs text-slate-500">{t.collegeName}{t.coordinator?.name ? ` · coordinator ${t.coordinator.name}` : ''}</p>
+                                {!own && <p className="truncate text-xs text-slate-500">{t.collegeName}{t.coordinator?.name ? ` · coordinator ${t.coordinator.name}` : ''}</p>}
                                 <p className="mt-1 truncate text-xs text-slate-600">{t.players.map((p) => p.name).join(', ')}</p>
                             </li>
                         ))}

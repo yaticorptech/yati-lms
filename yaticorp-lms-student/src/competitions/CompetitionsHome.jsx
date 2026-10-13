@@ -224,12 +224,13 @@ export const CompetitionCard = ({ c }) => (
             : <div className={`flex h-14 items-center justify-center bg-gradient-to-br sm:h-20 ${GAMES[c.game]?.tone || 'from-indigo-500 to-violet-600'}`}><span className="text-3xl drop-shadow sm:text-4xl" aria-hidden="true">{c.emoji}</span></div>}
         <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
             <div>
-                <div className="mb-2 flex flex-wrap gap-1.5"><StatusChip status={c.status} phase={c.phase} /><GameChip emoji={c.emoji} label={c.gameLabel} /></div>
+                <div className="mb-2 flex flex-wrap gap-1.5"><StatusChip status={c.status} phase={c.phase} /><GameChip emoji={c.emoji} label={c.gameLabel} />
+                    {c.hostOrganizationId && <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">Your college</span>}</div>
                 <h3 className="font-black leading-snug text-slate-900">{c.name}</h3>
                 <p className="mt-0.5 truncate text-xs text-slate-500">Organized by {c.organizedBy}</p>
             </div>
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-700">
-                <span className="inline-flex items-center gap-1.5"><Building2 size={14} className="text-slate-400" aria-hidden="true" /> {c.teamsCount} {c.teamsCount === 1 ? 'College' : 'Colleges'}</span>
+                <span className="inline-flex items-center gap-1.5"><Building2 size={14} className="text-slate-400" aria-hidden="true" /> {c.teamsCount} {c.hostOrganizationId ? (c.teamsCount === 1 ? 'Team' : 'Teams') : c.teamsCount === 1 ? 'College' : 'Colleges'}</span>
                 <span className="inline-flex items-center gap-1.5"><Users size={14} className="text-slate-400" aria-hidden="true" /> {c.playersCount || 0} {c.playersCount === 1 ? 'Player' : 'Players'}</span>
             </p>
             <dl className="space-y-1 text-xs text-slate-600">
@@ -247,9 +248,36 @@ export const CompetitionCard = ({ c }) => (
     </article>
 );
 
+/**
+ * On a phone a row of choices scrolls sideways. Whichever one is chosen, the
+ * row slides on its own to show it and the whole of the next one — so the
+ * next choice is always there to tap, and nobody has to drag the row to find
+ * it. (Centring the chosen one left a wide next tab half cut off.) The row
+ * must be `relative`, so its buttons' offsetLeft is measured from it.
+ */
+const useChosenInView = (rowRef, chosen, selector) => {
+    useEffect(() => {
+        const row = rowRef.current;
+        const current = row?.querySelector(selector);
+        if (!row || !current || row.scrollWidth <= row.clientWidth) return;
+        const next = current.nextElementSibling;
+        const GAP = 8;
+        // The first option goes back to the start, with whatever leads the row
+        // (the tab bar's gamepad tile) in view again.
+        const first = !current.previousElementSibling?.matches('button');
+        // Otherwise the next one's right edge in view, but never past the chosen one's left.
+        const edge = next ? next.offsetLeft + next.offsetWidth : current.offsetLeft + current.offsetWidth;
+        const left = first ? 0 : Math.min(edge - row.clientWidth + GAP, current.offsetLeft - GAP);
+        row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+    }, [rowRef, chosen, selector]);
+};
+
 const CompetitionsTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.list);
     const [game, setGame] = useState('all');
+    // The game filters scroll the way the section's tab bar does.
+    const filtersRef = useRef(null);
+    useChosenInView(filtersRef, game, '[aria-pressed="true"]');
     if (error) return <Failed error={error} onRetry={reload} />;
     if (!data) return <Loading />;
     const list = data.competitions.filter((c) => c.status !== 'completed' && (game === 'all' || c.game === game));
@@ -261,7 +289,7 @@ const CompetitionsTab = () => {
     return (
         <div className="space-y-6">
             {/* The four games, as a filter */}
-            <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter by game">
+            <div ref={filtersRef} className="relative flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filter by game">
                 {[['all', 'All games', '🎮'], ...Object.entries(GAMES).map(([id, g]) => [id, g.label, g.emoji])].map(([id, label, emoji]) => (
                     <button key={id} type="button" onClick={() => setGame(id)} aria-pressed={game === id} data-game-filter={id}
                         className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm font-bold transition-colors ${game === id ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300'}`}>
@@ -299,17 +327,21 @@ const MINE_TABS = [['registered', 'Registered'], ['upcoming', 'Upcoming'], ['liv
 const MineTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.me);
     const [sub, setSub] = useState(null);
+    // Open on Live when a match is on now: that is what the student came for.
+    const active = sub || (data?.live?.length ? 'live' : 'registered');
+    // On a phone the four tabs scroll sideways, as the game filters do: the
+    // chosen one and the next one slide into view.
+    const tabsRef = useRef(null);
+    useChosenInView(tabsRef, active, '[aria-selected="true"]');
     if (error) return <Failed error={error} onRetry={reload} />;
     if (!data) return <Loading />;
     if (!data.competitions.length) {
         return <Empty icon={UserCheck} title="You are not in a competition yet">When your college's coordinator puts you in a team, your competitions and matches appear here.</Empty>;
     }
-    // Open on Live when a match is on now: that is what the student came for.
-    const active = sub || (data.live.length ? 'live' : 'registered');
     const counts = { registered: data.competitions.length, upcoming: data.upcoming.length, live: data.live.length, completed: data.completed.length };
     return (
         <div className="space-y-4">
-            <div className="flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="My games">
+            <div ref={tabsRef} className="relative flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="My games">
                 {MINE_TABS.map(([id, label]) => (
                     <button key={id} type="button" role="tab" aria-selected={active === id} onClick={() => setSub(id)}
                         className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-sm font-bold transition-colors ${active === id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:text-indigo-700'}`}>
@@ -411,7 +443,7 @@ const ResultsTab = () => {
                     <div data-result={c.id} className="space-y-3">
                         <div>
                             <p className="font-black text-slate-900">🏆 {c.name}</p>
-                            <p className="text-xs text-slate-500">{c.emoji} {c.gameLabel} · {teams.length} participating colleges · {fmtDate(c.completedAt)}</p>
+                            <p className="text-xs text-slate-500">{c.emoji} {c.gameLabel} · {teams.length} {c.hostOrganizationId ? 'teams' : 'participating colleges'} · {fmtDate(c.completedAt)}</p>
                         </div>
                         <dl className="space-y-1.5">
                             {PLACE_LINE.map(([place, label]) => {
@@ -488,17 +520,10 @@ export default function CompetitionsHome() {
     const Body = useMemo(() => ({ games: GamesTab, competitions: CompetitionsTab, mine: MineTab, leaderboard: LeaderboardTab, results: ResultsTab, history: HistoryTab }[tab]), [tab]);
     const fill = tab === 'games';
 
-    // On a phone the bar scrolls sideways. Whichever tab is chosen, the bar
-    // brings it to the middle on its own, so the ones either side — the next
-    // section — are in view, and nobody has to drag the bar to find them.
+    // On a phone the bar scrolls sideways, and slides the chosen tab and the
+    // next one into view on its own (see useChosenInView).
     const barRef = useRef(null);
-    useEffect(() => {
-        const bar = barRef.current;
-        const current = bar?.querySelector('[aria-current="page"]');
-        if (!bar || !current || bar.scrollWidth <= bar.clientWidth) return;
-        const left = current.offsetLeft - (bar.clientWidth - current.offsetWidth) / 2;
-        bar.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-    }, [tab]);
+    useChosenInView(barRef, tab, '[aria-current="page"]');
 
     return (
         <div className={`flex flex-col gap-3 ${fill ? 'lg:h-[calc(100vh-8rem)] lg:min-h-[36rem]' : ''}`}>
@@ -533,7 +558,16 @@ export default function CompetitionsHome() {
                                 </li>
                             ))}
                         </ul>
-                        <img src={HERO_ART} alt="" className="mt-5 w-full rounded-2xl lg:hidden" />
+                        {/* Below lg, the picture is part of the banner, not a
+                            card inside it: it runs to the banner's sides and
+                            bottom (the negative margins undo the padding), and
+                            its top and sides fade into the banner's purple. Its
+                            top 22 of 378 rows are cropped off (aspect 866/356,
+                            kept from the bottom): they hold the picture's own
+                            light edge line and rounded corners, which showed
+                            as a hairline even under the fade. */}
+                        <img src={HERO_ART} alt="" data-hero-art
+                            className="-mx-5 -mb-5 mt-1 block aspect-[866/356] w-[calc(100%+2.5rem)] max-w-none object-cover object-bottom [mask-composite:intersect] [mask-image:linear-gradient(to_bottom,transparent,transparent_8%,black_42%),linear-gradient(to_right,transparent,black_7%,black_93%,transparent)] sm:-mx-7 sm:-mb-3 sm:w-[calc(100%+3.5rem)] lg:hidden" />
                     </div>
                 </header>
 

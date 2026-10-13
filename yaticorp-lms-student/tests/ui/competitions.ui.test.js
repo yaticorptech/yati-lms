@@ -226,6 +226,52 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
         assert.ok(result.atGames.games && result.atGames.competitions);
     });
 
+    test('on a phone the game filters scroll to the chosen game by itself, with the next one in view', async () => {
+        const { result, errors } = await screen({ entry: home('competitions'), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            const row = () => $('[aria-label="Filter by game"]');
+            const pick = (id) => $('[data-game-filter="' + id + '"]');
+            const shown = (id) => { const r = pick(id).getBoundingClientRect(); const n = row().getBoundingClientRect(); return r.left >= n.left - 1 && r.right <= n.right + 1; };
+            await sleep(700);
+            const before = { overflows: row().scrollWidth > row().clientWidth, scrolled: row().scrollLeft, uno: shown('uno') };
+            pick('ludo').click(); await sleep(900);
+            const atLudo = { scrolled: row().scrollLeft, ludo: shown('ludo'), carrom: shown('carrom'), pressed: pick('ludo').getAttribute('aria-pressed') };
+            pick('all').click(); await sleep(900);
+            return { before, atLudo, atAll: { scrolled: row().scrollLeft, all: shown('all') }, sideways: document.documentElement.scrollWidth > innerWidth + 1 };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.before.overflows, true, 'five games are wider than the phone, so the row scrolls');
+        assert.equal(result.before.uno, false, 'UNO starts off screen');
+        assert.equal(result.atLudo.pressed, 'true');
+        assert.ok(result.atLudo.scrolled > 0, 'choosing Ludo moved the row on its own');
+        assert.equal(result.atLudo.ludo, true, 'Ludo is in view');
+        assert.equal(result.atLudo.carrom, true, 'and so is the next game');
+        assert.equal(result.atAll.scrolled, 0, 'back to All games: the row scrolls back');
+        assert.equal(result.atAll.all, true);
+        assert.equal(result.sideways, false, 'the page itself never scrolls sideways');
+    });
+
+    test('on a phone the My Games tabs scroll to the chosen tab by itself, with the next one in view', async () => {
+        const { result, errors } = await screen({
+            entry: home('mine'), api: api({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [], completed: [], results: [] } }),
+            styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            const row = () => $('[aria-label="My games"]');
+            const tab = (label) => $$('[aria-label="My games"] [role="tab"]').find((b) => b.innerText.replace(/\\s*\\d+$/, '').trim() === label);
+            const shown = (label) => { const r = tab(label).getBoundingClientRect(), n = row().getBoundingClientRect(); return r.left >= n.left - 1 && r.right <= n.right + 1; };
+            await sleep(700);
+            const before = { overflows: row().scrollWidth > row().clientWidth, completed: shown('Completed') };
+            tab('Live').click(); await sleep(900);
+            const atLive = { scrolled: row().scrollLeft, live: shown('Live'), completed: shown('Completed') };
+            tab('Registered').click(); await sleep(900);
+            return { before, atLive, atFirst: { scrolled: row().scrollLeft, registered: shown('Registered') } };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.before.overflows, true, 'four tabs are wider than the phone, so the row scrolls');
+        assert.equal(result.before.completed, false, 'Completed starts off screen');
+        assert.ok(result.atLive.scrolled > 0, 'choosing Live moved the row on its own');
+        assert.equal(result.atLive.live, true);
+        assert.equal(result.atLive.completed, true, 'and the next tab, Completed, is in view');
+        assert.equal(result.atFirst.scrolled, 0, 'back to Registered: the row scrolls back');
+        assert.equal(result.atFirst.registered, true);
+    });
+
     test('it fits a phone without scrolling sideways', async () => {
         for (const tab of ['', 'mine']) {
             const { result } = await screen({ entry: home(tab), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
@@ -233,6 +279,71 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
                 return { sideways: document.documentElement.scrollWidth > innerWidth + 1 };` });
             assert.equal(result.sideways, false, tab || 'games');
         }
+    });
+});
+
+describe('a round with an odd number of teams', { skip: skipWithoutStyles }, () => {
+    test('the team with the bye goes straight through: its card has no match time', async () => {
+        const SCHEDULED = { ...MATCH, status: 'scheduled', gameId: null, gameStatus: null };
+        const BYE = { ...MATCH, id: 'm2', slot: 1, status: 'bye', gameId: null, gameStatus: null, games: 0, winnerTeamId: 't3', decidedBy: 'bye',
+            sides: [{ teamId: 't3', teamName: 'Gamma Pawns', collegeName: 'Gamma College', lineup: [] }] };
+        const entry = `
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
+import { Rounds } from '${srcFile('competitions/parts.jsx')}';
+createRoot(document.getElementById('root')).render(
+  <MemoryRouter><Rounds rounds={${JSON.stringify([{ round: 0, name: 'Semi Final', matches: [SCHEDULED, BYE] }])}} /></MemoryRouter>);`;
+        const { result, errors } = await screen({ entry, api: api(), script: `
+            await sleep(300);
+            const card = (id) => document.querySelector('[data-match="' + id + '"]').innerText;
+            return { match: card('m1'), bye: card('m2') };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.bye, /goes straight through/);
+        assert.doesNotMatch(result.bye, /2026/, 'no time on a match nobody plays');
+        assert.match(result.match, /2026/, 'a real match keeps its time');
+    });
+});
+
+describe('a college\'s own competition', { skip: skipWithoutStyles }, () => {
+    // Hosted by a college for its own students only: teams, not colleges.
+    const OWN = { ...COMP, id: 'c9', name: 'Delta Chess Day', organizedBy: 'Sample Delta College', hostOrganizationId: 'o1', status: 'registration', phase: 'registration-open',
+        registrationOpen: true, teamsCount: 2, playersCount: 4, myTeam: null };
+    const TEAMS = ['Reds', 'Blues'].map((teamName, i) => ({ id: `t${i + 1}`, teamName, collegeName: 'Sample Delta College', status: 'approved', place: null, coordinator: { name: 'Delta Coordinator' },
+        players: [{ userId: `u${i}a`, name: `${teamName} One` }, { userId: `u${i}b`, name: `${teamName} Two` }] }));
+    const ownApi = apiModule({
+        '/competitions/rooms/mine': { rooms: [] },
+        '/competitions/c9': { competition: OWN, teams: TEAMS, rounds: [] },
+        '/competitions': { competitions: [OWN, COMP] }
+    });
+
+    test('its page says it is for the college\'s students, in teams the college makes', async () => {
+        const entry = `
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import CompetitionDetail from '${srcFile('competitions/CompetitionDetail.jsx')}';
+createRoot(document.getElementById('root')).render(
+  <MemoryRouter initialEntries={['/competitions/c9']}><Routes><Route path="/competitions/:id" element={<CompetitionDetail />} /></Routes></MemoryRouter>);`;
+        const { result, errors } = await screen({ entry, api: ownApi, script: `
+            await sleep(700);
+            return { page: document.body.innerText, note: document.querySelector('[data-register-note]')?.innerText || '' };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.page, /Your college/);
+        assert.doesNotMatch(result.page, /Inter-College/);
+        assert.match(result.page, /8 teams · up to 2 players each/);
+        assert.match(result.note, /for your college's students only/);
+        assert.match(result.page, /Teams\s*\(2\)/);
+        assert.doesNotMatch(result.page, /Participating colleges|coordinator Delta Coordinator/);
+    });
+
+    test('its card says Your college and counts teams', async () => {
+        const { result, errors } = await screen({ entry: home('competitions'), api: ownApi, script: `
+            await sleep(700);
+            return { own: document.querySelector('[data-competition="c9"]').innerText, other: document.querySelector('[data-competition="c1"]').innerText };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.own, /Your college/);
+        assert.match(result.own, /2 Teams/);
+        assert.doesNotMatch(result.other, /Your college/, 'an inter-college one does not say so');
+        assert.match(result.other, /Colleges/);
     });
 });
 

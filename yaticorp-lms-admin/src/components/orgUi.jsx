@@ -8,7 +8,7 @@
  * gathered here. The values are the panel's existing ones, unchanged — this is
  * a single home for them, not a new design language.
  */
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { Search, UserMinus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import initials from '../utils/initials';
 import useDialog from '../hooks/useDialog';
@@ -70,24 +70,38 @@ export const PageHeader = ({ icon: Icon, title, subtitle, children }) => (
  */
 // `locked`: { key: reason } for an option shown but not open yet — it stays in
 // place, dimmed, and a click says why (onLocked) instead of switching to it.
-export const Segmented = ({ options, value, onChange, counts = {}, locked = {}, onLocked }) => (
-    <div className="-mx-1 overflow-x-auto px-1 no-scrollbar">
-        <div className="inline-flex gap-1 rounded-xl bg-slate-100 p-1">
-            {options.map(([key, label]) => (
-                <button key={key} onClick={() => (locked[key] ? onLocked?.(key) : onChange(key))} aria-pressed={value === key}
-                    aria-disabled={locked[key] ? 'true' : undefined} title={locked[key] || undefined}
-                    className={`whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${value === key ? 'bg-white text-indigo-600 shadow-sm' : locked[key] ? 'cursor-not-allowed text-slate-500 opacity-50' : 'text-slate-500 hover:text-slate-700'}`}>
-                    {label}
-                    {counts[key] > 0 && (
-                        <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-black ${value === key ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>
-                            {counts[key]}
-                        </span>
-                    )}
-                </button>
-            ))}
+export const Segmented = ({ options, value, onChange, counts = {}, locked = {}, onLocked }) => {
+    // On a phone the row scrolls sideways. Whichever option is chosen, the row
+    // brings it to the middle on its own, so the next one is in view and
+    // nobody has to drag the row to find it. `relative`, so the buttons'
+    // offsetLeft is measured from the row.
+    const rowRef = useRef(null);
+    useEffect(() => {
+        const row = rowRef.current;
+        const current = row?.querySelector('[aria-pressed="true"]');
+        if (!row || !current || row.scrollWidth <= row.clientWidth) return;
+        const left = current.offsetLeft - (row.clientWidth - current.offsetWidth) / 2;
+        row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+    }, [value]);
+    return (
+        <div ref={rowRef} className="relative -mx-1 overflow-x-auto px-1 no-scrollbar">
+            <div className="inline-flex gap-1 rounded-xl bg-slate-100 p-1">
+                {options.map(([key, label]) => (
+                    <button key={key} onClick={() => (locked[key] ? onLocked?.(key) : onChange(key))} aria-pressed={value === key}
+                        aria-disabled={locked[key] ? 'true' : undefined} title={locked[key] || undefined}
+                        className={`whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${value === key ? 'bg-white text-indigo-600 shadow-sm' : locked[key] ? 'cursor-not-allowed text-slate-500 opacity-50' : 'text-slate-500 hover:text-slate-700'}`}>
+                        {label}
+                        {counts[key] > 0 && (
+                            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-black ${value === key ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>
+                                {counts[key]}
+                            </span>
+                        )}
+                    </button>
+                ))}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const AVATAR_TONES = ['bg-indigo-600', 'bg-violet-600', 'bg-sky-600', 'bg-emerald-600', 'bg-amber-600', 'bg-rose-600'];
 

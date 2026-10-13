@@ -19,6 +19,13 @@ const PlayGame = require('../models/PlayGame');
 /** Three drawn games in a row: the admin decides instead of a fourth. */
 const MAX_REPLAYS = 3;
 
+/**
+ * The break before the next round: it is made, and starts by itself, this
+ * long after the last match of the round before is decided. Nobody waits for
+ * the organizer (who can still move it, or start it sooner, from their page).
+ */
+const NEXT_ROUND_MINUTES = 15;
+
 const roundName = (matches, round) => (matches === 1 ? 'Final' : matches === 2 ? 'Semi Final' : matches <= 4 ? 'Quarter Final' : `Round ${round + 1}`);
 
 const shuffle = (list) => {
@@ -172,6 +179,37 @@ const adminResult = async (match, { winnerTeamId, order = [], note = '' }) => {
     return done;
 };
 
+/** Every player of a team in the new round: when it starts, and who they play. */
+const tellNextRound = async (competition, round) => {
+    const { notify } = require('../../rewards/services/notify');
+    const { JOIN_MINUTES } = require('./gameService');
+    const matches = await Match.find({ competitionId: competition._id, round, status: 'scheduled' }).lean();
+    const teams = await Team.find({ _id: { $in: matches.flatMap((m) => m.sides.map((s) => s.teamId)) } }).lean();
+    const team = (id) => teams.find((t) => same(t._id, id));
+    for (const m of matches) {
+        const what = m.kind === 'third-place' ? 'Third-place match' : m.roundName;
+        for (const side of m.sides) {
+            const mine = team(side.teamId);
+            const others = m.sides.filter((s) => !same(s.teamId, side.teamId)).map((s) => team(s.teamId)?.teamName).filter(Boolean).join(', ');
+            for (const p of mine?.players || []) {
+                await notify(p.userId, `${what} starts in ${NEXT_ROUND_MINUTES} minutes`,
+                    `${competition.name}: ${mine.teamName} plays ${others || 'its next match'}. Join from Games & Competitions → My Games within ${JOIN_MINUTES} minutes of the start.`);
+            }
+        }
+    }
+};
+
+/** Work done after the reply (prizes, notifications); settled() waits for it (tests do). */
+const pending = new Set();
+const afterReply = (what, work) => {
+    const run = Promise.resolve().then(work)
+        .catch((err) => console.error(`[competitions] ${what} failed:`, err.message))
+        .finally(() => pending.delete(run));
+    pending.add(run);
+};
+const settled = () => Promise.all([...pending]);
+const payPrizes = (competition) => afterReply('awarding prizes', () => require('./awardService').award(competition));
+
 /**
  * Build the next round once every match in the current one is decided, or
  * complete the competition once the final (and the third-place play-off) is.
@@ -202,17 +240,23 @@ const advance = async (competitionId) => {
         );
         if (!done) return;
         await Promise.all(winners.map((w) => Team.updateOne({ _id: w.teamId }, { $set: { place: w.place } })));
-        try { await require('./awardService').award(done); }
-        catch (err) { console.error('[competitions] awarding prizes failed:', err.message); }
+        // Paying every player takes a while (about a second each), so it runs
+        // after the reply: whoever decided the final — the organizer, or the
+        // player whose move ended it — is not kept waiting, and a big final
+        // does not time out. The payments are safe to repeat; "Issue prizes
+        // again" finishes any that were cut short.
+        payPrizes(done);
         return;
     }
 
-    // The next round, from this round's winners in bracket order.
+    // The next round, from this round's winners in bracket order, starting
+    // by itself after a short break.
     const winners = main.sort((a, b) => a.slot - b.slot).map((m) => m.winnerTeamId);
     const next = last + 1;
     if (await Match.exists({ competitionId, round: next })) return;     // someone else got here first
+    const startsAt = new Date(Date.now() + NEXT_ROUND_MINUTES * 60 * 1000);
     try {
-        await createRound(competition, next, winners);
+        await createRound(competition, next, winners, startsAt);
     } catch (err) {
         if (err?.code === 11000) return;
         throw err;
@@ -222,12 +266,14 @@ const advance = async (competitionId) => {
         const losers = main.map((m) => m.places.flat()[1]).filter(Boolean);
         if (losers.length === 2) {
             await Match.create({
-                competitionId, round: next, roundName: 'Third place', slot: 0, kind: 'third-place',
+                competitionId, round: next, roundName: 'Third place', slot: 0, kind: 'third-place', scheduledAt: startsAt,
                 sides: losers.map((teamId) => ({ teamId, lineup: [] }))
             }).catch((err) => { if (err?.code !== 11000) throw err; });
         }
     }
+    // After the reply, like the prizes: a notification for every player.
+    afterReply('telling players of the next round', () => tellNextRound(competition, next));
     await advance(competitionId);     // a round of byes moves straight on
 };
 
-module.exports = { drawBracket, openMatch, openDue, recordGame, adminResult, advance, roundName, groupsOf };
+module.exports = { drawBracket, openMatch, openDue, recordGame, adminResult, advance, settled, roundName, groupsOf, NEXT_ROUND_MINUTES };
