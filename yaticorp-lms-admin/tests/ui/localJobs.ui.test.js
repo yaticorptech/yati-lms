@@ -1,7 +1,7 @@
 /**
  * The admin's local jobs panel on a phone: one card per job carrying what the
  * table row would — dates, ages, safety, status — with nothing cut off at the
- * side, and the edit form as a sheet that fits the screen.
+ * side, and the edit form as a popup in the middle of the screen.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -63,19 +63,21 @@ describe('the local jobs panel on a phone', { skip: skipWithoutStyles }, () => {
         assert.ok(result.widest <= result.vw, `nothing past the edge (${result.widest} > ${result.vw})`);
     });
 
-    test('editing opens the form as a sheet that fits the screen', async () => {
+    test('editing opens the form as a popup in the middle, not a sheet filling the screen', async () => {
         const { result, errors } = await screen({
             entry, api, styles: true, width: 390, height: 800, script: `
                 await sleep(700);
                 $('ul.md\\\\:hidden button[aria-label="Edit Godown loading crew"]').click();
                 await sleep(300);
                 const form = $('form[role=dialog]');
-                const r = form.getBoundingClientRect();
-                return { title: form.querySelector('input').value, top: r.top, bottom: Math.round(r.bottom), vh: window.innerHeight, left: r.left, right: Math.round(r.right), vw: window.innerWidth };` });
+                const r = form.getBoundingClientRect(), cs = getComputedStyle(form);
+                return { title: form.querySelector('input').value, top: r.top, below: Math.round(window.innerHeight - r.bottom), left: r.left, right: Math.round(window.innerWidth - r.right),
+                         roundedBelow: parseFloat(cs.borderBottomLeftRadius) > 0 && parseFloat(cs.borderBottomRightRadius) > 0 };` });
         assert.deepEqual(errors, []);
         assert.equal(result.title, 'Godown loading crew');
-        assert.ok(result.top >= 0 && result.bottom <= result.vh, 'the whole sheet is on screen');
-        assert.ok(result.left >= 0 && result.right <= result.vw);
+        assert.ok(result.top >= 16 && result.below >= 16, `dimmed page above and below (${Math.round(result.top)}px, ${result.below}px)`);
+        assert.ok(result.left >= 12 && result.right >= 12, 'and either side');
+        assert.equal(result.roundedBelow, true, 'rounded on the bottom too, like a popup');
     });
     test('a long dropdown label does not push the form sideways', async () => {
         const { result, errors } = await screen({

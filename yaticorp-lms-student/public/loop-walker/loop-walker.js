@@ -988,6 +988,26 @@
   }
   function finishTalk() { talk.on = false; bubble.classList.add('done'); }
   function hush() { bubble.classList.remove('on'); bubbleOn = false; talk.on = false; }
+
+  // YATICORP change, not in the shipped package: on a phone or tablet Loop says nothing while something is drawn
+  // over it — a dialog's dimmed backdrop, most often. The bubble sits a layer above everything, so it used to float
+  // over the dialog by itself while Loop stood hidden behind it. Asks the page what is on top at Loop's middle, and
+  // compares the outermost layer there with Loop's own; at most every 0.3 s, since it reads styles.
+  var coverAt = -1, covered = false;
+  function hiddenOnTouch() {
+    if (!(coarse || W < 640) || !rigReady) return false;
+    if (coverAt >= 0 && t - coverAt < 0.3) return covered;
+    coverAt = t; covered = false;
+    var feet = toScreen(pos), x = (feet.x + headScreen.x) / 2, y = (feet.y + headScreen.y) / 2;
+    if (!(x >= 0 && y >= 0 && x < W && y < H)) return false;
+    var base = parseInt(getComputedStyle(root).getPropertyValue('--lw-z'), 10) || 40, layer = null;
+    for (var n = document.elementFromPoint(x, y); n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      var cs = getComputedStyle(n);
+      if (cs.position !== 'static' && cs.zIndex !== 'auto') layer = parseInt(cs.zIndex, 10);
+    }
+    covered = layer !== null && layer > base;
+    return covered;
+  }
   function placeBubble() {
     if (!bubbleOn || !ready) return;
     var bw = bubbleSize.w, bh = bubbleSize.h;
@@ -1196,6 +1216,8 @@
     cursorSpeed *= Math.exp(-dt / 0.22);
     if (cursorSpeed < 1) cursorSpeed = 0;
     if (bubbleOn && t > bubbleUntil) hush();
+    // YATICORP change: a dialog opened over Loop while it was talking takes the bubble away with it.
+    if (bubbleOn && hiddenOnTouch()) { if (guide) endGuide(false); else hush(); }
     var h = figW();
 
     // pause on something -> explain it

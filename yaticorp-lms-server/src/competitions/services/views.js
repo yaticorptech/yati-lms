@@ -144,8 +144,15 @@ const detail = async (competitionId, { userId = null, organizationId = null, adm
         ? teams.find((t) => t.status !== 'withdrawn' && t.players.some((p) => String(p.userId) === String(userId)))
         : organizationId ? teams.find((t) => String(t.organizationId) === String(organizationId)) : null;
     const shownTeams = admin ? teams : teams.filter((t) => t.status === 'approved');
+    const competition = competitionView(c, { teams, myTeam });
+    // A college's own competition: the college by its real name ("Organized
+    // by" is free text), for the platform admin's screens.
+    if (c.hostOrganizationId) {
+        const college = await require('../../organizations/models/Organization').findById(c.hostOrganizationId).select('name').lean();
+        competition.hostName = college?.name || c.organizedBy;
+    }
     return {
-        competition: competitionView(c, { teams, myTeam }),
+        competition,
         teams: shownTeams.map((t) => teamView(t, { admin })),
         rounds: roundsView(matches, teams, games)
     };

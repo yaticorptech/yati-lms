@@ -35,11 +35,22 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
     next(err);
 });
 
+/**
+ * A college's own competition (hostOrganizationId) is for its own students.
+ * Anyone in one of its teams sees it too: players from other colleges entered
+ * before 13 Oct 2026, when college competitions became college-only.
+ * `teams`: teams of the competition, or the student's own.
+ */
+const seenBy = (user, c, teams) => !c.hostOrganizationId
+    || String(c.hostOrganizationId) === String(user.organizationId || '')
+    || teams.some((t) => String(t.competitionId) === String(c._id) && t.status !== 'withdrawn' && t.players.some((p) => String(p.userId) === String(user._id)));
+
 router.get('/games', wrap(async (req, res) => res.json({ games: catalogue() })));
 
 router.get('/', wrap(async (req, res) => {
-    const comps = await Competition.find({ status: { $in: VISIBLE } }).sort({ startsAt: -1 }).lean();
-    const teams = await Team.find({ competitionId: { $in: comps.map((c) => c._id) } }).lean();
+    const all = await Competition.find({ status: { $in: VISIBLE } }).sort({ startsAt: -1 }).lean();
+    const teams = await Team.find({ competitionId: { $in: all.map((c) => c._id) } }).lean();
+    const comps = all.filter((c) => seenBy(req.user, c, teams));
     const order = { live: 0, registration: 1, closed: 2, completed: 3 };
     const rows = comps.map((c) => {
         const mine = teams.filter((t) => String(t.competitionId) === String(c._id));
@@ -103,10 +114,52 @@ router.get('/leaderboard', wrap(async (req, res) => {
 }));
 
 router.get('/history', wrap(async (req, res) => {
-    const comps = await Competition.find({ status: 'completed' }).sort({ completedAt: -1 }).lean();
+    const mine = await Team.find({ 'players.userId': req.user._id }).lean();
+    const comps = (await Competition.find({ status: 'completed' }).sort({ completedAt: -1 }).lean()).filter((c) => seenBy(req.user, c, mine));
     const out = [];
     for (const c of comps) out.push(await views.detail(c._id, { userId: req.user._id }));
     res.json({ competitions: out });
+}));
+
+// My competition certificates, for My Profile's certificate frame: one for
+// every finished competition I played in for an approved team, of the kinds
+// that competition gives (see services/certificate.js `eligible`), less any I
+// deleted from the frame. Each is drawn as a PDF on request by
+// GET /:id/certificate, as from the History tab.
+router.get('/certificates', wrap(async (req, res) => {
+    const { eligible, winnerWords, TITLE, GAME } = require('../services/certificate');
+    const teams = await Team.find({ 'players.userId': req.user._id, status: 'approved' }).lean();
+    const comps = await Competition.find({ _id: { $in: teams.map((t) => t.competitionId) }, status: 'completed' }).lean();
+    const certificates = comps.map((c) => {
+        const team = teams.find((t) => String(t.competitionId) === String(c._id));
+        if (!team || !eligible(c, team)) return null;
+        const player = team.players.find((p) => String(p.userId) === String(req.user._id));
+        if (player?.certificateHiddenAt) return null;
+        return {
+            competitionId: String(c._id), name: c.name, game: c.game, gameLabel: GAME[c.game] || c.game,   // as the PDF names it
+            organizedBy: c.organizedBy || 'YATICORP', completedAt: c.completedAt,
+            teamName: team.teamName, collegeName: team.collegeName, place: team.place || null,
+            title: team.place ? TITLE[team.place] : 'Certificate of Participation',
+            playerName: player?.name || req.user.name,
+            // The winners' certificate's own lines, as the PDF writes them,
+            // so the preview on My Profile says exactly the same.
+            words: team.place ? winnerWords({ competition: c, team, place: team.place }) : null
+        };
+    }).filter(Boolean).sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+    res.json({ certificates });
+}));
+
+// Delete a competition certificate from My Profile. It only leaves the frame:
+// the competition was played and the certificate stays the player's, so
+// downloading it again from Games & Competitions brings it back.
+router.delete('/certificates/:competitionId', wrap(async (req, res) => {
+    if (!require('mongoose').isValidObjectId(req.params.competitionId)) return res.status(404).json({ message: 'Certificate not found.' });
+    const r = await Team.updateOne(
+        { competitionId: req.params.competitionId, status: 'approved', 'players.userId': req.user._id },
+        { $set: { 'players.$.certificateHiddenAt': new Date() } }
+    );
+    if (!r.matchedCount) return res.status(404).json({ message: 'Certificate not found.' });
+    res.json({ ok: true });
 }));
 
 /* ── Friendly games and play ─────────────────────────────────────────── */
@@ -124,14 +177,16 @@ router.post('/play/:gameId/leave', wrap(async (req, res) => res.json(await games
 
 /* ── One competition ─────────────────────────────────────────────────── */
 
-const visible = async (id) => {
+const visible = async (id, user) => {
     if (!require('mongoose').isValidObjectId(id)) return null;
-    const c = await Competition.findById(id).select('status').lean();
-    return c && VISIBLE.includes(c.status) ? c : null;
+    const c = await Competition.findById(id).select('status hostOrganizationId').lean();
+    if (!c || !VISIBLE.includes(c.status)) return null;
+    if (!c.hostOrganizationId) return c;
+    return seenBy(user, c, await Team.find({ competitionId: c._id, 'players.userId': user._id }).lean()) ? c : null;
 };
 
 router.get('/:id', wrap(async (req, res) => {
-    const c = await visible(req.params.id);
+    const c = await visible(req.params.id, req.user);
     if (!c) return res.status(404).json({ message: 'Competition not found.' });
     if (c.status === 'live') await openDue(c._id);
     res.json(await views.detail(c._id, { userId: req.user._id }));
@@ -139,7 +194,7 @@ router.get('/:id', wrap(async (req, res) => {
 
 // Wallet rule (optional): each certificate PDF, like a course's; refunded when there is none to give.
 router.get('/:id/certificate', chargeWallet('download_competition_certificate'), wrap(async (req, res) => {
-    const c = await visible(req.params.id);
+    const c = await visible(req.params.id, req.user);
     if (!c) return res.status(404).json({ message: 'Competition not found.' });
     const competition = await Competition.findById(c._id).lean();
     if (competition.status !== 'completed') return res.status(409).json({ message: 'Certificates are ready once the competition is over.' });
@@ -149,6 +204,8 @@ router.get('/:id/certificate', chargeWallet('download_competition_certificate'),
         return res.status(404).json({ message: team.place ? 'This competition does not give winners\' certificates.' : 'This competition gives certificates only to its winners.' });
     }
     const playerName = team.players.find((p) => String(p.userId) === String(req.user._id))?.name || req.user.name;
+    // Downloaded again: back in My Profile's frame if it was deleted from there.
+    await Team.updateOne({ _id: team._id, 'players.userId': req.user._id }, { $set: { 'players.$.certificateHiddenAt': null } });
     require('../services/certificate').draw(res, { competition, team, playerName, place: team.place || null });
 }));
 

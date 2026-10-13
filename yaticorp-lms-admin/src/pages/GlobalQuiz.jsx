@@ -71,17 +71,21 @@ const notReady = (quiz) => (quiz.questionCount < quiz.size
     ? `Add ${quiz.size - quiz.questionCount} more question${quiz.size - quiz.questionCount === 1 ? '' : 's'} to publish`
     : null);
 
-/* ── A centred dialog: a sheet from the bottom on a phone ─────────────── */
+/* ── A centred dialog, a popup on a phone too ─────────────────────────── */
+// On a phone it used to be a sheet up from the bottom, near the full height of
+// the screen, which read as a page rather than a popup. It now floats in the
+// middle with the page dimmed around it on every side, as it does on a laptop;
+// a long form scrolls inside it.
 const Dialog = ({ label, onClose, children, footer, wide }) => (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/60 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={label}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={label}
         onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className={`flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[90dvh] sm:rounded-2xl ${wide ? 'sm:max-w-3xl' : 'sm:max-w-2xl'}`}>
+        <div className={`flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[90dvh] ${wide ? 'sm:max-w-3xl' : 'sm:max-w-2xl'}`}>
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
                 <h2 className="min-w-0 font-bold text-slate-800 [overflow-wrap:anywhere]">{label}</h2>
                 <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={20} /></button>
             </div>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">{children}</div>
-            {footer && <div className="flex shrink-0 flex-wrap gap-2 border-t border-slate-100 px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:justify-end sm:px-6 sm:pb-4">{footer}</div>}
+            {footer && <div className="flex shrink-0 flex-wrap gap-2 border-t border-slate-100 px-5 py-4 sm:justify-end sm:px-6">{footer}</div>}
         </div>
     </div>
 );

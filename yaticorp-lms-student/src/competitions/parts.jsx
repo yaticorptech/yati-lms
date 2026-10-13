@@ -78,7 +78,9 @@ export const MatchCard = ({ match, playing = false, showCompetition = false, myT
             </ul>
 
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                <span className="inline-flex items-center gap-1.5"><CalendarClock size={14} aria-hidden="true" /> {fmtDateTime(match.scheduledAt)}</span>
+                {match.status === 'bye'
+                    ? <span>No opponent this round: goes straight through.</span>
+                    : <span className="inline-flex items-center gap-1.5"><CalendarClock size={14} aria-hidden="true" /> {fmtDateTime(match.scheduledAt)}</span>}
                 {match.games > 1 && <span>{match.games} games (replayed after a draw)</span>}
             </div>
             {match.resultNote && <p className="text-xs text-slate-600">{match.resultNote}</p>}
