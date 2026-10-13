@@ -19,18 +19,21 @@ const PostDetail = () => {
     const showLoader = useMinimumLoading(loading);
     const [replyContent, setReplyContent] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    // Said under the box, not in a browser alert; what was typed stays for another try.
+    const [replyError, setReplyError] = useState('');
 
     const handleReply = async (e) => {
         e.preventDefault();
         if (!replyContent.trim()) return;
 
         setSubmitting(true);
+        setReplyError('');
         try {
             await addComment(replyContent);
             setReplyContent('');
         } catch (err) {
             console.error('Failed to post reply:', err);
-            alert('Failed to post reply. Please try again.');
+            setReplyError((err.response?.status < 500 && err.response?.data?.message) || 'Your reply was not sent. Please try again.');
         } finally {
             setSubmitting(false);
         }
@@ -131,7 +134,7 @@ const PostDetail = () => {
                     <div className="flex-1 w-full relative">
                         <textarea
                             value={replyContent}
-                            onChange={(e) => setReplyContent(e.target.value)}
+                            onChange={(e) => { setReplyContent(e.target.value); if (replyError) setReplyError(''); }}
                             placeholder="Add to the discussion..."
                             rows="3"
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all resize-none pb-12"
@@ -146,6 +149,7 @@ const PostDetail = () => {
                                 <Send size={16} className={submitting ? 'animate-pulse' : ''} />
                             </button>
                         </div>
+                        {replyError && <p role="alert" className="mt-2 px-2 text-sm font-semibold text-red-600">{replyError}</p>}
                     </div>
                 </form>
             </div>

@@ -77,6 +77,7 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
   return (
     <nav
       aria-label="Main sections"
+      data-loop-skip
       className="mbn-in fixed inset-x-1.5 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 sidebar:hidden"
     >
       <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-[0_18px_40px_-16px_rgba(15,23,42,0.8)] backdrop-blur-xl supports-[backdrop-filter]:bg-slate-900/90">

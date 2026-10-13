@@ -1,5 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useContext } from 'react';
 import useCountUp from '../../hooks/useCountUp';
+import { AuthContext } from '../context/AuthContext';
+import { usePointLoopAt } from '../../components/loopGuide';
 import { Link } from 'react-router-dom';
 import { Route, Clock, ArrowRight, Sparkles, Flag, Zap, Map as MapIcon, CheckCircle2 } from 'lucide-react';
 import JourneyTrack from './journey/JourneyTrack';
@@ -42,6 +44,18 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
   // The phase brought to the front, if any. Opening one used to unroll it
   // inside the list; now the map stays put and the phase opens over it.
   const [openPhase, setOpenPhase] = useState(null);
+
+  // Loop, the site's mascot, runs over to the platform being stood on and
+  // says "You are here", scrolling the map to it first when it is below the
+  // fold. It sets off once the road has finished drawing up to that platform,
+  // and never while a phase is open over the map. Once a day for each phase:
+  // reaching the next one is news again, the same one every visit is not.
+  const { user } = useContext(AuthContext);
+  usePointLoopAt(currentIndex >= 0 && openPhase === null ? '[data-explain="roadmap-here"]' : null, {
+    delay: Math.round((arrive + 0.5) * 1000),
+    oncePerDay: `roadmap-here:${user?._id || user?.id || 'me'}:${currentIndex}`,
+    scroll: true
+  });
 
   if (!data) return null;
 

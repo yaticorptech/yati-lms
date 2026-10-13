@@ -7,6 +7,7 @@ import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import axios from 'axios';
 import { PlayCircle, FileText, HelpCircle, PenTool, Layout, ChevronDown, ChevronRight, Eye, ArrowLeft } from 'lucide-react';
 import VideoPlayer from '../components/VideoPlayer';
+import { useHideLoop } from '../components/loopVisibility';
 
 const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -22,6 +23,8 @@ const CoursePreview = () => {
     const [loading, setLoading] = useState(() => Boolean(token));
     const [error, setError] = useState(() => (token ? null : 'No admin token provided.'));
     const [activeLesson, setActiveLesson] = useState(null);
+    // Loop, the mascot, steps aside while a lesson's video or notes are open.
+    useHideLoop(!!activeLesson);
     const [expandedModules, setExpandedModules] = useState({});
 
     useEffect(() => {

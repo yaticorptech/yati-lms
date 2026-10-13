@@ -83,6 +83,13 @@ router.use(require('./services/aiContext').withAiContext);
 // career_* itself.
 router.use('/admin', require('./routes/adminRoutes'));
 
+// Brain games: the account's copy of each student's level and stars, and the
+// leaderboard built from them. Play and scoring stay in the browser. Also
+// ahead of the lock: the games are Brain Boosters now, a tab of Games &
+// Competitions rather than a Career Path screen, so closing Career Path must
+// not close them. The address stays under /api/career, where the code is.
+router.use('/games', require('./routes/gameRoutes'));
+
 // Everything below is the student section, and an administrator can lock it
 // from Platform Settings. The gate is here rather than only in the student app
 // because a hidden tab is not a closed door.
@@ -118,9 +125,6 @@ router.use('/milestones', require('./routes/milestoneRoutes'));
 // What is left of this student's daily AI allowance, so the UI can say so
 // before they spend it rather than only when it runs out.
 router.use('/ai-usage', require('./routes/aiUsageRoutes'));
-// Brain games: the account's copy of each student's level and stars, and the
-// leaderboard built from them. Play and scoring stay in the browser.
-router.use('/games', require('./routes/gameRoutes'));
 // An unknown path under /api/career is a client mistake, and should be answered
 // in the language the client speaks rather than with Express's HTML error page.
 router.use((req, res) => {

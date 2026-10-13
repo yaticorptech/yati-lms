@@ -1,5 +1,6 @@
 const { geminiClient, describeKeyError } = require('../../utils/userAiKey');
 const aiQuota = require('./aiQuota');
+const { degreeLength, openingStages, checkPlan, fillMissing, timelineFor, norm } = require('./roadmapPlan');
 
 // Free-tier quotas are per-day, per-model, so the model choice directly decides
 // how many roadmaps/tasks/recommendations a day the app can serve.
@@ -70,11 +71,14 @@ const GENERATE_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 45000;
 const generateWithRetry = async (
   ai,
   prompt,
-  { attempts = 4, json = false, maxOutputTokens = MAX_OUTPUT_TOKENS, kind = 'unknown' } = {}
+  { attempts = 4, json = false, maxOutputTokens = MAX_OUTPUT_TOKENS, kind = 'unknown', thinking = 0 } = {}
 ) => {
   const config = json
     ? { responseMimeType: 'application/json', maxOutputTokens }
     : { maxOutputTokens };
+  // Room to reason before answering, for the calls that need it (the roadmap
+  // plan). Dropped again below if the configured model has no thinking mode.
+  if (thinking) config.thinkingConfig = { thinkingBudget: thinking };
 
   // Metered here rather than at each of the fourteen call sites: this is the
   // one funnel every generation in the module passes through, including the
@@ -121,6 +125,15 @@ const generateWithRetry = async (
         const timedOut = new Error('The AI service took too long to answer. Please try again in a moment.');
         timedOut.status = 504;
         throw timedOut;
+      }
+
+      // A model without a thinking mode refuses the setting outright. That is
+      // not a failed attempt: ask again without it.
+      if (config.thinkingConfig && error.status === 400 && /think/i.test(error.message || '')) {
+        console.warn(`Model "${MODEL}" has no thinking mode; asking without it.`);
+        delete config.thinkingConfig;
+        attempt -= 1;
+        continue;
       }
 
       if (error.status === 429) {
@@ -354,53 +367,6 @@ You must strictly tailor your advice, tasks, and recommendations to the user's c
 `;
 
 /**
- * Standard programme lengths, in years, for the degrees this app actually sees.
- *
- * Degrees are NOT all four years: BCA, B.Sc, B.Com and BBA run three, most
- * master's run two, and MBBS runs five and a half. Left to itself the model
- * defaults to a four-year bachelor's and a two-year master's, which produces a
- * "Year 4" phase for a BCA student whose course ends at Year 3.
- *
- * Keys are matched against a normalised (lowercased, punctuation-stripped)
- * degree name, longest first, so "b.tech" wins over "b" and "m.sc" over "sc".
- */
-const DEGREE_YEARS = {
-  // Undergraduate
-  'btech': 4, 'be': 4, 'bengineering': 4,
-  'bca': 3, 'bsc': 3, 'bcom': 3, 'bba': 3, 'ba': 3, 'bbm': 3, 'bms': 3,
-  'bscagriculture': 4, 'bscnursing': 4, 'bpharm': 4, 'bdes': 4, 'bfa': 4,
-  'barch': 5, 'mbbs': 5.5, 'bds': 5, 'bvsc': 5, 'pharmd': 6,
-  'llb': 3, 'balllb': 5, 'bbaLlb': 5,
-  'diploma': 3, 'polytechnic': 3,
-  // Postgraduate
-  'mtech': 2, 'me': 2, 'mca': 2, 'msc': 2, 'mcom': 2, 'mba': 2, 'ma': 2,
-  'mpharm': 2, 'mdes': 2, 'llm': 2, 'ms': 2, 'md': 3, 'phd': 4
-};
-
-/** Normalise a degree name for lookup: "B.Tech (Hons)" -> "btech". */
-const normaliseDegree = (degree = '') =>
-  degree.toLowerCase().replace(/[^a-z]/g, '');
-
-/**
- * How long the student's current programme runs, or null when unrecognised.
- * Returns years and the semester count, since Indian programmes are usually
- * discussed in semesters.
- */
-const degreeLength = (goal) => {
-  const key = normaliseDegree(goal.degree);
-  if (!key) return null;
-
-  // Longest key first so "btech" is not shadowed by a shorter partial match.
-  const match = Object.keys(DEGREE_YEARS)
-    .sort((a, b) => b.length - a.length)
-    .find((k) => key.startsWith(k) || key === k);
-
-  if (!match) return null;
-  const years = DEGREE_YEARS[match];
-  return { years, semesters: Math.round(years * 2) };
-};
-
-/**
  * The programme-length constraint handed to the model, or a warning not to
  * assume a default when the degree is not one we recognise.
  */
@@ -450,72 +416,43 @@ const describeCurrentStage = (goal) => {
   return goal.currentClass ? `${level} — ${goal.currentClass}${suffix}` : `${level}${suffix}`;
 };
 
-/**
- * Levels for which the undergraduate ladder is already behind the student.
- *
- * Someone reading for an MCA has finished a bachelor's and is *in* the
- * postgraduate stage; a working professional is past both.
- */
-const PAST_UNDERGRADUATE = ['Postgraduate', 'Working Professional'];
 
 /**
- * Rules 5 and 6 — the internship phase and the postgraduate phases.
+ * The plan's rules for where this student's study goes from here.
  *
  * These used to be stated unconditionally, in the words of an undergraduate's
  * roadmap: "immediately after the final undergraduate year" and "you MUST
  * ALWAYS include postgraduate phases". For a student already reading for a
- * master's that contradicts Rule Zero, and the model resolved the
- * contradiction the wrong way round — an MCA Year 2 student was handed a
- * "Postgraduate Year 1: MCA Advanced Specialisation" phase AFTER their own
- * final year, hedged in its own duration field as "already completed or
- * integrated into current 2-year structure". A roadmap that sends someone
- * back through a year they are finishing reads as broken, which is exactly
- * what Rule Zero exists to prevent.
+ * master's that contradicts the start-where-they-are rule, and the model
+ * resolved the contradiction the wrong way round — an MCA Year 2 student was
+ * handed a "Postgraduate Year 1: MCA Advanced Specialisation" phase AFTER their
+ * own final year. So the ladder is described from where the student stands.
  *
- * So the ladder is now described from where the student actually stands.
+ * The internship used to be placed "immediately AFTER the final undergraduate
+ * year" here, which is why every saved roadmap had one after graduation. Where
+ * an internship goes is now one rule for everyone (the plan prompt's rule 4,
+ * enforced by roadmapPlan.checkPlan): while studying, never after.
  */
 const describeLadderRules = (goal) => {
   const level = goal.educationLevel || '';
 
   if (level === 'Working Professional') {
-    return `5. This user is ALREADY WORKING. Do NOT add a school phase, a degree phase, or an "Internships & Industry Experience" phase — internships are for students, and every one of those stages is behind them. Their roadmap runs from their current role forward.
-6. Add a further qualification (M.Tech / MS / MBA / a certification) ONLY where it genuinely unlocks "${goal.careerGoal}" for someone already in the field, and say plainly why. Never include a degree they already hold. If no further degree is needed, say so and go straight to the on-the-job and hiring phases.`;
+    return `FOR THIS STUDENT: they are ALREADY WORKING. No school stage, no degree they already hold, and no internship stage — internships are for students. Their roadmap runs from their current role forward, through the upskilling, certifications and role changes that lead to "${goal.careerGoal}" (kind "work").
+   Add a further qualification (M.Tech / MS / MBA / a certification) ONLY where it genuinely unlocks "${goal.careerGoal}" for someone already in the field, say plainly why, and put its entrance exam before it (rule 3). If no further degree is needed, go straight to the work stages.`;
   }
 
   if (level === 'Postgraduate') {
     const programme = goal.degree || 'their master\'s';
-    return `5. This user is ALREADY READING FOR A POSTGRADUATE DEGREE (${programme}). You MUST still include a distinct "Internships & Industry Experience" phase, but pitched at THEIR level and placed AFTER their remaining ${programme} years — not after an undergraduate year they finished long ago. It must:
-   - name specific, realistic programmes for this career goal at postgraduate level (e.g. Google STEP's senior equivalents, Microsoft Engage, Amazon SDE Internship, GSoC, research internships at IIT/IISc, industry-sponsored thesis projects),
-   - say when to apply and what the selection process involves,
-   - explain how to convert an internship into a full-time offer (PPO),
-   - cover the portfolio, GitHub, publications and interview preparation needed to get selected.
-   Keep it as its own entry in educationRoadmap.
-6. DO NOT ADD ANY PHASE ABOUT STARTING OR COMPLETING A POSTGRADUATE DEGREE. They are already in one. A phase titled "Postgraduate Year 1", or any phase about choosing a master's, sitting its entrance exams (GATE / NIMCET / CAT / GRE for admission), or picking a university for it, describes something this user has ALREADY DONE and is a serious error — the same error as opening a graduate's roadmap at Class 5. Cover only the ${programme} years they have LEFT, as year- or semester-phases, and then move on to work.
-   The one exception: if the career goal is genuinely research- or academia-oriented, a DOCTORAL (PhD) phase AFTER ${programme} is a real next step and may be included.`;
+    const placed = openingStages(goal).length ? ', and its remaining years are already in the roadmap' : '';
+    return `FOR THIS STUDENT: they are ALREADY READING FOR A POSTGRADUATE DEGREE (${programme})${placed}. DO NOT ADD ANY PHASE ABOUT STARTING OR COMPLETING A POSTGRADUATE DEGREE: they are already in one. A "Postgraduate Year 1" stage, or one about choosing a master's, sitting its entrance exam (GATE / NIMCET / CAT / GRE for admission) or picking a university for it, describes something they have ALREADY DONE and is a serious error.
+   Their internship, if this career uses one, happens during their remaining ${programme} time, pitched at postgraduate level (research internships, industry-sponsored thesis projects, the big companies' graduate internships) — never after ${programme} is finished.
+   The one exception: if the career goal is research- or academia-oriented, a DOCTORAL (PhD) phase AFTER ${programme} is a real next step and should be included, with its entrance exam (UGC-NET / CSIR-NET JRF / the university's own test) before it.`;
   }
 
   // School, Diploma and Undergraduate students: the full ladder is still ahead.
-  return `5. Immediately AFTER the final undergraduate year and BEFORE the postgraduate phases, you MUST include a distinct "Internships & Industry Experience" phase. This phase is MANDATORY and must:
-   - name specific, realistic programmes for this career goal (e.g. Google STEP, Microsoft Engage, Amazon SDE Internship, GSoC, research internships at IIT/IISc, startup internships via Internshala or Unstop),
-   - say when to apply and what the selection process involves,
-   - explain how to convert an internship into a full-time offer (PPO),
-   - cover the portfolio, GitHub, and interview preparation needed to get selected.
-   Keep it as its own entry in educationRoadmap - do NOT merge it into a college year or into the postgraduate phases.
-6. After that internship phase, you MUST ALWAYS include postgraduate phases in the educationRoadmap, broken down year-by-year.
-   Just like the college phases, you MUST offer MULTIPLE VIABLE POSTGRADUATE OPTIONS in the phase title rather than forcing a single degree - and each option must be ELIGIBLE for the undergraduate degrees you listed earlier. Eligibility matters:
-   - B.Tech / B.E. graduates -> M.Tech, MS (abroad), or M.Sc in Computer Science.
-   - BCA / B.Sc IT / B.Sc CS graduates -> MCA or M.Sc in Computer Science (they are usually NOT eligible for M.Tech directly).
-   So if the college phase offered "B.Tech CSE / BCA / B.Sc IT", the postgraduate phase MUST offer something like "M.Tech CSE / MCA / M.Sc CS (Human-Computer Interaction & Web Technologies)" and briefly say which undergraduate path leads to which postgraduate option.
-   Within those options, RECOMMEND A SUITABLE SPECIALISATION that genuinely advances THIS user's stated career goal. For example:
-   - Frontend / Web Developer -> specialise in Human-Computer Interaction (HCI), UI/UX, or Web Technologies; MS in HCI abroad (Georgia Tech, CMU, TU Delft) as the international option.
-   - Data Scientist -> Data Science, Artificial Intelligence, or Statistics.
-   - Leadership / product ambitions -> MBA in Product Management or Technology Management after 2-3 years of work experience.
-   Each postgraduate phase MUST cover:
-   - the specific programme and specialisation you recommend, and WHY it suits this exact career goal,
-   - the PG entrance exams required (e.g., GATE, GRE, TOEFL/IELTS, CAT, NET) and when to start preparing,
-   - research, thesis, publications, and assistantship opportunities,
-   - realistic universities for the user's location and budget (name actual institutions).
-   Also state plainly whether the degree is strictly REQUIRED to enter the career or whether it is a career ACCELERATOR that leads to senior, research, or architect-level roles - but recommend a concrete suitable programme either way. Never reduce this phase to "optional, you may skip it".`;
+  return `FOR THIS STUDENT — POSTGRADUATE STUDY: you MUST include postgraduate phases after the bachelor's degree and before work, one stage per year of the master's, with its entrance exam stage before it (rule 3). The only exception is a career whose real route replaces a master's with a professional qualification or training (a pilot's licence, CA / CMA / CS): then that route takes its place.
+   Offer MULTIPLE postgraduate options in the title, each ELIGIBLE for the bachelor's degrees offered earlier: B.Tech / B.E. -> M.Tech, MS abroad or M.Sc CS; BCA / B.Sc IT / B.Sc CS -> MCA or M.Sc CS (they are usually NOT eligible for an M.Tech). Recommend the specialisation that genuinely advances "${goal.careerGoal}": e.g. HCI / Web Technologies for a frontend developer, Data Science / AI for a data scientist, an MBA in Product or Technology Management after 2–3 years of work for leadership ambitions.
+   If the career goal is research- or academia-oriented, also add a doctoral (PhD) phase after the master's, with its entrance exam before it.`;
 };
 
 // A school phase: "Class 9", "Grade 10", "Std 8", "Class 11: PCMB Stream".
@@ -591,362 +528,284 @@ const stripCompletedStages = (roadmap, goal) => {
   return roadmap;
 };
 
-// Matches the ways a postgraduate stage tends to be labelled, so we can tell
-// whether the model actually carried the roadmap past the bachelor's degree.
-const PG_PATTERN = /post[\s-]?grad|masters?\b|m\.?tech|m\.?sc|m\.?c\.?a|\bmba\b|\bms\b|\bphd\b|doctoral/i;
+/* ================= roadmap: plan it, check it, then write it ================= */
+//
+// One prompt used to plan and write the whole roadmap at once, from a fixed
+// template, and the saved roadmaps came out in the wrong order (roadmapPlan.js
+// lists how). Now the model plans the stages first, with room to think; code
+// checks and corrects the order (roadmapPlan.checkPlan); and only then is each
+// stage written up, against a plan that can no longer change.
 
-// Matches the phases that carry the user from "qualified" to "employed". A
-// roadmap missing these stops at a degree, which is not what the user is here
-// for — they want the job.
-const CAREER_ENTRY_PATTERN =
-  /job\s*application|placement|recruitment|hiring|first\s*role|career\s*launch|job\s*search|getting\s*hired|interview\s*prep/i;
+// Thinking room for the plan. It is short to write and the hardest part to get
+// right — which exam opens which stage, which route this career really takes.
+const PLAN_THINKING_BUDGET = 4096;
 
-const hasCareerEntryPhase = (roadmap) =>
-  (roadmap?.educationRoadmap || []).some((stage) => {
-    const text = typeof stage === 'string' ? stage : `${stage?.phase || ''} ${stage?.description || ''}`;
-    return CAREER_ENTRY_PATTERN.test(text);
-  });
+// Stages written up per call. A Class 5 student's road runs to twenty stages,
+// and twenty written in full overflowed one reply: the end of the road was cut
+// off. Eight a call fits with room to spare, and the calls run side by side.
+const WRITE_CHUNK = 8;
 
-const buildCareerEntryPrompt = (goal, roadmap) => `
-You previously generated a career roadmap for this user but it stopped at their studies.
-Generate ONLY the missing phases that take them from finishing their education to actually
-working as "${goal.careerGoal}".
+const studentContext = (goal) => `Student:
+- Education level: ${goal.educationLevel}
+- Where they are now: ${describeCurrentStage(goal)}${goal.board ? `\n- Board: ${goal.board}. Follow this board's own syllabus, subject names and exam names — never another board's. "${goal.board}" is the board's name; do not invent a syllabus name of your own.` : ''}${goal.stream ? `\n- Stream: ${goal.stream}. This decides which degrees and entrance exams they are ELIGIBLE for. Never plan a path their subject combination rules out — no JEE or engineering without Maths, no NEET or medicine without Biology.` : ''}
+- Current job / experience: ${goal.currentJob || 'N/A'} (${goal.experience || 0} years)
+- Career goal: ${goal.careerGoal}
+- Dream company / organisation: ${goal.dreamCompany || 'None specified'}
+- Location: ${[goal.state, goal.country].filter(Boolean).join(', ') || 'India'}`;
 
-User Context:
-- Education Level: ${goal.educationLevel}
-- Desired Career Goal: ${goal.careerGoal}
-- Dream Company/Organization: ${goal.dreamCompany || 'None specified'}
-- Location: ${goal.state || ''} ${goal.country || ''}
-- Final phase already covered: ${
-  (roadmap?.educationRoadmap || []).at(-1)?.phase || 'their final academic year'
-}
+const KIND_GUIDE = `Kinds:
+- "school": a school class.
+- "exam": an entrance exam, selection, medical or licence needed to ENTER a later stage.
+- "degree": one year of a bachelor's degree or diploma.
+- "pg": one year of a master's degree.
+- "phd": doctoral study.
+- "internship": an internship.
+- "training": professional training that is not a degree (flying school, articleship, residency, an apprenticeship).
+- "qualification": one level of a professional qualification (CA Intermediate, CMA Final, a commercial pilot licence).
+- "recruitment": the tests employers or the government use to hire.
+- "job-search": applying for jobs.
+- "first-role": the job itself.
+- "work": a stage of working life (a working professional's upskilling or role change).`;
 
-Produce EXACTLY three phases, in this order:
-1. "Job Applications & Placement Preparation" - what the resume and portfolio must show, WHERE to apply (campus drives, named portals such as LinkedIn / Naukri / Instahyre / Wellfound, company career pages, referrals), the real hiring calendar, and how to run and track the search.
-2. "Entrance & Recruitment Exams" - name the ACTUAL exams standing between the user and this job: company hiring tests (TCS NQT, Infosys InfyTQ/HackWithInfy, Wipro Elite NTH, AMCAT, eLitmus, Cocubes), coding/online-assessment rounds, government and PSU routes if relevant (GATE for PSU, UPSC, SSC, IBPS, state PSC, NET/SET), and any licensing exam the career legally requires. For each give eligibility, when it is held, and how long to prepare. If a category genuinely does not apply, say so explicitly.
-3. "First Role → ${goal.careerGoal}" - the realistic entry-level title and starting salary band for this location, what the first 6-12 months look like, and the promotion path to "${goal.careerGoal}" with rough timeframes.
+const buildPlanPrompt = (goal, opening, { askStream = false, previous = null } = {}) => {
+  const working = goal.educationLevel === 'Working Professional';
+  const last = opening[opening.length - 1];
+  const start = opening.length
+    ? `THE ROADMAP ALREADY BEGINS WITH THESE STAGES, worked out from the student's own answers. They are fixed: do not repeat, rename or reorder them.
+${opening.map((s, i) => `${i + 1}. ${s.title}`).join('\n')}
+Plan ONLY what comes AFTER "${last.title}", starting with the very next thing that happens.`
+    : `Start with the stage the student is in RIGHT NOW (${describeCurrentStage(goal)}) — never anything they have already finished.`;
 
-Be concrete and specific to this career and location. No generic filler.
-Return raw JSON only. No markdown, no code blocks.
+  return `You are an expert career counsellor. PLAN a student's career roadmap: the ordered list of stages only. Each stage is written up in detail in a later step.
 
-Required JSON Structure:
+${studentContext(goal)}
+
+Take your time. Before answering, think it through: work out the REAL route people take from where this student is to "${goal.careerGoal}", then put every stage in the order the student will actually live it, and check that order again. A stage in the wrong place is the worst mistake you can make here.
+
+${start}
+${askStream ? `\nThe student has not chosen a Class 11–12 stream yet. Choose the stream this career needs and return it as "stream" (e.g. "Science – PCM", "Science – PCB", "Commerce", "Arts"). It is written into their Class 11 and Class 12 stages.\n` : ''}
+${describeDegreeLength(goal)}
+
+ORDER RULES. The plan is checked against these in code, and a plan that breaks them is sent back:
+1. Only stages still ahead of the student, each in the place it really happens.
+2. One stage per year of study: one per class, one per degree year. NEVER merge years ("Year 2–3", "Class 6–8"). Degrees have their real lengths: B.Tech / B.E. 4 years; BCA / B.Sc / B.Com / BBA / BA / Diploma 3; B.Arch 5; MBBS 4.5 years of study (Year 4 is 1.5 years) and then a 1-year compulsory internship; MCA / M.Tech / M.Sc / MBA / M.Com 2; an MS abroad 1–2. Never a year a degree does not have.
+3. Every entrance exam, selection, medical or licence needed to ENTER a stage is its own stage of kind "exam", placed IMMEDIATELY BEFORE the stage it opens, with "unlocks" set to that stage's exact title. For example: JEE / NEET / CUET / NATA / CLAT between Class 12 and college; CAT / XAT before an MBA; GATE before an M.Tech; NIMCET before an MCA; IIT JAM before an IIT M.Sc; CEED before an M.Des; NEET-PG before MD / MS; UGC-NET or CSIR-NET JRF before a PhD; the DGCA medicals before flying training. Never put such an exam after the stage it opens, and never collect them at the end of the roadmap.
+   Every stage that starts a new degree, training or qualification also says in "entry" which exam or selection admits the student: the exam's name (e.g. "CAT / XAT"), or "merit" when admission is on marks alone.
+4. Internships happen WHILE studying — in the vacation before the final year, or during it — never after the last degree is finished. Use kind "internship". The one exception is an internship the degree itself requires after its final exams (the MBBS / BDS compulsory rotating internship, a BPT or nursing internship): it stays right after that degree's final year, and its title says it is compulsory. Leave internships out for careers that are not entered through them, and use that career's own step instead (an airline cadet programme or type rating for a pilot, articleship for a CA).
+5. Follow THIS career's real route, not a generic one. A pilot: Class 12 with Physics and Maths → DGCA medicals → flying school (CPL training and the DGCA papers) → type rating → airline. A Chartered or Cost Accountant: Foundation → Intermediate → articleship / practical training → Final. A doctor: MBBS years → compulsory internship year → NEET-PG → MD / MS. Professional qualifications and their levels are stages of their own (kind "qualification" or "training").
+${describeLadderRules(goal)}
+6. The roadmap ENDS with getting the job, as its last stages, in this order:
+   (a) kind "recruitment" — "Recruitment Exams & Hiring Tests": the tests employers or the government use to hire for this career (company hiring tests, PSU recruitment through GATE, UPSC / SSC / IBPS / state PSC, a licensing exam the job requires). Leave it out only if this career genuinely has none.
+${working ? '' : '   (b) kind "job-search" — "Job Applications & Placement Preparation".\n'}   (${working ? 'b' : 'c'}) kind "first-role" — "${working ? 'Next Role' : 'First Role'} → ${goal.careerGoal}". Nothing comes after it.
+7. Titles are short and specific: "B.Tech CSE Year 2", "JEE Main & Advanced", "MBA Year 1 (HR)". Where the student must choose between degrees, put the options in the title ("College Year 1: B.Tech CSE / BCA / B.Sc IT").
+
+${KIND_GUIDE}
+${previous ? `
+YOUR PREVIOUS PLAN had these problems. Fix every one of them and keep everything that was right:
+${previous.problems.map((p) => `- ${p.text}`).join('\n')}
+That plan was:
+${previous.stages.map((s, i) => `${i + 1}. [${s.kind}] ${s.title}`).join('\n')}
+` : ''}
+Return raw JSON only, no markdown:
 {
-  "careerEntryRoadmap": [
-    { "phase": "Job Applications & Placement Preparation", "description": "...", "actionItems": ["...", "...", "..."] },
-    { "phase": "Entrance & Recruitment Exams", "description": "...", "actionItems": ["...", "...", "..."] },
-    { "phase": "First Role → ${goal.careerGoal}", "description": "...", "actionItems": ["...", "...", "..."] }
+${askStream ? '  "stream": "the Class 11–12 stream this career needs",\n' : ''}  "route": [
+    { "title": "...", "kind": "...", "duration": "e.g. '1 year', '3–6 months'", "entry": "only on a stage that starts a degree, training or qualification", "unlocks": "only on an exam: the exact title of the stage it opens", "why": "one short sentence: what this stage is for" }
+  ]
+}`;
+};
+
+const hasHard = (checked) => checked.problems.some((p) => p.hard);
+const needsAnotherLook = (checked) => checked.problems.some((p) => p.hard || p.missing);
+
+/**
+ * The roadmap's stages, in an order code has checked. Throws (502, so the
+ * charge is refunded) when the model cannot produce a plan without a wrong
+ * order in it, even after being shown its mistakes: a wrong roadmap is worse
+ * than none, and the student can simply try again.
+ */
+const planRoadmap = async (ai, goal) => {
+  let opening = openingStages(goal);
+  const askStream = !goal.stream && opening.some((s) => s.kind === 'school' && /^Class 1[12]\b/.test(s.title));
+  const ask = async (previous) => {
+    const response = await generateWithRetry(ai, buildPlanPrompt(goal, opening, { askStream: askStream && !previous, previous }), {
+      json: true, kind: 'roadmap-plan', thinking: PLAN_THINKING_BUDGET
+    });
+    return parseJsonObject(response.text);
+  };
+
+  const first = await ask(null);
+  const stream = askStream && typeof first.stream === 'string' ? first.stream.trim().slice(0, 40) : '';
+  if (stream) opening = openingStages(goal, { stream });
+
+  let checked = checkPlan(first.route, goal, opening);
+  if (checked.fixes.length) console.warn(`Roadmap plan corrected: ${checked.fixes.join('; ')}`);
+
+  if (needsAnotherLook(checked)) {
+    console.warn(`Roadmap plan sent back: ${checked.problems.map((p) => p.text).join(' | ')}`);
+    const second = await ask({ stages: checked.stages.slice(opening.length), problems: checked.problems });
+    const again = checkPlan(second.route, goal, opening);
+    // The second plan is kept only when it is no worse: a reply that fixed
+    // one thing and broke the order elsewhere is not an improvement.
+    if (!hasHard(again) && (hasHard(checked) || again.problems.length <= checked.problems.length)) checked = again;
+  }
+
+  if (hasHard(checked)) {
+    const error = new Error('The roadmap could not be put in a correct order this time. Nothing was saved — please try again.');
+    error.status = 502;
+    error.problems = checked.problems;
+    throw error;
+  }
+  const soft = checked.problems.filter((p) => !p.missing);
+  if (soft.length) console.warn(`Roadmap plan accepted with: ${soft.map((p) => p.text).join(' | ')}`);
+
+  // What is still missing is filled in plain words, and the stages a student
+  // has already finished go, by the same rule a saved roadmap is repaired by.
+  const stages = fillMissing(checked.stages, checked.problems, goal);
+  const done = new Set(completedStageIndices(stages.map((s) => ({ phase: s.title })), goal));
+  return { stages: stages.filter((_, i) => !done.has(i)), stream };
+};
+
+const EXTRAS_RULES = (goal) => `
+ALSO RETURN, alongside the stages:
+- "currentStage": the student's current stage and what to focus on now.
+- "skills" (technical, soft, life), "subjects", "courses", "books", "certifications", "projects", "internships", "careerTips": arrays of strings, right for this student's age and stage.
+- "entranceExams": EVERY exam in the plan, academic and recruitment, in the order the student will sit them, each as "EXAM NAME — what it gets you and when it is held".
+- "colleges": 8 to 12 OBJECTS, REAL, NAMED institutions that offer the programmes in this plan. Never placeholders like "Your Current University" or "Top Engineering Colleges". Label each honestly with "tier": "Reach", "Target" or "Safe" (at least two of each); mix government and private; prefer ${goal.state || "the student's state"}, ${goal.country || 'India'}, plus the strongest national options and, where genuinely relevant, 1 to 2 international ones.
+- "motivation": encouraging advice.`;
+
+const EXTRAS_JSON = `,
+  "skills": { "technical": ["..."], "soft": ["..."], "life": ["..."] },
+  "subjects": ["..."], "courses": ["..."], "books": ["..."], "certifications": ["..."], "projects": ["..."],
+  "entranceExams": ["EXAM — what it gets you and when it is held"],
+  "colleges": [
+    { "name": "Real, named institution", "location": "City, State", "type": "Government | Private | Deemed | International",
+      "programme": "The exact degree to apply for here, matching the plan", "tier": "Reach | Target | Safe",
+      "entranceExam": "The exam or route that gets the student in", "eligibility": "Marks / score / qualification actually needed",
+      "approxFees": "Realistic total programme cost with currency", "placement": "Typical placement outcome",
+      "whyThisFits": "One or two sentences on why THIS college suits THIS student's goal" }
   ],
-  "entranceExams": ["EXAM NAME — what it gets you and when it is held"]
-}
-`;
+  "internships": ["..."], "careerTips": ["..."],
+  "motivation": "..."`;
 
-const hasPostgraduatePhase = (roadmap) =>
-  (roadmap?.educationRoadmap || []).some((stage) => {
-    const text = typeof stage === 'string' ? stage : `${stage?.phase || ''} ${stage?.description || ''}`;
-    return PG_PATTERN.test(text);
-  });
-
-const buildPostgraduatePrompt = (goal, roadmap) => `
-You previously generated a career roadmap for this user but stopped at the undergraduate stage.
-Generate ONLY the missing postgraduate phases that continue from where it ended.
-
-User Context:
-- Education Level: ${goal.educationLevel}
-- Desired Career Goal: ${goal.careerGoal}
-- Location: ${goal.state || ''} ${goal.country || ''}
-- Final phase already covered: ${
-  (roadmap?.educationRoadmap || []).at(-1)?.phase || 'Undergraduate final year'
-}
-
-Rules:
-1. Break the postgraduate stage down year-by-year, using each programme's REAL length — most Indian master's degrees (MCA, M.Tech, M.Sc, MBA) run 2 years / 4 semesters, while an MS abroad may run 1 year. Never generate a "Year 3" phase for a 2-year programme.
-2. Offer EVERY eligible postgraduate option in the phase title, matched to the undergraduate degrees available (B.Tech -> M.Tech / MS abroad; BCA or B.Sc IT -> MCA / M.Sc CS, since they are usually not eligible for M.Tech), e.g. "M.Tech CSE / MCA / M.Sc CS (HCI & Web Technologies)". Say which undergraduate path leads to which option, recommend a specialisation suited to "${goal.careerGoal}", and name real universities to target.
-3. Cover entrance exams (GATE, GRE, TOEFL/IELTS, CAT, NET), specialisation choice, research/thesis, and assistantships.
-4. State whether the degree is strictly REQUIRED for "${goal.careerGoal}" or a career ACCELERATOR toward senior/architect/research roles - but recommend a concrete programme either way. Never reduce it to "optional, you may skip it".
-5. If the goal is research- or academia-oriented, add a PhD phase as well.
-6. Return raw JSON only. No markdown, no code blocks.
-
-Required JSON Structure:
-{
-  "postgraduateRoadmap": [
-    {
-      "phase": "Postgraduate Year 1: M.Tech / MS / MBA",
-      "description": "Detailed explanation.",
-      "actionItems": ["Action 1", "Action 2", "Action 3"]
-    }
-  ],
-  "timeline": "Updated timeline from the user's current stage onward, using each programme's real length."
-}
-`;
-
-const generateRoadmapFromAI = async (goal, courseContext = '') => {
-  // Ensure the API key is present
-  const ai = await geminiClient();
-
-  // Construct the prompt based on the user's goal
-  const prompt = `
-You are an expert career counselor AI. Generate a step-by-step career roadmap for the following user. 
+const buildWritePrompt = (goal, stages, part, courseContext, withExtras) => `
+You are an expert career counsellor AI. Below is a student's roadmap plan. Its stages and their order are FINAL and have already been checked: your job is to write them up in full.
 Do not output any markdown formatting other than the JSON itself. Do not use code blocks. Only return a raw JSON object.
 
-User Context:
-- Education Level: ${goal.educationLevel}
-- Current Class/Degree/Semester: ${goal.currentClass || goal.degree + ' ' + (goal.specialization || '') + ' ' + (goal.currentYear || '') + ' ' + (goal.semester || '')}${goal.board ? `\n- Board: ${goal.board}. Follow this board's own syllabus, subject names and exam names — never another board's. "${goal.board}" is the board's name; do not invent a syllabus name of your own.` : ''}${goal.stream ? `\n- Stream: ${goal.stream}. This decides which degrees and entrance exams they are ELIGIBLE for. Never plan a path that their subject combination rules out — no JEE or engineering for a student without Maths, no NEET or medicine for one without Biology.` : ''}
-- Current Job/Experience: ${goal.currentJob || 'N/A'} (${goal.experience || 0} years)
-- Desired Career Goal: ${goal.careerGoal}
-- Dream Company/Organization: ${goal.dreamCompany || 'None specified'}
-- Location: ${goal.state || ''} ${goal.country || ''}
+${studentContext(goal)}
 ${courseContext ? `
 ${courseContext}
-Where a phase of the roadmap is covered by one of these courses, say so in that
-phase's steps by name — "Work through YATICORP's <title>" — instead of naming an
-outside platform. Do not stretch: a phase nothing here covers should still point
+Where a stage of the roadmap is covered by one of these courses, say so in that
+stage's steps by name — "Work through YATICORP's <title>" — instead of naming an
+outside platform. Do not stretch: a stage nothing here covers should still point
 wherever genuinely serves the student best.
 ` : ''}
-########################################################################
-# RULE ZERO - START POINT. THIS OVERRIDES EVERY OTHER RULE BELOW.
-########################################################################
-THE USER IS RIGHT NOW AT: ${describeCurrentStage(goal)}
-
-The FIRST entry in "educationRoadmap" MUST be this exact stage. The roadmap
-covers ONLY the journey from HERE to their career goal.
-
-You MUST NOT include any phase the user has already finished. A student in a
-bachelor's degree has already completed school, so their roadmap must NOT
-contain Class 5, Class 10, Class 12, or any earlier college year. A working
-professional's roadmap must not contain any school or degree phase they already
-hold. Starting earlier than the user's current stage is the single worst error
-you can make here - it makes the roadmap useless and insulting.
-
-Walk forward from the stage above to the goal. Never backwards.
-
-${describeDegreeLength(goal)}
-########################################################################
-
 ${PROGRESSION_RULES}
 
-Follow these STRICT rules:
-1. The roadmap must adapt to the user's specific education level.
-2. The educationRoadmap MUST be broken down year-by-year or class-by-class, STARTING AT THE STAGE NAMED IN RULE ZERO. Do NOT group multiple years together (e.g., NEVER write "Class 6-8"): generate a distinct phase for each year or class from the current stage onward, continuing through whatever stages genuinely remain for this user (remaining school years if they are still at school, then undergraduate, then POSTGRADUATE) and into the target job. The roadmap must not stop at the undergraduate degree. Only include earlier stages the user has NOT yet reached.
-3. When reaching Higher Secondary (Class 11/12), you MUST explicitly state which stream to choose (e.g., PCMB, PCMC, Commerce, Arts).
-4. When reaching College (Year 1, 2, etc.), you MUST provide multiple viable degree options if applicable (e.g., "College Year 1: B.Tech CSE / BCA / B.Sc IT") instead of forcing only one path like B.Tech.
-4b. DEGREE LENGTHS DIFFER AND YOU MUST RESPECT THEM. Generate exactly as many year-phases as the degree actually has, never a fixed four:
-   - B.Tech / B.E. / B.Pharm / B.Sc Agriculture -> 4 years (8 semesters)
-   - BCA / B.Sc / B.Com / BBA / BA / Diploma -> 3 years (6 semesters)
-   - B.Arch -> 5 years, MBBS -> 5.5 years, Pharm.D -> 6 years
-   - MCA / M.Tech / M.Sc / MBA / M.Com / LLM -> 2 years (4 semesters)
-   - MS abroad -> 1 to 2 years depending on the country and programme
-   A "Year 4" phase for a 3-year BCA, or a "Year 3" phase for a 2-year MCA, is a factual error. If you offer several degree options in one phase, say plainly that their lengths differ (e.g. "B.Tech takes 4 years, BCA and B.Sc take 3").
-${describeLadderRules(goal)}
-7. If the career goal is research- or academia-oriented, also add a doctoral (PhD) phase after the postgraduate phases.
-7b. THE ROADMAP MUST NOT END AT GRADUATION. A degree is not the goal — the job is. After the final academic phase you MUST add these three phases, in this order, as separate entries in educationRoadmap:
+THE PLAN (all ${stages.length} stages, in order):
+${stages.map((s, i) => `${i + 1}. ${s.title}${s.duration ? ` — ${s.duration}` : ''}${s.why ? ` — ${s.why}` : ''}`).join('\n')}
 
-   (i) "Job Applications & Placement Preparation" — the practical mechanics of getting hired:
-       - what the resume and portfolio must contain for "${goal.careerGoal}", and what recruiters screen for,
-       - WHERE to apply: campus placements, named job portals (LinkedIn, Naukri, Instahyre, Wellfound, company career pages), and how to get referrals,
-       - WHEN to apply: the real hiring calendar (campus drives in the final year, off-campus cycles, fresher hiring windows),
-       - how many applications a realistic search takes, and how to track them.
+WRITE STAGES ${part.from + 1} TO ${part.to} ONLY. Return "educationRoadmap" with exactly ${part.to - part.from} entries, one per stage, in the same order, with "phase" copied EXACTLY from the plan. Never add, drop, merge or reorder a stage.
 
-   (ii) "Entrance & Recruitment Exams" — every test standing between the user and this job. Name the ACTUAL exams:
-       - company hiring tests where relevant (e.g. TCS NQT, Infosys InfyTQ / HackWithInfy, Wipro Elite NTH, Accenture / Capgemini assessments, AMCAT, eLitmus, Cocubes),
-       - online assessment and coding rounds for product companies (DSA rounds on HackerRank / Codility, machine-coding rounds),
-       - government and PSU routes if they apply to this career (GATE for PSU recruitment, UPSC, SSC, IBPS/banking, state PSC, RRB, NET/SET for teaching),
-       - professional licensing or certification exams where the career legally requires them (e.g. NEET-PG, bar exam, CA/CS/CMA, FRM, PMP),
-       - for EACH exam: eligibility, when it is held, and how long to prepare.
-       If a particular category genuinely does not apply to this career, say so explicitly rather than omitting it silently.
+Each stage is written for the place it holds in the plan. An exam stage covers that exam: eligibility, when it is held, how to prepare and what score is needed. "Recruitment Exams & Hiring Tests" names the ACTUAL hiring tests for this career, with eligibility, timing and how long to prepare. "Job Applications & Placement Preparation" covers the resume and portfolio, where and when to apply, referrals, and tracking applications. The first-role stage covers the realistic entry title and starting salary band for this location, the first 6–12 months, and the promotion path to "${goal.careerGoal}".
 
-   (iii) "First Role → ${goal.careerGoal}" — what happens after the offer:
-       - the realistic entry-level title and starting salary band for the user's location,
-       - what the first 6-12 months look like (probation, onboarding, what "good" looks like),
-       - the promotion path from that entry role to "${goal.careerGoal}" with rough timeframes,
-       - what to keep learning on the job to get there.
-
-   These three phases are MANDATORY for EVERY user regardless of education level. A roadmap that stops at a degree is incomplete and useless.
-8. The "entranceExams" array MUST list EVERY exam the user will face on this path, each with what it is for. Include:
-   - academic entrance exams still ahead of them (undergraduate and postgraduate: GATE, NIMCET, state PGCET, GRE, TOEFL/IELTS, CAT, NET),
-   - AND recruitment/job exams from phase (ii) above (TCS NQT, AMCAT, eLitmus, PSU via GATE, UPSC, SSC, IBPS, state PSC, licensing exams).
-   Format each entry as "EXAM NAME — what it gets you and when it is held". Do not list only academic exams.
-9. If Primary School, do not recommend internships, resumes, or certifications.
-10. If High School, recommend subject choices and entrance exams.
-11. If College, recommend skills, projects, internships, and certifications.
-12. Start the roadmap at the user's CURRENT stage in every case, never before it (see RULE ZERO):
-   - Higher Secondary (Class 11/12) -> begin at their current class, then college, then postgraduate. No Class 5-10 phases.
-   - Diploma or Undergraduate (B.Tech, BCA, B.Sc, B.Com, ...) -> begin at their CURRENT year of that degree, then the remaining years, then internships, then postgraduate. NO school phases at all, and no earlier college years they have already passed.
-   - Postgraduate -> begin at their current PG year and continue into specialisation, research, and senior industry roles. No school or undergraduate phases.
-   - Working Professional -> begin at their current role and continue into upskilling, transitions, and senior positions. No school or degree phases they already hold.
-13. If Working Professional, recommend upskilling and career transitions.
-14. The JSON must exactly match the schema below. Fill arrays with strings.
-15. EVERY phase in "educationRoadmap" MUST be filled in properly. A phase with a
-   one-line description is useless — the student is reading this to find out what
-   to actually DO. For each phase you MUST provide:
-   - "duration": how long this phase lasts (e.g. "1 year", "6 months", "Ongoing").
-   - "focus": one sentence naming the single most important thing in this phase.
-   - "description": 3 to 4 SHORT sentences. Explain what this stage IS and why
-     it matters for "${goal.careerGoal}". Be concrete and specific to this
-     career - never generic advice that would suit any student.
-     WRITE FOR A 16-YEAR-OLD, NOT A CONSULTANT. One idea per sentence, plain
-     words, no stacked jargon and no clauses piled up with semicolons. This
-     field is the overview only: do NOT list the things to do here, because
-     "actionItems" below is where they belong and repeating them turns the
-     phase into a wall of text the student skips.
-   - "actionItems": 5 to 8 SPECIFIC, doable actions. Name real technologies,
-     real platforms, real exams, real programmes. "Learn programming" is a
-     failure; "Build a React portfolio site and deploy it on Vercel" is correct.
-   - "milestones": 3 to 4 things the student should be able to POINT AT when this
-     phase is over (a deployed project, a score, a certificate, an offer).
-   - "pitfalls": 2 to 3 mistakes students commonly make in this exact phase, and
-     what to do instead.
-16. "colleges" MUST be an array of OBJECTS, not strings, and MUST contain 8 to 12
-   REAL, NAMED institutions. Never write placeholders like "Your Current
-   University", "a good local college", or "Top Engineering Colleges" - naming
-   nothing is the same as saying nothing.
-   - Cover a RANGE, and label each one honestly with "tier":
-     "Reach" (highly competitive), "Target" (realistic), "Safe" (very likely).
-     Include at least two of each.
-   - Include a MIX of government and private institutions.
-   - Prefer institutions in or near ${goal.state || 'the user\'s state'}, ${goal.country || 'India'},
-     but also include the strongest national options and, where genuinely
-     relevant to this career, 1 to 2 international ones.
-   - Every college must be one that actually offers the programme you name and
-     that fits the degree path in the roadmap above.
+For EVERY stage provide:
+- "duration": how long it lasts (e.g. "1 year", "6 months", "Ongoing").
+- "focus": one sentence naming the single most important thing in it.
+- "description": 3 to 4 SHORT sentences on what this stage IS and why it matters for "${goal.careerGoal}". Concrete and specific to this career, never generic. WRITE FOR A 16-YEAR-OLD, NOT A CONSULTANT: one idea per sentence, plain words. This is the overview only: do NOT list the things to do here, they belong in "actionItems".
+- "actionItems": 5 to 8 SPECIFIC, doable actions naming real technologies, platforms, exams and programmes. "Learn programming" is a failure; "Build a React portfolio site and deploy it on Vercel" is correct.
+- "milestones": 3 to 4 things the student can POINT AT when the stage is over (a project, a score, a certificate, an offer).
+- "pitfalls": 2 to 3 mistakes students make in this exact stage, and what to do instead.
+${withExtras ? EXTRAS_RULES(goal) : ''}
 
 Required JSON Structure:
-{
-  "currentStage": "Explain the user's current stage and what to focus on.",
+{${withExtras ? '\n  "currentStage": "...",' : ''}
   "educationRoadmap": [
-    {
-      "phase": "Stage 1 Title",
-      "duration": "How long this phase lasts, e.g. '1 year'",
-      "focus": "One sentence: the single most important thing in this phase.",
-      "description": "4-6 sentences. What this stage is, why it matters for this exact career goal, and where the student's time should go. Specific, never generic.",
-      "actionItems": ["5-8 specific, doable actions naming real tools, platforms, exams and programmes"],
-      "milestones": ["3-4 things the student can point at when this phase is over"],
-      "pitfalls": ["2-3 mistakes students make in this exact phase, and what to do instead"]
-    },
-    {
-      "phase": "<FINAL year of the user's actual degree - use its real length, e.g. 'BCA Year 3 / Final Year' for a 3-year BCA, 'B.Tech Year 4 / Final Year' for a 4-year B.Tech. Never invent a year the degree does not have.>",
-      "description": "...",
-      "actionItems": ["..."]
-    },
-    {
-      "phase": "Internships & Industry Experience",
-      "description": "This entry is MANDATORY and must sit between the final undergraduate year and the postgraduate phases. Name specific programmes suited to this career goal, when to apply, how selection works, and how to convert an internship into a full-time offer.",
-      "actionItems": ["Apply to Google STEP / Microsoft Engage / Amazon SDE internships", "Contribute to open source (GSoC, Hacktoberfest)", "Build a portfolio and prepare for interviews"]
-    },
-    {
-      "phase": "Postgraduate Year 1: <list every eligible degree option AND the specialisation, e.g. 'M.Tech CSE / MCA / M.Sc CS (HCI & Web Technologies)'>",
-      "description": "This entry is MANDATORY - the array must always continue past the final undergraduate year into postgraduate study. List all postgraduate options that the undergraduate degrees you offered actually qualify for (B.Tech -> M.Tech/MS; BCA or B.Sc -> MCA/M.Sc), say which UG path leads to which, explain why the specialisation suits this exact career goal, and name the entrance exams and real universities to target.",
-      "actionItems": ["Prepare for GATE (for M.Tech) or NIMCET / university MCA entrance", "Shortlist named universities", "..."]
-    },
-    {
-      "phase": "Postgraduate Year 2: <specialisation, thesis/research focus tied to the career goal>",
-      "description": "...",
-      "actionItems": ["..."]
-    },
-    {
-      "phase": "Job Applications & Placement Preparation",
-      "description": "MANDATORY. The mechanics of actually getting hired: what the resume and portfolio must show, where to apply (campus drives, named portals, referrals), the real hiring calendar, and how to run and track the search.",
-      "actionItems": ["Build a resume targeted at this role and get it reviewed", "Register on named portals and set up alerts", "Ask for referrals from seniors and alumni", "Track applications and follow up"]
-    },
-    {
-      "phase": "Entrance & Recruitment Exams",
-      "description": "MANDATORY. Every test between the user and this job - company hiring tests, coding and online assessment rounds, government/PSU routes, and any licensing exam the career legally requires. For each: eligibility, when it is held, and how long to prepare. If a category does not apply to this career, say so explicitly.",
-      "actionItems": ["Register for the specific exams named above", "Prepare aptitude and DSA to the level those tests demand", "Sit mock tests under timed conditions", "Track exam calendars and deadlines"]
-    },
-    {
-      "phase": "First Role → <the user's career goal>",
-      "description": "MANDATORY. What happens after the offer: the realistic entry-level title and starting salary band for this location, what the first 6-12 months look like, and the promotion path from that entry role to the stated career goal with rough timeframes.",
-      "actionItems": ["Clear probation and deliver early wins", "Find a mentor at work", "Keep building the skills the next level needs", "Review progress toward the goal every 6 months"]
-    }
-  ],
-  "skills": {
-    "technical": ["skill1", "skill2"],
-    "soft": ["skill1", "skill2"],
-    "life": ["skill1", "skill2"]
-  },
-  "subjects": ["subject1", "subject2"],
-  "courses": ["course1", "course2"],
-  "books": ["book1", "book2"],
-  "certifications": ["cert1", "cert2"],
-  "projects": ["project1", "project2"],
-  "entranceExams": ["exam1", "exam2"],
-  "colleges": [
-    {
-      "name": "Real, named institution — never a placeholder",
-      "location": "City, State",
-      "type": "Government | Private | Deemed | International",
-      "programme": "The exact degree to apply for here, matching the roadmap above",
-      "tier": "Reach | Target | Safe",
-      "entranceExam": "The exam or route that gets the student in",
-      "eligibility": "Marks / score / qualification actually needed",
-      "approxFees": "Realistic total programme cost with currency",
-      "placement": "Typical placement outcome for this programme",
-      "whyThisFits": "One or two sentences on why THIS college suits THIS student's goal"
-    }
-  ],
-  "internships": ["internship1", "internship2"],
-  "careerTips": ["tip1", "tip2"],
-  "timeline": "Estimated timeline from the user's CURRENT stage to the goal, using each programme's REAL length (e.g. '5 years: 2 remaining years of BCA + 2 years MCA + 1 year to mid-level role'). Do not assume 4 years for a degree that takes 3.",
-  "motivation": "Encouraging advice"
+    { "phase": "the exact title from the plan", "duration": "...", "focus": "...", "description": "...", "actionItems": ["..."], "milestones": ["..."], "pitfalls": ["..."] }
+  ]${withExtras ? EXTRAS_JSON : ''}
 }
 `;
 
+/** Every stage of the plan written up, in the plan's order and under its titles. */
+const writeRoadmap = async (ai, goal, stages, courseContext) => {
+  const written = new Array(stages.length).fill(null);
+  let extras = null;
+  let partialExtras = null;
+
+  const writePart = async (part, withExtras) => {
+    const response = await generateWithRetry(ai, buildWritePrompt(goal, stages, part, courseContext, withExtras), { json: true, kind: 'roadmap' });
+    const reply = parseJsonObject(response.text);
+    const phases = Array.isArray(reply.educationRoadmap) ? reply.educationRoadmap.filter((p) => p && typeof p === 'object') : [];
+    const wanted = stages.slice(part.from, part.to);
+    wanted.forEach((stage, k) => {
+      // By title; by place only when the reply has exactly the stages asked for.
+      const phase = phases.find((p) => norm(p.phase) === norm(stage.title)) || (phases.length === wanted.length ? phases[k] : null);
+      if (phase && (phase.description || (Array.isArray(phase.actionItems) && phase.actionItems.length))) written[part.from + k] = phase;
+    });
+    // Only a complete set: "motivation" comes last, so a reply cut off on
+    // the way (one came back with a single college) is missing it, and is
+    // asked for again below.
+    if (withExtras) {
+      const { educationRoadmap, ...rest } = reply;
+      if (rest.motivation) extras = rest;
+      else partialExtras = partialExtras || rest;
+    }
+  };
+
+  const parts = [];
+  for (let from = 0; from < stages.length; from += WRITE_CHUNK) parts.push({ from, to: Math.min(stages.length, from + WRITE_CHUNK) });
+  const results = await Promise.allSettled(parts.map((part, n) => writePart(part, n === 0)));
+  for (const r of results) {
+    if (r.status === 'rejected' && r.reason instanceof aiQuota.AiBudgetError) throw r.reason;
+    if (r.status === 'rejected') console.warn('A roadmap part could not be written:', r.reason?.message);
+  }
+
+  // One more try for whatever did not come back, in runs of missing stages.
+  const runs = [];
+  written.forEach((w, i) => {
+    if (w) return;
+    const run = runs[runs.length - 1];
+    if (run && run.to === i && run.to - run.from < WRITE_CHUNK) run.to = i + 1;
+    else runs.push({ from: i, to: i + 1 });
+  });
+  if (!extras && !runs.length) runs.push({ from: 0, to: 1 });
+  if (runs.length) {
+    const retry = await Promise.allSettled(runs.map((part, n) => writePart(part, !extras && n === 0)));
+    for (const r of retry) if (r.status === 'rejected' && r.reason instanceof aiQuota.AiBudgetError) throw r.reason;
+  }
+
+  if (written.some((w) => !w)) {
+    const error = new Error('Part of the roadmap could not be written this time. Nothing was saved — please try again.');
+    error.status = 502;
+    throw error;
+  }
+
+  const educationRoadmap = stages.map((stage, i) => ({
+    ...written[i],
+    phase: stage.title,
+    duration: stage.duration || written[i].duration,
+    kind: stage.kind
+  }));
+  return {
+    // A cut-off set twice over still beats none: its colleges and skills are real.
+    ...(extras || partialExtras || {}),
+    // Arithmetic, so not the model's: see timelineFor.
+    timeline: timelineFor(educationRoadmap.map((p) => ({ title: p.phase, kind: p.kind, duration: p.duration }))),
+    educationRoadmap
+  };
+};
+
+const generateRoadmapFromAI = async (goal, courseContext = '') => {
+  const ai = await geminiClient();
   try {
-    const response = await generateWithRetry(ai, prompt, { json: true, kind: 'roadmap' });
-    const roadmap = parseJsonObject(response.text);
-
-    // Drop anything the student has already finished before the PG check below,
-    // so the postgraduate repair reasons about the trimmed roadmap.
-    stripCompletedStages(roadmap, goal);
-
-    // The model intermittently stops the roadmap at the final undergraduate
-    // year despite being told not to. Detect that and ask it for just the
-    // missing postgraduate phases rather than regenerating the whole roadmap.
-    // Only for students the postgraduate stage is still AHEAD of. Asking for
-    // "the missing postgraduate phases" on behalf of an MCA student appends a
-    // degree they are two semesters from finishing.
-    if (!PAST_UNDERGRADUATE.includes(goal.educationLevel) && !hasPostgraduatePhase(roadmap)) {
-      console.warn('Roadmap came back without a postgraduate phase - requesting the missing phases.');
-      try {
-        const followUp = await generateWithRetry(ai, buildPostgraduatePrompt(goal, roadmap), { json: true, kind: 'roadmap-postgrad' });
-        const extra = parseJsonObject(followUp.text);
-        if (Array.isArray(extra.postgraduateRoadmap) && extra.postgraduateRoadmap.length > 0) {
-          roadmap.educationRoadmap = [...(roadmap.educationRoadmap || []), ...extra.postgraduateRoadmap];
-          if (extra.timeline) roadmap.timeline = extra.timeline;
-        }
-      } catch (repairError) {
-        // A roadmap without PG still beats no roadmap at all.
-        console.error('Could not append postgraduate phases:', repairError.message);
-      }
-    }
-
-    // The user's goal is the job, not the qualification. If the roadmap stops at
-    // studying, ask for the hiring phases rather than shipping it incomplete.
-    if (!hasCareerEntryPhase(roadmap)) {
-      console.warn('Roadmap came back without job-application phases - requesting them.');
-      try {
-        const followUp = await generateWithRetry(ai, buildCareerEntryPrompt(goal, roadmap), { json: true, kind: 'roadmap-career-entry' });
-        const extra = parseJsonObject(followUp.text);
-
-        if (Array.isArray(extra.careerEntryRoadmap) && extra.careerEntryRoadmap.length > 0) {
-          roadmap.educationRoadmap = [...(roadmap.educationRoadmap || []), ...extra.careerEntryRoadmap];
-        }
-        // Merge rather than replace: the first pass already listed the academic
-        // exams, and this pass adds the recruitment ones.
-        if (Array.isArray(extra.entranceExams) && extra.entranceExams.length > 0) {
-          roadmap.entranceExams = [...new Set([...(roadmap.entranceExams || []), ...extra.entranceExams])];
-        }
-      } catch (repairError) {
-        console.error('Could not append career-entry phases:', repairError.message);
-      }
-    }
-
-    return roadmap;
+    const { stages } = await planRoadmap(ai, goal);
+    return await writeRoadmap(ai, goal, stages, courseContext);
   } catch (error) {
-    console.error('Gemini API Error:', error);
+    console.error('Roadmap generation error:', error.message);
     // A spent allowance is not a generation failure. Re-wrapping it would
     // strip the 429 and the reset time off it and report a healthy service
-    // as broken, so it passes through untouched.
-    if (error instanceof aiQuota.AiBudgetError) throw error;
+    // as broken, so it passes through untouched. So does anything that
+    // already says what happened and carries its status.
+    if (error instanceof aiQuota.AiBudgetError || error.status) throw error;
     throw new Error('Failed to generate roadmap from AI: ' + error.message);
   }
 };

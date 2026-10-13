@@ -4,19 +4,26 @@
  * click pays first — once per job, so reopening the same listing is free —
  * and only then opens the listing. A short balance says so and opens nothing.
  * While it is free the link is left to behave as a plain link.
+ *
+ * Returns { open, error }: `open` is the link's onClick, `error` what to say
+ * beside the link when the charge failed for any reason but the balance. A
+ * short balance has the app's own message (utils/walletCharge opens it); this
+ * used to put a browser alert() with the same words on top of it.
  */
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import api from '../utils/api';
 import { useWalletCost } from '../context/useRewards';
-import { serverMessage } from '../utils/walletCharge';
+import { serverMessage, isShortOfFunds } from '../utils/walletCharge';
 import { openExternal } from '../native/saveFile';
 
 export default function usePricedJobLink() {
     const { amount } = useWalletCost('find_job');
-    return useCallback(async (event, job) => {
+    const [error, setError] = useState('');
+    const open = useCallback(async (event, job) => {
         if (!amount || !job?.url) return; // free: the <a> opens it as usual
         event.preventDefault();
+        setError('');
         // On the web the new tab is opened now, inside the click, or the
         // browser blocks it as a pop-up once the payment has been awaited.
         const tab = Capacitor.isNativePlatform() ? null : window.open('', '_blank');
@@ -25,7 +32,8 @@ export default function usePricedJobLink() {
             if (tab) { tab.opener = null; tab.location.href = job.url; } else await openExternal(job.url);
         } catch (e) {
             tab?.close();
-            window.alert(serverMessage(e, 'Could not open this job right now.'));
+            if (!isShortOfFunds(e)) setError(serverMessage(e, 'This job could not be opened just now. Please try again.'));
         }
     }, [amount]);
+    return { open, error };
 }

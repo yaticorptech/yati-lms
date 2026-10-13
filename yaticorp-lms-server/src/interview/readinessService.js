@@ -18,6 +18,7 @@
  * stands in with its overall score.
  */
 const { InterviewSession, InterviewPrep } = require('./models');
+const { repairSaved } = require('./repairSaved');
 
 const clamp = (n) => Math.max(0, Math.min(100, Math.round(n)));
 const WEIGHTS = [3, 2, 1];
@@ -71,6 +72,8 @@ const readiness = async (userId, context) => {
     }[b.key]));
     // The last report's own improvement notes come first: they are specific.
     // Before any interview there is one thing to do.
+    // In today's words: an old report's notes are mended as they are read (repairSaved).
+    if (sessions[0]) await repairSaved(sessions[0]);
     const lastReport = sessions[0]?.report;
     const areas = interviewed
         ? [...(lastReport?.improvements || []).slice(0, 2), ...improvements].slice(0, 4)

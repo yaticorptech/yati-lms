@@ -3,6 +3,7 @@
  * @description Student management: add/edit/delete students with QR-only card flow
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../utils/api';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { UserCheck, UserSearch, Upload, Download, QrCode, Lock, Camera, Keyboard } from 'lucide-react';
@@ -731,6 +732,11 @@ const Users = () => {
                 )}
             </div>
 
+            {/* The popups go on <body>, as on Organizations. This page is its own
+                layer (relative z-0), so inside it even the highest popup stayed under
+                the app's top bar, which hid each popup's heading and close button
+                on a phone. */}
+            {createPortal(<>
             {/* User Management Modal */}
             {
                 selectedUser && (
@@ -1510,6 +1516,7 @@ const Users = () => {
                 message="Are you sure you want to permanently delete this student? This will remove all their data, clear their enrollments, and free up their card for reuse."
                 itemName={userToDelete?.name}
             />
+            </>, document.body)}
         </div >
     );
 };

@@ -21,6 +21,10 @@ export const useCoursePlayer = (apiClient, courseId) => {
     const [courseData, setCourseData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState(null);
+    // The server's reason, when it gave one: NOT_ENROLLED is a course the
+    // student can see but has not enrolled in, which the player answers with
+    // the way to enrol rather than "unavailable".
+    const [fetchErrorCode, setFetchErrorCode] = useState(null);
     const [activeLesson, setActiveLesson] = useState(null);
     const [expandedModules, setExpandedModules] = useState({});
     const [completedLessons, setCompletedLessons] = useState([]);
@@ -36,6 +40,7 @@ export const useCoursePlayer = (apiClient, courseId) => {
     const fetchCourseContent = useCallback(async () => {
         setLoading(true);
         setFetchError(null);
+        setFetchErrorCode(null);
         try {
             const [res, playback] = await Promise.all([
                 apiClient.get(`/user/courses/${courseId}`),
@@ -63,6 +68,7 @@ export const useCoursePlayer = (apiClient, courseId) => {
         } catch (err) {
             console.error('Failed to fetch course content:', err);
             setFetchError(err.response?.data?.message || 'Course not found or unavailable.');
+            setFetchErrorCode(err.response?.data?.code || null);
         } finally {
             setLoading(false);
         }
@@ -143,6 +149,7 @@ export const useCoursePlayer = (apiClient, courseId) => {
         courseData,
         loading,
         fetchError,
+        fetchErrorCode,
         activeLesson,
         setActiveLesson: selectLesson,
         expandedModules,

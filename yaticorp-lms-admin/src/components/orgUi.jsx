@@ -8,9 +8,10 @@
  * gathered here. The values are the panel's existing ones, unchanged — this is
  * a single home for them, not a new design language.
  */
-import React, { createContext, useContext } from 'react';
-import { Search, UserMinus, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
+import { Search, UserMinus, Loader2, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import initials from '../utils/initials';
+import { pictureSources } from '../utils/pictures';
 import useDialog from '../hooks/useDialog';
 
 export const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500';
@@ -33,16 +34,20 @@ const TONES = {
  * Sized to sit two across on a phone: the icon moves above the number there,
  * so the label and the value get the card's full width.
  */
+// On a phone the icon heads the card and everything reads down from the top;
+// from a tablet up the icon sits at the right. Top-aligned either way: tiles in
+// a row share the tallest one's height, and a reversed column had packed the
+// shorter ones to the bottom, so their icon and number floated mid-card.
 export const Stat = ({ icon: Icon, label, value, sub, tone = 'indigo', loading }) => (
-    <div className={`${CARD} flex flex-col-reverse gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5`}>
+    <div className={`${CARD} flex flex-col gap-2.5 p-4 sm:flex-row-reverse sm:items-start sm:justify-between sm:gap-3 sm:p-5`}>
+        {Icon && <span className={`w-fit shrink-0 rounded-xl p-2 sm:p-2.5 ${TONES[tone]}`}><Icon size={18} /></span>}
         <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 sm:tracking-wider">{label}</p>
             {loading
                 ? <div className="animate-pulse h-8 w-16 bg-slate-100 rounded-lg mt-2" />
                 : <p className="mt-1 truncate text-2xl font-bold text-slate-800 tabular-nums sm:text-3xl">{value ?? '—'}</p>}
-            {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
+            {sub && <p className="mt-1 text-xs leading-snug text-slate-500">{sub}</p>}
         </div>
-        {Icon && <span className={`w-fit shrink-0 rounded-xl p-2 sm:p-2.5 ${TONES[tone]}`}><Icon size={18} /></span>}
     </div>
 );
 
@@ -64,39 +69,108 @@ export const PageHeader = ({ icon: Icon, title, subtitle, children }) => (
     </div>
 );
 
+const FADE = '1.75rem';
+const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
 /**
- * A row of mutually exclusive choices — a sort order, a tab. Scrolls sideways
- * on a narrow phone rather than wrapping onto a second line.
+ * A row of mutually exclusive choices — a sort order, a tab. A white pill
+ * slides from the old choice to the new one.
+ *
+ * On a narrow phone the choices scroll sideways inside their own grey track,
+ * which never runs past the page's edge: the side with more to see fades out,
+ * and the chosen one is brought into view.
  */
 // `locked`: { key: reason } for an option shown but not open yet — it stays in
 // place, dimmed, and a click says why (onLocked) instead of switching to it.
-export const Segmented = ({ options, value, onChange, counts = {}, locked = {}, onLocked }) => (
-    <div className="-mx-1 overflow-x-auto px-1 no-scrollbar">
-        <div className="inline-flex gap-1 rounded-xl bg-slate-100 p-1">
-            {options.map(([key, label]) => (
-                <button key={key} onClick={() => (locked[key] ? onLocked?.(key) : onChange(key))} aria-pressed={value === key}
-                    aria-disabled={locked[key] ? 'true' : undefined} title={locked[key] || undefined}
-                    className={`whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${value === key ? 'bg-white text-indigo-600 shadow-sm' : locked[key] ? 'cursor-not-allowed text-slate-500 opacity-50' : 'text-slate-500 hover:text-slate-700'}`}>
-                    {label}
-                    {counts[key] > 0 && (
-                        <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-black ${value === key ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>
-                            {counts[key]}
-                        </span>
-                    )}
-                </button>
-            ))}
+export const Segmented = ({ options, value, onChange, counts = {}, locked = {}, onLocked }) => {
+    const rowRef = useRef(null);
+    const pillRef = useRef(null);
+    const placed = useRef(false);
+    const keys = options.map(([key]) => key).join('|');
+
+    // The pill and the fades are set on the elements themselves: a switch
+    // costs no extra render, and the first placement lands before paint.
+    useLayoutEffect(() => {
+        const row = rowRef.current;
+        const pill = pillRef.current;
+        if (!row || !pill) return undefined;
+        const fade = () => {
+            const more = row.scrollWidth - row.clientWidth;
+            const start = row.scrollLeft > 2;
+            const end = row.scrollLeft < more - 2;
+            const mask = more > 2
+                ? `linear-gradient(to right, ${start ? 'transparent' : '#000'}, #000 ${start ? FADE : '0px'}, #000 calc(100% - ${end ? FADE : '0px'}), ${end ? 'transparent' : '#000'})`
+                : '';
+            row.style.maskImage = mask;
+            row.style.webkitMaskImage = mask;
+        };
+        const place = () => {
+            const chosen = row.querySelector('[aria-pressed="true"]');
+            if (!chosen || !chosen.offsetWidth) { pill.style.opacity = '0'; return; }
+            const first = !placed.current;
+            if (first) pill.style.transition = 'none';
+            pill.style.width = `${chosen.offsetWidth}px`;
+            pill.style.transform = `translateX(${chosen.offsetLeft}px)`;
+            pill.style.opacity = '1';
+            if (first) { void pill.offsetWidth; pill.style.transition = ''; placed.current = true; }
+            // Brought into view, near the middle, when the choice is cut off.
+            const left = chosen.offsetLeft;
+            const right = left + chosen.offsetWidth;
+            if (left < row.scrollLeft + 8 || right > row.scrollLeft + row.clientWidth - 8) {
+                row.scrollTo({ left: left - (row.clientWidth - chosen.offsetWidth) / 2, behavior: first || reducedMotion() ? 'auto' : 'smooth' });
+            }
+            fade();
+        };
+        place();
+        // A count badge arriving, a web font loading, the phone turning.
+        const watch = typeof ResizeObserver === 'function' ? new ResizeObserver(place) : null;
+        if (watch) { watch.observe(row); for (const b of row.querySelectorAll('button')) watch.observe(b); }
+        row.addEventListener('scroll', fade, { passive: true });
+        return () => { watch?.disconnect(); row.removeEventListener('scroll', fade); };
+    }, [value, keys]);
+
+    return (
+        <div className="min-w-0 max-w-full">
+            <div className="inline-flex max-w-full rounded-xl bg-slate-100">
+                <div ref={rowRef} className="no-scrollbar relative flex min-w-0 gap-1 overflow-x-auto p-1">
+                    <span ref={pillRef} aria-hidden
+                        className="pointer-events-none absolute bottom-1 left-0 top-1 rounded-lg bg-white opacity-0 shadow-sm ring-1 ring-slate-900/5 transition-[transform,width] duration-300 ease-[cubic-bezier(0.34,1.36,0.64,1)] motion-reduce:transition-none" />
+                    {options.map(([key, label]) => (
+                        <button key={key} onClick={() => (locked[key] ? onLocked?.(key) : onChange(key))} aria-pressed={value === key}
+                            aria-disabled={locked[key] ? 'true' : undefined} title={locked[key] || undefined}
+                            className={`relative shrink-0 whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-semibold transition-[color,scale] duration-200 active:scale-95 motion-reduce:active:scale-100 ${value === key ? 'text-indigo-600' : locked[key] ? 'cursor-not-allowed text-slate-500 opacity-50' : 'text-slate-500 hover:text-slate-700'}`}>
+                            {label}
+                            {counts[key] > 0 && (
+                                <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-black transition-colors duration-200 ${value === key ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>
+                                    {counts[key]}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const AVATAR_TONES = ['bg-indigo-600', 'bg-violet-600', 'bg-sky-600', 'bg-emerald-600', 'bg-amber-600', 'bg-rose-600'];
 
 /** A student's picture, or their initials on a colour that stays theirs. */
+// A picture that will not load moves on to the next place it may be found
+// (utils/pictures.js), and after the last one the initials show, never an
+// empty circle.
 export const Avatar = ({ name, src, size = 'h-10 w-10 text-sm' }) => {
     const tone = AVATAR_TONES[[...(name || '')].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % AVATAR_TONES.length];
+    const sources = pictureSources(src);
+    const key = sources.join(' ');
+    const [failed, setFailed] = useState({ key: '', count: 0 });
+    const tried = failed.key === key ? failed.count : 0;
+    const shown = sources[tried];
     return (
         <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold text-white ${size} ${tone}`} aria-hidden>
-            {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : initials(name)}
+            {shown
+                ? <img key={shown} src={shown} alt="" className="h-full w-full object-cover" onError={() => setFailed({ key, count: tried + 1 })} />
+                : initials(name)}
         </div>
     );
 };
@@ -158,7 +232,7 @@ export const Banner = ({ kind = 'error', children, onClose }) => (
     <div className={`flex items-start gap-2 rounded-xl border p-3 text-sm font-medium ${kind === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
         <span className="flex-1">{children}</span>
         {/* A 40px target, pulled into the banner's padding so the banner keeps its height. */}
-        {onClose && <button onClick={onClose} aria-label="Dismiss" className="-my-2 -mr-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg opacity-60 hover:opacity-100">✕</button>}
+        {onClose && <button onClick={onClose} aria-label="Dismiss" className="-my-2 -mr-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg opacity-60 hover:opacity-100"><X size={16} /></button>}
     </div>
 );
 

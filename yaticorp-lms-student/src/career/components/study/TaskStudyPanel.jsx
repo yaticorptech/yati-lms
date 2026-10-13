@@ -9,9 +9,11 @@ import NotesReader from './NotesReader';
 import QuizRunner from './QuizRunner';
 import LessonVideo from './LessonVideo';
 import LessonSteps from './LessonSteps';
+import { useHideLoop } from '../../../components/loopVisibility';
 import { QuizMarkArt } from '../ui/PanelArt';
 import { useCelebrate } from '../ui/Celebration';
 import { useMascot } from '../../mascot/useMascot';
+import PriceTag from '../../../components/rewards/PriceTag';
 
 // The languages a video lesson can be in. Names in their own script, so a
 // student finds theirs at a glance.
@@ -30,6 +32,9 @@ const LANGUAGE_NAMES = { en: 'English', hi: 'Hindi' };
  * fact that they belong together.
  */
 export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
+  // Loop, the site's mascot, steps aside while a task's lesson is open — its
+  // video, its notes or its quiz. The planner mounts this panel only then.
+  useHideLoop();
   const [study, setStudy] = useState(null);
   const [loading, setLoading] = useState(true);
   // Which mode is building, or null. Not a boolean: with two buttons, a shared
@@ -270,7 +275,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               loadingText="Writing your lesson…"
               onClick={() => handleGenerate('read')}
             >
-              Build this lesson
+              Build this lesson <PriceTag action="build_task_lesson" />
             </Button>
           </div>
         </div>
@@ -306,6 +311,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
                     {generating === `lang-${code}` && <RefreshCw className="h-4 w-4 animate-spin text-link" />}
                     {label}
                   </span>
+                  <PriceTag action="build_task_lesson" className="text-xs text-link" />
                   <span className="text-xs text-ink-500">
                     {generating === `lang-${code}` ? 'Finding your video…' : hint}
                   </span>
@@ -371,7 +377,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
                 <BookOpen className="h-4.5 w-4.5" />
               </span>
               <span className="block text-sm font-bold text-ink-900">
-                {generating === 'read' ? 'Writing your lesson…' : 'Just read it'}
+                {generating === 'read' ? 'Writing your lesson…' : <>Just read it <PriceTag action="build_task_lesson" className="text-link" /></>}
               </span>
               <span className="mt-0.5 block text-xs leading-relaxed text-ink-500">
                 A written lesson with worked examples — no video to sit through.
@@ -419,7 +425,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               loadingText="Looking…"
               onClick={() => handleGenerate('video', currentLang, { replaceVideo: true })}
             >
-              Find another video
+              Find another video <PriceTag action="build_task_lesson" />
             </Button>
           </div>
         </section>
@@ -442,7 +448,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               loadingText="Finding one…"
               onClick={() => handleGenerate('video', currentLang, { replaceVideo: true })}
             >
-              Different video
+              Different video <PriceTag action="build_task_lesson" />
             </Button>
           </div>
 

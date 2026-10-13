@@ -89,6 +89,16 @@ const runCompletionSideEffects = async (userId, task) => {
     const { safeRecordActivity } = require('../../rewards/services/activityService');
     await safeRecordActivity({ userId, type: 'career_task', refId: task._id, skipXp: true });
 
+    // XP rule (optional): every task in today's plan done, once a day. Only a
+    // finished day counts; a skipped task leaves it unfinished.
+    const { recordIfRuled } = require('../../rewards/services/xpHooks');
+    const { startOfDay, addDays } = require('./dailyPlanService');
+    const dayStart = startOfDay();
+    const todays = await Task.find({ userId, assignedDate: { $gte: dayStart, $lt: addDays(dayStart, 1) } }).select('status').lean();
+    if (todays.length && todays.every((t) => t.status === 'Completed')) {
+      await recordIfRuled({ userId, type: 'day_plan_complete', refId: `day:${require('../../rewards/config/constants').dayKey()}` });
+    }
+
     // ONE skill, the one this task was about. This loop used to run over every
     // skill the student had, so a task on SQL joins advanced their public
     // speaking by the same five points and the whole tracker read as a single
@@ -97,6 +107,7 @@ const runCompletionSideEffects = async (userId, task) => {
     const skill = skillAdvancedBy(task, skills);
 
     if (skill) {
+      const levelBefore = skill.level;
       skill.progress = Math.min((Number(skill.progress) || 0) + SKILL_STEP, 100);
 
       if (skill.progress === 100) {
@@ -109,6 +120,13 @@ const runCompletionSideEffects = async (userId, task) => {
       }
       skill.lastUpdated = new Date();
       await skill.save();
+      // XP rule (optional): a skill moving up a level here, through finished
+      // tasks — never from the level the Skills page lets a student type in.
+      // Keyed by the skill's name, not its id: a rebuilt roadmap makes new
+      // skill rows, and the same level must not pay twice.
+      if (skill.level !== levelBefore) {
+        await recordIfRuled({ userId, type: 'skill_level_up', refId: `skill:${String(skill.skillName || '').trim().toLowerCase()}:${skill.level}` });
+      }
     }
   } catch (error) {
     console.error('Gamification error:', error);

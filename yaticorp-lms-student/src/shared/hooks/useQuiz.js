@@ -10,7 +10,7 @@ import { getQuizServices } from '../api/quizService';
  * Handles fetching, navigation, and submission.
  */
 export const useQuiz = (apiClient, lessonId, options = {}) => {
-    const { onQuizPassed, isAlreadyCompleted } = options;
+    const { onQuizPassed, onCreditsEarned, isAlreadyCompleted } = options;
 
     const [quizData, setQuizData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -75,9 +75,12 @@ export const useQuiz = (apiClient, lessonId, options = {}) => {
                 window.dispatchEvent(new CustomEvent('yati:rewards', { detail: resData.rewards.events }));
             }
 
-            if ((resData.passed && !isAlreadyCompleted) || resData.creditsEarned > 0) {
-                if (onQuizPassed) onQuizPassed(lessonId, resData.creditsEarned);
-            }
+            // Credits come with a quiz's first attempt, passed or failed;
+            // completing the lesson takes a pass. Both used to go through
+            // onQuizPassed, so a failed first attempt that scored anything
+            // completed the lesson — and with it the course and certificate.
+            if (resData.creditsEarned > 0 && onCreditsEarned) onCreditsEarned(resData.creditsEarned);
+            if (resData.passed && !isAlreadyCompleted && onQuizPassed) onQuizPassed(lessonId);
             return resData;
         } catch (err) {
             console.error('Failed to submit quiz:', err);

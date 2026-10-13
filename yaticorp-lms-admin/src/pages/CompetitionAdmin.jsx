@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { CARD, BTN, BTN2, INPUT, LABEL, Segmented } from '../components/orgUi';
-import { CompetitionForm, Chip } from '../competitions/shared';
+import { CompetitionForm, Chip, GameIcon } from '../competitions/shared';
 import { ORDINAL, fmtDateTime, toLocalInput, errorOf, bannerUploader } from '../competitions/constants';
 
 const STUDENT_PORTAL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
@@ -135,7 +135,7 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
 
             <header className={`${CARD} p-5`}>
                 <div className="flex flex-wrap items-start gap-4">
-                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-3xl">{c.emoji}</span>
+                    <GameIcon game={c.game} size={28} className="h-14 w-14 rounded-2xl" />
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2"><Chip status={c.status} /><span className="text-xs text-slate-500">{c.gameLabel} · by {c.organizedBy}</span></div>
                         <h1 className="mt-1 text-xl font-bold text-slate-900 sm:text-2xl">{c.name}</h1>

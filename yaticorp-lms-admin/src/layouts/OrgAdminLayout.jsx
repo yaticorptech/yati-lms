@@ -16,12 +16,13 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, UserPlus, BookOpen, Settings, LogOut, RefreshCw, Trophy,
-    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft
+    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft, Hourglass
 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from '../utils/useAutoLogout';
 import initials from '../utils/initials';
 import OrgBottomNav from '../components/OrgBottomNav';
+import PullToRefresh from '../components/PullToRefresh';
 import { getViewedOrganization, stopViewingOrganization } from '../utils/viewOrganization';
 import useCenterTabs from '../hooks/useCenterTabs';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -232,6 +233,20 @@ const OrgAdminLayout = () => {
         return () => window.removeEventListener('organization-requests-changed', loadCount);
     }, [location.pathname, active]);
 
+    /**
+     * Pulling the page down on a phone loads it afresh, without reloading the
+     * app: the page opens again (and asks the server for everything it shows),
+     * and so do the organization's details and the requests badge. Anything
+     * kept in the address — a search, a filter, a page number — stays.
+     */
+    const scrollerRef = useRef(null);
+    const [pageKey, setPageKey] = useState(0);
+    const refreshPage = () => {
+        setPageKey((k) => k + 1);
+        window.dispatchEvent(new Event('organization-requests-changed'));
+        return api.get('/organizations/me/status').then((res) => setOrganization(res.data.organization)).catch(() => {});
+    };
+
     const [lastPath, setLastPath] = useState(location.pathname);
     if (lastPath !== location.pathname) {
         setLastPath(location.pathname);
@@ -285,7 +300,7 @@ const OrgAdminLayout = () => {
             {showSessionModal && (
                 <Dialog onClose={confirmLogout} size="max-w-sm" z="z-[200]">
                     <div className="p-6 text-center">
-                        <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">⏳</div>
+                        <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4"><Hourglass size={26} className="text-indigo-600" /></div>
                         <DialogTitle className="text-lg font-bold text-slate-800 mb-1">Session Expired</DialogTitle>
                         <p className="text-slate-500 text-sm">Your session has expired. Please login again.</p>
                     </div>
@@ -426,9 +441,7 @@ const OrgAdminLayout = () => {
                                         <a href={STUDENT_PORTAL} target="_blank" rel="noopener noreferrer" className={`${MENU_ITEM} lg:hidden`}>
                                             <ExternalLink size={16} className="text-slate-400" /> Student Portal
                                         </a>
-                                        <button onClick={() => window.location.reload()} className={`${MENU_ITEM} w-full sm:hidden`}>
-                                            <RefreshCw size={16} className="text-slate-400" /> Refresh data
-                                        </button>
+                                        {/* No "Refresh data" here: a phone pulls the page down to refresh it. */}
                                         <div className="my-1 h-px bg-slate-100" />
                                         {viewing ? (
                                             <button onClick={() => { setProfileDropdownOpen(false); exitView(); }}
@@ -449,11 +462,12 @@ const OrgAdminLayout = () => {
                 </header>
 
                 {/* Bottom padding on phones keeps the last card clear of the floating nav bar. */}
-                <div className="flex-1 overflow-y-auto p-4 pb-28 custom-scrollbar lg:p-8">
+                <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 pb-28 custom-scrollbar lg:p-8">
                     <div className="mx-auto w-full max-w-7xl">
-                        <ErrorBoundary resetKey={location.pathname}><Outlet /></ErrorBoundary>
+                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Outlet key={pageKey} /></ErrorBoundary>
                     </div>
                 </div>
+                <PullToRefresh scrollerRef={scrollerRef} onRefresh={refreshPage} className={viewing ? 'top-28 lg:top-32' : 'top-16 lg:top-20'} />
             </main>
 
             {/* ── Phones and tablets: the floating bar along the bottom ────── */}

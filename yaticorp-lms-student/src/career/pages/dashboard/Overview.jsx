@@ -23,6 +23,7 @@ import {
 } from '../../utils/progress';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
+import { usePointLoopAt } from '../../../components/loopGuide';
 import useStreak from '../../utils/useStreak';
 
 
@@ -106,6 +107,15 @@ export default function Overview() {
 
   const progress = useLevelProgress(user?.xp, user?.level);
   const showLoader = useMinimumLoading(loading);
+  // Once the page is up, Loop walks over to the quest button, says what it
+  // does, and goes back to its corner: the one thing this page exists to get
+  // pressed. On the first visit of the day only, and not once today's quest
+  // is done, when there is nothing left to press. A new student has Start
+  // onboarding there instead, under the same marker, and gets pointed to that.
+  const questDone = tasks.length > 0 && completedTasks >= tasks.length;
+  usePointLoopAt(showLoader || failed || questDone ? null : '[data-mascot-target="start-quest"]', {
+    oncePerDay: `career-quest:${user?._id || user?.id || 'me'}`
+  });
   if (showLoader) return <YatiLoader label="Loading your career path" />;
   if (failed) return <LoadError title="We couldn't load your career path" onRetry={retry} retrying={retrying} />;
 

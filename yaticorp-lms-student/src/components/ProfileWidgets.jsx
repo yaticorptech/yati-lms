@@ -1,7 +1,8 @@
 /**
  * @description The profile page's small moving parts: a number that counts
- *              up, a ring that draws itself, a week of activity dots, a stat
- *              tile, and the greeting bubble.
+ *              up, a ring that draws itself, a stat tile, and the greeting
+ *              bubble. (The week of activity is Career Path's StreakPanel now,
+ *              in components/WeeklyActivityCard.)
  *
  * Every animation here runs once, on arrival, and respects
  * prefers-reduced-motion through the shared keyframes in career.css /
@@ -63,31 +64,6 @@ export const StatTile = ({ tone = 'amber', icon: Icon, value, suffix = '', label
     const cls = `group lift relative block overflow-hidden rounded-2xl border bg-gradient-to-br p-4 ${t.bg} ${t.border}`;
     return to ? <Link to={to} className={cls}>{inner}</Link> : <div className={cls}>{inner}</div>;
 };
-
-/** Seven dots, oldest first, the way a calendar reads. */
-/**
- * The week as seven circles. Today's circle carries a ring that is drawn
- * outside its box, so the row is padded to leave room for it — without that
- * the last day is clipped by the card it sits in. The circles themselves step
- * down a size on the narrowest phones, where seven at full size do not fit.
- */
-export const ActivityStrip = ({ days = [] }) => (
-    <ol className="flex items-end justify-between gap-1 px-1" aria-label="Activity this week">
-        {days.map((d, i) => (
-            <li key={d.key} className="flex flex-1 flex-col items-center gap-1.5" style={{ animationDelay: `${i * 60}ms` }}>
-                <span className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold transition-all duration-300 sm:h-9 sm:w-9 sm:text-xs ${
-                    d.active
-                        ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-orange-200'
-                        : d.isToday ? 'border-2 border-dashed border-indigo-300 text-indigo-500' : 'bg-slate-100 text-slate-400'
-                } ${d.isToday ? 'ring-2 ring-indigo-200 ring-offset-2' : ''}`}
-                    title={d.active ? 'Active' : d.isToday ? 'Today' : 'No activity'}>
-                    {d.active ? '🔥' : d.dayNum}
-                </span>
-                <span className={`text-[11px] font-semibold ${d.isToday ? 'text-indigo-600' : 'text-slate-400'}`}>{d.label}</span>
-            </li>
-        ))}
-    </ol>
-);
 
 /** The mascot's line — a bubble with a tail, popping in beside the greeting. */
 export const SpeechBubble = ({ emoji = '🐿️', children }) => (

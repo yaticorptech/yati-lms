@@ -3,6 +3,7 @@
  * @description Admin community moderation: view all posts, reply as admin, delete posts
  */
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Trash2, MessageSquare, AlertCircle, Send, ChevronDown, ChevronUp, Shield } from 'lucide-react';
 import api from '../utils/api';
 
@@ -234,7 +235,9 @@ const Community = () => {
             </div>
 
             {/* Delete Modal */}
-            {showDeleteModal && (
+            {/* On <body>: this page is its own layer (relative z-0), so a popup inside
+                it stayed under the app's top bar (see Users and Organizations). */}
+            {showDeleteModal && createPortal(
                 <div className="fixed inset-0 backdrop-blur-md bg-white/20 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[350px]">
                         <h2 className="text-lg font-bold text-slate-800 mb-2">Delete Post?</h2>
@@ -245,7 +248,7 @@ const Community = () => {
                         </div>
                     </div>
                 </div>
-            )}
+            , document.body)}
         </div>
     );
 };

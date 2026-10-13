@@ -26,6 +26,7 @@ const views = require('../services/views');
 const games = require('../services/gameService');
 const { openDue } = require('../services/bracketService');
 const { catalogue } = require('../games');
+const { chargeWallet } = require('../../rewards/services/walletRuleService');
 
 const router = express.Router();
 const VISIBLE = ['registration', 'closed', 'live', 'completed'];
@@ -110,7 +111,8 @@ router.get('/history', wrap(async (req, res) => {
 
 /* ── Friendly games and play ─────────────────────────────────────────── */
 
-router.post('/rooms', wrap(async (req, res) => res.status(201).json(await games.createRoom(req.user, String(req.body?.game || ''), req.body?.options))));
+// Wallet rule (optional): each room created; refunded if it could not be made.
+router.post('/rooms', chargeWallet('create_game_room'), wrap(async (req, res) => res.status(201).json(await games.createRoom(req.user, String(req.body?.game || ''), req.body?.options))));
 router.post('/rooms/join', wrap(async (req, res) => res.json(await games.joinRoom(req.user, req.body?.code))));
 router.get('/rooms/mine', wrap(async (req, res) => res.json({ rooms: await games.myRooms(req.user._id) })));
 
@@ -135,7 +137,8 @@ router.get('/:id', wrap(async (req, res) => {
     res.json(await views.detail(c._id, { userId: req.user._id }));
 }));
 
-router.get('/:id/certificate', wrap(async (req, res) => {
+// Wallet rule (optional): each certificate PDF, like a course's; refunded when there is none to give.
+router.get('/:id/certificate', chargeWallet('download_competition_certificate'), wrap(async (req, res) => {
     const c = await visible(req.params.id);
     if (!c) return res.status(404).json({ message: 'Competition not found.' });
     const competition = await Competition.findById(c._id).lean();

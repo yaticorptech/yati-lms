@@ -45,11 +45,36 @@ const commit = async (game, changes) => {
     return next;
 };
 
+// A friendly game shorter than this pays no XP: resigning on the first move
+// must not be a way to collect it.
+const MIN_FRIENDLY_MS = 3 * 60 * 1000;
+
+/**
+ * XP rules (optional), friendly rooms: a game played through with someone
+ * else, and a game won outright, each once a day. Only with two different
+ * students at the board, and only for a game that lasted MIN_FRIENDLY_MS.
+ */
+const rewardFriendly = async (game) => {
+    const players = [...new Set(game.seats.map((s) => String(s.userId)))];
+    if (players.length < 2 || !game.startedAt) return;
+    const lasted = new Date(game.finishedAt || Date.now()).getTime() - new Date(game.startedAt).getTime();
+    if (lasted < MIN_FRIENDLY_MS) return;
+    const { recordIfRuled, today } = require('../../rewards/services/xpHooks');
+    const day = today();
+    const top = game.outcome?.places?.[0] || [];
+    const winners = top.length === 1 ? [...new Set(game.seats.filter((s) => s.side === top[0]).map((s) => String(s.userId)))] : [];
+    for (const userId of players) await recordIfRuled({ userId, type: 'friendly_game_played', refId: `friendly:${day}` });
+    for (const userId of winners) await recordIfRuled({ userId, type: 'friendly_game_win', refId: `friendlywin:${day}` });
+};
+
 /** Called once a game finishes; a competition match moves on from here. */
 const finished = async (game) => {
     if (game.kind === 'match') {
         try { await require('./bracketService').recordGame(game); }
         catch (err) { console.error('[competitions] recording a result failed:', err.message); }
+    } else if (game.kind === 'friendly' && game.status === 'finished') {
+        try { await rewardFriendly(game); }
+        catch (err) { console.error('[competitions] friendly game XP failed:', err.message); }
     }
 };
 

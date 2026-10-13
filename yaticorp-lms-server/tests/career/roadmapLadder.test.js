@@ -30,14 +30,17 @@ describe('the ladder a student is told to climb', () => {
     assert.match(rules, /DO NOT ADD ANY PHASE ABOUT STARTING OR COMPLETING A POSTGRADUATE DEGREE/);
     assert.match(rules, /already in one/i);
     // The instruction that caused it must not reach this student at all.
-    assert.doesNotMatch(rules, /MUST ALWAYS include postgraduate phases/);
+    assert.doesNotMatch(rules, /MUST include postgraduate phases/);
   });
 
-  test('a postgraduate still gets an internship phase, at their own level', () => {
+  test("a postgraduate's internship is at their own level, during the degree", () => {
     const rules = describeLadderRules(pgStudent);
-    assert.match(rules, /Internships & Industry Experience/);
-    // ...but not one hung off an undergraduate year they finished years ago.
-    assert.doesNotMatch(rules, /Immediately AFTER the final undergraduate year/);
+    assert.match(rules, /internship/i);
+    assert.match(rules, /postgraduate level/);
+    // ...never after the degree, and never hung off an undergraduate year
+    // they finished years ago.
+    assert.match(rules, /never after MCA is finished/);
+    assert.doesNotMatch(rules, /AFTER the final undergraduate year/);
   });
 
   test('a doctorate stays available to a research-minded postgraduate', () => {
@@ -48,8 +51,12 @@ describe('the ladder a student is told to climb', () => {
     const rules = describeLadderRules({
       educationLevel: 'Undergraduate', degree: 'BCA', currentYear: '2nd Year', careerGoal: 'Frontend Developer'
     });
-    assert.match(rules, /MUST ALWAYS include postgraduate phases/);
-    assert.match(rules, /Immediately AFTER the final undergraduate year/);
+    assert.match(rules, /MUST include postgraduate phases/);
+    // With the master's entrance exam before it, not collected at the end.
+    assert.match(rules, /entrance exam stage before it/);
+    // The internship is no longer placed after graduation here: where it goes
+    // is one rule for everyone (roadmapOrder.test.js).
+    assert.doesNotMatch(rules, /AFTER the final undergraduate year/);
   });
 
   test('a working professional is sent back to no classroom at all', () => {
@@ -57,7 +64,7 @@ describe('the ladder a student is told to climb', () => {
       educationLevel: 'Working Professional', currentJob: 'QA Engineer', careerGoal: 'Engineering Manager'
     });
     assert.match(rules, /ALREADY WORKING/);
-    assert.doesNotMatch(rules, /MUST ALWAYS include postgraduate phases/);
+    assert.doesNotMatch(rules, /MUST include postgraduate phases/);
   });
 });
 

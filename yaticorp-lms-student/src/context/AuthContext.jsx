@@ -56,7 +56,14 @@ export const AuthProvider = ({ children }) => {
                 }
             }
 
-            // Fetch global settings once at startup
+            // Fetch global settings once at startup — when someone is signed in.
+            // The endpoint needs a student, so on the login page it only ever
+            // answered 401 and logged an error; the defaults below are what
+            // that failure fell back to anyway, and signing in reloads the app.
+            if (!token) {
+                setLoading(false);
+                return;
+            }
             try {
                 const res = await api.get('/user/settings');
                 setIsCreditSystemEnabled(res.data?.isCreditSystemEnabled ?? true);

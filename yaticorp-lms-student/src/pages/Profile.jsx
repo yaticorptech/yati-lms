@@ -9,11 +9,11 @@ import AiKeySettings from '../components/AiKeySettings';
 import GoogleConnectionCard from '../integrations/google/GoogleConnectionCard';
 import {
     Award, Loader2, Check, X,
-    Flame, Gem, Coins, CalendarDays, Building2
+    Flame, Gem, Coins, Building2
 } from 'lucide-react';
-import { currentStreak, recentActivity } from '../career/utils/progress';
+import { currentStreak, recentActivity, weeklyMomentum } from '../career/utils/progress';
 import useLevelProgress from '../career/context/useLevelProgress';
-import { StatTile, ProgressRing, ActivityStrip } from '../components/ProfileWidgets';
+import { StatTile, ProgressRing } from '../components/ProfileWidgets';
 import WelcomeBanner from '../components/WelcomeBanner';
 import PersonalInfoCard from '../components/PersonalInfoCard';
 import DashboardCourses from './Dashboard';
@@ -27,6 +27,7 @@ import { saveBlob } from '../native/saveFile';
 import { pictureUrl } from '../native/pictures';
 import { isShortOfFunds, serverMessage } from '../utils/walletCharge';
 import PhotoPicker from '../components/PhotoPicker';
+import WeeklyActivityCard from '../components/WeeklyActivityCard';
 
 /**
  * The Dashboard and My Profile are two pages drawn by this one component,
@@ -91,11 +92,25 @@ const Profile = ({ view = 'dashboard' }) => {
     // Photo viewer
     const [viewingPhoto, setViewingPhoto] = useState(false);
 
+    // The student's XP and level, kept with the rest of what the device saves
+    // about them (sign-in sends them too), so the banner opens on their own
+    // level next time. A session signed in before sign-in sent them picks
+    // them up here, on its first profile load.
+    const rememberStanding = (fresh) => {
+        if (!fresh || fresh.level == null) return;
+        const standing = { xp: Number(fresh.xp) || 0, level: Number(fresh.level) || 1 };
+        setUser((prev) => (prev && (prev.xp !== standing.xp || prev.level !== standing.level) ? { ...prev, ...standing } : prev));
+        try {
+            const saved = JSON.parse(localStorage.getItem('studentData') || 'null');
+            if (saved && (saved.xp !== standing.xp || saved.level !== standing.level)) localStorage.setItem('studentData', JSON.stringify({ ...saved, ...standing }));
+        } catch { /* no storage: the banner waits for the profile next time */ }
+    };
+
     useEffect(() => {
         const fetchCertificates = async () => {
             try {
                 api.get('/user/profile')
-                    .then(r => setCareer(r.data?.user || null))
+                    .then(r => { const u = r.data?.user || null; setCareer(u); rememberStanding(u); })
                     .catch(() => setCareer(null));
                 if (isCareerPathEnabled) {
                     api.get('/career/tasks/history')
@@ -194,35 +209,48 @@ const Profile = ({ view = 'dashboard' }) => {
     };
 
     const firstName = (user?.name || 'there').trim().split(' ')[0];
-    const level = Math.max(1, Number(career?.level) || 1);
-    const xp = Number(career?.xp) || 0;
+    // What the server says, and until it has answered, what was saved on the
+    // device. Read from a default, the banner opened on "Level 1 · 100 XP to
+    // the next level" and changed to the real level a second or two later.
+    const standing = career || (user?.level != null ? user : null);
+    const level = Math.max(1, Number(standing?.level) || 1);
+    const xp = Number(standing?.xp) || 0;
     const ring = useLevelProgress(xp, level);
     const careerStreak = useMemo(() => currentStreak(history), [history]);
     const streak = rw ? rw.streak.current : careerStreak;
-    const week = useMemo(() => recentActivity(history, 7).map((d) => ({ ...d, dayNum: Number(d.key.slice(-2)) })), [history]);
-    const activeThisWeek = week.filter((d) => d.active).length;
+    // The seven day tiles come from the same record as the number above
+    // them. With rewards on, that is the rewards streak — lessons, quizzes
+    // and Career Path tasks all count — and its calendar says which days were
+    // active. Built from Career Path's tasks alone, the card read "3 days"
+    // over a week of empty tiles for a student who had been taking lessons.
+    const streakDays = rw?.streak?.calendar;
+    const week = useMemo(() => {
+        if (!streakDays?.length) return recentActivity(history, 7);
+        return streakDays.slice(-7).map((d, i, days) => ({
+            key: d.day,
+            label: new Date(`${d.day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'narrow' }),
+            active: !!d.active,
+            isToday: i === days.length - 1
+        }));
+    }, [streakDays, history]);
+    // This week's quests against last week's, as Career Path's Overview shows them.
+    const weekly = useMemo(() => weeklyMomentum(history), [history]);
     const completedCourses = courses.filter((c) => c.progress >= 100).length;
     const hour = new Date().getHours();
     const dayGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
     // The weekly activity card. It lives on the Weekly activity tab of My
     // Learning now, so it is built here where its numbers are and passed down.
+    // The streak half is Career Path's own learning-streak panel.
     const weeklyActivity = (
-            <div className="relative overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-5 shadow-sm">
-                <span aria-hidden="true" className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-amber-200/50 blur-2xl" />
-                <div className="relative grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
-                    <div>
-                        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><CalendarDays size={18} className="text-amber-500" /> Weekly activity</h2>
-                        <p className="mb-4 text-sm text-slate-500 lg:mb-3">{isCareerPathEnabled ? `${activeThisWeek} active day${activeThisWeek === 1 ? '' : 's'} this week` : 'Turn on Career Path to track daily activity'}</p>
-                        <div className="max-w-md"><ActivityStrip days={week} /></div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-center lg:w-72">
-                        <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{streak}</p><p className="text-[11px] font-semibold text-slate-500">🔥 Streak</p></div>
-                        <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{completedCourses}</p><p className="text-[11px] font-semibold text-slate-500">🎓 Completed</p></div>
-                        <div className="rounded-xl bg-white/80 p-2 ring-1 ring-amber-100"><p className="text-lg font-black text-slate-900">{certificates.length}</p><p className="text-[11px] font-semibold text-slate-500">🏆 Certificates</p></div>
-                    </div>
-                </div>
-            </div>
+        <WeeklyActivityCard
+            streak={streak}
+            activity={week}
+            weekly={weekly}
+            careerOn={isCareerPathEnabled || !!streakDays?.length}
+            completedCourses={completedCourses}
+            certificates={certificates.length}
+        />
     );
 
     return (
@@ -319,11 +347,11 @@ const Profile = ({ view = 'dashboard' }) => {
                     name={user?.name || ''}
                     firstName={firstName}
                     photo={user?.profilePicture}
-                    level={level}
+                    level={standing ? level : null}
                     greeting={dayGreeting}
                     greetingIcon={hour < 12 ? '☀️' : hour < 17 ? '🌤️' : '🌙'}
-                    xpRemaining={ring.known ? ring.remaining : null}
-                    percent={ring.percent}
+                    xpRemaining={standing && ring.known ? ring.remaining : null}
+                    percent={standing ? ring.percent : 0}
                     xpTo={isCareerPathEnabled ? '/career' : undefined}
                     onViewPhoto={() => setViewingPhoto(true)}
                 />

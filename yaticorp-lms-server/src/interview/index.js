@@ -27,6 +27,7 @@ const { chargeWallet } = require('../rewards/services/walletRuleService');
 const { coursesForSkills } = require('../jobboard/services/lmsCourses');
 const comms = require('./communicationService');
 const { assess } = require('./answerCheck');
+const { repairSaved } = require('./repairSaved');
 
 const router = express.Router();
 router.use(protectUser);
@@ -342,6 +343,7 @@ router.get('/sessions/:id', async (req, res, next) => {
     try {
         const session = await own(req.user._id, req.params.id);
         if (!session) return res.status(404).json({ message: 'No such interview.' });
+        await repairSaved(session);
         res.json(publicSession(session));
     } catch (err) { next(err); }
 });

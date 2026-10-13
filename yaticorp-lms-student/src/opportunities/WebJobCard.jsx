@@ -16,7 +16,7 @@ const posted = (days) => days == null ? '' : days === 0 ? 'Posted today' : days 
 
 export default function WebJobCard({ job, categoryLabel }) {
     // Pays first when the admin has priced Find Job (Wallet rules).
-    const openJob = usePricedJobLink();
+    const { open: openJob, error: openError } = usePricedJobLink();
     const org = job.organization || {};
     const place = job.location?.city || '';
     const pay = job.compensation?.label || '';
@@ -79,6 +79,7 @@ export default function WebJobCard({ job, categoryLabel }) {
                     Find Job <PriceTag action="find_job" /> <ExternalLink size={14} aria-hidden="true" />
                 </a>
             </div>
+            {openError && <p role="alert" className="mt-2 text-right text-xs font-semibold text-red-600">{openError}</p>}
         </article>
     );
 }

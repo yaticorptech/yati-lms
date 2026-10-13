@@ -243,11 +243,11 @@ function BuildSkillsArt() {
 
 function Stat({ icon: Icon, tone, value, label }) {
   return (
-    <li className="flex items-center gap-1.5 rounded-full bg-surface/90 py-1 pr-2.5 pl-1 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur">
-      <span className={`flex h-6 w-6 items-center justify-center rounded-full ring-1 ring-inset ${tone}`}>
-        <Icon className="h-3 w-3" strokeWidth={2.4} />
+    <li className="flex items-center gap-1 rounded-full bg-surface/90 py-0.5 pr-2 pl-0.5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur sm:gap-1.5 sm:py-1 sm:pr-2.5 sm:pl-1">
+      <span className={`flex h-5 w-5 items-center justify-center rounded-full ring-1 ring-inset sm:h-6 sm:w-6 ${tone}`}>
+        <Icon className="h-2.5 w-2.5 sm:h-3 sm:w-3" strokeWidth={2.4} />
       </span>
-      <span className="text-[0.74rem] whitespace-nowrap text-ink-600">
+      <span className="text-[0.68rem] whitespace-nowrap text-ink-600 sm:text-[0.74rem]">
         <span className="font-black tabular-nums text-ink-900">{value}</span> {label}
       </span>
     </li>
@@ -276,7 +276,9 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
         <BuildSkillsArt />
       </div>
 
-      <div className="relative flex items-start gap-5 p-5 sm:p-6 md:min-h-[236px] md:max-w-[50%] md:items-center lg:pr-0">
+      {/* On a phone everything is a size down — padding, words, pills — so the
+          heading takes one line and the three pills one row (it was two of each). */}
+      <div className="relative flex items-start gap-5 p-4 sm:p-6 md:min-h-[236px] md:max-w-[50%] md:items-center lg:pr-0">
         {/* Top of the words, not the middle of them: the row as a whole is
               centred in the banner, and without this the badge centres again
               inside that and drifts down past the eyebrow it belongs to. */}
@@ -285,24 +287,24 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
         </span>
 
         <div className="min-w-0">
-          <p className="text-[0.68rem] font-black tracking-[0.2em] text-journey-600 uppercase">
+          <p className="text-[0.62rem] font-black tracking-[0.18em] text-journey-600 uppercase sm:text-[0.68rem] sm:tracking-[0.2em]">
             Build your skills
           </p>
           {/* It wraps rather than being told not to: where it fits it is one
               line anyway, and where it does not — the banner beside the
               progress card at 1024px, its text column half of that — a
               no-wrap heading was cut to "Big dre". */}
-          <h1 className="mt-1.5 text-[1.75rem] leading-tight font-black text-ink-900 sm:text-[2rem] xl:text-[2.25rem]">
+          <h1 className="mt-1 text-[1.25rem] leading-tight font-black text-ink-900 sm:mt-1.5 sm:text-[2rem] xl:text-[2.25rem]">
             Small steps.{' '}
             <span className="bg-gradient-to-r from-journey-600 to-indigo-600 bg-clip-text text-transparent">
               Big dreams.
             </span>
           </h1>
-          <p className="mt-2 max-w-md text-sm leading-relaxed text-ink-600">
+          <p className="mt-1.5 max-w-md text-[0.8rem] leading-snug text-ink-600 sm:mt-2 sm:text-sm sm:leading-relaxed">
             Gain skills, earn XP and unlock new opportunities in your career journey.
           </p>
 
-          <ul className="mt-4 flex flex-wrap items-center gap-2">
+          <ul className="mt-3 flex flex-wrap items-center gap-1.5 sm:mt-4 sm:gap-2">
             <Stat
               icon={Star}
               tone="bg-amber-50 text-amber-500 ring-amber-100"

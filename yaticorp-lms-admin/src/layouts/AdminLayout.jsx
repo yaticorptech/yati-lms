@@ -8,11 +8,12 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Layers, LogOut,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    ExternalLink, MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy } from 'lucide-react';
+    MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 import useCenterTabs from '../hooks/useCenterTabs';
 import ErrorBoundary from '../components/ErrorBoundary';
+import PullToRefresh from '../components/PullToRefresh';
 
 const AdminLayout = () => {
     // Tapping a tab in a sideways-scrolling strip centres it (phones).
@@ -35,9 +36,15 @@ const AdminLayout = () => {
     const getInitials = (name = '') =>
         name.trim().split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
+    // Pulling the page down on a phone opens it again, so it asks the server
+    // for everything afresh — without reloading the whole panel.
+    const scrollerRef = useRef(null);
+    const [pageKey, setPageKey] = useState(0);
+    const refreshPage = () => setPageKey((k) => k + 1);
+
     useEffect(() => {
         api.get('/admin/tickets?status=open').then(r => setOpenTickets(r.data.length)).catch(() => { });
-    }, [location.pathname]);
+    }, [location.pathname, pageKey]);
 
     // Collapse the mobile sidebar on navigation. Adjusting during render (the
     // pattern React documents for "reset state when a value changes") avoids
@@ -195,17 +202,8 @@ const AdminLayout = () => {
                     </Link>
                 </nav>
 
-                {/* Sidebar footer — student portal link only */}
-                <div className="p-4 border-t border-slate-100 bg-slate-50/60">
-                    <a
-                        href={import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center space-x-3 p-3 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-all"
-                    >
-                        <ExternalLink size={18} /> <span className="font-medium text-sm">Student Portal</span>
-                    </a>
-                </div>
+                {/* No "Student Portal" link: a super admin is not signed in on the student
+                    site, and seeing a student's side is "Open dashboard" on Users. */}
             </aside>
 
             {/* Main Content */}
@@ -225,11 +223,11 @@ const AdminLayout = () => {
                     <div className="hidden lg:block flex-1" />
 
                     <div className="flex items-center gap-3 shrink-0">
-                        {/* Refresh button */}
+                        {/* Refresh button — not on a phone, where pulling the page down refreshes it. */}
                         <button
                             onClick={() => window.location.reload()}
-                            className="flex items-center justify-center bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white w-10 h-10 rounded-xl shadow-sm transition-all group"
-                            title="Refresh Data"
+                            className="hidden sm:flex items-center justify-center bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white w-10 h-10 rounded-xl shadow-sm transition-all group"
+                            title="Refresh Data" aria-label="Refresh data"
                         >
                             <RefreshCw size={18} className="group-hover:rotate-180 transition-transform duration-700" />
                         </button>
@@ -294,11 +292,12 @@ const AdminLayout = () => {
                 </header>
 
                 {/* Page Content Area */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
+                <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 sm:p-6 lg:p-8 custom-scrollbar">
                     <div className="max-w-7xl mx-auto w-full">
-                        <ErrorBoundary resetKey={location.pathname}><Outlet /></ErrorBoundary>
+                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Outlet key={pageKey} /></ErrorBoundary>
                     </div>
                 </div>
+                <PullToRefresh scrollerRef={scrollerRef} onRefresh={refreshPage} />
             </main>
         </div>
     );

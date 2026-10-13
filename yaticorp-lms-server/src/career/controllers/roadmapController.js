@@ -1,6 +1,7 @@
 const Roadmap = require('../models/Roadmap');
 const Goal = require('../models/Goal');
 const { generateRoadmapFromAI, completedStageIndices } = require('../services/geminiService');
+const { repairSavedOrder } = require('../services/roadmapPlan');
 const { getStudentCourseContext } = require('../services/lmsContext');
 
 const Task = require('../models/Task');
@@ -136,6 +137,9 @@ const generateRoadmap = async (req, res) => {
     // generateRoadmapFromAI has already stripped finished stages against this
     // goal, so the read-time repair below has nothing to do for this record.
     roadmapData.stageRepair = STAGE_REPAIR_VERSION;
+    // Planned and checked in order already (roadmapPlan), so the order repair
+    // for older roadmaps has nothing to do either.
+    roadmapData.orderRepair = ORDER_REPAIR_VERSION;
 
     if (existing) await clearOldJourney(req.user._id);
 
@@ -269,6 +273,48 @@ const dropCompletedStages = async (roadmap, goal) => {
   return true;
 };
 
+/**
+ * Which version of the order repair below a roadmap has been through. Its own
+ * marker rather than a second stageRepair version: bumping that one would run
+ * the stage repair again against each student's CURRENT goal, which is the
+ * very thing STAGE_REPAIR_VERSION exists to stop.
+ */
+const ORDER_REPAIR_VERSION = 1;
+
+/**
+ * Put right the order of a roadmap saved before roadmaps were planned and
+ * checked: hiring tests after applications, internships after the final
+ * year, "Postgraduate Year 1 (2 years)". See repairSavedOrder for what moves
+ * and what never does (anything finished, anything past a badge).
+ *
+ * Once per roadmap. Written with $set on the two fields it touches: the stage
+ * repair above may have just marked this record with updateOne, and saving
+ * the whole roadmapData from memory would wipe that mark.
+ */
+const repairOrder = async (roadmap) => {
+  if (roadmap.roadmapData?.orderRepair >= ORDER_REPAIR_VERSION) return false;
+  const keep = asPrefix(roadmap.completedPhases).length;
+  const pinned = (await MilestoneBadge.find({ userId: roadmap.userId, roadmapId: roadmap._id }).select('phaseIndex').lean())
+    .map((b) => b.phaseIndex);
+  const result = repairSavedOrder(roadmap.roadmapData?.educationRoadmap, { keep, pinned });
+
+  if (!result.changed) {
+    await Roadmap.updateOne(
+      { _id: roadmap._id },
+      { $set: { 'roadmapData.orderRepair': ORDER_REPAIR_VERSION } },
+      { timestamps: false }
+    );
+    return false;
+  }
+  await Roadmap.updateOne(
+    { _id: roadmap._id },
+    { $set: { 'roadmapData.educationRoadmap': result.phases, 'roadmapData.orderRepair': ORDER_REPAIR_VERSION } }
+  );
+  roadmap.roadmapData = { ...roadmap.roadmapData, educationRoadmap: result.phases, orderRepair: ORDER_REPAIR_VERSION };
+  console.warn(`Repaired roadmap ${roadmap._id} order: ${result.notes.join('; ')}`);
+  return true;
+};
+
 // @desc    Get user's roadmap
 // @route   GET /api/roadmap
 // @access  Private
@@ -295,6 +341,8 @@ const getRoadmap = async (req, res) => {
     // roadmap; see STAGE_REPAIR_VERSION.
     const goal = await Goal.findOne({ userId: req.user._id }).select('educationLevel currentYear').lean();
     if (goal) await dropCompletedStages(roadmap, goal);
+    // After it, since it moves phases by index too.
+    await repairOrder(roadmap);
 
     res.status(200).json(roadmap);
   } catch (error) {
@@ -349,28 +397,11 @@ const togglePhase = async (req, res) => {
   }
 };
 
-// @desc    Delete user's roadmap
-// @route   DELETE /api/roadmap
-// @access  Private
-const deleteRoadmap = async (req, res) => {
-  try {
-    const roadmap = await Roadmap.findOne({ userId: req.user._id });
-    if (!roadmap) {
-      return res.status(404).json({ message: 'No roadmap found to delete.' });
-    }
-    
-    await roadmap.deleteOne();
-    res.status(200).json({ message: 'Roadmap deleted successfully.' });
-  } catch (error) {
-    res.status(statusFor(error)).json(aiAwareBody(error));
-  }
-};
 
 module.exports = {
   requireRebuildConsent,
   ROADMAP_EXISTS,
   generateRoadmap,
   getRoadmap,
-  togglePhase,
-  deleteRoadmap
+  togglePhase
 };

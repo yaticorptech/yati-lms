@@ -163,3 +163,28 @@ describe('saves that race', () => {
         assert.equal(events.reduce((n, e) => n + e.stars, 0), 3);
     });
 });
+
+describe('the Career Path lock', () => {
+    // The games are Brain Boosters now, a tab of Games & Competitions, so the
+    // switch that closes Career Path must not close them with it.
+    test('with Career Path locked, the games still answer and the rest of the section does not', async () => {
+        const Setting = require('../../src/models/Setting');
+        const gate = require('../../src/career/middleware/featureGate');
+        const off = { isCareerPathEnabled: false };
+        const chain = { select: () => chain, lean: async () => off };
+        const real = Setting.findOne;
+        Setting.findOne = () => chain;
+        gate.invalidateCareerSetting();
+        try {
+            const { api } = await student('games-lock');
+            assert.equal((await api('GET', '/games/time')).status, 200, 'play time');
+            assert.equal((await api('GET', '/games/progress')).status, 200, 'progress');
+            const career = await api('GET', '/today');
+            assert.equal(career.status, 403, 'Career Path itself is closed');
+            assert.equal(career.body.code, 'CAREER_PATH_LOCKED');
+        } finally {
+            Setting.findOne = real;
+            gate.invalidateCareerSetting();
+        }
+    });
+});

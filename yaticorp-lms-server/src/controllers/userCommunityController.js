@@ -4,7 +4,20 @@
  */
 const CommunityPost = require('../models/CommunityPost');
 const CommunityComment = require('../models/CommunityComment');
+const mongoose = require('mongoose');
 const User = require('../models/User'); // Required for populate
+
+// What every student may see of another: a name and a picture. Never the email
+// address — the whole feed went to every student with each author's address,
+// replies (and the admin's) included.
+const AUTHOR = 'name profilePicture';
+
+// Text with something in it: a title or reply of only spaces is empty.
+const text = (value) => (typeof value === 'string' ? value.trim() : '');
+
+// A post address that is not an id is a post that does not exist (404), not a
+// "Server error" from the failed lookup.
+const notAPost = (id) => !mongoose.isValidObjectId(id);
 
 // @desc    Get all community posts
 // @route   GET /api/user/community
@@ -12,7 +25,7 @@ const User = require('../models/User'); // Required for populate
 const getPosts = async (req, res) => {
     try {
         const posts = await CommunityPost.find({})
-            .populate('author', 'name email profilePicture')
+            .populate('author', AUTHOR)
             .sort('-createdAt');
 
         const postsWithCounts = posts.map(post => ({
@@ -31,11 +44,12 @@ const getPosts = async (req, res) => {
 // @access  Private/User
 const getPostById = async (req, res) => {
     try {
+        if (notAPost(req.params.id)) return res.status(404).json({ message: 'Post not found' });
         const post = await CommunityPost.findById(req.params.id)
-            .populate('author', 'name email profilePicture')
+            .populate('author', AUTHOR)
             .populate({
                 path: 'comments',
-                populate: { path: 'author', select: 'name email profilePicture' },
+                populate: { path: 'author', select: AUTHOR },
                 options: { sort: { 'createdAt': 1 } } // Oldest comments first
             });
 
@@ -54,7 +68,8 @@ const getPostById = async (req, res) => {
 // @access  Private/User
 const createPost = async (req, res) => {
     try {
-        const { title, content } = req.body;
+        const title = text(req.body?.title);
+        const content = text(req.body?.content);
 
         if (!title || !content) {
             return res.status(400).json({ message: 'Title and content are required' });
@@ -67,7 +82,7 @@ const createPost = async (req, res) => {
         });
 
         const populatedPost = await CommunityPost.findById(newPost._id)
-            .populate('author', 'name email profilePicture');
+            .populate('author', AUTHOR);
 
         res.status(201).json({ post: populatedPost });
     } catch (error) {
@@ -80,12 +95,13 @@ const createPost = async (req, res) => {
 // @access  Private/User
 const addComment = async (req, res) => {
     try {
-        const { content } = req.body;
+        const content = text(req.body?.content);
         const postId = req.params.id;
 
         if (!content) {
             return res.status(400).json({ message: 'Comment content is required' });
         }
+        if (notAPost(postId)) return res.status(404).json({ message: 'Post not found' });
 
         const post = await CommunityPost.findById(postId);
         if (!post) {
@@ -103,7 +119,7 @@ const addComment = async (req, res) => {
         await post.save();
 
         const populatedComment = await CommunityComment.findById(newComment._id)
-            .populate('author', 'name email profilePicture');
+            .populate('author', AUTHOR);
 
         res.status(201).json({ comment: populatedComment });
     } catch (error) {
@@ -115,8 +131,14 @@ const addComment = async (req, res) => {
 // @access  Private/User
 const updatePost = async (req, res) => {
     try {
-        const { title, content } = req.body;
+        const { title, content } = req.body || {};
         const postId = req.params.id;
+        if (notAPost(postId)) return res.status(404).json({ message: 'Post not found' });
+
+        // A field that is sent must say something; one that is left out stays as it was.
+        if ((title !== undefined && !text(title)) || (content !== undefined && !text(content))) {
+            return res.status(400).json({ message: 'Title and content cannot be empty' });
+        }
 
         const post = await CommunityPost.findById(postId);
 
@@ -130,13 +152,13 @@ const updatePost = async (req, res) => {
         }
 
         // Update fields
-        if (title) post.title = title;
-        if (content) post.content = content;
+        if (title !== undefined) post.title = text(title);
+        if (content !== undefined) post.content = text(content);
 
         await post.save();
 
         const updatedPost = await CommunityPost.findById(post._id)
-            .populate('author', 'name email profilePicture');
+            .populate('author', AUTHOR);
 
         res.json({ post: updatedPost });
 
@@ -150,6 +172,7 @@ const updatePost = async (req, res) => {
 const deletePost = async (req, res) => {
     try {
         const postId = req.params.id;
+        if (notAPost(postId)) return res.status(404).json({ message: 'Post not found' });
 
         const post = await CommunityPost.findById(postId);
 

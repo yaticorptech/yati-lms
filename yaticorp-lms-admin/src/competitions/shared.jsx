@@ -3,9 +3,26 @@
  * dates, and the create / edit form.
  */
 import { useState } from 'react';
-import { X, Save, Loader2, Rocket, ImagePlus, Trash2 } from 'lucide-react';
+import { X, Save, Loader2, Rocket, ImagePlus, Trash2, ChessKnight, Dices, Target, Spade, Gamepad2 } from 'lucide-react';
 import { INPUT, LABEL, BTN, BTN2 } from '../components/orgUi';
 import { GAMES, STATUS, ORDINAL, toLocalInput, errorOf } from './constants';
+
+/**
+ * A game's icon, on its own colour: a knight for chess, dice for Ludo, the
+ * board's centre ring for carrom, a card for UNO. Drawn from the icon library
+ * rather than the emoji the server sends, which every phone and computer drew
+ * differently (and some as an empty box).
+ */
+const GAME_ICONS = {
+    chess: [ChessKnight, 'bg-indigo-50 text-indigo-600'],
+    ludo: [Dices, 'bg-amber-50 text-amber-600'],
+    carrom: [Target, 'bg-orange-50 text-orange-600'],
+    uno: [Spade, 'bg-rose-50 text-rose-600']
+};
+export const GameIcon = ({ game, size = 22, className = 'h-11 w-11 rounded-xl' }) => {
+    const [Icon, tone] = GAME_ICONS[game] || [Gamepad2, 'bg-slate-100 text-slate-600'];
+    return <span aria-hidden className={`flex shrink-0 items-center justify-center ${tone} ${className}`}><Icon size={size} /></span>;
+};
 
 export const Chip = ({ status }) => {
     const [label, cls] = STATUS[status] || [status, 'bg-slate-100 text-slate-600'];
@@ -87,11 +104,17 @@ export const CompetitionForm = ({ competition = null, locked = false, organizer 
                             <input required maxLength={140} value={f.name} onChange={(e) => set({ name: e.target.value })} className={INPUT} placeholder="e.g. Inter-College Chess Championship 2026" /></label>
                         <label><span className={LABEL}>Organized by</span>
                             <input maxLength={140} value={f.organizedBy} onChange={(e) => set({ organizedBy: e.target.value })} className={INPUT} /></label>
-                        <label><span className={LABEL}>Game</span>
-                            <select value={f.game} disabled={locked} onChange={(e) => set({ game: e.target.value, teamsPerMatch: ['ludo', 'uno'].includes(e.target.value) ? 4 : 2, playersPerSide: 1 })} className={INPUT}>
-                                {Object.entries(GAMES).map(([id, g]) => <option key={id} value={id}>{g.emoji} {g.label}</option>)}
-                            </select>
-                            <span className="mt-1 block text-xs text-slate-500">{GAMES[f.game].note}</span></label>
+                        <div><span className={LABEL}>Game</span>
+                            <div role="radiogroup" aria-label="Game" className="grid grid-cols-4 gap-2">
+                                {Object.entries(GAMES).map(([id, g]) => (
+                                    <button key={id} type="button" role="radio" aria-checked={f.game === id} disabled={locked}
+                                        onClick={() => set({ game: id, teamsPerMatch: ['ludo', 'uno'].includes(id) ? 4 : 2, playersPerSide: 1 })}
+                                        className={`flex flex-col items-center gap-1.5 rounded-xl border px-1 py-2.5 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${f.game === id ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+                                        <GameIcon game={id} size={18} className="h-9 w-9 rounded-lg" />{g.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <span className="mt-1 block text-xs text-slate-500">{GAMES[f.game].note}</span></div>
                         <div><span className={LABEL}>Competition type</span>
                             <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700">Inter-College</p></div>
                         <label className="sm:col-span-2"><span className={LABEL}>Competition description <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>

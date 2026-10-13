@@ -95,6 +95,21 @@ describe('a question the interviewer had to repeat', () => {
         assert.match(repeated.improvements[0], /Answer the question that was asked/);
     });
 
+    test('the report does not say why a question was repeated, only that it was', () => {
+        // A repeat follows gibberish and "I don't know" as well as an answer
+        // about something else; it read "your reply was about something else"
+        // after "asdf qwerty".
+        const r = run([ONE_LINERS[0], { ...ONE_LINERS[1], clarifications: 1 }]);
+        assert.equal(r.improvements[0], 'Answer the question that was asked, in full sentences — the interviewer had to ask a question again because the reply did not answer it.');
+        assert.doesNotMatch(r.improvements.join(' '), /about something else/);
+    });
+
+    test('the summary names the interview as the student chose it', () => {
+        const named = (type) => tpl.evaluate({ session: { type, turns: ONE_LINERS }, context: ctx }).feedback.match(/in this ([^.]+)\./)?.[1];
+        assert.deepEqual(['hr', 'technical', 'project', 'behavioral', 'full'].map(named),
+            ['HR interview', 'technical interview', 'project interview', 'behavioral interview', 'full mock interview']);
+    });
+
     test('one-line answers land in the thirties, and full ones well above', () => {
         const thin = run(ONE_LINERS).overall;
         assert.ok(thin >= 25 && thin <= 45, `one-liners scored ${thin}`);

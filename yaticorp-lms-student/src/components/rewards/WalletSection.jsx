@@ -221,10 +221,10 @@ const XP_SOURCE = {
     lesson_complete: 'Lesson', quiz_complete: 'Quiz', quiz_pass: 'Quiz', assignment_complete: 'Assignment',
     course_complete: 'Course', certificate_earned: 'Certificate', forum_post: 'Community', forum_comment: 'Community',
     resume_upload: 'Resume', part_time_apply: 'Jobs', scholarship_search: 'Scholarships', interview_prep: 'Interview',
-    career: 'Career Path', career_task: 'Career Path', daily_activity: 'Career Path', game: 'Brain games',
-    game_reversal: 'Brain games', streak: 'Streak', admin: 'Bonus'
+    career: 'Career Path', career_task: 'Career Path', daily_activity: 'Career Path', game: 'Brain Boosters',
+    game_reversal: 'Brain Boosters', streak: 'Streak', admin: 'Bonus'
 };
-const XP_ICON = { Lesson: '📘', Quiz: '📝', Course: '🎓', Certificate: '📜', Community: '💬', 'Career Path': '🧭', 'Brain games': '🧩', Streak: '🔥', Bonus: '🎁', Interview: '🎤', Jobs: '💼' };
+const XP_ICON = { Lesson: '📘', Quiz: '📝', Course: '🎓', Certificate: '📜', Community: '💬', 'Career Path': '🧭', 'Brain Boosters': '🧩', Streak: '🔥', Bonus: '🎁', Interview: '🎤', Jobs: '💼' };
 
 // "for completing a lesson" → "Completing a lesson": the ledger's own words,
 // read as a title.
@@ -254,7 +254,7 @@ function XpLedger() {
     }, [rows]);
 
     if (!rows) return <div className="skeleton h-40 rounded-2xl" />;
-    if (!rows.length) return <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">No XP yet. Lessons, quizzes, Career Path tasks and brain games all earn XP, and it shows up here.</p>;
+    if (!rows.length) return <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">No XP yet. Lessons, quizzes, Career Path tasks and Brain Boosters all earn XP, and it shows up here.</p>;
     return (
         <ul ref={listRef} className="divide-y divide-slate-100 overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 [scrollbar-width:thin]" tabIndex={0} aria-label="XP history">
             {rows.map((t) => {

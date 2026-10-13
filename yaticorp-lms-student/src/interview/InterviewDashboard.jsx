@@ -10,7 +10,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
     Mic, Target, ArrowRight, Award, Lightbulb, X, BarChart3,
     MessageCircle, Code2, Heart, BookOpen, Users, Crown, Briefcase, ChevronDown, FolderOpen,
-    MessageSquare, Star, Gauge
+    MessageSquare, Star, Gauge, PlayCircle
 } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
 import { AuthContext } from '../context/AuthContext';
@@ -178,6 +178,23 @@ export default function InterviewDashboard() {
                     </div>
                 </div>
             </header>
+
+            {/* ── An interview left unfinished ────────────────────── */}
+            {/* The server keeps it open until it is ended, or until another is
+                started, which ends it. Leaving one used to leave no way back
+                to it but the browser's back button. */}
+            {data.activeSession && (
+                <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 animate-fade-in-up sm:flex-nowrap">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-amber-600 shadow-sm"><PlayCircle size={20} /></span>
+                    <p className="min-w-0 flex-1 text-sm text-amber-900">
+                        <span className="block font-black">You have an unfinished {TYPE_META[data.activeSession.type]?.label || 'mock interview'}</span>
+                        <span className="block text-xs text-amber-800/80">{data.activeSession.answered} answered · started {fmtDate(data.activeSession.startedAt)}. Starting a new interview ends this one.</span>
+                    </p>
+                    <Link to={`/interview/mock/${data.activeSession.id}`} className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-amber-600 sm:w-auto">
+                        Continue interview <ArrowRight size={15} />
+                    </Link>
+                </div>
+            )}
 
             {error && <ErrorBox error={error} onRetry={load} />}
 
