@@ -6,7 +6,7 @@
  *              platform). The newest sits in the big frame at the top; the
  *              rest hang in the gallery beneath.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import saveToDrive from '../integrations/google/saveToDrive';
 import { Link } from 'react-router-dom';
 import {
@@ -15,14 +15,17 @@ import {
 import api from '../utils/api';
 import { Tile, Feature, Artwork } from './profileBlocks';
 import Portal from './Portal';
+import CertificatePreview from './CertificatePreview';
+import { AuthContext } from '../context/AuthContext';
+import { pdfPageOne } from '../utils/pdfPageOne';
 import PriceTag from './rewards/PriceTag';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
 /** Course certificates and uploads, one shape, newest first. */
-const merge = (certificates, achievements) => [
+const merge = (certificates, achievements, holder = '') => [
     ...certificates.map((c) => ({
-        id: `course-${c._id}`, source: 'course', raw: c,
+        id: `course-${c._id}`, source: 'course', raw: c, holder,
         title: c.courseId?.title || 'Course certificate', issuer: 'YATI LMS',
         date: c.issuedAt || c.createdAt, number: c.certificateNumber, thumbnailUrl: '', fileType: 'pdf'
     })),
@@ -34,13 +37,15 @@ const merge = (certificates, achievements) => [
 ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
 /* A certificate in a frame: matted, bevelled, with a ribbon when it is one
-   the LMS issued. Images and PDF thumbnails render inside; anything else
-   gets the seal. */
+   the LMS issued. One the LMS issued shows the certificate itself; images
+   and PDF pictures render inside; anything else gets the seal. */
 const Framed = ({ item, large = false }) => (
     <div className={`relative rounded-2xl bg-gradient-to-br from-amber-100 via-amber-50 to-amber-200 p-1.5 shadow-md ${large ? 'sm:p-3' : ''}`}>
         <div className="rounded-xl border-4 border-white bg-white p-1.5 shadow-inner">
             <div className={`flex items-center justify-center overflow-hidden rounded-lg bg-slate-100 ${large ? 'aspect-[4/3]' : 'aspect-[4/3]'}`}>
-                {item.thumbnailUrl ? (
+                {item.source === 'course' ? (
+                    <CertificatePreview name={item.holder} course={item.title} number={item.number} issuedAt={item.date} />
+                ) : item.thumbnailUrl ? (
                     <img src={item.thumbnailUrl} alt={item.title} loading="lazy" className="h-full w-full object-cover" />
                 ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-emerald-50 via-white to-teal-50 text-emerald-600">
@@ -93,6 +98,11 @@ const UploadDialog = ({ onClose, onDone }) => {
         try {
             const fd = new FormData();
             fd.append('file', file);
+            // A PDF goes with a picture of its first page, for the frame.
+            if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+                const pageOne = await pdfPageOne(file);
+                if (pageOne) fd.append('thumbnail', pageOne, 'page-1.jpg');
+            }
             fd.append('title', title.trim());
             fd.append('issuer', issuer.trim());
             fd.append('issuedOn', issuedOn);
@@ -260,7 +270,9 @@ export default function CertificatesFrame({ certificates, loading, certError, do
         </button>
     );
 
-    const items = merge(certificates, achievements);
+    // The holder's name is written on the certificate's picture.
+    const { user } = useContext(AuthContext) || {};
+    const items = merge(certificates, achievements, user?.name || '');
     const busy = loading || loadingUploads;
 
     /* One card, five bands, separated by hairlines rather than gaps — the

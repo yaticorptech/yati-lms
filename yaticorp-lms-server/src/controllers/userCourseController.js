@@ -15,6 +15,7 @@ const Quiz = require('../models/Quiz');
 // all three always agree on which lesson comes next.
 const CONTENT_ORDER = { order: 1, _id: 1 };
 const { canAccessCourse, canOpenCourse, visibleCoursesFilter } = require('../services/courseAccess');
+const { hasFullAccess } = require('../services/fullAccess');
 const walletService = require('../rewards/services/walletService');
 const { getConfig: getRewardsConfig } = require('../rewards/services/configService');
 const { Wallet, WalletTransaction } = require('../rewards/models');
@@ -202,6 +203,10 @@ const getCourseContent = async (req, res) => {
         }
 
         // Content dripping: modules unlock N days after the student's enrollment.
+        // Not for the demo cards (services/fullAccess.js): they show the product,
+        // so every module is open to them from the start — the account owner's
+        // rule, 2026-10-09. Every other student keeps the drip.
+        const drips = !hasFullAccess(req.user);
         const enrollment = await Enrollment.findOne({ userId: req.user._id, courseId });
         const enrollDate = enrollment ? new Date(enrollment.assignedAt || enrollment.createdAt) : null;
         const now = new Date();
@@ -213,7 +218,7 @@ const getCourseContent = async (req, res) => {
                 const dripDays = modObj.dripDays || 0;
                 let unlockAt = null;
                 let locked = false;
-                if (dripDays > 0 && enrollDate) {
+                if (drips && dripDays > 0 && enrollDate) {
                     unlockAt = new Date(enrollDate.getTime() + dripDays * 24 * 60 * 60 * 1000);
                     locked = now < unlockAt;
                 }

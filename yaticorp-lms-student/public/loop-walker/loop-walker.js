@@ -141,9 +141,10 @@
   });
 
   /* ================= parameters + state ================= */
-  var DEFAULTS = { height: 170, mobileHeight: 0, top: 380, gain: 0.55, prints: 16, tilt: 15, mode: 'follow', explain: true, facecam: false };
+  // YATICORP change, not in the shipped package: `side` and `standAbove` belong to mode 'stand' (see standSpot).
+  var DEFAULTS = { height: 170, mobileHeight: 0, top: 380, gain: 0.55, prints: 16, tilt: 15, mode: 'follow', explain: true, facecam: false, side: 'right', standAbove: '' };
   var P = Object.assign({}, DEFAULTS);
-  ['height', 'mobileHeight', 'top', 'gain', 'prints', 'tilt', 'mode', 'explain', 'facecam'].forEach(function (k) { if (opts[k] !== undefined) P[k] = opts[k]; });
+  ['height', 'mobileHeight', 'top', 'gain', 'prints', 'tilt', 'mode', 'explain', 'facecam', 'side', 'standAbove'].forEach(function (k) { if (opts[k] !== undefined) P[k] = opts[k]; });
   // YATICORP change, not in the shipped package: sized from the screen. About a quarter of its shorter side, so it
   // is smaller on a small phone and bigger on a large one, up to `mobileHeight` below 640px wide (when set) and
   // `height` above; never taller than a fifth of the screen (a phone on its side) and never under 72px. On phones
@@ -892,6 +893,27 @@
     scr.x = (tmpV.x + 1) / 2 * W; scr.y = (1 - tmpV.y) / 2 * H;
     return scr;
   }
+  // YATICORP change, not in the shipped package: mode 'stand'. Loop stands in a bottom corner (P.side, 'right' or
+  // 'left') and never walks: not after the cursor, not over to what it explains (it points at it from the corner),
+  // not away when poked. P.standAbove is a selector for something fixed at the bottom of the screen — the phone's
+  // bottom bar — that Loop stands above while it is showing; looked up twice a second, not every frame.
+  var standClearY = 0, standCheckAt = -1;
+  function standSpot(out) {
+    if (t >= standCheckAt) {
+      standCheckAt = t + 0.5; standClearY = 0;
+      var el = P.standAbove ? document.querySelector(P.standAbove) : null;
+      var r = el && el.getBoundingClientRect();
+      if (r && r.height > 0 && r.top < H) standClearY = r.top;
+    }
+    var b = band(), y = b.y1;
+    if (standClearY) y = Math.min(y, standClearY - Math.max(10, H * 0.02));
+    return toFloor(P.side === 'left' ? b.x0 : b.x1, y, out);
+  }
+  // Which way to point from the corner: -1 when the thing is to Loop's left on screen, 1 when to its right.
+  function standPoint(el) {
+    var r = el.getBoundingClientRect();
+    return (r.left + r.right) / 2 < toScreen(pos).x ? -1 : 1;
+  }
   function keepInBand() {
     if (!ready) return;
     var s = toScreen(pos), b = band();
@@ -1019,6 +1041,7 @@
     if (!el || !el.closest) return null;
     if (NAV_BARS && el.closest(NAV_BARS)) return null;                            // nothing in the navigation (see band)
     if (AVOID && el.closest(AVOID)) return null;                                  // nor in an open dropdown (see AVOID)
+    if (el.closest('[data-loop-quiet]')) return null;                            // YATICORP change: the page can ask Loop to leave something alone
     var tagged = el.closest('[data-explain]');
     var btn = opts.buttons === false ? null : el.closest(BUTTONISH);
     if (btn && !isButtonLike(btn)) btn = null;
@@ -1125,6 +1148,7 @@
     if (pokes === 1) { impulse('laughing', 1, 1.1); micro.flash = 0.5; say('Poke', 'Hehe — that tickles!', 1.8, 'laughing'); }
     else if (pokes === 2) { impulse('surprised', 1, 0.6); impulse('amused', 0.5, 1.6, 0.4); say('Poke', 'Oh! Again?', 1.6, 'surprised'); }
     else if (pokes === 3) { impulse('angry', 0.65, 1.9); say('Hey', 'Okay — I felt that one.', 1.9, 'angry'); }
+    else if (P.mode === 'stand') { impulse('angry', 1, 2.8); calmPending = true; say('Hmph', "Okay, okay. I'll just stand here.", 2.4, 'angry'); }   // YATICORP change: stays put
     else { impulse('angry', 1, 2.8); fleeUntil = t + 2.6; calmPending = true; say('Hmph', "I'll be over here if you need me.", 2.4, 'angry'); }
   }
   on(window, 'pointerdown', function (e) {
@@ -1209,6 +1233,9 @@
       if (awayT > 2.2 && !awaySaid && !guide) { awaySaid = true; say('Hello?', 'Where did you go?', 2.6, 'sad'); }
     }
 
+    var standing = P.mode === 'stand';                                            // YATICORP change: see standSpot
+    if (standing) standSpot(pos);
+
     if (reduced) {
       if (guide && !guide.shown) {
         guide.shown = guide.arrived = true;
@@ -1226,8 +1253,10 @@
     if (!target3) target3 = new THREE.Vector3();
     var b = band();
 
-    if (fleeUntil > t) {                                                           // walks off in a huff
-      var cs = [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]], best = cs[0], bd = -1;
+    if (standing) {                                                                // stays in its corner; points from there
+      if (guide) { guide.t += dt; guide.point = standPoint(guide.el); }
+    } else if (fleeUntil > t) {                                                    // walks off in a huff
+      var cs =[[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]], best = cs[0], bd = -1;
       cs.forEach(function (c) { var d = Math.hypot(c[0] - pointer.x, c[1] - pointer.y); if (d > bd) { bd = d; best = c; } });
       toFloor(best[0], best[1], target3); have = true;
     } else if (guide) {
@@ -1942,7 +1971,7 @@
     return api;
   }
 
-  toFloor(W * 0.8, H * 0.88, pos);
+  if (P.mode === 'stand') standSpot(pos); else toFloor(W * 0.8, H * 0.88, pos);   // YATICORP change: see standSpot
   walker.heading = headingToCamera();
   hint.textContent = 'Loading Yati\u2026';
 

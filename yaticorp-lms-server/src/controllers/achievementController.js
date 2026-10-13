@@ -85,7 +85,11 @@ const listAchievements = async (req, res) => {
 
 // @route POST /api/user/achievements  (multipart: file, title, issuer, issuedOn, kind)
 const createAchievement = (req, res) => {
-    upload.single('file')(req, res, async (uploadErr) => {
+    // The certificate, and for a PDF optionally a picture of its first page
+    // that the browser drew (the card shows it; Bunny cannot render a PDF).
+    upload.fields([{ name: 'file', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }])(req, res, async (uploadErr) => {
+        req.file = req.files?.file?.[0];
+        const pageOne = req.files?.thumbnail?.[0];
         try {
             if (uploadErr) {
                 const message = uploadErr.code === 'LIMIT_FILE_SIZE' ? 'That file is over 10 MB — export a lighter one.' : uploadErr.message;
@@ -104,9 +108,19 @@ const createAchievement = (req, res) => {
             let stored;
             if (bunnyConfigured()) {
                 const url = await uploadToBunny(req.file.buffer, originalName, 'lms_achievements');
-                // An image is its own preview; a PDF on Bunny has none and the
-                // card shows the seal instead.
+                // An image is its own preview. A PDF shows the picture of its
+                // first page the browser drew, when it sent one; otherwise the
+                // card shows the seal.
                 stored = { storage: 'bunny', fileUrl: url, objectPath: url.split('/').slice(3).join('/'), thumbnailUrl: isPdf ? '' : url };
+                if (isPdf && pageOne && /^image\/(jpeg|png|webp)$/.test(pageOne.mimetype) && pageOne.size <= 2 * 1024 * 1024) {
+                    try {
+                        const thumb = await uploadToBunny(pageOne.buffer, 'page-1.jpg', 'lms_achievements/thumbs');
+                        stored.thumbnailUrl = thumb;
+                        stored.thumbnailObjectPath = thumb.split('/').slice(3).join('/');
+                    } catch (e) {
+                        console.warn('[achievements] page-one picture not stored:', e.message);
+                    }
+                }
             } else {
                 const result = await uploadToCloudinary(req.file.buffer, isPdf);
                 stored = { storage: 'cloudinary', fileUrl: result.secure_url, publicId: result.public_id, thumbnailUrl: thumbnailFor(result, isPdf) };
@@ -161,6 +175,7 @@ const deleteAchievement = async (req, res) => {
             ? cloudinary.uploader.destroy(row.publicId, { resource_type: 'image' })
             : row.objectPath ? deleteFromBunny(row.objectPath) : Promise.resolve();
         cleanup.catch((e) => console.warn('[achievements] storage delete failed:', e.message));
+        if (row.thumbnailObjectPath) deleteFromBunny(row.thumbnailObjectPath).catch((e) => console.warn('[achievements] thumbnail delete failed:', e.message));
         res.json({ ok: true });
     } catch (error) {
         res.status(500).json({ message: 'Could not remove the certificate.', error: error.message });

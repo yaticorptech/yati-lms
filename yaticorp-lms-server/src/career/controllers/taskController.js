@@ -243,7 +243,7 @@ const getTasks = async (req, res) => {
 
     const lessonByTask = new Map(
       studies.map((study) => {
-        const gates = lessonGates(study);
+        const gates = lessonGates(study, req.user);
         const steps = [
           gates.needsVideo && { key: 'video', done: gates.videoWatched },
           gates.needsNotes && { key: 'notes', done: gates.notesRead },

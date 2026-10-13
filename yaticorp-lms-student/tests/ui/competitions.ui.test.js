@@ -113,6 +113,34 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
         assert.match(result.match, /Opponent Beta Rooks \(Beta College\)/);
     });
 
+    test('My Games on a phone: a registered competition reads across the row, not down a narrow column', async () => {
+        // The chip used to sit beside the name and the details together, and on
+        // a phone it squeezed them to "Inter c…" over a column two words wide.
+        const LONG = { ...COMP, name: 'Inter College Chess Championship', status: 'registration', phase: 'registration-open',
+            myTeam: { ...COMP.myTeam, teamName: 'St Agnes College' } };
+        const { result, errors } = await screen({
+            entry: home('mine'), api: api({ '/competitions/me': { competitions: [LONG], upcoming: [], live: [], completed: [], results: [] } }),
+            styles: true, device: DEVICES.galaxyA55, script: `
+                await sleep(600);
+                const li = $('[aria-label="My games"]').parentElement.querySelector('li');
+                const name = li.querySelector('a'), details = name.parentElement.nextElementSibling;
+                const chip = name.nextElementSibling;
+                const L = li.getBoundingClientRect(), N = name.getBoundingClientRect(), D = details.getBoundingClientRect(), C = chip.getBoundingClientRect();
+                return { name: name.innerText, cut: name.scrollWidth > name.clientWidth + 1, details: details.innerText,
+                         detailsShare: D.width / L.width, detailsLines: Math.round(D.height / parseFloat(getComputedStyle(details).lineHeight)),
+                         chipBesideName: C.left >= N.right && C.top < N.bottom, inside: C.right <= L.right + 1,
+                         pageScrolls: document.documentElement.scrollWidth > innerWidth };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.name, 'Inter College Chess Championship', 'the whole name, not "Inter c…"');
+        assert.equal(result.cut, false);
+        assert.match(result.details, /Team: St Agnes College · Approved · /);
+        assert.ok(result.detailsShare > 0.8, `the details use the row's width (${(result.detailsShare * 100).toFixed(0)}%)`);
+        assert.ok(result.detailsLines <= 2, `in two lines at most, not ${result.detailsLines}`);
+        assert.equal(result.chipBesideName, true, 'the status chip stays beside the name');
+        assert.equal(result.inside, true);
+        assert.equal(result.pageScrolls, false);
+    });
+
     test('Results: winner, runner-up and third place, and the full results', async () => {
         const { result } = await screen({ entry: home('results'), api: api(), styles: true, script: `
             await sleep(600);
