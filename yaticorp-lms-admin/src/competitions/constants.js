@@ -1,11 +1,12 @@
 /** The admin panel's competition constants and helpers (shared by the pages). */
 import api from '../utils/api';
 
+// Each game's icon is GameIcon (competitions/shared.jsx).
 export const GAMES = {
-    chess: { label: 'Chess', emoji: '♟️', note: 'Two teams a match, one player each.' },
-    ludo: { label: 'Ludo', emoji: '🎲', note: 'Two to four teams a match, one player each.' },
-    carrom: { label: 'Carrom', emoji: '🟤', note: 'Two teams a match: singles, or doubles with two players each.' },
-    uno: { label: 'UNO', emoji: '🃏', note: 'Two to four teams a match, one player each.' }
+    chess: { label: 'Chess', note: 'Two teams a match, one player each.' },
+    ludo: { label: 'Ludo', note: 'Two to four teams a match, one player each.' },
+    carrom: { label: 'Carrom', note: 'Two teams a match: singles, or doubles with two players each.' },
+    uno: { label: 'UNO', note: 'Two to four teams a match, one player each.' }
 };
 
 export const STATUS = {
@@ -22,7 +23,13 @@ export const STATUS = {
     rejected: ['Rejected', 'bg-rose-50 text-rose-700'],
     withdrawn: ['Withdrawn', 'bg-slate-100 text-slate-500'],
     scheduled: ['Upcoming', 'bg-sky-50 text-sky-700'],
-    bye: ['Bye', 'bg-slate-100 text-slate-600']
+    bye: ['Bye', 'bg-slate-100 text-slate-600'],
+    // The server's `phase`: the stored status read against the dates, so a
+    // card stops saying "Registration open" once the deadline has passed
+    // ('registration-soon' and 'closing-soon' are above).
+    // The student app's words (yaticorp-lms-student/src/competitions/api.js).
+    'registration-open': ['Registration open', 'bg-emerald-50 text-emerald-700'],
+    upcoming: ['Upcoming', 'bg-sky-50 text-sky-700']
 };
 export const ORDINAL = { 1: '1st', 2: '2nd', 3: '3rd' };
 

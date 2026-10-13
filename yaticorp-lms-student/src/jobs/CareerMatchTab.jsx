@@ -19,7 +19,7 @@ const ring = (t) => t >= 75 ? 'text-emerald-600 bg-emerald-50 border-emerald-200
 /** `actionLabel`: the button's words — Hidden Opportunities says "Apply". */
 export const MatchCard = ({ job, actionLabel = 'Find Job' }) => {
     // Pays first when the admin has priced Find Job (Wallet rules).
-    const openJob = usePricedJobLink();
+    const { open: openJob, error: openError } = usePricedJobLink();
     const m = job.match || { total: 0, matched: [], missing: [] };
     return (
         // min-w-0 with the grid's grid-cols-1: a card is as wide as the screen
@@ -54,6 +54,7 @@ export const MatchCard = ({ job, actionLabel = 'Find Job' }) => {
                     {actionLabel} <PriceTag action="find_job" /> <ExternalLink size={14} />
                 </a>
             </div>
+            {openError && <p role="alert" className="mt-2 text-right text-xs font-semibold text-red-600">{openError}</p>}
         </article>
     );
 };

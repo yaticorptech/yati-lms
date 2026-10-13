@@ -41,7 +41,19 @@ const ACTIVITY_TYPES = [
   'profile_picture',       // a profile photo added; once
   'achievement_added',     // an achievement added to the profile; once a day
   'global_quiz_complete',  // the Global Quiz finished; once a day
-  'global_quiz_win'        // the Global Quiz finished at or above the win score; once per quiz
+  'global_quiz_win',       // the Global Quiz finished at or above the win score; once per quiz
+  // Optional too (added 2026-10-10, from a survey of the site for what earned nothing):
+  'career_onboarding',     // the first Career Path roadmap built; once ever
+  'day_plan_complete',     // every task in today's plan done; once a day
+  'skill_level_up',        // a skill moving up a level through Career Path tasks; once per skill and level
+  'competition_match_win', // a competition match won at the board (not a walkover); once per match
+  'friendly_game_played',  // a multiplayer game room played through with someone else; once a day
+  'friendly_game_win',     // a multiplayer game room won outright; once a day
+  'course_enroll',         // enrolling in a course; once a day
+  'opportunity_profile',   // the part-time jobs profile filled in; once ever
+  'organization_join',     // accepted into a college organization; once ever
+  'bio_strength_full',     // Learning Bio strength at 100%; once ever
+  'google_connect'         // a Google account connected; once ever
 ];
 
 const ACCOUNT_TYPES = ['school_student', 'college_student', 'adult', 'professional', 'instructor'];
@@ -141,11 +153,14 @@ const WALLET_ACTIONS = [
   'build_task_lesson',
   'generate_study_material',
   'add_extra_task',
-  'regenerate_bio'
+  'regenerate_bio',
+  // Games & Competitions. Optional too.
+  'download_competition_certificate',
+  'create_game_room'
 ];
 // The rules a fresh rulebook starts with; the rest of WALLET_ACTIONS (and of
 // ACTIVITY_TYPES, for XP) are added from the admin panel when wanted.
-const OPTIONAL_WALLET_ACTIONS = ['generate_ideas', 'download_certificate', 'ask_mentor', 'build_task_lesson', 'generate_study_material', 'add_extra_task', 'regenerate_bio'];
+const OPTIONAL_WALLET_ACTIONS = ['generate_ideas', 'download_certificate', 'ask_mentor', 'build_task_lesson', 'generate_study_material', 'add_extra_task', 'regenerate_bio', 'download_competition_certificate', 'create_game_room'];
 const DEFAULT_WALLET_RULES = Object.fromEntries(WALLET_ACTIONS.filter((a) => !OPTIONAL_WALLET_ACTIONS.includes(a)).map((a) => [a, 0]));
 // Actions with no server request of their own (opening a job listing): the
 // page asks POST /api/rewards/wallet/spend before it goes ahead.

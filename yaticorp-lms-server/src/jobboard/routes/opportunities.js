@@ -10,11 +10,13 @@
  * and not the other.
  */
 const express = require('express');
+const { xpOnSuccess } = require('../../rewards/services/xpHooks');
 const mongoose = require('mongoose');
 const router = express.Router();
 
 const Opportunity = require('../models/Opportunity');
 const OpportunityProfile = require('../models/OpportunityProfile');
+const JobApplication = require('../models/JobApplication');
 const { OpportunityPreference, OpportunityView, OpportunityReport } = require('../models/OpportunityPreference');
 const { isConnected } = require('../config/db');
 const vocab = require('../data/opportunityVocab');
@@ -53,9 +55,10 @@ const validId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 /** Everything the recommender needs to know about the caller, in one read. */
 const loadContext = async (userId) => {
-    const [profile, prefs] = await Promise.all([
+    const [profile, prefs, apps] = await Promise.all([
         OpportunityProfile.findOne({ userId }).lean(),
-        OpportunityPreference.find({ userId }).lean()
+        OpportunityPreference.find({ userId }).lean(),
+        JobApplication.find({ userId }).select('opportunityId status').lean()
     ]);
     const age = ageFrom(profile?.dateOfBirth);
     const band = bandFor(age);
@@ -65,7 +68,8 @@ const loadContext = async (userId) => {
         band,
         likes: prefs.filter((p) => p.verdict === 'interested'),
         dislikes: prefs.filter((p) => p.verdict === 'not_interested'),
-        prefs
+        prefs,
+        apps
     };
 };
 
@@ -76,12 +80,21 @@ const guardianFor = (profile, band) => {
     return { status: g.status === 'not-required' ? 'none' : (g.status || 'none'), requestedAt: g.requestedAt, decidedAt: g.decidedAt, note: g.note, guardianName: g.guardianName };
 };
 
+const applicationFor = (ctx, oppId) => {
+    const app = (ctx.apps || []).find((a) => String(a.opportunityId) === String(oppId));
+    return app ? { id: String(app._id), status: app.status } : null;
+};
+
 const shape = (row, ctx) => ({
     ...publicView(row.opp, ctx.band),
     matchScore: row.score,
     matchReasons: row.reasons,
     signals: row.signals,
-    preference: ctx.prefs.find((p) => String(p.opportunityId) === String(row.opp._id))?.verdict || null
+    preference: ctx.prefs.find((p) => String(p.opportunityId) === String(row.opp._id))?.verdict || null,
+    // The student's own application for this job, if they have made one, so
+    // the board can say where it stands. It used to say nothing: a job applied
+    // for, even approved by the guardian, still offered "Apply".
+    application: applicationFor(ctx, row.opp._id)
 });
 
 const profileOut = (profile, age) => profile && ({
@@ -122,7 +135,8 @@ const parseDay = (value) => {
 };
 
 /** PUT /profile — three answers: date of birth, the dates wanted, interests. */
-router.put('/profile', async (req, res, next) => {
+// XP rule (optional): the part-time jobs profile set up, once ever.
+router.put('/profile', xpOnSuccess('opportunity_profile', () => 'opportunity_profile'), async (req, res, next) => {
     try {
         if (!isConnected()) return res.status(503).json({ error: 'Database unavailable.' });
         const body = req.body ?? {};

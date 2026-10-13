@@ -343,7 +343,7 @@ export default function CertificatesFrame({ certificates, loading, certError, do
     /* One card, five bands, separated by hairlines rather than gaps — the
        resume block below it needs the room. */
     return (
-        <section aria-labelledby="my-certificates-title" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
+        <section id="certificates" aria-labelledby="my-certificates-title" className="scroll-mt-20 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
             {/* ── Header ───────────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-3">

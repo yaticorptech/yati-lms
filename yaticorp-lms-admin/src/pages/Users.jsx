@@ -3,9 +3,10 @@
  * @description Student management: add/edit/delete students with QR-only card flow
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../utils/api';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
-import { UserCheck, UserSearch, Upload, Download, QrCode, Lock, Camera, Keyboard } from 'lucide-react';
+import { UserCheck, UserSearch, Upload, Download, QrCode, Lock, Camera, Keyboard, Eye, EyeOff, Copy } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -69,6 +70,13 @@ const Users = () => {
     const [loading, setLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
     const [userDetails, setUserDetails] = useState(null);
+    // The open student's password, fetched only when Show is pressed:
+    // null (hidden) | { loading } | { password } | { message } (not available).
+    const [studentPassword, setStudentPassword] = useState(null);
+    const [passwordCopied, setPasswordCopied] = useState(false);
+    // Whose password the request in flight is for, so a reply that arrives
+    // after the admin has moved to another student is dropped.
+    const passwordRequestFor = useRef(null);
     const [courses, setCourses] = useState([]);
     const [bundles, setBundles] = useState([]);
     const [selectedAssignType, setSelectedAssignType] = useState('Course');
@@ -187,6 +195,9 @@ const Users = () => {
 
     const openUserModal = async (user) => {
         setSelectedUser(user);
+        setStudentPassword(null);
+        setPasswordCopied(false);
+        passwordRequestFor.current = null;
         try {
             const res = await api.get(`/admin/users/${user._id}`);
             setUserDetails(res.data);
@@ -199,6 +210,33 @@ const Users = () => {
         setSelectedUser(null);
         setUserDetails(null);
         setSelectedAssignId('');
+        setStudentPassword(null);
+        passwordRequestFor.current = null;
+    };
+
+    const toggleStudentPassword = async () => {
+        if (studentPassword) { setStudentPassword(null); passwordRequestFor.current = null; return; }
+        const id = selectedUser._id;
+        passwordRequestFor.current = id;
+        setStudentPassword({ loading: true });
+        let next;
+        try {
+            const res = await api.get(`/admin/users/${id}/password`);
+            next = res.data.available ? { password: res.data.password } : { message: res.data.message };
+        } catch (err) {
+            next = { message: err.response?.data?.message || 'Could not load the password.' };
+        }
+        if (passwordRequestFor.current === id) setStudentPassword(next);
+    };
+
+    const copyStudentPassword = async () => {
+        try {
+            await navigator.clipboard.writeText(studentPassword.password);
+            setPasswordCopied(true);
+            setTimeout(() => setPasswordCopied(false), 1500);
+        } catch {
+            setAlertMessage('Could not copy. Select the password and copy it by hand.'); setShowAlert(true);
+        }
     };
 
     /**
@@ -731,6 +769,11 @@ const Users = () => {
                 )}
             </div>
 
+            {/* The popups go on <body>, as on Organizations. This page is its own
+                layer (relative z-0), so inside it even the highest popup stayed under
+                the app's top bar, which hid each popup's heading and close button
+                on a phone. */}
+            {createPortal(<>
             {/* User Management Modal */}
             {
                 selectedUser && (
@@ -785,6 +828,35 @@ const Users = () => {
                                                 <p className="font-mono text-sm text-slate-800 mt-0.5 break-all">
                                                     {userDetails?.user?.qrNumber || "N/A"}
                                                 </p>
+                                            </div>
+                                            <div className="sm:col-span-2 min-w-0">
+                                                <p className="text-xs text-slate-400 font-semibold uppercase">Password</p>
+                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+                                                    {studentPassword?.message ? (
+                                                        <p className="text-sm text-amber-700">{studentPassword.message}</p>
+                                                    ) : (
+                                                        <p className="font-mono text-slate-800 break-all">
+                                                            {studentPassword?.loading ? 'Loading…' : studentPassword?.password ?? '••••••••'}
+                                                        </p>
+                                                    )}
+                                                    <button type="button" onClick={toggleStudentPassword} disabled={studentPassword?.loading}
+                                                        className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
+                                                        {studentPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                                                        {studentPassword ? 'Hide' : 'Show'}
+                                                    </button>
+                                                    {studentPassword?.password && (
+                                                        <button type="button" onClick={copyStudentPassword}
+                                                            className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-slate-800">
+                                                            <Copy size={15} />
+                                                            {passwordCopied ? 'Copied' : 'Copy'}
+                                                        </button>
+                                                    )}
+                                                    <button type="button" onClick={() => openEditModal(selectedUser)}
+                                                        className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-slate-800">
+                                                        <Lock size={15} />
+                                                        Change
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     ) : (
@@ -1510,6 +1582,7 @@ const Users = () => {
                 message="Are you sure you want to permanently delete this student? This will remove all their data, clear their enrollments, and free up their card for reuse."
                 itemName={userToDelete?.name}
             />
+            </>, document.body)}
         </div >
     );
 };

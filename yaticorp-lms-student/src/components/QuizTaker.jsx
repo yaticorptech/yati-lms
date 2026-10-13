@@ -2,7 +2,7 @@
  * @author Preethesh Kulal
  * @description Interactive quiz component for students with answer selection and submission
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { Check, X, AlertCircle, RotateCcw, Award, ArrowRight, ArrowLeft } from 'lucide-react';
 import api from '../utils/api';
 
@@ -10,7 +10,7 @@ import { useQuiz } from '../shared/hooks/useQuiz';
 import { useMascot } from '../mascot/useMascot';
 import { quizReaction } from '../mascot/reactions';
 
-const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
+const QuizTaker = ({ lessonId, onQuizPassed, onCreditsEarned, isAlreadyCompleted }) => {
     const {
         quizData,
         loading,
@@ -24,17 +24,24 @@ const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
         prevQuestion,
         submitQuiz,
         retryQuiz
-    } = useQuiz(api, lessonId, { onQuizPassed, isAlreadyCompleted });
+    } = useQuiz(api, lessonId, { onQuizPassed, onCreditsEarned, isAlreadyCompleted });
     const mascot = useMascot();
+    const [submitError, setSubmitError] = useState('');
 
     const handleSubmit = async () => {
+        setSubmitError('');
         try {
             // The server grades every answer at once, so the verdict on the
             // whole attempt is the mascot's cue (see quizReaction).
             const graded = await submitQuiz();
             mascot.react(quizReaction(graded));
         } catch (err) {
-            alert(err.message || 'Failed to submit quiz. Please try again.');
+            // Under the buttons, the answers kept for another try. The page's
+            // own check ("Please answer all questions…") reads as it is; a
+            // lost connection or a server fault gets plain words.
+            const fromServer = err.response?.status < 500 && err.response?.data?.message;
+            const fromPage = !err.isAxiosError && !err.response && err.message;
+            setSubmitError(fromServer || fromPage || 'Your answers were not sent. Please try again.');
         }
     };
 
@@ -245,6 +252,7 @@ const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
                     </button>
                 )}
             </div>
+            {submitError && <p role="alert" className="px-6 pb-4 text-right text-sm font-semibold text-red-600 md:px-8">{submitError}</p>}
 
         </div>
     );

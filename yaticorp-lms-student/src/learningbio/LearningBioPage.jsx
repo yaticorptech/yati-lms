@@ -4,7 +4,7 @@
  * read live from the LMS, the bio written from the same data.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Sparkles, PenLine, RefreshCw, Settings, ArrowLeft, Download, Route, Brain, BookOpen, Award, Rocket, Trophy, Heart, Check, ChevronRight, Flag } from 'lucide-react';
 import { bioApi } from './api';
 import BioStrength from './BioStrength';
@@ -20,6 +20,7 @@ import { Section, Btn, ErrorBox, Avatar, Analyzing } from './ui';
 import BioText from './BioText';
 import { pictureUrl } from '../native/pictures';
 import PriceTag from '../components/rewards/PriceTag';
+import CourseOutlineDialog from '../components/course/CourseOutlineDialog';
 
 export default function LearningBioPage() {
     const [data, setData] = useState(undefined);
@@ -27,6 +28,10 @@ export default function LearningBioPage() {
     const [busy, setBusy] = useState('');     // 'regenerate' | 'refresh' | 'interests' | ''
     const [modal, setModal] = useState('');   // 'edit' | 'settings' | ''
     const [notice, setNotice] = useState('');
+    // A recommended course's Preview (what is inside it). Enrolling happens on
+    // the Dashboard, where the price and the wallet are shown.
+    const [preview, setPreview] = useState(null);
+    const navigate = useNavigate();
 
     const load = useCallback(() => bioApi.full().then((d) => { setData(d); setError(null); }).catch((e) => { setError(e); setData(null); }), []);
     useEffect(() => { load(); }, [load]);
@@ -75,7 +80,7 @@ export default function LearningBioPage() {
             {/* ── A. About Me: photo on the left, a first-person story on the right ── */}
             <Section id="about" icon={Sparkles} title="About Me"
                 hint={bio.source === 'custom' ? `Your own wording · edited ${new Date(bio.custom.editedAt).toLocaleDateString('en-IN')}` : bio.ai.generatedAt ? `${bio.ai.isMock ? 'Written from your learning data' : `Written by AI (${data.ai.model}) from your learning data`} · ${new Date(bio.ai.generatedAt).toLocaleDateString('en-IN')}${bio.ai.stale ? ' · data has changed since' : ''}` : ''}
-                action={<div className="flex flex-wrap gap-2"><Btn icon={Sparkles} onClick={regenerate} loading={generating}>Regenerate Bio</Btn><Btn icon={PenLine} onClick={() => setModal('edit')}>Edit Bio</Btn></div>}>
+                action={<div className="flex flex-wrap gap-2"><Btn icon={Sparkles} onClick={regenerate} loading={generating}>Regenerate Bio <PriceTag action="regenerate_bio" /></Btn><Btn icon={PenLine} onClick={() => setModal('edit')}>Edit Bio</Btn></div>}>
                 {(
                     <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
                         <div className="mx-auto w-full max-w-[260px] md:mx-0">
@@ -125,10 +130,18 @@ export default function LearningBioPage() {
                                 <ul className="stagger mt-2 space-y-1.5">
                                     {rows.map((c) => (
                                         <li key={c.id}>
-                                            <Link to={label === 'Recommended next' ? `/preview/${c.id}` : `/learn/${c.id}`} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 transition-colors hover:border-indigo-200 hover:bg-indigo-50">
-                                                <Icon size={14} className={`shrink-0 ${tone}`} /><span className="min-w-0 flex-1 truncate font-semibold">{c.title}</span>
-                                                {typeof c.percentage === 'number' && !c.completed && <span className="text-xs tabular-nums text-slate-500">{c.percentage}%</span>}
-                                            </Link>
+                                            {label === 'Recommended next' ? (
+                                                // Not theirs yet: what is inside it, then enrol.
+                                                <button type="button" onClick={() => setPreview(c)} className="flex w-full items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-left text-sm text-slate-800 transition-colors hover:border-indigo-200 hover:bg-indigo-50">
+                                                    <Icon size={14} className={`shrink-0 ${tone}`} /><span className="min-w-0 flex-1 truncate font-semibold">{c.title}</span>
+                                                    <span className="shrink-0 text-xs font-bold text-violet-700">Preview</span>
+                                                </button>
+                                            ) : (
+                                                <Link to={`/learn/${c.id}`} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 transition-colors hover:border-indigo-200 hover:bg-indigo-50">
+                                                    <Icon size={14} className={`shrink-0 ${tone}`} /><span className="min-w-0 flex-1 truncate font-semibold">{c.title}</span>
+                                                    {typeof c.percentage === 'number' && !c.completed && <span className="text-xs tabular-nums text-slate-500">{c.percentage}%</span>}
+                                                </Link>
+                                            )}
                                         </li>
                                     ))}
                                 </ul>
@@ -152,6 +165,14 @@ export default function LearningBioPage() {
 
             {modal === 'edit' && <BioEditor bio={bio} onSave={(body) => bioApi.saveBio(body).then(setData)} onClose={() => setModal('')} />}
             {modal === 'settings' && <BioSettings settings={data.settings} onSave={(body) => bioApi.settings(body).then(setData)} onClose={() => setModal('')} />}
+            {preview && (
+                <CourseOutlineDialog
+                    courseId={preview.id}
+                    initial={{ title: preview.title }}
+                    onClose={() => setPreview(null)}
+                    onEnroll={() => navigate(`/?tab=available&enroll=${encodeURIComponent(preview.id)}`)}
+                />
+            )}
         </div>
     );
 }

@@ -31,12 +31,14 @@ const studentCanWatch = async (user, videoId) => {
     const Lesson = require('../models/Lesson');
     const Module = require('../models/Module');
     const Course = require('../models/Course');
-    const { canAccessCourse } = require('../services/courseAccess');
+    const { canOpenCourse } = require('../services/courseAccess');
     const lessons = await Lesson.find({ videoId, videoSource: 'vdocipher', isPublished: true }).select('moduleId').lean();
     if (!lessons.length) return false;
     const modules = await Module.find({ _id: { $in: lessons.map((l) => l.moduleId) } }).select('courseId').lean();
     const courses = await Course.find({ _id: { $in: modules.map((m) => m.courseId) }, isPublished: true }).select('organizationId').lean();
-    return courses.some((c) => canAccessCourse(user, c));
+    // A key to play the video only for a student who has one of its courses.
+    for (const course of courses) if (await canOpenCourse(user, course)) return true;
+    return false;
 };
 
 exports.getUploadCredentials = async (req, res) => {

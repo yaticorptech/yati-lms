@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Brain, Puzzle, Type, Zap, Play, Layers, Star, Sparkles, History, Timer, Moon } from 'lucide-react';
 import api from '../../services/api';
 import useBackClose from '../../../native/useBackClose';
@@ -50,16 +50,18 @@ import FractionMatch from '../../components/games/FractionMatch';
 import ClockRead from '../../components/games/ClockRead';
 import GameLeaderboard from '../../components/games/GameLeaderboard';
 import { starsForGame, levelReached, pullProgress, markPlayed, lastPlayed, setGameXpTable, GAME_XP } from '../../components/games/levels';
-
-/** 754 → "12:34". */
-const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+import { useHideLoop } from '../../../components/loopVisibility';
+import { PlayClockContext, clock } from '../../components/games/playClock';
 
 /**
  * Today's play time against the admin's daily limit.
  *
  * The server keeps the count, from a heartbeat every fifteen seconds while a
- * game is open and the tab is in view; between beats the figure ticks down
- * here so the student sees it move. `left` is null when there is no limit.
+ * level is being played and the tab is in view; between beats the figure
+ * ticks down here so the student sees it move. A game's briefing before
+ * "Start level" and its result screen do not count: `playing` is true only
+ * between the two (GameShell reports it, see playClock.js). `left` is null
+ * when there is no limit.
  */
 function usePlayTime(playing, onTimeUp) {
   const [state, setState] = useState(null);
@@ -68,8 +70,11 @@ function usePlayTime(playing, onTimeUp) {
   // effect body: the moment the clock reaches zero is an event, not a state.
   const timeUp = useRef(onTimeUp);
   useEffect(() => { timeUp.current = onTimeUp; }, [onTimeUp]);
+  // Seconds the server has counted today, for the head start below.
+  const used = useRef(0);
 
   const take = (data) => {
+    used.current = data?.usedSeconds || 0;
     setState(data);
     setLeft(data?.limitSeconds ? data.remainingSeconds : null);
     setGameXpTable(data?.xpByStars);
@@ -106,8 +111,12 @@ function usePlayTime(playing, onTimeUp) {
     // One second straight away, so the server has counted some play today
     // before the first level can end: it banks and pays nothing until it
     // has, and a quick first level would otherwise beat the first beat.
-    pending = 1;
-    send();
+    // Only the day's first level needs it: the clock now starts at every
+    // "Start level", and a second each time would add up over a day.
+    if (used.current === 0) {
+      pending = 1;
+      send();
+    }
     const beat = setInterval(send, 15000);
     return () => {
       clearInterval(tick);
@@ -449,6 +458,8 @@ export default function Games() {
   // Android's back button leaves the game for the hub, the same as the
   // game's own exit — not the Games page, and never the app.
   useBackClose(() => setActive(null), Boolean(active));
+  // Loop the mascot stays away while a game is open, and comes back with the hub.
+  useHideLoop(Boolean(active));
   // The day's minutes ran out mid-game: the game closes, the hub says why.
   const activeRef = useRef(null);
   useEffect(() => { activeRef.current = active; }, [active]);
@@ -460,11 +471,15 @@ export default function Games() {
     // ran out closes unfinished, so the toast must not promise its stars.
     toast.info("That's today's play time. Levels you finished are saved; the one in progress wasn't — come back tomorrow.", 'Time for a break');
   };
-  const { state: playTime, left, outOfTime } = usePlayTime(Boolean(active), onTimeUp);
+  // A level in play, as GameShell reports it: the clock runs only then.
+  const [inPlay, setInPlay] = useState(false);
+  const { state: playTime, left, outOfTime } = usePlayTime(Boolean(active) && inPlay, onTimeUp);
+  const playClock = useMemo(() => ({ report: setInPlay, left }), [left]);
 
   // XP for a level, as soon as the server has paid it.
   useEffect(() => {
-    const onXp = (e) => toast.success(`+${e.detail.xp} XP for your stars`, 'Level saved');
+    // Not while the level's celebration is up: it shows the XP itself.
+    const onXp = (e) => { if (!document.querySelector('[data-game-celebration]')) toast.success(`+${e.detail.xp} XP for your stars`, 'Level saved'); };
     window.addEventListener(GAME_XP, onXp);
     return () => window.removeEventListener(GAME_XP, onXp);
   }, [toast]);
@@ -541,16 +556,23 @@ export default function Games() {
   return (
     <div className="relative">
       {Game && (
-        <div className="fp-enter space-y-5">
+        <div className="fp-enter space-y-3">
+          {/* During play a wide screen shows the clock in the game's left rail
+              (GameShell), beside the board; this pill covers the briefing,
+              the result and narrower screens, where there is no rail. */}
           {left !== null && (
             <p className={`mx-auto flex w-fit items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-black tabular-nums shadow-sm ring-1 ring-inset ${
+              inPlay ? 'xl:hidden' : ''
+            } ${
               left <= 60 ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-surface text-ink-700 ring-line-200'
             }`}>
               <Timer className="h-3.5 w-3.5" />
               {clock(left)} of play left today
             </p>
           )}
-          <Game onExit={() => setActive(null)} />
+          <PlayClockContext.Provider value={playClock}>
+            <Game onExit={() => setActive(null)} />
+          </PlayClockContext.Provider>
         </div>
       )}
 
@@ -579,7 +601,7 @@ export default function Games() {
 
               <div className="min-w-0 flex-1 pb-1">
                 <span className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3.5 py-1.5 text-[0.68rem] font-black tracking-[0.12em] text-white uppercase shadow-md shadow-violet-500/30">
-                  Brain games
+                  Brain Boosters
                 </span>
 
                 <h1 className="mt-2.5 text-2xl leading-[1.15] font-black text-[#173a63] sm:text-3xl lg:text-[2.1rem]">
@@ -594,23 +616,15 @@ export default function Games() {
                   logic, words and numbers.
                 </p>
 
-                {/* Today's allowance and what a level pays, from the admin's rules. */}
-                {playTime && (
+                {/* Today's play allowance, from the admin's rules. */}
+                {playTime && left !== null && (
                   <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
-                    {left !== null && (
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 shadow-sm ring-1 ring-inset ${
-                        outOfTime ? 'bg-slate-100 text-slate-600 ring-slate-200' : 'bg-white/90 text-[#173a63] ring-sky-200'
-                      }`}>
-                        {outOfTime ? <Moon className="h-3.5 w-3.5" /> : <Timer className="h-3.5 w-3.5" />}
-                        {outOfTime ? 'Play time used — back at midnight' : `${clock(left)} of play left today`}
-                      </span>
-                    )}
-                    {playTime.xpByStars?.[3] > 0 && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-amber-700 shadow-sm ring-1 ring-amber-200 ring-inset">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                        3★ {playTime.xpByStars[3]} XP · 2★ {playTime.xpByStars[2]} · 1★ {playTime.xpByStars[1]}
-                      </span>
-                    )}
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 shadow-sm ring-1 ring-inset ${
+                      outOfTime ? 'bg-slate-100 text-slate-600 ring-slate-200' : 'bg-white/90 text-[#173a63] ring-sky-200'
+                    }`}>
+                      {outOfTime ? <Moon className="h-3.5 w-3.5" /> : <Timer className="h-3.5 w-3.5" />}
+                      {outOfTime ? 'Play time used — back at midnight' : `${clock(left)} of play left today`}
+                    </span>
                   </div>
                 )}
               </div>

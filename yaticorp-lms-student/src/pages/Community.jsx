@@ -3,6 +3,7 @@
  * @description Student community forum: create posts, view discussions, add comments
  */
 import React, { useState, useEffect, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { MessageSquare, Plus, X, MessageCircle, AlertCircle, Sparkles, HelpCircle, Lightbulb, Users, Clock3 } from 'lucide-react';
 import { CommunityArt, FirstPostArt } from '../components/PageArt';
@@ -72,77 +73,50 @@ const Community = () => {
     }
 }, [toast]);
 
-const handleCreatePost = async (e) => {
-    e.preventDefault();
-    if (!newPost.title.trim() || !newPost.content.trim()) return;
+    // Sent once. A failure says so and leaves the form open with what was
+    // typed, for the student to send again; it used to resend by itself,
+    // which made a second copy whenever the first had in fact been saved, and
+    // the "created" / "updated" message only ever showed after that resend.
+    const handleCreatePost = async (e) => {
+        e.preventDefault();
+        if (submitting || !newPost.title.trim() || !newPost.content.trim()) return;
 
-    setSubmitting(true);
-    try {
-
-        // ✅ ADD THIS CONDITION (only change)
-        if (editingPostId) {
-            const res = await api.put(`/community/${editingPostId}`, newPost);
-
-            setPosts(posts.map(post =>
-                post._id === editingPostId ? res.data.post : post
-            ));
-
-            setEditingPostId(null);
-        } else {
-            // ✅ SAME OLD LOGIC (unchanged)
-            const res = await api.post('/community', newPost);
-
-            setPosts([{ ...res.data.post, commentCount: 0 }, ...posts]);
-        }
-
-        setShowModal(false);
-        setNewPost({ title: '', content: '' });
-
-    } catch (err) {
-        console.error('Failed:', err);
+        setSubmitting(true);
+        const editing = editingPostId;
         try {
+            if (editing) {
+                const res = await api.put(`/community/${editing}`, newPost);
+                setPosts((list) => list.map((post) => (post._id === editing ? { ...post, ...res.data.post } : post)));
+                setEditingPostId(null);
+            } else {
+                const res = await api.post('/community', newPost);
+                setPosts((list) => [{ ...res.data.post, commentCount: 0 }, ...list]);
+            }
+            setShowModal(false);
+            setNewPost({ title: '', content: '' });
+            setToast({ show: true, message: editing ? 'Post updated successfully' : 'Post created successfully', type: 'success' });
+        } catch (err) {
+            console.error('Failed:', err);
+            // The server's own words for a refusal ("Title and content are required"); a plain sentence for a crash.
+            const reason = err.response?.status < 500 ? err.response?.data?.message : null;
+            setToast({ show: true, message: reason || (editing ? 'Could not update your post. Please try again.' : 'Could not create your post. Please try again.'), type: 'error' });
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
-    if (editingPostId) {
-        const res = await api.put(`/community/${editingPostId}`, newPost);
-
-        setPosts(posts.map(post =>
-            post._id === editingPostId ? res.data.post : post
-        ));
-
-        setEditingPostId(null);
-
-        setToast({ show: true, message: 'Post updated successfully', type: 'success' });
-
-    } else {
-        const res = await api.post('/community', newPost);
-
-        setPosts([{ ...res.data.post, commentCount: 0 }, ...posts]);
-
-        setToast({ show: true, message: 'Post created successfully', type: 'success' });
-    }
-
-    setShowModal(false);
-    setNewPost({ title: '', content: '' });
-
-} catch (err) {
-    console.error('Failed:', err);
-
-    setToast({ show: true, message: 'Failed to create post', type: 'error' });
-}
-    } finally {
-        setSubmitting(false);
-    }
-};
     const handleDeletePost = async (postId) => {
-    try {
-        await api.delete(`/community/${postId}`);
-        setPosts(posts.filter(post => post._id !== postId));
-        setDeletePostId(null);
-    } catch (err) {
-        console.error("Delete failed:", err);
-        alert("Failed to delete post");
-    }
-};
+        try {
+            await api.delete(`/community/${postId}`);
+            setPosts((list) => list.filter((post) => post._id !== postId));
+            setDeletePostId(null);
+            setToast({ show: true, message: 'Post deleted', type: 'success' });
+        } catch (err) {
+            console.error('Delete failed:', err);
+            setDeletePostId(null);
+            setToast({ show: true, message: (err.response?.status < 500 && err.response?.data?.message) || 'Could not delete your post. Please try again.', type: 'error' });
+        }
+    };
 
 const handleEditPost = (post) => {
     setNewPost({ title: post.title, content: post.content });
@@ -342,20 +316,19 @@ const handleEditPost = (post) => {
             </div>
 
 
-            {/* Toast Notification */}
-{toast.show && (
-    <div className="fixed top-6 right-6 z-50 animate-fade-in">
-        <div
-            className={`px-6 py-4 rounded-xl shadow-lg text-white font-semibold ${
-                toast.type === 'success'
-                    ? 'bg-green-500'
-                    : 'bg-red-500'
-            }`}
-        >
-            {toast.message}
-        </div>
-    </div>
-)}
+            {/* Toast. On <body>, just under the app's top bar and over the post
+                form: inside the page it sat behind the top bar, and under the
+                form it hid the error that keeps the form open. The Career Path
+                toasts' place (career/components/ui/Toast.jsx). */}
+            {toast.show && createPortal(
+                <div role="status" aria-live="polite" data-loop-avoid
+                    className="fixed right-3 left-3 top-[4.75rem] z-[130] animate-fade-in sm:left-auto sidebar:right-6 sidebar:top-20">
+                    <div className={`rounded-xl px-5 py-3.5 font-semibold text-white shadow-lg sm:max-w-sm ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
+                        {toast.message}
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {/* Create Post Modal */}
             {showModal && (

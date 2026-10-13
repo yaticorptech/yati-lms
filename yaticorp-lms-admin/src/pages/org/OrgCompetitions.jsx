@@ -13,11 +13,11 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Trophy, Users, CalendarClock, Check, Loader2, Send, Undo2, Swords, Search, Crown, Gift, ScrollText, ChevronDown } from 'lucide-react';
+import { Trophy, Users, CalendarClock, Check, Loader2, Send, Undo2, Swords, Search, Crown, Gift, ScrollText, ChevronDown, Gamepad2, Clock } from 'lucide-react';
 import api from '../../utils/api';
 import { PageHeader, Segmented, CARD, BTN, BTN2, INPUT, LABEL } from '../../components/orgUi';
 import Competitions from '../Competitions';
-import { Chip } from '../../competitions/shared';
+import { Chip, GameIcon } from '../../competitions/shared';
 import { ORDINAL, fmtDateTime, errorOf, competitionBadge } from '../../competitions/constants';
 
 /** The team form: name, coordinator contact, and the players. */
@@ -276,24 +276,26 @@ function TakePart() {
             )}
             <div className="space-y-4">
                 {(rows || []).map((c) => (
-                    <section key={c.id} className={`${CARD} p-5`}>
-                        <button type="button" onClick={() => setOpen(open === c.id ? null : c.id)} aria-expanded={open === c.id} className="flex w-full flex-wrap items-start gap-3 text-left">
-                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-2xl">{c.emoji}</span>
-                            {/* A base width, so on a phone the badges wrap below
-                                rather than squeezing the name to a word a line. */}
-                            <span className="min-w-0 flex-1 basis-48">
-                                <span className="block font-bold text-slate-900">{c.name}</span>
-                                <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                                    <span>{c.gameLabel} · by {c.organizedBy}</span>
-                                    <span className="inline-flex items-center gap-1"><CalendarClock size={12} /> {fmtDateTime(c.startsAt)}</span>
-                                    <span>Register by {fmtDateTime(c.registrationDeadline)}</span>
-                                    <span>{c.teamsCount}/{c.maxTeams} teams · up to {c.playersPerTeam} player{c.playersPerTeam === 1 ? '' : 's'}</span>
+                    <section key={c.id} className={`${CARD} p-4 sm:p-5`}>
+                        {/* The name has the full width: its badges go on the line under it,
+                            not beside it, where on a phone they squeezed it to a word a line. */}
+                        <button type="button" onClick={() => setOpen(open === c.id ? null : c.id)} aria-expanded={open === c.id} className="flex w-full items-start gap-3 text-left">
+                            <GameIcon game={c.game} />
+                            <span className="min-w-0 flex-1">
+                                <span className="flex items-start justify-between gap-2">
+                                    <span className="min-w-0 font-bold leading-snug text-slate-900">{c.name}</span>
+                                    <ChevronDown size={18} aria-hidden className={`mt-0.5 shrink-0 text-slate-400 transition-transform ${open === c.id ? 'rotate-180' : ''}`} />
                                 </span>
-                            </span>
-                            <span className="flex flex-wrap items-center gap-1.5">
-                                <Chip status={competitionBadge(c)} />
-                                {c.myTeam && c.myTeam.status !== 'withdrawn' && <Chip status={c.myTeam.status} />}
-                                <ChevronDown size={18} className={`text-slate-400 transition-transform ${open === c.id ? 'rotate-180' : ''}`} />
+                                <span className="mt-1.5 flex flex-wrap gap-1.5">
+                                    <Chip status={competitionBadge(c)} />
+                                    {c.myTeam && c.myTeam.status !== 'withdrawn' && <Chip status={c.myTeam.status} />}
+                                </span>
+                                <span className="mt-2.5 grid gap-1 text-xs text-slate-500 sm:flex sm:flex-wrap sm:gap-x-4 sm:gap-y-1">
+                                    <span className="inline-flex items-center gap-1.5"><Gamepad2 size={13} className="shrink-0 text-slate-400" />{c.gameLabel} · by {c.organizedBy}</span>
+                                    <span className="inline-flex items-center gap-1.5"><CalendarClock size={13} className="shrink-0 text-slate-400" />Starts {fmtDateTime(c.startsAt)}</span>
+                                    <span className="inline-flex items-center gap-1.5"><Clock size={13} className="shrink-0 text-slate-400" />Register by {fmtDateTime(c.registrationDeadline)}</span>
+                                    <span className="inline-flex items-center gap-1.5"><Users size={13} className="shrink-0 text-slate-400" />{c.teamsCount}/{c.maxTeams} teams · up to {c.playersPerTeam} player{c.playersPerTeam === 1 ? '' : 's'}</span>
+                                </span>
                             </span>
                         </button>
                         {open === c.id && <CompetitionPanel summary={c} students={students} onChanged={load} />}

@@ -11,8 +11,8 @@
  * Read-only until "Edit details" is pressed, and the save bar appears only once
  * something has actually changed, so the page cannot be saved by accident.
  */
-import React, { useState, useEffect } from 'react';
-import { Building2, Pencil, Lock, Loader2, Check, Copy, KeyRound, ImagePlus, RotateCw } from 'lucide-react';
+import React, { useState, useEffect, useId } from 'react';
+import { Building2, Pencil, Lock, Loader2, Check, Copy, KeyRound, ImagePlus, RotateCw, Camera } from 'lucide-react';
 import api from '../../utils/api';
 import { CARD, INPUT, LABEL, BTN, BTN2, Banner, PageHeader } from '../../components/orgUi';
 import PasswordField from '../../components/PasswordField';
@@ -55,25 +55,41 @@ const LogoCard = ({ organization, onSaved, onError }) => {
             setBusy(false);
         }
     };
+    const inputId = useId();
+    const has = Boolean(organization.logo);
+    // One row, a phone included: the logo itself opens the picker (the camera
+    // badge says so), with "Change logo" as words under the text on a phone
+    // and as a button at the end of the row from a tablet up.
     return (
-        <div className={`${CARD} flex flex-col gap-4 p-5 sm:flex-row sm:items-center lg:p-6`}>
-            {organization.logo ? (
-                <img src={organization.logo} alt={`${organization.name} logo`} className="h-16 w-16 shrink-0 rounded-2xl bg-white object-contain p-1 ring-1 ring-slate-200" />
-            ) : (
-                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-slate-300 ring-1 ring-slate-200"><ImagePlus size={26} /></span>
-            )}
+        <div className={`${CARD} flex items-center gap-4 p-4 sm:p-5 lg:p-6`}>
+            <label htmlFor={inputId} title={has ? 'Change logo' : 'Upload logo'} className={`relative shrink-0 cursor-pointer ${busy ? 'pointer-events-none' : ''}`}>
+                {has ? (
+                    <img src={organization.logo} alt={`${organization.name} logo`} className="h-16 w-16 rounded-2xl bg-white object-contain p-1 ring-1 ring-slate-200 sm:h-20 sm:w-20" />
+                ) : (
+                    <span className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 sm:h-20 sm:w-20"><ImagePlus size={26} /></span>
+                )}
+                <span aria-hidden className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-white shadow-md ring-2 ring-white">
+                    {busy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                </span>
+            </label>
             <div className="min-w-0 flex-1">
                 <p className="font-semibold text-slate-900">Logo</p>
-                <p className="text-sm text-slate-500">
-                    {organization.logo ? 'Shown to your students on your courses, and across this panel.' : 'Needed before you can add or publish courses.'}
+                <p className={`text-xs leading-snug sm:text-sm ${has ? 'text-slate-500' : 'font-medium text-amber-700'}`}>
+                    {has ? 'Shown to your students on your courses, and across this panel.' : 'Needed before you can add or publish courses.'}
                 </p>
+                <label htmlFor={inputId} className={`mt-1.5 inline-flex min-h-8 cursor-pointer items-center gap-1.5 text-sm font-semibold text-indigo-600 sm:hidden ${busy ? 'pointer-events-none opacity-60' : ''}`}>
+                    {busy ? 'Uploading…' : has ? 'Change logo' : 'Upload logo'}
+                </label>
             </div>
-            <label className={`${BTN2} cursor-pointer whitespace-nowrap ${busy ? 'pointer-events-none opacity-60' : ''}`}>
-                {busy ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
-                {organization.logo ? 'Change logo' : 'Upload logo'}
-                <input type="file" accept="image/*" className="hidden" aria-label="Logo image"
-                    onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ''; }} />
-            </label>
+            {/* The wrapper hides it on a phone: BTN2 carries its own inline-flex. */}
+            <div className="hidden shrink-0 sm:block">
+                <label htmlFor={inputId} className={`${BTN2} cursor-pointer whitespace-nowrap ${busy ? 'pointer-events-none opacity-60' : ''}`}>
+                    {busy ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
+                    {has ? 'Change logo' : 'Upload logo'}
+                </label>
+            </div>
+            <input id={inputId} type="file" accept="image/*" className="hidden" aria-label="Logo image"
+                onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ''; }} />
         </div>
     );
 };
@@ -234,7 +250,8 @@ const OrgSettings = () => {
 
             {/* ── The parts they can ───────────────────────────────────────── */}
             <form onSubmit={save} className={`${CARD} p-5 lg:p-6`} noValidate>
-                <div className="mb-5 flex items-center justify-between">
+                {/* Side by side when there is room; the hint drops under the heading on a phone. */}
+                <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Your details</h2>
                     {!editing && <span className="text-xs text-slate-400">Press “Edit details” to change these.</span>}
                 </div>

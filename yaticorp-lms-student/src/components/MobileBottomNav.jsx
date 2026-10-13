@@ -77,6 +77,7 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
   return (
     <nav
       aria-label="Main sections"
+      data-loop-skip
       className="mbn-in fixed inset-x-1.5 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 sidebar:hidden"
     >
       {/* Solid, with no backdrop blur: the bar never leaves the screen, so the

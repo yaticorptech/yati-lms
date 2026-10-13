@@ -8,11 +8,20 @@
  */
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, UserCheck, TrendingUp, Award, UserPlus, GraduationCap, Copy, Check, Activity, Share2, ChevronRight } from 'lucide-react';
+import {
+    Users, UserCheck, TrendingUp, Award, UserPlus, GraduationCap, Copy, Check, Activity, Share2, ChevronRight,
+    School, University, Presentation, Briefcase, HeartHandshake, Landmark, Building2, IdCard, BookOpen, Clock
+} from 'lucide-react';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { CARD, Stat, Bar, Empty, Banner, Rows, Avatar, LoadFailed } from '../../components/orgUi';
 import { relativeDay } from '../../utils/dates';
+
+// The organization's kind, as an icon beside its name in the welcome banner.
+const TYPE_ICON = {
+    school: School, college: GraduationCap, university: University, training_institute: Presentation,
+    company: Briefcase, ngo: HeartHandshake, government: Landmark, other: Building2
+};
 
 // The card stays a card; the link only adds a lift on hover and a focus ring.
 const STAT_LINK = 'block rounded-2xl transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 [&>div]:h-full';
@@ -40,6 +49,7 @@ const OrgDashboard = () => {
 
     const organization = data?.organization;
     const stats = data?.stats;
+    const TypeIcon = TYPE_ICON[organization?.organizationType] || Building2;
 
     const copyCode = async () => {
         try {
@@ -76,15 +86,15 @@ const OrgDashboard = () => {
                             {organization?.name || 'your organization'}
                         </h1>
                         {organization?.typeLabel && (
-                            <p className="mt-2 inline-flex rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-indigo-50">
-                                {organization.typeLabel}
+                            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-indigo-50">
+                                <TypeIcon size={13} aria-hidden className="shrink-0" />{organization.typeLabel}
                             </p>
                         )}
                     </div>
 
                     {organization && (
                         <div className="relative shrink-0 rounded-xl bg-white/10 p-4 ring-1 ring-white/20 backdrop-blur-sm sm:min-w-[240px]">
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-100">Organization ID</p>
+                            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-100"><IdCard size={14} aria-hidden className="shrink-0" />Organization ID</p>
                             <div className="mt-1 flex items-center justify-between gap-3">
                                 <button onClick={copyCode} aria-label={`Copy Organization ID ${organization.orgCode}`}
                                     className="group inline-flex min-h-10 min-w-0 items-center gap-2 font-mono text-lg font-bold hover:text-indigo-100">
@@ -126,7 +136,8 @@ const OrgDashboard = () => {
                 {/* A number with a list behind it opens that list: the Students
                     page, filtered to exactly the students it counts. */}
                 <Link to="/organization/students" aria-label={`Students: ${stats?.students ?? '…'} — see them all`} className={STAT_LINK}>
-                    <Stat icon={Users} label="Students" value={stats?.students} loading={loading} tone="indigo" />
+                    <Stat icon={Users} label="Students" value={stats?.students} loading={loading} tone="indigo"
+                        sub="In your organization" />
                 </Link>
                 <Link to="/organization/students?filter=active30" aria-label={`Active students: ${stats?.activeStudents ?? '…'} — see who`} className={STAT_LINK}>
                     <Stat icon={UserCheck} label="Active students" value={stats?.activeStudents} loading={loading} tone="emerald"
@@ -141,13 +152,17 @@ const OrgDashboard = () => {
                     sub="Issued by the platform" />
                 <Stat icon={GraduationCap} label="Courses completed" value={stats?.coursesCompleted} loading={loading} tone="emerald"
                     sub="Across all enrolled courses" />
-                <Stat icon={Activity} label="Total XP earned" value={stats?.totalXp} loading={loading} tone="amber" />
+                <Stat icon={Activity} label="Total XP earned" value={stats?.totalXp} loading={loading} tone="amber"
+                    sub="By all your students" />
             </div>
 
             {/* ── Recent activity ──────────────────────────────────────────── */}
             <div className={`${CARD} overflow-hidden`}>
                 <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 lg:px-6">
-                    <h2 className="font-bold text-slate-800">Recent student activity</h2>
+                    <div className="flex min-w-0 items-center gap-3">
+                        <span className="shrink-0 rounded-xl bg-indigo-100 p-2 text-indigo-600"><Activity size={18} aria-hidden /></span>
+                        <h2 className="truncate font-bold text-slate-800"><span className="sm:hidden">Recent activity</span><span className="hidden sm:inline">Recent student activity</span></h2>
+                    </div>
                     <Link to="/organization/students" className="inline-flex min-h-10 shrink-0 items-center text-sm font-semibold text-indigo-600 hover:text-indigo-800">
                         All students<ChevronRight size={16} />
                     </Link>
@@ -169,11 +184,12 @@ const OrgDashboard = () => {
                             <li key={s._id}>
                                 <Link to={`/organization/students/${s._id}`}
                                     className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50/60 active:bg-slate-50 sm:gap-4 lg:px-6">
-                                    <Avatar name={s.name} />
+                                    <Avatar name={s.name} src={s.profilePicture} />
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate font-medium text-slate-800">{s.name}</p>
-                                        <p className="truncate text-xs text-slate-500">
-                                            {s.coursesEnrolled} course{s.coursesEnrolled === 1 ? '' : 's'} · last active {relativeDay(s.lastActive).toLowerCase()}
+                                        <p className="mt-0.5 flex min-w-0 items-center gap-3 overflow-hidden text-xs text-slate-500">
+                                            <span className="inline-flex shrink-0 items-center gap-1"><BookOpen size={12} aria-hidden className="text-slate-400" />{s.coursesEnrolled} course{s.coursesEnrolled === 1 ? '' : 's'}</span>
+                                            <span className="inline-flex min-w-0 items-center gap-1" title="Last active"><Clock size={12} aria-hidden className="shrink-0 text-slate-400" /><span className="truncate">{relativeDay(s.lastActive)}</span></span>
                                         </p>
                                     </div>
                                     <div className="w-20 shrink-0 sm:w-36" title="Overall progress (all enrolled courses)">

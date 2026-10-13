@@ -3,6 +3,7 @@
  * @description Admin course listing with status filters, search and course card management
  */
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
@@ -432,6 +433,9 @@ const Courses = () => {
                 ))}
             </div>
 
+            {/* On <body>: this page is its own layer (relative z-0), so a popup inside
+                it stayed under the app's top bar (see Users and Organizations). */}
+            {createPortal(<>
             {/* Form Modal */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in text-left">
@@ -440,7 +444,7 @@ const Courses = () => {
                             <h2 className="text-lg sm:text-xl font-bold text-slate-800">
                                 {editId ? 'Edit Course Settings' : 'Create New Course'}
                             </h2>
-                            <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+                            <button onClick={() => setShowModal(false)} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={18} /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
                             <div>
@@ -547,6 +551,7 @@ const Courses = () => {
                 message="Are you sure you want to delete this course? This will permanently remove all associated modules and lessons inside."
                 itemName={courseToDelete?.title}
             />
+            </>, document.body)}
         </div>
     );
 };

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { jobsApi } from './api';
 import PriceTag from '../components/rewards/PriceTag';
+import Portal from '../components/Portal';
 
 const ACCEPT = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
 // A Word .docx is taken from the demo cards only (`acceptWord`).
@@ -187,11 +188,14 @@ export default function ResumeCard({ profile, onProfile, onApply, acceptWord = f
             {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
 
             {/* ── Review before anything is applied ─────────────────────── */}
+            {/* On <body>, above the phone's bottom bar: inside the page it ranked
+                below the bar, which covered its buttons when the skills ran long. */}
             {review && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-                    <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+                <Portal>
+                <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+                    <div role="dialog" aria-modal="true" aria-labelledby="resume-review-title" className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
                         <div className="border-b border-slate-100 bg-slate-50 p-5">
-                            <h3 className="flex items-center gap-2 font-bold text-slate-800">
+                            <h3 id="resume-review-title" className="flex items-center gap-2 font-bold text-slate-800">
                                 <FileText size={17} className="text-indigo-600" />
                                 Here&apos;s what your resume says
                             </h3>
@@ -267,6 +271,7 @@ export default function ResumeCard({ profile, onProfile, onApply, acceptWord = f
                         </div>
                     </div>
                 </div>
+                </Portal>
             )}
         </div>
     );

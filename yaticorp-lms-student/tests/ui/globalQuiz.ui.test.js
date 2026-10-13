@@ -18,7 +18,10 @@ const posts = `(url, body) => {
   if (url.endsWith('/finish')) return { attempt: { status: 'finished', elapsedMs: 1000, timedOut: !!body.timedOut, answers: {} } };
   return (${markGlobal})(url, body);
 }`;
-const api = apiModule({ '/quizzes/global': timed }, posts);
+// The list of quizzes taken has its own route, named first: the stub answers a
+// URL with the first route it contains, and the paper's would match it too.
+const noHistory = { winScore: 60, attempts: [] };
+const api = apiModule({ '/quizzes/global/history': noHistory, '/quizzes/global': timed }, posts);
 const entry = `
 import { createRoot } from 'react-dom/client';
 import GlobalQuiz from '${srcFile('components/GlobalQuiz.jsx')}';
@@ -36,24 +39,26 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
     test('shows the published paper and a Start button, and asks nothing until it is pressed', async () => {
         const { result, errors } = await screen({
             entry, api, script: `
-                await sleep(700);
+                await sleep(1200);
+                const startRow = $$('button').find((b) => /Start quiz/.test(b.innerText))?.closest('.rounded-2xl');
                 return {
-                    title: text($('h3')),
-                    header: text($$('p').find((p) => /general question/.test(p.innerText))),
+                    row: text(startRow),
                     body: text(document.body),
-                    cards: $$('li').length,
+                    questions: $$('li p').filter((p) => /\\?$/.test(p.innerText.trim())).length,
                     sizes: $$('button').filter((b) => /Qs$/.test(b.innerText)).length,
-                    startButton: $$('button').some((b) => /Start quiz/.test(b.innerText)),
+                    startButton: !!startRow,
                     clock: !!$('[role=timer]'),
                     started: ${posted('/start')}.length
                 };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.title, 'Weekly GK', 'the paper is called what the administrator called it');
-        assert.match(result.header, /24 general questions across 2 categories/);
-        assert.match(result.body, /Time limit\s*10 minutes/);
-        assert.match(result.body, /One attempt each/);
-        assert.match(result.body, /Ready when you are/);
-        assert.equal(result.cards, 0, 'no question is shown before Start');
+        // The banner says what the Global Quiz is; the quiz itself is the first
+        // row of the list, with its own name, description and facts.
+        assert.match(result.row, /^Weekly GK\s*New/, 'the paper is called what the administrator called it');
+        assert.match(result.row, /Five quick ones/);
+        assert.match(result.row, /2 questions · 10 minutes · One attempt/);
+        assert.match(result.body, /Questions\s*2\s*Time\s*10 minutes\s*Attempts\s*One\s*Win XP at\s*60%\+/, 'until a quiz is taken, the banner says what one is');
+        assert.match(result.body, /Your score will be listed here once you finish/);
+        assert.equal(result.questions, 0, 'no question is shown before Start');
         assert.equal(result.sizes, 0, 'there is nothing to choose: the administrator sized the paper');
         assert.equal(result.startButton, true);
         assert.equal(result.clock, false, 'the clock is not running yet');
@@ -86,7 +91,7 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
 
     test('with no time limit the clock counts up instead', async () => {
         const { result } = await screen({
-            entry, api: apiModule({ '/quizzes/global': { ...paper, attempt: null } }, posts), script: `
+            entry, api: apiModule({ '/quizzes/global/history': noHistory, '/quizzes/global': { ...paper, attempt: null } }, posts), script: `
                 await sleep(700);
                 const before = text(document.body);
                 ${start}
@@ -98,9 +103,9 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
     });
 
     test('when the time runs out the paper closes with the score so far, and the server is told', async () => {
-        // A limit of 0.03 minutes is 1.8 s: the server only ever sends whole
+        // A limit of 1/60 of a minute is 1 s: the server only ever sends whole
         // minutes, but the clock does not care, and a test cannot wait a minute.
-        const quick = apiModule({ '/quizzes/global': { ...paper, quiz: { title: 'Quick', description: '', timeLimitMinutes: 0.03 }, attempt: null } }, posts);
+        const quick = apiModule({ '/quizzes/global/history': noHistory, '/quizzes/global': { ...paper, quiz: { title: 'Quick', description: '', timeLimitMinutes: 1 / 60 }, attempt: null } }, posts);
         const { result, errors } = await screen({
             entry, api: quick, script: `
                 await sleep(700);
@@ -109,7 +114,8 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
                 await sleep(2600);
                 return {
                     body: text(document.body),
-                    clock: ${timer},
+                    taken: $('[role=timer]').getAttribute('aria-label'),
+                    clocks: $$('[role=timer]').length,
                     cards: $$('li').length,
                     locked: $$('li')[1].querySelectorAll('button')[1].disabled,
                     finished: ${posted('/finish')}.map((c) => c[2])
@@ -117,7 +123,11 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
         assert.deepEqual(errors, []);
         assert.match(result.body, /Time’s up! 1 of 2 correct/);
         assert.match(result.body, /1 question was left unanswered/);
-        assert.equal(result.clock, '0:00');
+        // The countdown goes with the paper; what stays is the time it took,
+        // which is the limit itself. The tick that notices comes up to a
+        // second late, and was counted: this paper read 0:02.
+        assert.equal(result.clocks, 1, 'only the time taken is left');
+        assert.equal(result.taken, 'Time taken 0:01');
         assert.equal(result.cards, 2, 'the whole paper comes back to look over');
         assert.equal(result.locked, true, 'nothing can be answered once the clock has run out');
         assert.deepEqual(result.finished, [{ timedOut: true }], 'the attempt is closed on the server as timed out');
@@ -186,6 +196,10 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
                     correct: /1 of 2 correct/.test(body),
                     timedOut: /Time’s up/.test(body),
                     once: /That was your one attempt/.test(body),
+                    // A win pays XP (the admin's "Win the Global Quiz" rule), so
+                    // the note must not say XP is unchanged.
+                    xpUnchanged: /XP (are|is) unchanged/i.test(body),
+                    courseOnly: /does not count towards your course progress/.test(body),
                     buttons: $$('button').map((b) => b.innerText.trim()).filter(Boolean),
                     finished: ${posted('/finish')}.map((c) => c[2])
                 };` });
@@ -195,6 +209,8 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
         assert.ok(result.correct, 'the tally is shown');
         assert.equal(result.timedOut, false, 'finishing in time is not a time-out');
         assert.ok(result.once, 'it says this was the one attempt');
+        assert.equal(result.xpUnchanged, false, 'a win earns XP, so the note does not say XP is unchanged');
+        assert.ok(result.courseOnly, 'it says the paper does not count towards course progress');
         assert.ok(!result.buttons.some((l) => /again|New questions|Start quiz/i.test(l)), `no way to retake, but found ${JSON.stringify(result.buttons)}`);
         assert.deepEqual(result.finished, [{ timedOut: false }], 'the attempt is closed on the server');
     });
@@ -229,13 +245,16 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
                 ${answer(1)}
                 ${nextQuestion}
                 ${answer(0)}
-                click(/See your score/); await sleep(400);
+                click(/See your score/);
+                // The score counts up to its figure (~1 s): read once it rests.
+                await sleep(1300);
                 const dialog = $('[role=dialog]');
                 const shown = dialog ? text(dialog) : '';
                 click(/Review answers/); await sleep(250);
                 return { shown, closed: !$('[role=dialog]'), cards: $$('li').length };` });
         assert.match(result.shown, /Quiz completed!/);
-        assert.match(result.shown, /50%/);
+        assert.match(result.shown, /(^|\D)50%/, 'the score, never below zero on the way (it read -2%)');
+        assert.doesNotMatch(result.shown, /-\d+%/);
         assert.match(result.shown, /1\s*Correct/);
         assert.match(result.shown, /1\s*Wrong/);
         assert.equal(result.closed, true, 'Review answers closes it');
@@ -329,29 +348,30 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
                 }
             }
         };
+        // The server lists the attempt among the quizzes taken, as it does once it is finished.
+        const history = { winScore: 60, attempts: [{ id: 'a1', title: 'Weekly GK', finishedAt: '2026-10-12T09:00:00.000Z', elapsedMs: 95_000, timedOut: false, correctCount: 1, totalQuestions: 2, score: 50, won: false }] };
         const { result, errors } = await screen({
-            entry, api: apiModule({ '/quizzes/global': done }, posts), script: `
-                await sleep(700);
+            entry, api: apiModule({ '/quizzes/global/history': history, '/quizzes/global': done }, posts), script: `
+                await sleep(1500);
                 return {
                     body: text(document.body),
                     score: text($$('span').find((s) => /^\\d+%$/.test(s.innerText.trim()))),
-                    cards: $$('li').length,
+                    questions: $$('li p').filter((p) => /\\?$/.test(p.innerText.trim())).length,
                     dialog: !!$('[role=dialog]'),
                     buttons: $$('button').map((b) => b.innerText.trim()).filter(Boolean),
-                    clock: ${timer},
                     posts: window.__calls.filter((c) => c[0] === 'POST').length
                 };` });
         assert.deepEqual(errors, []);
+        // The result is a row of the list of quizzes taken, and the banner
+        // counts it in the student's record.
         assert.equal(result.score, '50%');
-        assert.match(result.body, /1 of 2 correct/);
-        assert.match(result.body, /Quiz completed/);
-        assert.match(result.body, /1\s*Correct/);
-        assert.match(result.body, /1\s*Wrong/);
+        assert.match(result.body, /Weekly GK.*1 of 2 correct\s*1:35/s, 'the row: the quiz, the tally and the time it took');
+        assert.match(result.body, /All caught up/);
+        assert.match(result.body, /Quizzes taken\s*1\s*Average\s*50%\s*Best score\s*50%\s*Wins\s*0/, 'the record, counted up to its figures (it read 0, 1% and 1%)');
         assert.doesNotMatch(result.body, /Mercury orbits closest|The answer is 30/, 'the questions are not shown again');
-        assert.equal(result.cards, 0, 'no question cards on a later visit');
+        assert.equal(result.questions, 0, 'no question cards on a later visit');
         assert.equal(result.dialog, false, 'no popup on a later visit');
         assert.ok(!result.buttons.some((l) => /Start quiz|again/i.test(l)), `no Start and no retake, but found ${JSON.stringify(result.buttons)}`);
-        assert.equal(result.clock, '1:35', 'the time the attempt took');
         assert.equal(result.posts, 0, 'nothing is started or re-closed');
     });
 
@@ -364,7 +384,7 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
             }
         };
         const { result, errors } = await screen({
-            entry, api: apiModule({ '/quizzes/global': open }, posts), script: `
+            entry, api: apiModule({ '/quizzes/global/history': noHistory, '/quizzes/global': open }, posts), script: `
                 await sleep(700);
                 return {
                     questions: $$('li p').filter((p) => /\\?$/.test(p.innerText.trim())).map(text),
@@ -389,7 +409,10 @@ describe('the global quiz', { skip: skipWithoutChrome }, () => {
 const routes = { fresh: ${JSON.stringify(timed)}, done: ${JSON.stringify(done)} };
 window.__calls = []; let gets = 0;
 export default {
-  get: (url) => { window.__calls.push(['GET', url]); gets += 1; return Promise.resolve({ data: gets === 1 ? routes.fresh : routes.done }); },
+  // The list of quizzes taken has the attempt in it once the server has it as taken, which is when it says so.
+  get: (url) => { window.__calls.push(['GET', url]);
+    if (url.endsWith('/history')) return Promise.resolve({ data: { winScore: 60, attempts: gets > 1 ? [{ id: 'a1', title: 'Weekly GK', finishedAt: '2026-10-12T09:00:00.000Z', elapsedMs: 60000, correctCount: 2, totalQuestions: 2, score: 100, won: true }] : [] } });
+    gets += 1; return Promise.resolve({ data: gets === 1 ? routes.fresh : routes.done }); },
   post: (url, body) => { window.__calls.push(['POST', url, body]); return Promise.reject({ response: { status: 409, data: { code: 'ALREADY_ATTEMPTED', message: 'You have already taken this quiz.' } } }); },
   put: () => Promise.resolve({ data: {} }), delete: () => Promise.resolve({ data: {} })
 };`;
@@ -398,7 +421,7 @@ export default {
                 await sleep(700);
                 ${start}
                 await sleep(500);
-                return { body: text(document.body), startButton: $$('button').some((b) => /Start quiz/.test(b.innerText)), gets: window.__calls.filter((c) => c[0] === 'GET').length };` });
+                return { body: text(document.body), startButton: $$('button').some((b) => /Start quiz/.test(b.innerText)), gets: window.__calls.filter((c) => c[0] === 'GET' && c[1].endsWith('/quizzes/global')).length };` });
         assert.deepEqual(errors, []);
         assert.equal(result.gets, 2, 'the paper is fetched again to show the server\'s result');
         assert.match(result.body, /2 of 2 correct/);
@@ -406,7 +429,7 @@ export default {
     });
 
     test('an answer that cannot be marked is handed back rather than swallowed', async () => {
-        const failing = apiModule({ '/quizzes/global': timed }, `(url, body) => { if (url.endsWith('/start')) return { attempt: { status: 'open', elapsedMs: 0, answers: {} }, questions: ${JSON.stringify(paper.questions)} }; throw { response: { data: { message: 'Could not mark that answer.' } } }; }`);
+        const failing = apiModule({ '/quizzes/global/history': noHistory, '/quizzes/global': timed }, `(url, body) => { if (url.endsWith('/start')) return { attempt: { status: 'open', elapsedMs: 0, answers: {} }, questions: ${JSON.stringify(paper.questions)} }; throw { response: { data: { message: 'Could not mark that answer.' } } }; }`);
         const { result } = await screen({
             entry, api: failing, script: `
                 await sleep(700);
@@ -425,7 +448,7 @@ export default {
 
     test('an empty bank is explained rather than left blank', async () => {
         const { result } = await screen({
-            entry, api: apiModule({ '/quizzes/global': { available: 0, categories: [], questions: [], quiz: null, attempt: null } }),
+            entry, api: apiModule({ '/quizzes/global/history': noHistory, '/quizzes/global': { available: 0, categories: [], questions: [], quiz: null, attempt: null } }),
             script: `await sleep(700); return { body: text(document.body) };` });
         assert.match(result.body, /No quiz questions yet/);
         assert.match(result.body, /general questions your institution writes/);

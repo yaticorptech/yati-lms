@@ -12,6 +12,7 @@ import {
     RefreshCw, CheckCircle2, XCircle, AlertTriangle, Flame, Trophy, Coins, Users, ChevronRight, X, Gamepad2
 } from 'lucide-react';
 import Select from '../components/Select';
+import { Segmented } from '../components/orgUi';
 
 const INPUT = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40';
 const LABEL = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500';
@@ -201,14 +202,23 @@ const WALLET_GROUPS = [
             ['start_mock_interview', 'Start a mock interview', 'Each new AI mock interview.'],
             ['find_scholarship', 'Find scholarships', 'Each "Find scholarships for me" search on the Grants page.'],
             ['generate_ideas', 'Rebuild the Ideas list', 'Each rebuild of the Career Path Ideas (recommendations) list.'],
-            ['download_certificate', 'Download a certificate', 'Each certificate PDF, from the course or the profile.']
+            ['download_certificate', 'Download a certificate', 'Each certificate PDF, from the course or the profile.'],
+            ['download_competition_certificate', 'Download a competition certificate', 'Each certificate PDF from a finished competition.']
         ]
     },
     {
+        title: 'Games and competitions', rules: [
+            ['create_game_room', 'Create a game room', 'Each new Chess, Ludo, Carrom or UNO room. Joining one stays free.']
+        ]
+    },
+    {
+        // Not listed: "Ask the AI mentor" (ask_mentor) and "Build a skill study
+        // pack" (generate_study_material). The server can charge both, but the
+        // student website has no mentor chat and no page shows the study-pack
+        // panel, so a rule for them would never do anything (2026-10-10). Put
+        // them back here when those screens exist.
         title: 'AI features', rules: [
-            ['ask_mentor', 'Ask the AI mentor', 'Each message sent to the Career Path mentor.'],
             ['build_task_lesson', 'Build a task lesson', 'Each lesson built for a task — including "Different video" and switching language.'],
-            ['generate_study_material', 'Build a skill study pack', 'Each study pack built on the Skills page.'],
             ['add_extra_task', 'Add another task', 'Each extra task added to Today\'s Plan after the day\'s plan is done.'],
             ['regenerate_bio', 'Rewrite the learning bio', 'Each manual rewrite of the Learning Bio.']
         ]
@@ -223,15 +233,20 @@ const XP_GROUPS = [
             ['quiz_pass', 'Pass a quiz', 'On top of completing it, when the quiz is passed.'],
             ['course_complete', 'Complete a course', 'When a course reaches 100%.'],
             ['certificate_earned', 'Earn a certificate', 'The first certificate for each course.'],
-            ['assignment_complete', 'Complete an assignment', 'Kept for assignments; nothing in the LMS awards it yet.']
+            ['assignment_complete', 'Complete an assignment', 'An assignment lesson, the first time it is completed (on top of the lesson).'],
+            ['course_enroll', 'Enrol in a course', 'Once a day, however many courses.']
         ]
     },
     {
         title: 'Career Path', rules: [
             ['career_task', 'Complete a Career Path task', "Finishing a task in Today's Plan."],
             ['career_task_quiz', 'Pass a Career Path task quiz', "First pass of a task's study quiz."],
-            ['skill_quiz', 'Pass a skill quiz', 'First pass of a quiz on the Skills page.'],
-            ['daily_activity', 'Solve the daily activity', "A right answer to the day's puzzle or question."]
+            // Not listed: "Pass a skill quiz" (skill_quiz). Its quiz is in the
+            // study-pack panel no page shows, so it can never pay (2026-10-10).
+            ['daily_activity', 'Solve the daily activity', "A right answer to the day's puzzle or question."],
+            ['career_onboarding', 'Build your first roadmap', 'Once, when onboarding builds the first roadmap. Rebuilds pay nothing.'],
+            ['day_plan_complete', "Finish today's plan", "Every task in Today's Plan done; once a day."],
+            ['skill_level_up', 'Level up a skill', 'A skill moving up a level through finished tasks; once per skill and level.']
         ]
     },
     {
@@ -247,9 +262,18 @@ const XP_GROUPS = [
         title: 'Community and opportunities', rules: [
             ['forum_post', 'Post in the community forum', 'Once a day, however many posts.'],
             ['forum_comment', 'Reply in the community forum', 'Once a day, however many replies.'],
-            ['resume_upload', 'Upload a resume', 'Once, the first upload.'],
+            ['resume_upload', 'Upload a resume', 'Once, the first upload — on the profile or the Jobs page.'],
             ['part_time_apply', 'Apply for a part-time job', 'Once per job applied for.'],
-            ['scholarship_search', 'Search for scholarships', 'Once a day.']
+            ['scholarship_search', 'Search for scholarships', 'Once a day.'],
+            ['opportunity_profile', 'Set up the part-time jobs profile', 'Once, when the profile is first saved.'],
+            ['organization_join', 'Join a college organization', 'Once, when the college approves the request.']
+        ]
+    },
+    {
+        title: 'Games and competitions', rules: [
+            ['competition_match_win', 'Win a competition match', 'Once per match won at the board. Not a walkover or an organizer decision.'],
+            ['friendly_game_played', 'Play a multiplayer game', 'A Chess, Ludo, Carrom or UNO room played through with another student for 3 minutes or more; once a day.'],
+            ['friendly_game_win', 'Win a multiplayer game', 'A room won outright, after 3 minutes or more; once a day.']
         ]
     },
     {
@@ -263,7 +287,9 @@ const XP_GROUPS = [
             ['roadmap_milestone', 'Complete a roadmap phase', 'Once per phase, when its milestone badge is issued.'],
             ['task_video_watched', 'Watch a task lesson video', 'Once per task, when the video has been watched through.'],
             ['profile_picture', 'Add a profile photo', 'Once, the first photo.'],
-            ['achievement_added', 'Add an achievement', 'Once a day, however many are added.']
+            ['achievement_added', 'Add an achievement', 'Once a day, however many are added.'],
+            ['bio_strength_full', 'Complete the Learning Bio', 'Once, when Profile Strength reaches 100%.'],
+            ['google_connect', 'Connect Google', 'Once, when a Google account is first connected.']
         ]
     }
 ];
@@ -410,7 +436,7 @@ function Rules() {
             <div className="grid gap-5 xl:grid-cols-2">
                 <Card icon={Coins} title="XP rules" sub="XP is learning progress: it drives levels, the leaderboard and badges, and every full block converts into wallet money (XP → money, below).">
                     <RuleList groups={XP_GROUPS} values={cfg.xpRules} onSet={(k, v) => setRule('xpRules', k, v)} onRemove={(k) => removeRule('xpRules', k)} addLabel="Add XP rule" />
-                    <p className="mt-4 text-[11px] leading-snug text-slate-500">Streak milestones and Brain games pay their own XP (below). A removed rule pays nothing to anyone; a rule under "Add XP rule" pays nothing until it is added.</p>
+                    <p className="mt-4 text-[11px] leading-snug text-slate-500">Streak milestones and Brain Boosters pay their own XP (below). A removed rule pays nothing to anyone; a rule under "Add XP rule" pays nothing until it is added.</p>
                 </Card>
                 <Card icon={Wallet} title="Wallet rules" sub={`What a feature costs from the student's wallet balance, in ${cur}. 0 = free. Applies to every student from their next use; a short balance is refused, and a feature that fails is refunded.`} tone="emerald">
                     <RuleList groups={WALLET_GROUPS} values={cfg.walletRules || {}} prefix={cur === 'INR' ? '₹' : cur} step={0.5} onSet={(k, v) => setRule('walletRules', k, v)} onRemove={(k) => removeRule('walletRules', k)} addLabel="Add wallet rule" />
@@ -422,7 +448,7 @@ function Rules() {
                     </div>
                     <p className="text-[11px] text-slate-500 mt-2">A student who finishes with at least this score has won. Currently {num(cfg.xpRules?.global_quiz_win ?? 0)} XP; starting costs {money(cfg.walletRules?.start_global_quiz ?? 0, cur)}.</p>
                 </Card>
-                <Card icon={Gamepad2} title="Brain games" sub="XP a level pays for its best result, once per star reached — replaying at the same stars pays nothing. Play is limited per student per day." tone="indigo">
+                <Card icon={Gamepad2} title="Brain Boosters" sub="XP a level pays for its best result, once per star reached — replaying at the same stars pays nothing. Play is limited per student per day." tone="indigo">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div className="col-span-2 sm:col-span-1">
                             <label className={LABEL}>Minutes a day</label>
@@ -684,6 +710,8 @@ function Wallets({ onOpenUser }) {
 }
 
 // ── Transactions ────────────────────────────────────────────────────────────
+const TXN_TYPES = [['all', 'All'], ['credit', 'Credits'], ['debit', 'Debits']];
+
 function Transactions({ onOpenUser }) {
     const [f, setF] = useState({ source: '', status: '', type: '' });
     const key = `${f.type}|${f.source}|${f.status}`;
@@ -692,12 +720,26 @@ function Transactions({ onOpenUser }) {
     const data = result.key === key ? result.data : null;
     return (
         <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-                {/* Phones: each filter takes a full row; wider screens: side by side. */}
-                <Select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} className={`${INPUT} sm:w-auto`}><option value="">All types</option><option value="credit">Credits</option><option value="debit">Debits</option></Select>
-                <Select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })} className={`${INPUT} sm:w-auto`}><option value="">All sources</option>{(data?.sources || []).map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}</Select>
-                <Select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} className={`${INPUT} sm:w-auto`}><option value="">All statuses</option>{(data?.statuses || []).map((s) => <option key={s} value={s}>{s}</option>)}</Select>
-                {data && <span className="self-center text-sm text-slate-500">{num(data.total)} transactions</span>}
+            {/* Phones: the type as a tab strip with the count beside it, then the
+                two dropdowns side by side. Wider screens: one row. */}
+            <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:gap-3">
+                <div className="flex items-center justify-between gap-3 lg:justify-start">
+                    <Segmented options={TXN_TYPES} value={f.type || 'all'} onChange={(v) => setF({ ...f, type: v === 'all' ? '' : v })} />
+                    {data && <span className="shrink-0 text-sm text-slate-500 lg:hidden">{num(data.total)} transactions</span>}
+                </div>
+                <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center">
+                    <Select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })} aria-label="Source" className={`${INPUT} capitalize lg:w-48`}><option value="">All sources</option>{(data?.sources || []).map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}</Select>
+                    <Select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} aria-label="Status" className={`${INPUT} capitalize lg:w-40`}><option value="">All statuses</option>{(data?.statuses || []).map((s) => <option key={s} value={s}>{s}</option>)}</Select>
+                </div>
+                <div className={`${f.source || f.status || f.type ? 'flex' : 'hidden lg:flex'} items-center justify-between gap-3 lg:ml-auto`}>
+                    {(f.source || f.status || f.type) && (
+                        <button type="button" onClick={() => setF({ source: '', status: '', type: '' })}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-indigo-600 hover:bg-indigo-50">
+                            <X size={14} />Clear filters
+                        </button>
+                    )}
+                    {data && <span className="hidden text-sm text-slate-500 lg:inline">{num(data.total)} transactions</span>}
+                </div>
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 {!data ? <div className="p-8 text-center text-slate-500">Loading…</div> : (

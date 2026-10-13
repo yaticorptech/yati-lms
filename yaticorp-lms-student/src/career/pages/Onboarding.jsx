@@ -6,6 +6,7 @@ import Input from '../components/common/Input';
 import Button from '../components/ui/Button';
 import api from '../services/api';
 import SuggestField from '../components/common/SuggestField';
+import { useHideLoop } from '../../components/loopVisibility';
 import GeneratingRoadmap from '../components/journey/GeneratingRoadmap';
 import {
   CAREER_GOALS,
@@ -108,6 +109,15 @@ export default function Onboarding() {
   
   const [step, setStep] = useState(1);
 
+  // Back from the first step leaves the wizard: to wherever the student came
+  // from (the Overview, Settings, the Roadmap, Jobs), or to Career Path when
+  // the page was opened directly. The router counts its own steps in
+  // history.state.idx.
+  const leave = () => {
+    if ((window.history.state?.idx ?? 0) > 0) navigate(-1);
+    else navigate('/career');
+  };
+
   const [formData, setFormData] = useState({
     educationLevel: '',
     currentClass: '',
@@ -136,6 +146,9 @@ export default function Onboarding() {
   // questions answered and a whole roadmap built — was a page transition the
   // student never saw.
   const [done, setDone] = useState(false);
+  // Yati, the mascot, steps aside on a form, as on the scholarship form: on a
+  // phone it stood over the last step's fields. Back for the finished roadmap.
+  useHideLoop(!done);
 
   useEffect(() => {
     // Check if user already has a goal
@@ -331,7 +344,7 @@ export default function Onboarding() {
     );
   }
 
-  // Generation takes about ten seconds and is the payoff for the five steps
+  // Generation takes about half a minute and is the payoff for the five steps
   // just answered. It takes the whole panel rather than shrinking to a spinner
   // inside a button the student has stopped looking at.
   if (isGenerating) {
@@ -726,13 +739,11 @@ export default function Onboarding() {
         )}
 
         <div className="mt-8 flex justify-between gap-3">
-          {step > 1 ? (
-            <Button variant="secondary" icon={ArrowLeft} onClick={prevStep} className="shrink-0">
-              Back
-            </Button>
-          ) : (
-            <div />
-          )}
+          {/* On the first step it leaves the wizard instead: a student who
+              came to change their goal had no way out but the menu. */}
+          <Button variant="secondary" icon={ArrowLeft} onClick={step > 1 ? prevStep : leave} className="shrink-0">
+            Back
+          </Button>
 
           {step < 5 ? (
             <Button
@@ -750,7 +761,7 @@ export default function Onboarding() {
               onClick={handleSubmit}
               data-mascot-target="enroll"
               loading={isGenerating}
-              loadingText="Generating roadmap (about 10s)…"
+              loadingText="Generating roadmap (about 30s)…"
               className="min-w-0 bg-gradient-to-r from-journey-600 via-fuchsia-600 to-indigo-600"
             >
               ✨ Build my roadmap

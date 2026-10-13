@@ -21,6 +21,9 @@ import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
 import { useMascot } from '../../mascot/useMascot';
 import { useXpRule } from '../../../context/useRewards';
+import { usePointLoopAt } from '../../../components/loopGuide';
+import { useLoopHidden } from '../../../components/loopVisibility';
+import PriceTag from '../../../components/rewards/PriceTag';
 
 // What a finished task pays is the admin's 'career_task' rule (useXpRule in
 // the component): the server pays the same, so the header's figures are a
@@ -469,6 +472,23 @@ export default function Planner() {
   // XP counts up to what the day is actually worth so far.
   const earnedXp = useCountUp(
     tasks.filter((t) => t.status === 'Completed').length * TASK_XP
+  );
+
+  // Today's plan cleared: Loop, the site's mascot, runs over to "Generate
+  // another task" and tells the student they can have one more. Not while a
+  // lesson is open (Loop is hidden then), and not while the celebration is up
+  // (usePointLoopAt waits for a popup to close): it goes once both are out of
+  // the way. Once for each time the day is cleared, keyed on the task count,
+  // so finishing an extra task brings it back, but a second visit to the same
+  // finished day does not.
+  const loopHidden = useLoopHidden();
+  const planCleared = tasks.length > 0 && tasks.every((t) => t.status === 'Completed');
+  const offersAnother = planCleared && day?.status !== 'no-roadmap' && day?.status !== 'exam-eve';
+  usePointLoopAt(
+    !showLoader && offersAnother && !addingTask && !loopHidden && openTaskId === null
+      ? '[data-explain="another-task"]'
+      : null,
+    { oncePerDay: `another-task:${user?._id || user?.id || 'me'}:${tasks.length}`, scroll: true }
   );
   // Hooks stay above the loader return; the day's state is read from the
   // tasks directly since `dayCleared` is derived further down.
@@ -1342,6 +1362,7 @@ export default function Planner() {
               onClick={handleAddAnother}
               disabled={addingTask || !allDone}
               data-mascot-locked={allDone ? undefined : "today's tasks"}
+              data-explain={allDone && !addingTask ? 'another-task' : undefined}
               data-mascot-prerequisite="start-task"
               aria-busy={addingTask || undefined}
               aria-disabled={!allDone || undefined}
@@ -1363,6 +1384,7 @@ export default function Planner() {
                 <Lock className="h-4 w-4" />
               )}
               {addingTask ? 'Finding one for you…' : 'Generate another task'}
+              {!addingTask && allDone && <PriceTag action="add_extra_task" />}
               {!addingTask && allDone && <Plus className="fp-btn-arrow h-4 w-4" strokeWidth={3} />}
             </button>
             <p className="text-xs font-semibold text-ink-600">

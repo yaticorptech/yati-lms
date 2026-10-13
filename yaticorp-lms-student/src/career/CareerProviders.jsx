@@ -12,21 +12,30 @@
  * re-apply its own — on the same `sidebar` breakpoint StudentLayout switches
  * its padding at. Keyed to `md` instead, every width between the two pulled
  * the page 16px past each side and the section scrolled sideways.
+ *
+ * `embedded` is for a Career Path screen shown inside another section's page
+ * (Brain Boosters, under Games & Competitions): the providers and the scope,
+ * but none of the page framing — no edge-to-edge margins and no canvas, so it
+ * sits on the host page's own background.
  */
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './components/ui/Toast';
 import { ConfirmProvider } from './components/ui/ConfirmDialog';
 import { CelebrationProvider } from './components/ui/Celebration';
 
-export default function CareerProviders({ children }) {
+export default function CareerProviders({ children, embedded = false }) {
   return (
     <AuthProvider>
       <ToastProvider>
         <ConfirmProvider>
           <CelebrationProvider>
-            <div className="futurepath -m-4 flex min-h-full flex-col p-4 sidebar:-m-8 sidebar:p-8">
-              {children}
-            </div>
+            {embedded ? (
+              <div className="futurepath" style={{ background: 'none' }}>{children}</div>
+            ) : (
+              <div className="futurepath -m-4 flex min-h-full flex-col p-4 sidebar:-m-8 sidebar:p-8">
+                {children}
+              </div>
+            )}
           </CelebrationProvider>
         </ConfirmProvider>
       </ToastProvider>

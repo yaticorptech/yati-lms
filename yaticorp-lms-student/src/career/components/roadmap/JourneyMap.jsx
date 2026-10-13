@@ -102,7 +102,7 @@ const roadTone = (state, palette) =>
       ? { road: 'stroke-journey-200', line: 'stroke-journey-500', flow: true }
       : { road: palette.road, line: palette.dash, flow: false };
 
-function Platform({ palette, state, index, onClick, label, sway, lockedBy }) {
+function Platform({ palette, state, index, onClick, label, sway, lockedBy, here }) {
   const isDone = state === 'done';
   const isCurrent = state === 'current';
   const locked = state === 'upcoming';
@@ -114,6 +114,10 @@ function Platform({ palette, state, index, onClick, label, sway, lockedBy }) {
       onClick={onClick}
       aria-label={label}
       data-mascot-target={isCurrent ? 'current-roadmap-position' : undefined}
+      // Loop, the site's mascot, tells the student "You are here" on this one
+      // (RoadmapDisplay sends it over; `here` is what it says).
+      data-explain={isCurrent ? 'roadmap-here' : undefined}
+      data-explain-text={here}
       data-mascot-locked={locked ? lockedBy : undefined}
       data-mascot-prerequisite="current-roadmap-position"
       className={`fp-rm-platform group relative h-[116px] w-[120px] shrink-0 ${locked ? 'saturate-[.75]' : ''}`}
@@ -437,6 +441,9 @@ export default function JourneyMap({ phases, states, startedFrom, goal, percent,
         const nodeSway = i % 2 === 0 ? -sway : sway;
         const cardSide = i % 2 === 0 ? 'right' : 'left';
         const title = phaseTitle(stage);
+        // What Loop, the site's mascot, says on the phase being stood on: where
+        // the student is, and nothing they have to do about it.
+        const here = state === 'current' ? `You are here! This is phase ${i + 1} of ${phases.length}: ${parseChoices(title)?.lead || title}.` : undefined;
         // What the guide tells someone hovering a locked phase to finish first.
         const before = i > 0 ? phaseTitle(phases[i - 1]) : null;
         const lockedBy = before ? parseChoices(before)?.lead || before : undefined;
@@ -473,6 +480,7 @@ export default function JourneyMap({ phases, states, startedFrom, goal, percent,
                 sway={nodeSway}
                 label={`Open phase ${i + 1}: ${title}`}
                 lockedBy={lockedBy}
+                here={here}
                 onClick={() => onOpen(i)}
               />
             </div>

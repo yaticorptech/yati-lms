@@ -942,9 +942,14 @@ describe('an organization changing its own password', () => {
         const mine = orgApi(adminA.token);
         assert.equal((await mine('PUT', '/me/password', { newPassword: NEW_PASSWORD })).status, 400);
 
+        // 400, not 401: the panel reads a 401 as "your session ended" and signs
+        // the person out, so they never saw this message.
         const wrong = await mine('PUT', '/me/password', { currentPassword: 'Wrongone!1', newPassword: NEW_PASSWORD });
-        assert.equal(wrong.status, 401);
+        assert.equal(wrong.status, 400);
+        assert.equal(wrong.body.code, 'WRONG_CURRENT_PASSWORD');
         assert.match(wrong.body.message, /not your current password/i);
+        // …and the session it was sent with still works.
+        assert.equal((await mine('GET', '/me/status')).status, 200);
     });
 
     test('a weak or unchanged new password is refused', async () => {

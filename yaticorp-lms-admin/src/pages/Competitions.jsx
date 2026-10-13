@@ -12,7 +12,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Trophy, Plus, Users, AlertTriangle, CalendarClock, Radio, Pencil, Trash2 } from 'lucide-react';
 import api from '../utils/api';
 import { PageHeader, Segmented, CARD, BTN } from '../components/orgUi';
-import { CompetitionForm, Chip } from '../competitions/shared';
+import { CompetitionForm, Chip, GameIcon } from '../competitions/shared';
 import { fmtDateTime, errorOf, bannerUploader, competitionBadge, deleteQuestion } from '../competitions/constants';
 
 const FILTERS = [['all', 'All'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['completed', 'Completed'], ['draft', 'Drafts']];
@@ -75,7 +75,7 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
                     // Delete, under Edit, removes it for good, after asking.
                     <article key={c.id} className={`${CARD} group relative flex flex-col gap-3 p-5 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md`}>
                         <div className="flex items-start gap-3">
-                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-2xl">{c.emoji}</span>
+                            <GameIcon game={c.game} />
                             <div className="min-w-0 flex-1">
                                 <Link to={`${linkBase}/${c.id}`} className="block font-bold leading-snug text-slate-900 after:absolute after:inset-0 after:rounded-2xl group-hover:text-indigo-700">{c.name}</Link>
                                 <p className="text-xs text-slate-500">{c.gameLabel} · by {c.organizedBy}</p>

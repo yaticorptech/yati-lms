@@ -58,6 +58,9 @@ const build = async (userId, { force = false, manual = false } = {}) => {
     if (!data) return null;
     const interests = mergeInterests(doc, data.interestsAuto);
     const s = strength(data, interests);
+    // XP rule (optional): the bio at full strength, once ever. Recorded when it
+    // is read, which is safe: the ledger pays it once and never again.
+    if (s.percent >= 100) await require('../rewards/services/xpHooks').recordIfRuled({ userId, type: 'bio_strength_full', refId: 'bio_full' });
     let generation = { done: false, reason: null };
     if (force || !doc.ai.bio || doc.ai.dataHash !== data.hash) {
         generation = await regenerate(doc, data, interests, { manual });

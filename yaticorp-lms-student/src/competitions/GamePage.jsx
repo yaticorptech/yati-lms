@@ -15,6 +15,8 @@ import ChessTable from './games/ChessTable';
 import LudoTable from './games/LudoTable';
 import CarromTable from './games/CarromTable';
 import UnoTable from './games/UnoTable';
+import { useHideLoop } from '../components/loopVisibility';
+import GameCelebration from '../components/GameCelebration';
 
 const TABLES = { chess: ChessTable, ludo: LudoTable, carrom: CarromTable, uno: UnoTable };
 
@@ -32,6 +34,8 @@ const useCountdown = (deadline) => {
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export default function GamePage() {
+    // The board needs the whole screen: Loop the mascot stays away until the student leaves.
+    useHideLoop();
     const { gameId } = useParams();
     const navigate = useNavigate();
     const [game, setGame] = useState(null);
@@ -43,6 +47,15 @@ export default function GamePage() {
     const versionRef = useRef(null);
     const statusRef = useRef('waiting');
     const joinedRef = useRef(false);
+
+    // A win gets the full-screen celebration, when the student was here to
+    // see the game end: not when they open a game that finished earlier.
+    const [cheer, setCheer] = useState(false);
+    const [seenStatus, setSeenStatus] = useState(null);
+    if (game && game.status !== seenStatus) {
+        setSeenStatus(game.status);
+        if (seenStatus === 'active' && game.status === 'finished') setCheer(true);
+    }
 
     const accept = useCallback((g) => { versionRef.current = g.version; statusRef.current = g.status; setGame(g); }, []);
 
@@ -212,6 +225,17 @@ export default function GamePage() {
                     )}
                     {game.kind === 'friendly' && game.host && game.seats.length < game.minSeats && <p className="text-right text-xs text-slate-500">{game.label} needs at least {game.minSeats} players.</p>}
                 </section>
+            )}
+
+            {cheer && iWon && (
+                <GameCelebration
+                    eyebrow={game.competition ? game.competition.name : 'Victory'}
+                    title="You won!"
+                    subtitle={game.label}
+                    detail={outcome?.reason}
+                    primary={{ label: game.competition ? 'Back to the competition' : 'Back to games', onClick: () => navigate(back) }}
+                    onClose={() => setCheer(false)}
+                />
             )}
 
             {/* ── The result ────────────────────────────────────────── */}

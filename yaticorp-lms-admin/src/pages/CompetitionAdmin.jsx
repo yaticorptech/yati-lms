@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { CARD, BTN, BTN2, INPUT, LABEL, Segmented } from '../components/orgUi';
-import { CompetitionForm, Chip } from '../competitions/shared';
+import { CompetitionForm, Chip, GameIcon } from '../competitions/shared';
 import { TeamMaker } from '../competitions/TeamMaker';
 import { ORDINAL, fmtDateTime, toLocalInput, errorOf, bannerUploader, competitionBadge, deleteQuestion } from '../competitions/constants';
 
@@ -150,7 +150,7 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
 
             <header className={`${CARD} p-5`}>
                 <div className="flex flex-wrap items-start gap-4">
-                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-3xl">{c.emoji}</span>
+                    <GameIcon game={c.game} size={28} className="h-14 w-14 rounded-2xl" />
                     {/* A base width: without one, two buttons beside it on a
                         phone squeezed the name and dates to a word a line.
                         Now the buttons wrap to their own row instead. */}

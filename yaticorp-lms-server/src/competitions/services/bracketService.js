@@ -143,7 +143,16 @@ const recordGame = async (game) => {
         await Match.updateOne({ _id: match._id }, { $push: { gameIds: next._id }, $set: { resultNote: `Game ${draws} was drawn — replaying.` } });
         return;
     }
-    await decide(match, places, game.outcome?.walkover ? 'walkover' : 'game', game.outcome?.reason || '');
+    const done = await decide(match, places, game.outcome?.walkover ? 'walkover' : 'game', game.outcome?.reason || '');
+    // XP rule (optional): the players of the side that won it at the board,
+    // once per match. Not a walkover, and not a match the organizer decided.
+    if (done && !game.outcome?.walkover) {
+        const { recordIfRuled } = require('../../rewards/services/xpHooks');
+        const winnerSide = game.outcome.places[0][0];
+        for (const seat of game.seats.filter((s) => s.side === winnerSide)) {
+            await recordIfRuled({ userId: seat.userId, type: 'competition_match_win', refId: `match:${match._id}` });
+        }
+    }
 };
 
 /** Settle a match with `places` (team ids, best first) and move on. */

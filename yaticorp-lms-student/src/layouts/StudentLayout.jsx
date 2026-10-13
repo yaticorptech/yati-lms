@@ -10,7 +10,7 @@ import WalletShortDialog from '../components/rewards/WalletShortDialog';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, Wallet, Mic, Trophy } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, ChevronRight, Wallet, Mic, Trophy } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
@@ -18,6 +18,7 @@ import { pictureUrl } from '../native/pictures';
 import PullToRefresh from '../components/PullToRefresh';
 import { ADMIN_VIEW_KEY } from '../pages/AdminAccess';
 import ProfilePictureGate from '../components/ProfilePictureGate';
+import GlobalQuizAlert from '../components/GlobalQuizAlert';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -408,7 +409,8 @@ const StudentLayout = () => {
                 onClick={() => setShowNotif(false)}
                 className="fixed inset-0 top-[4rem] z-[59] bg-slate-900/25 backdrop-blur-[2px] animate-in fade-in duration-200 sidebar:hidden"
             />
-            <div className="fixed inset-x-3 top-[4.5rem] z-[60] flex max-h-[calc(100dvh-10rem)] flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl shadow-slate-900/20 animate-in fade-in slide-in-from-top-2 duration-200 origin-top-right sidebar:absolute sidebar:inset-x-auto sidebar:right-0 sidebar:top-12 sidebar:w-96 sidebar:max-h-[28rem] sidebar:rounded-2xl">
+            {/* data-loop-avoid: Loop keeps off it while it is open (loop-walker.js, AVOID). */}
+            <div data-loop-avoid className="fixed inset-x-3 top-[4.5rem] z-[60] flex max-h-[calc(100dvh-10rem)] flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl shadow-slate-900/20 animate-in fade-in slide-in-from-top-2 duration-200 origin-top-right sidebar:absolute sidebar:inset-x-auto sidebar:right-0 sidebar:top-12 sidebar:w-96 sidebar:max-h-[28rem] sidebar:rounded-2xl">
 
                 <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -543,8 +545,9 @@ const StudentLayout = () => {
                 </div>
             )}
 
-            {/* Desktop Sidebar */}
-            <aside className="hidden sidebar:flex w-64 bg-white text-slate-700 border-r border-slate-200 flex-col z-10">
+            {/* Desktop Sidebar. data-loop-skip, here and on the other bars:
+                Loop the mascot leaves the navigation alone (see App.jsx). */}
+            <aside data-loop-skip className="hidden sidebar:flex w-64 bg-white text-slate-700 border-r border-slate-200 flex-col z-10">
                 <div className="flex items-center justify-center border-b border-slate-100 bg-white px-6 py-4">
                     {/* Dark-lettered logo: the original is white artwork for a dark ground. */}
                     <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
@@ -568,12 +571,15 @@ const StudentLayout = () => {
                     support. My Profile lives here rather than in the nav, the
                     way ChatGPT and most apps keep the account at the foot. */}
                 <div className="p-4 border-t border-slate-100 bg-slate-50/60 space-y-2">
+                    {/* Drawn as a button — a white card with an edge, a shadow and
+                        an arrow — because as a bare row it read as a label, not as
+                        something that opens My Profile. */}
                     <Link
                         to="/profile"
                         aria-label="My Profile"
-                        className={`flex items-center gap-3 rounded-lg p-2 transition-colors duration-200 ${isActive('/profile') ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+                        className={`group flex items-center gap-3 rounded-xl border p-2.5 shadow-sm transition-all duration-200 ${isActive('/profile') ? 'border-indigo-600 bg-indigo-600 text-white shadow-indigo-200' : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md'}`}
                     >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-sm font-bold text-indigo-700 ring-2 ${isActive('/profile') ? 'ring-white/60' : 'ring-indigo-100'}`}>
                             {user?.profilePicture ? (
                                 <img src={pictureUrl(user.profilePicture)} alt="" className="h-full w-full object-cover" />
                             ) : (
@@ -584,7 +590,9 @@ const StudentLayout = () => {
                             <span className="block truncate text-sm font-bold">{user?.name}</span>
                             <span className={`block text-xs ${isActive('/profile') ? 'text-indigo-100' : 'text-slate-500'}`}>My Profile</span>
                         </span>
-                        <User size={18} className={isActive('/profile') ? 'text-white' : 'text-slate-400'} />
+                        <span aria-hidden="true" className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 ${isActive('/profile') ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-600 group-hover:text-white'}`}>
+                            <ChevronRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
+                        </span>
                     </Link>
                     <button
                         onClick={() => setShowContact(true)}
@@ -598,6 +606,7 @@ const StudentLayout = () => {
             {/* Mobile Header */}
             <div
                 data-mobile-header
+                data-loop-skip
                 className="sidebar:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-50 flex items-center justify-between px-4"
             >
                 <div className="flex min-w-0 shrink items-center">
@@ -643,7 +652,7 @@ const StudentLayout = () => {
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
-                <div className="sidebar:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Menu">
+                <div data-loop-skip className="sidebar:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Menu">
                     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
                     {/* The whole drawer scrolls, not the menu inside it. On a phone
                         turned sideways — 384px tall — the logo above and the card,
@@ -726,7 +735,7 @@ const StudentLayout = () => {
                     </div>
                 )}
                 {/* Desktop Header */}
-                <header className="hidden sidebar:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-8 sticky top-0 z-30">
+                <header data-loop-skip className="hidden sidebar:flex h-16 bg-white border-b border-slate-200 items-center justify-between px-8 sticky top-0 z-30">
                     {/* Left side kept empty so the pills and profile stay on the right. */}
                     <div className="flex flex-1 items-center" />
 
@@ -799,7 +808,7 @@ const StudentLayout = () => {
 
                             {/* Dropdown panel */}
                             {profileDropdownOpen && (
-                                <div className="absolute right-0 top-12 w-60 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] overflow-hidden">
+                                <div data-loop-avoid className="absolute right-0 top-12 w-60 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] overflow-hidden">
                                     {/* User info header */}
                                     <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col items-center gap-2 text-center">
                                         <div className="w-14 h-14 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg overflow-hidden">
@@ -859,6 +868,8 @@ const StudentLayout = () => {
             </main>
             {/* No profile picture yet: choose one before going on. */}
             <ProfilePictureGate />
+            {/* "A new Global Quiz is live", when one is published; waits while the student is busy. */}
+            <GlobalQuizAlert />
         </div>
     );
 };

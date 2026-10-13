@@ -1,7 +1,10 @@
-import { ArrowLeft, RotateCcw, Star, Timer, Trophy, Layers, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, RotateCcw, Star, Timer, Trophy, Zap } from 'lucide-react';
 import { LevelIntro, LevelResult } from './LevelPanels';
 import MissionArt from '../plan/MissionArt';
-import { starsForGame, starsOn, gameXpTable } from './levels';
+import GameCelebration from '../../../components/GameCelebration';
+import { starsForGame, starsOn, gameXpTable, GAME_XP } from './levels';
+import { useReportPlaying, usePlayLeft, clock } from './playClock';
 
 /**
  * The frame every game sits in: who you are playing, how you are doing, which
@@ -104,6 +107,34 @@ export default function GameShell({
   children,
   footer
 }) {
+  // Neither the briefing nor the result: the level is being played, and only
+  // this counts against the day's play time (see playClock.js).
+  useReportPlaying(!intro && !result);
+  const playLeft = usePlayLeft();
+
+  /* A cleared level gets the full-screen celebration (GameCelebration), once
+     each time a result arrives, until it is closed or Next level is pressed.
+     Reset whenever the result comes or goes: adjusted while rendering, since
+     a game hands over a new result object on every render. */
+  const [cheerClosed, setCheerClosed] = useState(false);
+  const [hadResult, setHadResult] = useState(Boolean(result));
+  const [cheerXp, setCheerXp] = useState(null);
+  if (Boolean(result) !== hadResult) {
+    setHadResult(Boolean(result));
+    setCheerClosed(false);
+    setCheerXp(null);
+  }
+  const cheering = Boolean(result?.passed) && !cheerClosed;
+  // The XP the server pays for the level's stars arrives a moment later: it
+  // goes on the celebration (and the games page holds its toast back).
+  const gameId = progress?.gameId;
+  useEffect(() => {
+    if (!cheering) return undefined;
+    const onXp = (e) => { if (!gameId || e.detail?.gameId === gameId) setCheerXp(e.detail?.xp || null); };
+    window.addEventListener(GAME_XP, onXp);
+    return () => window.removeEventListener(GAME_XP, onXp);
+  }, [cheering, gameId]);
+
   /* What this level is worth and what the game has banked. Read here rather
      than passed in by each game, because every game already records both
      through the same store. */
@@ -222,6 +253,18 @@ export default function GameShell({
       {intro || result ? (
         <div className="p-5 sm:p-6">
           {intro ? <LevelIntro {...intro} tone={tone} /> : <LevelResult {...result} tone={tone} />}
+          {cheering && (
+            <GameCelebration
+              eyebrow={result.atEnd ? 'Every level cleared' : 'Level complete'}
+              title={result.headline}
+              subtitle={title}
+              detail={result.detail}
+              stars={typeof result.stars === 'number' ? result.stars : null}
+              xp={cheerXp}
+              primary={!result.atEnd && result.onNext ? { label: 'Next level', onClick: () => { setCheerClosed(true); result.onNext(); } } : null}
+              onClose={() => setCheerClosed(true)}
+            />
+          )}
         </div>
       ) : (
         <div className="relative overflow-hidden bg-surface-50 p-4 sm:p-6">
@@ -238,13 +281,26 @@ export default function GameShell({
             }}
           />
 
-          <div className="relative z-10 mx-auto grid w-full max-w-6xl items-start gap-4 xl:grid-cols-[11.5rem_minmax(0,1fr)_13rem]">
-            {/* Left rail: what to do, said once and left there. */}
-            <aside className="hidden xl:block">
+          {/* The full width of the shell, rails at its edges: the band above
+              runs edge to edge, and a stage capped narrower than it left the
+              rails floating in from both sides on a wide screen. */}
+          <div className="relative z-10 grid w-full items-start gap-4 xl:grid-cols-[13rem_minmax(0,1fr)_13rem]">
+            {/* Left rail: what to do, said once and left there, and the day's
+                play time while it is running. */}
+            <aside className="hidden flex-col gap-2.5 xl:flex">
               {footer && (
                 <div className="rounded-2xl bg-violet-50 px-4 py-3.5 text-center text-sm leading-relaxed font-bold text-violet-900 ring-1 ring-violet-100 ring-inset [&_p]:text-sm [&_p]:text-violet-900">
                   {footer}
                 </div>
+              )}
+              {playLeft !== null && (
+                <RailCard
+                  tint={playLeft <= 60 ? 'bg-rose-50 ring-rose-200' : 'bg-surface ring-line-200'}
+                  icon={Timer}
+                  iconTint={playLeft <= 60 ? 'bg-rose-500 text-white' : 'bg-slate-700 text-white'}
+                  label="Play left today"
+                  value={clock(playLeft)}
+                />
               )}
             </aside>
 
@@ -253,14 +309,6 @@ export default function GameShell({
               <div className="flex min-h-[15rem] items-center justify-center rounded-3xl bg-surface px-4 py-6 shadow-card ring-1 ring-line-200 ring-inset sm:min-h-[17rem] sm:px-7 sm:py-8">
                 <div className="w-full">{children}</div>
               </div>
-
-              {/* How the round is going, under the board where the eye lands
-                  after a move. */}
-              {score !== undefined && (
-                <p className="mx-auto mt-3 w-fit rounded-full bg-surface px-4 py-1.5 text-xs font-bold text-ink-600 shadow-sm ring-1 ring-line-200 ring-inset">
-                  {scoreLabel} {score}
-                </p>
-              )}
 
               {/* On narrower screens the rails are gone, so the hint comes back
                   under the board rather than disappearing with them. */}
@@ -273,7 +321,9 @@ export default function GameShell({
 
             {/* Right rail: what this level is worth, and what has been banked
                 so far. The XP is the admin's star table, less what this
-                level's best has already paid. */}
+                level's best has already paid. The level and the score are
+                not repeated here or under the board: the console at the top
+                already shows them. */}
             <aside className="hidden flex-col gap-2.5 xl:flex">
               <RailCard
                 tint="bg-amber-50 ring-amber-100"
@@ -292,15 +342,8 @@ export default function GameShell({
                 />
               )}
               <RailCard
-                tint="bg-violet-50 ring-violet-100"
-                icon={Layers}
-                iconTint="bg-violet-500 text-white"
-                label="Level"
-                value={progress ? progress.level : '—'}
-              />
-              <RailCard
                 tint="bg-emerald-50 ring-emerald-100"
-                icon={Zap}
+                icon={Trophy}
                 iconTint="bg-emerald-500 text-white"
                 label="Stars in this game"
                 value={bankedStars}

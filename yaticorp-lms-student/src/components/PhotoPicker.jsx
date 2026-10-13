@@ -45,6 +45,9 @@ export default function PhotoPicker({ required = false, onClose }) {
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
     const [uploading, setUploading] = useState(false);
+    // What went wrong, said inside the popup. These were browser alert()
+    // boxes, which a phone shows as a bare system prompt over the app.
+    const [problem, setProblem] = useState('');
     const onCropComplete = useCallback((_, pixels) => setCroppedAreaPixels(pixels), []);
 
     const close = () => { if (!required && !savingAvatar && !uploading) onClose?.(); };
@@ -58,12 +61,13 @@ export default function PhotoPicker({ required = false, onClose }) {
     // A chosen avatar goes straight to the profile: no upload involved.
     const savePictureUrl = async (profilePicture) => {
         setSavingAvatar(true);
+        setProblem('');
         try {
             const res = await api.put('/user/profile', { profilePicture });
             keep(res.data);
             onClose?.();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to update photo. Please try again.');
+            setProblem((err.response?.status < 500 && err.response?.data?.message) || (err.response ? 'Failed to update photo. Please try again.' : 'You appear to be offline. Please try again.'));
         } finally {
             setSavingAvatar(false);
         }
@@ -72,13 +76,17 @@ export default function PhotoPicker({ required = false, onClose }) {
     // Step 1: a photo is chosen → the crop step
     const handlePhotoSelect = (e) => {
         const file = e.target.files?.[0];
+        // Cleared first, so picking the same file again after a refusal still
+        // fires a change.
+        e.target.value = '';
         if (!file) return;
-        if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
-        if (file.size > 10 * 1024 * 1024) { alert('Image must be under 10MB.'); return; }
+        if (!file.type.startsWith('image/')) { setProblem('Please choose an image file (JPG, PNG or WebP).'); return; }
+        if (file.size > 10 * 1024 * 1024) { setProblem('That image is over 10 MB. Please choose a smaller one.'); return; }
+        setProblem('');
         const reader = new FileReader();
         reader.onload = () => { setCropSrc(reader.result); setCrop({ x: 0, y: 0 }); setZoom(1); };
+        reader.onerror = () => setProblem(UNREADABLE);
         reader.readAsDataURL(file);
-        e.target.value = '';
     };
 
     // Step 2: the crop is confirmed → the cropped photo goes to the server
@@ -86,6 +94,7 @@ export default function PhotoPicker({ required = false, onClose }) {
     const handleCropConfirm = async () => {
         if (!croppedAreaPixels || !cropSrc) return;
         setUploading(true);
+        setProblem('');
         try {
             const blob = await getCroppedBlob(cropSrc, croppedAreaPixels);
             const fd = new FormData();
@@ -98,7 +107,7 @@ export default function PhotoPicker({ required = false, onClose }) {
             onClose?.();
         } catch (err) {
             // The server says why; with no answer at all, the connection is the problem.
-            alert(err.response?.data?.message
+            setProblem((err.response?.status < 500 && err.response?.data?.message)
                 || (err.message === UNREADABLE ? UNREADABLE
                     : err.response ? 'Failed to upload photo. Please try again.' : 'You appear to be offline. Please try again.'));
         } finally {
@@ -138,6 +147,9 @@ export default function PhotoPicker({ required = false, onClose }) {
                             >
                                 <Upload size={15} /> Upload a photo
                             </button>
+                            {problem && (
+                                <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{problem}</p>
+                            )}
 
                             <div className="my-4 flex items-center gap-3 text-[11px] font-black uppercase tracking-wider text-slate-400">
                                 <span className="h-px flex-1 bg-slate-200" />
@@ -216,7 +228,7 @@ export default function PhotoPicker({ required = false, onClose }) {
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" role="dialog" aria-modal="true" aria-label="Crop Photo">
                         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                             <h3 className="font-bold text-slate-800">Crop Photo</h3>
-                            <button onClick={() => setCropSrc(null)} disabled={uploading} className="text-slate-400 hover:text-slate-600" aria-label="Back"><X size={18} /></button>
+                            <button onClick={() => { setCropSrc(null); setProblem(''); }} disabled={uploading} className="text-slate-400 hover:text-slate-600" aria-label="Back"><X size={18} /></button>
                         </div>
 
                         {/* Crop area */}
@@ -246,9 +258,12 @@ export default function PhotoPicker({ required = false, onClose }) {
                             <ZoomIn size={16} className="text-slate-400 flex-shrink-0" />
                         </div>
 
+                        {problem && (
+                            <p role="alert" className="mx-5 mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{problem}</p>
+                        )}
                         <div className="flex gap-3 px-5 pb-5">
                             <button
-                                onClick={() => setCropSrc(null)}
+                                onClick={() => { setCropSrc(null); setProblem(''); }}
                                 disabled={uploading}
                                 className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-sm hover:bg-slate-50 transition-colors disabled:opacity-60"
                             >

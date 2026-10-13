@@ -163,16 +163,30 @@ const userSchema = new mongoose.Schema({
     // and the platform's per-student daily cap no longer applies. Never
     // selected by default, so no API response can carry it by accident.
     geminiApiKey: { type: String, default: '', select: false },
-    geminiApiKeyAddedAt: { type: Date, default: null }
+    geminiApiKeyAddedAt: { type: Date, default: null },
+
+    // The current password, sealed with AES-256-GCM (jobboard/utils/secretBox),
+    // so a platform admin can read it back on the student's page
+    // (GET /api/admin/users/:id/password). The bcrypt hash in `password` is
+    // still what sign-in checks. Written alongside the hash by the hooks
+    // below, and at sign-in for a password hashed before this field existed.
+    // Never selected by default, so no API response can carry it by accident.
+    passwordSealed: { type: String, default: '', select: false }
 }, { timestamps: true });
 
 // ─── Passwords ───────────────────────────────────────────────────────────────
 // Student passwords used to be stored as typed (the website sync sends its
-// `Verification_value` as the first password). Nothing reads them back — no
-// screen shows one, no email repeats a stored one, and every check goes through
-// matchPassword — so they are now bcrypt-hashed on every write, and the old
+// `Verification_value` as the first password). Every check goes through
+// matchPassword, so they are now bcrypt-hashed on every write, and the old
 // plain-text ones are upgraded one by one as each student next signs in. No
 // bulk migration: an account nobody signs in to keeps working exactly as before.
+//
+// Admins can read a student's password back, so each write also keeps a sealed
+// copy in `passwordSealed`. A hash cannot be turned back into the password, so
+// for an account hashed before that copy existed it is captured the next time
+// the student signs in; until then readablePassword() has nothing to show.
+
+const { seal, open } = require('../jobboard/utils/secretBox');
 
 /** A value that is already a bcrypt hash, and must not be hashed again. */
 const BCRYPT_HASH = /^\$2[aby]\$\d{2}\$/;
@@ -183,6 +197,7 @@ const hashPassword = async (plain) => bcrypt.hash(String(plain), await bcrypt.ge
 // profile and password changes all write through here.
 userSchema.pre('save', async function () {
     if (!this.isModified('password') || !this.password || isHashed(this.password)) return;
+    this.passwordSealed = seal(this.password);
     this.password = await hashPassword(this.password);
 });
 
@@ -191,7 +206,10 @@ userSchema.pre('save', async function () {
 userSchema.pre('insertMany', async function (docs) {
     const list = Array.isArray(docs) ? docs : [docs];
     for (const doc of list) {
-        if (doc && doc.password && !isHashed(doc.password)) doc.password = await hashPassword(doc.password);
+        if (doc && doc.password && !isHashed(doc.password)) {
+            doc.passwordSealed = seal(doc.password);
+            doc.password = await hashPassword(doc.password);
+        }
     }
 });
 
@@ -202,6 +220,7 @@ userSchema.pre(['findOneAndUpdate', 'updateOne', 'updateMany', 'replaceOne'], as
     if (!update) return;
     for (const holder of [update, update.$set, update.$setOnInsert]) {
         if (holder && typeof holder === 'object' && holder.password && !isHashed(holder.password)) {
+            holder.passwordSealed = seal(holder.password);
             holder.password = await hashPassword(holder.password);
         }
     }
@@ -218,20 +237,63 @@ userSchema.pre(['findOneAndUpdate', 'updateOne', 'updateMany', 'replaceOne'], as
  */
 userSchema.methods.matchPassword = async function (enteredPassword) {
     if (typeof enteredPassword !== 'string' || !enteredPassword || typeof this.password !== 'string') return false;
-    if (isHashed(this.password)) return bcrypt.compare(enteredPassword, this.password);
+    if (isHashed(this.password)) {
+        if (!(await bcrypt.compare(enteredPassword, this.password))) return false;
+        await keepSealedCopy(this, enteredPassword);
+        return true;
+    }
 
     if (enteredPassword !== this.password) return false;
     try {
         const hashed = await hashPassword(enteredPassword);
         // Only if it is still the same plain text, so a password changed in
         // the meantime is never overwritten with this one.
-        await this.constructor.collection.updateOne({ _id: this._id, password: this.password }, { $set: { password: hashed } });
+        await this.constructor.collection.updateOne(
+            { _id: this._id, password: this.password },
+            { $set: { password: hashed, passwordSealed: seal(enteredPassword) } }
+        );
         this.password = hashed;
         this.unmarkModified('password');
     } catch (error) {
         console.error(`[auth] could not upgrade the stored password of student ${this._id}:`, error.message);
     }
     return true;
+};
+
+/**
+ * After a sign-in with the right password, make sure the sealed copy holds it:
+ * the way an account hashed before `passwordSealed` existed gets one. A read
+ * first, so an account whose copy is already right is not written on every
+ * sign-in; a write only if the hash is still the one just checked. Never fails
+ * the sign-in.
+ */
+const keepSealedCopy = async (user, plain) => {
+    try {
+        const stored = await user.constructor.collection.findOne({ _id: user._id }, { projection: { passwordSealed: 1 } });
+        if (stored && open(stored.passwordSealed) === plain) return;
+        await user.constructor.collection.updateOne(
+            { _id: user._id, password: user.password },
+            { $set: { passwordSealed: seal(plain) } }
+        );
+    } catch (error) {
+        console.error(`[auth] could not keep the sealed password of student ${user._id}:`, error.message);
+    }
+};
+
+/**
+ * The student's current password as text, or null when it cannot be known.
+ *
+ * Needs `passwordSealed` selected (`.select('+passwordSealed')`). A password
+ * still stored as typed is returned as it is. Otherwise the sealed copy is
+ * opened and checked against the hash, so a copy left behind by a change that
+ * bypassed the hooks (or sealed under another key) is never shown as current.
+ */
+userSchema.methods.readablePassword = async function () {
+    if (typeof this.password !== 'string' || !this.password) return null;
+    if (!isHashed(this.password)) return this.password;
+    const plain = open(this.passwordSealed);
+    if (!plain) return null;
+    return (await bcrypt.compare(plain, this.password)) ? plain : null;
 };
 
 userSchema.statics.isHashedPassword = isHashed;

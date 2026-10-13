@@ -11,6 +11,7 @@ import {
 import { competitionsApi, ORDINAL, fmtDateTime } from './api';
 import { StatusChip, GameChip, Rounds, Podium } from './parts';
 import { saveBlob } from '../native/saveFile';
+import PriceTag from '../components/rewards/PriceTag';
 
 const Fact = ({ icon: Icon, label, children }) => (
     <div className="flex min-w-0 items-start gap-3 rounded-2xl bg-slate-50 p-3">
@@ -83,7 +84,7 @@ export default function CompetitionDetail() {
                         {c.status === 'completed' && c.myTeam.status === 'approved' && (c.myTeam.place ? c.certificates : c.participationCertificates) && (
                             <button type="button" onClick={download} disabled={saving}
                                 className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-violet-600 px-3.5 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-60">
-                                {saving ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />} My certificate
+                                {saving ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />} My certificate <PriceTag action="download_competition_certificate" />
                             </button>
                         )}
                     </div>

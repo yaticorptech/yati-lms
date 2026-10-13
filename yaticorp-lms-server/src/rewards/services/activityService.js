@@ -34,7 +34,23 @@ const DESCRIPTIONS = {
   mock_interview: 'for completing a mock interview',
   interview_improved: 'for beating your best interview score',
   interview_challenge: 'for completing the interview challenge',
-  global_quiz_win: 'for winning the Global Quiz'
+  global_quiz_win: 'for winning the Global Quiz',
+  global_quiz_complete: 'for finishing the Global Quiz',
+  roadmap_milestone: 'for completing a roadmap phase',
+  task_video_watched: 'for watching a task lesson video',
+  profile_picture: 'for adding a profile photo',
+  achievement_added: 'for adding an achievement',
+  career_onboarding: 'for building your Career Path roadmap',
+  day_plan_complete: 'for finishing today\'s plan',
+  skill_level_up: 'for levelling up a skill',
+  competition_match_win: 'for winning a competition match',
+  friendly_game_played: 'for playing a multiplayer game',
+  friendly_game_win: 'for winning a multiplayer game',
+  course_enroll: 'for enrolling in a course',
+  opportunity_profile: 'for setting up your part-time jobs profile',
+  organization_join: 'for joining your college on YATICORP',
+  bio_strength_full: 'for a complete Learning Bio',
+  google_connect: 'for connecting your Google account'
 };
 
 /**

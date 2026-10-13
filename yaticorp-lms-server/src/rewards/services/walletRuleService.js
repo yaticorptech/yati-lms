@@ -32,7 +32,9 @@ const LABELS = {
   build_task_lesson: 'Building a task lesson',
   generate_study_material: 'Building a study pack',
   add_extra_task: 'Adding another task',
-  regenerate_bio: 'Rewriting your learning bio'
+  regenerate_bio: 'Rewriting your learning bio',
+  download_competition_certificate: 'Downloading a competition certificate',
+  create_game_room: 'Creating a game room'
 };
 
 const money = (n) => Math.round(Number(n) * 100) / 100;

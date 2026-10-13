@@ -1,8 +1,12 @@
 /**
- * Games & Competitions — the section's home, in six tabs:
+ * Games & Competitions — the section's home, in seven tabs:
  *
  *   Games          Chess, Ludo, Carrom and UNO: start a friendly game and share
  *                  its code, or join one with a code
+ *   Brain Boosters the quick solo brain games (memory, logic, words, numbers),
+ *                  with their levels, stars and leaderboard. They were a
+ *                  Career Path screen and still use its code and styles,
+ *                  hence the providers around them
  *   Competitions   inter-college competitions, filtered by game: open,
  *                  closing soon, upcoming, live
  *   My Games       the competitions my college entered me in, and my matches:
@@ -14,18 +18,24 @@
  *
  * The tab lives in the address (?tab=) so a link can open the right one.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-    Gamepad2, Trophy, UserCheck, BarChart3, History, Users, UsersRound, Crown, CalendarClock, Building2, Loader2,
+    Gamepad2, Brain, Trophy, UserCheck, BarChart3, History, Users, UsersRound, Crown, CalendarClock, Building2, Loader2,
     ArrowRight, Award, Download, Medal, Clock, Gift, Search, Play, ChevronRight, Link2, Ticket, MoreVertical, Copy, LogOut, Check, X
 } from 'lucide-react';
 import { competitionsApi, GAMES, ORDINAL, fmtDateTime, fmtDate, prizeLine, gameImage, gameIcon } from './api';
 import { StatusChip, GameChip, MatchCard, Empty } from './parts';
 import { saveBlob } from '../native/saveFile';
+import PriceTag from '../components/rewards/PriceTag';
+import CareerProviders from '../career/CareerProviders';
+
+// Thirty-odd games: fetched when the tab is first opened, not with the section.
+const BrainBoosters = lazy(() => import('../career/pages/dashboard/Games'));
 
 const TABS = [
     { id: 'games', label: 'Games', icon: Gamepad2 },
+    { id: 'brain-boosters', label: 'Brain Boosters', icon: Brain },
     { id: 'competitions', label: 'Competitions', icon: Trophy },
     { id: 'mine', label: 'My Games', icon: UserCheck },
     { id: 'leaderboard', label: 'Leaderboard', icon: BarChart3 },
@@ -169,7 +179,7 @@ const GamesTab = () => {
                             <p className="mt-1.5 line-clamp-2 flex-1 text-xs leading-snug text-slate-600">{g.blurb}</p>
                             <button type="button" onClick={() => create(id)} disabled={!!busy}
                                 className={`mt-2.5 flex min-h-9 w-full items-center justify-between rounded-xl px-3.5 text-[13px] font-bold text-white shadow-md transition-colors disabled:opacity-60 ${g.button}`}>
-                                <span className="inline-flex items-center gap-2">{busy === id ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Play size={15} fill="currentColor" aria-hidden="true" />} Play Now</span>
+                                <span className="inline-flex items-center gap-2">{busy === id ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Play size={15} fill="currentColor" aria-hidden="true" />} Play Now <PriceTag action="create_game_room" /></span>
                                 <ChevronRight size={15} aria-hidden="true" />
                             </button>
                         </div>
@@ -497,7 +507,7 @@ const HistoryTab = () => {
                         {r.certificate && (
                             <button type="button" onClick={() => download(r.competition.id, r.competition.name)} disabled={saving === r.competition.id}
                                 className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-60">
-                                {saving === r.competition.id ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />} Certificate
+                                {saving === r.competition.id ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />} Certificate <PriceTag action="download_competition_certificate" />
                             </button>
                         )}
                     </li>
@@ -506,6 +516,14 @@ const HistoryTab = () => {
         </Box>
     );
 };
+
+/* ── Brain Boosters ───────────────────────────────────────────────────── */
+
+const BrainBoostersTab = () => (
+    <CareerProviders embedded>
+        <Suspense fallback={<Loading />}><BrainBoosters /></Suspense>
+    </CareerProviders>
+);
 
 /* ── The page ─────────────────────────────────────────────────────────── */
 
@@ -517,17 +535,33 @@ export default function CompetitionsHome() {
     const [params, setParams] = useSearchParams();
     const tab = TABS.some((t) => t.id === params.get('tab')) ? params.get('tab') : 'games';
     const select = (id) => setParams(id === 'games' ? {} : { tab: id }, { replace: true });
-    const Body = useMemo(() => ({ games: GamesTab, competitions: CompetitionsTab, mine: MineTab, leaderboard: LeaderboardTab, results: ResultsTab, history: HistoryTab }[tab]), [tab]);
+    const Body = useMemo(() => ({ games: GamesTab, 'brain-boosters': BrainBoostersTab, competitions: CompetitionsTab, mine: MineTab, leaderboard: LeaderboardTab, results: ResultsTab, history: HistoryTab }[tab]), [tab]);
     const fill = tab === 'games';
 
-    // On a phone the bar scrolls sideways, and slides the chosen tab and the
-    // next one into view on its own (see useChosenInView).
+    // On a phone the bar scrolls sideways. Whichever tab is chosen, the bar
+    // brings it to the middle on its own, so the ones either side — the next
+    // section — are in view, and nobody has to drag the bar to find them.
+    // The next tab is shown whole: the middle alone can stop a few pixels
+    // short, and with Brain Boosters in the row Results left History cut at
+    // the edge of a 344px phone. The first tab keeps the bar at its start.
     const barRef = useRef(null);
-    useChosenInView(barRef, tab, '[aria-current="page"]');
+    useEffect(() => {
+        const bar = barRef.current;
+        const current = bar?.querySelector('[aria-current="page"]');
+        if (!bar || !current || bar.scrollWidth <= bar.clientWidth) return;
+        const pad = parseFloat(getComputedStyle(bar).paddingRight) || 0;
+        const middle = current.offsetLeft - (bar.clientWidth - current.offsetWidth) / 2;
+        const next = current.nextElementSibling;
+        const nextWhole = next ? next.offsetLeft + next.offsetWidth + pad - bar.clientWidth : middle;
+        const first = current.previousElementSibling?.tagName !== 'BUTTON';
+        // Never so far that the chosen tab's own start goes off the left.
+        const left = first ? 0 : Math.min(Math.max(middle, nextWhole), current.offsetLeft - pad);
+        bar.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+    }, [tab]);
 
     return (
         <div className={`flex flex-col gap-3 ${fill ? 'lg:h-[calc(100vh-8rem)] lg:min-h-[36rem]' : ''}`}>
-            {/* The section's own bar: the gamepad tile, then the six tabs in a
+            {/* The section's own bar: the gamepad tile, then the seven tabs in a
                 row. On a phone the row scrolls sideways. */}
             <nav ref={barRef} aria-label="Games & Competitions" className="relative flex shrink-0 items-center gap-1.5 overflow-x-auto rounded-[22px] bg-white p-1.5 shadow-sm ring-1 ring-slate-100 no-scrollbar">
                 <span aria-hidden="true" className="mr-1 flex h-10 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30"><Gamepad2 size={26} /></span>
@@ -544,32 +578,36 @@ export default function CompetitionsHome() {
                 give a little when there is not enough. The other tabs are as
                 long as their content, with the banner at its usual size. */}
             <div className="flex min-w-0 flex-1 flex-col gap-3 lg:min-h-0">
-                <header className={`relative flex flex-col justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-[#2d2693] via-[#3b31c4] to-[#5a3fd8] p-5 text-white shadow-lg sm:px-7 sm:py-3 ${fill ? 'lg:flex-[1_0_auto]' : 'shrink-0'}`}>
-                    {/* The scene, behind the words, where there is room for both. */}
-                    <span aria-hidden="true" className="absolute inset-0 hidden lg:block" style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: 'cover', backgroundPosition: 'right center' }} />
-                    <div className="relative lg:max-w-[50rem] lg:pr-6">
-                        <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/90"><Gamepad2 size={16} aria-hidden="true" /> Play · Compete · Win</p>
-                        <h1 className="mt-1.5 text-[1.6rem] font-black leading-tight sm:text-3xl">Games <span className="text-violet-300">&amp;</span> Competitions</h1>
-                        <p className="mt-1.5 max-w-lg text-sm text-white/90">Compete with your college friends. Play your favourite games and win exciting matches.</p>
-                        <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-                            {HERO_PILLS.map(([Icon, label, tone]) => (
-                                <li key={label} className="flex items-center gap-2 text-xs font-semibold">
-                                    <span className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/15 ${tone}`}><Icon size={14} aria-hidden="true" /></span> {label}
-                                </li>
-                            ))}
-                        </ul>
-                        {/* Below lg, the picture is part of the banner, not a
-                            card inside it: it runs to the banner's sides and
-                            bottom (the negative margins undo the padding), and
-                            its top and sides fade into the banner's purple. Its
-                            top 22 of 378 rows are cropped off (aspect 866/356,
-                            kept from the bottom): they hold the picture's own
-                            light edge line and rounded corners, which showed
-                            as a hairline even under the fade. */}
-                        <img src={HERO_ART} alt="" data-hero-art
-                            className="-mx-5 -mb-5 mt-1 block aspect-[866/356] w-[calc(100%+2.5rem)] max-w-none object-cover object-bottom [mask-composite:intersect] [mask-image:linear-gradient(to_bottom,transparent,transparent_8%,black_42%),linear-gradient(to_right,transparent,black_7%,black_93%,transparent)] sm:-mx-7 sm:-mb-3 sm:w-[calc(100%+3.5rem)] lg:hidden" />
-                    </div>
-                </header>
+                {/* Brain Boosters brings its own banner, with its leaderboard on it:
+                    two banners stacked would push the games below the fold. */}
+                {tab !== 'brain-boosters' && (
+                    <header className={`relative flex flex-col justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-[#2d2693] via-[#3b31c4] to-[#5a3fd8] p-5 text-white shadow-lg sm:px-7 sm:py-3 ${fill ? 'lg:flex-[1_0_auto]' : 'shrink-0'}`}>
+                        {/* The scene, behind the words, where there is room for both. */}
+                        <span aria-hidden="true" className="absolute inset-0 hidden lg:block" style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: 'cover', backgroundPosition: 'right center' }} />
+                        <div className="relative lg:max-w-[50rem] lg:pr-6">
+                            <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/90"><Gamepad2 size={16} aria-hidden="true" /> Play · Compete · Win</p>
+                            <h1 className="mt-1.5 text-[1.6rem] font-black leading-tight sm:text-3xl">Games <span className="text-violet-300">&amp;</span> Competitions</h1>
+                            <p className="mt-1.5 max-w-lg text-sm text-white/90">Compete with your college friends. Play your favourite games and win exciting matches.</p>
+                            <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+                                {HERO_PILLS.map(([Icon, label, tone]) => (
+                                    <li key={label} className="flex items-center gap-2 text-xs font-semibold">
+                                        <span className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/15 ${tone}`}><Icon size={14} aria-hidden="true" /></span> {label}
+                                    </li>
+                                ))}
+                            </ul>
+                            {/* Below lg, the picture is part of the banner, not a
+                                card inside it: it runs to the banner's sides and
+                                bottom (the negative margins undo the padding), and
+                                its top and sides fade into the banner's purple. Its
+                                top 22 of 378 rows are cropped off (aspect 866/356,
+                                kept from the bottom): they hold the picture's own
+                                light edge line and rounded corners, which showed
+                                as a hairline even under the fade. */}
+                            <img src={HERO_ART} alt="" data-hero-art
+                                className="-mx-5 -mb-5 mt-1 block aspect-[866/356] w-[calc(100%+2.5rem)] max-w-none object-cover object-bottom [mask-composite:intersect] [mask-image:linear-gradient(to_bottom,transparent,transparent_8%,black_42%),linear-gradient(to_right,transparent,black_7%,black_93%,transparent)] sm:-mx-7 sm:-mb-3 sm:w-[calc(100%+3.5rem)] lg:hidden" />
+                        </div>
+                    </header>
+                )}
 
                 <div key={tab} className="flex flex-1 flex-col animate-fade-in lg:min-h-0 lg:flex-[1_1_auto]"><Body /></div>
             </div>

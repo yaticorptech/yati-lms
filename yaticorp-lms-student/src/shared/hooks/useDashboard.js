@@ -2,7 +2,7 @@
  * @author Preethesh Kulal
  * @description Shared hook for dashboard course and bundle data fetching
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { getCourseServices } from '../api/courseService';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 
@@ -19,10 +19,13 @@ export const useDashboard = (apiClient) => {
     const [buyingCourseId, setBuyingCourseId] = useState(null);
 
     const courseService = getCourseServices(apiClient);
+    // Whether the lists have loaded once. The spinner is for that first load
+    // (and a Try Again after it failed): the 30-second refresh used to run
+    // through it too, and the course list blinked away and back every time.
+    const loaded = useRef(false);
 
     const fetchData = async () => {
-        setLoading(true);
-        setError(null);
+        if (!loaded.current) setLoading(true);
         try {
             const [userCourses, available] = await Promise.all([
                 courseService.getUserCourses(),
@@ -31,9 +34,12 @@ export const useDashboard = (apiClient) => {
             setCourses(userCourses.courses);
             setBundles(userCourses.bundles);
             setAvailableCourses(available);
+            setError(null);
+            loaded.current = true;
         } catch (err) {
             console.error('Dashboard fetch failed:', err);
-            setError(err.response?.data?.message || 'Failed to fetch data');
+            // A background refresh that fails keeps the list already shown.
+            if (!loaded.current) setError(err.response?.data?.message || 'Failed to fetch data');
         } finally {
             setLoading(false);
         }

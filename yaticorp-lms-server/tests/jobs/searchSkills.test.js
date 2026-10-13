@@ -7,7 +7,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const zlib = require('zlib');
-const { connect, makeUser, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, startApp, cleanup, openJobs } = require('../helpers');
 const SkillProgress = require('../../src/career/models/SkillProgress');
 const ResumeProfile = require('../../src/jobboard/models/ResumeProfile');
 const ApiUsage = require('../../src/jobboard/models/ApiUsage');
@@ -39,6 +39,7 @@ before(async () => {
     student = await makeUser('Skills');
     empty = await makeUser('NoSkills');
     plain = await makeUser('Ordinary');
+    await openJobs(student, empty, plain);
     // `student` and `empty` stand in for two of the demo cards; `plain` is
     // everyone else.
     demoCards = [student, empty].map((u) => normaliseCardNumber(u.user.cardNumber));

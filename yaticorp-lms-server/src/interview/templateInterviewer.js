@@ -130,6 +130,9 @@ const scoreAnswer = (turn, context) => {
     };
 };
 
+// The interview as a sentence names it: the raw type read "this hr interview".
+const TYPE_WORDS = { hr: 'HR interview', technical: 'technical interview', project: 'project interview', behavioral: 'behavioral interview', full: 'full mock interview' };
+
 const evaluate = ({ session, context }) => {
     const answered = session.turns.filter((t) => t.answer);
     const per = answered.map((t) => ({ index: t.index, ...scoreAnswer(t, context) }));
@@ -161,14 +164,17 @@ const evaluate = ({ session, context }) => {
     // interview" under "what you did well" learns nothing from the report.
     if (!strengths.length) strengths.push('There is little to point to in this round — your answers were too short and too general to show what you know. The steps below are what will change that.');
     const improvements = [];
-    if (nudged) improvements.push(`Answer the question that was asked — the interviewer had to repeat ${nudged === 1 ? 'a question' : `${nudged} questions`} because your reply was about something else.`);
+    // A question is repeated for gibberish and "I don't know" as well as for an
+    // answer about something else, and the session keeps only how often: the
+    // reason is not blamed on one of them.
+    if (nudged) improvements.push(`Answer the question that was asked, in full sentences — the interviewer had to ask ${nudged === 1 ? 'a question' : `${nudged} questions`} again because the reply did not answer it.`);
     if (meanLen < 40) improvements.push('Give more structured, fuller answers with specific examples.');
     if (probTurns.length && avgOf(probTurns) < 70) improvements.push('Practise walking through problems step by step out loud.');
     if (per.some((p) => p.score <= 4)) improvements.push('Prepare short stories for common questions so you are never caught without an example.');
     if (!improvements.length) improvements.push('Keep practising to make your delivery more natural and confident.');
     return {
         overall, scores, strengths, improvements,
-        feedback: `${context.firstName}, you scored ${overall}/100 in this ${session.type} interview. ${strengths[0]} ${improvements[0]}`,
+        feedback: `${context.firstName}, you scored ${overall}/100 in this ${TYPE_WORDS[session.type] || `${session.type} interview`}. ${strengths[0]} ${improvements[0]}`,
         perQuestion: per,
         plan: [
             ...(context.learningSkills[0] ? [{ title: `Strengthen ${context.learningSkills[0]}`, action: `Practise ${context.learningSkills[0]} interview questions`, skill: context.learningSkills[0] }] : []),
