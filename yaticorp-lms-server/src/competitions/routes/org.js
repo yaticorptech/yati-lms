@@ -4,6 +4,10 @@
  * the one the admin account belongs to (req.organization), never one named in
  * the request.
  *
+ * A college's own competition (hostOrganizationId) is for its students only:
+ * other colleges do not see it here or enter it, and the college itself runs
+ * it — teams and all — from Host competitions (routes/admin.js).
+ *
  *   GET    /                         competitions open for registration, and the ones we entered
  *   GET    /students                 our students, to pick players from
  *   GET    /hosting                  whether the platform admin lets us host { canHost }
@@ -32,8 +36,12 @@ const open = (c) => views.registration(c).open;
 router.get('/', wrap(async (req, res) => {
     const orgId = req.organization._id;
     const ours = await Team.find({ organizationId: orgId }).lean();
+    // Open inter-college competitions, and any we entered — but never our own,
+    // which is run from Host competitions. (A team another college entered in
+    // a college's competition before they became college-only still shows.)
     const comps = await Competition.find({
-        $or: [{ status: 'registration' }, { _id: { $in: ours.map((t) => t.competitionId) }, status: { $ne: 'draft' } }]
+        hostOrganizationId: { $ne: orgId },
+        $or: [{ status: 'registration', hostOrganizationId: null }, { _id: { $in: ours.map((t) => t.competitionId) }, status: { $ne: 'draft' } }]
     }).sort({ startsAt: 1 }).lean();
     const allTeams = await Team.find({ competitionId: { $in: comps.map((c) => c._id) } }).lean();
     res.json({
@@ -51,15 +59,19 @@ router.get('/students', wrap(async (req, res) => {
 
 router.get('/hosting', (req, res) => res.json({ canHost: Boolean(req.organization.canHostCompetitions) }));
 
-const findCompetition = async (id) => {
+const findCompetition = async (id, req) => {
     if (!mongoose.isValidObjectId(id)) throw fail(404, 'Competition not found.');
     const c = await Competition.findById(id);
     if (!c || c.status === 'draft') throw fail(404, 'Competition not found.');
+    // Another college's own competition is not ours to see — unless we were
+    // already in it from before (see the top); our own is run from Host.
+    if (c.hostOrganizationId && (String(c.hostOrganizationId) === String(req.organization._id)
+        || !await Team.exists({ competitionId: c._id, organizationId: req.organization._id }))) throw fail(404, 'Competition not found.');
     return c;
 };
 
 router.get('/:id', wrap(async (req, res) => {
-    const c = await findCompetition(req.params.id);
+    const c = await findCompetition(req.params.id, req);
     const out = await views.detail(c._id, { organizationId: req.organization._id });
     const mine = await Team.findOne({ competitionId: c._id, organizationId: req.organization._id }).lean();
     // The coordinator sees their own team in full, whatever its status.
@@ -68,7 +80,8 @@ router.get('/:id', wrap(async (req, res) => {
 }));
 
 router.put('/:id/team', wrap(async (req, res) => {
-    const c = await findCompetition(req.params.id);
+    const c = await findCompetition(req.params.id, req);
+    if (c.hostOrganizationId) throw fail(403, `${c.organizedBy}'s competition is for its own students.`);
     if (!open(c)) {
         const soon = views.registration(c).phase === 'registration-soon';
         throw fail(409, soon ? `Registration opens on ${new Date(c.registrationOpensAt).toLocaleString('en-IN', { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}.` : 'Registration for this competition is closed.');
@@ -111,7 +124,7 @@ router.put('/:id/team', wrap(async (req, res) => {
 }));
 
 router.delete('/:id/team', wrap(async (req, res) => {
-    const c = await findCompetition(req.params.id);
+    const c = await findCompetition(req.params.id, req);
     if (!open(c)) throw fail(409, 'Registration is closed, so the team can no longer be withdrawn here. Contact the organizer.');
     const team = await Team.findOneAndUpdate({ competitionId: c._id, organizationId: req.organization._id }, { $set: { status: 'withdrawn' } }, { returnDocument: 'after' });
     if (!team) throw fail(404, 'You have not registered a team.');
@@ -119,7 +132,7 @@ router.delete('/:id/team', wrap(async (req, res) => {
 }));
 
 router.put('/:id/matches/:matchId/lineup', wrap(async (req, res) => {
-    const c = await findCompetition(req.params.id);
+    const c = await findCompetition(req.params.id, req);
     if (!mongoose.isValidObjectId(req.params.matchId)) throw fail(404, 'Match not found.');
     const team = await Team.findOne({ competitionId: c._id, organizationId: req.organization._id, status: 'approved' }).lean();
     if (!team) throw fail(403, 'Your college has no approved team in this competition.');

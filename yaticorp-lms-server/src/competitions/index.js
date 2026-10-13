@@ -24,6 +24,10 @@ const router = express.Router();
 
 const manage = require('./routes/admin');
 
+// A college's own competition has several teams of that college: the old
+// one-team-per-college index goes (see models/Team.js).
+require('./models/Team').dropOldIndex();
+
 /** Hosting is the platform admin's to give: off for an organization until they switch it on. */
 const requireHosting = (req, res, next) => {
     if (req.organization?.canHostCompetitions) return next();

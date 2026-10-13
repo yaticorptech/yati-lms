@@ -5,11 +5,11 @@
  *               an inter-college competition, pick the players from the
  *               college's own students, see whether it was approved, and
  *               choose who plays each match
- *   Host        run your own inter-college competitions: create, approve the
- *               colleges that register, draw and decide the matches (the
- *               platform admin's own screens, limited to yours) — only when
- *               the platform admin has let this organization host; otherwise
- *               there is no such tab
+ *   Host        run your own competitions, for your own students only: create,
+ *               make the teams from your students, draw and decide the
+ *               matches (the platform admin's own screens, limited to yours)
+ *               — only when the platform admin has let this organization
+ *               host; otherwise there is no such tab
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -18,7 +18,7 @@ import api from '../../utils/api';
 import { PageHeader, Segmented, CARD, BTN, BTN2, INPUT, LABEL } from '../../components/orgUi';
 import Competitions from '../Competitions';
 import { Chip, GameIcon } from '../../competitions/shared';
-import { ORDINAL, fmtDateTime, errorOf } from '../../competitions/constants';
+import { ORDINAL, fmtDateTime, errorOf, competitionBadge } from '../../competitions/constants';
 
 /** The team form: name, coordinator contact, and the players. */
 const TeamForm = ({ competition: c, team, students, onSaved, onCancel }) => {
@@ -101,11 +101,13 @@ const OurMatches = ({ competition: c, detail, team, onChanged }) => {
                 return (
                     <article key={m.id} className="rounded-2xl border border-slate-200 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-bold text-slate-800">{m.roundName} · {fmtDateTime(m.scheduledAt)}</p>
+                            <p className="text-sm font-bold text-slate-800">{m.roundName}{m.status === 'bye' ? '' : ` · ${fmtDateTime(m.scheduledAt)}`}</p>
                             <Chip status={m.status} />
                         </div>
                         <p className="mt-1 text-sm text-slate-600"><Swords size={14} className="mr-1 inline text-slate-400" />{m.sides.map((s) => s.teamName).join(' vs ')}</p>
-                        {m.winnerTeamId && <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-emerald-700"><Crown size={14} /> {m.sides.find((s) => s.teamId === m.winnerTeamId)?.teamName} won{m.resultNote ? ` — ${m.resultNote}` : ''}</p>}
+                        {/* A bye is no game: nobody to play, so the team simply goes through. */}
+                        {m.status === 'bye' && <p className="mt-1 text-sm font-semibold text-slate-600">No opponent this round. {mine.teamName} goes straight to the next round.</p>}
+                        {m.winnerTeamId && m.status !== 'bye' && <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-emerald-700"><Crown size={14} /> {m.sides.find((s) => s.teamId === m.winnerTeamId)?.teamName} won{m.resultNote ? ` — ${m.resultNote}` : ''}</p>}
                         {m.status === 'scheduled' ? (
                             <div className="mt-3">
                                 <p className={LABEL}>Who plays this match ({c.playersPerSide})</p>
@@ -240,7 +242,7 @@ export default function OrgCompetitions() {
                 )}
             </div>
             {tab === 'host'
-                ? (canHost ? <Competitions apiBase="/competitions/org/host" linkBase="/organization/competitions/host" organizer="" embedded /> : <div className="h-40 animate-pulse rounded-2xl bg-slate-100" />)
+                ? (canHost ? <Competitions apiBase="/competitions/org/host" linkBase="/organization/competitions/host" organizer="" embedded hosted /> : <div className="h-40 animate-pulse rounded-2xl bg-slate-100" />)
                 : <TakePart />}
         </div>
     );
@@ -285,14 +287,14 @@ function TakePart() {
                                     <ChevronDown size={18} aria-hidden className={`mt-0.5 shrink-0 text-slate-400 transition-transform ${open === c.id ? 'rotate-180' : ''}`} />
                                 </span>
                                 <span className="mt-1.5 flex flex-wrap gap-1.5">
-                                    <Chip status={c.phase || c.status} />
+                                    <Chip status={competitionBadge(c)} />
                                     {c.myTeam && c.myTeam.status !== 'withdrawn' && <Chip status={c.myTeam.status} />}
                                 </span>
                                 <span className="mt-2.5 grid gap-1 text-xs text-slate-500 sm:flex sm:flex-wrap sm:gap-x-4 sm:gap-y-1">
                                     <span className="inline-flex items-center gap-1.5"><Gamepad2 size={13} className="shrink-0 text-slate-400" />{c.gameLabel} · by {c.organizedBy}</span>
                                     <span className="inline-flex items-center gap-1.5"><CalendarClock size={13} className="shrink-0 text-slate-400" />Starts {fmtDateTime(c.startsAt)}</span>
                                     <span className="inline-flex items-center gap-1.5"><Clock size={13} className="shrink-0 text-slate-400" />Register by {fmtDateTime(c.registrationDeadline)}</span>
-                                    <span className="inline-flex items-center gap-1.5"><Users size={13} className="shrink-0 text-slate-400" />{c.teamsCount}/{c.maxTeams} teams · up to {c.playersPerTeam} players</span>
+                                    <span className="inline-flex items-center gap-1.5"><Users size={13} className="shrink-0 text-slate-400" />{c.teamsCount}/{c.maxTeams} teams · up to {c.playersPerTeam} player{c.playersPerTeam === 1 ? '' : 's'}</span>
                                 </span>
                             </span>
                         </button>

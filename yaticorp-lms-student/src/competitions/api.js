@@ -18,6 +18,10 @@ export const competitionsApi = {
     leaderboard: () => get('/leaderboard'),
     history: () => get('/history'),
     certificate: (id) => client.get(`/competitions/${id}/certificate`, { responseType: 'blob' }).then((r) => r.data).catch(unwrap),
+    // Every competition certificate I have earned, for My Profile's frame.
+    myCertificates: () => get('/certificates').then((d) => d.certificates || []),
+    // Takes one out of My Profile's frame; downloading it again puts it back.
+    hideCertificate: (id) => client.delete(`/competitions/certificates/${id}`).then((r) => r.data).catch(unwrap),
 
     createRoom: (game, options) => post('/rooms', { game, options }),
     joinRoom: (code) => post('/rooms/join', { code }),

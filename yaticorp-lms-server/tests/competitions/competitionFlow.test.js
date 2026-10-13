@@ -263,6 +263,28 @@ describe('an inter-college chess competition, start to finish', () => {
         assert.deepEqual(final.sides.map((s) => s.teamId).sort(), semiWinners);
     });
 
+    test('they start by themselves 15 minutes on, and their players are told', async () => {
+        const bracket = require('../../src/competitions/services/bracketService');
+        for (const m of [final, third]) {
+            const wait = new Date(m.scheduledAt).getTime() - Date.now();
+            assert.ok(wait > 13 * 60e3 && wait <= 15 * 60e3, `${m.roundName}: starts ${Math.round(wait / 60e3)} minutes on`);
+        }
+        await bracket.settled();
+        const Notification = require('../../src/career/models/Notification');
+        const finalist = (await Team.findById(final.sides[0].teamId).lean()).players[0].userId;
+        const told = await Notification.find({ userId: finalist, title: 'Final starts in 15 minutes' }).lean();
+        assert.equal(told.length, 1, 'a finalist is told once');
+        assert.match(told[0].message, /plays .+\. Join from Games & Competitions → My Games within 10 minutes of the start/);
+        const thirdPlayer = (await Team.findById(third.sides[0].teamId).lean()).players[0].userId;
+        assert.equal(await Notification.countDocuments({ userId: thirdPlayer, title: 'Third-place match starts in 15 minutes' }), 1);
+
+        // Its time come, the final opens by itself — nobody presses Start.
+        await Match.updateOne({ _id: final.id }, { $set: { scheduledAt: new Date(Date.now() - 1000) } });
+        const opened = (await boss('GET', `/admin/${comp.id}`)).body.rounds[1].matches.find((m) => m.id === final.id);
+        assert.equal(opened.status, 'live');
+        assert.ok(opened.gameId, 'with its game');
+    });
+
     test('a side that never joins loses by walkover', async () => {
         await boss('POST', `/admin/${comp.id}/matches/${third.id}/start`);
         const cur = (await boss('GET', `/admin/${comp.id}`)).body.rounds[1].matches.find((x) => x.id === third.id);
@@ -279,15 +301,34 @@ describe('an inter-college chess competition, start to finish', () => {
     });
 
     test('the admin can decide the final; the competition completes with 1st, 2nd and 3rd', async () => {
-        const winner = final.sides[1].teamId;
-        const r = await boss('POST', `/admin/${comp.id}/matches/${final.id}/result`, { winnerTeamId: winner, note: 'Opponent withdrew' });
-        assert.equal(r.status, 200, JSON.stringify(r.body));
-        assert.equal(r.body.competition.status, 'completed');
-        const places = Object.fromEntries(r.body.competition.winners.map((w) => [w.place, w.teamId]));
-        assert.equal(places[1], winner);
-        assert.equal(places[2], final.sides[0].teamId);
-        const thirdMatch = r.body.rounds[1].matches.find((x) => x.kind === 'third-place');
-        assert.equal(places[3], thirdMatch.winnerTeamId);
+        // The prizes are paid after the reply — about a second a player, so a
+        // big final kept waiting for them would time out. Held back here, the
+        // reply must still come.
+        const awards = require('../../src/competitions/services/awardService');
+        const real = awards.award;
+        let release;
+        const held = new Promise((r) => { release = r; });
+        awards.award = async (c) => { await held; return real(c); };
+        try {
+            const winner = final.sides[1].teamId;
+            const r = await Promise.race([
+                boss('POST', `/admin/${comp.id}/matches/${final.id}/result`, { winnerTeamId: winner, note: 'Opponent withdrew' }),
+                new Promise((_, no) => setTimeout(() => no(new Error('the reply waited for the prizes')), 5000))
+            ]);
+            assert.equal(r.status, 200, JSON.stringify(r.body));
+            assert.equal(r.body.competition.status, 'completed');
+            const places = Object.fromEntries(r.body.competition.winners.map((w) => [w.place, w.teamId]));
+            assert.equal(places[1], winner);
+            assert.equal(places[2], final.sides[0].teamId);
+            const thirdMatch = r.body.rounds[1].matches.find((x) => x.kind === 'third-place');
+            assert.equal(places[3], thirdMatch.winnerTeamId);
+            assert.equal((await Competition.findById(comp.id).lean()).awardedAt ?? null, null, 'the prizes were still to come');
+        } finally {
+            release();
+            await require('../../src/competitions/services/bracketService').settled();
+            awards.award = real;
+        }
+        assert.ok((await Competition.findById(comp.id).lean()).awardedAt, 'and then they went out');
     });
 
     test('prizes and participation XP are paid once, to every player of the team', async () => {
@@ -315,6 +356,37 @@ describe('an inter-college chess competition, start to finish', () => {
         assert.equal(res.headers.get('content-type'), 'application/pdf');
         assert.equal(Buffer.from(await res.arrayBuffer()).subarray(0, 4).toString(), '%PDF');
         assert.equal((await outsider('GET', `/${comp.id}/certificate`)).status, 403);
+
+        // And in My Profile's certificate frame, listed with what the PDF says.
+        const mine = (await player.call('GET', '/certificates')).body.certificates.find((x) => x.competitionId === comp.id);
+        assert.ok(mine, 'the winner\'s certificate is in their list');
+        assert.equal(mine.place, 1);
+        assert.equal(mine.title, 'Winner');
+        assert.equal(mine.teamName, champs.teamName);
+        assert.equal(mine.gameLabel, 'Chess');
+        assert.equal(mine.words.subtitle, 'of Achievement — Winner', 'the designed certificate\'s lines come with it');
+        assert.equal(mine.words.lead, 'has won first place in the');
+        assert.match(mine.words.paragraph, new RegExp(champs.teamName));
+        assert.match(mine.words.date, /^\d{2}\/\d{2}\/\d{4}$/);
+        assert.ok(mine.completedAt);
+        const theirs = (await outsider('GET', '/certificates')).body.certificates;
+        assert.ok(!theirs.some((x) => x.competitionId === comp.id), 'someone who did not play has none');
+
+        // Deleted from My Profile, it leaves the frame — and only theirs.
+        const listed = async () => (await player.call('GET', '/certificates')).body.certificates.some((x) => x.competitionId === comp.id);
+        assert.equal((await outsider('DELETE', `/certificates/${comp.id}`)).status, 404, 'nobody else can delete it');
+        assert.equal((await player.call('DELETE', `/certificates/${comp.id}`)).status, 200);
+        assert.equal(await listed(), false, 'gone from the frame');
+        const teammate = champs.players.find((p) => String(p.userId) !== String(player.user._id));
+        if (teammate) {
+            const mate = colleges.flatMap((x) => x.students).find((s) => String(s.user._id) === String(teammate.userId));
+            assert.ok((await mate.call('GET', '/certificates')).body.certificates.some((x) => x.competitionId === comp.id), 'a teammate keeps theirs');
+        }
+        // Downloading it again from Games & Competitions puts it back.
+        const again = await fetch(`http://127.0.0.1:${app.server.address().port}/api/competitions/${comp.id}/certificate`, { headers: { Authorization: `Bearer ${player.token}` } });
+        assert.equal(again.status, 200);
+        await again.arrayBuffer();
+        assert.equal(await listed(), true, 'back in the frame');
     });
 
     test('my participation, the leaderboard and the history all show it', async () => {
@@ -330,7 +402,11 @@ describe('an inter-college chess competition, start to finish', () => {
         const board = (await player.call('GET', '/leaderboard')).body;
         const mine = board.colleges.find((x) => x.collegeName === champs.collegeName);
         assert.equal(mine.titles, 1);
-        assert.ok(board.colleges.indexOf(mine) <= 1, 'the champions\' college is at or near the top');
+        // Among the colleges that played here. The board is the whole
+        // database's, and other colleges' competitions (a sample, a demo) can
+        // rank above this test's — which is right, and no business of this test.
+        const ours = board.colleges.filter((x) => x.collegeName.includes(STAMP));
+        assert.equal(ours[0]?.collegeName, champs.collegeName, 'the champions\' college leads the colleges that played');
         assert.ok(board.teams.some((t) => t.teamName === champs.teamName && t.place === 1));
 
         const history = (await player.call('GET', '/history')).body;
@@ -366,7 +442,7 @@ describe('a game for four teams a match', () => {
 describe('an organization hosting its own competition', () => {
     let host, compId;
     test('an organization cannot host until the platform admin lets it', async () => {
-        host = await makeCollege('Host', 0);
+        host = await makeCollege('Host', 6);
         colleges.push(host);
         assert.deepEqual((await host.call('GET', '/org/hosting')).body, { canHost: false }, 'off to begin with');
         const refused = await host.call('POST', '/org/host', { name: `Not Yet ${STAMP}`, game: 'chess', startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
@@ -408,24 +484,59 @@ describe('an organization hosting its own competition', () => {
         assert.equal(r.body.competition.phase, 'registration-soon', 'published, but registration has not opened yet');
     });
 
-    test('colleges cannot register before registration opens', async () => {
-        const c = colleges[1];
-        const r = await c.call('PUT', `/org/${compId}/team`, { teamName: 'Too Early', players: c.students.map((s) => String(s.user._id)) });
-        assert.equal(r.status, 409);
-        assert.match(r.body.message, /Registration opens on/);
+    test('it is for the host\'s own students: other colleges do not see it or enter it', async () => {
+        await Competition.updateOne({ _id: compId }, { $set: { registrationOpensAt: new Date(Date.now() - 1000) } });
+        const other = colleges[1];
+        assert.ok(!(await other.call('GET', '/org')).body.competitions.some((c) => c.id === compId), 'not in another college\'s Take part');
+        assert.equal((await other.call('GET', `/org/${compId}`)).status, 404);
+        const r = await other.call('PUT', `/org/${compId}/team`, { teamName: 'Beta Strikers', players: other.students.map((st) => String(st.user._id)) });
+        assert.equal(r.status, 404, 'nor can it register');
+        assert.ok(!(await host.call('GET', '/org')).body.competitions.some((c) => c.id === compId), 'the host runs it from Host, not Take part');
+        assert.equal((await host.call('PUT', `/org/${compId}/team`, { teamName: 'Ours', players: [String(host.students[0].user._id), String(host.students[1].user._id)] })).status, 404);
+
+        const ours = host.students[0].call, theirs = other.students[0].call;
+        assert.ok((await ours('GET', '/')).body.competitions.some((c) => c.id === compId), 'the host\'s students see it');
+        assert.equal((await ours('GET', `/${compId}`)).status, 200);
+        assert.ok(!(await theirs('GET', '/')).body.competitions.some((c) => c.id === compId), 'other students do not');
+        assert.equal((await theirs('GET', `/${compId}`)).status, 404);
+        assert.equal((await outsider('GET', `/${compId}`)).status, 404, 'nor does a student of no college');
     });
 
-    test('once open, colleges register and the host approves them', async () => {
-        await Competition.updateOne({ _id: compId }, { $set: { registrationOpensAt: new Date(Date.now() - 1000) } });
-        const c = colleges[1];
-        const r = await c.call('PUT', `/org/${compId}/team`, { teamName: 'Beta Strikers', players: c.students.map((s) => String(s.user._id)) });
+    test('the host makes several teams from its own students, approved as they are made', async () => {
+        const id = (i) => String(host.students[i].user._id);
+        const make = (teamName, players) => host.call('POST', `/org/host/${compId}/teams`, { teamName, players });
+        const pool = await host.call('GET', `/org/host/${compId}/students`);
+        assert.equal(pool.status, 200);
+        assert.equal(pool.body.students.length, 6, 'its own students to pick from');
+
+        let r = await make('Host Reds', [id(0), id(1)]);
         assert.equal(r.status, 201, JSON.stringify(r.body));
-        const seen = await host.call('GET', `/org/host/${compId}`);
-        assert.equal(seen.status, 200, JSON.stringify(seen.body));
-        const team = seen.body.teams.find((t) => t.teamName === 'Beta Strikers');
-        assert.ok(team, 'the host sees the registration');
-        const ok = await host.call('PUT', `/org/host/${compId}/teams/${team.id}`, { status: 'approved' });
-        assert.equal(ok.status, 200, JSON.stringify(ok.body));
+        r = await make('Host Blues', [id(2), id(3)]);
+        assert.equal(r.status, 201, JSON.stringify(r.body));
+        assert.deepEqual(r.body.teams.map((t) => [t.teamName, t.status]), [['Host Reds', 'approved'], ['Host Blues', 'approved']]);
+        assert.deepEqual((await Team.find({ competitionId: compId }).sort({ entry: 1 }).lean()).map((t) => t.entry), [1, 2]);
+
+        const twice = await make('Host Greens', [id(1), id(4)]);
+        assert.equal(twice.status, 409);
+        assert.match(twice.body.message, /already in Host Reds/);
+        assert.equal((await make('Mixed', [id(4), String(colleges[1].students[0].user._id)])).status, 400, 'only its own students');
+        assert.equal((await make('Solo', [id(4)])).status, 400, 'doubles needs two at the board');
+
+        r = await make('Host Greens', [id(4), id(5)]);
+        assert.equal(r.status, 201);
+        const greens = r.body.teams.find((t) => t.teamName === 'Host Greens');
+        const blues = r.body.teams.find((t) => t.teamName === 'Host Blues');
+        r = await host.call('PATCH', `/org/host/${compId}/teams/${blues.id}`, { teamName: 'Host Blue Stars', players: [id(2), id(3), id(5)] });
+        assert.equal(r.status, 409, 'a player still in Greens');
+        assert.equal((await host.call('DELETE', `/org/host/${compId}/teams/${greens.id}`)).status, 200);
+        r = await host.call('PATCH', `/org/host/${compId}/teams/${blues.id}`, { teamName: 'Host Blue Stars', players: [id(2), id(3), id(5)] });
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.deepEqual(r.body.teams.map((t) => t.teamName), ['Host Reds', 'Host Blue Stars']);
+
+        const mine = (await host.students[5].call('GET', `/${compId}`)).body.competition.myTeam;
+        assert.equal(mine?.teamName, 'Host Blue Stars', 'a player sees their team');
+        assert.equal((await boss('POST', `/admin/${(await Competition.findOne({ name: `Chess Cup ${STAMP}` }).lean())._id}/teams`, { teamName: 'X', players: [] })).status, 400,
+            'an inter-college competition has no teams made for it');
     });
 
     test('another organization cannot run it, and the host cannot run anyone else\'s', async () => {
@@ -442,7 +553,9 @@ describe('an organization hosting its own competition', () => {
     test('the platform admin sees and can manage it too', async () => {
         const all = (await boss('GET', '/admin')).body.competitions;
         assert.ok(all.some((c) => c.id === compId));
-        assert.equal((await boss('GET', `/admin/${compId}`)).status, 200);
+        const seen = await boss('GET', `/admin/${compId}`);
+        assert.equal(seen.status, 200);
+        assert.equal(seen.body.competition.hostName, host.org.name, 'the college by its own name');
     });
 
     test('switched off again, the organization stops hosting; its competition carries on under the platform admin', async () => {
@@ -451,8 +564,18 @@ describe('an organization hosting its own competition', () => {
         assert.equal((await host.call('POST', '/org/host', { name: `After ${STAMP}`, game: 'chess', startsAt: inDays(3), registrationDeadline: inDays(2) })).status, 403);
         const kept = await boss('GET', `/admin/${compId}`);
         assert.equal(kept.status, 200);
-        assert.equal(kept.body.competition.status, 'registration', 'still open to colleges');
+        assert.equal(kept.body.competition.status, 'registration', 'still open');
         assert.equal((await boss('PUT', `/admin/${compId}`, { name: `Host Carrom Open ${STAMP} (run by YATICORP)` })).status, 200);
+    });
+
+    test('drawn, its teams are fixed; it stays off the inter-college leaderboard', async () => {
+        const drawn = await boss('POST', `/admin/${compId}/draw`);
+        assert.equal(drawn.status, 200, JSON.stringify(drawn.body));
+        assert.equal(drawn.body.rounds[0].matches.length, 1);
+        assert.equal((await boss('POST', `/admin/${compId}/teams`, { teamName: 'Late', players: [String(host.students[4].user._id), String(host.students[0].user._id)] })).status, 409);
+        const board = (await host.students[0].call('GET', '/leaderboard')).body;
+        assert.ok(!board.teams.some((t) => /^Host /.test(t.teamName)), 'its teams are not ranked');
+        assert.ok(!board.colleges.some((c) => c.id === String(host.org._id)), 'nor is the college, for it');
     });
 });
 
@@ -478,6 +601,9 @@ describe('certificates when participation certificates are off', () => {
         const me = (await studentOf(fourth).call('GET', '/me')).body.results.find((x) => x.competition.id === id);
         assert.equal(me.certificate, false);
         assert.deepEqual(me.score, { won: 0, played: 2 }, 'lost the semi-final and the third-place match');
+        const listed = async (t) => (await studentOf(t).call('GET', '/certificates')).body.certificates.some((x) => x.competitionId === id);
+        assert.equal(await listed(second), true, 'the runner-up\'s is in their certificate frame');
+        assert.equal(await listed(fourth), false, 'and the fourth team\'s is not, as there is none');
     });
 });
 
@@ -501,5 +627,35 @@ describe('a friendly game', () => {
         const won = await guest.call('POST', `/play/${id}/action`, { action: { type: 'win' } });
         assert.equal(won.body.game.status, 'finished');
         assert.equal((await guest.call('POST', `/play/${id}/action`, { action: { type: 'win' } })).status, 409, 'nothing more once it is over');
+    });
+});
+
+describe('deleting a competition', () => {
+    test('the organizer deletes one in any state: its teams, matches and games go with it', async () => {
+        const r = await boss('POST', '/admin', { name: `Delete Me ${STAMP}`, game: 'chess', startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
+        const id = r.body.competition.id;
+        for (const c of colleges.slice(0, 2)) await c.call('PUT', `/org/${id}/team`, { teamName: `Del ${c.org.name}`, players: [String(c.students[0].user._id)] });
+        for (const t of (await boss('GET', `/admin/${id}`)).body.teams) await boss('PUT', `/admin/${id}/teams/${t.id}`, { status: 'approved' });
+        const match = (await boss('POST', `/admin/${id}/draw`)).body.rounds[0].matches[0];
+        await boss('POST', `/admin/${id}/matches/${match.id}/start`);
+        const student = colleges[0].students[0];
+        assert.ok((await student.call('GET', '/')).body.competitions.some((c) => c.id === id), 'live, and seen');
+
+        const gone = await boss('DELETE', `/admin/${id}`);
+        assert.equal(gone.status, 200, JSON.stringify(gone.body));
+        assert.equal(await Competition.countDocuments({ _id: id }), 0);
+        assert.equal(await Team.countDocuments({ competitionId: id }), 0);
+        assert.equal(await Match.countDocuments({ competitionId: id }), 0);
+        assert.equal(await PlayGame.countDocuments({ competitionId: id }), 0, 'the game in progress too');
+        assert.ok(!(await student.call('GET', '/')).body.competitions.some((c) => c.id === id), 'students no longer see it');
+        assert.equal((await student.call('GET', `/${id}`)).status, 404);
+        assert.equal((await boss('DELETE', `/admin/${id}`)).status, 404, 'once only');
+    });
+
+    test('a college deletes only its own', async () => {
+        const platform = await Competition.findOne({ name: `Chess Cup ${STAMP}` }).lean();
+        await Organization.updateOne({ _id: colleges[0].org._id }, { $set: { canHostCompetitions: true } });
+        assert.equal((await colleges[0].call('DELETE', `/org/host/${platform._id}`)).status, 404);
+        assert.ok(await Competition.exists({ _id: platform._id }), 'still there');
     });
 });

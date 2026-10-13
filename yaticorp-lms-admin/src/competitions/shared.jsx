@@ -61,8 +61,11 @@ const fromCompetition = (c) => ({
  * Create or edit a competition. `locked` once the matches are drawn: the game
  * and the team format can no longer change. `uploadBanner(file)` resolves to
  * the uploaded image's address. `organizer` fills "Organized by" for a new one.
+ * `hosted`: a college's own competition — for its students only, with teams
+ * the college makes, so it counts teams, not colleges. `hostName`: that
+ * college, when someone else (the platform admin) has the form open.
  */
-export const CompetitionForm = ({ competition = null, locked = false, organizer = 'YATICORP', uploadBanner, onCancel, onSave }) => {
+export const CompetitionForm = ({ competition = null, locked = false, hosted = false, hostName = null, organizer = 'YATICORP', uploadBanner, onCancel, onSave }) => {
     const [f, setF] = useState(() => (competition ? fromCompetition(competition) : blank(organizer)));
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');
@@ -90,15 +93,18 @@ export const CompetitionForm = ({ competition = null, locked = false, organizer 
     };
     const multi = f.game === 'ludo' || f.game === 'uno';
 
+    // One popup that fits the screen: the title and the Save / Publish buttons
+    // stay put and the form scrolls between them. It used to be as tall as the
+    // form, running off the bottom of a phone, with the page scrolling behind.
     return (
-        <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-3 backdrop-blur-sm sm:p-6" onClick={onCancel}>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:p-6" onClick={onCancel}>
             <form onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); submit(false); }}
-                className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl" aria-labelledby="comp-form-title">
-                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
-                    <h2 id="comp-form-title" className="font-bold text-slate-800">{competition ? 'Edit competition' : 'New inter-college competition'}</h2>
+                className="flex max-h-[85dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[90dvh]" aria-labelledby="comp-form-title">
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
+                    <h2 id="comp-form-title" className="font-bold text-slate-800">{competition ? 'Edit competition' : hosted ? 'New competition for your students' : 'New inter-college competition'}</h2>
                     <button type="button" onClick={onCancel} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={18} /></button>
                 </div>
-                <div className="space-y-5 p-5">
+                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-5">
                     <div className="grid gap-4 sm:grid-cols-2">
                         <label className="sm:col-span-2"><span className={LABEL}>Competition name</span>
                             <input required maxLength={140} value={f.name} onChange={(e) => set({ name: e.target.value })} className={INPUT} placeholder="e.g. Inter-College Chess Championship 2026" /></label>
@@ -116,7 +122,8 @@ export const CompetitionForm = ({ competition = null, locked = false, organizer 
                             </div>
                             <span className="mt-1 block text-xs text-slate-500">{GAMES[f.game].note}</span></div>
                         <div><span className={LABEL}>Competition type</span>
-                            <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700">Inter-College</p></div>
+                            <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700">{!hosted ? 'Inter-College' : hostName ? `${hostName} only` : 'Your college only'}</p>
+                            {hosted && <span className="mt-1 block text-xs text-slate-500">{hostName ? `Only ${hostName}'s students see it. The college makes the teams from them.` : 'Only your students see it. You make the teams from them.'}</span>}</div>
                         <label className="sm:col-span-2"><span className={LABEL}>Competition description <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>
                             <textarea rows={2} maxLength={2000} value={f.description} onChange={(e) => set({ description: e.target.value })} className={INPUT} /></label>
                         <label><span className={LABEL}>Registration start <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>
@@ -147,7 +154,7 @@ export const CompetitionForm = ({ competition = null, locked = false, organizer 
 
                     <fieldset className="grid gap-4 rounded-2xl border border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-4">
                         <legend className="px-1 text-sm font-bold text-slate-700">Player / team limit</legend>
-                        <label><span className={LABEL}>Number of colleges allowed</span>
+                        <label><span className={LABEL}>{hosted ? 'Number of teams allowed' : 'Number of colleges allowed'}</span>
                             <input type="number" min={2} max={256} value={f.maxTeams} onChange={(e) => set({ maxTeams: e.target.value })} className={INPUT} /></label>
                         <label><span className={LABEL}>Players per team</span>
                             <input type="number" min={1} max={10} disabled={locked} value={f.playersPerTeam} onChange={(e) => set({ playersPerTeam: e.target.value })} className={INPUT} /></label>
@@ -219,7 +226,7 @@ export const CompetitionForm = ({ competition = null, locked = false, organizer 
 
                     {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
                 </div>
-                <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
+                <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
                     <button type="button" onClick={onCancel} className={BTN2}>Cancel</button>
                     <button type="submit" disabled={!!busy} className={BTN2}>{busy === 'save' ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} {competition ? 'Save changes' : 'Save Draft'}</button>
                     {!competition && (

@@ -104,10 +104,13 @@ const JobForm = ({ initial, vocab, onClose, onSaved }) => {
     };
 
     return (
-        // A sheet from the bottom on a phone, a centred dialog from sm up.
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+        // A centred popup on every screen. On a phone it used to be a sheet up
+        // from the bottom, near the full height of the screen, which read as a
+        // page; now the page shows dimmed around it on every side, and the
+        // long form scrolls inside it.
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
             <form role="dialog" aria-modal="true" aria-label={initial.id ? 'Edit local job' : 'Add a local job'} onSubmit={submit} onClick={(e) => e.stopPropagation()}
-                className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl">
+                className="flex max-h-[85dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[92dvh]">
                 <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4">
                     <h3 className="font-bold text-slate-800">{initial.id ? 'Edit local job' : 'Add a local job'}</h3>
                     <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
@@ -181,7 +184,7 @@ const JobForm = ({ initial, vocab, onClose, onSaved }) => {
                     <Field label="Contact phone"><input value={f.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} className={INPUT} /></Field>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-nowrap sm:pb-4">
+                <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 p-4 sm:flex-nowrap">
                     {error && <p className="w-full text-sm font-medium text-red-600 sm:w-auto sm:flex-1">{error}</p>}
                     <button type="button" onClick={onClose} className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200 sm:ml-auto sm:flex-none sm:bg-transparent sm:py-2">Cancel</button>
                     <button type="submit" disabled={busy} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60 sm:flex-none sm:py-2">

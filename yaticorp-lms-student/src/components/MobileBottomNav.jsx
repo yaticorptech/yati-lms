@@ -80,7 +80,11 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
       data-loop-skip
       className="mbn-in fixed inset-x-1.5 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 sidebar:hidden"
     >
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-[0_18px_40px_-16px_rgba(15,23,42,0.8)] backdrop-blur-xl supports-[backdrop-filter]:bg-slate-900/90">
+      {/* Solid, with no backdrop blur: the bar never leaves the screen, so the
+          blur was worked out again for every frame of every scroll, and the
+          page scrolled unevenly on phones — for a blur that showed through only
+          a tenth of the bar's 90% dark. */}
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-[0_18px_40px_-16px_rgba(15,23,42,0.8)]">
         {/* A faint sheen across the top edge, so the bar reads as glass. */}
         <span aria-hidden className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 

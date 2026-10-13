@@ -113,10 +113,14 @@ export const Segmented = ({ options, value, onChange, counts = {}, locked = {}, 
             pill.style.transform = `translateX(${chosen.offsetLeft}px)`;
             pill.style.opacity = '1';
             if (first) { void pill.offsetWidth; pill.style.transition = ''; placed.current = true; }
-            // Brought into view, near the middle, when the choice is cut off.
+            // Brought into view, near the middle, when the choice is cut off —
+            // or the one after it is: choosing a tab on a phone shows the next
+            // one to tap too (tests/ui/segmented.ui.test.js).
             const left = chosen.offsetLeft;
             const right = left + chosen.offsetWidth;
-            if (left < row.scrollLeft + 8 || right > row.scrollLeft + row.clientWidth - 8) {
+            const next = chosen.nextElementSibling;
+            const end = next ? Math.max(right, next.offsetLeft + next.offsetWidth) : right;
+            if (left < row.scrollLeft + 8 || end > row.scrollLeft + row.clientWidth - 8) {
                 row.scrollTo({ left: left - (row.clientWidth - chosen.offsetWidth) / 2, behavior: first || reducedMotion() ? 'auto' : 'smooth' });
             }
             fade();
