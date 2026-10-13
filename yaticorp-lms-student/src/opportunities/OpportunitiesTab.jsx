@@ -141,7 +141,6 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
     const vocab = data?.vocab;
     const hasProfile = !!data?.profile;
     const rules = listing?.rules || data?.rules;
-    const guardian = data?.guardian;
     const band = data?.band;
     const filtersActive = !!debouncedQ || countActive(filters) > 0;
     const anyDate = filters.anyDate;
@@ -533,7 +532,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
             )}
 
             {detailsId && (
-                <OpportunityDetails id={detailsId} vocab={vocab} guardian={guardian} onClose={closeDetails}
+                <OpportunityDetails id={detailsId} vocab={vocab} onClose={closeDetails}
                     onInterested={(opp) => { onInterested(opp); }} onReport={(opp) => setReporting(opp)}
                     onApply={(opp) => { closeDetails(); setApplyingTo(opp.id || opp._id || detailsId); }} />
             )}
@@ -559,21 +558,25 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                             scrolling and the heading pins to the screen. */}
                         <div className="opp-scroll w-full max-w-2xl sm:my-auto sm:max-h-[88vh] sm:overflow-y-auto"
                             onClick={(e) => e.stopPropagation()}>
-                            <ApplyFlow opportunityId={applyingTo} onClose={() => setApplyingTo(null)} onContinue={() => load(true)} />
+                            <ApplyFlow opportunityId={applyingTo} onClose={() => { setApplyingTo(null); load(true); }} onContinue={() => load(true)} />
                         </div>
                     </div>
                 </div>
             )}
 
-            {undo && (
+            {/* On <body>, and above the phone's bottom bar. Inside the page it
+                ranked below the bar and sat behind it, so tapping "Undo" on a
+                phone tapped the bar and left the section. */}
+            {undo && createPortal(
                 <div role="status" aria-live="polite"
-                    className="opp-rise fixed bottom-5 left-1/2 z-50 flex w-[min(92vw,420px)] items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl">
+                    className="opp-rise fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-1/2 z-[130] flex w-[min(92vw,420px)] items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-sm text-white shadow-2xl sidebar:bottom-5">
                     <span className="min-w-0 flex-1 truncate">Hidden <strong>{undo.opp.title}</strong> — fewer like it from now.</span>
                     <button type="button" onClick={onUndo} className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1.5 font-semibold hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
                         <Undo2 size={14} aria-hidden="true" /> Undo
                     </button>
                     <button type="button" onClick={() => { clearTimeout(undo.timer); setUndo(null); }} aria-label="Dismiss" className="rounded-lg p-1 text-white/60 hover:text-white"><X size={14} /></button>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

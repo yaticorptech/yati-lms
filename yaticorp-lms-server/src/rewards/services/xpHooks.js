@@ -29,4 +29,19 @@ const xpOnSuccess = (type, ref) => (req, res, next) => {
 
 const today = () => dayKey();
 
-module.exports = { xpOnSuccess, today };
+/**
+ * The same rule check for a success decided inside a service rather than by a
+ * route's answer (a game finishing, an admin approving a student): records the
+ * activity only while the admin has a rule for it above 0, so an optional rule
+ * nobody added leaves no trace. Each ref pays once. Never throws.
+ */
+const recordIfRuled = async ({ userId, type, refId, meta = {} }) => {
+  try {
+    if (!userId || refId === null || refId === undefined || refId === '') return null;
+    const config = await getConfig();
+    if (config.enabled === false || !(Number(config.xpRules?.[type]) > 0)) return null;
+    return await safeRecordActivity({ userId, type, refId: String(refId), meta });
+  } catch (e) { console.error(`[rewards] ${type} XP failed:`, e.message); return null; }
+};
+
+module.exports = { xpOnSuccess, recordIfRuled, today };

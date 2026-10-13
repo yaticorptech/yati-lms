@@ -46,4 +46,36 @@ const requireJobsEnabled = async (req, res, next) => {
     }
 };
 
-module.exports = { requireJobsEnabled, isJobsEnabled, invalidateJobsSetting };
+/**
+ * The student's own lock: five Career Path skills at 25% or more, or an
+ * exempt account (services/jobsAccess, the same answer the page gets from
+ * GET /user/jobs-access). Mounted after protectUser.
+ *
+ * An open answer is remembered for a minute, so a page that makes a dozen
+ * calls asks once; a locked one is asked again every time, so a student who
+ * has just reached the fifth skill is let in at once.
+ */
+const OPEN_TTL_MS = 60 * 1000;
+const openUntil = new Map();
+const requireJobsAccess = async (req, res, next) => {
+    try {
+        const key = String(req.user?._id || '');
+        if (key && (openUntil.get(key) || 0) > Date.now()) return next();
+        const access = await require('../../services/jobsAccess').jobsAccessFor(req.user);
+        if (access.open) {
+            if (openUntil.size > 5000) openUntil.clear();
+            openUntil.set(key, Date.now() + OPEN_TTL_MS);
+            return next();
+        }
+        return res.status(403).json({
+            code: 'JOBS_SKILLS_LOCKED',
+            error: `Jobs opens once ${access.required.skills} of your Career Path skills are at ${access.required.percent}% or more. You have ${access.ready}.`,
+            ready: access.ready,
+            required: access.required
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { requireJobsEnabled, requireJobsAccess, isJobsEnabled, invalidateJobsSetting };

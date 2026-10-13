@@ -19,6 +19,7 @@ import GlobalQuiz from '../components/GlobalQuiz';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { BookOpen, Award, PlayCircle, Clock, X, ArrowRight, Layers, CheckCircle2, Bookmark, CalendarDays, Globe } from 'lucide-react';
 import Portal from '../components/Portal';
+import CourseOutlineDialog from '../components/course/CourseOutlineDialog';
 import { useRewards } from '../context/useRewards';
 import { money } from '../components/rewards/format';
 
@@ -158,11 +159,11 @@ const TABS = [
 
 const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, buyingCourseId, enrollCourse, refresh, weeklyActivity }) => {
     // The sidebar's Explore Courses opens straight on Available Courses (?tab=).
-    const [params] = useSearchParams();
+    const [params, setParams] = useSearchParams();
     const [activeTab, setActiveTab] = useState(() => (TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'available'));
     const navigate = useNavigate();
     // An administrator can take the Global Quiz away; its tab goes with it.
-    const { isGlobalQuizEnabled } = useContext(AuthContext);
+    const { isGlobalQuizEnabled, isCareerPathEnabled } = useContext(AuthContext);
     const tabs = TABS.filter((t) => t.key !== 'quiz' || isGlobalQuizEnabled !== false);
     const [selectedBundle, setSelectedBundle] = useState(null);
 
@@ -230,10 +231,38 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
         }
     }, [activeTab, markEdges, moveInk]);
     const [enrollModal, setEnrollModal] = useState(null); // { _id, title }
+    // The available course whose Preview (what is inside it) is open.
+    const [previewCourse, setPreviewCourse] = useState(null);
+    // Learning Bio's Preview sends a student here to enrol (?enroll=<course>):
+    // the confirmation opens on that course once the list has it. A course
+    // that is not on the list (already theirs) just drops the request.
+    const enrollRequest = params.get('enroll');
+    useEffect(() => {
+        if (!enrollRequest || loading) return;
+        const course = availableCourses.find((c) => String(c._id) === enrollRequest);
+        if (course) setEnrollModal(course);
+        setParams((p) => { p.delete('enroll'); return p; }, { replace: true });
+    }, [enrollRequest, loading, availableCourses, setParams]);
     // The wallet pays for a priced course, so the dialog shows what is there.
     const rewards = useRewards();
     const wallet = rewards.enabled ? rewards.summary?.wallet : null;
     const [enrolling, setEnrolling] = useState(false);
+    // Why enrolling failed, said in the summary (a short wallet has its own dialog).
+    const [enrollError, setEnrollError] = useState('');
+
+    // Escape closes the bundle and enrol popups, as it does the app's other
+    // dialogs — but not while an enrolment is going through.
+    const popupOpen = !!(selectedBundle || enrollModal);
+    useEffect(() => {
+        if (!popupOpen) return undefined;
+        const onKey = (e) => {
+            if (e.key !== 'Escape' || enrolling) return;
+            setSelectedBundle(null);
+            setEnrollModal(null);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [popupOpen, enrolling]);
 
     const getProgressVal = (id, isBundle = false) => {
         if (isBundle) {
@@ -254,12 +283,14 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
     const handleRetry = refresh;
 
     const handleEnrollClick = (course) => {
+        setEnrollError('');
         setEnrollModal(course);
     };
 
     const handleConfirmEnroll = async () => {
         if (!enrollModal) return;
         setEnrolling(true);
+        setEnrollError('');
         try {
             await enrollCourse(enrollModal._id);
             // The price came out of the wallet: the balance in the header re-reads.
@@ -269,7 +300,7 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
             navigate('/enrolled-courses');
         } catch (error) {
             // A short wallet gets the app-wide dialog with the way to earn more.
-            if (error.response?.status !== 402) alert(error.response?.data?.message || 'Enrollment failed');
+            if (error.response?.status !== 402) setEnrollError((error.response?.status < 500 && error.response?.data?.message) || 'You were not enrolled. Please try again.');
         } finally {
             setEnrolling(false);
         }
@@ -318,15 +349,10 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                 </div>
             </div>
 
-            {/* My Learning Content */}
+            {/* My Learning Content. No "My Learning" heading above it: the tab
+                strip already says where the student is, and the heading only
+                pushed each tab's content further down the page. */}
             <div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
-                    <span className="mr-3 rounded-2xl bg-indigo-100/80 p-3 text-indigo-600">
-                        <BookOpen size={24} />
-                    </span>
-                    My Learning
-                </h2>
-
                 {/* Each tab's content eases in when it is chosen. */}
                 <div key={activeTab} className="tab-panel">
                 {activeTab === 'activity' ? (
@@ -530,13 +556,19 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                             >
                                                 {buyingCourseId === course._id ? 'Enrolling...' : <>Enroll Now <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" /></>}
                                             </button>
-                                            <Link
-                                                to={`/preview/${course._id}`}
+                                            {/* What is inside the course before paying for it:
+                                                its sections and lessons (CourseOutlineDialog). It
+                                                once opened the admin preview, which a student's
+                                                login cannot open. */}
+                                            <button
+                                                type="button"
+                                                onClick={() => setPreviewCourse(course)}
                                                 aria-label={`Preview ${course.title}`}
+                                                title="Preview: see what's inside"
                                                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600"
                                             >
                                                 <PlayCircle size={20} />
-                                            </Link>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -549,7 +581,7 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                             <div className="relative flex flex-col items-center px-6 pb-16 pt-6 text-center">
                                 <div className="h-40 w-64 sm:h-44"><AvailableArt /></div>
                                 <h3 className="mt-2 text-2xl font-extrabold text-slate-900">No courses available for purchase</h3>
-                                <p className="mt-2 max-w-sm text-slate-500">Keep an eye out for new courses, or earn more credits by completing quizzes!</p>
+                                <p className="mt-2 max-w-sm text-slate-500">New courses will appear here as soon as they're published.</p>
                             </div>
                         </div>
                     )
@@ -557,15 +589,26 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                 </div>
             </div>
 
+            {previewCourse && (
+                <CourseOutlineDialog
+                    courseId={previewCourse._id}
+                    initial={previewCourse}
+                    onClose={() => setPreviewCourse(null)}
+                    onEnroll={() => { setPreviewCourse(null); handleEnrollClick(previewCourse); }}
+                />
+            )}
+
             {/* Enroll Confirmation Modal */}
             {enrollModal && (
                 <Portal>
                     <div className="fixed inset-0 z-50 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
-                        <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-8 flex flex-col items-center text-center">
+                        {/* Marked as a dialog so the app's pop-in notices (the
+                            Global Quiz) wait for it and Yati keeps off it. */}
+                        <div role="dialog" aria-modal="true" aria-labelledby="enroll-dialog-title" className="bg-white rounded-3xl shadow-xl w-full max-w-md p-8 flex flex-col items-center text-center">
                             <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
                                 <BookOpen size={28} className="text-indigo-600" />
                             </div>
-                            <h2 className="text-2xl font-bold text-slate-800 mb-2">Enroll in Course</h2>
+                            <h2 id="enroll-dialog-title" className="text-2xl font-bold text-slate-800 mb-2">Enroll in Course</h2>
                             <p className="text-slate-500 mb-1">You're about to enroll in:</p>
                             <p className="font-bold text-slate-800 text-lg mb-6">{enrollModal.title}</p>
                             <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6 text-left space-y-2">
@@ -586,9 +629,17 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                         </div>
                                         {wallet.available < enrollModal.price && (
                                             <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 ring-1 ring-amber-200">
-                                                Not enough in your wallet yet. Earn XP on{' '}
-                                                <Link to="/career" onClick={() => setEnrollModal(null)} className="font-bold text-indigo-600 underline">Career Path</Link>
-                                                {' '}— every block of XP adds money to your wallet.
+                                                {/* Career Path is named only while it is switched on:
+                                                    with it off the link led to a page that is not there. */}
+                                                {isCareerPathEnabled ? (
+                                                    <>
+                                                        Not enough in your wallet yet. Earn XP on{' '}
+                                                        <Link to="/career" onClick={() => setEnrollModal(null)} className="font-bold text-indigo-600 underline">Career Path</Link>
+                                                        {' '}— every block of XP adds money to your wallet.
+                                                    </>
+                                                ) : (
+                                                    'Not enough in your wallet yet. Earn XP by finishing lessons and quizzes — every block of XP adds money to your wallet.'
+                                                )}
                                             </p>
                                         )}
                                         <div className="flex justify-between text-sm text-slate-600">
@@ -600,6 +651,9 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                     </>
                                 )}
                             </div>
+                            {enrollError && (
+                                <p role="alert" className="mb-4 w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{enrollError}</p>
+                            )}
                             <div className="flex w-full space-x-3">
                                 <button
                                     onClick={() => setEnrollModal(null)}
@@ -625,19 +679,20 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                 selectedBundle && (
                     <Portal>
                         <div className="fixed inset-0 z-50 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
-                            <div className="bg-white rounded-3xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto flex flex-col">
+                            <div role="dialog" aria-modal="true" aria-labelledby="bundle-dialog-title" className="bg-white rounded-3xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto flex flex-col">
                                 <div className="sticky top-0 bg-white/90 backdrop-blur pb-4 pt-6 px-8 border-b border-slate-100 z-10 flex justify-between items-start">
                                     <div className="flex items-center space-x-4">
                                         <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl">
                                             <Award size={28} />
                                         </div>
                                         <div>
-                                            <h2 className="text-2xl font-bold text-slate-800">{selectedBundle.title}</h2>
+                                            <h2 id="bundle-dialog-title" className="text-2xl font-bold text-slate-800">{selectedBundle.title}</h2>
                                             <p className="text-slate-500 font-medium">Included Courses in this Bundle</p>
                                         </div>
                                     </div>
                                     <button
                                         onClick={() => setSelectedBundle(null)}
+                                        aria-label="Close"
                                         className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
                                     >
                                         <X size={24} />
@@ -649,7 +704,10 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                             selectedBundle.courses.map(bc => {
                                                 // Attempt to match bundle sub-course with full course object from primary courses array
                                                 const fullCourse = courses.find(c => c._id === bc._id) || bc;
-                                                const progress = getProgressVal(bc._id);
+                                                // The server puts the student's progress on each course in
+                                                // the bundle, enrolled or not; `courses` has only the enrolled
+                                                // ones, so a course opened through the bundle alone read 0%.
+                                                const progress = Math.max(Number(bc.progress) || 0, getProgressVal(bc._id));
                                                 return (
                                                     <div key={bc._id} className="lift bg-white rounded-2xl border border-slate-200 overflow-hidden transition-shadow duration-300 group flex flex-col">
                                                         <div className="h-40 bg-slate-100 relative overflow-hidden">
@@ -682,7 +740,7 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                                                     to={`/learn/${bc._id}`}
                                                                     className="mt-4 w-full flex justify-center items-center space-x-2 py-2.5 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold text-sm rounded-lg transition-colors border border-slate-200 hover:border-indigo-200"
                                                                 >
-                                                                    <span>{progress > 0 ? 'Resume Course' : 'Start Course'}</span>
+                                                                    <span>{progress >= 100 ? 'Review Course' : progress > 0 ? 'Resume Course' : 'Start Course'}</span>
                                                                     <PlayCircle size={16} />
                                                                 </Link>
                                                             </div>

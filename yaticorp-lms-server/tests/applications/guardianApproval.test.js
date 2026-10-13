@@ -8,7 +8,7 @@
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
-const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, makeAdmin, startApp, cleanup, openJobs } = require('../helpers');
 
 const Opportunity = require('../../src/jobboard/models/Opportunity');
 const OpportunityProfile = require('../../src/jobboard/models/OpportunityProfile');
@@ -52,6 +52,7 @@ before(async () => {
     await connect();
     young = await makeUser('Sowndarya');
     older = await makeUser('Elder');
+    await openJobs(young, older);
     admin = await makeAdmin('Ops');
     await profileFor(young.user._id, 13);
     await profileFor(older.user._id, 19);
@@ -228,7 +229,7 @@ describe('sending the request', () => {
             minimumAge: 13, location: { area: 'Peenya', city: 'Bengaluru' }, compensation: { label: '₹700' },
             safetyClassification: 'supervised', status: 'open', guardianApprovalRequired: true
         });
-        const grown = await makeUser('Grown');
+        const grown = await makeUser('Grown'); await openJobs(grown);
         const profile = await profileFor(grown.user._id, 23);
         const elder = startApp({ mount: '/api/jobs', router: require('../../src/jobboard') });
         const call = elder.call(grown.token);

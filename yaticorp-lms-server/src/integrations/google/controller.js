@@ -110,6 +110,8 @@ const handleCallback = async (req, res) => {
 
     const tokens = await exchangeCode(code);
     await saveLink(uid, tokens);
+    // XP rule (optional): a Google account connected, once ever (reconnecting pays nothing more).
+    await require('../../rewards/services/xpHooks').recordIfRuled({ userId: uid, type: 'google_connect', refId: 'google' });
     return back('connected');
   } catch (error) {
     console.error('[google] callback:', error);

@@ -319,6 +319,59 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Game celebration — the full-screen moment after a cleared level or a won
+   game (components/GameCelebration). Light rays turning behind a gold trophy,
+   stars popping in, sparkles. Still, for anyone who asked for less motion.
+   --------------------------------------------------------------------------- */
+@keyframes gc-in { from { opacity: 0; } to { opacity: 1; } }
+.gc-in { animation: gc-in 0.35s ease-out both; }
+
+@keyframes gc-rays { to { transform: translate(-50%, -50%) rotate(360deg); } }
+.gc-rays {
+  position: absolute; left: 50%; top: 34%; width: 170vmax; height: 170vmax;
+  transform: translate(-50%, -50%);
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.08) 0deg 8deg, transparent 8deg 22deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 52%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 52%);
+  animation: gc-rays 48s linear infinite;
+}
+
+@keyframes gc-medal {
+  0%   { transform: scale(0.2) rotate(-25deg); opacity: 0; }
+  60%  { transform: scale(1.12) rotate(6deg); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+.gc-medal { animation: gc-medal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
+
+@keyframes gc-halo { 0%, 100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 0.2; } }
+.gc-halo { animation: gc-halo 2.4s ease-in-out infinite; }
+
+@keyframes gc-star {
+  0%   { transform: scale(0) rotate(-60deg); opacity: 0; }
+  70%  { transform: scale(1.25) rotate(8deg); opacity: 1; }
+  100% { opacity: 1; }
+}
+.gc-star { animation: gc-star 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes gc-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+.gc-rise { animation: gc-rise 0.55s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes gc-twinkle { 0%, 100% { opacity: 0.2; transform: scale(0.7); } 50% { opacity: 1; transform: scale(1.15); } }
+.gc-twinkle { animation: gc-twinkle 2.2s ease-in-out infinite; }
+
+/* A gleam crossing the trophy and the button now and then. */
+@keyframes gc-shine { from { transform: translateX(-160%) skewX(-20deg); } to { transform: translateX(320%) skewX(-20deg); } }
+.gc-shine::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: gc-shine 2.8s ease-in-out 1.2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-in, .gc-medal, .gc-star, .gc-rise, .gc-rays, .gc-halo, .gc-twinkle, .gc-shine::after { animation: none; }
+}
+
+/* ---------------------------------------------------------------------------
    Leaderboard — the winner's confetti (components/rewards/LeaderboardCelebration).
    Each piece flies in from a side edge, arcs up, then falls and spins.
    --------------------------------------------------------------------------- */
@@ -533,4 +586,18 @@
 .h-visible {
     height: 100vh;
     height: 100dvh;
+}
+
+/* ---------------------------------------------------------------------------
+   Smooth scrolling on a phone. Frosted glass (backdrop-filter) re-blurs
+   whatever is behind it on every frame the page moves, which is what made
+   scrolling stutter on a modest Android phone. On a touch screen, the glass
+   inside the scrolling page keeps its see-through colour but loses the blur:
+   over the soft backgrounds it sits on, the difference is hard to see. Popups
+   (portalled outside <main>) keep theirs; the page behind them does not move.
+   Looping decorations pause while scrolling (utils/scrollCalm.js), and so
+   does Yati's drawing (public/loop-walker/loop-walker.js).
+   --------------------------------------------------------------------------- */
+@media (pointer: coarse) {
+  main [class*="backdrop-blur"] { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 }

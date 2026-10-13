@@ -9,7 +9,7 @@ const GlobalQuizAttempt = require('../models/GlobalQuizAttempt');
 const { livePaper } = require('../services/globalQuizService');
 const { chargeFor, refundCharge, sendShort } = require('../rewards/services/walletRuleService');
 const Setting = require('../models/Setting');
-const { canAccessCourse } = require('../services/courseAccess');
+const { canOpenCourse } = require('../services/courseAccess');
 
 /**
  * Whether the student may use this lesson's quiz: the lesson's course must be
@@ -22,7 +22,8 @@ const lessonOpenTo = async (user, lessonId) => {
     const mod = await require('../models/Module').findById(lesson.moduleId).select('courseId').lean();
     if (!mod) return false;
     const course = await require('../models/Course').findById(mod.courseId).select('organizationId').lean();
-    return canAccessCourse(user, course);
+    // A lesson's quiz is part of the course: only for a student who has it.
+    return course ? canOpenCourse(user, course) : false;
 };
 
 // @desc    Get quiz for a specific lesson (Student view - hides correct answers)
@@ -434,11 +435,95 @@ const finishGlobalQuiz = async (req, res) => {
     }
 };
 
+// How many past attempts the history returns. A quiz a week is a year of them.
+const HISTORY_LIMIT = 60;
+
+// @desc    The student's finished Global Quiz attempts, newest first: each
+//          quiz's title, when it was taken, and how it went. The published
+//          quiz's own attempt is flagged `current`, since the tab shows that
+//          one as its result card already. A quiz an administrator has since
+//          deleted keeps its row: the attempt is still the student's.
+// @route   GET /api/user/quizzes/global/history
+// @access  Private/User
+const getGlobalQuizHistory = async (req, res) => {
+    try {
+        const config = await quizConfig();
+        if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
+        const GlobalQuiz = require('../models/GlobalQuiz');
+        const [rows, live] = await Promise.all([
+            GlobalQuizAttempt.find({ userId: req.user._id, finishedAt: { $ne: null } })
+                .sort({ finishedAt: -1 })
+                .limit(HISTORY_LIMIT)
+                .select('quizId startedAt finishedAt timedOut correctCount totalQuestions score')
+                .populate('quizId', 'title')
+                .lean(),
+            GlobalQuiz.findOne({ status: 'published' }).select('_id').lean()
+        ]);
+
+        // Whether each one was a win: the same score the finish pays XP for.
+        // Nothing is called a win while rewards are switched off.
+        let winScore = null;
+        try {
+            const rewards = await require('../rewards/services/configService').getConfig();
+            if (rewards.enabled !== false) winScore = Number(rewards.globalQuiz?.winScore ?? 60);
+        } catch {
+            winScore = null;
+        }
+
+        res.json({
+            winScore,
+            attempts: rows.map((a) => ({
+                id: String(a._id),
+                quizId: a.quizId?._id ? String(a.quizId._id) : String(a.quizId),
+                title: a.quizId?.title || 'A past quiz',
+                finishedAt: a.finishedAt,
+                elapsedMs: Math.max(0, new Date(a.finishedAt) - new Date(a.startedAt)),
+                timedOut: !!a.timedOut,
+                correctCount: a.correctCount || 0,
+                totalQuestions: a.totalQuestions || 0,
+                score: a.score || 0,
+                won: winScore != null && (a.score || 0) >= winScore,
+                current: !!live && String(a.quizId?._id || a.quizId) === String(live._id)
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    Just whether a Global Quiz is live, for the "a new quiz is out"
+//          notice every page checks every minute: its title and dates and
+//          whether this student has taken it — no questions, so it is cheap
+//          to ask often. Nothing while the Global Quiz is switched off.
+// @route   GET /api/user/quizzes/global/live
+// @access  Private/User
+const getGlobalQuizLive = async (req, res) => {
+    try {
+        const all = require('../services/fullAccess').hasFullAccess(req.user);
+        if (!all && (await quizConfig()).enabled === false) return res.json({ quiz: null });
+        await require('../services/globalQuizService').ensureMigrated();
+        const quiz = await require('../models/GlobalQuiz').findOne({ status: 'published' }).sort({ publishedAt: -1 })
+            .select('title description publishedAt openDays').lean();
+        if (!quiz) return res.json({ quiz: null });
+        const attempted = await GlobalQuizAttempt.exists({ userId: req.user._id, quizId: quiz._id });
+        res.json({
+            quiz: {
+                id: String(quiz._id), title: quiz.title, description: quiz.description || '',
+                publishedAt: quiz.publishedAt, closesAt: closesAtOf(quiz), closed: isClosed(quiz), attempted: !!attempted
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 module.exports = {
+    getGlobalQuizLive,
     getQuizForStudent,
     submitQuizAnswers,
     getGlobalQuiz,
     startGlobalQuiz,
     submitGlobalQuiz,
-    finishGlobalQuiz
+    finishGlobalQuiz,
+    getGlobalQuizHistory
 };

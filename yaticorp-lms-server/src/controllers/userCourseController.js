@@ -8,7 +8,13 @@ const Lesson = require('../models/Lesson');
 const Enrollment = require('../models/Enrollment');
 const Bundle = require('../models/Bundle');
 const Progress = require('../models/Progress');
-const { canAccessCourse, visibleCoursesFilter } = require('../services/courseAccess');
+const Quiz = require('../models/Quiz');
+
+// How a course's content is listed everywhere — the player, the outline and the
+// progress check: by the admin's order, and by id where two share a number, so
+// all three always agree on which lesson comes next.
+const CONTENT_ORDER = { order: 1, _id: 1 };
+const { canAccessCourse, canOpenCourse, visibleCoursesFilter } = require('../services/courseAccess');
 const { hasFullAccess } = require('../services/fullAccess');
 const walletService = require('../rewards/services/walletService');
 const { getConfig: getRewardsConfig } = require('../rewards/services/configService');
@@ -130,10 +136,18 @@ const getMyCourses = async (req, res) => {
         });
 
 
-        const bundlesWithProgress = bundles.map(bundle => ({
-            ...bundle.toObject(),
-            progress: bundleProgress(bundle, progressByCourse)
-        }));
+        // Each course inside a bundle carries the student's own progress on
+        // it: the bundle's popup lists courses the student reached only
+        // through the bundle, which are not in `courses` above, and read
+        // them as 0% and "Start Course" however far along they were.
+        const bundlesWithProgress = bundles.map(bundle => {
+            const plain = bundle.toObject();
+            return {
+                ...plain,
+                courses: (plain.courses || []).map(c => ({ ...c, progress: progressByCourse.get(c._id.toString()) || 0 })),
+                progress: bundleProgress(bundle, progressByCourse)
+            };
+        });
 
         // Whether this account skips the rule for the Jobs section. Decided
         // here, on the account, so it travels with the person to any machine.
@@ -167,7 +181,6 @@ const getJobsAccess = async (req, res) => {
 const getCourseContent = async (req, res) => {
     try {
         const courseId = req.params.id;
-        // Basic verification - check if user enrolled. Real implementation requires robust check.
         const course = await Course.findById(courseId);
         if (!course) {
             console.log(`[getCourseContent] Course ${courseId} not found in DB`);
@@ -182,6 +195,12 @@ const getCourseContent = async (req, res) => {
         // An organization's own course opens only for its members; to anyone
         // else it does not exist.
         if (!canAccessCourse(req.user, course)) return res.status(404).json({ message: 'Course not found' });
+        // Its lessons are for students who have it: enrolled (a priced course
+        // is paid for then), or through a bundle. The player answers this with
+        // the way to enrol.
+        if (!(await canOpenCourse(req.user, course))) {
+            return res.status(403).json({ code: 'NOT_ENROLLED', message: 'Enrol in this course to open its lessons.' });
+        }
 
         // Content dripping: modules unlock N days after the student's enrollment.
         // Not for the demo cards (services/fullAccess.js): they show the product,
@@ -192,7 +211,7 @@ const getCourseContent = async (req, res) => {
         const enrollDate = enrollment ? new Date(enrollment.assignedAt || enrollment.createdAt) : null;
         const now = new Date();
 
-        const modules = await Module.find({ courseId }).sort('order');
+        const modules = await Module.find({ courseId }).sort(CONTENT_ORDER);
         const modulesWithLessons = await Promise.all(
             modules.map(async (mod) => {
                 const modObj = mod.toObject();
@@ -204,7 +223,7 @@ const getCourseContent = async (req, res) => {
                     locked = now < unlockAt;
                 }
 
-                const lessons = await Lesson.find({ moduleId: mod._id, isPublished: true }).sort('order');
+                const lessons = await Lesson.find({ moduleId: mod._id, isPublished: true }).sort(CONTENT_ORDER);
                 // For a still-locked module, expose only titles/types — never the content.
                 const safeLessons = locked
                     ? lessons.map(l => ({ _id: l._id, title: l.title, type: l.type, order: l.order, locked: true }))
@@ -227,6 +246,71 @@ const getCourseContent = async (req, res) => {
     }
 };
 
+// What a lesson is, as the course player labels it: a quiz, a video, a
+// reading (a PDF), an assignment, or a plain lesson with none of those.
+const lessonKind = (lesson) => {
+    if (lesson.type === 'quiz' || lesson.quizId) return 'quiz';
+    if (lesson.videoUrl || lesson.videoId) return 'video';
+    if (lesson.pdfUrl) return 'reading';
+    if (lesson.assignmentId || lesson.type === 'assignment') return 'assignment';
+    return 'lesson';
+};
+
+// @desc    What is inside a course, for a student deciding whether to enrol
+// @route   GET /api/user/courses/:id/outline
+// @access  Private/User
+//
+// The Preview on an available course. Its sections and the title and kind of
+// every lesson, with counts, and nothing that plays: no video, PDF, quiz or
+// assignment reference leaves the server, so a priced course gives nothing
+// away. Published courses only, and an organization's course only to its own
+// students (to anyone else it does not exist, as in the player).
+const getCourseOutline = async (req, res) => {
+    try {
+        const course = await Course.findById(req.params.id)
+            .select('title description thumbnail instructor price isPublished organizationId').lean();
+        if (!course || !course.isPublished || !canAccessCourse(req.user, course)) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+
+        const modules = await Module.find({ courseId: course._id }).sort(CONTENT_ORDER).select('title description dripDays').lean();
+        const lessons = await Lesson.find({ moduleId: { $in: modules.map((m) => m._id) }, isPublished: true })
+            .sort(CONTENT_ORDER).select('moduleId title type videoUrl videoId pdfUrl quizId assignmentId').lean();
+
+        const totals = { modules: modules.length, lessons: lessons.length, video: 0, reading: 0, quiz: 0, assignment: 0 };
+        const byModule = new Map(modules.map((m) => [String(m._id), []]));
+        for (const lesson of lessons) {
+            const kind = lessonKind(lesson);
+            if (kind in totals) totals[kind] += 1;
+            byModule.get(String(lesson.moduleId))?.push({ title: lesson.title, kind });
+        }
+
+        res.json({
+            course: {
+                id: course._id,
+                title: course.title,
+                description: course.description || '',
+                thumbnail: course.thumbnail || '',
+                instructor: course.instructor || '',
+                price: course.price || 0
+            },
+            // Whether the student can open it already (enrolled, or through a
+            // bundle), so the Preview offers "Open course" instead of Enroll.
+            canOpen: await canOpenCourse(req.user, course),
+            totals,
+            modules: modules.map((m) => ({
+                title: m.title,
+                description: m.description || '',
+                // Opens this many days after enrolling (the player's drip lock).
+                dripDays: m.dripDays || 0,
+                lessons: byModule.get(String(m._id))
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 // @desc    Update progress when a lesson is completed
 // @route   POST /api/user/progress/update
 // @access  Private/User
@@ -234,14 +318,48 @@ const updateProgress = async (req, res) => {
     try {
         const { courseId, lessonId } = req.body;
         // Plain values only: an object here ({"$gt": ""}) would match some course.
-        if (typeof courseId !== 'string' || (lessonId != null && typeof lessonId !== 'string')) {
+        if (typeof courseId !== 'string' || typeof lessonId !== 'string' || !require('mongoose').isValidObjectId(lessonId)) {
             return res.status(400).json({ message: 'Invalid course or lesson' });
         }
 
         const target = courseId ? await Course.findById(courseId).select('organizationId').lean() : null;
         if (!target || !canAccessCourse(req.user, target)) return res.status(404).json({ message: 'Course not found' });
+        // No progress (and no lesson or course XP) in a course the student does not have.
+        if (!(await canOpenCourse(req.user, target))) {
+            return res.status(403).json({ code: 'NOT_ENROLLED', message: 'Enrol in this course to open its lessons.' });
+        }
+
+        // A real, published lesson of this course. Any id used to be taken, so
+        // made-up ones paid lesson XP and could carry a course to 100% (and so
+        // to its course XP and certificate) without a lesson being done.
+        const modules = await Module.find({ courseId }).sort(CONTENT_ORDER).select('_id').lean();
+        const published = await Lesson.find({ moduleId: { $in: modules.map((m) => m._id) }, isPublished: true }).sort(CONTENT_ORDER).select('_id moduleId type assignmentId').lean();
+        // In the order the course runs: module by module, as the player lists them.
+        const courseLessons = modules.flatMap((m) => published.filter((l) => String(l.moduleId) === String(m._id)));
+        const lesson = courseLessons.find((l) => String(l._id) === lessonId);
+        if (!lesson) return res.status(404).json({ message: 'Lesson not found in this course' });
 
         const progress = await Progress.findOrCreate(req.user._id, courseId);
+
+        if (!progress.completedLessons.map(String).includes(lessonId)) {
+            // In order: the next lesson is the first one not yet done, as the
+            // player unlocks them. Only the page held this rule; a request
+            // could finish a course's lessons in any order, or all at once.
+            const done = new Set(progress.completedLessons.map(String));
+            const next = courseLessons.find((l) => !done.has(String(l._id)));
+            if (!next || String(next._id) !== lessonId) {
+                return res.status(403).json({ code: 'LESSON_LOCKED', message: 'Finish the earlier lessons first.' });
+            }
+            // A quiz lesson is done by passing its quiz, not by asking. A
+            // failed first attempt that earned credits used to complete it,
+            // and with it the course and its certificate.
+            if (lesson.type === 'quiz') {
+                const quiz = await Quiz.findOne({ lessonId: lesson._id }).select('_id').lean();
+                if (quiz && !(progress.passedQuizzes || []).map(String).includes(String(quiz._id))) {
+                    return res.status(403).json({ code: 'QUIZ_NOT_PASSED', message: 'Pass this lesson\'s quiz to complete it.' });
+                }
+            }
+        }
 
         progress.lastAccessedLesson = lessonId;
 
@@ -251,12 +369,12 @@ const updateProgress = async (req, res) => {
             progress.completedLessons.push(lessonId);
         }
 
-        // Calculate complete percentage
-        const modules = await Module.find({ courseId });
-        const moduleIds = modules.map(m => m._id);
-        const totalLessons = await Lesson.countDocuments({ moduleId: { $in: moduleIds }, isPublished: true });
-
-        progress.percentage = totalLessons === 0 ? 0 : Math.min(100, Math.round((progress.completedLessons.length / totalLessons) * 100));
+        // The share of this course's published lessons that are done. Counted
+        // against those lessons, so an id saved before the check above (or a
+        // lesson since removed) no longer counts toward 100%.
+        const lessonIds = new Set(courseLessons.map((l) => String(l._id)));
+        const done = new Set(progress.completedLessons.map(String).filter((id) => lessonIds.has(id))).size;
+        progress.percentage = lessonIds.size === 0 ? 0 : Math.min(100, Math.round((done / lessonIds.size) * 100));
 
         await progress.save();
 
@@ -277,6 +395,12 @@ const updateProgress = async (req, res) => {
             if (newLesson) {
                 const r = await safeRecordActivity({ userId: req.user._id, type: 'lesson_complete', refId: lessonId, courseId });
                 rewards.events.push(...r.events);
+                // An assignment lesson also pays "Complete an assignment" (it
+                // was a rule nothing awarded).
+                if (lesson.type === 'assignment' || lesson.assignmentId) {
+                    const a = await safeRecordActivity({ userId: req.user._id, type: 'assignment_complete', refId: lessonId, courseId });
+                    rewards.events.push(...a.events);
+                }
             }
             if (progress.percentage === 100 && !wasComplete) {
                 const r = await safeRecordActivity({ userId: req.user._id, type: 'course_complete', refId: courseId, courseId });
@@ -587,6 +711,7 @@ const searchContent = async (req, res) => {
 
 module.exports = {
     getMyCourses,
+    getCourseOutline,
     getJobsAccess,
     getBundles,
     getBundleContent,

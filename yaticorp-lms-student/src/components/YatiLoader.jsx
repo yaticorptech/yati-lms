@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Rocket, Star } from 'lucide-react';
 import './yatiLoader.css';
+import { useHideLoop } from './loopVisibility';
 
 /**
  * What the student watches while a page, their account, or a roadmap is
@@ -116,6 +117,9 @@ export function YatiOrbit({ size = 168, mood = 'thinking' }) {
 }
 
 export default function YatiLoader({ label = 'Loading…', size = 168, fullScreen = false, lines = LINES }) {
+  // Yati, the walking mascot, steps away while a page is loading: the
+  // loader's own mascot (below) is the one on screen then. One at a time.
+  useHideLoop();
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 2400);

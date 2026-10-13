@@ -3,12 +3,13 @@
  * about: courses, progress, XP, last active, membership status.
  *
  * The server answers only with this organization's students — there is no
- * organization parameter to change — so the search box, the filter chips and
- * the sort are arranging rows that were already scoped, not a wider set.
+ * organization parameter to change — so the search box and the filter chips
+ * are arranging rows that were already scoped, not a wider set. The list is
+ * always in name order.
  *
  * One page of 25 at a time: an institution with a few thousand students must
- * not be sent all of them every 30 seconds. The search, sort, filter and page
- * live in the address (?q=…&filter=…&page=2), so a refresh or a shared link
+ * not be sent all of them every 30 seconds. The search, filter and page live
+ * in the address (?q=…&filter=…&page=2), so a refresh or a shared link
  * opens the same list, and the Dashboard's numbers can link straight to it.
  * Against a server that does not page yet (no `total` in the answer) the same
  * arranging happens here, over the full list, exactly as it used to.
@@ -29,12 +30,6 @@ import { relativeDay, formatDate } from '../../utils/dates';
 import { saveBlob } from '../../native/saveFile';
 
 const PAGE_SIZE = 25;
-
-const SORTS = [
-    ['name', 'Name'],
-    ['progress', 'Progress'],
-    ['active', 'Last active']
-];
 
 const FILTERS = [
     ['all', 'All'],
@@ -62,21 +57,14 @@ const FILTER_TEST = {
     blocked: (s) => s.status !== 'active'
 };
 
-/** The search, filter and sort, applied in the browser — the fallback, and the export. */
-const arrange = (students, { q, filter, sort }) => {
+/** The search and filter, applied in the browser, in name order — the fallback, and the export. */
+const arrange = (students, { q, filter }) => {
     const query = q.trim().toLowerCase();
     const cutoff = new Date(Date.now() - THIRTY_DAYS);
     const test = FILTER_TEST[filter] || FILTER_TEST.all;
     const rows = students.filter((s) => test(s, cutoff)
         && (!query || s.name?.toLowerCase().includes(query) || s.email?.toLowerCase().includes(query)));
-
-    if (sort === 'progress') rows.sort((a, b) => b.progressPercent - a.progressPercent);
-    if (sort === 'active') {
-        // Students who have never been active sort last rather than first.
-        rows.sort((a, b) => new Date(b.lastActive || 0) - new Date(a.lastActive || 0));
-    }
-    if (sort === 'name') rows.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    return rows;
+    return rows.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 };
 
 const pick = (value, options, fallback) => (options.some(([key]) => key === value) ? value : fallback);
@@ -84,7 +72,6 @@ const pick = (value, options, fallback) => (options.some(([key]) => key === valu
 const StudentList = ({ tabs }) => {
     const [params, setParams] = useSearchParams();
     const q = params.get('q') || '';
-    const sort = pick(params.get('sort'), SORTS, 'name');
     const filter = pick(params.get('filter'), FILTERS, 'all');
     const page = Math.max(1, parseInt(params.get('page'), 10) || 1);
 
@@ -93,7 +80,7 @@ const StudentList = ({ tabs }) => {
         const next = new URLSearchParams(params);
         Object.entries(changes).forEach(([key, value]) => {
             const isDefault = value === '' || value == null
-                || (key === 'sort' && value === 'name') || (key === 'filter' && value === 'all') || (key === 'page' && value === 1);
+                || (key === 'filter' && value === 'all') || (key === 'page' && value === 1);
             if (isDefault) next.delete(key); else next.set(key, String(value));
         });
         setParams(next, { replace });
@@ -126,7 +113,7 @@ const StudentList = ({ tabs }) => {
 
     const fetchStudents = async ({ signal, isCurrent = () => true } = {}) => {
         try {
-            const query = { page, limit: PAGE_SIZE, sort, filter };
+            const query = { page, limit: PAGE_SIZE, sort: 'name', filter };
             if (q.trim()) query.search = q.trim();
             const res = await api.get('/organizations/me/students', { params: query, signal });
             if (!isCurrent()) return;
@@ -138,7 +125,7 @@ const StudentList = ({ tabs }) => {
                 if (page > last) update({ page: last }, { replace: true });
             } else {
                 // The whole list came back: arrange and page it here.
-                const rows = arrange(students, { q, filter, sort });
+                const rows = arrange(students, { q, filter });
                 const last = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
                 const at = Math.min(page, last);
                 setList({ rows: rows.slice((at - 1) * PAGE_SIZE, at * PAGE_SIZE), total: rows.length, page: at });
@@ -153,7 +140,7 @@ const StudentList = ({ tabs }) => {
         }
     };
 
-    const refresh = useAutoRefresh(fetchStudents, 30000, [q, sort, filter, page]);
+    const refresh = useAutoRefresh(fetchStudents, 30000, [q, filter, page]);
     const retry = () => { setLoading(true); refresh(); };
 
     /**
@@ -185,15 +172,15 @@ const StudentList = ({ tabs }) => {
      * A CSV of every student matching the search and filter — all pages, not
      * just the one on screen — built in the browser. Institutions live in
      * spreadsheets, and this needs no new endpoint: the unpaged list is the
-     * old answer, and the search, filter and sort are applied to it here.
+     * old answer, and the search and filter are applied to it here.
      */
     const exportCsv = async () => {
         setExporting(true);
         try {
-            const query = { sort, filter };
+            const query = { sort: 'name', filter };
             if (q.trim()) query.search = q.trim();
             const res = await api.get('/organizations/me/students', { params: query });
-            const rows = arrange(res.data.students || [], { q, filter, sort });
+            const rows = arrange(res.data.students || [], { q, filter });
 
             const header = ['Name', 'Email', 'Status', 'Courses enrolled', 'Courses completed', 'Overall progress % (all enrolled courses)', 'Lessons completed', 'Quizzes passed', 'Certificates', 'XP', 'Level', 'Joined organization', 'Last active'];
             const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -221,10 +208,15 @@ const StudentList = ({ tabs }) => {
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
             <PageHeader icon={Users} title="Students"
                 subtitle={loading ? 'Loading…' : loaded && !narrowed ? `${list.total} student${list.total === 1 ? '' : 's'} in your organization.` : 'The students in your organization.'}>
-                <SearchInput value={searchText} onChange={setSearchText} placeholder="Search name or email..." label="Search students" />
-                <button onClick={exportCsv} disabled={!list.total || exporting} className={`${BTN2} whitespace-nowrap`}>
-                    {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}Export CSV
-                </button>
+                {/* One row on a phone too: the search takes the room, the export is a short button beside it. */}
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <SearchInput value={searchText} onChange={setSearchText} placeholder="Search name or email..." label="Search students" className="min-w-0 flex-1 sm:w-64 sm:flex-none" />
+                    <button onClick={exportCsv} disabled={!list.total || exporting} aria-label="Export CSV" title="Export CSV"
+                        className={`${BTN2} shrink-0 whitespace-nowrap px-3 sm:px-4`}>
+                        {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                        <span className="sm:hidden">CSV</span><span className="hidden sm:inline">Export CSV</span>
+                    </button>
+                </div>
             </PageHeader>
 
             {tabs}
@@ -234,15 +226,15 @@ const StudentList = ({ tabs }) => {
                 load says so in the list itself, with a Retry. */}
             {error && loaded && <Banner onClose={() => setError('')}>{error}</Banner>}
 
-            <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+            {/* The filter chips, then how many they leave. */}
+            <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
                 <div className="flex min-w-0 items-center gap-3">
                     <span className="hidden text-xs font-bold uppercase tracking-wider text-slate-400 sm:inline">Show</span>
                     <Segmented options={FILTERS} value={filter} onChange={(f) => update({ filter: f, page: 1 })} />
                 </div>
-                <div className="flex min-w-0 items-center gap-3">
-                    <span className="hidden text-xs font-bold uppercase tracking-wider text-slate-400 sm:inline">Sort by</span>
-                    <Segmented options={SORTS} value={sort} onChange={(v) => update({ sort: v, page: 1 })} />
-                </div>
+                <p className="shrink-0 text-sm font-medium text-slate-500 xl:hidden" aria-live="polite">
+                    {loaded && !loading ? `${list.total} student${list.total === 1 ? '' : 's'}` : ''}
+                </p>
             </div>
 
             <div className={`${CARD} overflow-hidden`}>
@@ -280,7 +272,7 @@ const StudentList = ({ tabs }) => {
                                     <tr key={s._id} className="group hover:bg-slate-50/50 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <Avatar name={s.name} size="h-9 w-9 text-xs" />
+                                                <Avatar name={s.name} src={s.profilePicture} size="h-9 w-9 text-xs" />
                                                 <div className="min-w-0">
                                                     <div className="font-medium text-slate-800">{s.name}</div>
                                                     <div className="text-sm text-slate-500">{s.email}</div>
@@ -329,7 +321,7 @@ const StudentList = ({ tabs }) => {
                             <li key={s._id} className="p-4">
                                 <Link to={`/organization/students/${s._id}`} className="block rounded-xl transition-colors active:bg-slate-50">
                                     <div className="flex items-center gap-3">
-                                        <Avatar name={s.name} />
+                                        <Avatar name={s.name} src={s.profilePicture} />
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate font-semibold text-slate-800">{s.name}</p>
                                             <p className="truncate text-sm text-slate-500">{s.email}</p>

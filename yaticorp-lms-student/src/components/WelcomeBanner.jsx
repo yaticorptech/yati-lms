@@ -93,6 +93,11 @@ export default function WelcomeBanner({
             <span className="min-w-0 flex-1">
                 {/* The level the student is at, first. "260 XP to reach Level 4"
                     named only the next one, and read as though they were on it. */}
+                {/* No level yet (a device that has never saved one, before
+                    the profile answers): a placeholder, not a made-up Level 1. */}
+                {level == null ? (
+                    <span className="skeleton block h-5 w-44 max-w-full rounded-md" aria-label="Loading your level" />
+                ) : (
                 <span className="block text-sm text-slate-700">
                     <strong className="font-bold text-indigo-600">Level {level}</strong>
                     {/* Left out until the admin's level ladder has loaded, rather
@@ -104,8 +109,9 @@ export default function WelcomeBanner({
                         </>
                     )}
                 </span>
+                )}
                 <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-indigo-100"
-                    role="progressbar" aria-label={`Progress through level ${level}`}
+                    role="progressbar" aria-label={level == null ? 'Progress through your level' : `Progress through level ${level}`}
                     aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
                     <span className="block h-full rounded-full bg-indigo-600 transition-[width] duration-700" style={{ width: `${percent}%` }} />
                 </span>
@@ -141,9 +147,11 @@ export default function WelcomeBanner({
                                     : <span className="flex h-full w-full items-center justify-center text-2xl font-black text-indigo-600">{initials}</span>}
                             </span>
                         </button>
-                        <span className="absolute -bottom-1 -right-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-indigo-600 shadow-sm ring-4 ring-indigo-50">
-                            Lv {level}
-                        </span>
+                        {level != null && (
+                            <span className="absolute -bottom-1 -right-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-indigo-600 shadow-sm ring-4 ring-indigo-50">
+                                Lv {level}
+                            </span>
+                        )}
                     </div>
 
                     <div className="min-w-0">

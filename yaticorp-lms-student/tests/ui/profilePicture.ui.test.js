@@ -17,7 +17,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { screen, srcFile, ROOT, skipWithoutChrome } from './harness.js';
+import { screen, srcFile, ROOT, skipWithoutChrome, DEVICES } from './harness.js';
 
 // The real avatar images, so the grid shows them as the app does.
 const files = Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [`/avatars/boys/${n}.jpg`, readFileSync(path.join(ROOT, 'public', 'avatars', 'boys', `${n}.jpg`))]));
@@ -29,6 +29,7 @@ export default {
     if (window.__offline) return Promise.reject(new Error('Network Error'));
     return Promise.resolve({ data: { user: { profilePicture: window.__serverPicture || '' } } }); },
   put: (url, body) => { window.__calls.push(['PUT', url, body]);
+    if (window.__putFails) return Promise.reject(Object.assign(new Error('Request failed with status code 500'), { response: { status: 500, data: { message: 'Server error' } } }));
     return Promise.resolve({ data: { name: 'New Student', profilePicture: 'https://lms.example' + body.profilePicture } }); },
   post: (url) => { window.__calls.push(['POST', url]); return Promise.resolve({ data: {} }); },
   delete: () => Promise.resolve({ data: {} })
@@ -135,12 +136,56 @@ window.__run = async () => ({
   clear: await measure(await getCroppedBlob(photo(800, 800, () => {}), { x: 0, y: 0, width: 800, height: 800 })),
   broken: await getCroppedBlob('data:image/png;base64,AAAA', { x: 0, y: 0, width: 10, height: 10 }).then(() => 'read', (e) => e.message)
 });`;
-        const { result, errors } = await screen({ entry, api: 'export default {};', script: 'return await window.__run();' });
+        // In real time, on a phone: under the harness's virtual time, Chrome
+        // took the page for idle while its images were decoded and encoded off
+        // the page's thread, and quit before any result (each step alone was
+        // fine; all four together never finished, whatever the budget).
+        const { result, errors } = await screen({ entry, api: 'export default {};', script: 'return await window.__run();', device: DEVICES.pixel9 });
         assert.deepEqual(errors, []);
         assert.deepEqual([result.camera.width, result.camera.height, result.camera.type], [512, 512, 'image/jpeg'], 'a camera photo: 512 square, JPEG');
         assert.ok(result.camera.centre[2] > 180 && result.camera.centre[0] < 120, 'still the photo (indigo)');
         assert.deepEqual([result.small.width, result.small.height], [300, 300], 'a small photo keeps its size');
         assert.ok(result.clear.centre.every((v) => v > 240), 'a see-through PNG comes out white, not black');
         assert.equal(result.broken, 'That photo could not be read. Try another one.');
+    });
+});
+
+describe('when the picture cannot be used, the popup says why', { skip: skipWithoutChrome }, () => {
+    // Browser alert() boxes, which a phone shows as a bare system prompt over
+    // the app, are recorded rather than shown, so a test can see one was used.
+    const watched = gate(`window.__alerts = []; window.alert = (m) => window.__alerts.push(String(m));`);
+    const pick = (name, type) => `
+        const input = $('input[type=file]');
+        const dt = new DataTransfer(); dt.items.add(new File(['not a picture'], '${name}', { type: '${type}' }));
+        input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true })); await sleep(300);`;
+
+    test('a file that is not a picture is refused inside the popup, not in an alert box', async () => {
+        const { result, errors } = await screen({ entry: watched, api, files, script: `
+            await sleep(800);
+            ${pick('notes.pdf', 'application/pdf')}
+            return { message: text($('[role=dialog] [role=alert]')), alerts: window.__alerts, crop: !!$('[aria-label="Crop Photo"]'), open: !!$('#picker-title') };` });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result.alerts, [], 'no alert() box');
+        assert.match(result.message || '', /choose an image file/i);
+        assert.equal(result.crop, false, 'it does not go on to the crop step');
+        assert.equal(result.open, true, 'the popup stays, so another file can be chosen');
+    });
+
+    test('an avatar that fails to save says so inside the popup, and the popup stays', async () => {
+        const { result, errors } = await screen({ entry: watched, api, files, script: `
+            window.__putFails = true;
+            await sleep(800);
+            $$('button[aria-label^="Avatar"]')[1].click(); await sleep(100);
+            find(/Use this avatar/).click(); await sleep(400);
+            const first = text($('[role=dialog] [role=alert]'));
+            // A second try that works clears the message and closes the popup.
+            window.__putFails = false;
+            find(/Use this avatar/).click(); await sleep(400);
+            return { first, alerts: window.__alerts, closed: !$('#picker-title'), picture: window.__user.profilePicture };` });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result.alerts, [], 'no alert() box');
+        assert.equal(result.first, 'Failed to update photo. Please try again.', 'the server error is put in plain words');
+        assert.equal(result.closed, true, 'the second try saves and closes');
+        assert.match(result.picture || '', /\/avatars\/boys\/2\.jpg$/);
     });
 });

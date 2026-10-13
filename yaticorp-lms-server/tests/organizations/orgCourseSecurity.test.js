@@ -257,6 +257,9 @@ describe('malformed video ids never reach VdoCipher', () => {
 describe('playback OTPs', () => {
     test("a student gets one for a video in a course they can open, and only then", async () => {
         const before = calls.length;
+        // A member sees the course, but its videos play once enrolled in it.
+        assert.equal((await otpAsA('POST', '/generate-otp', { videoId: A_VID })).status, 404, 'not before enrolling');
+        await require('../../src/models/Enrollment').create({ userId: sA.user._id, courseId: courseA._id, type: 'Course' });
         const ok = await otpAsA('POST', '/generate-otp', { videoId: A_VID });
         assert.equal(ok.status, 200, JSON.stringify(ok.body));
         assert.equal((await otpAsB('POST', '/generate-otp', { videoId: A_VID })).status, 404, "not another organization's");

@@ -126,7 +126,9 @@ export default function InterviewReport() {
                     </div>
 
                     <div className="justify-self-center text-center">
-                        <div className="animate-pop-in rounded-full bg-white p-2 shadow-lg shadow-black/5">
+                        {/* The score is the one thing the student came for: Yati
+                            stands beside it, never on it (it covered it on a phone). */}
+                        <div data-loop-keep-off className="animate-pop-in rounded-full bg-white p-2 shadow-lg shadow-black/5">
                             <ScoreRing value={r.overall} size={150} stroke={13}>
                                 <span className="text-5xl font-black leading-none tabular-nums text-slate-900">{r.overall}</span>
                                 <span className="mt-1 text-[10px] font-black uppercase tracking-wider text-slate-500">out of 100</span>
@@ -152,7 +154,7 @@ export default function InterviewReport() {
                                 <p className="mt-0.5 text-xs text-indigo-500">Here&apos;s how you performed in different areas.</p>
                             </div>
                         </div>
-                        <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black ${r.overall >= 75 ? 'bg-emerald-50 text-emerald-700' : r.overall >= 50 ? 'bg-indigo-50 text-indigo-700' : 'bg-orange-50 text-orange-600'}`}>Overall: {r.overall}/100</span>
+                        <span data-loop-keep-off className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black ${r.overall >= 75 ? 'bg-emerald-50 text-emerald-700' : r.overall >= 50 ? 'bg-indigo-50 text-indigo-700' : 'bg-orange-50 text-orange-600'}`}>Overall: {r.overall}/100</span>
                     </div>
                     <div className="space-y-3.5">{DIMENSIONS.map((d) => <Dimension key={d.key} dim={d} value={r.scores?.[d.key] ?? 0} />)}</div>
                 </section>

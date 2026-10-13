@@ -15,7 +15,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, BookOpen, Award, Compass, Flame, TrendingUp, GraduationCap,
-    CheckCircle2, UserMinus, AlertTriangle, Mail, Phone
+    CheckCircle2, UserMinus, AlertTriangle, Mail, Phone, Clock, ListChecks, CalendarDays, Trophy, Medal, UserPlus
 } from 'lucide-react';
 import api from '../../utils/api';
 import { CARD, Stat, Bar, Pill, Empty, Avatar, RemoveStudentDialog } from '../../components/orgUi';
@@ -36,6 +36,75 @@ const Section = ({ icon: Icon, title, subtitle, children, action }) => (
         {children}
     </div>
 );
+
+const days = (n) => `${n} day${n === 1 ? '' : 's'}`;
+
+/** One of the three facts in the activity strip: an icon, the value, what it is. */
+const Fact = ({ icon: Icon, tone, value, label }) => (
+    <div className="flex min-w-0 flex-col items-center gap-1.5 px-2 py-4 text-center sm:flex-row sm:gap-3 sm:px-5 sm:text-left">
+        <span className={`shrink-0 rounded-xl p-2 ${tone}`}><Icon size={17} /></span>
+        <div className="min-w-0">
+            <p className="text-sm font-bold text-slate-800 tabular-nums sm:text-base">{value}</p>
+            <p className="text-[11px] font-semibold leading-tight text-slate-500">{label}</p>
+        </div>
+    </div>
+);
+
+const dayName = (key) => new Date(`${key}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+// "5 days ago", "on 12 Sep 2026": relativeDay's words, fitted into a sentence.
+const whenInSentence = (value) => { const r = relativeDay(value); return r === formatDate(value) ? `on ${r}` : r.toLowerCase(); };
+
+/**
+ * The streak as the student sees it, in one small card: the run they are on
+ * (none, once a day has been missed) and how it stands today, the last seven
+ * days one dot each, and under it their best run and their badges.
+ */
+const StreakCard = ({ rewards }) => {
+    const { currentStreak: current, longestStreak: longest, doneToday, lastActivityDay, week, badges } = rewards;
+    const on = current > 0;
+    const status = doneToday ? 'Learned today'
+        : on ? 'Learned yesterday'
+            : lastActivityDay ? `Last learned ${whenInSentence(lastActivityDay)}` : 'Not started yet';
+    const activeDays = (week || []).filter((d) => d.active).length;
+    return (
+        <div className={`${CARD} p-4 sm:p-5`}>
+            <h2 className="sr-only">Streak and badges</h2>
+            <div className="flex items-center gap-3">
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${on ? 'bg-gradient-to-br from-orange-500 to-rose-500 text-white shadow-md shadow-orange-500/25' : 'bg-slate-100 text-slate-400'}`}>
+                    <Flame size={20} strokeWidth={2.25} />
+                </span>
+                <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-800">{on ? `${current}-day streak` : 'No streak running'}</p>
+                    <p className={`text-xs font-medium ${doneToday ? 'text-emerald-600' : on ? 'text-amber-600' : 'text-slate-500'}`}>{status}</p>
+                </div>
+                {week?.length === 7 && (
+                    <div className="shrink-0 text-right" role="img" aria-label={`Learned on ${activeDays} of the last 7 days`}>
+                        <div className="flex gap-1">
+                            {week.map((d, i) => (
+                                <span key={d.day} title={`${dayName(d.day)}${d.active ? ' · learned' : ''}`}
+                                    className={`h-3 w-3 rounded-full ${d.active ? 'bg-gradient-to-br from-orange-400 to-rose-500' : 'bg-slate-200'} ${i === 6 ? 'ring-2 ring-orange-200 ring-offset-1' : ''}`} />
+                            ))}
+                        </div>
+                        <p className="mt-1 text-[10px] font-medium text-slate-400">Last 7 days</p>
+                    </div>
+                )}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-slate-100 pt-3 text-sm">
+                <p className="flex items-center gap-1.5">
+                    <Trophy size={15} className="shrink-0 text-amber-500" />
+                    <span className="text-slate-500">Best streak</span>
+                    <span className="font-bold text-slate-800 tabular-nums">{days(longest)}</span>
+                </p>
+                <p className="flex items-center gap-1.5">
+                    <Medal size={15} className="shrink-0 text-violet-500" />
+                    <span className="font-bold text-slate-800 tabular-nums">{badges}</span>
+                    <span className="text-slate-500">badge{badges === 1 ? '' : 's'} earned</span>
+                </p>
+            </div>
+        </div>
+    );
+};
 
 const OrgStudentDetail = () => {
     const { studentId } = useParams();
@@ -127,27 +196,56 @@ const OrgStudentDetail = () => {
             </Link>
 
             {/* ── Who they are ─────────────────────────────────────────────── */}
-            <div className={`${CARD} p-5 lg:p-6`}>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex items-start gap-4 min-w-0">
-                        <Avatar name={student.name} src={student.profilePicture} size="h-14 w-14 text-lg" />
-                        <div className="min-w-0">
-                            <h1 className="truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{student.name}</h1>
-                            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
-                                <span className="inline-flex min-w-0 items-center gap-1.5 break-all"><Mail size={13} className="shrink-0" />{student.email}</span>
-                                {student.phone && <span className="inline-flex items-center gap-1.5"><Phone size={13} />{student.phone}</span>}
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                <Pill status={student.status} />
-                                {student.joinedOrganizationAt && <span>Joined you {formatDate(student.joinedOrganizationAt)}</span>}
-                                <span>· On the platform since {formatDate(student.accountCreatedAt)}</span>
-                            </div>
+            <div className={`${CARD} overflow-hidden`}>
+                <div className="flex items-center gap-3.5 p-4 sm:gap-4 sm:p-5 lg:p-6">
+                    <div className="shrink-0 rounded-full ring-4 ring-indigo-50">
+                        <Avatar name={student.name} src={student.profilePicture} size="h-16 w-16 text-xl" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h1 className="truncate text-lg font-bold tracking-tight text-slate-900 sm:text-2xl">{student.name}</h1>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                            <Pill status={student.status} />
+                            {student.joinedOrganizationAt && (
+                                <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-slate-500" title="When they joined your organization">
+                                    <UserPlus size={13} className="shrink-0 text-slate-400" />Joined {formatDate(student.joinedOrganizationAt)}
+                                </span>
+                            )}
                         </div>
                     </div>
-
+                    {/* From a tablet up, beside the name; a phone has it, smaller, on the card's last line. */}
                     <button onClick={() => setConfirmRemove(true)}
-                        className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50">
-                        <UserMinus size={15} />Remove from organization
+                        className="hidden h-10 shrink-0 items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 sm:inline-flex">
+                        <UserMinus size={16} />Remove from organization
+                    </button>
+                </div>
+
+                {/* How to reach them: tap to write or to call. */}
+                <div className="grid divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                    <a href={`mailto:${student.email}`} className="flex min-w-0 items-center gap-3 px-4 py-2.5 sm:py-3 transition-colors hover:bg-slate-50 active:bg-slate-100 sm:px-5 lg:px-6">
+                        <span className="shrink-0 rounded-lg bg-indigo-50 p-2 text-indigo-600"><Mail size={15} /></span>
+                        <span className="min-w-0">
+                            <span className="block text-[11px] font-semibold text-slate-400">Email</span>
+                            <span className="block truncate text-sm font-medium text-slate-700" title={student.email}>{student.email}</span>
+                        </span>
+                    </a>
+                    {student.phone && (
+                        <a href={`tel:${student.phone}`} className="flex min-w-0 items-center gap-3 px-4 py-2.5 sm:py-3 transition-colors hover:bg-slate-50 active:bg-slate-100 sm:px-5 lg:px-6">
+                            <span className="shrink-0 rounded-lg bg-emerald-50 p-2 text-emerald-600"><Phone size={15} /></span>
+                            <span className="min-w-0">
+                                <span className="block text-[11px] font-semibold text-slate-400">Phone</span>
+                                <span className="block truncate text-sm font-medium text-slate-700 tabular-nums">{student.phone}</span>
+                            </span>
+                        </a>
+                    )}
+                </div>
+
+                <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-2 text-xs text-slate-500 sm:px-5 sm:py-2.5 lg:px-6">
+                    <p className="flex min-w-0 items-center gap-1.5" title="When they made their account">
+                        <CalendarDays size={13} className="shrink-0 text-slate-400" /><span className="truncate">On the platform since {formatDate(student.accountCreatedAt)}</span>
+                    </p>
+                    <button onClick={() => setConfirmRemove(true)} aria-label="Remove from organization"
+                        className="-my-1 inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 font-semibold text-red-600 transition-colors hover:bg-red-50 active:bg-red-100 sm:hidden">
+                        <UserMinus size={14} />Remove
                     </button>
                 </div>
             </div>
@@ -162,19 +260,11 @@ const OrgStudentDetail = () => {
                 <Stat icon={Award} label="XP" value={overview.xp} sub={`Level ${overview.level}`} tone="amber" />
             </div>
 
-            <div className={`${CARD} grid gap-4 p-5 sm:grid-cols-3`}>
-                <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Last active</p>
-                    <p className="mt-1 font-semibold text-slate-800">{relativeDay(overview.lastActive)}</p>
-                </div>
-                <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Quizzes passed</p>
-                    <p className="mt-1 font-semibold text-slate-800 tabular-nums">{overview.quizzesPassed}</p>
-                </div>
-                <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">First enrolled</p>
-                    <p className="mt-1 font-semibold text-slate-800">{formatDate(overview.enrolledAt)}</p>
-                </div>
+            {/* Three facts side by side, a phone included: one short strip, not a tall card. */}
+            <div className={`${CARD} grid grid-cols-3 divide-x divide-slate-100`}>
+                <Fact icon={Clock} tone="bg-sky-100 text-sky-600" value={relativeDay(overview.lastActive)} label="Last active" />
+                <Fact icon={ListChecks} tone="bg-emerald-100 text-emerald-600" value={overview.quizzesPassed} label="Quizzes passed" />
+                <Fact icon={CalendarDays} tone="bg-violet-100 text-violet-600" value={formatDate(overview.enrolledAt)} label="First enrolled" />
             </div>
 
             {/* ── Courses ──────────────────────────────────────────────────── */}
@@ -251,22 +341,7 @@ const OrgStudentDetail = () => {
 
             {/* ── Streak and badges, only if rewards is in use ─────────────── */}
             {rewards && (
-                <Section icon={Flame} title="Streak and badges">
-                    <div className="grid gap-4 p-5 sm:grid-cols-3 sm:p-6">
-                        <div>
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Current streak</p>
-                            <p className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">{rewards.currentStreak}<span className="ml-1 text-sm font-medium text-slate-500">days</span></p>
-                        </div>
-                        <div>
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Longest streak</p>
-                            <p className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">{rewards.longestStreak}<span className="ml-1 text-sm font-medium text-slate-500">days</span></p>
-                        </div>
-                        <div>
-                            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Badges earned</p>
-                            <p className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">{rewards.badges}</p>
-                        </div>
-                    </div>
-                </Section>
+                <StreakCard rewards={rewards} />
             )}
 
             {/* ── Certificates ─────────────────────────────────────────────── */}

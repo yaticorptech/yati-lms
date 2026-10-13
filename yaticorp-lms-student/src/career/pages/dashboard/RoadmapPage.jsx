@@ -203,8 +203,8 @@ export default function RoadmapPage() {
       )}
 
       {/* Generation replaces the page while it runs, whether or not a roadmap
-          is already there. It takes about ten seconds, and a spinner on a
-          button for ten seconds reads as a stall — the one moment in this
+          is already there. It takes about half a minute, and a spinner on a
+          button for that long reads as a stall — the one moment in this
           section that is genuinely worth watching deserves to be watched. */}
       {generating ? (
         <GeneratingRoadmap />

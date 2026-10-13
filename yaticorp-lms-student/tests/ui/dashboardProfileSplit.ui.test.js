@@ -564,3 +564,62 @@ createRoot(document.getElementById('root')).render(
         assert.equal(result.shown, true, 'and the new certificate is in the frame');
     });
 });
+
+describe('the banner before the profile has answered', { skip: skipWithoutStyles }, () => {
+    // /user/profile is held back until the page calls window.__release(), so
+    // the banner can be read in the moment before the server's level arrives.
+    const holding = api.split('export default {').join('const base = {') + `
+let release; const held = new Promise((r) => { release = r; }); window.__release = () => release();
+export default { ...base, get: (url, config) => (url.includes('/user/profile') ? base.get(url, config).then((r) => held.then(() => r)) : base.get(url, config)) };`;
+    // The signed-in student as the device saved them, in a provider whose
+    // setUser really sets, so what the page writes back can be read.
+    const standingPage = (saved) => `
+import { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
+import { AuthContext } from '${srcFile('context/AuthContext.jsx')}';
+import { RewardsProvider } from '${srcFile('context/RewardsContext.jsx')}';
+import Profile from '${srcFile('pages/Profile.jsx')}';
+localStorage.setItem('studentData', JSON.stringify(${JSON.stringify(saved)}));
+const App = () => {
+  const [user, setUser] = useState(${JSON.stringify(saved)});
+  window.__user = user;
+  return (
+    <AuthContext.Provider value={{ user, setUser, isCareerPathEnabled: true, isGlobalQuizEnabled: true, isRewardsEnabled: true, isJobsEnabled: true }}>
+      <RewardsProvider><MemoryRouter><Profile /></MemoryRouter></RewardsProvider>
+    </AuthContext.Provider>);
+};
+createRoot(document.getElementById('root')).render(<App />);`;
+    const READ = `(() => { const b = $('[data-welcome]'); return { text: b.innerText.replace(/\\s+/g, ' '), placeholder: !!b.querySelector('[aria-label="Loading your level"]') }; })()`;
+
+    test('a level saved on the device shows at once, not "Level 1"', async () => {
+        const { result, errors } = await screen({
+            entry: standingPage({ ...USER, xp: 315, level: 3 }), api: holding, styles: true, width: DESKTOP, budget: 20_000, script: `
+                await sleep(1500);
+                const before = ${READ};
+                window.__release(); await sleep(800);
+                return { before, after: ${READ} };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.before.text, /Level 3 · 285 XP to the next level/, 'the saved level, before the server has answered');
+        assert.doesNotMatch(result.before.text, /Level 1|Lv 1/i);
+        assert.match(result.after.text, /Level 3 · 285 XP to the next level/);
+    });
+
+    test('with no saved level, a placeholder until the server answers, then the level is saved for next time', async () => {
+        // A session signed in before sign-in sent the level.
+        const { result, errors } = await screen({
+            entry: standingPage(USER), api: holding, styles: true, width: DESKTOP, budget: 20_000, script: `
+                await sleep(1500);
+                const before = ${READ};
+                window.__release(); await sleep(800);
+                const saved = JSON.parse(localStorage.getItem('studentData'));
+                return { before, after: ${READ}, saved: { xp: saved.xp, level: saved.level, name: saved.name }, user: { xp: window.__user.xp, level: window.__user.level } };` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.before.placeholder, 'a placeholder where the level goes');
+        assert.doesNotMatch(result.before.text, /Level \d|Lv \d/i, 'no made-up level');
+        assert.match(result.after.text, /Level 3 · 285 XP to the next level/);
+        assert.equal(result.after.placeholder, false);
+        assert.deepEqual(result.saved, { xp: 315, level: 3, name: USER.name }, 'saved on the device, the rest kept');
+        assert.deepEqual(result.user, { xp: 315, level: 3 }, 'and on the signed-in student');
+    });
+});

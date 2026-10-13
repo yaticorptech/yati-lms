@@ -35,6 +35,11 @@ const loginUser = async (req, res) => {
                 cardNumber: user.cardNumber,
                 profilePicture: user.profilePicture || '',
                 credits: user.credits || 0,
+                // Saved with the rest on the device, so the Dashboard's
+                // banner opens on the student's own level rather than on
+                // "Level 1" until the profile has loaded.
+                xp: user.xp || 0,
+                level: user.level || 1,
                 loginCount: user.loginCount,
                 role: 'student',
                 token: generateToken(user._id, 'student')
@@ -140,6 +145,8 @@ const updateUserProfile = async (req, res) => {
                 cardNumber: updatedUser.cardNumber,
                 profilePicture: updatedUser.profilePicture || '',
                 credits: updatedUser.credits || 0,
+                xp: updatedUser.xp || 0,
+                level: updatedUser.level || 1,
                 role: 'student',
                 token: generateToken(updatedUser._id, 'student'),
             });

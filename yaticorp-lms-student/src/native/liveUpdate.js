@@ -79,6 +79,14 @@ export function startLiveUpdates() {
                 const buf = await fetch(`${LIVE}/${p.split('/').map(encodeURIComponent).join('/')}?raw=1`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error(`${p}: ${r.status}`); return r.arrayBuffer(); });
                 await Filesystem.writeFile({ path: `${DIR}/${p}`, data: toBase64(buf), directory: Directory.Data, recursive: true });
             };
+            // The folders first, one at a time. Written six at once, two files
+            // landing in the same new folder both asked for it, and the file
+            // plugin reports the one that finds it already made as "Missing
+            // parent directory" (the first update on a phone, 2026-10-10).
+            const dirs = [...new Set(changed.map((p) => (p.includes('/') ? `${DIR}/${p.slice(0, p.lastIndexOf('/'))}` : DIR)))].sort((x, y) => x.length - y.length);
+            for (const path of dirs) {
+                try { await Filesystem.mkdir({ path, directory: Directory.Data, recursive: true }); } catch { /* there already */ }
+            }
             for (let i = 0; i < rest.length; i += 6) await Promise.all(rest.slice(i, i + 6).map(copy));
             for (const p of pages) await copy(p);
             localStorage.setItem(KEY, JSON.stringify(remote));

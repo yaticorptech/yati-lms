@@ -10,6 +10,7 @@ const { connect, makeUser, startApp, cleanup } = require('../helpers');
 
 const TAG = `test-bank-${Date.now()}`;
 let app, me, api, other, otherApi, original, live, draft, wasPublished = [];
+const extraUsers = [];
 
 const add = (quiz, question, options, correctAnswerIndex, extra = {}) =>
     require('../../src/models/GlobalQuestion').create({ question, options, correctAnswerIndex, category: TAG, quizId: quiz._id, ...extra });
@@ -44,7 +45,7 @@ after(async () => {
     await GlobalQuiz.deleteMany({ _id: { $in: [live._id, draft._id] } });
     for (const q of wasPublished) await GlobalQuiz.updateOne({ _id: q._id }, { $set: { status: 'published', publishedAt: q.publishedAt } });
     await require('../../src/models/Setting').updateOne({}, original ? { $set: { globalQuiz: original } } : { $unset: { globalQuiz: 1 } });
-    await cleanup([me.user, other.user], app.server);
+    await cleanup([me.user, other.user, ...extraUsers], app.server);
 });
 
 const mine = (questions) => questions.filter((q) => q.category === TAG);
@@ -95,6 +96,42 @@ describe('drawing the paper', () => {
         const order = async () => (await api('GET', '/quizzes/global?limit=25')).body.questions.map((q) => q.questionId).join('|');
         const seen = new Set(); for (let i = 0; i < 8; i++) seen.add(await order());
         assert.ok(seen.size > 1);
+    });
+});
+
+describe('the "a new Global Quiz is live" check', () => {
+    const Setting = () => require('../../src/models/Setting');
+    test('says which quiz is live, with no questions, and that this student has not taken it', async () => {
+        const r = await api('GET', '/quizzes/global/live');
+        assert.equal(r.status, 200);
+        assert.equal(r.body.quiz.id, String(live._id));
+        assert.equal(r.body.quiz.title, `${TAG} live`);
+        assert.equal(r.body.quiz.attempted, false);
+        assert.equal(r.body.quiz.closed, false);
+        assert.ok(r.body.quiz.publishedAt);
+        assert.doesNotMatch(JSON.stringify(r.body), /2 \+ 2|options|correctAnswerIndex/, 'not a word of the paper');
+    });
+
+    test('once the student has started it, it is theirs: attempted', async () => {
+        const third = await makeUser('LiveCheck'); extraUsers.push(third.user);
+        const call = app.call(third.token);
+        assert.equal((await call('POST', '/quizzes/global/start', {})).status < 300, true);
+        assert.equal((await call('GET', '/quizzes/global/live')).body.quiz.attempted, true);
+    });
+
+    test('nothing to announce with no quiz published, or with the Global Quiz switched off', async () => {
+        const GlobalQuiz = require('../../src/models/GlobalQuiz');
+        await GlobalQuiz.updateOne({ _id: live._id }, { $set: { status: 'draft' } });
+        try { assert.equal((await api('GET', '/quizzes/global/live')).body.quiz, null); }
+        finally { await GlobalQuiz.updateOne({ _id: live._id }, { $set: { status: 'published' } }); }
+        await Setting().updateOne({}, { $set: { 'globalQuiz.enabled': false } });
+        try { assert.equal((await api('GET', '/quizzes/global/live')).body.quiz, null); }
+        finally { await Setting().updateOne({}, { $set: { 'globalQuiz.enabled': true } }); }
+        assert.ok((await api('GET', '/quizzes/global/live')).body.quiz, 'back on, it is announced again');
+    });
+
+    test('needs a signed-in student', async () => {
+        assert.equal((await app.call(null)('GET', '/quizzes/global/live')).status, 401);
     });
 });
 
@@ -239,5 +276,41 @@ describe('one attempt', () => {
             await GlobalQuiz.updateOne({ _id: draft._id }, { $set: { status: 'draft', publishedAt: null } });
             await GlobalQuiz.updateOne({ _id: live._id }, { $set: { status: 'published' } });
         }
+    });
+});
+
+/* After 'one attempt': by now this student has finished the live quiz (1 of 6)
+   and opened, but not finished, the other one. */
+describe('past quizzes', () => {
+    test('needs a signed-in student', async () => {
+        assert.equal((await app.call(null)('GET', '/quizzes/global/history')).status, 401);
+    });
+
+    test('lists finished attempts, newest first, with their scores', async () => {
+        // One more, finished a week ago, at a quiz that has since been deleted.
+        const gone = new mongoose.Types.ObjectId();
+        await require('../../src/models/GlobalQuizAttempt').create({
+            userId: me.user._id, quizId: gone, startedAt: new Date(Date.now() - 7 * 86400000 - 90_000),
+            finishedAt: new Date(Date.now() - 7 * 86400000), correctCount: 4, totalQuestions: 5, score: 80
+        });
+        const r = await api('GET', '/quizzes/global/history');
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        const rows = r.body.attempts;
+        assert.equal(rows.length, 2, 'the open attempt at the other quiz is not history yet');
+        const [latest, older] = rows;
+        assert.equal(latest.title, `${TAG} live`);
+        assert.equal(latest.score, 17); assert.equal(latest.correctCount, 1); assert.equal(latest.totalQuestions, 6);
+        assert.equal(latest.current, true, 'the published quiz is flagged: the tab already shows it');
+        assert.equal(older.title, 'A past quiz', 'a deleted quiz keeps its row');
+        assert.equal(older.score, 80); assert.equal(older.current, false);
+        assert.equal(older.elapsedMs, 90_000);
+        assert.ok(new Date(latest.finishedAt) > new Date(older.finishedAt));
+    });
+
+    test("never shows another student's attempts", async () => {
+        const rows = (await otherApi('GET', '/quizzes/global/history')).body.attempts;
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].timedOut, true);
+        assert.equal(rows[0].correctCount, 1);
     });
 });

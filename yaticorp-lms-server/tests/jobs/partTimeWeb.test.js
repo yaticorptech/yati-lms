@@ -8,13 +8,13 @@
  */
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeUser, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, startApp, cleanup, openJobs } = require('../helpers');
 
 let server, api, me, profile;
 
 before(async () => {
     await connect();
-    me = await makeUser('PartTime');
+    me = await makeUser('PartTime'); await openJobs(me);
     const OpportunityProfile = require('../../src/jobboard/models/OpportunityProfile');
     const from = new Date();
     const to = new Date(from); to.setDate(to.getDate() + 20);

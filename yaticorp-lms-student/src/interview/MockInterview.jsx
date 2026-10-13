@@ -19,6 +19,7 @@ import { isNative } from '../native/platform';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
 import { markReturn } from './scrollMemory';
 import PriceTag from '../components/rewards/PriceTag';
+import { useHideLoop } from '../components/loopVisibility';
 
 const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 const PHASE = {
@@ -193,11 +194,21 @@ export default function MockInterview() {
     const [heard, setHeard] = useState('');          // what recognition has produced so far
     const [draft, setDraft] = useState('');          // the editable answer
     const [voiceMode, setVoiceMode] = useState(true);
-    const [voiceNote, setVoiceNote] = useState('');  // why voice is off, when it is
+    const [voiceNote, setVoiceNote] = useState('');  // this question's note: nothing heard, the voice could not play…
+    // Why voice is off, when the browser or the microphone turned it off. It
+    // stays for as long as voice is off: it used to share voiceNote, which each
+    // new question clears, so a student who refused the microphone was put in
+    // typing mode with no word of why.
+    const [voiceOff, setVoiceOff] = useState('');
     const [clarify, setClarify] = useState('');      // the interviewer could not use the last answer
     const [muted, setMuted] = useState(false);
     const [showTranscript, setShowTranscript] = useState(false);
     const [finishing, setFinishing] = useState(false);
+    // Loop, the mascot, stays off the interview itself: from Start to the
+    // report, the student is listening and answering out loud, and a figure
+    // walking about and talking pulls them out of it. It is there on the
+    // introduction, to explain Start, and on the report.
+    useHideLoop(live || starting);
     const [now, setNow] = useState(() => Date.now());
     const speaker = useMemo(() => createSpeaker(), []);
     const listener = useMemo(() => createListener(), []);
@@ -219,14 +230,32 @@ export default function MockInterview() {
     const elapsed = session ? now - new Date(session.startedAt).getTime() : 0;
     const plannedMs = (session?.plannedMinutes || 12) * 60_000;
 
-    /* Listen for one answer. */
+    /* Listen for one answer. A recogniser that fails always ends straight
+       after, with nothing heard. That end used to say "I did not catch
+       anything" over the real reason (no connection, a blocked microphone),
+       and kept the empty recording's timings, so the answer then typed was
+       labelled "Heard by voice" and saved as spoken. Only words actually
+       heard make an answer a spoken one. */
     const listen = useCallback(() => {
         if (!listener.supported || !mountedRef.current) return;
         setHeard(''); setDraft(''); metricsRef.current = null; setPhase('listening');
+        let failed = false;
         listener.start({
             onInterim: (t) => setHeard(t),
-            onFinal: (text, metrics) => { if (!mountedRef.current) return; metricsRef.current = metrics; setDraft(text); setPhase('review'); if (!text) setVoiceNote('I did not catch anything. Tap the mic to try again, or type your answer.'); },
-            onError: (code) => { if (!mountedRef.current) return; const msg = listenerErrorMessage(code); if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(code)) { setVoiceMode(false); } if (msg) setVoiceNote(msg); setPhase('review'); setTimeout(() => inputRef.current?.focus(), 50); }
+            onFinal: (text, metrics) => {
+                if (!mountedRef.current) return;
+                metricsRef.current = text ? metrics : null;
+                setDraft(text); setPhase('review');
+                if (!text && !failed) setVoiceNote('I did not catch anything. Tap the mic to try again, or type your answer.');
+            },
+            onError: (code) => {
+                if (!mountedRef.current) return;
+                failed = true;
+                const msg = listenerErrorMessage(code);
+                if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(code)) { setVoiceMode(false); setVoiceOff(msg); }
+                else if (msg) setVoiceNote(msg);
+                setPhase('review'); setTimeout(() => inputRef.current?.focus(), 50);
+            }
         });
     }, [listener]);
 
@@ -251,7 +280,7 @@ export default function MockInterview() {
     const start = async ({ type, role }) => {
         setStarting(true); setError(null);
         try {
-            if (listener.supported) { const mic = await requestMicrophone(); if (!mic.ok) { setVoiceMode(false); setVoiceNote(listenerErrorMessage(mic.code)); } }
+            if (listener.supported) { const mic = await requestMicrophone(); if (!mic.ok) { setVoiceMode(false); setVoiceOff(listenerErrorMessage(mic.code)); } }
             let s = session;
             if (!s) { s = await interviewApi.start(type, role); navigate(`/interview/mock/${s.id}`, { replace: true, state: { autostart: true } }); setSession(s); }
             setLive(true);
@@ -262,7 +291,7 @@ export default function MockInterview() {
     const tryAgain = () => { speaker.stop(); listener.stop(); setVoiceNote(''); if (voiceMode && listener.supported) listen(); else { setDraft(''); setPhase('review'); } };
     const stopListening = () => { listener.stop(); };
     /* Switch to voice and listen at once: `tryAgain` would still see the old voiceMode in this same tick. */
-    const startVoice = () => { speaker.stop(); listener.stop(); setVoiceNote(''); setVoiceMode(true); listen(); };
+    const startVoice = () => { speaker.stop(); listener.stop(); setVoiceNote(''); setVoiceOff(''); setVoiceMode(true); listen(); };
     const toggleMic = () => { if (phase === 'listening') stopListening(); else if (phase === 'review' || phase === 'idle') { if (!listener.supported) return; startVoice(); } };
 
     const submit = async () => {
@@ -375,6 +404,7 @@ export default function MockInterview() {
                         onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(); }}
                         placeholder={phase === 'analyzing' ? 'Analyzing your answer…' : 'Your spoken answer appears here. You can also type.'}
                         className="mt-2 w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-[15px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:bg-slate-50" />
+                    {!voiceMode && voiceOff && <p className="mt-2 flex items-start gap-1.5 text-xs font-semibold text-amber-700"><MicOff size={13} className="mt-0.5 shrink-0" /> {voiceOff}</p>}
                     {voiceNote && <p className="mt-2 flex items-start gap-1.5 text-xs font-semibold text-amber-700"><AlertTriangle size={13} className="mt-0.5 shrink-0" /> {voiceNote}</p>}
 
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">

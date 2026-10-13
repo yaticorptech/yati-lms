@@ -74,6 +74,8 @@ describe('adding and removing rules', () => {
     test('an optional XP rule pays nothing until added, then once per ref, and never for a failed request', async () => {
         const call = app.call(me.token);
         const xp = async () => { await new Promise((r) => setTimeout(r, 400)); return (await User.findById(me.user._id).select('xp').lean()).xp || 0; };
+        // From no forum rule, whatever the shared rulebook holds today (an admin may have added one); after() puts it back.
+        await config.updateConfig({ removeRules: { xp: ['forum_post'] } }); config.invalidate();
         await call('POST', '/post', {});
         assert.equal(await xp(), 0, 'no rule, no XP');
         await config.updateConfig({ xpRules: { forum_post: 7 } }); config.invalidate();

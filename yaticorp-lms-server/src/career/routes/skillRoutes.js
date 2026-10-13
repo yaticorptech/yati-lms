@@ -1,16 +1,14 @@
 const express = require('express');
 const router = express.Router();
 
-const { getSkills, updateSkill } = require('../controllers/skillController');
+const { getSkills } = require('../controllers/skillController');
 const { protect } = require('../middleware/authMiddleware');
-const { validateObjectId } = require('../middleware/validateObjectId');
-
-// Every :id in this router is checked before it reaches a query.
-router.param('id', validateObjectId);
 
 router.route('/')
   .get(protect, getSkills);
-router.route('/:id')
-  .put(protect, updateSkill);
+// No PUT /:id: a skill's progress is earned on the server, by finishing
+// Career Path tasks, never set by the student. That route let any student
+// set their own skills to 100%, which also opened Jobs (2026-10-13), and
+// nothing in the app used it.
 
 module.exports = router;
