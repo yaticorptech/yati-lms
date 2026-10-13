@@ -56,7 +56,7 @@ return { label: link.innerText.trim(), defaultPrevented, posts: window.__calls.f
     // A short balance is told by the app's own "Not enough wallet balance"
     // popup (utils/walletCharge, on the real client). Find Job used to put a
     // browser alert() with the same words on top of it.
-    const failing = (reply) => `${stubOpen}
+    const failing = () => `${stubOpen}
 window.__alerts = []; window.alert = (m) => window.__alerts.push(String(m));
 await sleep(500);
 const link = $$('a').find((a) => /Find Job/.test(a.innerText));
