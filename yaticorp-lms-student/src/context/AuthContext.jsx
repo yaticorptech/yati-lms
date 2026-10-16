@@ -6,12 +6,44 @@
 import React, { createContext, useState, useEffect } from 'react';
 import api from '../utils/api';
 import { getAuthServices } from '../shared/api/authService';
+import { forgetStudent, safeNextPath } from '../utils/sessionExpiry';
 
 export const AuthContext = createContext();
 
+/**
+ * The student saved on this device, read straight away rather than after the
+ * first render, so the app opens on the dashboard without a loading screen.
+ * Whether the server still accepts that login is found out by the first
+ * request: a 401 signs them out (utils/sessionExpiry).
+ */
+const readSavedStudent = () => {
+    try {
+        const token = localStorage.getItem('studentToken');
+        const data = localStorage.getItem('studentData');
+        return token && data ? JSON.parse(data) : null;
+    } catch {
+        console.error('Failed to parse user data');
+        return null;
+    }
+};
+
+const hasSavedToken = () => {
+    try { return !!localStorage.getItem('studentToken'); } catch { return false; }
+};
+
+/**
+ * How long the start-up settings read may take. It used to have no limit, and
+ * the whole app waited on it — a slow server meant a loading screen with no
+ * end. Only this request is limited: AI answers and uploads go through the
+ * same client and can rightly take minutes.
+ */
+const SETTINGS_TIMEOUT_MS = 10000;
+
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(readSavedStudent);
+    // Only the section switches below wait on this; the app itself renders
+    // from the saved student while it loads.
+    const [settingsLoading, setSettingsLoading] = useState(hasSavedToken);
     const [isCreditSystemEnabled, setIsCreditSystemEnabled] = useState(true);
     // Defaults open, so a settings request that is slow or fails never hides a
     // section that is actually available. The server is the real gate.
@@ -45,82 +77,78 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     useEffect(() => {
-        const initAuth = async () => {
-            const token = localStorage.getItem('studentToken');
-            const userData = localStorage.getItem('studentData');
-            if (token && userData) {
-                try {
-                    setUser(JSON.parse(userData));
-                } catch {
-                    console.error('Failed to parse user data');
-                }
-            }
-
-            // Fetch global settings once at startup — when someone is signed in.
-            // The endpoint needs a student, so on the login page it only ever
-            // answered 401 and logged an error; the defaults below are what
-            // that failure fell back to anyway, and signing in reloads the app.
-            if (!token) {
-                setLoading(false);
-                return;
-            }
-            try {
-                const res = await api.get('/user/settings');
+        // Fetch global settings once at startup — when someone is signed in.
+        // The endpoint needs a student, so on the login page it only ever
+        // answered 401 and logged an error; the defaults above are what
+        // that failure fell back to anyway, and signing in reloads the app.
+        if (!hasSavedToken()) return undefined;
+        let alive = true;
+        api.get('/user/settings', { timeout: SETTINGS_TIMEOUT_MS })
+            .then((res) => {
+                if (!alive) return;
                 setIsCreditSystemEnabled(res.data?.isCreditSystemEnabled ?? true);
                 setIsCareerPathEnabled(res.data?.isCareerPathEnabled ?? true);
                 setIsJobsEnabled(res.data?.isJobsEnabled ?? true);
                 setIsGlobalQuizEnabled(res.data?.isGlobalQuizEnabled ?? true);
                 setIsRewardsEnabled(res.data?.isRewardsEnabled ?? true);
-            } catch (err) {
+            })
+            .catch((err) => {
+                if (!alive) return;
+                // The saved login is no longer accepted: the client has already
+                // cleared it and is on its way to the sign-in page
+                // (utils/sessionExpiry); stop showing it as signed in meanwhile.
+                if (err?.response?.status === 401) { setUser(null); return; }
+                // Slow (timed out) or failed: carry on with everything open.
                 console.error('Failed to load settings in AuthContext:', err);
-                setIsCreditSystemEnabled(true);
-                setIsCareerPathEnabled(true);
-                setIsJobsEnabled(true);
-                setIsGlobalQuizEnabled(true);
-                setIsRewardsEnabled(true);
-            }
-
-            setLoading(false);
-        };
-        initAuth();
+            })
+            .finally(() => { if (alive) setSettingsLoading(false); });
+        return () => { alive = false; };
     }, []);
 
     /**
      * A student has just signed in or signed up: keep the session and open the
-     * dashboard. A full load, not a client-side move: caches held in memory
+     * page they were heading for (`next`, a path in this app; the dashboard
+     * otherwise). A full load, not a client-side move: caches held in memory
      * (Career Path's reads, the rewards summary) belong to whoever was signed
-     * in before, and must not be shown to this student.
+     * in before, and must not be shown to this student. Nothing is put into
+     * state first — that started the new student's dashboard requests in this
+     * page, only for the reload to throw them away and make them again.
      */
-    const enterApp = (data) => {
-        // A real sign-in ends any administrator's visit in this browser.
-        localStorage.removeItem('adminViewing');
+    const enterApp = (data, next) => {
+        // A real sign-in ends any administrator's visit in this browser, and
+        // whatever this tab remembered about the previous student. Sign-up's
+        // organization notice is for this one, so it stays.
+        forgetStudent({ keep: ['yati.signupOrg'] });
         localStorage.setItem('studentToken', data.token);
         localStorage.setItem('studentData', JSON.stringify(data));
-        setUser(data);
-        window.location.assign('/');
+        window.location.assign(safeNextPath(next));
     };
 
-    const login = async (cardNumber, password) => {
+    const login = async (cardNumber, password, next) => {
         try {
             const data = await authService.login({ cardNumber, password });
-            enterApp(data);
+            enterApp(data, next);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.response?.data?.message || 'Login failed' };
+            return {
+                success: false,
+                error: err.response?.data?.message
+                    || (!err.response ? 'Check your connection and try again.' : 'Login failed')
+            };
         }
     };
 
     const logout = () => {
-        localStorage.removeItem('studentToken');
-        localStorage.removeItem('studentData');
-        localStorage.removeItem('adminViewing');
+        forgetStudent();
         setUser(null);
         // A full load, for the same reason as after signing in.
         window.location.assign('/login');
     };
 
     return (
-        <AuthContext.Provider value={{ user, setUser, loading, login, logout, enterApp, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isGlobalQuizEnabled, isRewardsEnabled }}>
+        // `loading` is kept for anything that still reads it; it now means
+        // the settings, which only the section gates wait for.
+        <AuthContext.Provider value={{ user, setUser, loading: settingsLoading, settingsLoading, login, logout, enterApp, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isGlobalQuizEnabled, isRewardsEnabled }}>
             {children}
         </AuthContext.Provider>
     );

@@ -11,6 +11,7 @@
  */
 import axios from 'axios';
 import { onWalletResponse, onWalletError } from '../../utils/walletCharge';
+import { expireSessionOn401 } from '../../utils/sessionExpiry';
 
 // VITE_API_URL already carries the /api suffix (see .env.example).
 const lmsBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -30,6 +31,11 @@ api.interceptors.response.use(onWalletResponse, onWalletError);
  */
 let leavingLockedSection = false;
 api.interceptors.response.use(undefined, (error) => {
+  // A session the server no longer accepts ends here, as on every other
+  // client in the app: signed out and sent to the sign-in page once, however
+  // many Career Path calls come back 401 together. Still rejected, so the
+  // caller's own handling runs as before.
+  expireSessionOn401(error);
   if (
     error?.response?.status === 403 &&
     error.response.data?.code === 'CAREER_PATH_LOCKED' &&
@@ -65,6 +71,25 @@ const TTL_MS = 60 * 1000;
 const cache = new Map();     // key -> { at, response }
 const inflight = new Map();  // key -> Promise<response>
 
+/**
+ * An answer that is about to change is never kept. Today's plan while it is
+ * still being built ('generating') or after its build failed ('failed') is
+ * exactly the answer a student is waiting to see replaced — cached, the
+ * planner's "Try again", "Check again" and its own polling all got the same
+ * stale day back for a minute, and a refresh during "Building today's plan"
+ * waited the whole minute before it could see the plan.
+ */
+const UNSETTLED_DAY = new Set(['generating', 'failed']);
+const keepable = (response) => !UNSETTLED_DAY.has(response?.data?.day?.status);
+
+/**
+ * How many Career Path writes have finished this session. The shell compares
+ * it between tab changes, so it re-reads the student's XP only when something
+ * could have changed it rather than on every tab (CareerShell).
+ */
+let writes = 0;
+export const careerWriteCount = () => writes;
+
 export const clearCareerCache = () => {
   cache.clear();
   inflight.clear();
@@ -83,7 +108,10 @@ const copy = (response, config) => ({ ...response, config, data: structuredClone
 api.defaults.adapter = (config) => {
   if ((config.method || 'get').toLowerCase() !== 'get') {
     clearCareerCache();
-    return send(config).finally(clearCareerCache);
+    return send(config).finally(() => {
+      writes += 1;
+      clearCareerCache();
+    });
   }
 
   const key = `${config.headers?.Authorization || ''} ${api.getUri(config)}`;
@@ -95,7 +123,7 @@ api.defaults.adapter = (config) => {
   if (!inflight.has(key)) {
     const request = send(config)
       .then((response) => {
-        if (inflight.get(key) === request) cache.set(key, { at: Date.now(), response });
+        if (inflight.get(key) === request && keepable(response)) cache.set(key, { at: Date.now(), response });
         return response;
       })
       .finally(() => {

@@ -8,8 +8,9 @@
  * While editing, the tiles give way to the form passed in as children.
  */
 import { Link } from 'react-router-dom';
-import { User, Phone, Landmark, Mail, ChartNoAxesColumnIncreasing, Pencil, Camera, Loader2, Crown, ChevronRight } from 'lucide-react';
+import { User, Phone, Landmark, Mail, ChartNoAxesColumnIncreasing, Pencil, Camera, Loader2, Crown } from 'lucide-react';
 import OrganizationButton from '../organization/OrganizationButton';
+import ProfileImage from './ProfileImage';
 
 // Each tile's icon colours. Written out in full: Tailwind cannot see a class
 // name assembled at runtime.
@@ -34,15 +35,17 @@ const ShieldDot = ({ size = 24 }) => (
  *  rows may hold only labels and values. */
 const STRETCH = 'absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400';
 
-/** One detail: an icon, its label, its value, and a chevron when the tile
- *  opens something. A dt/dd pair, so the list reads as label and value to a
- *  screen reader too. `control` is what the tile opens, laid over all of it.
+/** One detail: an icon, its label and its value. A dt/dd pair, so the list
+ *  reads as label and value to a screen reader too. `control` is what the tile
+ *  opens, laid over all of it. No arrow on any of them (asked 2026-10-15,
+ *  "dont give arrow near name phone number ... we have edit option there"):
+ *  Edit Profile at the top changes the details, so they are plain rows now.
  *
  *  On a phone (the card under 34rem) it is a row of one grouped list, at a
  *  smaller size — six separate cards there made a column longer than the
  *  screen. From 34rem up it is its own card. */
 const Tile = ({ icon, tone, label, children, control, opens = !!control }) => (
-    <div className={`group relative grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-3.5 py-3 transition-[border-color,box-shadow,background-color] @[34rem]:rounded-2xl @[34rem]:border @[34rem]:border-slate-100 @[34rem]:bg-white @[34rem]:py-3.5 @[34rem]:shadow-[0_8px_24px_-14px_rgba(67,56,202,0.35)] ${opens ? 'active:bg-slate-50 @[34rem]:hover:border-indigo-200 @[34rem]:hover:shadow-[0_12px_28px_-12px_rgba(67,56,202,0.45)]' : ''}`}>
+    <div className={`group relative grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 px-3.5 py-3 transition-[border-color,box-shadow,background-color] @[34rem]:rounded-2xl @[34rem]:border @[34rem]:border-slate-100 @[34rem]:bg-white @[34rem]:py-3.5 @[34rem]:shadow-[0_8px_24px_-14px_rgba(67,56,202,0.35)] ${opens ? 'active:bg-slate-50 @[34rem]:hover:border-indigo-200 @[34rem]:hover:shadow-[0_12px_28px_-12px_rgba(67,56,202,0.45)]' : ''}`}>
         <span aria-hidden="true" className={`col-start-1 row-span-2 row-start-1 flex h-9 w-9 items-center justify-center rounded-xl [&>svg]:size-[18px] @[34rem]:h-11 @[34rem]:w-11 @[34rem]:rounded-2xl @[34rem]:[&>svg]:size-[22px] ${TONES[tone]}`}>
             {icon}
         </span>
@@ -50,7 +53,6 @@ const Tile = ({ icon, tone, label, children, control, opens = !!control }) => (
         {/* An email has no spaces to break at; the address breaks before its
             @ (see breakable) and only anywhere as the very last resort. */}
         <dd className="col-start-2 row-start-2 mt-0.5 min-w-0 text-sm font-bold text-indigo-950 [overflow-wrap:anywhere]">{children}{control}</dd>
-        {opens && <ChevronRight size={16} aria-hidden="true" className="col-start-3 row-span-2 row-start-1 text-slate-400 transition-transform group-hover:translate-x-0.5 @[34rem]:text-slate-500" />}
     </div>
 );
 
@@ -121,9 +123,6 @@ const ProfileArt = ({ className = '' }) => (
 export default function PersonalInfoCard({ user, level, levelTo, editing, onEdit, onViewPhoto, onChangePhoto, uploadingPhoto, children }) {
     const photo = user?.profilePicture;
     const initials = (user?.name || '').trim().split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
-    // Name, phone, email and ID all open Edit Profile, where they are changed
-    // (the ID is shown there, read-only).
-    const edit = (label) => <button type="button" onClick={onEdit} aria-label={`Edit Profile: ${label}`} className={STRETCH} />;
 
     // Laid out by the card's own width, not the window's: the sidebar comes and
     // goes, and the page stops growing at 80rem. Three tiles to a row need about
@@ -174,9 +173,8 @@ export default function PersonalInfoCard({ user, level, levelTo, editing, onEdit
                                 <button type="button" onClick={photo ? onViewPhoto : undefined} disabled={!photo}
                                     aria-label={photo ? 'View your photo' : undefined}
                                     className="block h-20 w-20 overflow-hidden rounded-full border-[3px] border-white bg-gradient-to-br from-violet-100 via-fuchsia-100 to-violet-200 shadow-lg shadow-indigo-100 ring-2 ring-indigo-200 focus:outline-none focus-visible:ring-indigo-400 disabled:cursor-default @[34rem]:h-24 @[34rem]:w-24 @[48rem]:h-36 @[48rem]:w-36 @[48rem]:border-4">
-                                    {photo
-                                        ? <img src={photo} alt={user?.name || ''} className="h-full w-full object-cover" />
-                                        : <span className="flex h-full w-full items-center justify-center text-3xl font-black text-violet-600 @[48rem]:text-5xl">{initials}</span>}
+                                    <ProfileImage src={photo} alt={user?.name || ''} className="h-full w-full object-cover"
+                                        fallback={<span className="flex h-full w-full items-center justify-center text-3xl font-black text-violet-600 @[48rem]:text-5xl">{initials}</span>} />
                                 </button>
                                 <button type="button" onClick={onChangePhoto} disabled={uploadingPhoto}
                                     className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-white text-indigo-500 shadow-lg ring-1 ring-slate-100 transition-transform hover:scale-110 disabled:opacity-60 @[48rem]:bottom-0.5 @[48rem]:right-0.5 @[48rem]:h-11 @[48rem]:w-11"
@@ -202,10 +200,10 @@ export default function PersonalInfoCard({ user, level, levelTo, editing, onEdit
                         {/* A phone: one grouped list, rows split by hairlines. From 34rem:
                             separate tiles, two to a row, three from 68rem. */}
                         <dl className="grid w-full min-w-0 flex-1 grid-cols-1 content-center divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_8px_24px_-14px_rgba(67,56,202,0.35)] @[34rem]:grid-cols-2 @[34rem]:gap-3.5 @[34rem]:divide-y-0 @[34rem]:overflow-visible @[34rem]:rounded-none @[34rem]:border-0 @[34rem]:bg-transparent @[34rem]:shadow-none @[68rem]:grid-cols-3">
-                            <Tile icon={<User size={22} fill="currentColor" strokeWidth={1.5} />} tone="blue" label="Full Name" control={edit('Full Name')}>{user?.name || '—'}</Tile>
-                            <Tile icon={<Phone size={20} fill="currentColor" strokeWidth={1.5} />} tone="green" label="Phone Number" control={edit('Phone Number')}>{user?.phone || 'Not added yet'}</Tile>
-                            <Tile icon={<Mail size={22} strokeWidth={2.2} />} tone="pink" label="Email" control={edit('Email')}>{user?.email ? breakable(user.email) : 'Not added yet'}</Tile>
-                            <Tile icon={<ShieldDot size={22} />} tone="violet" label="User ID" control={edit('User ID')}>{user?.cardNumber || '—'}</Tile>
+                            <Tile icon={<User size={22} fill="currentColor" strokeWidth={1.5} />} tone="blue" label="Full Name">{user?.name || '—'}</Tile>
+                            <Tile icon={<Phone size={20} fill="currentColor" strokeWidth={1.5} />} tone="green" label="Phone Number">{user?.phone || 'Not added yet'}</Tile>
+                            <Tile icon={<Mail size={22} strokeWidth={2.2} />} tone="pink" label="Email">{user?.email ? breakable(user.email) : 'Not added yet'}</Tile>
+                            <Tile icon={<ShieldDot size={22} />} tone="violet" label="User ID">{user?.cardNumber || '—'}</Tile>
                             {/* The same control as before, drawn as a value: it
                                 still opens the popup for linking an organization,
                                 and stretches over the tile itself. */}

@@ -88,10 +88,15 @@ function ActiveRow({ skill, task, tile, index, closest, seen }) {
       }`}
       style={reveal.style}
     >
-      <div className="flex items-start gap-3.5">
-        <Tile tile={tile} name={skill.skillName} />
+      {/* On a phone the tile and the name share the first line and the bar,
+          the count and today's task run the full width beneath: in a column
+          beside the tile they left an empty strip down the card's left side
+          (asked 2026-10-15, "fill the space"). From sm up, the details sit
+          beside the tile as before. */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3.5 sm:items-start">
+        <div className="sm:row-span-2"><Tile tile={tile} name={skill.skillName} /></div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className="font-bold text-ink-900">{skill.skillName}</p>
             <LevelChip level={level} />
@@ -102,8 +107,10 @@ function ActiveRow({ skill, task, tile, index, closest, seen }) {
               </span>
             )}
           </div>
+        </div>
 
-          <div className="mt-2.5 flex items-center gap-3">
+        <div className="col-span-2 mt-3 min-w-0 sm:col-span-1 sm:col-start-2 sm:mt-0">
+          <div className="flex items-center gap-3 sm:mt-2.5">
             <span
               role="progressbar"
               aria-valuenow={progress}
@@ -135,7 +142,7 @@ function ActiveRow({ skill, task, tile, index, closest, seen }) {
               <Link
                 to="/career/planner"
                 data-mascot-target={closest ? 'skill-task' : undefined}
-                className="fp-press group inline-flex max-w-full items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 py-1.5 pr-3 pl-2.5 text-xs font-black text-white shadow-md shadow-journey-500/25 transition-all hover:from-journey-700 hover:to-indigo-700"
+                className="fp-press group inline-flex w-full max-w-full items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 py-2 pr-3 pl-2.5 text-xs font-black text-white shadow-md shadow-journey-500/25 transition-all hover:from-journey-700 hover:to-indigo-700 sm:w-auto sm:py-1.5"
               >
                 <Zap className="h-3.5 w-3.5 shrink-0 fill-amber-300 text-amber-300" />
                 <span className="truncate">Today: {task.title}</span>
@@ -344,9 +351,9 @@ export default function Skills() {
   return (
     <div className="fp-enter grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_296px]">
       <div className="min-w-0 space-y-4">
-        <BuildSkillsBanner xp={user?.xp} completed={completed} streak={streak} />
-
         {skills.length === 0 ? (
+          <>
+          <BuildSkillsBanner xp={user?.xp} completed={completed} streak={streak} />
           <EmptyState
             icon={Target}
             title="No skills tracked yet"
@@ -358,8 +365,15 @@ export default function Skills() {
               </Link>
             }
           />
+          </>
         ) : (
-          <Card data-mascot-target="skill-progress" padded={false} className="overflow-hidden">
+          /* On a phone the banner and the skill list are one card (asked
+             2026-10-15, "merge these two sections in mobile view only"): the
+             banner is its head and the list runs on under it. From sm up they
+             stay two cards with the usual gap. */
+          <div className="max-sm:overflow-hidden max-sm:rounded-2xl max-sm:border max-sm:border-line-200/80 max-sm:bg-surface max-sm:shadow-card sm:space-y-4">
+          <BuildSkillsBanner joined xp={user?.xp} completed={completed} streak={streak} />
+          <Card data-mascot-target="skill-progress" padded={false} className="overflow-hidden max-sm:rounded-none max-sm:border-0 max-sm:shadow-none">
             <div className="space-y-6 p-4 sm:p-5">
               {/* ---- IN PROGRESS ---- */}
               {active.length > 0 && (
@@ -371,7 +385,6 @@ export default function Skills() {
                         tone="bg-amber-50 text-amber-600 ring-amber-100"
                         title="In progress"
                         count={active.length}
-                        hint="Keep the momentum — these move first."
                       />
                       <ul className="mt-3 space-y-1.5">
                         {active.map((skill, i) => (
@@ -429,7 +442,6 @@ export default function Skills() {
                         tone="bg-journey-50 text-journey-600 ring-journey-100"
                         title="Ready when you are"
                         count={waiting.length}
-                        hint="One finished task is all it takes to get a skill moving."
                       />
                       <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                         {waiting.map((skill, i) => (
@@ -450,6 +462,7 @@ export default function Skills() {
 
             </div>
           </Card>
+          </div>
         )}
       </div>
 

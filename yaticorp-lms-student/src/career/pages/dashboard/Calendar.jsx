@@ -8,10 +8,12 @@ import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
 import LoadError from '../../components/ui/LoadError';
 import Button from '../../components/ui/Button';
-import { monthBounds, monthIndexOfDate } from '../../utils/calendar';
+import { monthBounds, monthIndexOf, monthIndexOfDate } from '../../utils/calendar';
 import { getSnapshot as googleSnapshot, refresh as refreshGoogle } from '../../../integrations/google/googleStore';
 import GoogleConnectionCard from '../../../integrations/google/GoogleConnectionCard';
-import { currentStreak, greeting } from '../../utils/progress';
+import {
+  currentStreak, greeting, taskDay, todayKey as platformToday, shiftKey, dayKey as platformDayKey
+} from '../../utils/progress';
 import useLevelProgress from '../../context/useLevelProgress';
 import JourneyBanner from '../../components/journey/JourneyBanner';
 import MonthStats from '../../components/dashboard/MonthStats';
@@ -35,7 +37,12 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // must never be offerable here.
 const EVENT_TYPES = ['Exam', 'Assignment', 'Class', 'Holiday', 'Other'];
 
-/** Local YYYY-MM-DD, the key tasks are bucketed under. */
+/**
+ * A square's own YYYY-MM-DD label, from a Date built out of its year, month
+ * and day (the grid's cells, the month range). Not for instants: a task, a
+ * completion or "now" is placed on the platform's calendar instead (taskDay /
+ * platformDayKey in utils/progress), which is the day the server stamped.
+ */
 const dayKey = (date) => {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -149,7 +156,73 @@ export default function CalendarView() {
   // side it came from. 0 is the first paint, which has no direction and
   // therefore no slide.
   const [drift, setDrift] = useState(0);
-  const [selectedKey, setSelectedKey] = useState(dayKey(new Date()));
+  const [selectedKey, setSelectedKey] = useState(platformToday);
+  /* On a phone the day's panel sits below the month, out of sight: a tap on a
+     date (or on a "Coming up next" item) now glides down to it, so the
+     student sees what that day holds (asked 2026-10-15). Only as far as it
+     takes ("dont scroll too much"): the whole panel in view, with the foot of
+     the month still showing above it, so another date is a tap away, and just
+     the header of the next card ("Your Google account") peeking in below. A
+     panel taller than the screen stops with its own top under the bar. A
+     gentle glide of its own (an ease in and out, about half a second to 0.7 s) that a
+     touch or the wheel stops at once. Never on the wide layout, where the
+     panel stands beside the month. Counted per tap, so a tap on the day
+     already chosen goes there too. */
+  const [revealDay, setRevealDay] = useState(0);
+  useEffect(() => {
+    if (!revealDay) return undefined;
+    if (window.matchMedia?.('(min-width: 1024px)').matches) return undefined;
+    let raf = 0;
+    let stop = () => {};
+    raf = requestAnimationFrame(() => {
+      const panel = document.querySelector('[data-mascot-target="day-panel"]');
+      const scroller = panel?.closest('main');
+      if (!panel || !scroller) return;
+      // Where an element will settle: the new day's panel is still sliding in.
+      const settled = (el) => {
+        const t = getComputedStyle(el).transform;
+        return el.getBoundingClientRect().top - (t && t !== 'none' ? new DOMMatrixReadOnly(t).m42 : 0);
+      };
+      const bar = parseFloat(getComputedStyle(scroller).scrollPaddingTop) || 0;
+      // The foot of what can be seen: above the phone's bottom bar.
+      const bottomBars = [...document.querySelectorAll('[data-loop-skip]')]
+        .map((n) => n.getBoundingClientRect())
+        .filter((r) => r.height > 0 && r.top > window.innerHeight * 0.6 && r.bottom >= window.innerHeight - 40);
+      const floor = Math.min(window.innerHeight, ...bottomBars.map((r) => r.top)) - 8;
+      const top = settled(panel);
+      const bottom = top + panel.offsetHeight;
+      const next = panel.nextElementSibling;
+      const want = next ? Math.min(settled(next) + 64, bottom + 80) : bottom + 16;
+      let delta;
+      if (top < bar + 4) delta = top - bar - 12;            // scrolled past it: back up to its top
+      else {
+        delta = want - floor;
+        if (top - delta < bar + 12) delta = top - bar - 12; // taller than the screen: its top under the bar
+        if (delta <= 8) return;                             // already in view
+      }
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { scroller.scrollTop += delta; return; }
+      const from = scroller.scrollTop;
+      const dur = Math.min(700, Math.max(450, Math.abs(delta) * 1.2));
+      const ease = (p) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2);
+      const t0 = performance.now();
+      const onUser = () => stop();
+      stop = () => {
+        cancelAnimationFrame(raf);
+        scroller.removeEventListener('touchstart', onUser);
+        scroller.removeEventListener('wheel', onUser);
+      };
+      scroller.addEventListener('touchstart', onUser, { passive: true });
+      scroller.addEventListener('wheel', onUser, { passive: true });
+      const step = (now) => {
+        const p = Math.min(1, (now - t0) / dur);
+        scroller.scrollTop = from + delta * ease(p);
+        if (p < 1) raf = requestAnimationFrame(step);
+        else stop();
+      };
+      raf = requestAnimationFrame(step);
+    });
+    return () => { cancelAnimationFrame(raf); stop(); };
+  }, [revealDay]);
   // 'month' or 'week'. A week is the same data over seven days instead of
   // thirty-something — the same tasks, the same events, the same map lookups —
   // so it costs one state value and no new request.
@@ -200,7 +273,7 @@ export default function CalendarView() {
         .then(({ data }) => setTimetable(Array.isArray(data?.slots) ? data.slots : [])),
       noneIfMissing(api.get('/goals')).then((res) => {
         const at = res?.data?.createdAt;
-        setStartKey(at ? dayKey(at) : null);
+        setStartKey(at ? platformDayKey(at) : null);
       })
     ]).then(([history, own]) => {
       setFailed(history.status === 'rejected' || own.status === 'rejected');
@@ -265,14 +338,15 @@ export default function CalendarView() {
   const byDay = useMemo(() => {
     const map = new Map();
     for (const task of tasks) {
-      // Tasks created before the daily planner existed carry no assignedDate.
-      // Skipping them made those tasks invisible AND shrank the month range to
-      // "this month only", so a student with real history saw an empty
-      // calendar and no way to page back to it.
-      const date = task.assignedDate || task.createdAt;
-      if (!date) continue;
+      // The platform day the server says this task belongs to. Bucketing by
+      // the device's own date drew a day's task on the square beside it for
+      // anyone whose phone is not on the platform's timezone. Tasks created
+      // before the daily planner existed carry no assignedDate and fall back
+      // to createdAt — skipping them made those tasks invisible AND shrank
+      // the month range to "this month only".
+      const key = taskDay(task);
+      if (!key) continue;
 
-      const key = dayKey(date);
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(task);
     }
@@ -337,6 +411,28 @@ export default function CalendarView() {
     e.preventDefault();
     const title = form.title.trim();
     if (!title) return;
+
+    // An exam tomorrow clears today's plan (the evening is for revising — see
+    // the server's dailyPlanService). That used to happen with no word here,
+    // so a student adding their exam found today's task gone from the planner.
+    // Said before saving, while today still has something open to lose.
+    const tomorrow = shiftKey(platformToday(), 1);
+    const editing = editingId ? events.find((event) => event._id === editingId) : null;
+    const eventDate = editing ? editing.date : selectedKey;
+    const becomesExam = form.type === 'Exam' && (!editing || editing.type !== 'Exam');
+    const openToday = (byDay.get(platformToday()) || []).filter((t) => t.status === 'Pending').length;
+    if (becomesExam && eventDate === tomorrow && openToday > 0) {
+      const ok = await confirm({
+        title: "An exam tomorrow clears today's plan",
+        message:
+          `Today is kept free for revision, so ${openToday === 1 ? "today's task" : `today's ${openToday} open tasks`} ` +
+          "will come off your plan — except a task whose lesson you've already started, or one you brought back " +
+          'from your backlog. Those stay. Finished work is never touched.',
+        confirmLabel: 'Add the exam',
+        cancelLabel: 'Not now'
+      });
+      if (!ok) return;
+    }
 
     setSaving(true);
     try {
@@ -407,10 +503,11 @@ export default function CalendarView() {
   // in December. A future month is empty until somebody fills it, and filling
   // it is the whole point.
   const canGoBack = cursorIndex > bounds.min;
-  const isThisMonth = cursorIndex === monthIndexOfDate(new Date());
+  // Today on the platform's calendar — the day the planner is on.
+  const todayKey = platformToday();
+  const isThisMonth = cursorIndex === monthIndexOf(todayKey);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstWeekday = new Date(year, month, 1).getDay();
-  const todayKey = dayKey(new Date());
 
   /**
    * The cells to draw for the month.
@@ -456,7 +553,8 @@ export default function CalendarView() {
 
   /** Back to the month we are actually in, from wherever the student paged to. */
   const goToToday = () => {
-    const now = new Date();
+    const [y, m, d] = todayKey.split('-').map(Number);
+    const now = new Date(y, m - 1, d);
     setDrift(monthIndexOfDate(now) > cursorIndex ? 1 : -1);
     setCursor(now);
   };
@@ -481,12 +579,18 @@ export default function CalendarView() {
     let pending = 0;
     let missed = 0;
     let events = 0;
+    // What the month's finished tasks actually paid (the server reads it off
+    // the XP ledger). It used to be the count times TODAY's rule, so an admin
+    // changing the rule rewrote every month on record.
+    let xp = 0;
 
     for (const [key, dayTasks] of byDay) {
       if (!key.startsWith(prefix)) continue;
       for (const task of dayTasks) {
-        if (task.status === 'Completed') completed += 1;
-        else if (task.status === 'Skipped') missed += 1;
+        if (task.status === 'Completed') {
+          completed += 1;
+          xp += Number(task.xpPaid) || 0;
+        } else if (task.status === 'Skipped') missed += 1;
         else pending += 1;
       }
     }
@@ -494,7 +598,7 @@ export default function CalendarView() {
       if (key.startsWith(prefix)) events += dayEvents.length;
     }
 
-    return { completed, pending, missed, events, total: completed + pending + missed };
+    return { completed, pending, missed, events, xp, total: completed + pending + missed };
   }, [byDay, eventsByDay, year, month]);
 
   /**
@@ -509,15 +613,18 @@ export default function CalendarView() {
     const completed = [];
     const pending = [];
     const events = [];
+    const xp = [];
 
     for (let day = 1; day <= days; day++) {
       const key = `${prefix}${String(day).padStart(2, '0')}`;
       const dayTasks = byDay.get(key) || [];
-      completed.push(dayTasks.filter((t) => t.status === 'Completed').length);
+      const done = dayTasks.filter((t) => t.status === 'Completed');
+      completed.push(done.length);
+      xp.push(done.reduce((sum, t) => sum + (Number(t.xpPaid) || 0), 0));
       pending.push(dayTasks.filter((t) => t.status === 'Pending').length);
       events.push((eventsByDay.get(key) || []).length);
     }
-    return { completed, pending, events };
+    return { completed, pending, events, xp };
   }, [byDay, eventsByDay, year, month]);
 
   const taskStreak = useMemo(() => currentStreak(tasks), [tasks]);
@@ -535,9 +642,9 @@ export default function CalendarView() {
   const relativeDayLabel =
     selectedKey === todayKey
       ? 'Today'
-      : selectedKey === dayKey(new Date(Date.now() + 86400000))
+      : selectedKey === shiftKey(todayKey, 1)
         ? 'Tomorrow'
-        : selectedKey === dayKey(new Date(Date.now() - 86400000))
+        : selectedKey === shiftKey(todayKey, -1)
           ? 'Yesterday'
           : null;
 
@@ -751,6 +858,7 @@ export default function CalendarView() {
                   type="button"
                   style={{ '--cal-i': idx }}
                   onClick={() => {
+                    setRevealDay((n) => n + 1);
                     setSelectedKey(key);
                     // A half-typed event belongs to the day it was started on.
                     resetForm();
@@ -1142,6 +1250,7 @@ export default function CalendarView() {
           todayKey={todayKey}
           styleFor={styleFor}
           onSelect={(key) => {
+            setRevealDay((n) => n + 1);
             setSelectedKey(key);
             // Bring the grid to the month that day lives in, or the click
             // selects something the student cannot see.

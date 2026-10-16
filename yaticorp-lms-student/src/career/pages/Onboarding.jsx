@@ -157,7 +157,9 @@ export default function Onboarding() {
         await api.get('/goals');
         // Replace, so Back does not return to a form they cannot submit. And
         // to the roadmap rather than the dashboard: a student whose goal
-        // saved but whose roadmap did not lands where they can build it.
+        // saved but whose roadmap did not lands where they can build it — or,
+        // after a refresh mid-build, where the build in progress is shown and
+        // waited for (the server marks it; see RoadmapPage).
         navigate('/career/roadmap', { replace: true });
       } catch {
         // 404 means no goal, which is expected
@@ -290,6 +292,13 @@ export default function Onboarding() {
       try {
         await api.post('/roadmap/generate');
       } catch (err) {
+        // One is already being built (this form sent twice, another tab):
+        // the roadmap page shows that build and waits for it, rather than
+        // this step starting a second one.
+        if (err.response?.data?.code === 'ROADMAP_BUILDING') {
+          navigate('/career/roadmap', { replace: true });
+          return;
+        }
         // A roadmap already exists (built in another tab): that is the
         // outcome this step wanted. Onboarding never asks for a rebuild.
         if (err.response?.data?.code !== 'ROADMAP_EXISTS') throw err;

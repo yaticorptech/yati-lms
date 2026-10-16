@@ -64,7 +64,10 @@ export default function ProgressCard({ summary, courses = [] }) {
             <div className="stagger grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-5">
                 <Tile icon={BookOpen} label="Courses Enrolled" value={enrolled} sub={`${inProgress} in progress`} tone={TONES.indigo} series={t.courses} />
                 <Tile icon={CheckCircle2} label="Lessons Completed" value={s.lessons.total || 0} sub={`+${num(s.lessons.thisWeek || 0)} this week`} tone={TONES.emerald} series={t.lessons} />
-                <Tile icon={Star} label="Quizzes Passed" value={s.quizzes.passed || 0} sub={s.quizzes.avgScore != null ? `${s.quizzes.avgScore}% success rate` : 'No quizzes yet'} tone={TONES.amber} series={t.quizzes} />
+                {/* The figure is the average quiz score, not a pass rate:
+                    "80% success rate" read as "passed 8 in 10". Passes from
+                    before scores were recorded have no average to show. */}
+                <Tile icon={Star} label="Quizzes Passed" value={s.quizzes.passed || 0} sub={s.quizzes.avgScore != null ? `${s.quizzes.avgScore}% average score` : s.quizzes.passed ? `+${num(s.quizzes.thisWeek || 0)} this week` : 'No quizzes yet'} tone={TONES.amber} series={t.quizzes} />
                 <Tile icon={Sparkles} label="XP Earned" value={summary.xp} sub={`+${num(s.xpThisWeek || 0)} this week · Level ${summary.level.level}`} tone={TONES.sky} series={t.xp} />
                 <Tile icon={Flame} label="Current Streak" value={summary.streak.current} suffix={summary.streak.current === 1 ? ' day' : ' days'} sub={`Best: ${num(summary.streak.longest)} ${summary.streak.longest === 1 ? 'day' : 'days'}`} tone={TONES.rose} series={t.streak} wide />
             </div>

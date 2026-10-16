@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import organizationApi from './api';
 import Portal from '../components/Portal';
+import useBackClose from '../native/useBackClose';
 
 // Its own colours: the button lives in a banner with white text, and a box that
 // inherited it would show what is typed as white on white.
@@ -135,6 +136,8 @@ const OrganizationButton = ({ variant = 'pill' }) => {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [open]);
+    // And so does Android's back button, rather than leaving the page.
+    useBackClose(() => setOpen(false), open);
 
     const search = async (e) => {
         e.preventDefault();
@@ -275,7 +278,7 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                                         {failed || state.member ? 'Your organization' : pending ? 'Your request' : 'Add organization'}
                                     </h2>
                                 </div>
-                                <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600" aria-label="Close">
+                                <button type="button" onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600" aria-label="Close">
                                     <X size={18} />
                                 </button>
                             </div>
@@ -336,7 +339,8 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                                                     <p className="font-semibold text-red-800">Leave {state.organization.name}?</p>
                                                     <p className="mt-1 text-xs text-red-700">
                                                         They will no longer see your progress, and you can join another organization.
-                                                        Your account, courses and progress stay exactly as they are.
+                                                        Courses provided by {state.organization.name} will no longer be available;
+                                                        your progress is kept if you rejoin. Your account and everything else stay as they are.
                                                     </p>
                                                     <div className="mt-3 flex flex-wrap gap-2">
                                                         <button onClick={() => setConfirmLeave(false)} disabled={leaving}
@@ -405,7 +409,10 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                                                 <span>
                                                     <span className="font-semibold">You are no longer a member of {removed.organizationName || 'your organization'}.</span>
                                                     {removed.reason && <span className="block text-xs text-amber-700">{removed.reason}{removed.at ? ` · ${new Date(removed.at).toLocaleDateString()}` : ''}</span>}
-                                                    <span className="block text-xs text-amber-700">Your courses and progress are unchanged. You can join an organization again below.</span>
+                                                    <span className="block text-xs text-amber-700">
+                                                        Courses provided by {removed.organizationName || 'your organization'} are no longer available;
+                                                        your progress is kept if you rejoin. You can join an organization again below.
+                                                    </span>
                                                 </span>
                                             </div>
                                         )}
@@ -492,7 +499,7 @@ const OrganizationButton = ({ variant = 'pill' }) => {
                                 )}
 
                                 {notice && (
-                                    <p className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2 border ${notice.type === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                                    <p role={notice.type === 'ok' ? 'status' : 'alert'} className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2 border ${notice.type === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'}`}>
                                         {notice.type === 'ok' ? <CheckCircle2 size={16} className="shrink-0 mt-0.5" /> : <AlertCircle size={16} className="shrink-0 mt-0.5" />}
                                         <span>{notice.text}</span>
                                     </p>

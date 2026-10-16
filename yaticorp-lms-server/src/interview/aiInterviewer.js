@@ -3,6 +3,7 @@
  *   nextQuestion   — the next thing to ask, given the transcript so far
  *   evaluate       — the report, once the interview is over
  *   generateQuestions — a personalised practice bank
+ *   coachQuestions — a sample answer and tips for each of its questions
  *
  * Each falls back to templateInterviewer when Gemini is not configured,
  * over its daily budget, or answers with something unusable — so the
@@ -223,4 +224,53 @@ Mix: about 6 hr, 12-15 technical across their skills, 5 project, 5 behavioral, 4
     }
 };
 
-module.exports = { nextQuestion, evaluate, generateQuestions, configured, configuredFor, MODEL };
+/* ── how to answer each practice question ─────────────────────────────── */
+
+/**
+ * A sample answer and the tips for each practice question (asked 2026-10-15:
+ * "add sample answers ... how to answer, what to tell, what should not tell").
+ *
+ * Asked for after the bank, not with it, in batches of ten written side by
+ * side: forty questions with all of this run past what one answer can hold,
+ * and the bank itself must not wait on it. Returns id -> { question, sample,
+ * say, avoid } for the questions it managed; a batch that fails is left out
+ * and tried again on a later visit (index.js, coach). Nothing without an AI.
+ */
+const COACH_BATCH = 10;
+const coachQuestions = async ({ questions, context, userId }) => {
+    const tips = new Map();
+    if (!questions.length || !(await configuredFor(userId))) return tips;
+    const short = (xs) => (Array.isArray(xs) ? xs : []).map((x) => String(x || '').trim().slice(0, 90)).filter(Boolean).slice(0, 3);
+    const batches = [];
+    for (let i = 0; i < questions.length; i += COACH_BATCH) batches.push(questions.slice(i, i + COACH_BATCH));
+    await Promise.all(batches.map(async (batch) => {
+        const prompt = `You are an interview coach helping this candidate${context.goal ? `, who wants to become a ${context.goal},` : ''} answer practice questions. Write in simple, friendly English that suits their age and level (see "audience" and "education").
+
+PROFILE:
+${profile(context)}
+
+For each question give:
+- "sample": a short model answer in the candidate's own voice, 2 to 4 sentences and under 70 words. Build it only from the profile's real courses, skills, projects and goal. Never invent employers, jobs, grades, numbers or awards; where the profile has nothing to draw on, keep it general and honest, and put the part only they can fill in inside [square brackets].
+- "say": 2 or 3 short points a strong answer makes, each under 10 words.
+- "avoid": 2 short things to leave out or not do, each under 10 words.
+
+QUESTIONS:
+${JSON.stringify(batch.map((q) => ({ id: q.id, category: q.category, question: q.question })))}
+
+Answer ONLY with JSON: {"coach": [{"id": string, "sample": string, "say": [string], "avoid": [string]}]}, one entry per question, with the same ids.`;
+        try {
+            const out = await call(prompt, { userId, kind: 'interview-coach', maxOutputTokens: 3000 });
+            for (const c of out.coach || []) {
+                const q = batch.find((x) => x.id === c?.id);
+                const sample = String(c?.sample || '').trim().slice(0, 600);
+                const say = short(c?.say), avoid = short(c?.avoid);
+                if (q && sample && say.length && avoid.length) tips.set(q.id, { question: q.question, sample, say, avoid });
+            }
+        } catch (err) {
+            console.warn('[interview] sample answers for a batch failed:', err.message);
+        }
+    }));
+    return tips;
+};
+
+module.exports = { nextQuestion, evaluate, generateQuestions, coachQuestions, configured, configuredFor, MODEL };

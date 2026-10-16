@@ -142,21 +142,31 @@ const generateWithRetry = async (
         // Daily cap: no amount of waiting helps within this request.
         if (quota.isDaily || !quota.retryDelaySeconds) {
           meter(false);
-          // Typed so it surfaces as 429 rather than 500: the service is fine,
-          // the day's allowance is not, and an operator reading the logs should
-          // not be sent looking for a fault.
-          throw new aiQuota.AiBudgetError(
-            `Daily free-tier quota exhausted for model "${MODEL}"` +
+          // What to do about it is the operator's business, so it goes to the
+          // log and not to the student. This text used to reach the planner
+          // word for word — "set a different GEMINI_MODEL in the server .env"
+          // — in front of someone who has never seen the server.
+          console.error(
+            `[career] Daily free-tier quota exhausted for model "${MODEL}"` +
             (quota.limit ? ` (limit: ${quota.limit} requests/day)` : '') +
             '. It resets at midnight Pacific Time. To continue now, set a different ' +
-            'GEMINI_MODEL in the server .env or enable billing on your Google AI Studio project.',
-            'provider-daily-quota'
+            'GEMINI_MODEL in the server .env or enable billing on the Google AI Studio project.'
+          );
+          // Typed so it surfaces as 429 rather than 500: the service is fine,
+          // the day's allowance is not. The provider's day ends at midnight
+          // Pacific, so that is when it comes back.
+          throw new aiQuota.AiBudgetError(
+            "Career Path's AI has used up its allowance for today. " +
+            'Everything already generated is still here.',
+            'provider-daily-quota',
+            aiQuota.nextMidnightIn('America/Los_Angeles')
           );
         }
 
         // Per-minute cap: honour the server's own retry hint.
         if (isLastAttempt) {
-          throw new Error(`Gemini rate limit reached. Please try again in about ${quota.retryDelaySeconds} seconds.`);
+          console.warn(`[career] Gemini rate limit (${quota.quotaId}) on the last attempt.`);
+          throw new Error(`The AI is busy right now. Please try again in about ${quota.retryDelaySeconds} seconds.`);
         }
         const waitMs = Math.min(quota.retryDelaySeconds, 60) * 1000;
         console.warn(`Gemini rate limited (${quota.quotaId}), waiting ${waitMs / 1000}s (attempt ${attempt}/${attempts})`);
@@ -165,11 +175,15 @@ const generateWithRetry = async (
       }
 
       // A dropped connection is worth retrying, and worth explaining in words
-      // that tell the student what to do when it keeps failing.
+      // that tell the student what to do when it keeps failing. It is the
+      // SERVER's connection to Google that failed, not the student's: telling
+      // them to check their internet sent them off to fix something that was
+      // working fine. The detail stays in the log.
       if (isNetworkError(error)) {
         if (isLastAttempt) {
+          console.error(`[career] Gemini unreachable after ${attempts} attempts: ${error.cause?.code || error.message}`);
           throw new Error(
-            'Could not reach the AI service — check your internet connection and try again.'
+            "We couldn't reach the AI service just now. Please try again in a few minutes."
           );
         }
         const delayMs = 1000 * 2 ** (attempt - 1);

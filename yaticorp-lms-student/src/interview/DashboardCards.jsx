@@ -70,7 +70,9 @@ const Row = ({ to, tone, tile, label, title, sub, children }) => (
             <span className="min-w-0 flex-1">
                 {label && <span className={`block text-[10px] font-black uppercase tracking-wider ${tone.ink}`}>{label}</span>}
                 <span className="block text-sm font-bold leading-snug text-slate-900">{title}</span>
-                {sub && <span className="block text-xs leading-snug text-slate-500">{sub}</span>}
+                {/* Not on a phone (asked 2026-10-15, the reasons under Recommended
+                    topics — the one card that has them): the name is enough there. */}
+                {sub && <span className="hidden text-xs leading-snug text-slate-500 sm:block">{sub}</span>}
                 {children}
             </span>
             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${tone.arrow}`}><ChevronRight size={16} /></span>
@@ -87,7 +89,7 @@ export function TopicsCard({ topics = [] }) {
     const taken = new Set();
     return (
         <CardShell icon={Target} iconClass="bg-gradient-to-br from-violet-500 to-indigo-600 shadow-violet-200"
-            title="Recommended topics" hint="Based on what you are learning and building."
+            title="Recommended topics"
             action={<HeadLink to="/interview/practice" tone="bg-indigo-50 text-indigo-700 hover:bg-indigo-100">View all</HeadLink>}>
             <ul className="stagger space-y-2">
                 {topics.map((t, i) => {
@@ -106,7 +108,7 @@ const CATEGORY_ICON = { hr: Users, technical: Code2, project: FolderOpen, behavi
 export function PracticeCard({ practice }) {
     return (
         <CardShell icon={FileText} iconClass="bg-gradient-to-br from-sky-500 to-blue-600 shadow-sky-200"
-            title="Practice questions" hint={practice.generating ? 'Personalising your questions… these will do meanwhile' : `${practice.total} question${practice.total === 1 ? '' : 's'} picked for you`}
+            title="Practice questions" hint={practice.generating ? 'Personalising your questions… these will do meanwhile' : null /* the count went (asked 2026-10-15) */}
             action={<HeadLink to="/interview/practice" tone="bg-sky-50 text-sky-700 hover:bg-sky-100">View all</HeadLink>}>
             <ul className="stagger space-y-2">
                 {practice.sample.map((q, i) => {

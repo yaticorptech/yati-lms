@@ -9,6 +9,7 @@ import { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wallet, Compass, X, Sparkles } from 'lucide-react';
 import Portal from '../Portal';
+import useBackClose from '../../native/useBackClose';
 import { AuthContext } from '../../context/AuthContext';
 import { useRewards } from '../../context/useRewards';
 import { money, num } from './format';
@@ -33,6 +34,9 @@ export default function WalletShortDialog() {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [short]);
+    // Android's back button closes the dialog, as Escape does, rather than
+    // leaving the page the student was trying to use.
+    useBackClose(() => setShort(null), !!short);
 
     if (!short) return null;
 

@@ -99,11 +99,12 @@ describe('certificate pictures', { skip: skipWithoutStyles }, () => {
             const before = { design: design && design.getAttribute('src'), drawn: design && design.complete && design.naturalWidth > 0, text: text(pic), ribbon: /verified/i.test(card.innerText), canDelete: !!card.querySelector('button[aria-label^="Delete"]'),
                      count: text($('h3')), asked: window.__calls.some((c) => c[0] === 'GET' && c[1] === '/competitions/k9/certificate'), saved: window.__saved,
                      order: $$('article').map((a) => (a.querySelector('[data-competition-certificate]') ? 'competition' : 'course')) };
-            // Delete: asked first, then gone from the frame.
-            let asked = '';
-            window.confirm = (q) => { asked = q; return true; };
+            // Delete: asked first — in the app's own dialog, not the browser's — then gone from the frame.
             card.querySelector('button[aria-label^="Delete"]').click(); await sleep(300);
-            return { ...before, confirm: asked, deleted: window.__calls.some((c) => c[0] === 'DELETE' && c[1] === '/competitions/certificates/k9'),
+            const dialog = $('[role=alertdialog][aria-modal=true]');
+            const asked = text(dialog);
+            [...dialog.querySelectorAll('button')].find((b) => b.innerText.trim() === 'Delete').click(); await sleep(300);
+            return { ...before, confirm: asked, named: !!(dialog && dialog.getAttribute('aria-labelledby')), deleted: window.__calls.some((c) => c[0] === 'DELETE' && c[1] === '/competitions/certificates/k9'),
                      left: !!$('[data-competition-certificate]'), countAfter: text($('h3')) };` });
         assert.deepEqual(errors, []);
         assert.equal(result.design, '/certificates/competition_winner.jpg', 'a winner\'s is drawn on the designed certificate');
@@ -118,6 +119,7 @@ describe('certificate pictures', { skip: skipWithoutStyles }, () => {
         assert.equal(result.asked, true, 'PDF asks the server for this competition\'s certificate');
         assert.equal(result.saved, 'Certificate_Inter-College_Chess_Championship.pdf');
         assert.match(result.confirm, /stays yours in Games & Competitions/, 'Delete asks first, and says where it still is');
+        assert.equal(result.named, true, 'the question is a named dialog');
         assert.equal(result.deleted, true, 'the server is told');
         assert.equal(result.left, false, 'and it leaves the frame');
         assert.match(result.countAfter, /1 achievement\b/);

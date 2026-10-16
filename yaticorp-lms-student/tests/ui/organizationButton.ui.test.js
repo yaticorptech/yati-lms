@@ -475,6 +475,7 @@ describe('removed, and leaving an organization that is not active', { skip: skip
         assert.deepEqual(errors, []);
         assert.match(result.popup, /You are no longer a member of ABC College\./);
         assert.match(result.popup, /Removed by the organization/);
+        assert.match(result.popup, /Courses provided by ABC College are no longer available; your progress is kept if you rejoin\./);
         assert.ok(result.form, 'and can join again');
         assert.ok(result.before, 'said before the form');
     });
@@ -482,7 +483,7 @@ describe('removed, and leaving an organization that is not active', { skip: skip
     test('a member of a suspended organization can leave it, after confirming', async () => {
         const { result, errors } = await screen({
             entry, api: apiModule({
-                '/organizations/student/leave': { message: 'You have left ABC College. Your courses and progress are unchanged.' },
+                '/organizations/student/leave': { message: 'You have left ABC College. Courses provided by ABC College will no longer be available; your progress is kept if you rejoin.' },
                 '/organizations/student/me': SUSPENDED
             }),
             script: `
@@ -499,6 +500,9 @@ describe('removed, and leaving an organization that is not active', { skip: skip
         assert.deepEqual(errors, []);
         assert.ok(result.offered);
         assert.match(result.asking, /Leave ABC College\?/, 'it asks first');
+        // Truthfully: the organization's own courses go with the membership.
+        assert.match(result.asking, /Courses provided by ABC College will no longer be available; your progress is kept if you rejoin\./);
+        assert.ok(!/courses and progress stay exactly as they are/i.test(result.asking));
         assert.equal(result.postsBefore, 0);
         assert.deepEqual(result.posts, ['/organizations/student/leave']);
         assert.match(result.popup, /You have left ABC College/);

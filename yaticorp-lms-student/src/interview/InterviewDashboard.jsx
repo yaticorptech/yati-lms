@@ -10,7 +10,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
     Mic, Target, ArrowRight, Award, Lightbulb, X, BarChart3,
     MessageCircle, Code2, Heart, BookOpen, Users, Crown, Briefcase, ChevronDown, FolderOpen,
-    MessageSquare, Star, Gauge, PlayCircle
+    MessageSquare, Star, Gauge
 } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
 import { AuthContext } from '../context/AuthContext';
@@ -20,6 +20,7 @@ import { TopicsCard, PracticeCard, ImproveCard } from './DashboardCards';
 import { ScoreRing, CountUp } from './ui';
 import { TIPS } from './tips';
 import { useReturnScroll } from './scrollMemory';
+import { useXpRule } from '../context/useRewards';
 
 /* Each part of readiness gets its own colour, so the row is read at a glance. */
 const PARTS = {
@@ -85,6 +86,9 @@ const CardHead = ({ icon: Icon, tint, title, children, action }) => (
 export default function InterviewDashboard() {
     const navigate = useNavigate();
     const { user } = useContext(AuthContext);
+    // "Every round earns XP" only while a mock interview really pays some:
+    // not while Rewards is locked (null) or the admin's rule is 0.
+    const paysXp = useXpRule('mock_interview') > 0;
     // The last answer is kept on this device and shown at once on the next
     // visit, while the fresh one is fetched; so the section does not sit on a
     // loader every time it is opened, however far away the server is.
@@ -126,6 +130,13 @@ export default function InterviewDashboard() {
     if (!data) return <div className="mx-auto max-w-6xl pb-12"><ErrorBox error={error} onRetry={load} /></div>;
     const r = data.readiness;
     const last = r.history[r.history.length - 1];
+    // The readiness card's status, in the ring's own colours (ScoreRing), and
+    // how far along the way to the badge (asked 2026-10-15, "make it better").
+    const stage = r.prep.mocks === 0 ? { word: 'Not started', chip: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400', bar: 'from-slate-300 to-slate-400' }
+        : r.overall >= 75 ? { word: 'Ready to go', chip: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500', bar: 'from-emerald-500 to-teal-500' }
+            : r.overall >= 50 ? { word: 'Halfway there', chip: 'bg-indigo-50 text-indigo-700', dot: 'bg-indigo-500', bar: 'from-indigo-500 to-violet-500' }
+                : { word: 'Warming up', chip: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500', bar: 'from-amber-400 to-orange-500' };
+    const toBadge = r.badge.earned ? 100 : Math.min(100, Math.round((r.overall / (r.badge.threshold || 75)) * 100));
     const cheer = r.prep.mocks === 0 ? ['🎯', 'Ready when you are.', 'Your first interview takes ten minutes.']
         : r.best >= 75 ? ['🏆', 'Excellent!', "You're interview ready."]
             : ['🏆', 'Keep going!', "You're doing great!"];
@@ -149,52 +160,51 @@ export default function InterviewDashboard() {
                             <h1 className="mt-1 text-[1.6rem] font-black leading-[1.15] text-slate-900">
                                 Get <span className="whitespace-nowrap">interview-ready</span>{data.student.goal ? <> for <span className="text-violet-600">{data.student.goal}!</span></> : '!'}
                             </h1>
-                            <p className="mt-2 text-sm text-slate-600">Practise with an AI mock interview. Every round earns XP 🚀</p>
+                            <p className="mt-2 text-sm text-slate-600">Practise with an AI mock interview.</p>
                         </div>
                         <h1 className="hidden text-[2rem] font-black leading-tight text-slate-900 sm:block">
                             Hi {data.student.firstName},<br />Let&apos;s get you interview-ready{data.student.goal ? <><br />for <span className="text-violet-600">{data.student.goal}!</span></> : '!'}
                         </h1>
-                        <p className="mt-3 hidden max-w-md text-sm text-slate-600 sm:block">Learn, practise, take an AI mock interview, get feedback, improve, and retake. Every round earns XP! 🚀</p>
+                        <p className="mt-3 hidden max-w-md text-sm text-slate-600 sm:block">Learn, practise, take an AI mock interview, get feedback, improve, and retake.{paysXp ? ' Every round earns XP! 🚀' : ''}</p>
                         <p className="mt-4 hidden sm:inline-flex items-center gap-2.5 rounded-2xl bg-white/80 px-4 py-2.5 text-sm font-bold text-indigo-700 shadow-sm ring-1 ring-white">
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600"><Lightbulb size={15} /></span>
                             &ldquo;You&apos;re one step closer to your dream job!&rdquo;
                         </p>
                     </div>
 
-                    <div className="rounded-3xl bg-white p-4 shadow-lg shadow-indigo-100 ring-1 ring-indigo-50">
-                        <div className="flex items-center gap-3">
+                    {/* Where the student stands at a glance: the ring, a status in
+                        its colours, and the way to the badge as a bar to fill. */}
+                    <div className="rounded-3xl bg-white p-4 shadow-lg shadow-indigo-100 ring-1 ring-indigo-50 sm:p-5">
+                        <div className="flex items-center gap-4">
                             <div className="shrink-0 sm:hidden"><ScoreRing value={r.overall} size={84} stroke={8} label="Ready" /></div>
                             <div className="hidden shrink-0 sm:block"><ScoreRing value={r.overall} size={104} stroke={9} label="Readiness" /></div>
                             <div className="min-w-0">
                                 <p className="text-base font-black leading-tight text-slate-900"><span className="sm:hidden">Interview Readiness</span><span className="hidden sm:inline">Interview<br />Readiness</span></p>
-                                <p className="mt-1 text-xs text-slate-500">{r.prep.mocks === 0 ? 'Take your first mock interview: your readiness comes from how you do.' : r.overall >= 75 ? 'You are ready — book that interview.' : r.overall >= 50 ? 'Getting there. A mock interview will lift this.' : 'Every mock interview and practice question raises this.'}</p>
+                                <span className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black ${stage.chip}`}>
+                                    <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${stage.dot}`} />{stage.word}
+                                </span>
+                                {/* Under 50 after a mock, no line (asked 2026-10-15). */}
+                                {(r.prep.mocks === 0 || r.overall >= 50) && <p className="mt-1.5 text-xs text-slate-500">{r.prep.mocks === 0 ? 'Take your first mock interview: your readiness comes from how you do.' : r.overall >= 75 ? 'You are ready — book that interview.' : 'Getting there. A mock interview will lift this.'}</p>}
                             </div>
                         </div>
-                        <p className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-600">
-                            <Award size={14} className={r.badge.earned ? 'shrink-0 text-amber-500' : 'shrink-0 text-slate-400'} />
-                            {r.badge.earned ? <span><span className="font-black text-slate-900">Interview Ready</span> badge earned!</span> : <span><span className="font-black text-slate-900">{r.badge.threshold}%</span> earns the Interview Ready badge</span>}
-                        </p>
-                        <Btn tone="primary" icon={ArrowRight} onClick={() => start()} loading={starting} className="mt-3 w-full !rounded-2xl !py-3 !text-base">Let&apos;s Do This</Btn>
+                        <div className="mt-4 rounded-2xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-100">
+                            <div className="flex items-center justify-between gap-2 text-[11px] font-bold">
+                                <span className="flex min-w-0 items-center gap-1.5 text-slate-700">
+                                    <Award size={14} className={r.badge.earned ? 'shrink-0 text-amber-500' : 'shrink-0 text-slate-400'} />
+                                    <span className="truncate">Interview Ready badge</span>
+                                </span>
+                                <span className={`shrink-0 tabular-nums ${r.badge.earned ? 'text-emerald-600' : 'text-slate-500'}`}>{r.badge.earned ? 'Earned!' : <><span className="font-black text-slate-900">{r.overall}</span> / {r.badge.threshold}%</>}</span>
+                            </div>
+                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200/80" role="progressbar" aria-label="Progress to the Interview Ready badge" aria-valuemin={0} aria-valuemax={100} aria-valuenow={toBadge}>
+                                <div className={`h-full rounded-full bg-gradient-to-r ${r.badge.earned ? 'from-emerald-500 to-teal-500' : stage.bar} transition-[width] duration-700 ease-out`} style={{ width: `${Math.max(toBadge, 3)}%` }} />
+                            </div>
+                        </div>
+                        <Btn tone="primary" onClick={() => start()} loading={starting} className="group mt-4 w-full gap-2 !rounded-2xl !py-3 !text-base">
+                            Let&apos;s Do This <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+                        </Btn>
                     </div>
                 </div>
             </header>
-
-            {/* ── An interview left unfinished ────────────────────── */}
-            {/* The server keeps it open until it is ended, or until another is
-                started, which ends it. Leaving one used to leave no way back
-                to it but the browser's back button. */}
-            {data.activeSession && (
-                <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 animate-fade-in-up sm:flex-nowrap">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-amber-600 shadow-sm"><PlayCircle size={20} /></span>
-                    <p className="min-w-0 flex-1 text-sm text-amber-900">
-                        <span className="block font-black">You have an unfinished {TYPE_META[data.activeSession.type]?.label || 'mock interview'}</span>
-                        <span className="block text-xs text-amber-800/80">{data.activeSession.answered} answered · started {fmtDate(data.activeSession.startedAt)}. Starting a new interview ends this one.</span>
-                    </p>
-                    <Link to={`/interview/mock/${data.activeSession.id}`} className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-amber-600 sm:w-auto">
-                        Continue interview <ArrowRight size={15} />
-                    </Link>
-                </div>
-            )}
 
             {error && <ErrorBox error={error} onRetry={load} />}
 
@@ -213,7 +223,8 @@ export default function InterviewDashboard() {
             <div className="grid gap-5 lg:grid-cols-2">
                 {/* ── Readiness ───────────────────────────────────── */}
                 <section className="lift flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm animate-fade-in-up sm:p-6">
-                    <CardHead icon={BarChart3} tint="bg-indigo-100 text-indigo-600" title="Your Readiness">{r.prep.mocks === 0 ? 'All at 0% until your first mock interview, then worked out from how you do in it.' : 'Based on how you did in your mock interviews, the most recent counting most.'}</CardHead>
+                    {/* After the first mock, no line under the title (asked 2026-10-15). */}
+                    <CardHead icon={BarChart3} tint="bg-indigo-100 text-indigo-600" title="Your Readiness">{r.prep.mocks === 0 ? 'All at 0% until your first mock interview, then worked out from how you do in it.' : null}</CardHead>
                     <div className="space-y-3.5">{r.breakdown.map((b) => <PartRow key={b.key} part={b.key} label={b.label} value={b.value} />)}</div>
                     <div className="stagger mt-5 grid grid-cols-3 gap-2">
                         <StatTile icon={BookOpen} tone="text-indigo-500" value={<CountUp value={r.prep.total} />} label="Practice questions" />
@@ -229,8 +240,9 @@ export default function InterviewDashboard() {
                 <section className="flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm animate-fade-in-up sm:p-6">
                     <CardHead icon={Mic} tint="bg-violet-100 text-violet-600" title="Take a Mock Interview"
                         action={<Link to="/interview/history" className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100">View all <ArrowRight size={13} /></Link>}>
-                        {/* Squeezed beside "View all" on a phone the full sentence ran to four lines. */}
-                        <span className="sm:hidden">Real questions on your skills, with follow-ups.</span>
+                        {/* Not on a phone (asked 2026-10-15, "remove it"): squeezed beside
+                            "View all" the sentence ran to four lines, and the short one
+                            that replaced it went too. */}
                         <span className="hidden sm:inline">The AI interviewer asks about your real skills and projects, and follows up on your answers.</span>
                     </CardHead>
 
@@ -243,7 +255,8 @@ export default function InterviewDashboard() {
                                     <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${look.tile}`}><Icon size={17} /></span>
                                     <span className="min-w-0 flex-1">
                                         <span className="block truncate text-[13px] font-black leading-tight text-slate-900">{m.label}</span>
-                                        <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">{m.hint}</span>
+                                        {/* Not on a phone (asked 2026-10-15): the name says it. */}
+                                        <span className="mt-0.5 hidden text-[11px] leading-snug text-slate-500 sm:block">{m.hint}</span>
                                     </span>
                                 </button>
                             );
@@ -288,7 +301,7 @@ export default function InterviewDashboard() {
 
             {/* ── What you get ────────────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3 rounded-3xl bg-gradient-to-r from-violet-50 via-indigo-50 to-sky-50 px-5 py-3.5 ring-1 ring-indigo-100">
-                {[[Gauge, 'text-indigo-500', 'A real interview, by voice'], [BarChart3, 'text-violet-500', 'Instant feedback and suggestions'], [Star, 'text-amber-500', 'Earn XP and unlock achievements']].map(([Icon, tone, label]) => (
+                {[[Gauge, 'text-indigo-500', 'A real interview, by voice'], [BarChart3, 'text-violet-500', 'Instant feedback and suggestions'], [Star, 'text-amber-500', paysXp ? 'Earn XP and unlock achievements' : 'Track your progress over time']].map(([Icon, tone, label]) => (
                     <span key={label} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700"><Icon size={18} className={tone} /> {label}</span>
                 ))}
                 <span className="lb-script text-base text-violet-500">You Can Do It! ♡</span>

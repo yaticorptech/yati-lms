@@ -302,7 +302,10 @@ const LessonEditor = () => {
             navigate(`${S.base}/courses/${courseId}`, { state: { lessonSaved: true } });
         } catch (err) {
             console.error('Failed to save lesson:', err);
-            alert('Failed to save lesson.');
+            // The server says what is wrong with a lesson it refuses (a quiz
+            // with no questions, an incomplete question); only a crash is
+            // left to the generic line.
+            alert((err.response?.status < 500 && err.response?.data?.message) || 'Failed to save lesson.');
         } finally {
             setSaving(false);
         }

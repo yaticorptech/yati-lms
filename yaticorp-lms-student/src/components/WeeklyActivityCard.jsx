@@ -50,7 +50,8 @@ export default function WeeklyActivityCard({ streak, activity, weekly, careerOn,
                     </Link>
                 ))}
             </div>
-            <p className="animate-fade-in-up mt-3 text-xs font-medium text-ink-500" style={{ animationDelay: '0.65s' }}>
+            {/* Not on a phone (asked 2026-10-15). */}
+            <p className="animate-fade-in-up mt-3 hidden text-xs font-medium text-ink-500 sidebar:block" style={{ animationDelay: '0.65s' }}>
                 {completedCourses > 0
                     ? 'Every course you finish adds a certificate to your profile.'
                     : 'Finish your first course to earn its certificate.'}

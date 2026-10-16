@@ -47,10 +47,27 @@ const priceOf = async (action) => {
   return { amount: Math.max(0, money(config.walletRules?.[action] || 0)), currency: config.conversion?.currency || 'INR' };
 };
 
-// A charge that was given back does not count as paid.
-const refunded = async (userId, key) => {
-  const charge = await WalletTransaction.findOne({ userId, referenceKey: key }).select('_id').lean();
-  return !!charge && !!(await WalletTransaction.exists({ userId, referenceKey: `refund:${charge._id}` }));
+/*
+ * The ledger key for a once-only charge. The first charge under a reference
+ * is `charge:<action>:<ref>`; a charge that was refunded (the feature failed)
+ * does not count as paid, and the next attempt is booked as `…:2`, then `…:3`.
+ *
+ * It used to reuse the first key, which the ledger's unique index refuses: with
+ * transactions the refusal read as "already paid", so after one failure the
+ * feature was free for good; without them the money left the wallet with no
+ * ledger row. Numbering the retries keeps both halves of the idempotency —
+ * two submits of the same attempt work out the same number, so the second
+ * still hits the index and is not charged again.
+ *
+ * Returns { paid: true } when an unrefunded charge exists, else the key to use.
+ */
+const onceOnlyKey = async (userId, action, referenceKey) => {
+  const base = `charge:${action}:${referenceKey}`;
+  const prior = await WalletTransaction.find({ userId, source: 'feature_charge', $or: [{ referenceKey: base }, { 'meta.chargeRef': base }] }).select('_id').lean();
+  if (!prior.length) return { key: base, base };
+  const refunds = await WalletTransaction.countDocuments({ userId, referenceKey: { $in: prior.map((c) => `refund:${c._id}`) } });
+  if (refunds < prior.length) return { paid: true };
+  return { key: `${base}:${prior.length + 1}`, base };
 };
 
 const shortOf = (amount, available, currency, action) => {
@@ -70,11 +87,15 @@ const chargeFor = async ({ userId, action, referenceKey = null, meta = {} }) => 
   if (!C.WALLET_ACTIONS.includes(action)) throw new Error(`Unknown wallet action: ${action}`);
   const { amount, currency } = await priceOf(action);
   if (!(amount > 0)) return { charged: 0, currency };
-  const key = `charge:${action}:${referenceKey || crypto.randomUUID()}`;
-  // Paid before under this reference (and not refunded): free now, whatever
-  // the balance is today.
-  if (referenceKey && (await WalletTransaction.exists({ userId, referenceKey: key })) && !(await refunded(userId, key))) {
-    return { charged: 0, currency, alreadyPaid: true };
+  let key = `charge:${action}:${crypto.randomUUID()}`;
+  let chargeRef = null;
+  if (referenceKey) {
+    // Paid before under this reference (and not refunded): free now, whatever
+    // the balance is today.
+    const once = await onceOnlyKey(userId, action, referenceKey);
+    if (once.paid) return { charged: 0, currency, alreadyPaid: true };
+    key = once.key;
+    chargeRef = once.base;
   }
   // Every student has their starting credit before the first price is taken.
   await require('./walletService').grantStartingCredit(userId);
@@ -86,10 +107,18 @@ const chargeFor = async ({ userId, action, referenceKey = null, meta = {} }) => 
       // Spent from the starting credit first, so earned money stays withdrawable.
       const fromSpendOnly = Math.min(Math.max(0, wallet.spendOnly || 0), amount);
       if (fromSpendOnly > 0) await Wallet.updateOne({ userId }, { $inc: { spendOnly: -fromSpendOnly } }, { session });
-      const [txn] = await WalletTransaction.create([{
-        userId, type: 'debit', amount, currency, source: 'feature_charge', referenceKey: key,
-        description: LABELS[action] || action, meta: { action, fromSpendOnly, ...meta }, createdBy: 'user', balanceAfter: wallet.available
-      }], { session });
+      let txn;
+      try {
+        [txn] = await WalletTransaction.create([{
+          userId, type: 'debit', amount, currency, source: 'feature_charge', referenceKey: key,
+          description: LABELS[action] || action, meta: { action, fromSpendOnly, ...meta, ...(chargeRef ? { chargeRef } : {}) }, createdBy: 'user', balanceAfter: wallet.available
+        }], { session });
+      } catch (err) {
+        // Without a transaction nothing rolls the balance back for us, and a
+        // ledger row that could not be written must not leave money gone.
+        if (!session) await Wallet.updateOne({ userId }, { $inc: { available: amount, totalSpent: -amount, spendOnly: fromSpendOnly } });
+        throw err;
+      }
       return { charged: amount, currency, txnId: txn._id, balance: wallet.available, fromSpendOnly };
     });
   } catch (err) {

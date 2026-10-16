@@ -5,15 +5,18 @@
  *
  * `required`: the student has no picture yet (see ProfilePictureGate). The
  * popup then cannot be closed — no ×, no Cancel, no click outside — until
- * a picture is saved. Otherwise it is My Profile's "Change photo".
+ * a picture is saved. Its footer still offers a way out that is not a
+ * picture: Sign out, or Contact support for a student whose upload will not
+ * work. Otherwise it is My Profile's "Change photo".
  */
 import { useCallback, useContext, useRef, useState } from 'react';
 import Cropper from 'react-easy-crop';
-import { Check, Loader2, Sparkles, Upload, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, Loader2, LogOut, MessageCircleQuestion, Send, Sparkles, Upload, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
 import Portal from './Portal';
 import { getCroppedBlob, UNREADABLE } from '../utils/cropImage';
+import { AVATAR_COUNTS } from '../native/pictures';
 
 // Ready-made avatars for students who would rather not upload a photo,
 // grouped the way people look for them: boys, girls, kids, and elders.
@@ -22,15 +25,60 @@ import { getCroppedBlob, UNREADABLE } from '../utils/cropImage';
 // uncles and aunties rather than grandparents. The server turns the
 // relative path into an absolute URL on save so the same picture also
 // shows in the admin panel.
+// How many of each are on offer comes from native/pictures.js, which also
+// shows any saved avatar outside these as one of them.
 const AVATAR_GROUPS = [
-    { id: 'boys', label: 'Boys', count: 6 },
-    { id: 'girls', label: 'Girls', count: 6 },
-    { id: 'kids', label: 'Kids', count: 6 },
-    { id: 'elders', label: 'Elders', count: 9 },
+    { id: 'boys', label: 'Boys', count: AVATAR_COUNTS.boys },
+    { id: 'girls', label: 'Girls', count: AVATAR_COUNTS.girls },
+    { id: 'kids', label: 'Kids', count: AVATAR_COUNTS.kids },
+    { id: 'elders', label: 'Elders', count: AVATAR_COUNTS.elders },
 ].map(g => ({ ...g, tiles: Array.from({ length: g.count }, (_, i) => `/avatars/${g.id}/${i + 1}.jpg`) }));
 
+/**
+ * The required picker's way to ask for help: a short message to the support
+ * team (the same tickets the Contact Admin forms send), signed with the
+ * student's own name and email, or a phone call.
+ */
+const SupportMessage = ({ user }) => {
+    const [message, setMessage] = useState('');
+    const [state, setState] = useState('idle');     // idle | sending | sent | failed
+    const send = async (e) => {
+        e.preventDefault();
+        if (!message.trim()) return;
+        setState('sending');
+        try {
+            await api.post('/tickets', {
+                name: user?.name || 'Student', email: user?.email || '', cardNumber: user?.cardNumber || '',
+                subject: 'Help adding a profile picture', message: message.trim(), page: 'dashboard'
+            });
+            setState('sent');
+        } catch {
+            setState('failed');
+        }
+    };
+    if (state === 'sent') {
+        return <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">Sent. We will get back to you at {user?.email || 'your email'}.</p>;
+    }
+    return (
+        <form onSubmit={send} className="space-y-2 text-left">
+            <label htmlFor="picker-support-message" className="block text-xs font-semibold text-slate-600">
+                What is going wrong? Or call us on <a href="tel:9535440195" className="font-bold text-indigo-600 hover:underline">9535440195</a>.
+            </label>
+            <textarea id="picker-support-message" rows={2} value={message} onChange={(e) => setMessage(e.target.value)}
+                className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="For example: my photo will not upload" />
+            {state === 'failed' && <p role="alert" className="text-xs font-semibold text-red-600">That did not send. Please try again, or call us.</p>}
+            <button type="submit" disabled={!message.trim() || state === 'sending'}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 disabled:opacity-50">
+                {state === 'sending' ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Send to support
+            </button>
+        </form>
+    );
+};
+
 export default function PhotoPicker({ required = false, onClose }) {
-    const { user, setUser } = useContext(AuthContext);
+    const { user, setUser, logout } = useContext(AuthContext);
+    const [helpOpen, setHelpOpen] = useState(false);
     const photoInputRef = useRef(null);
     const [avatarGroup, setAvatarGroup] = useState(AVATAR_GROUPS[0].id);
     const [selectedAvatar, setSelectedAvatar] = useState(null);
@@ -218,6 +266,26 @@ export default function PhotoPicker({ required = false, onClose }) {
                                 {savingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Use this avatar
                             </button>
                         </div>
+
+                        {/* Required, but never a trap: the way out that is not a picture. */}
+                        {required && (
+                            <div className="space-y-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
+                                {helpOpen && <SupportMessage user={user} />}
+                                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                                    <span>Can&apos;t add one right now?</span>
+                                    <button type="button" onClick={() => setHelpOpen((v) => !v)} aria-expanded={helpOpen}
+                                        className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:underline">
+                                        <MessageCircleQuestion size={13} /> Contact support
+                                    </button>
+                                    {logout && (
+                                        <button type="button" onClick={logout}
+                                            className="inline-flex items-center gap-1 font-bold text-slate-600 hover:underline">
+                                            <LogOut size={13} /> Sign out
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

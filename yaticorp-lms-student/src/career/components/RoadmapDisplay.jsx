@@ -255,12 +255,16 @@ export default function RoadmapDisplay({ data, goal, completedPhases = [], onTog
           leave this card hidden for good. */}
       <div ref={mapReveal} className="fp-reveal">
       <Card className="overflow-hidden">
-        <CardHeader
-          icon={Route}
-          title="Your step-by-step path"
-          subtitle="Tap any platform to open that phase."
-          accent="journey"
-        />
+        {/* For the wide layout only: on a phone the card opens straight onto
+            the map, which carries its own "Tap a platform" hint (JourneyMap). */}
+        <div className="hidden sidebar:block">
+          <CardHeader
+            icon={Route}
+            title="Your step-by-step path"
+            subtitle="Tap any platform to open that phase."
+            accent="journey"
+          />
+        </div>
 
         <JourneyMap
           phases={phases}

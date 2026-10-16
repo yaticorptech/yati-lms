@@ -7,6 +7,7 @@ const User = require('../models/User');
 const { sendEmail } = require('../utils/emailService');
 const { findUserByCardNumber } = require('../utils/cardNumber');
 const { validatePasswordStrength } = require('../middleware/validatePassword');
+const generateToken = require('../utils/generateToken');
 
 /**
  * Only the SHA-256 of a reset token is stored (as in services/adminPasswordReset.js),
@@ -94,10 +95,12 @@ const resetPassword = async (req, res) => {
         // the same moment. A targeted update rather than save(), so an older
         // record that fails today's validation can still be reset. The User
         // model's update hook bcrypt-hashes the password on the way in.
+        // passwordChangedAt ends every session signed in with the old one
+        // (protectUser) — a reset is usually because someone else may have it.
         const user = await User.findOneAndUpdate(
             { resetPasswordToken: hashToken(token), resetPasswordExpiry: { $gt: new Date() } },
             {
-                $set: { password: newPassword },
+                $set: { password: newPassword, passwordChangedAt: new Date() },
                 $unset: { resetPasswordToken: '', resetPasswordExpiry: '' }
             },
             { projection: { name: 1, email: 1 } }
@@ -136,17 +139,41 @@ const resetPassword = async (req, res) => {
 // @access  Private/User
 const updatePassword = async (req, res) => {
     try {
-        const { currentPassword, newPassword } = req.body;
-        const user = await User.findById(req.user._id);
-
-        if (!(await user.matchPassword(currentPassword))) {
-            return res.status(401).json({ message: 'Invalid current password' });
+        // A superadmin looking at the dashboard through view-as-student is not
+        // the student, and the password is the one thing that stays theirs.
+        if (req.impersonatedBy) {
+            return res.status(403).json({ code: 'ADMIN_VIEW', message: "An administrator viewing this dashboard cannot change the student's password." });
         }
 
-        user.password = newPassword;
-        await user.save();
+        const { currentPassword, newPassword } = req.body || {};
+        if (typeof currentPassword !== 'string' || !currentPassword || typeof newPassword !== 'string' || !newPassword) {
+            return res.status(400).json({ message: 'Enter your current password and the new one.' });
+        }
+        // The same rules as signing up and the reset link; this route skipped them.
+        const strengthError = validatePasswordStrength(newPassword);
+        if (strengthError) return res.status(400).json({ message: strengthError });
 
-        res.json({ message: 'Password updated successfully' });
+        const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'Your account could not be found.' });
+
+        // 400, not 401: a mistyped password is a mistake in the form, and the
+        // student app reads a 401 as an ended session — it would sign the
+        // student out instead of showing them this message.
+        if (!(await user.matchPassword(currentPassword))) {
+            return res.status(400).json({ code: 'WRONG_CURRENT_PASSWORD', message: 'That is not your current password.' });
+        }
+        if (await user.matchPassword(newPassword)) {
+            return res.status(400).json({ message: 'The new password is the same as the current one.' });
+        }
+
+        // A targeted update rather than save(), as for the reset link, so an
+        // older record that fails today's validation can still change it; the
+        // model's update hook hashes it. passwordChangedAt ends every session
+        // signed in with the old password — this one included, so a fresh
+        // token comes back for the device the student is using right now.
+        await User.updateOne({ _id: user._id }, { $set: { password: newPassword, passwordChangedAt: new Date() } });
+
+        res.json({ message: 'Password updated successfully', token: generateToken(user._id, 'student') });
     } catch (error) {
         console.error('Update Password Error:', error);
         res.status(500).json({ message: 'Failed to update password' });

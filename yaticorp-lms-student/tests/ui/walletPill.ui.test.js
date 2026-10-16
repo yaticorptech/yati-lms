@@ -4,7 +4,8 @@
  * The wallet only ever lived in the desktop bar, so on a phone — where most of
  * these students are — it was three taps away, behind the menu and a scroll.
  * Here it is an icon: a phone bar has no room for the figure, and the figure is
- * the first thing on the card the icon opens. The checks are that it fits
+ * the first thing in the wallet popup the icon opens (all transactions, over
+ * whatever page the student is on — it used to scroll to the dashboard's card). The checks are that it fits
  * beside the bell and the menu, that it is big enough to hit, and that the
  * amount still reaches anyone using a screen reader.
  */
@@ -41,25 +42,21 @@ createRoot(document.getElementById('root')).render(
   </AuthContext.Provider>);`;
 
 
-/**
- * The same layout, but with the wallet card far down a tall page — so a click
- * has somewhere to scroll to.
- */
-const withWallet = (paise) => `
+/** The layout on a given page, with that page's address printed, for the popup test. */
+const onPage = (where) => `
 import { createRoot } from 'react-dom/client';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthContext } from '${srcFile('context/AuthContext.jsx')}';
 import { RewardsContext } from '${srcFile('context/useRewards.js')}';
 import StudentLayout from '${srcFile('layouts/StudentLayout.jsx')}';
-import WalletCard from '${srcFile('components/rewards/WalletCard.jsx')}';
-const rewards = { enabled: true, summary: { wallet: { available: ${paise}, currency: 'INR' }, level: { level: 3 }, rewardPoints: 0 },
+const rewards = { enabled: true, summary: { wallet: { available: 2450, currency: 'INR' }, level: { level: 3 }, rewardPoints: 0 },
   refresh: () => {}, celebrate: () => {}, pullEvents: () => {} };
-const Home = () => (<div><div style={{ height: 1600 }} /><WalletCard /><div style={{ height: 800 }} /></div>);
+const Where = () => <p id="where">{useLocation().pathname}</p>;
 createRoot(document.getElementById('root')).render(
   <AuthContext.Provider value={{ user: { name: 'Bhagyashree', profilePicture: '/avatars/girls/1.jpg', cardNumber: 'YC-1029' }, isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true }}>
     <RewardsContext.Provider value={rewards}>
-      <MemoryRouter initialEntries={['/']}>
-        <Routes><Route path="/" element={<StudentLayout />}><Route index element={<Home />} /></Route></Routes>
+      <MemoryRouter initialEntries={['${where}']}>
+        <Routes><Route path="/" element={<StudentLayout />}><Route index element={<Where />} /><Route path="*" element={<Where />} /></Route></Routes>
       </MemoryRouter>
     </RewardsContext.Provider>
   </AuthContext.Provider>);`;
@@ -68,7 +65,7 @@ const MEASURE = `
     await sleep(900);
     const bar = $$('div').find((d) => d.hasAttribute('data-mobile-header')
         && String(d.className).includes('fixed') && String(d.className).includes('top-0'));
-    const pill = $$('a').find((a) => (a.getAttribute('aria-label') || '').startsWith('Wallet balance'));
+    const pill = $$('a, button').find((a) => (a.getAttribute('aria-label') || '').startsWith('Wallet balance') && a.offsetParent);
     const menu = $$('button').find((b) => b.querySelector('svg.lucide-menu'));
     if (!bar || !pill) return { noBar: !bar, noPill: !pill };
     const b = bar.getBoundingClientRect(), p = pill.getBoundingClientRect();
@@ -76,7 +73,7 @@ const MEASURE = `
     return {
         text: pill.innerText.replace(/\\s+/g, ' ').trim(),
         label: pill.getAttribute('aria-label'),
-        href: pill.getAttribute('href'),
+        tag: pill.tagName.toLowerCase(), popup: pill.getAttribute('aria-haspopup'),
         size: Math.round(Math.min(p.width, p.height)),
         insideBar: p.left >= b.left - 0.5 && p.right <= b.right + 0.5 && p.top >= b.top - 0.5 && p.bottom <= b.bottom + 0.5,
         onOneLine: !!(m && Math.abs(Math.round(p.top) - Math.round(m.top)) < 24),
@@ -101,11 +98,12 @@ describe('the wallet balance on a phone', { skip: skipWithoutStyles }, () => {
         });
     }
 
-    test('it is an icon only, and opens the wallet card', async () => {
+    test('it is an icon only, and a button that opens a popup', async () => {
         const { result } = await screen({
             entry: entry(2450), api, width: 500, height: 700, styles: true, budget: 20_000, script: MEASURE });
         assert.equal(result.text, '', `no figure is printed on a phone, saw "${result.text}"`);
-        assert.equal(result.href, '/#wallet', 'it opens the wallet card on the dashboard');
+        assert.equal(result.tag, 'button', 'it opens the wallet popup rather than going to the dashboard');
+        assert.equal(result.popup, 'dialog');
         assert.ok(result.size >= 36, `the target is ${result.size}px, too small to hit`);
         // The balance is the server's figure as it stands: the starting credit
         // is a real ledger entry now, no longer added on for display.
@@ -122,25 +120,27 @@ describe('the wallet balance on a phone', { skip: skipWithoutStyles }, () => {
         assert.equal(result.pageWidens, false, 'nor widen the page');
         assert.match(result.label, /10,00,00,000/, 'the figure is still in the label');
     });
-    test('tapping it scrolls the Wallet & Rewards section into view', async () => {
-        // It linked to /#wallet and the layout scrolled with behavior:'smooth'.
-        // That call is a no-op in some browsers and webviews — it returns, and
-        // nothing moves, so the button looked dead. The layout now checks and
-        // jumps there instead when nothing has budged.
-        const CLICK = `
-            await sleep(1300);
-            const main = $('main');
-            const icon = $$('a').find((a) => (a.getAttribute('aria-label') || '').startsWith('Wallet balance'));
-            icon.click();
-            for (let i = 0; i < 14; i++) { await sleep(250); if (main.scrollTop > 0) break; }
-            const s = document.getElementById('wallet');
-            const r = s.getBoundingClientRect();
-            return { scrolled: Math.round(main.scrollTop), sectionTop: Math.round(r.top),
-                     inView: r.top >= -2 && r.top < innerHeight };`;
-        const { result, errors } = await screen({
-            entry: withWallet(2450), api, width: 500, height: 700, styles: true, budget: 25_000, script: CLICK });
-        assert.deepEqual(errors, []);
-        assert.ok(result.scrolled > 0, 'the page moved');
-        assert.ok(result.inView, `the wallet section sat at ${result.sectionTop}px, not on screen`);
-    });
+    // The phone's wallet icon, and the laptop's wallet pill in the header.
+    for (const [where, width] of [['/', 500], ['/community', 500], ['/community', 1280]]) {
+        test(`tapping it opens all the transactions in the wallet popup, over the page (${where}, ${width}px)`, async () => {
+            const CLICK = `
+                await sleep(1300);
+                const icon = $$('button').find((b) => (b.getAttribute('aria-label') || '').startsWith('Wallet balance') && b.offsetParent);
+                icon.click();
+                let dialog = null;
+                for (let i = 0; i < 20 && !dialog; i++) { await sleep(200); dialog = $('[role="dialog"][aria-label="Wallet and transactions"]'); }
+                await sleep(600);
+                const seen = dialog ? text(dialog) : '';
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await sleep(400);
+                return { opened: !!dialog, seen: seen.slice(0, 200), where: $('#where') ? text($('#where')) : null,
+                         closed: !$('[role="dialog"][aria-label="Wallet and transactions"]') };`;
+            const { result, errors } = await screen({
+                entry: onPage(where), api, width, height: 800, styles: true, budget: 25_000, script: CLICK });
+            assert.deepEqual(errors, []);
+            assert.ok(result.opened, 'the wallet popup opens');
+            assert.match(result.seen, /Transactions/, `it is the full wallet with its transactions: "${result.seen}"`);
+            assert.equal(result.where, where, 'the student stays on the page they were on');
+            assert.ok(result.closed, 'Escape closes it');
+        });
+    }
 });

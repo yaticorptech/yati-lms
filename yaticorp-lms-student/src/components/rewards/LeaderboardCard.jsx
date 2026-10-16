@@ -1,10 +1,15 @@
 /**
- * The leaderboard card: a podium for the top three, a table for the rest,
- * the student's own row highlighted, and a "full leaderboard" view that
- * adds the rows around the student.
+ * The leaderboard card: a podium for the top three, then everyone else
+ * ranked (up to ALL), scrolling inside the card, with the student's own row
+ * highlighted and scrolled into view, and the rows around the student added
+ * below when they are further down than that. Only students with XP in the
+ * period are on it. There is no "View Full Leaderboard" button any more: the
+ * card shows the whole board. No ↑/↓ marks on the rows: a climb is told by
+ * the popup instead (RankUpWatcher, on whatever page the student is on). All
+ * asked 2026-10-15.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Trophy, ArrowUp, ArrowDown, Minus, ArrowRight } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Trophy } from 'lucide-react';
 import api from '../../utils/api';
 import { num } from './format';
 import LeaderboardCelebration from './LeaderboardCelebration';
@@ -12,17 +17,14 @@ import LeaderboardPodium, { Avatar } from './LeaderboardPodium';
 import Dropdown from '../Dropdown';
 
 const PERIODS = [['daily', 'Today'], ['weekly', 'This Week'], ['monthly', 'This Month'], ['all', 'All Time']];
-const Change = ({ m }) => m == null || m === 0
-    ? <span className="inline-flex items-center text-slate-400"><Minus size={13} /></span>
-    : m > 0 ? <span className="inline-flex items-center gap-0.5 font-bold text-emerald-600"><ArrowUp size={13} /> {m}</span>
-        : <span className="inline-flex items-center gap-0.5 font-bold text-rose-500"><ArrowDown size={13} /> {-m}</span>;
+// How many students the card asks for: the server's own most.
+const ALL = 500;
 
 export default function LeaderboardCard() {
     const [period, setPeriod] = useState('weekly');
-    const [full, setFull] = useState(false);
     const [tick, setTick] = useState(0);
     const query = period;
-    const [result, setResult] = useState({ query: null, board: null, error: null, rankUp: null });
+    const [result, setResult] = useState({ query: null, board: null, error: null });
 
     useEffect(() => {
         const bump = () => setTick((t) => t + 1);
@@ -31,26 +33,14 @@ export default function LeaderboardCard() {
     }, []);
     useEffect(() => {
         let cancelled = false;
-        api.get('/rewards/leaderboard', { params: { period, scope: 'global', limit: full ? 100 : 10 } })
-            .then((r) => {
-                if (cancelled) return;
-                const key = `rw:rank:${query}`;
-                let rankUp = null;
-                try {
-                    const prev = Number(localStorage.getItem(key));
-                    const now = r.data.me?.rank;
-                    if (now && prev && now < prev) rankUp = prev - now;
-                    if (now) localStorage.setItem(key, String(now));
-                } catch { /* private mode */ }
-                setResult({ query, board: r.data, error: null, rankUp });
-            })
-            .catch((e) => !cancelled && setResult({ query, board: null, error: e.response?.data?.message || 'Could not load the leaderboard', rankUp: null }));
+        api.get('/rewards/leaderboard', { params: { period, scope: 'global', limit: ALL } })
+            .then((r) => { if (!cancelled) setResult({ query, board: r.data, error: null }); })
+            .catch((e) => !cancelled && setResult({ query, board: null, error: e.response?.data?.message || 'Could not load the leaderboard' }));
         return () => { cancelled = true; };
-    }, [period, query, full, tick]);
+    }, [period, query, tick]);
 
     const board = result.query === query ? result.board : null;
     const error = result.query === query ? result.error : null;
-    const rankUp = result.query === query ? result.rankUp : null;
     const podium = useMemo(() => board ? board.entries.slice(0, 3) : [], [board]);
 
     // The winner's arrival is celebrated once per winner per session: the
@@ -72,9 +62,6 @@ export default function LeaderboardCard() {
     }, [winner, period]);
     const stopCelebrating = useCallback(() => setCelebrating(null), []);
     const rest = useMemo(() => board ? board.entries.slice(3) : [], [board]);
-    // Nothing to open when everyone already fits on the card: the button used
-    // to sit there promising a fuller board and then showing the same rows.
-    const hasMore = !!board && (board.total > board.entries.length || board.around.length > 0);
     const me = board?.me;
     const meListed = board ? board.entries.some((e) => e.isMe) : true;
     /* The rows under the podium, worked out once and then rendered twice —
@@ -83,10 +70,26 @@ export default function LeaderboardCard() {
     const listRows = useMemo(() => {
         if (!board) return [];
         const rows = rest.map((e) => ({ key: e.userId, e }));
-        if (full && board.around.length > 0) rows.push({ key: 'gap', gap: true }, ...board.around.map((e) => ({ key: e.userId, e })));
-        else if (!full && !meListed && me?.rank) rows.push({ key: 'gap', gap: true }, { key: 'me', e: me });
+        if (board.around.length > 0) rows.push({ key: 'gap', gap: true }, ...board.around.map((e) => ({ key: e.userId, e })));
+        else if (!meListed && me?.rank) rows.push({ key: 'gap', gap: true }, { key: 'me', e: me });
         return rows;
-    }, [board, rest, full, meListed, me]);
+    }, [board, rest, meListed, me]);
+
+    // The student's own row, brought into view inside the list (never the
+    // page) whenever the board arrives: on a long board it was out of sight.
+    const stackRef = useRef(null);
+    const tableRef = useRef(null);
+    useEffect(() => {
+        const id = requestAnimationFrame(() => {
+            for (const box of [stackRef.current, tableRef.current]) {
+                const row = box?.querySelector('[data-me]');
+                if (!row || !box.getClientRects().length) continue;
+                const at = row.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+                box.scrollTop = Math.max(0, at - (box.clientHeight - row.offsetHeight) / 2);
+            }
+        });
+        return () => cancelAnimationFrame(id);
+    }, [listRows]);
 
     return (
         <section id="leaderboard" className="relative flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -102,7 +105,8 @@ export default function LeaderboardCard() {
                     it onto the next line, and the heading would still be cut. */}
                 <div className="min-w-0 flex-1 basis-48">
                     <h2 className="flex items-center gap-2.5 text-xl font-black text-slate-900"><Trophy size={22} className="shrink-0 text-amber-500" /> Leaderboard</h2>
-                    <p className="text-sm text-slate-500">Compete with learners and climb the ranks</p>
+                    {/* Not on a phone (asked 2026-10-15): the heading says it. */}
+                    <p className="hidden text-sm text-slate-500 sidebar:block">Compete with learners and climb the ranks</p>
                 </div>
                 <div className="relative shrink-0">
                     <Dropdown
@@ -139,25 +143,33 @@ export default function LeaderboardCard() {
                 // card by a single pixel: the table's 36px header and three
                 // 57px rows (207px), or three 68px stacked rows (204px).
                 <div data-ranks className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                    {/* Seven columns need 520px, which no phone has; there the
-                        same rows are stacked instead, so nothing scrolls
-                        sideways. The table returns as soon as it fits. */}
-                    <ul className="scroll-fade max-h-[204px] divide-y divide-slate-100 overflow-y-auto px-3 sm:hidden">
+                    {/* On a phone the rows are stacked. Elsewhere a table that
+                        fits its card, never scrolling sideways (asked
+                        2026-10-15): it used to need 520px, and on a wide
+                        screen, where the card shares the row with another,
+                        it had about 470. No badges on the leaderboard (asked
+                        2026-10-15). Streak goes when the card is narrow (the
+                        card's own width, @container), Level when narrower. */}
+                    <ul ref={stackRef} className="scroll-fade max-h-[204px] divide-y divide-slate-100 overflow-y-auto overflow-x-hidden px-3 sm:hidden">
                         {listRows.map(({ key, e, gap }) => (gap
                             ? <li key={key} className="py-1 text-center text-[11px] font-bold text-slate-400">· · ·</li>
                             : <StackedRow key={key} e={e} />))}
                     </ul>
-                    <div className="scroll-fade hidden max-h-[207px] overflow-auto sm:block">
-                        <table className="w-full min-w-[520px] text-left text-sm">
+                    <div ref={tableRef} className="scroll-fade @container hidden max-h-[207px] overflow-y-auto overflow-x-hidden sm:block">
+                        <table className="w-full table-fixed text-left text-sm">
                             {/* The column names stay put while the rows scroll. */}
                             <thead className="sticky top-0 z-10 bg-white">
                                 <tr className="text-xs font-semibold text-slate-500 [&>th]:pt-3">
-                                    <th className="px-2 pb-2 font-semibold">Rank</th><th className="px-2 pb-2 font-semibold">Learner</th><th className="px-2 pb-2 font-semibold">Level</th><th className="px-2 pb-2 text-right font-semibold">XP</th><th className="px-2 pb-2 font-semibold">Streak</th><th className="px-2 pb-2 font-semibold">Badge</th><th className="px-2 pb-2 text-right font-semibold">Change</th>
+                                    <th className="w-14 px-2 pb-2 font-semibold">Rank</th>
+                                    <th className="px-2 pb-2 font-semibold">Learner</th>
+                                    <th className="hidden w-16 px-2 pb-2 font-semibold @sm:table-cell">Level</th>
+                                    <th className="w-24 px-2 pb-2 text-right font-semibold">XP</th>
+                                    <th className="hidden w-24 px-2 pb-2 font-semibold @md:table-cell">Streak</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {listRows.map(({ key, e, gap }) => (gap
-                                    ? <tr key={key}><td colSpan="7" className="py-1 text-center text-[11px] font-bold text-slate-400">· · ·</td></tr>
+                                    ? <tr key={key}><td colSpan="5" className="py-1 text-center text-[11px] font-bold text-slate-400">· · ·</td></tr>
                                     : <Row key={key} e={e} />))}
                             </tbody>
                         </table>
@@ -165,53 +177,52 @@ export default function LeaderboardCard() {
                 </div>
             )}
 
-            {rankUp && <p className="rw-pop mt-3 text-center text-xs font-bold text-emerald-600">🎉 You moved up {rankUp} place{rankUp === 1 ? '' : 's'} since your last visit</p>}
 
-            {(full || hasMore) && (
-                <div className="mt-auto pt-4 text-center">
-                    <button onClick={() => setFull((f) => !f)} className="inline-flex items-center gap-2 rounded-xl bg-indigo-50 px-5 py-2.5 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-100">
-                        {full ? 'Show less' : 'View Full Leaderboard'} <ArrowRight size={15} className={full ? 'rotate-90 transition-transform' : 'transition-transform'} />
-                    </button>
-                </div>
-            )}
         </section>
     );
 }
 
 /**
  * The same standing as a table row, stacked for a phone: rank and face on the
- * left, name above the details that would have been their own columns, XP and
- * the movement on the right.
+ * left, name above the details that would have been their own
+ * columns, XP on the right.
+ *
+ * The student's own row is highlighted, on a phone and on a desktop (asked
+ * 2026-10-15, which replaces the account owner's 2026-10-02 call to leave it
+ * untinted): a soft indigo tint with a bar down its left edge, "You" for the
+ * name, the ringed photo. The tint and bar take no space, so the row is the
+ * same height as the others and the list's fixed height still holds.
  */
-// The student's own row is not tinted (the account owner's call, 2026-10-02):
-// "You", the bold name and the ringed photo mark it.
 const StackedRow = ({ e }) => (
-    <li className="flex items-center gap-3 py-3">
-        <span className="w-5 shrink-0 text-center font-bold tabular-nums text-slate-700">{e.rank}</span>
-        <Avatar e={e} size="h-9 w-9" ring={e.isMe ? 'ring-2 ring-rose-300' : ''} />
+    // A fixed 68px: three rows are exactly the list's 204px, so a fourth
+    // student scrolls inside instead of nudging the card taller.
+    <li data-me={e.isMe ? '' : undefined} className={`flex h-[68px] items-center gap-3 ${e.isMe ? '-mx-3 bg-indigo-50 px-3 shadow-[inset_4px_0_0_#6366f1]' : ''}`}>
+        <span className={`w-5 shrink-0 text-center font-bold tabular-nums ${e.isMe ? 'text-indigo-700' : 'text-slate-700'}`}>{e.rank}</span>
+        <Avatar e={e} size="h-9 w-9" ring={e.isMe ? 'ring-2 ring-indigo-400' : ''} />
         <div className="min-w-0 flex-1">
-            <p className={`truncate font-semibold ${e.isMe ? 'font-black text-slate-900' : 'text-slate-800'}`}>{e.isMe ? 'You' : e.name}</p>
+            <p className="flex min-w-0 items-center gap-1.5">
+                <span className={`truncate ${e.isMe ? 'font-black text-indigo-900' : 'font-semibold text-slate-800'}`}>{e.isMe ? 'You' : e.name}</span>
+            </p>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-                <span className="rounded bg-indigo-50 px-1.5 font-bold text-indigo-700">Lv. {e.level}</span>
+                <span className={`rounded px-1.5 font-bold text-indigo-700 ${e.isMe ? 'bg-white' : 'bg-indigo-50'}`}>Lv. {e.level}</span>
                 <span className="whitespace-nowrap">🔥 {e.streak} {e.streak === 1 ? 'day' : 'days'}</span>
-                {e.badge && <span title={`${e.badge.title}${e.badge.count > 1 ? ` +${e.badge.count - 1}` : ''}`}>{e.badge.emoji}</span>}
             </p>
         </div>
-        <span className="shrink-0 text-right">
-            <span className="block whitespace-nowrap font-bold tabular-nums text-slate-800">{num(e.xp)} XP</span>
-            <span className="mt-0.5 block text-xs"><Change m={e.movement} /></span>
-        </span>
+        <span className={`shrink-0 whitespace-nowrap text-right font-bold tabular-nums ${e.isMe ? 'text-indigo-900' : 'text-slate-800'}`}>{num(e.xp)} XP</span>
     </li>
 );
 
 const Row = ({ e }) => (
-    <tr>
-        <td className="px-2 py-3 font-bold tabular-nums text-slate-700">{e.rank}</td>
-        <td className="px-2 py-3"><div className="flex items-center gap-2"><Avatar e={e} size="h-8 w-8" ring={e.isMe ? 'ring-2 ring-rose-300' : ''} /><span className={`truncate font-semibold ${e.isMe ? 'font-black text-slate-900' : 'text-slate-800'}`}>{e.isMe ? 'You' : e.name}</span></div></td>
-        <td className="px-2 py-3 whitespace-nowrap"><span className="rounded-lg bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700">Lv. {e.level}</span></td>
-        <td className="px-2 py-3 whitespace-nowrap text-right font-bold tabular-nums text-slate-800">{num(e.xp)} XP</td>
-        <td className="px-2 py-3 whitespace-nowrap text-slate-700">🔥 {e.streak} days</td>
-        <td className="px-2 py-3 text-base">{e.badge ? <span title={`${e.badge.title}${e.badge.count > 1 ? ` +${e.badge.count - 1}` : ''}`}>{e.badge.emoji}</span> : <span className="text-slate-300">—</span>}</td>
-        <td className="px-2 py-3 text-right"><Change m={e.movement} /></td>
+    <tr data-me={e.isMe ? '' : undefined} className={e.isMe ? 'bg-indigo-50' : ''}>
+        <td className={`px-2 py-3 font-bold tabular-nums ${e.isMe ? 'text-indigo-700 shadow-[inset_4px_0_0_#6366f1]' : 'text-slate-700'}`}>{e.rank}</td>
+        <td className="px-2 py-3">
+            <div className="flex min-w-0 items-center gap-2">
+                <Avatar e={e} size="h-8 w-8" ring={e.isMe ? 'ring-2 ring-indigo-400' : ''} />
+                <span className={`min-w-0 truncate ${e.isMe ? 'font-black text-indigo-900' : 'font-semibold text-slate-800'}`}>{e.isMe ? 'You' : e.name}</span>
+            </div>
+        </td>
+        <td className="hidden px-2 py-3 whitespace-nowrap @sm:table-cell"><span className={`rounded-lg px-2 py-0.5 text-xs font-bold text-indigo-700 ${e.isMe ? 'bg-white' : 'bg-indigo-50'}`}>Lv. {e.level}</span></td>
+        <td className={`px-2 py-3 whitespace-nowrap text-right font-bold tabular-nums ${e.isMe ? 'text-indigo-900' : 'text-slate-800'}`}>{num(e.xp)} XP</td>
+        <td className="hidden px-2 py-3 whitespace-nowrap text-slate-700 @md:table-cell">🔥 {e.streak} days</td>
     </tr>
 );

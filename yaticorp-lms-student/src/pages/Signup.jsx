@@ -4,11 +4,12 @@
  */
 import Mascot from '../components/Mascot';
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
-import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, QrCode, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2 } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
+import useBackClose from '../native/useBackClose';
+import { safeNextPath } from '../utils/sessionExpiry';
+import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2 } from 'lucide-react';
 
 // Password strength validator
 const getPasswordStrengthError = (pw) => {
@@ -26,6 +27,8 @@ const ContactAdminModal = ({ onClose, page = 'signup' }) => {
     const [loading, setLoading] = useState(false);
     const [done, setDone] = useState(false);
     const [error, setError] = useState('');
+    // Android's back button closes this, rather than leaving the page.
+    useBackClose(onClose);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -43,16 +46,16 @@ const ContactAdminModal = ({ onClose, page = 'signup' }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div role="dialog" aria-modal="true" aria-labelledby="contact-admin-title" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                 <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
                     <div className="flex items-center space-x-3">
                         <div className="p-2 bg-indigo-100 rounded-lg"><MessageCircleQuestion size={20} className="text-indigo-600" /></div>
                         <div>
-                            <h2 className="text-lg font-bold text-slate-800">Contact Admin</h2>
+                            <h2 id="contact-admin-title" className="text-lg font-bold text-slate-800">Contact Admin</h2>
                             <a href="tel:9535440195" className="text-sm text-indigo-600 font-semibold hover:underline">📞 9535440195</a>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
                 </div>
                 {done ? (
                     <div className="p-8 text-center">
@@ -63,13 +66,13 @@ const ContactAdminModal = ({ onClose, page = 'signup' }) => {
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                        {error && <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
+                        {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div><label className="block text-xs font-semibold text-slate-700 mb-1">Name *</label><input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Your name" /></div>
-                            <div><label className="block text-xs font-semibold text-slate-700 mb-1">Email *</label><input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="your@email.com" /></div>
+                            <div><label htmlFor="contact-name" className="block text-xs font-semibold text-slate-700 mb-1">Name *</label><input id="contact-name" required autoComplete="name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Your name" /></div>
+                            <div><label htmlFor="contact-email" className="block text-xs font-semibold text-slate-700 mb-1">Email *</label><input id="contact-email" required type="email" autoComplete="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="your@email.com" /></div>
                         </div>
-                        <div><label className="block text-xs font-semibold text-slate-700 mb-1">Subject *</label><input required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Brief description of your issue" /></div>
-                        <div><label className="block text-xs font-semibold text-slate-700 mb-1">Message *</label><textarea required rows="3" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue..." /></div>
+                        <div><label htmlFor="contact-subject" className="block text-xs font-semibold text-slate-700 mb-1">Subject *</label><input id="contact-subject" required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Brief description of your issue" /></div>
+                        <div><label htmlFor="contact-message" className="block text-xs font-semibold text-slate-700 mb-1">Message *</label><textarea id="contact-message" required rows="3" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue..." /></div>
                         <div className="flex justify-end space-x-3 pt-1">
                             <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm">Cancel</button>
                             <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center disabled:opacity-50"><Send size={14} className="mr-1.5" />{loading ? 'Sending...' : 'Send Message'}</button>
@@ -98,12 +101,48 @@ const inputClass = 'block w-full appearance-none rounded-xl border border-slate-
 const primaryBtn = 'group relative flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:hover:translate-y-0';
 const backBtn = 'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50';
 
+/**
+ * The step of the form that owns a field the server refused, so a failed
+ * sign-up goes back there — with everything already typed kept — instead of
+ * starting the student over at the card. The server names it (`field`); an
+ * older one only said it in words.
+ */
+const FIELD_STEP = { card: 1, name: 2, email: 2, phone: 2, orgCode: 2, password: 3 };
+const fieldOf = (data) => data?.field
+    || (/password/i.test(data?.message || '') ? 'password'
+        : /email/i.test(data?.message || '') ? 'email'
+            : /phone/i.test(data?.message || '') ? 'phone'
+                : /name/i.test(data?.message || '') ? 'name'
+                    : /card|qr/i.test(data?.message || '') ? 'card' : null);
+
+/** The details step's fields, in the order they are on screen. */
+const DETAIL_FIELDS = ['name', 'email', 'phone', 'orgCode'];
+/** Element ids that do not follow signup-<field>. */
+const FIELD_ID = { orgCode: 'signup-org-code', 'confirm-password': 'signup-confirm-password' };
+
+/** A field's message, under it, tied to it for screen readers by aria-describedby. */
+const FieldError = ({ id, children }) => (children
+    ? <p id={id} className="mt-1.5 text-xs font-semibold text-red-600">{children}</p>
+    : null);
+
+/** The same red edge on every field with a problem. */
+const invalidRing = (bad) => (bad ? ' border-red-300 focus:ring-red-400' : '');
+
 const Signup = () => {
-    const { enterApp } = useContext(AuthContext);
+    const { user, enterApp } = useContext(AuthContext);
+    // Where the student was heading before they were sent to sign in, passed
+    // on from the sign-in page (?next=). Only a path in this app is taken.
+    const [searchParams] = useSearchParams();
+    const next = safeNextPath(searchParams.get('next') || '/');
 
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    // The card belongs to an account already: the error then offers signing in.
+    const [cardUsed, setCardUsed] = useState(false);
+    // The details step's problems, each said under its own field.
+    const [fieldErrors, setFieldErrors] = useState({});
+    const errorRef = useRef(null);
     const [showContact, setShowContact] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -162,23 +201,32 @@ const Signup = () => {
     useEffect(() => {
         if (!scanning) { stopScanner(); return undefined; }
         let cancelled = false;
-        const inst = new Html5Qrcode(SCANNER_ID);
-        scannerRef.current = inst;
-        inst.start(
-            { facingMode: 'environment' },
-            { fps: 10, qrbox: { width: 220, height: 220 } },
-            (decodedText) => {
-                if (cancelled) return;
-                setQrCodeNumber(decodedText.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''));
-                setScanError('');
-                setScanning(false);
-            },
-            () => {}   // a frame without a code is not an error
-        ).catch(() => {
+        // The scanner library is fetched when the camera is first asked for,
+        // not with the page.
+        import('html5-qrcode').then(({ Html5Qrcode }) => {
+            if (cancelled) return undefined;
+            const inst = new Html5Qrcode(SCANNER_ID);
+            scannerRef.current = inst;
+            return inst.start(
+                { facingMode: 'environment' },
+                { fps: 10, qrbox: { width: 220, height: 220 } },
+                (decodedText) => {
+                    if (cancelled) return;
+                    // As read: the server makes sense of it the same way as the
+                    // sign-in scan (a bare code, a URL ending in one, or the
+                    // card number). Stripping it here to letters and digits
+                    // broke codes that carry punctuation, and URLs.
+                    setQrCodeNumber(decodedText.trim());
+                    setScanError('');
+                    setScanning(false);
+                },
+                () => {}   // a frame without a code is not an error
+            );
+        }).catch(() => {
             if (cancelled) return;
             scannerRef.current = null;
             setScanning(false);
-            setScanError('The camera is not available. Type your QR code instead.');
+            setScanError('The camera is not available. Type your card number instead.');
             setMode('manual');
         });
         return () => { cancelled = true; stopScanner(); };
@@ -188,8 +236,18 @@ const Signup = () => {
     useEffect(() => { if (step !== 1) setScanning(false); }, [step]);
     useEffect(() => () => stopScanner(), []);
 
+    // A new error is brought into view (role="alert" also reads it out).
+    useEffect(() => {
+        if (error) errorRef.current?.scrollIntoView?.({ block: 'nearest' });
+    }, [error]);
+
+    // Moves to a field once the step it is on has rendered.
+    const focusField = (name) => setTimeout(() => document.getElementById(FIELD_ID[name] || `signup-${name}`)?.focus(), 60);
+
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+        // What was wrong with this field is being fixed: stop saying it.
+        if (fieldErrors[e.target.name]) setFieldErrors((f) => ({ ...f, [e.target.name]: undefined }));
     };
 
     // Step 1: validate the card — the scanned QR code, or the typed card number
@@ -203,6 +261,7 @@ const Signup = () => {
         }
 
         setQrValidating(true);
+        setCardUsed(false);
         try {
             const res = await api.post('/auth/validate-qr', byNumber ? { cardNumber: typedDigits } : { qrCodeNumber: qrCodeNumber.trim() });
             // Store card details internally — never shown as editable inputs
@@ -210,8 +269,16 @@ const Signup = () => {
             if (res.data.qrCodeNumber) setQrCodeNumber(String(res.data.qrCodeNumber));
             setQrValidated(true);
             setStep(2);
+            focusField('name');
         } catch (err) {
-            setError(err.response?.data?.message || (byNumber ? 'That card number was not accepted. Please try again.' : 'Invalid QR Code. Please try again.'));
+            if (err.response?.data?.code === 'CARD_USED') {
+                setCardUsed(true);
+                setError('This card already has an account — sign in instead.');
+            } else {
+                setError(err.response?.data?.message
+                    || (!err.response ? 'Check your connection and try again.'
+                        : byNumber ? 'That card number was not accepted. Please try again.' : 'Invalid QR Code. Please try again.'));
+            }
         } finally {
             setQrValidating(false);
         }
@@ -220,34 +287,47 @@ const Signup = () => {
     // Every detail is required: nothing moves on, and no account is created,
     // until the name, a Gmail address and a phone number are all filled in.
     const phoneOk = (formData.phoneCode || '+91') === '+91' ? formData.phone.length === 10 : formData.phone.length >= 8 && formData.phone.length <= 12;
-    const detailsComplete = formData.name.trim().length >= 2 && /^[^\s@]+@gmail\.com$/i.test(formData.email.trim()) && phoneOk;
     const passwordsFilled = formData.password.length > 0 && formData.confirmPassword.length > 0;
 
-    const handlePersonalDetailsNext = (e) => {
-        e.preventDefault();
-        setError(null);
-
-        if (formData.name.trim().length < 2) return setError('Please enter your full name.');
-        if (!formData.email.trim()) return setError('Please enter your email address.');
-        if (!formData.email.toLowerCase().endsWith('@gmail.com')) {
-            return setError('Only @gmail.com email addresses are allowed.');
-        }
-        if (!formData.phone) return setError('Please enter your phone number.');
-        if (!phoneOk) return setError((formData.phoneCode || '+91') === '+91' ? 'Please enter a 10-digit phone number.' : 'Please enter a valid phone number.');
+    /**
+     * What is wrong on the details step, field by field. Continue used to stay
+     * switched off until all was well, with only a tooltip to say why — so
+     * these messages never showed, and on a phone there was no tooltip at
+     * all. Now Continue always answers, with each problem under its field.
+     */
+    const detailsProblems = () => {
+        const problems = {};
+        if (formData.name.trim().length < 2) problems.name = 'Please enter your full name.';
+        if (!formData.email.trim()) problems.email = 'Please enter your email address.';
+        else if (!/^[^\s@]+@gmail\.com$/i.test(formData.email.trim())) problems.email = 'Only @gmail.com email addresses are allowed.';
+        if (!formData.phone) problems.phone = 'Please enter your phone number.';
+        else if (!phoneOk) problems.phone = (formData.phoneCode || '+91') === '+91' ? 'Please enter a 10-digit phone number.' : 'Please enter a valid phone number.';
 
         // The Organization ID is optional, so an empty box is fine. A filled one
         // has to look like an ID: the shape is worth checking now, while the
         // field is still on screen to correct.
         // Either an ID the organization chose (st_agnes_college) or an older,
         // generated one (ABC-2026-0001). Whether it exists is the server's call.
+        // An old ID copied out of a document often has its hyphens turned into
+        // en or em dashes; the server reads those as hyphens, so this does too.
         const typedOrgCode = formData.orgCode.trim().replace(/^@+/, '');
         const chosen = /^[a-z0-9._]{3,30}$/i.test(typedOrgCode) && /[a-z]/i.test(typedOrgCode);
-        const older = /^[A-Za-z]+-\d{4}-\d{3,}$/.test(typedOrgCode.replace(/\s+/g, ''));
+        const older = /^[A-Za-z]+-\d{4}-\d{3,}$/.test(typedOrgCode.replace(/[\u2010-\u2015]/g, '-').replace(/\s+/g, ''));
         if (typedOrgCode && !chosen && !older) {
-            return setError('That Organization ID does not look right. Ask your organization for it (like st_agnes_college), or leave it blank.');
+            problems.orgCode = 'That Organization ID does not look right. Ask your organization for it (like st_agnes_college), or leave it blank.';
         }
+        return problems;
+    };
 
+    const handlePersonalDetailsNext = (e) => {
+        e.preventDefault();
+        setError(null);
+        const problems = detailsProblems();
+        setFieldErrors(problems);
+        const first = DETAIL_FIELDS.find((f) => problems[f]);
+        if (first) { focusField(first); return; }
         setStep(3);
+        focusField('password');
     };
 
     const handleRegistrationSubmit = async (e) => {
@@ -255,11 +335,12 @@ const Signup = () => {
         setError(null);
 
         if (formData.password !== formData.confirmPassword) {
+            focusField('confirm-password');
             return setError('Passwords do not match.');
         }
 
         const pwError = getPasswordStrengthError(formData.password);
-        if (pwError) return setError(pwError);
+        if (pwError) { focusField('password'); return setError(pwError); }
 
         setLoading(true);
         try {
@@ -276,23 +357,67 @@ const Signup = () => {
                 orgCode: formData.orgCode.trim()
             });
 
-            // Straight to the dashboard, the same way as signing in. What the
-            // Organization ID led to is shown there, once.
+            // Straight to the dashboard (or wherever they were heading), the
+            // same way as signing in. What the Organization ID led to is shown
+            // there, once. `reason` says why it was not requested — 'invalid'
+            // or 'not_found' (the ID typed was wrong), 'error' (ours) — so the
+            // dashboard only suggests another ID when the ID was the problem.
             if (res.data.organization) {
-                try { sessionStorage.setItem('yati.signupOrg', JSON.stringify(res.data.organization)); } catch { /* storage off */ }
+                const org = res.data.organization;
+                const reason = org.reason || (org.requested ? 'requested' : 'unknown');
+                try { sessionStorage.setItem('yati.signupOrg', JSON.stringify({ ...org, reason })); } catch { /* storage off */ }
             }
-            enterApp(res.data);
+            // The page is on its way: the button keeps saying so until it gets there.
+            enterApp(res.data, next);
         } catch (err) {
-            setError(err.response?.data?.message || 'Registration failed');
-            setStep(1);
-            setQrValidated(false);
-            setCardDetails({ CardNumber: '', CVV: '' });
-        } finally {
             setLoading(false);
+            // No answer at all: nothing was decided, so nothing moves.
+            if (!err.response) {
+                setError('Check your connection and try again.');
+                return;
+            }
+            const data = err.response.data || {};
+            const field = fieldOf(data);
+            if (data.code === 'CARD_USED') {
+                // Someone signed up with this card meanwhile (or it was already
+                // theirs): it cannot be used again, so step one, with the way in.
+                setCardUsed(true);
+                setError('This card already has an account — sign in instead.');
+                setStep(1);
+                setQrValidated(false);
+                setCardDetails({ CardNumber: '', CVV: '' });
+            } else if (field === 'card') {
+                setError(data.message || 'Please verify your card again.');
+                setStep(1);
+                setQrValidated(false);
+                setCardDetails({ CardNumber: '', CVV: '' });
+            } else if (FIELD_STEP[field] === 2) {
+                // Back to the details, everything kept, the problem under its field.
+                setFieldErrors({ [field]: data.message || 'Please check this.' });
+                setStep(2);
+                focusField(field);
+            } else {
+                // The password, or something the form cannot point at: stay here.
+                setError(data.message || 'Registration failed. Please try again.');
+                if (field === 'password') focusField('password');
+            }
         }
     };
 
+    // Signed in already (a second tab, the back button): nothing to sign up for.
+    if (user) return <Navigate to={next} replace />;
+
     const [stepTitle, stepHint] = STEPS[step - 1];
+
+    // The error box every step shows; a used card adds the way to sign in.
+    const errorBox = error && (
+        <div ref={errorRef} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">
+            {error}
+            {cardUsed && (
+                <> <Link to={next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-600 underline">Sign in</Link></>
+            )}
+        </div>
+    );
 
     return (
         <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-3 sm:p-6">
@@ -301,7 +426,9 @@ const Signup = () => {
             <div className="lg-rise grid w-full max-w-5xl overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-indigo-200/70 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
 
                 {/* ── Left: the welcome panel ──────────────────────────── */}
-                <aside className="relative overflow-hidden bg-gradient-to-b from-indigo-600 via-violet-600 to-violet-200 p-7 text-white sm:p-9 lg:min-h-[640px]">
+                {/* Below lg the form comes first and this panel follows it, as on
+                    the sign-in page: on a phone it is about a screen tall. */}
+                <aside className="relative order-2 overflow-hidden bg-gradient-to-b from-indigo-600 via-violet-600 to-violet-200 p-7 text-white sm:p-9 lg:order-1 lg:min-h-[640px]">
                     <div aria-hidden="true" className="pointer-events-none absolute inset-0">
                         <div className="lg-blob absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
                         <div className="absolute right-10 top-24 h-12 w-12 rounded-full bg-white/15" />
@@ -344,10 +471,12 @@ const Signup = () => {
                 </aside>
 
                 {/* ── Right: the sign-up card ──────────────────────────── */}
-                <section className="relative bg-white px-5 py-8 sm:px-10 sm:py-10">
+                <section className="relative order-1 bg-white px-5 py-8 sm:px-10 sm:py-10 lg:order-2">
                     <div className="mx-auto max-w-md">
                         {(
                         <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
+                            {/* The compact header a phone gets, with the welcome panel below the form. */}
+                            <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-indigo-500 lg:hidden">Welcome to LearnHub</p>
                             <span className="lg-float flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 ring-1 ring-indigo-100">
                                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300"><UserPlus size={18} /></span>
                             </span>
@@ -367,7 +496,7 @@ const Signup = () => {
                         {/* Step 1: card QR */}
                         {step === 1 && (
                             <form className="lg-rise mt-6 space-y-5" onSubmit={handleValidateQR} style={{ animationDelay: '0.2s' }}>
-                                {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">{error}</div>}
+                                {errorBox}
 
                                 {/* Scan / type, as one bordered switch */}
                                 <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
@@ -385,9 +514,9 @@ const Signup = () => {
                                         <CheckCircle2 size={22} className="shrink-0 text-emerald-600" />
                                         <div className="min-w-0 flex-1">
                                             <p className="text-xs font-semibold text-emerald-700">Card read</p>
-                                            <p className="font-mono text-lg tracking-widest text-slate-800">{qrCodeNumber}</p>
+                                            <p className="break-all font-mono text-lg tracking-widest text-slate-800">{qrCodeNumber}</p>
                                         </div>
-                                        <button type="button" onClick={() => { setQrCodeNumber(''); setScanError(''); }}
+                                        <button type="button" onClick={() => { setQrCodeNumber(''); setScanError(''); setError(null); setCardUsed(false); }}
                                             className="shrink-0 text-xs font-bold text-emerald-700 hover:underline">Change</button>
                                     </div>
                                 ) : mode === 'scan' ? (
@@ -412,12 +541,12 @@ const Signup = () => {
                                     </div>
                                 ) : (
                                     <div>
-                                        <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><CreditCard size={15} className="text-slate-500" /> Card Number</label>
-                                        <input type="text" required inputMode="numeric" autoComplete="off" maxLength={14} value={typedCard}
-                                            onChange={(e) => setTypedCard(e.target.value.replace(/\D/g, '').slice(0, 12).replace(/(\d{4})(?=\d)/g, '$1 '))}
+                                        <label htmlFor="signup-card" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><CreditCard size={15} className="text-slate-500" /> Card Number</label>
+                                        <input id="signup-card" type="text" required inputMode="numeric" autoComplete="off" maxLength={14} value={typedCard}
+                                            onChange={(e) => { setTypedCard(e.target.value.replace(/\D/g, '').slice(0, 12).replace(/(\d{4})(?=\d)/g, '$1 ')); setCardUsed(false); }}
                                             className={`${inputClass} font-mono tracking-widest`}
-                                            placeholder="e.g. 2401 0001 9664" aria-label="Card Number" />
-                                        <p className="mt-1.5 text-xs text-slate-500">The 12-digit number printed on your physical or digital card.</p>
+                                            placeholder="e.g. 2401 0001 9664" aria-describedby="signup-card-hint" />
+                                        <p id="signup-card-hint" className="mt-1.5 text-xs text-slate-500">The 12-digit number printed on your physical or digital card.</p>
                                     </div>
                                 )}
 
@@ -436,8 +565,8 @@ const Signup = () => {
 
                         {/* Step 2: personal details */}
                         {step === 2 && (
-                            <form className="lg-rise mt-6 space-y-5" onSubmit={handlePersonalDetailsNext} style={{ animationDelay: '0.2s' }}>
-                                {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">{error}</div>}
+                            <form className="lg-rise mt-6 space-y-5" onSubmit={handlePersonalDetailsNext} noValidate style={{ animationDelay: '0.2s' }}>
+                                {errorBox}
 
                                 {/* The card we verified in step 1, read-only. */}
                                 <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
@@ -450,20 +579,30 @@ const Signup = () => {
                                 </div>
 
                                 <div>
-                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><User size={15} className="text-slate-500" /> Full Name</label>
-                                    <input type="text" name="name" required value={formData.name} onChange={handleInputChange} className={inputClass} placeholder="Your full name" />
+                                    <label htmlFor="signup-name" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><User size={15} className="text-slate-500" /> Full Name</label>
+                                    <input id="signup-name" type="text" name="name" required autoComplete="name" value={formData.name} onChange={handleInputChange}
+                                        aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? 'signup-name-error' : undefined}
+                                        className={inputClass + invalidRing(fieldErrors.name)} placeholder="Your full name" />
+                                    <FieldError id="signup-name-error">{fieldErrors.name}</FieldError>
                                 </div>
                                 <div>
-                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Mail size={15} className="text-slate-500" /> Email</label>
-                                    <input type="email" name="email" required value={formData.email} onChange={handleInputChange} className={inputClass} placeholder="you@gmail.com" />
-                                    <p className="mt-1.5 text-xs text-slate-500">Only @gmail.com addresses are accepted.</p>
+                                    <label htmlFor="signup-email" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Mail size={15} className="text-slate-500" /> Email</label>
+                                    <input id="signup-email" type="email" name="email" required autoComplete="email" value={formData.email} onChange={handleInputChange}
+                                        aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'signup-email-error signup-email-hint' : 'signup-email-hint'}
+                                        className={inputClass + invalidRing(fieldErrors.email)} placeholder="you@gmail.com" />
+                                    <FieldError id="signup-email-error">{fieldErrors.email}</FieldError>
+                                    <p id="signup-email-hint" className="mt-1.5 text-xs text-slate-500">Only @gmail.com addresses are accepted.</p>
                                 </div>
                                 <div>
-                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Phone size={15} className="text-slate-500" /> Phone Number</label>
+                                    <label htmlFor="signup-phone" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Phone size={15} className="text-slate-500" /> Phone Number</label>
                                     <div className="flex gap-2">
+                                        {/* Labelled on its own: the visible label belongs to the number box. */}
+                                        <label htmlFor="signup-phone-code" className="sr-only">Country code</label>
                                         <select
+                                            id="signup-phone-code"
+                                            autoComplete="tel-country-code"
                                             value={formData.phoneCode || '+91'}
-                                            onChange={e => setFormData({ ...formData, phoneCode: e.target.value })}
+                                            onChange={e => { setFormData({ ...formData, phoneCode: e.target.value }); setFieldErrors((f) => ({ ...f, phone: undefined })); }}
                                             className="w-24 rounded-xl border border-slate-200 bg-white px-2 py-3 text-sm text-slate-800 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                         >
                                             <option value="+91">🇮🇳 +91</option>
@@ -475,17 +614,21 @@ const Signup = () => {
                                             <option value="+60">🇲🇾 +60</option>
                                         </select>
                                         <input
+                                            id="signup-phone"
                                             type="tel"
                                             name="phone"
                                             required
                                             inputMode="numeric"
+                                            autoComplete="tel-national"
                                             placeholder="Phone number"
                                             maxLength={12}
                                             value={formData.phone}
-                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
-                                            className={`${inputClass} flex-1`}
+                                            onChange={(e) => { setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') }); setFieldErrors((f) => ({ ...f, phone: undefined })); }}
+                                            aria-invalid={!!fieldErrors.phone} aria-describedby={fieldErrors.phone ? 'signup-phone-error' : undefined}
+                                            className={`${inputClass} flex-1${invalidRing(fieldErrors.phone)}`}
                                         />
                                     </div>
+                                    <FieldError id="signup-phone-error">{fieldErrors.phone}</FieldError>
                                 </div>
 
                                 {/* Optional, and said so twice: in the label and
@@ -505,9 +648,11 @@ const Signup = () => {
                                         autoComplete="off"
                                         spellCheck={false}
                                         autoCapitalize="none"
-                                        className={`${inputClass} font-mono`}
+                                        aria-invalid={!!fieldErrors.orgCode} aria-describedby={fieldErrors.orgCode ? 'signup-org-code-error' : undefined}
+                                        className={`${inputClass} font-mono${invalidRing(fieldErrors.orgCode)}`}
                                         placeholder="xx_xxxx_xxx"
                                     />
+                                    <FieldError id="signup-org-code-error">{fieldErrors.orgCode}</FieldError>
                                     <p className="mt-1.5 text-xs text-slate-500">
                                         Only if your school, college or company gave you one. They will be asked to approve
                                         you, and can then follow your progress. You can add it later instead.
@@ -515,8 +660,8 @@ const Signup = () => {
                                 </div>
 
                                 <div className="flex gap-3">
-                                    <button type="button" onClick={() => { setError(null); setStep(1); setQrValidated(false); }} className={backBtn}><ArrowLeft size={15} /> Back</button>
-                                    <button type="submit" disabled={!detailsComplete} className={primaryBtn} title={detailsComplete ? undefined : 'Fill in your name, Gmail address and phone number to continue'}>
+                                    <button type="button" onClick={() => { setError(null); setFieldErrors({}); setStep(1); setQrValidated(false); }} className={backBtn}><ArrowLeft size={15} /> Back</button>
+                                    <button type="submit" className={primaryBtn}>
                                         Continue
                                         <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>
                                     </button>
@@ -527,15 +672,17 @@ const Signup = () => {
                         {/* Step 3: password */}
                         {step === 3 && (
                             <form className="lg-rise mt-6 space-y-5" onSubmit={handleRegistrationSubmit} style={{ animationDelay: '0.2s' }}>
-                                {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">{error}</div>}
+                                {errorBox}
 
                                 <div>
-                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Password</label>
+                                    <label htmlFor="signup-password" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Password</label>
                                     <div className="relative">
                                         <input
+                                            id="signup-password"
                                             type={showPassword ? 'text' : 'password'}
                                             name="password"
                                             required
+                                            autoComplete="new-password"
                                             value={formData.password}
                                             onChange={handleInputChange}
                                             onFocus={() => setPasswordFocused(true)}
@@ -543,8 +690,9 @@ const Signup = () => {
                                             className={`${inputClass} pr-12`}
                                             placeholder="Create a password"
                                         />
-                                        <button type="button" onClick={() => setShowPassword(v => !v)} tabIndex={-1}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-700">
+                                        <button type="button" onClick={() => setShowPassword(v => !v)}
+                                            aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                     </div>
@@ -569,19 +717,22 @@ const Signup = () => {
                                 </div>
 
                                 <div>
-                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Confirm Password</label>
+                                    <label htmlFor="signup-confirm-password" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Confirm Password</label>
                                     <div className="relative">
                                         <input
+                                            id="signup-confirm-password"
                                             type={showConfirmPassword ? 'text' : 'password'}
                                             name="confirmPassword"
                                             required
+                                            autoComplete="new-password"
                                             value={formData.confirmPassword}
                                             onChange={handleInputChange}
                                             className={`${inputClass} pr-12`}
                                             placeholder="Repeat your password"
                                         />
-                                        <button type="button" onClick={() => setShowConfirmPassword(v => !v)} tabIndex={-1}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-700">
+                                        <button type="button" onClick={() => setShowConfirmPassword(v => !v)}
+                                            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'} aria-pressed={showConfirmPassword}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                                             {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                     </div>
@@ -607,7 +758,7 @@ const Signup = () => {
                         </button>
 
                         <p className="mt-5 text-center text-xs text-slate-500">
-                            Already have an account? <Link to="/login" className="font-bold text-indigo-600 hover:underline">Sign in here</Link>
+                            Already have an account? <Link to={next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-600 hover:underline">Sign in here</Link>
                         </p>
                             </>
                         )}

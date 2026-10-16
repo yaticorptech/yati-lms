@@ -82,7 +82,8 @@ describe('Enrolled Courses: organization courses', { skip: skipWithoutChrome }, 
         assert.match(result.mine, /Web Development Basics/);
         assert.doesNotMatch(result.mine, /Campus Safety/, 'the organization course is not in My courses');
         assert.match(result.body, /St Agnes College/);
-        assert.match(result.body, /Courses from your organization, only for its students/);
+        assert.match(result.body, /Courses from your organization\./);
+        assert.doesNotMatch(result.body, /only for its students|All free/, 'that half of the line was removed (2026-10-15)');
         assert.match(result.body, /Campus Safety/);
         assert.match(result.body, /Resume course/, 'the one they are taking resumes');
         assert.match(result.body, /Library Skills/);

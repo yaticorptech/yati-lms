@@ -2,11 +2,12 @@
  * @author Preethesh Kulal
  * @description Main student layout with sidebar, notifications and profile dropdown
  */
-import React, { useContext, useState, useEffect, useRef } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useCallback, useContext, useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { Outlet, Link, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import WalletShortDialog from '../components/rewards/WalletShortDialog';
+import { WalletSheet } from '../components/rewards/WalletCard';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
@@ -14,11 +15,14 @@ import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, Ch
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
-import { pictureUrl } from '../native/pictures';
 import PullToRefresh from '../components/PullToRefresh';
-import { ADMIN_VIEW_KEY } from '../pages/AdminAccess';
+import { ADMIN_VIEW_KEY } from '../utils/sessionExpiry';
 import ProfilePictureGate from '../components/ProfilePictureGate';
 import GlobalQuizAlert from '../components/GlobalQuizAlert';
+import RankUpWatcher from '../components/rewards/RankUpWatcher';
+import useBackClose from '../native/useBackClose';
+import { dayKey as platformDay } from '../career/utils/progress';
+import ProfileImage from '../components/ProfileImage';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -32,27 +36,123 @@ const timeAgo = (at) => {
     return new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 };
 
+// How often the bell looks for new notices while the page is in front.
+const BELL_REFRESH_MS = 2 * 60 * 1000;
+
+/** What each kind of notice looks like in the bell, and what it is called. */
+const KINDS = {
+    announcement: { label: 'Notice', icon: Megaphone, tone: 'bg-amber-100 text-amber-600' },
+    career: { label: 'Career', icon: Compass, tone: 'bg-indigo-100 text-indigo-600' },
+    // XP, badges and the wallet. They travel in the career feed but belong to
+    // the rewards system, and come whether or not Career Path is switched on.
+    reward: { label: 'Rewards', icon: Award, tone: 'bg-violet-100 text-violet-600' },
+    // Games & Competitions: a team accepted, the draw, a match open, a result.
+    // Same feed and same rule: shown whatever the Career Path switch says.
+    competition: { label: 'Competitions', icon: Trophy, tone: 'bg-orange-100 text-orange-600' },
+    jobs: { label: 'Jobs', icon: Briefcase, tone: 'bg-emerald-100 text-emerald-600' }
+};
+
+/**
+ * Which kind a notice from the career feed is. Competition notices written
+ * before they had a type of their own were saved as rewards notices; their
+ * link (to a competition) still tells them apart.
+ */
+const careerFeedKind = (n) => {
+    if (n.type === 'competition' || (n.type === 'reward' && String(n.link || '').startsWith('/competitions'))) return 'competition';
+    return n.type === 'reward' ? 'reward' : 'career';
+};
+/** Notices from the career feed that are shown with Career Path switched off. */
+const alwaysShown = (n) => careerFeedKind(n) !== 'career';
+
+const atOf = (x) => new Date(x?.createdAt || 0).getTime() || 0;
+
+// The newest announcement this student has opened the bell on, per student.
+const seenAtKey = (userId) => `yati.notifSeenAt.${userId || 'me'}`;
+const readSeenAt = (userId) => { try { return Number(localStorage.getItem(seenAtKey(userId))) || 0; } catch { return 0; } };
+const writeSeenAt = (userId, at) => { try { localStorage.setItem(seenAtKey(userId), String(at)); } catch { /* counted again next visit */ } };
+/**
+ * The old marker was a count of announcements, shared by the whole device
+ * ('notif_seen'). Read once: if it covered every announcement there is now,
+ * they had all been seen, and this student starts from the newest. Then it
+ * is dropped. Returns the time adopted, or null.
+ */
+const adoptLegacySeen = (userId, list) => {
+    try {
+        const legacy = localStorage.getItem('notif_seen');
+        if (legacy === null) return null;
+        localStorage.removeItem('notif_seen');
+        if (localStorage.getItem(seenAtKey(userId)) !== null || Number(legacy) < list.length) return null;
+        const newest = list.reduce((max, a) => Math.max(max, atOf(a)), 0);
+        if (newest) writeSeenAt(userId, newest);
+        return newest || null;
+    } catch { return null; }
+};
+
+/**
+ * Every page starts at its top. The pages scroll inside the layout's <main>,
+ * which the router never touches, so a new page opened wherever the last one
+ * had been scrolled to — the middle of a course list, the foot of a post.
+ *
+ * Only for a PUSH (a link, a tap) without a #hash: a hash is scrolled to by
+ * the layout's own effect, the browser's back (POP) is left where it was, and
+ * a page that rewrites its own address (REPLACE: a tab, a search) stays put.
+ * Rendered just before the page in <main>, so its layout effect runs before
+ * the page's own: the interview dashboard putting the student back where they
+ * left it (interview/scrollMemory.js) still has the last word.
+ */
+function ScrollReset({ scrollerRef }) {
+    const location = useLocation();
+    const navType = useNavigationType();
+    const lastKey = useRef(location.key);
+    useLayoutEffect(() => {
+        if (lastKey.current === location.key) return;
+        lastKey.current = location.key;
+        if (navType !== 'PUSH' || location.hash) return;
+        if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
+    }, [location.key, location.hash, navType, scrollerRef]);
+    return null;
+}
+
 /** Set when a superadmin opened this dashboard from the admin Users page. */
 const readAdminView = () => {
     try { return JSON.parse(localStorage.getItem(ADMIN_VIEW_KEY) || 'null'); } catch { return null; }
 };
 
 // Contact Support Modal
-const ContactModal = ({ onClose, user }) => {
+// A real dialog: named, Escape and Android's back button close it, and the
+// focus is moved into it so the keyboard and a screen reader start there.
+const ContactModal = ({ onClose, user, page }) => {
     const [form, setForm] = useState({ name: user?.name || '', email: user?.email || '', cardNumber: user?.cardNumber || '', subject: '', message: '' });
     const [loading, setLoading] = useState(false);
     const [done, setDone] = useState(false);
     const [error, setError] = useState('');
-   
-    
+    const cardRef = useRef(null);
 
-   
+    useBackClose(onClose);
+    useEffect(() => {
+        cardRef.current?.focus({ preventScroll: true });
+    }, []);
+    useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true); setError('');
         try {
-            await api.post('/tickets', { ...form, page: 'dashboard' });
+            // Which page the student wrote from. The ticket's `page` only
+            // knows a few fixed values (login, signup, dashboard, other), so
+            // the address itself goes as `path`, and on the message's last
+            // line where support reads it today — it always said "dashboard".
+            const where = page && page !== '/' ? page : '';
+            await api.post('/tickets', {
+                ...form,
+                page: 'dashboard',
+                path: page || '/',
+                message: where ? `${form.message}\n\n— Sent from ${where}` : form.message
+            });
             setDone(true);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to send.');
@@ -61,16 +161,16 @@ const ContactModal = ({ onClose, user }) => {
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="contact-support-title" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden focus:outline-none">
                 <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
                     <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-100 rounded-lg"><MessageCircleQuestion size={18} className="text-indigo-600" /></div>
+                        <div className="p-2 bg-indigo-100 rounded-lg"><MessageCircleQuestion size={18} aria-hidden="true" className="text-indigo-600" /></div>
                         <div>
-                            <h2 className="text-base font-bold text-slate-800">Contact Support</h2>
+                            <h2 id="contact-support-title" className="text-base font-bold text-slate-800">Contact Support</h2>
                             <a href="tel:9535440195" className="text-sm text-indigo-600 font-semibold hover:underline">📞 9535440195</a>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
+                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 p-1"><X size={18} aria-hidden="true" /></button>
                 </div>
                 {done ? (
                     <div className="p-8 text-center">
@@ -81,9 +181,9 @@ const ContactModal = ({ onClose, user }) => {
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="p-5 space-y-3">
-                        {error && <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
-                        <div><label className="block text-xs font-semibold text-slate-700 mb-1">Subject *</label><input required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="What's your issue about?" /></div>
-                        <div><label className="block text-xs font-semibold text-slate-700 mb-1">Message *</label><textarea required rows="4" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue in detail..." /></div>
+                        {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
+                        <div><label htmlFor="contact-subject" className="block text-xs font-semibold text-slate-700 mb-1">Subject *</label><input id="contact-subject" required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="What's your issue about?" /></div>
+                        <div><label htmlFor="contact-message" className="block text-xs font-semibold text-slate-700 mb-1">Message *</label><textarea id="contact-message" required rows="4" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue in detail..." /></div>
                         <div className="flex justify-end space-x-2 pt-1">
                             <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Cancel</button>
                             <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg text-sm flex items-center disabled:opacity-50 hover:bg-indigo-700 transition-colors"><Send size={13} className="mr-1.5" />{loading ? 'Sending...' : 'Send'}</button>
@@ -109,11 +209,13 @@ const StudentLayout = () => {
     const rw = rewards.enabled ? rewards.summary : null;
     const location = useLocation();
     const navigate = useNavigate();
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [showContact, setShowContact] = useState(false);
+    // The full wallet popup, opened by the wallet button in the top bar.
+    const [walletOpen, setWalletOpen] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
     const profileDropdownRef = useRef(null);
+    const profileButtonRef = useRef(null);
 
     /**
      * A link with a hash (the header's wallet button → /#wallet) should land on
@@ -168,16 +270,16 @@ const StudentLayout = () => {
 
     // Announcements / notifications
     //
-    // One bell, two sources. Career Path arrived with a bell of its own inside
+    // One bell, three sources. Career Path arrived with a bell of its own inside
     // its section, which meant a student could earn a badge, never open Career
     // Path again, and never find out — while the header bell three centimetres
-    // away sat empty. Both feeds land here now, tagged so the panel can say
-    // where each item came from.
+    // away sat empty. Announcements, the career feed (which also carries the
+    // rewards notices: XP, badges, wallet) and job alerts all land here now,
+    // tagged so the panel can say where each item came from.
     // XP and level for the sidebar card. The cached `studentData` blob is the
     // login response, and the server rewrites XP every time a task is completed
     // — so a card driven from the cache would sit on the number the student had
-    // when they signed in. Refetched on navigation, which is the same thing
-    // CareerShell already does for the level chip inside the section.
+    // when they signed in. Read on arrival and whenever progress changes.
     const [progressUser, setProgressUser] = useState(null);
     // The streak for the header pill. Server-computed and already returned by
     // the career profile summary, so this is one small request rather than
@@ -186,149 +288,312 @@ const StudentLayout = () => {
     const [announcements, setAnnouncements] = useState([]);
     const [careerNotifs, setCareerNotifs] = useState([]);
     const [jobNotifs, setJobNotifs] = useState([]);
+    // Whether the career feed answered. With Career Path switched off it may
+    // still carry the rewards notices, or it may be closed (403) — then it is
+    // not asked again this visit, and "Clear all" leaves it alone.
+    const [careerFeedOk, setCareerFeedOk] = useState(false);
+    const careerFeedClosed = useRef(false);
     const [showNotif, setShowNotif] = useState(false);
-    const [notifSeen, setNotifSeen] = useState(() => parseInt(localStorage.getItem('notif_seen') || '0'));
-    const notifRef = useRef(null);
+    // Announcements have no per-student read state on the server, so what this
+    // student has seen is remembered here: the newest announcement they have
+    // opened the bell on, by time, per student. It used to be a count shared by
+    // everyone on the device ('notif_seen'), which miscounted the moment an
+    // announcement was deleted, and handed one student's "seen" to the next.
+    const userId = user?._id || user?.id;
+    const [notifSeenAt, setNotifSeenAt] = useState(() => readSeenAt(userId));
+    const [seenFor, setSeenFor] = useState(userId);
+    if (seenFor !== userId) { setSeenFor(userId); setNotifSeenAt(readSeenAt(userId)); }
+    // Two bells are drawn — one in the phone's top bar, one in the desktop
+    // header — and only one is ever on screen. Each has its own box: with one
+    // shared ref it pointed at the hidden desktop copy, so every tap inside
+    // the phone's panel counted as a tap outside it, the panel closed on
+    // mousedown, and its items and "Clear all" never received the click.
+    const notifMobileRef = useRef(null);
+    const notifDesktopRef = useRef(null);
     // What was unread at the moment the panel opened. Opening marks
     // everything read straight away, so without this snapshot the "new"
     // highlight would vanish before the student had seen it.
     const [freshKeys, setFreshKeys] = useState([]);
+    const [clearError, setClearError] = useState('');
+    const inCareer = location.pathname === '/career' || location.pathname.startsWith('/career/');
 
-
-    useEffect(() => {
-        api.get('/user/announcements').then(r => setAnnouncements(r.data)).catch(() => {});
-        // Best-effort: a student with no career goal yet simply has none of these.
-        api.get('/career/notifications').then(r => setCareerNotifs(r.data || [])).catch(() => {});
+    /**
+     * The three feeds, fetched together. On arrival, when the bell is opened,
+     * every couple of minutes while the page is in front, and when progress
+     * changes (a badge or an XP notice may just have been written). They used
+     * to be fetched again on every page change — five requests a click, one of
+     * them a 403 whenever Career Path was off. Resolves with what came back.
+     */
+    const loadBell = useCallback(() => {
+        const asks = [
+            api.get('/user/announcements')
+                .then((r) => {
+                    const list = Array.isArray(r.data) ? r.data : [];
+                    setAnnouncements(list);
+                    const adopted = adoptLegacySeen(userId, list);
+                    if (adopted) setNotifSeenAt((at) => Math.max(at, adopted));
+                    return list;
+                })
+                .catch(() => null)
+        ];
+        // With Career Path on, always; with it off, until the feed says it is
+        // closed — it still carries the rewards notices when the server allows.
+        if (isCareerPathEnabled || !careerFeedClosed.current) {
+            asks.push(api.get('/career/notifications')
+                .then((r) => { const list = r.data || []; setCareerNotifs(list); setCareerFeedOk(true); return list; })
+                .catch((e) => {
+                    if (e.response?.status === 403) { careerFeedClosed.current = true; setCareerNotifs([]); setCareerFeedOk(false); }
+                    return null;
+                }));
+        } else asks.push(Promise.resolve(null));
         // Job alerts. Not fetched while the section is locked — the endpoint
         // would only answer 403, and the bell should not mention a tab the
         // student cannot see.
         if (isJobsEnabled) {
-            api.get('/jobs/notifications').then(r => setJobNotifs(r.data || [])).catch(() => {});
-        }
-        // Fresh XP and level for the sidebar card. Falls back to the cached
-        // session on failure rather than blanking the card — a stale number is
-        // better than an empty panel where progress used to be.
-        if (isCareerPathEnabled) {
-            api.get('/user/profile')
-                .then(r => setProgressUser(r.data?.user ?? r.data))
-                .catch(() => {});
-        }
-        // Only inside Career Path. The pills belong to that section, and asking
-        // for a career summary on Dashboard, Courses, Community and Jobs would
-        // be four requests a page that never shows the answer.
-        if (isCareerPathEnabled && location.pathname.startsWith('/career')) {
-            api.get('/career/profile/summary')
-                .then(r => setStreak(r.data?.stats?.streak || 0))
-                .catch(() => {});
-        }
-    }, [location.pathname, isJobsEnabled, isCareerPathEnabled]);
+            asks.push(api.get('/jobs/notifications')
+                .then((r) => { const list = r.data || []; setJobNotifs(list); return list; })
+                .catch(() => null));
+        } else asks.push(Promise.resolve(null));
+        return Promise.all(asks).then(([a, c, j]) => ({ announcements: a, careerNotifs: c, jobNotifs: j }));
+    }, [isCareerPathEnabled, isJobsEnabled, userId]);
 
-    // Career Path awards XP without a navigation, so the sidebar card and the
-    // header pills have to be told rather than wait for the next page change.
+    useEffect(() => {
+        if (!userId) return undefined;
+        if (isCareerPathEnabled) careerFeedClosed.current = false;
+        loadBell();
+        const timer = setInterval(() => { if (document.visibilityState === 'visible') loadBell(); }, BELL_REFRESH_MS);
+        const again = () => loadBell();
+        window.addEventListener('yati:progress-changed', again);
+        window.addEventListener('yati:rewards', again);
+        return () => {
+            clearInterval(timer);
+            window.removeEventListener('yati:progress-changed', again);
+            window.removeEventListener('yati:rewards', again);
+        };
+    }, [loadBell, userId, isCareerPathEnabled]);
+
+    // Fresh XP and level for the sidebar card, on arrival and whenever Career
+    // Path, a lesson or a quiz says progress changed — not on every page
+    // change. Falls back to the cached session on failure rather than
+    // blanking the card: a stale number is better than an empty panel.
     useEffect(() => {
         if (!isCareerPathEnabled) return undefined;
-        const refetch = () => {
-            api.get('/user/profile')
-                .then(r => setProgressUser(r.data?.user ?? r.data))
-                .catch(() => {});
-            if (location.pathname.startsWith('/career')) {
-                api.get('/career/profile/summary')
-                    .then(r => setStreak(r.data?.stats?.streak || 0))
-                    .catch(() => {});
-            }
-        };
+        const refetch = () => api.get('/user/profile')
+            .then((r) => setProgressUser(r.data?.user ?? r.data))
+            .catch(() => {});
+        refetch();
         window.addEventListener('yati:progress-changed', refetch);
         return () => window.removeEventListener('yati:progress-changed', refetch);
-    }, [isCareerPathEnabled, location.pathname]);
+    }, [isCareerPathEnabled, userId]);
 
-    // Announcements have no per-user read state on the server, so they are
-    // counted against a high-water mark in localStorage the way they always
-    // were. Career Path notifications carry their own isRead, so they are
-    // counted honestly and stay unread until the student actually opens them.
-    const careerUnread = careerNotifs.filter(n => !n.isRead).length;
-    const jobsUnread = jobNotifs.filter(n => !n.isRead).length;
-    const unreadCount = Math.max(0, announcements.length - notifSeen) + careerUnread + jobsUnread;
+    // The streak pill belongs to Career Path's section, so its summary is only
+    // asked for there: on entering the section (not on each of its pages) and
+    // when progress changes while inside it.
+    useEffect(() => {
+        if (!isCareerPathEnabled || !inCareer) return undefined;
+        const refetch = () => api.get('/career/profile/summary')
+            .then((r) => setStreak(r.data?.stats?.streak || 0))
+            .catch(() => {});
+        refetch();
+        window.addEventListener('yati:progress-changed', refetch);
+        return () => window.removeEventListener('yati:progress-changed', refetch);
+    }, [isCareerPathEnabled, inCareer]);
 
-    // Merged newest-first. `kind` is what lets one panel render two shapes.
+    // Only today's notifications, on the platform's day (the one the streak
+    // and Career Path's plan turn over in): older ones are not shown and not
+    // counted in the red badge (asked 2026-10-14). The feeds refresh every
+    // couple of minutes, so yesterday's drop off soon after midnight.
+    const today = platformDay(Date.now());
+    const ofToday = (x) => platformDay(x?.createdAt) === today;
+    const todaysAnnouncements = announcements.filter(ofToday);
+    // Career items from a switched-off Career Path are not shown — the bell
+    // should not send anyone to a section they cannot open — but the rewards
+    // notices that travel in the same feed are.
+    const careerShown = careerNotifs.filter((n) => ofToday(n) && (isCareerPathEnabled || alwaysShown(n)));
+    const jobsShown = isJobsEnabled ? jobNotifs.filter(ofToday) : [];
+    const freshAnnouncements = todaysAnnouncements.filter((a) => atOf(a) > notifSeenAt);
+    const unreadCount = freshAnnouncements.length
+        + careerShown.filter((n) => !n.isRead).length
+        + jobsShown.filter((n) => !n.isRead).length;
+
+    // Merged newest-first. `kind` is what lets one panel render four shapes.
     const feed = [
-        ...announcements.map(a => ({
+        ...todaysAnnouncements.map((a) => ({
             kind: 'announcement', id: a._id, title: a.title,
-            body: a.message, at: a.createdAt, read: true
+            body: a.message, at: a.createdAt
         })),
-        ...careerNotifs.map(n => ({
+        ...careerShown.map((n) => (careerFeedKind(n) === 'competition' ? {
+            // A competition notice opens the competition it is about.
+            kind: 'competition', id: n._id, title: n.title,
+            body: n.message, at: n.createdAt, link: n.link || '/competitions'
+        } : careerFeedKind(n) === 'reward' ? {
+            // XP, a badge, the wallet: the rewards system's notices. They say
+            // where to look (the wallet card, the badges page); the wallet is
+            // the place for one that does not.
+            kind: 'reward', id: n._id, title: n.title,
+            body: n.message, at: n.createdAt, link: n.link || '/#wallet'
+        } : {
             kind: 'career', id: n._id, title: n.title,
-            body: n.message, at: n.createdAt, read: Boolean(n.isRead),
+            body: n.message, at: n.createdAt,
             // A feature announcement names the page it is about.
             link: n.link || '/career'
         })),
-        ...jobNotifs.map(n => ({
+        ...jobsShown.map((n) => ({
             kind: 'jobs', id: n._id, title: n.title,
-            body: n.message, at: n.createdAt, read: Boolean(n.isRead),
+            body: n.message, at: n.createdAt,
             // Carries the student back to the exact search the alert is about.
             link: n.link || '/jobs'
         }))
     ].sort((a, b) => new Date(b.at) - new Date(a.at));
 
-    const openNotif = () => {
-        const opening = !showNotif;
-        setShowNotif(v => !v);
-        if (!opening) return;
+    /**
+     * Everything unread in these lists becomes read: highlighted as new in the
+     * panel for as long as it is open, and marked read on the server (career
+     * and job items) so the count is right on the student's other device too.
+     */
+    const markSeen = (lists, { append = false } = {}) => {
+        // Only today's: the panel shows nothing older, so its "N new" counts
+        // nothing older either (worked out afresh, in case midnight has passed).
+        const day = platformDay(Date.now());
+        const onDay = (x) => platformDay(x?.createdAt) === day;
+        const anns = (lists.announcements || []).filter(onDay);
+        const careers = (lists.careerNotifs || []).filter((n) => onDay(n) && (isCareerPathEnabled || alwaysShown(n)));
+        const jobs = isJobsEnabled ? (lists.jobNotifs || []).filter(onDay) : [];
+        const unreadCareer = careers.filter((n) => !n.isRead);
+        const unreadJobs = jobs.filter((n) => !n.isRead);
+        const keys = [
+            ...anns.filter((a) => atOf(a) > notifSeenAt).map((a) => `announcement-${a._id}`),
+            ...unreadCareer.map((n) => `${careerFeedKind(n)}-${n._id}`),
+            ...unreadJobs.map((n) => `jobs-${n._id}`)
+        ];
+        setFreshKeys((prev) => [...new Set([...(append ? prev : []), ...keys])]);
 
-        setFreshKeys([
-            ...careerNotifs.filter(n => !n.isRead).map(n => `career-${n._id}`),
-            ...jobNotifs.filter(n => !n.isRead).map(n => `jobs-${n._id}`)
-        ]);
+        const newest = anns.reduce((max, a) => Math.max(max, atOf(a)), 0);
+        if (newest > notifSeenAt) { setNotifSeenAt(newest); writeSeenAt(userId, newest); }
 
-        const seen = announcements.length;
-        setNotifSeen(seen);
-        localStorage.setItem('notif_seen', String(seen));
-
-        // Career items are marked read server-side so the count is right on the
-        // student's other device too, not just in this tab.
-        const unread = careerNotifs.filter(n => !n.isRead);
-        if (unread.length) {
-            setCareerNotifs(list => list.map(n => ({ ...n, isRead: true })));
-            Promise.all(
-                unread.map(n => api.put(`/career/notifications/${n._id}/read`).catch(() => {}))
-            );
+        if (unreadCareer.length) {
+            const ids = new Set(unreadCareer.map((n) => n._id));
+            setCareerNotifs((list) => list.map((n) => (ids.has(n._id) ? { ...n, isRead: true } : n)));
+            unreadCareer.forEach((n) => api.put(`/career/notifications/${n._id}/read`).catch(() => {}));
         }
-
         // Job alerts follow the same rule: read means read on every device.
-        const unreadJobs = jobNotifs.filter(n => !n.isRead);
         if (unreadJobs.length) {
-            setJobNotifs(list => list.map(n => ({ ...n, isRead: true })));
-            Promise.all(
-                unreadJobs.map(n => api.put(`/jobs/notifications/${n._id}/read`).catch(() => {}))
-            );
+            const ids = new Set(unreadJobs.map((n) => n._id));
+            setJobNotifs((list) => list.map((n) => (ids.has(n._id) ? { ...n, isRead: true } : n)));
+            unreadJobs.forEach((n) => api.put(`/jobs/notifications/${n._id}/read`).catch(() => {}));
         }
     };
 
-    const clearNotifications = async () => {
-        // Both feeds, since the panel shows both. Settled independently: a
-        // student with no career goal has no Career Path notifications, and that
-        // call failing must not stop announcements being cleared.
-        await Promise.allSettled([
-            api.post('/user/announcements/clear'),
-            api.delete('/career/notifications'),
-            api.delete('/jobs/notifications')
-        ]);
-
-        setAnnouncements([]);
-        setCareerNotifs([]);
-        setJobNotifs([]);
-        setNotifSeen(0);
-        localStorage.setItem('notif_seen', '0');
+    const openNotif = () => {
+        if (showNotif) { setShowNotif(false); return; }
+        setShowNotif(true);
+        setClearError('');
+        // What is in the bell now is read at once; anything newer that the
+        // fresh look brings in is added to the "new" highlight as it lands.
+        markSeen({ announcements, careerNotifs, jobNotifs });
+        loadBell().then((fresh) => markSeen(fresh, { append: true }));
     };
 
-    // Close dropdowns on outside click
+    /** The bell button that is on screen (the other one is display: none). */
+    const visibleBellButton = () => [notifMobileRef, notifDesktopRef]
+        .map((r) => r.current?.querySelector('button[data-bell]'))
+        .find((b) => b && b.getClientRects().length);
+    const closeNotif = ({ refocus = false } = {}) => {
+        setShowNotif(false);
+        if (refocus) visibleBellButton()?.focus({ preventScroll: true });
+    };
+    // Escape and Android's back button close the panel, as a tap outside does.
+    useBackClose(() => closeNotif({ refocus: true }), showNotif);
+    useEffect(() => {
+        if (!showNotif) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') closeNotif({ refocus: true }); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+        // closeNotif only reads refs.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showNotif]);
+
+    /**
+     * Clears every feed the student can see, and only what the server really
+     * cleared. Each feed is asked on its own, and only one whose request
+     * succeeded is emptied here — they used to be emptied regardless, so a
+     * failed clear looked done and the items came back on the next page.
+     * A feed that is locked (Jobs off, the career feed closed) is not asked.
+     */
+    const clearNotifications = async () => {
+        setClearError('');
+        const asks = [
+            ['announcements', () => api.post('/user/announcements/clear')],
+            careerFeedOk && ['career', () => api.delete('/career/notifications')],
+            isJobsEnabled && ['jobs', () => api.delete('/jobs/notifications')]
+        ].filter(Boolean);
+        const results = await Promise.allSettled(asks.map(([, ask]) => ask()));
+        let failed = false;
+        results.forEach((r, i) => {
+            if (r.status !== 'fulfilled') { failed = true; return; }
+            const which = asks[i][0];
+            if (which === 'announcements') setAnnouncements([]);
+            if (which === 'career') setCareerNotifs([]);
+            if (which === 'jobs') setJobNotifs([]);
+        });
+        if (failed) setClearError('Some notifications could not be cleared. Please try again.');
+    };
+
+    // Close dropdowns on outside click. "Inside" the bell is either bell's box:
+    // the one on screen is the one that can be tapped.
     useEffect(() => {
         const handler = (e) => {
-            if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotif(false);
+            const inBell = [notifMobileRef, notifDesktopRef].some((r) => r.current?.contains(e.target));
+            if (!inBell) setShowNotif(false);
             if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) setProfileDropdownOpen(false);
         };
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, []);
+
+    // The account menu: Escape closes it and hands the focus back to the avatar.
+    useEffect(() => {
+        if (!profileDropdownOpen) return undefined;
+        const onKey = (e) => {
+            if (e.key !== 'Escape') return;
+            setProfileDropdownOpen(false);
+            profileButtonRef.current?.focus({ preventScroll: true });
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [profileDropdownOpen]);
+
+    // The phone's menu drawer. It is open on the page it was opened on, so
+    // going anywhere else (a link in it, the back button) closes it by itself.
+    const [menuOpenOn, setMenuOpenOn] = useState(null);
+    const mobileMenuOpen = menuOpenOn === location.pathname;
+    const menuButtonRef = useRef(null);
+    const drawerCloseRef = useRef(null);
+    const openMenu = () => setMenuOpenOn(location.pathname);
+    // Closed from the drawer itself (its X, the dim, Escape, back): the focus
+    // goes back to the menu button that opened it.
+    const closeMenu = () => {
+        setMenuOpenOn(null);
+        menuButtonRef.current?.focus({ preventScroll: true });
+    };
+    useBackClose(closeMenu, mobileMenuOpen);
+    useEffect(() => {
+        if (!mobileMenuOpen) return undefined;
+        // Into the drawer, so the keyboard and a screen reader start there.
+        drawerCloseRef.current?.focus({ preventScroll: true });
+        const onKey = (e) => { if (e.key === 'Escape') closeMenu(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [mobileMenuOpen]);
+
+    // The logout question: Escape and Android's back button answer "Cancel".
+    useBackClose(() => setShowLogoutConfirm(false), showLogoutConfirm);
+    useEffect(() => {
+        if (!showLogoutConfirm) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') setShowLogoutConfirm(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [showLogoutConfirm]);
 
     const isActive = (path) => location.pathname === path;
     // Games & Competitions is laid out to fill the window, edge to edge,
@@ -381,16 +646,22 @@ const StudentLayout = () => {
         </div>
     ));
 
-    const renderNotificationBell = () => (
-    <div ref={notifRef} className="relative">
+    // `where` is 'mobile' or 'desktop': which of the two bells this is, for
+    // its own box (see notifMobileRef) and its own element ids.
+    const renderNotificationBell = (where) => (
+    <div ref={where === 'mobile' ? notifMobileRef : notifDesktopRef} className="relative">
         <button
+            type="button"
+            data-bell
             onClick={openNotif}
             aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+            aria-expanded={showNotif}
+            aria-controls={showNotif ? `notifications-${where}` : undefined}
             className="p-2 text-slate-600 md:text-slate-600 hover:bg-slate-100 rounded-full transition-colors relative"
         >
-            <Bell size={22} className={location.pathname === '/' ? 'text-indigo-600' : ''} />
+            <Bell size={22} aria-hidden="true" className={location.pathname === '/' ? 'text-indigo-600' : ''} />
             {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                <span aria-hidden="true" className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white">
                     {unreadCount}
                 </span>
             )}
@@ -407,14 +678,14 @@ const StudentLayout = () => {
             <div
                 aria-hidden
                 onClick={() => setShowNotif(false)}
-                className="fixed inset-0 top-[4rem] z-[59] bg-slate-900/25 backdrop-blur-[2px] animate-in fade-in duration-200 sidebar:hidden"
+                className="fixed inset-0 top-[4rem] z-[59] bg-slate-900/25 backdrop-blur-[2px] sidebar:hidden"
             />
             {/* data-loop-avoid: Loop keeps off it while it is open (loop-walker.js, AVOID). */}
-            <div data-loop-avoid className="fixed inset-x-3 top-[4.5rem] z-[60] flex max-h-[calc(100dvh-10rem)] flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl shadow-slate-900/20 animate-in fade-in slide-in-from-top-2 duration-200 origin-top-right sidebar:absolute sidebar:inset-x-auto sidebar:right-0 sidebar:top-12 sidebar:w-96 sidebar:max-h-[28rem] sidebar:rounded-2xl">
+            <div id={`notifications-${where}`} role="dialog" aria-labelledby={`notifications-${where}-title`} data-loop-avoid className="fixed inset-x-3 top-[4.5rem] z-[60] flex max-h-[calc(100dvh-10rem)] flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl shadow-slate-900/20 origin-top-right sidebar:absolute sidebar:inset-x-auto sidebar:right-0 sidebar:top-12 sidebar:w-96 sidebar:max-h-[28rem] sidebar:rounded-2xl">
 
                 <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
                     <div className="flex items-center gap-2">
-                        <p className="text-base font-black text-slate-900">Notifications</p>
+                        <h2 id={`notifications-${where}-title`} className="text-base font-black text-slate-900">Notifications</h2>
                         {freshKeys.length > 0 && (
                             <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-black text-white">
                                 {freshKeys.length} new
@@ -424,6 +695,7 @@ const StudentLayout = () => {
                     <div className="flex items-center gap-1">
                         {feed.length > 0 && (
                             <button
+                                type="button"
                                 onClick={clearNotifications}
                                 className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-indigo-600 transition-colors hover:bg-indigo-50"
                             >
@@ -431,22 +703,26 @@ const StudentLayout = () => {
                             </button>
                         )}
                         <button
-                            onClick={() => setShowNotif(false)}
+                            type="button"
+                            onClick={() => closeNotif({ refocus: true })}
                             aria-label="Close notifications"
                             className="rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 sidebar:hidden"
                         >
-                            <X size={18} />
+                            <X size={18} aria-hidden="true" />
                         </button>
                     </div>
                 </div>
+                {clearError && (
+                    <p role="alert" className="shrink-0 border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700">{clearError}</p>
+                )}
 
                 {feed.length === 0 ? (
                     <div className="px-6 py-10 text-center">
                         <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50">
-                            <Bell size={24} className="text-indigo-400" />
+                            <Bell size={24} aria-hidden="true" className="text-indigo-400" />
                         </div>
-                        <p className="text-sm font-bold text-slate-700">You&apos;re all caught up</p>
-                        <p className="mt-1 text-xs text-slate-400">New badges, XP and job alerts will show up here.</p>
+                        <p className="text-sm font-bold text-slate-700">Nothing new today</p>
+                        <p className="mt-1 text-xs text-slate-400">Today&apos;s badges, XP and job alerts will show up here.</p>
                     </div>
                 ) : (
                     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -454,42 +730,49 @@ const StudentLayout = () => {
                     <ul className="max-h-[23rem] min-h-0 space-y-1 overflow-y-auto overscroll-contain py-1.5">
                         {feed.map(item => {
                             const key = `${item.kind}-${item.id}`;
-                            const career = item.kind === 'career';
-                            const jobs = item.kind === 'jobs';
-                            const clickable = career || jobs;
+                            const look = KINDS[item.kind];
                             const fresh = freshKeys.includes(key);
-                            const Icon = career ? Compass : jobs ? Briefcase : Megaphone;
+                            const Icon = look.icon;
+                            const rowClass = `relative mx-1.5 flex w-[calc(100%-0.75rem)] items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${fresh ? 'bg-indigo-50/60' : ''}`;
+                            const body = (
+                                <>
+                                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${look.tone}`}>
+                                        <Icon size={18} aria-hidden="true" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        {/* Said first, before the title: the dot alone tells a screen reader nothing. */}
+                                        {fresh && <span className="sr-only">Unread: </span>}
+                                        <span className="block line-clamp-2 pr-4 text-sm leading-snug font-bold text-slate-900">
+                                            {item.title}
+                                        </span>
+                                        {item.body && (
+                                            <span className="mt-0.5 block line-clamp-2 text-[13px] leading-snug text-slate-500">
+                                                {item.body}
+                                            </span>
+                                        )}
+                                        <span className="mt-1.5 block text-[11px] font-semibold text-slate-400">
+                                            {look.label} · {timeAgo(item.at)}
+                                        </span>
+                                    </span>
+                                    {fresh && <span aria-hidden="true" className="absolute top-4 right-3 h-2 w-2 rounded-full bg-indigo-600" />}
+                                </>
+                            );
                             return (
                                 <li key={key}>
-                                    <div
-                                        role={clickable ? 'button' : undefined}
-                                        tabIndex={clickable ? 0 : undefined}
-                                        className={`relative mx-1.5 flex items-start gap-3 rounded-2xl px-3 py-3 transition-colors ${fresh ? 'bg-indigo-50/60' : ''} ${clickable ? 'cursor-pointer hover:bg-slate-50 active:bg-slate-100' : 'cursor-default'}`}
-                                        onClick={clickable ? () => {
-                                            setShowNotif(false);
-                                            navigate(item.link || (jobs ? '/jobs' : '/career'));
-                                        } : undefined}
-                                    >
-                                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                                            career ? 'bg-indigo-100 text-indigo-600' : jobs ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
-                                        }`}>
-                                            <Icon size={18} />
-                                        </span>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="line-clamp-2 pr-4 text-sm leading-snug font-bold text-slate-900">
-                                                {item.title}
-                                            </p>
-                                            {item.body && (
-                                                <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-slate-500">
-                                                    {item.body}
-                                                </p>
-                                            )}
-                                            <p className="mt-1.5 text-[11px] font-semibold text-slate-400">
-                                                {career ? 'Career' : jobs ? 'Jobs' : 'Notice'} · {timeAgo(item.at)}
-                                            </p>
-                                        </div>
-                                        {fresh && <span aria-label="New" className="absolute top-4 right-3 h-2 w-2 rounded-full bg-indigo-600" />}
-                                    </div>
+                                    {/* A real button where the item leads somewhere, so
+                                        Enter and Space open it as a tap does; a plain
+                                        notice is just text. */}
+                                    {item.link ? (
+                                        <button
+                                            type="button"
+                                            className={`${rowClass} cursor-pointer hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 active:bg-slate-100`}
+                                            onClick={() => { setShowNotif(false); navigate(item.link); }}
+                                        >
+                                            {body}
+                                        </button>
+                                    ) : (
+                                        <div className={`${rowClass} cursor-default`}>{body}</div>
+                                    )}
                                 </li>
                             );
                         })}
@@ -514,27 +797,30 @@ const StudentLayout = () => {
                 isCareerPathEnabled={isCareerPathEnabled}
             />
 
-            {showContact && <ContactModal onClose={() => setShowContact(false)} user={user} />}
+            {showContact && <ContactModal onClose={() => setShowContact(false)} user={user} page={location.pathname} />}
 
-            {/* Logout Confirmation Modal */}
+            {/* Logout Confirmation Modal — a named dialog; Escape and back answer Cancel. */}
             {showLogoutConfirm && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                    <div role="alertdialog" aria-modal="true" aria-labelledby="logout-title" aria-describedby="logout-text" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
                         <div className="p-6 text-center">
                             <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <LogOut size={26} className="text-red-500" />
+                                <LogOut size={26} aria-hidden="true" className="text-red-500" />
                             </div>
-                            <h2 className="text-lg font-bold text-slate-800 mb-1">Log out?</h2>
-                            <p className="text-slate-500 text-sm">Are you sure you want to log out of your account?</p>
+                            <h2 id="logout-title" className="text-lg font-bold text-slate-800 mb-1">Log out?</h2>
+                            <p id="logout-text" className="text-slate-500 text-sm">Are you sure you want to log out of your account?</p>
                         </div>
                         <div className="flex gap-3 px-6 pb-6">
                             <button
+                                type="button"
+                                autoFocus
                                 onClick={() => setShowLogoutConfirm(false)}
                                 className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
+                                type="button"
                                 onClick={confirmLogout}
                                 className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors"
                             >
@@ -580,11 +866,7 @@ const StudentLayout = () => {
                         className={`group flex items-center gap-3 rounded-xl border p-2.5 shadow-sm transition-all duration-200 ${isActive('/profile') ? 'border-indigo-600 bg-indigo-600 text-white shadow-indigo-200' : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md'}`}
                     >
                         <span className={`flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-sm font-bold text-indigo-700 ring-2 ${isActive('/profile') ? 'ring-white/60' : 'ring-indigo-100'}`}>
-                            {user?.profilePicture ? (
-                                <img src={pictureUrl(user.profilePicture)} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                                getInitials(user?.name)
-                            )}
+                            <ProfileImage src={user?.profilePicture} className="h-full w-full object-cover" fallback={getInitials(user?.name)} />
                         </span>
                         <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm font-bold">{user?.name}</span>
@@ -620,26 +902,32 @@ const StudentLayout = () => {
                         card's emerald-600: on this navy bar the darker green is
                         almost invisible. The amount still reaches a screen reader
                         through the label. */}
+                    {/* Opens the full wallet — all transactions — over this page,
+                        rather than taking the student to the dashboard's card. */}
                     {rw?.wallet && (
-                        <Link
-                            to="/#wallet"
-                            aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}. Open the wallet.`}
+                        <button
+                            type="button"
+                            onClick={() => setWalletOpen(true)}
+                            aria-haspopup="dialog"
+                            aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}. View all transactions.`}
                             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-emerald-600 transition-colors hover:text-emerald-700"
                         >
                             <Wallet size={20} />
-                        </Link>
+                        </button>
                     )}
                     {/* The bell sets its own slate colour, so a colour on this
                         wrapper alone never reaches it — these descendant rules
                         do. Emerald to match the wallet beside it; the unread
-                        badge keeps its own red. */}
-                    <div className="shrink-0 [&_button]:text-emerald-600 [&_button:hover]:bg-slate-100 [&_svg]:text-emerald-600">
-                        {renderNotificationBell()}
+                        badge keeps its own red. Scoped to the bell button
+                        itself ([data-bell]): the panel it opens is inside this
+                        wrapper too, and its rows and icons turned emerald with it. */}
+                    <div className="shrink-0 [&_[data-bell]]:text-emerald-600 [&_[data-bell]:hover]:bg-slate-100 [&_[data-bell]_svg]:text-emerald-600">
+                        {renderNotificationBell('mobile')}
                     </div>
                     {/* data-loop-quiet: the mascot does not explain the menu
                         button (or its Close partner) — it talked over every
                         opening of the sidebar. */}
-                    <button onClick={() => setMobileMenuOpen(true)} aria-label="Open menu" data-loop-quiet className="shrink-0 p-2 text-slate-700">
+                    <button ref={menuButtonRef} type="button" onClick={openMenu} aria-label="Open menu" aria-expanded={mobileMenuOpen} aria-controls={mobileMenuOpen ? 'mobile-menu' : undefined} data-loop-quiet className="shrink-0 p-2 text-slate-700">
                         <Menu size={24} aria-hidden="true" />
                     </button>
                 </div>
@@ -649,11 +937,12 @@ const StudentLayout = () => {
                 Renders nothing on a first sign-in, or without a Career Path goal. */}
             <ContinuePanel />
             <WalletShortDialog />
+            {walletOpen && <WalletSheet onClose={() => setWalletOpen(false)} />}
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
-                <div data-loop-skip className="sidebar:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Menu">
-                    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
+                <div id="mobile-menu" data-loop-skip className="sidebar:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Menu">
+                    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={closeMenu}></div>
                     {/* The whole drawer scrolls, not the menu inside it. On a phone
                         turned sideways — 384px tall — the logo above and the card,
                         Contact Support and Logout below left the menu its own
@@ -662,19 +951,19 @@ const StudentLayout = () => {
                     <div className="relative w-4/5 max-w-sm bg-white text-slate-700 h-full flex flex-col overflow-y-auto shadow-2xl animate-fade-in border-r border-slate-200">
                         <div className="sticky top-0 z-10 p-4 flex items-center justify-between border-b border-slate-100 bg-white">
                             <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 object-contain" />
-                            <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu" data-loop-quiet className="p-2 text-slate-400 hover:text-slate-700">
+                            <button ref={drawerCloseRef} type="button" onClick={closeMenu} aria-label="Close menu" data-loop-quiet className="p-2 text-slate-400 hover:text-slate-700">
                                 <X size={24} aria-hidden="true" />
                             </button>
                         </div>
                         <nav className="flex-1 p-4">
-                            {renderNavLinks(() => setMobileMenuOpen(false))}
+                            {renderNavLinks(() => setMenuOpenOn(null))}
                         </nav>
                         <div className="p-4 border-t border-slate-100 bg-slate-50/60 space-y-3">
                             {/* Profile card in mobile drawer — opens My Profile,
                                 which is no longer in the nav list above. */}
                             <Link
                                 to="/profile"
-                                onClick={() => setMobileMenuOpen(false)}
+                                onClick={() => setMenuOpenOn(null)}
                                 className={`block bg-white p-4 rounded-xl border transition-colors ${isActive('/profile') ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200 hover:border-indigo-200'}`}
                             >
                                 <div className="flex justify-between items-start mb-1">
@@ -698,14 +987,14 @@ const StudentLayout = () => {
                             <div className="grid grid-cols-2 gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => { setMobileMenuOpen(false); setShowContact(true); }}
+                                    onClick={() => { setMenuOpenOn(null); setShowContact(true); }}
                                     className="flex items-center justify-center space-x-2 bg-indigo-50 border border-indigo-100 text-indigo-600 hover:bg-indigo-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
                                 >
                                     <MessageCircleQuestion size={20} /> <span>Support</span>
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+                                    onClick={() => { setMenuOpenOn(null); handleLogout(); }}
                                     className="flex items-center justify-center space-x-2 bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-600 hover:text-white w-full py-3 rounded-xl transition-all duration-200 font-bold"
                                 >
                                     <LogOut size={20} /> <span>Logout</span>
@@ -719,7 +1008,11 @@ const StudentLayout = () => {
             {/* Main Content Area */}
             {/* Drag down at the top of a page to reload it (touch screens). */}
             <PullToRefresh scrollerRef={mainRef} />
-            <main ref={mainRef} className="flex-1 overflow-auto overscroll-y-contain bg-slate-50 sidebar:pt-0 pt-16 relative">
+            {/* scroll-pt-16: the top 4rem of this scroller is under a header —
+                the phone's fixed top bar, the desktop's sticky one — so
+                anything scrolled to (a #wallet link, a tab strip, a focused
+                field) lands below it rather than behind it. */}
+            <main ref={mainRef} className="flex-1 overflow-auto overscroll-y-contain scroll-pt-16 bg-slate-50 sidebar:pt-0 pt-16 relative">
                 {/* A superadmin working in this student's dashboard: everything
                     they do counts as the student's own, so it is said plainly,
                     with the way out beside it. */}
@@ -766,12 +1059,14 @@ const StudentLayout = () => {
                         )}
 
                         {/* The wallet balance, always in view at the top of the
-                            dashboard. It opens the wallet card further down the
-                            page, where the transactions and rewards live. */}
+                            page. It opens the full wallet — every transaction,
+                            reward points and XP — in its popup, over this page. */}
                         {rw?.wallet && (
-                            <Link
-                                to="/#wallet"
-                                aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}`}
+                            <button
+                                type="button"
+                                onClick={() => setWalletOpen(true)}
+                                aria-haspopup="dialog"
+                                aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}. View all transactions.`}
                                 className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
                             >
                                 <Wallet size={16} />
@@ -780,24 +1075,25 @@ const StudentLayout = () => {
                                     beside it every pill wrapped onto two lines. */}
                                 <span className="hidden xl:inline text-xs font-semibold text-emerald-600">Wallet Balance</span>
                                 <span className="tabular-nums">{money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}</span>
-                            </Link>
+                            </button>
                         )}
 
-                        {renderNotificationBell()}
+                        {renderNotificationBell('desktop')}
                         <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
 
                         {/* Profile avatar dropdown — top-right header */}
                         <div ref={profileDropdownRef} className="relative">
                             <button
+                                ref={profileButtonRef}
+                                type="button"
                                 onClick={() => setProfileDropdownOpen(v => !v)}
+                                aria-haspopup="true"
+                                aria-expanded={profileDropdownOpen}
+                                aria-controls={profileDropdownOpen ? 'account-menu' : undefined}
                                 className="flex items-center gap-2.5 rounded-full py-0.5 pr-1 transition-colors hover:bg-slate-50"
                             >
                                 <span className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm ring-2 ring-indigo-100 hover:ring-indigo-300 transition-all duration-200 overflow-hidden">
-                                    {user?.profilePicture ? (
-                                        <img src={pictureUrl(user.profilePicture)} alt={user.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        getInitials(user?.name)
-                                    )}
+                                    <ProfileImage src={user?.profilePicture} alt={user?.name} className="w-full h-full object-cover" fallback={getInitials(user?.name)} />
                                 </span>
                                 <span className="hidden lg:block text-left leading-tight">
                                     <span className="block max-w-[140px] truncate text-sm font-bold text-slate-800">{user?.name}</span>
@@ -808,15 +1104,11 @@ const StudentLayout = () => {
 
                             {/* Dropdown panel */}
                             {profileDropdownOpen && (
-                                <div data-loop-avoid className="absolute right-0 top-12 w-60 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] overflow-hidden">
+                                <div id="account-menu" data-loop-avoid className="absolute right-0 top-12 w-60 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] overflow-hidden">
                                     {/* User info header */}
                                     <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col items-center gap-2 text-center">
                                         <div className="w-14 h-14 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg overflow-hidden">
-                                            {user?.profilePicture ? (
-                                                <img src={pictureUrl(user.profilePicture)} alt={user.name} className="w-full h-full object-cover" />
-                                            ) : (
-                                                getInitials(user?.name)
-                                            )}
+                                            <ProfileImage src={user?.profilePicture} alt={user?.name} className="w-full h-full object-cover" fallback={getInitials(user?.name)} />
                                         </div>
                                         <div>
                                             <p className="font-bold text-slate-800 text-sm">{user?.name}</p>
@@ -861,8 +1153,15 @@ const StudentLayout = () => {
                     height, so any page taller than the screen overflowed past
                     it and the padding landed mid-page instead of after the
                     last card — which is why the end of long pages sat under
-                    the bar. `min-h` keeps short pages filling the screen. */}
-                <div className={`mx-auto min-h-[calc(100vh-4rem)] p-4 pb-[7.5rem] sidebar:p-8 sidebar:pb-8 ${wide ? 'max-w-none' : 'max-w-7xl'}`}>
+                    the bar. `min-h` keeps short pages filling the screen.
+
+                    And room for Yati standing in its corner (asked
+                    2026-10-15, "loop walker is hiding the background"): the
+                    walker sets --yati-room to how far up the screen it
+                    reaches, so the last card can always be scrolled clear of
+                    it. 0 while Yati is hidden (learning screens). */}
+                <ScrollReset scrollerRef={mainRef} />
+                <div className={`mx-auto min-h-[calc(100vh-4rem)] p-4 pb-[max(7.5rem,var(--yati-room,0px))] sidebar:p-8 sidebar:pb-[max(2rem,var(--yati-room,0px))] ${wide ? 'max-w-none' : 'max-w-7xl'}`}>
                     <Outlet />
                 </div>
             </main>
@@ -870,6 +1169,8 @@ const StudentLayout = () => {
             <ProfilePictureGate />
             {/* "A new Global Quiz is live", when one is published; waits while the student is busy. */}
             <GlobalQuizAlert />
+            {/* The leaderboard climb, on whichever page the student is on. */}
+            <RankUpWatcher />
         </div>
     );
 };

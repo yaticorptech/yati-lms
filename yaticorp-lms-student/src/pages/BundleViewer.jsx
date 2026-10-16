@@ -26,8 +26,9 @@ const BundleViewer = () => {
                 setCourses(res.data.bundle?.courses || []);
             } catch (err) {
                 // 404 means unpublished or deleted — nothing to show either way.
+                // Home is '/': there is no /dashboard route to land on.
                 console.error('Failed to fetch bundle:', err);
-                navigate('/dashboard');
+                navigate('/');
             } finally {
                 setLoading(false);
             }
@@ -49,7 +50,7 @@ const BundleViewer = () => {
         <div className="space-y-8 animate-fade-in pb-12 max-w-6xl mx-auto">
             {/* Header Section */}
             <div>
-                <Link to="/dashboard" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-indigo-600 mb-6 transition-colors group">
+                <Link to="/" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-indigo-600 mb-6 transition-colors group">
                     <ArrowLeft size={16} className="mr-2 group-hover:-translate-x-1 transition-transform" /> Back to Dashboard
                 </Link>
 

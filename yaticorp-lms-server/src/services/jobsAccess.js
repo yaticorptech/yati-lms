@@ -59,27 +59,63 @@ const SKILLS_REQUIRED = 5;
 const SKILL_PERCENT = 25;
 
 /**
+ * A skill's levels, lowest first. Finishing a level (progress reaching 100)
+ * moves the skill up one and starts its progress again from 0 — see
+ * taskCompletionService — so `progress` on its own is only how far into the
+ * CURRENT level the skill is.
+ */
+const SKILL_LEVELS = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
+
+/**
+ * How far along a skill is, as one number that only ever grows: a hundred per
+ * level finished, plus the progress into the current one. Intermediate at 0%
+ * is 100, which is past Beginner at 95% (95).
+ */
+const skillTotal = (level, progress) => {
+    const rank = Math.max(0, SKILL_LEVELS.indexOf(level));
+    return rank * 100 + progress;
+};
+
+/**
  * Whether this account may open the Jobs section, with what the locked page
  * needs to say how far along the student is.
+ *
+ * The rule is measured on the whole of a skill, not on the current level's
+ * bar. Counting only `progress` meant a student whose skill had just levelled
+ * up (Beginner at 100% → Intermediate at 0%) dropped below 25% on it, and
+ * finishing more work could lock Jobs again. Any skill above Beginner has gone
+ * past 25% by definition, so it counts as ready.
  *
  * Skills come from the Career Path tracker, highest first. A skill stored
  * twice under different capitalisation counts once, at its better figure —
  * the tracker has drifted that way before (see SkillProgress.MAX_TRACKED).
+ *
+ * Each skill reports `progress` as its progress towards the bar: the real
+ * figure while it is a Beginner, 100 once it has moved past Beginner (that
+ * first level is finished). The locked page draws `progress` against the 25%
+ * tick, so a levelled-up skill shows as done rather than as "0%" while being
+ * counted as ready. `level` and `levelProgress` carry the stored values.
  * @returns {Promise<{open: boolean, alwaysOpen: boolean, ready: number,
- *   required: {skills: number, percent: number}, skills: {name: string, progress: number}[]}>}
+ *   required: {skills: number, percent: number},
+ *   skills: {name: string, progress: number, level: string, levelProgress: number}[]}>}
  */
 const jobsAccessFor = async (user) => {
     const SkillProgress = require('../career/models/SkillProgress');
-    const rows = user?._id ? await SkillProgress.find({ userId: user._id }).select('skillName progress').lean() : [];
+    const rows = user?._id ? await SkillProgress.find({ userId: user._id }).select('skillName progress level').lean() : [];
     const best = new Map();
     for (const r of rows) {
         const name = String(r.skillName || '').trim();
         if (!name) continue;
-        const progress = Math.max(0, Math.min(100, Math.round(Number(r.progress) || 0)));
+        const levelProgress = Math.max(0, Math.min(100, Math.round(Number(r.progress) || 0)));
+        const level = SKILL_LEVELS.includes(r.level) ? r.level : 'Beginner';
+        const total = skillTotal(level, levelProgress);
+        const progress = level === 'Beginner' ? levelProgress : 100;
         const key = name.toLowerCase();
-        if (!best.has(key) || best.get(key).progress < progress) best.set(key, { name, progress });
+        if (!best.has(key) || best.get(key).total < total) best.set(key, { name, progress, level, levelProgress, total });
     }
-    const skills = [...best.values()].sort((a, b) => b.progress - a.progress || a.name.localeCompare(b.name));
+    const skills = [...best.values()]
+        .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+        .map(({ total, ...skill }) => skill);
     const ready = skills.filter((s) => s.progress >= SKILL_PERCENT).length;
     const alwaysOpen = jobsAlwaysOpen(user);
     return {
@@ -94,4 +130,4 @@ const jobsAccessFor = async (user) => {
     };
 };
 
-module.exports = { jobsAlwaysOpen, allowList, jobsAccessFor, SKILLS_REQUIRED, SKILL_PERCENT };
+module.exports = { jobsAlwaysOpen, allowList, jobsAccessFor, skillTotal, SKILLS_REQUIRED, SKILL_PERCENT, SKILL_LEVELS };

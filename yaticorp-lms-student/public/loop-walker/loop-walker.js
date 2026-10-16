@@ -177,6 +177,7 @@
   var lastSprintMsg = -99, gaitNow = 'Standing';
   var lastStep = [-1, -1];
   var pokes = 0, lastPokeAt = -99, fleeUntil = -1, calmPending = false;
+  var fleeTo = null, pokedAt = null, fleeDone = false;                            // YATICORP change: see runFrom
   var gestureOverride = null;
 
   // feelings
@@ -293,6 +294,10 @@
   // Assemble the file's parts into a rig: hips → torso, head, two arm chains, two leg pivots.
   function assembleRig(gl) {
     var N = gl.byName, blue = gl.mats.filter(function (m) { return m.name === 'blue_plastic'; })[0];
+    // YATICORP change (2026-10-15, smooth scrolling): the bending fingers get their own copy of the blue. Shared with
+    // the rigid parts, one material switched three.js between its skinned and plain program on every draw, and the
+    // renderer re-checked the program each time: a fifth of Loop's work in every frame, on a phone's CPU.
+    var blueSkin = blue.clone();
     var white = gl.mats.filter(function (m) { return m.name === 'white_face'; })[0];
     rig = new THREE.Group();
     rig.rotation.order = 'YXZ';
@@ -381,7 +386,7 @@
       }
       geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
       geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
-      var mesh = new THREE.SkinnedMesh(geo, blue);
+      var mesh = new THREE.SkinnedMesh(geo, blueSkin);
       mesh.position.set(pos[0], pos[1], pos[2]); mesh.castShadow = true; mesh.frustumCulled = false;
       parent.add(mesh);
       var bones = [], prev = mesh;
@@ -557,19 +562,31 @@
   // YATICORP change, not in the shipped package: the tiers were 1.5 / 1.25 / 1 / 0.8, so even the best one drew Loop
   // at 1.5 pixels per CSS pixel and the browser stretched it to fit a 2x laptop or 3x phone screen, which is the blur.
   // Each tier is still capped by the screen's own ratio, and the floor is 1: below that every pixel is stretched.
-  var TIERS = [
+  // YATICORP change (2026-10-14, "loop walker looks blur in mobile view"): a phone has tiers of its own. Its screen
+  // is 2.5-3x, so 1.5x was stretched nearly double and 1x was mush; the phone tiers go from 3x down to 1.5x, never
+  // lower. The sharpness is paid for in the shadows: plain PCF from a smaller map, drawn every other frame (see
+  // frame). Edge smoothing stays: without it the outline of the head and feet showed steps. It starts at 2x ("it is
+  // getting stuck in between": starting at 3x with soft shadows, a mid-range Android stuttered for seconds on every
+  // page) and goes sharper while Loop stands still, once the phone has kept up.
+  var TIERS = coarse ? [
+    { dpr: 3,    shadow: 768,  fcEvery: 2 },
+    { dpr: 2.5,  shadow: 768,  fcEvery: 2 },
+    { dpr: 2,    shadow: 512,  fcEvery: 3 },
+    { dpr: 1.5,  shadow: 512,  fcEvery: 3 }
+  ] : [
     { dpr: 3,    shadow: 1024, fcEvery: 2 },
     { dpr: 2,    shadow: 1024, fcEvery: 2 },
     { dpr: 1.5,  shadow: 768,  fcEvery: 2 },
     { dpr: 1,    shadow: 512,  fcEvery: 3 }
   ];
-  var quality = TIERS[0], tier = 0, frameAvg = 16, tierSince = 0, tierHold = 0, slowSince = 0, failedAt = [];
+  var START_TIER = coarse ? 2 : 0;
+  var quality = TIERS[START_TIER], tier = START_TIER, frameAvg = 16, tierSince = 0, tierHold = 0, slowSince = 0, failedAt = [];
   function setTier(n) {
     n = clamp(n, 0, TIERS.length - 1);
     if (n === tier && quality === TIERS[n]) return;
     tier = n; quality = TIERS[n]; tierSince = performance.now(); tierHold = 0;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality.dpr));
-    renderer.setSize(W, H, false);
+    sizeCanvas(true);                                                             // YATICORP change: see clipBox
     if (key) {
       key.shadow.mapSize.set(quality.shadow, quality.shadow);
       if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; }
@@ -580,13 +597,22 @@
   // the page — a route change, a big render — cost a tier) and stepped back up only past ~90 fps, which a 60 Hz screen
   // never reaches, so Loop got blurrier and stayed that way. Now it steps down only after 3 s of real slowness, steps
   // back up after 8 s at a steady 60 fps, and does not retry a tier that failed within the last 2 minutes.
+  // Standing still and silent: a moment when a hitch goes unseen (see watchFrame).
+  function atRest() { return !guide && !talk.on && walker.v < 0.02 * figW(); }
   function watchFrame(dt) {                                       // dt in seconds, real frames only
     var ms = dt * 1000, now = performance.now();
+    // YATICORP change (2026-10-15, smooth scrolling): no change of tier within a second of a scroll. A change resizes
+    // the drawing buffer and the shadow map, a hitch of its own, and it landed on the next swipe.
+    if (now - lastScrollAt < 1000) { slowSince = 0; return; }
     frameAvg += (ms - frameAvg) * 0.05;
     tierHold = (now - tierSince) / 1000;                           // wall-clock, so a very slow page still reacts in seconds
     slowSince = frameAvg > 24 ? (slowSince || now) : 0;           // below ~40 fps since when
-    if (slowSince && now - slowSince > 3000 && tier < TIERS.length - 1) { failedAt[tier] = now; slowSince = 0; setTier(tier + 1); }
-    else if (frameAvg < 18 && tierHold > 8 && tier > 0 && (failedAt[tier - 1] === undefined || now - failedAt[tier - 1] > 120000)) setTier(tier - 1);
+    // YATICORP change: a phone steps down after 1.5 s of slowness, not 3; and a tier that proved too slow is tried
+    // again after 10 minutes, not 2 — retrying it every two minutes was a stutter every two minutes.
+    if (slowSince && now - slowSince > (coarse ? 1500 : 3000) && tier < TIERS.length - 1) { failedAt[tier] = now; slowSince = 0; setTier(tier + 1); }
+    // YATICORP change: a step up rebuilds the drawing buffers, which is a visible hitch (733 ms measured mid-walk on
+    // 2026-10-14), so it waits until Loop is standing still and quiet.
+    else if (frameAvg < 18 && tierHold > 8 && tier > 0 && atRest() && (failedAt[tier - 1] === undefined || now - failedAt[tier - 1] > 600000)) setTier(tier - 1);
   }
   function initGL() {
     if (!window.THREE) return false;
@@ -594,7 +620,7 @@
       renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     } catch (e) { return false; }
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = coarse ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;   // YATICORP change: see TIERS
     renderer.shadowMap.autoUpdate = false;
     renderer.info.autoReset = false;
     if ('outputColorSpace' in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -607,7 +633,7 @@
     scene.add(new THREE.HemisphereLight(0xbfe6ff, 0x061224, scene.environment ? 0.9 : 1.6));
     key = new THREE.DirectionalLight(0xffffff, scene.environment ? 1.9 : 2.6);
     key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.mapSize.set(quality.shadow, quality.shadow);                       // YATICORP change: the starting tier's size
     key.shadow.bias = -0.0012;
     key.shadow.normalBias = 0.6;
     scene.add(key, key.target);
@@ -730,7 +756,8 @@
       for (i = 0; i < els.length; i++) {
         r = els[i].getBoundingClientRect();
         if (!onScreen(r)) continue;                                               // shut, or off screen
-        avoidRects.push({ x0: r.left, y0: r.top, x1: r.right, y1: r.bottom });
+        // list: an open list or menu, the one thing a standing Loop gets out of the way of (see update, nowhere)
+        avoidRects.push({ x0: r.left, y0: r.top, x1: r.right, y1: r.bottom, list: els[i].matches('[role="listbox"], [role="menu"]') });
       }
     }
     if (KEEP_OFF) {
@@ -909,10 +936,47 @@
     if (standClearY) y = Math.min(y, standClearY - Math.max(10, H * 0.02));
     return toFloor(P.side === 'left' ? b.x0 : b.x1, y, out);
   }
+  /* YATICORP change, not in the shipped package (2026-10-15, "loop walker is hiding the background"): standing in its
+     corner, Loop covers whatever is under it, and at the end of a page that is content the page cannot scroll out
+     from under it. --yati-room on <html> is how far up from the bottom of the screen Loop reaches (its head, and a
+     little air), so the page can leave that much room after its last line (StudentLayout). 0 while hidden, removed
+     once destroyed; updated with the canvas, a few times a second. */
+  var roomShown = -1;
+  function setRoom(room) {
+    if (room === undefined) {
+      room = 0;
+      if (P.mode === 'stand' && !hidden && rigReady) room = Math.max(0, Math.round(H - (toScreen(pos).y - figH() * 1.2) + 12));
+    }
+    if (Math.abs(room - roomShown) < 2) return;
+    roomShown = room;
+    document.documentElement.style.setProperty('--yati-room', room + 'px');
+  }
   // Which way to point from the corner: -1 when the thing is to Loop's left on screen, 1 when to its right.
   function standPoint(el) {
     var r = el.getBoundingClientRect();
     return (r.left + r.right) / 2 < toScreen(pos).x ? -1 : 1;
+  }
+  /* YATICORP change, not in the shipped package (2026-10-15, "make the entire website smooth scrolling"): standing in
+     its corner (mode 'stand', no face cam), Loop is drawn into a canvas just the size of that corner, not one over the
+     whole screen. A full-screen see-through layer redrawn many times a second is what a phone's graphics chip must
+     blend over the page on every frame, scrolling included; Loop takes up about a tenth of it. The camera still frames
+     the whole screen (setViewOffset renders only the corner's share of that view, in render), so Loop looks and sits
+     exactly as before, and every screen position in this file (toScreen, toFloor) is unchanged. */
+  var clipBox = null;                                                             // { x, y, w, h } in CSS px, or null
+  function cornerBox() {
+    var feet = toScreen(pos), fh = figH();
+    var x0 = Math.max(0, Math.floor(feet.x - fh * 0.9)), x1 = Math.min(W, Math.ceil(feet.x + fh * 0.9));
+    var y0 = Math.max(0, Math.floor(feet.y - fh * 1.45)), y1 = Math.min(H, Math.ceil(feet.y + fh * 0.35));
+    return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+  }
+  function sizeCanvas(force) {
+    if (!renderer) return;
+    var box = (P.mode === 'stand' && !P.facecam && rigReady) ? cornerBox() : null;
+    if (!force && (box === null) === (clipBox === null) && (!box || (Math.abs(box.x - clipBox.x) < 2 && Math.abs(box.y - clipBox.y) < 2 && Math.abs(box.w - clipBox.w) < 2 && Math.abs(box.h - clipBox.h) < 2))) return;
+    clipBox = box;
+    var st = glCanvas.style;
+    if (box) { st.left = box.x + 'px'; st.top = box.y + 'px'; st.width = box.w + 'px'; st.height = box.h + 'px'; renderer.setSize(box.w, box.h, false); }
+    else { st.left = st.top = st.width = st.height = ''; renderer.setSize(W, H, false); }
   }
   function keepInBand() {
     if (!ready) return;
@@ -931,7 +995,7 @@
     if (!refSpot) refSpot = new THREE.Vector3();                  // YATICORP change: see figW
     toFloor(W / 2, H * 0.7, refSpot); refDepth = depthOf(refSpot);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality.dpr));
-    renderer.setSize(W, H, false);
+    sizeCanvas(true);                                                             // YATICORP change: see clipBox
     sizeFaceCam();
   }
   function resize() {
@@ -950,6 +1014,7 @@
   var bLabel = $('lw-b-name'), bFeel = $('lw-b-feel');
   var bShown = $('lw-b-shown'), bRest = $('lw-b-rest'), bSr = $('lw-b-sr');
   var bubbleOn = false, bubbleUntil = 0, bubbleSize = { w: 0, h: 0 };
+  var saidAt = -1e9, saidFrom = null;                                     // YATICORP change: see movedOn
   var TYPE_CPS = 25;                                                      // average letters per second while speaking
 
   // Letter-by-letter speech: each character gets a reveal time; punctuation adds a breath before the next word.
@@ -964,28 +1029,33 @@
     }
     return { times: times, dur: tt };
   }
+  /* YATICORP change, not in the shipped package (2026-10-15, "the text should speedly visible and then it should
+     invisible when user moves"): the whole line shows at once instead of being typed out at 25 letters a second, a
+     long one took five seconds to read in full. The mouth still moves through it, squeezed into MOUTH_MAX seconds. It
+     stays up a few seconds, about as long as the line takes to read and never over 5.5 s ("for few seconds and then
+     the message should disappear"), unless the student moves on first (movedOn). */
+  var MOUTH_MAX = 1.8;
+  function readTime(text) { return clamp(1.2 + text.length / 24, 2.5, 5.5); }
   function say(label, text, secs, emo) {
-    if (tucked) return;                                                           // YATICORP change: see setTucked
+    if (tucked || hidden) return;                                                 // YATICORP change: see setTucked, api.hide
     bLabel.textContent = label;
     bFeel.textContent = emo ? ' \u00B7 ' + EMO[emo].name.toLowerCase() : '';
-    bShown.textContent = '';
-    bRest.textContent = text;                                              // full text laid out invisibly -> fixed bubble size
+    bShown.textContent = text;
+    bRest.textContent = '';
     bSr.textContent = label + ': ' + text;                                 // screen readers hear it once, not per letter
     bubbleSize.w = bubble.offsetWidth; bubbleSize.h = bubble.offsetHeight;
-    bubble.classList.remove('done');
+    bubble.classList.add('done');                                          // no typing caret
     bubble.classList.add('on');
     bubbleOn = true;
-    var sch = revealSchedule(text);
-    talk.text = text; talk.times = sch.times; talk.dur = sch.dur; talk.t = 0; talk.n = 0; talk.on = true;
+    var sch = revealSchedule(text), squeeze = Math.min(1, MOUTH_MAX / Math.max(sch.dur, 0.01));
+    talk.text = text; talk.times = sch.times.map(function (x) { return x * squeeze; }); talk.dur = sch.dur * squeeze;
+    talk.t = 0; talk.n = 0; talk.on = true;
     talk.start = performance.now();
     if (reduced) { revealTo(text.length); finishTalk(); }
-    bubbleUntil = secs ? t + talk.dur + secs : Infinity;
+    bubbleUntil = secs ? t + Math.max(secs, readTime(text)) : Infinity;
+    saidAt = performance.now(); saidFrom = pointer.seen ? { x: pointer.x, y: pointer.y } : null;
   }
-  function revealTo(n) {
-    talk.n = n;
-    bShown.textContent = talk.text.slice(0, n);
-    bRest.textContent = talk.text.slice(n);
-  }
+  function revealTo(n) { talk.n = n; }                                    // YATICORP change: the mouth's place; the words are all shown
   function finishTalk() { talk.on = false; bubble.classList.add('done'); }
   function hush() { bubble.classList.remove('on'); bubbleOn = false; talk.on = false; }
 
@@ -1080,15 +1150,30 @@
     var text = typeof opts.describeButton === 'function' ? opts.describeButton(label, el) : '';
     return { label: label, text: text || 'Tap “' + label + '” to use it.', emo: 'joy', gesture: 'point' };
   }
+  /* YATICORP change, not in the shipped package (2026-10-15, "in available course it is explaining more then once"):
+     each explanation is said once each time a page is opened. Every course card has its own "Enroll Now", and Loop
+     explained them one after another as the cursor crossed the grid. Buttons count as the same when their words are
+     the same apart from the quoted name ("“Resume Python” takes you back…" and "“Resume Excel” takes you back…"); a
+     [data-explain] by its key. Opening the page again ("everytime it should explain") starts it over: a new address
+     path (looked at every frame, in update), or Loop coming back into sight (api.show). Not for what a page asks for
+     (api.explain), which the page rations itself. */
+  var said = {}, saidPath = location.pathname;
+  function onceKey(k, el, ex) { return el.hasAttribute('data-explain') ? 'explain:' + k : 'button:' + ex.text.replace(/\u201C[^\u201D]*\u201D/g, '\u201C\u201D'); }
+  function remember(key) { said[key] = true; }
+  function newVisit() { if (location.pathname !== saidPath) { saidPath = location.pathname; said = {}; } }
   function startGuide(k, el, fromPage) {
     if (hidden || !P.explain || !el) return;
     if (tucked) { if (fromPage) queuedGuide = el; return; }                       // YATICORP change: see setTucked
     var ex = explainFor(k, el);
     if (!ex) return;
+    var once = (fromPage || k === '__greeting') ? null : onceKey(k, el, ex);
+    if (once && said[once]) return;
+    if (once) remember(once);
     if (!EMO[ex.emo]) ex.emo = 'content';
     guide = { key: k, el: el, ex: ex, gesture: (ex.gesture && GESTURES.indexOf(ex.gesture) >= 0) ? ex.gesture : EMO[ex.emo].gesture, t: 0, arrived: false, shown: false, point: 1,
               ax: pointer.x, ay: pointer.y, anchored: pointer.seen, fromPage: !!fromPage };
     goingHome = false;
+    fleeTo = pokedAt = null;                                                      // YATICORP change: asked about something, it comes back
     idleT = 0;
     markExplained(el);
   }
@@ -1142,7 +1227,33 @@
     lastPx = x; lastPy = y; lastT = now;
     probeHover();
   }
-  on(window, 'pointermove', function (e) { onMove(e.clientX, e.clientY, performance.now()); }, { passive: true });
+  /* YATICORP change, not in the shipped package (2026-10-15, "it should invisible when user moves ...dont make
+     loopwalker invisible"): the words go, and Yati stays, as soon as the student gets on with the page: the cursor
+     moving MOVE_AWAY px, a touch or a click anywhere but on Yati, the mouse wheel, a key. Not in the first
+     MOVE_GRACE ms, so the words are always up for a couple of seconds ("for few seconds"), and the hand still
+     leaving the link or button that started it does not take them straight away. A scroll the page makes by itself (a section brought into view) is not the student, so scroll events do
+     not count, only the wheel, a touch and the keys that scroll. */
+  var MOVE_GRACE = 2000, MOVE_AWAY = 40;
+  function movedOn() { if (!bubbleOn) return; if (guide) endGuide(false); else hush(); }
+  function settledIn() { return bubbleOn && performance.now() - saidAt > MOVE_GRACE; }
+  // Measured from where the cursor was when the words appeared, or where it got to in the grace time.
+  function cursorMoved(x, y) {
+    if (!bubbleOn) return;
+    if (!settledIn() || !saidFrom) { saidFrom = { x: x, y: y }; return; }
+    if (Math.hypot(x - saidFrom.x, y - saidFrom.y) > MOVE_AWAY) movedOn();
+  }
+  on(window, 'wheel', function () { if (settledIn()) movedOn(); }, { passive: true });
+  on(document, 'keydown', function (e) { if (!/^(Shift|Control|Alt|Meta|CapsLock)$/.test(e.key) && settledIn()) movedOn(); });
+
+  // YATICORP change: the finger that poked Loop is not a "come here" (see pointerdown), so its jitter is ignored too.
+  var pokeFinger = null;
+  on(window, 'pointermove', function (e) {
+    if (e.pointerId === pokeFinger) return;
+    onMove(e.clientX, e.clientY, performance.now());
+    if (e.pointerType === 'mouse') cursorMoved(e.clientX, e.clientY);            // a finger's moves are its touch, below
+  }, { passive: true });
+  on(window, 'pointerup', function (e) { if (e.pointerId === pokeFinger) pokeFinger = null; }, { passive: true });
+  on(window, 'pointercancel', function (e) { if (e.pointerId === pokeFinger) pokeFinger = null; }, { passive: true });
   on(document, 'mouseout', function (e) { if (!e.relatedTarget) { pointer.seen = false; lastPx = null; } });
   on(window, 'blur', function () { pointer.seen = false; lastPx = null; });
   on(window, 'scroll', function () { if (pointer.seen) probeHover(); }, { passive: true });
@@ -1160,21 +1271,45 @@
     var cxs = (fx + headScreen.x) / 2, halfW = Math.max(18, (fy - top) * 0.36);
     return x > cxs - halfW && x < cxs + halfW && y > top && y < fy + 6;
   }
-  function poke() {
+  // YATICORP change, not in the shipped package: every mouse click on Loop sends it running from that spot, to
+  // whichever corner or edge of its band is farthest from it, kept clear of dropdowns, search boxes and tab strips
+  // (clearOfAvoid). The shipped Loop only walked off at the fourth poke, and on a laptop it then followed the cursor
+  // straight back. It waits over there until the student moves on from the spot they clicked (see the release in
+  // update). A touch never sends it running (asked 2026-10-14): on a phone it stays where it is and only answers.
+  function runFrom(x, y) {
+    if (reduced) return;
+    var b = band(), mid = (b.x0 + b.x1) / 2, best = null, bd = -1;
+    [[b.x0, b.y0], [mid, b.y0], [b.x1, b.y0], [b.x0, b.y1], [mid, b.y1], [b.x1, b.y1]].forEach(function (c) {
+      var spot = clearOfAvoid(c[0], c[1]);
+      if (!spot) return;
+      var d = Math.hypot(spot.x - x, spot.y - y);
+      if (d > bd) { bd = d; best = spot; }
+    });
+    if (!best) return;
+    fleeTo = { x: best.x, y: best.y }; pokedAt = { x: x, y: y }; fleeDone = false; goingHome = false;
+  }
+  function poke(byMouse) {
     if (t - lastPokeAt > 3.5) pokes = 0;
     pokes++; lastPokeAt = t;
     if (guide) endGuide(false);
     idleT = 0;
+    if (P.mode !== 'stand' && byMouse) runFrom(pointer.x, pointer.y);
     if (pokes === 1) { impulse('laughing', 1, 1.1); micro.flash = 0.5; say('Poke', 'Hehe — that tickles!', 1.8, 'laughing'); }
     else if (pokes === 2) { impulse('surprised', 1, 0.6); impulse('amused', 0.5, 1.6, 0.4); say('Poke', 'Oh! Again?', 1.6, 'surprised'); }
     else if (pokes === 3) { impulse('angry', 0.65, 1.9); say('Hey', 'Okay — I felt that one.', 1.9, 'angry'); }
-    else if (P.mode === 'stand') { impulse('angry', 1, 2.8); calmPending = true; say('Hmph', "Okay, okay. I'll just stand here.", 2.4, 'angry'); }   // YATICORP change: stays put
+    else if (P.mode === 'stand' || !byMouse) { impulse('angry', 1, 2.8); calmPending = true; say('Hmph', "Okay, okay. I'll just stand here.", 2.4, 'angry'); }   // YATICORP change: stays put (stand mode, or a touch)
     else { impulse('angry', 1, 2.8); fleeUntil = t + 2.6; calmPending = true; say('Hmph', "I'll be over here if you need me.", 2.4, 'angry'); }
   }
   on(window, 'pointerdown', function (e) {
-    onMove(e.clientX, e.clientY, performance.now());
     var interactive = e.target.closest && e.target.closest('input, button, label, a, select, textarea, summary');
-    if (!interactive && hitsLoop(e.clientX, e.clientY)) { poke(); return; }
+    var onLoop = !interactive && hitsLoop(e.clientX, e.clientY);
+    // YATICORP change: on a touch screen Loop walks to wherever a finger lands, but a touch on Loop itself is a poke,
+    // not a "come here": it stays exactly where it is (asked 2026-10-14). A mouse click still sends it running.
+    if (onLoop && e.pointerType !== 'mouse') { pokeFinger = e.pointerId; poke(false); return; }
+    // YATICORP change: a touch or click anywhere else is the student moving on (see movedOn), after MOVE_GRACE.
+    if (!onLoop && settledIn()) movedOn();
+    onMove(e.clientX, e.clientY, performance.now());
+    if (onLoop) { poke(true); return; }
     if (e.pointerType !== 'mouse' && hover.key) { startGuide(hover.key, hover.el); hover.armed = false; return; }
     // YATICORP change: a click on the button Loop is on its way to means the student already knows what it is for.
     if (hover.el && hover.el.contains(e.target)) {
@@ -1213,6 +1348,7 @@
 
   function update(dt) {
     t += dt;
+    newVisit();                                                                   // YATICORP change: see onceKey
     cursorSpeed *= Math.exp(-dt / 0.22);
     if (cursorSpeed < 1) cursorSpeed = 0;
     if (bubbleOn && t > bubbleUntil) hush();
@@ -1241,7 +1377,8 @@
       var off = Math.hypot(Math.max(gr.left - pointer.x, 0, pointer.x - gr.right), Math.max(gr.top - pointer.y, 0, pointer.y - gr.bottom));
       if (off > 160) endGuide(false);
     }
-    if (guide && guide.shown && guide.t > 0.6 && pointer.seen) {
+    // YATICORP change: not in the words' first MOVE_GRACE either (see movedOn); the package let go after 0.6 s.
+    if (guide && guide.shown && guide.t > MOVE_GRACE / 1000 && pointer.seen) {
       if (!guide.anchored) { guide.ax = pointer.x; guide.ay = pointer.y; guide.anchored = true; }
       else if (Math.hypot(pointer.x - guide.ax, pointer.y - guide.ay) > 140) endGuide(true);
     }
@@ -1257,12 +1394,15 @@
 
     var standing = P.mode === 'stand';                                            // YATICORP change: see standSpot
     if (standing) standSpot(pos);
+    // YATICORP change: a run from a click (runFrom) ends once Loop is there (or has had 3 s) and the student has moved
+    // on from the spot they clicked: on a laptop the cursor leaves it, on a phone the next touch is somewhere else.
+    if (fleeTo && (fleeDone || t - lastPokeAt > 3) && Math.hypot(pointer.x - pokedAt.x, pointer.y - pokedAt.y) > figH() * 1.5) fleeTo = pokedAt = null;
 
     if (reduced) {
       if (guide && !guide.shown) {
         guide.shown = guide.arrived = true;
         say(guide.ex.label, guide.ex.text, 0, guide.ex.emo);
-        guide.until = guide.t + talk.dur + 2.6 + guide.ex.text.length * 0.015;
+        guide.until = guide.t + readTime(guide.ex.text);
         if (guide.ex.flash) micro.flash = 1;
       }
       if (guide) guide.t += dt;
@@ -1277,10 +1417,8 @@
 
     if (standing) {                                                                // stays in its corner; points from there
       if (guide) { guide.t += dt; guide.point = standPoint(guide.el); }
-    } else if (fleeUntil > t) {                                                    // walks off in a huff
-      var cs =[[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]], best = cs[0], bd = -1;
-      cs.forEach(function (c) { var d = Math.hypot(c[0] - pointer.x, c[1] - pointer.y); if (d > bd) { bd = d; best = c; } });
-      toFloor(best[0], best[1], target3); have = true;
+    } else if (fleeTo) {                                                           // YATICORP change: runs from a click (see runFrom)
+      toFloor(fleeTo.x, fleeTo.y, target3); have = true; arriveR = h * 0.12;
     } else if (guide) {
       guide.t += dt;
       var gp = guideScreenPoint(guide.el);
@@ -1307,11 +1445,15 @@
     // YATICORP change: a dropdown opened where Loop is standing: it steps out of its way, whatever it was doing
     // (see AVOID). Its own pace, below, since following a still cursor would leave it standing there.
     // When there is nowhere clear of it to go (a phone's notifications, the width of the screen and most of its
-    // height), Loop fades out until it shuts instead of standing on it.
+    // height), Loop fades out until it shuts instead of standing on it. Standing in its corner (mode 'stand'), it
+    // never steps aside, and it stays in sight (2026-10-15, "dont make loopwalker invisible"): a search box or tab
+    // strip scrolling past under the corner leaves it there. Only an open list or menu right over the corner fades
+    // it out, so it never hides the options, and it is back the moment that shuts.
     var stepAside = false, nowhere = false;
     if (standRects.length) {
       var here = toScreen(pos);
-      if (inTheWay(here.x, here.y)) {
+      if (standing) { for (var ai = 0; ai < avoidRects.length; ai++) if (avoidRects[ai].list && figureHits(here.x, here.y, avoidRects[ai])) nowhere = true; }
+      else if (inTheWay(here.x, here.y)) {
         var out = clearOfAvoid(here.x, here.y);
         if (!out) nowhere = true;
         else if (!have || (fleeUntil <= t && !guide)) { toFloor(out.x, out.y, target3); have = true; arriveR = h * 0.12; stepAside = true; }
@@ -1329,9 +1471,10 @@
     var dx = 0, dz = 0, dist = 0;
     if (have) { dx = target3.x - pos.x; dz = target3.z - pos.z; dist = Math.hypot(dx, dz); }
     var moving = have && dist > arriveR;
+    if (fleeTo && !moving) fleeDone = true;
 
-    if (fleeUntil > t) {
-      desired = h * 1.9;
+    if (fleeTo) {
+      desired = h * 3.2;                                                          // YATICORP change: a run (the shipped huff was a 1.9 jog)
     } else if (guide) {
       // YATICORP change: Loop runs over (the shipped pace topped out at a jog) and starts talking only once it is
       // standing beside the thing, never on the way. The shipped rule spoke within 1.4 s, wherever it was by then.
@@ -1341,7 +1484,7 @@
       if (!guide.shown && guide.arrived) {
         guide.shown = true;
         say(guide.ex.label, guide.ex.text, 0, guide.ex.emo);
-        guide.until = guide.t + talk.dur + 2.6 + guide.ex.text.length * 0.015;
+        guide.until = guide.t + readTime(guide.ex.text);
         if (guide.ex.flash) micro.flash = 1;
       }
     } else if (goingHome) {
@@ -1962,18 +2105,20 @@
     set: function (next) { applyOptions(next || {}, true); return api; },
     get options() { return Object.assign({}, P); },
     get ready() { return rigReady; },
+    get speaking() { return bubbleOn; },                                          // YATICORP change: did a say() show?
     pause: function () { running = false; cancelAnimationFrame(rafId); return api; },
     resume: function () { if (!running) { running = true; last = -1; rafId = requestAnimationFrame(frame); } return api; },
     /* YATICORP change: off the screen and back without a remount, so the 3D file is not loaded again and Loop does
        not greet a second time. Hidden, it draws nothing, says nothing and cannot be poked. */
-    hide: function () { queuedGuide = null; if (guide) endGuide(false); else hush(); goingHome = false; hidden = true; root.style.display = 'none'; return api.pause(); },
-    show: function () { if (hidden) { hidden = false; root.style.display = ''; resize(); } return ready ? api.resume() : api; },
+    hide: function () { queuedGuide = null; if (guide) endGuide(false); else hush(); goingHome = false; hidden = true; root.style.display = 'none'; setRoom(0); return api.pause(); },
+    show: function () { if (hidden) { hidden = false; said = {}; root.style.display = ''; resize(); } return ready ? api.resume() : api; },
     destroy: function () {
       running = false; cancelAnimationFrame(rafId);
       listeners.forEach(function (l) { l[0].removeEventListener(l[1], l[2], l[3]); });
       if (renderer) renderer.dispose();
       if (root.parentNode) root.parentNode.removeChild(root);
       markExplained(null);
+      document.documentElement.style.removeProperty('--yati-room');               // YATICORP change: see setRoom
     }
   };
   /* ================= boot ================= */
@@ -2047,7 +2192,12 @@
   var lastScrollAt = -1e9, rested = false, restTick = 0;
   on(document, 'scroll', function () { lastScrollAt = performance.now(); }, { capture: true, passive: true });
   function shouldRest(now) {
-    if (now - lastScrollAt < 140) return true;
+    // YATICORP change (2026-10-14): while the page scrolls Loop is drawn every other frame instead of not at all. It
+    // used to stop dead mid-step for as long as the student scrolled, which on a phone is most of the time, and
+    // looked stuck. Half the frames still leaves the scroll the room it needs.
+    // YATICORP change (2026-10-15): standing in its corner (mode 'stand') it rests for the whole scroll. It does not
+    // move on the screen as the page goes by, and the scroll gets every frame to itself.
+    if (now - lastScrollAt < 140) { if (P.mode === 'stand') return true; restTick = (restTick + 1) % 2; return restTick === 1; }
     if (!coarse || guide || talk.on || bubbleOn || walker.v > 0.02 * figW()) return false;
     restTick = (restTick + 1) % 2;
     return restTick === 1;
@@ -2064,7 +2214,7 @@
     frameN++;
     if (frameN % 30 === 0 && (window.innerWidth !== W || window.innerHeight !== H)) resize();
     else if (frameN % 20 === 0) measureNav();                                     // YATICORP change: see band
-    if (frameN % 6 === 0) { measureAvoid(); measurePopup(); }                     // YATICORP change: see AVOID, POPUPS
+    if (frameN % (coarse ? 10 : 6) === 0) { measureAvoid(); measurePopup(); }       // YATICORP change: see AVOID, POPUPS (phones: ~6 a second)
     update(dt);
     setTucked(nowhereLast || popupOpen);
     feel(dt);
@@ -2072,9 +2222,15 @@
     if (reduced && frameN % 6) { placeBubble(); telemetry(dt); return; }
     paintFace();
     renderer.info.reset();
-    renderer.shadowMap.needsUpdate = true;                        // one shadow pass a frame, shared by both views
+    // One shadow pass a frame, shared by both views — on a phone every other frame (YATICORP change): the pass
+    // draws the whole figure a second time, and at 30 updates a second the shadow still keeps up with its feet.
+    renderer.shadowMap.needsUpdate = !coarse || frameN % 2 === 0;
     renderFaceCam(dt);
+    if (frameN % 20 === 0 || !clipBox !== !(P.mode === 'stand' && !P.facecam)) sizeCanvas(false);   // YATICORP change: see clipBox
+    if (frameN % 20 === 0) setRoom();                                             // YATICORP change: see setRoom
+    if (clipBox) camera.setViewOffset(W, H, clipBox.x, clipBox.y, clipBox.w, clipBox.h);
     renderer.render(scene, camera);
+    if (clipBox) camera.clearViewOffset();
     placeBubble();
     telemetry(dt);
     if (!rested) watchFrame(Math.min(rawDt, 0.25));
@@ -2097,6 +2253,8 @@
         handle[m] = function () { var a = arguments; if (handle._api) return handle._api[m].apply(handle._api, a); handle._queue.push([m, a]); return handle; };
       });
       handle._queue = [];
+      // YATICORP change: whether the last say() is showing (false while it is loading, hidden or a popup is open).
+      Object.defineProperty(handle, 'speaking', { get: function () { return !!(handle._api && handle._api.speaking); } });
       handle.promise = ensureThree(opts.three).then(function () {
         var api = boot(opts);
         handle._api = api;

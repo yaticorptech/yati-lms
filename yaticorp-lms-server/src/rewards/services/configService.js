@@ -4,6 +4,7 @@
  * server process holding a stale copy.
  */
 const Setting = require('../../models/Setting');
+const User = require('../../models/User');
 const { RewardConfig, RewardBadge } = require('../models');
 const C = require('../config/constants');
 
@@ -86,11 +87,16 @@ const updateConfig = async (body) => {
       doc.rulesOff.wallet = (doc.rulesOff.wallet || []).filter((x) => x !== k);
     }
   }
+  let ladderChanged = false;
   if (Array.isArray(body.levelThresholds)) {
     const t = body.levelThresholds.map((v) => num(v));
     if (t.length < 2 || t.some((v) => v === null) || t[0] !== 0 || t.some((v, i) => i > 0 && v <= t[i - 1])) {
       errors.push('levelThresholds must start at 0 and strictly increase');
-    } else doc.levelThresholds = t.map(Math.round);
+    } else {
+      const next = t.map(Math.round);
+      ladderChanged = JSON.stringify(next) !== JSON.stringify([...(doc.levelThresholds || [])]);
+      doc.levelThresholds = next;
+    }
   }
   if (Array.isArray(body.streakMilestones)) {
     const ms = body.streakMilestones.map((m) => ({ days: num(m.days, 1), rewardPoints: num(m.rewardPoints), xp: num(m.xp) }));
@@ -155,6 +161,13 @@ const updateConfig = async (body) => {
   if (errors.length) { const e = new Error(errors.join('; ')); e.status = 400; throw e; }
   await doc.save();
   invalidate();
+  // A new ladder moves students between levels without any XP changing, and
+  // XP awards are the only other place a stored level is written. Without
+  // this, the sidebar, the leaderboard and the dashboard banner (which read
+  // the stored level) went on disagreeing with the header (which works it out
+  // from XP) until each student next earned something. In the background:
+  // the admin's save must not wait on every student being visited.
+  if (ladderChanged) recomputeLevels(doc.levelThresholds).catch((e) => console.error('[rewards] level recompute failed:', e.message));
   return getConfig();
 };
 
@@ -191,6 +204,78 @@ const levelInfo = (xp, thresholds) => {
   return { level, xp, floor, ceiling, into, span, remaining: Math.max(0, ceiling - xp), nextLevel: level + 1, percent: Math.min(100, Math.max(0, Math.round((into / span) * 100))) };
 };
 
+/** The admin's level ladder as it stands: thresholds[n-1] is the XP level n starts at. */
+const getLevelThresholds = async () => {
+  const t = (await getConfig()).levelThresholds;
+  return Array.isArray(t) && t.length >= 2 ? [...t] : [...C.DEFAULT_LEVEL_THRESHOLDS];
+};
+
+/**
+ * The XP at which `level` begins under the admin's ladder — past the table,
+ * each level costs the last gap. For anything that names a level as a goal
+ * ("Reach Level 8"): the number moves when the admin edits the ladder, so the
+ * badge lands on the same moment the level does.
+ */
+const xpForLevel = async (level) => levelFloor(Math.max(1, Math.floor(Number(level) || 1)), await getLevelThresholds());
+
+/**
+ * A student's level worked out from their XP, never read from the stored
+ * User.level. Takes a user (anything with `xp`) or a bare XP total. The
+ * stored field is a cache that a ladder edit leaves behind until it is
+ * recomputed, so whatever is shown to a student should come from here.
+ */
+const levelForUser = async (userOrXp) => {
+  const xp = typeof userOrXp === 'number' ? userOrXp : Number(userOrXp?.xp) || 0;
+  return levelFor(xp, await getLevelThresholds());
+};
+
+/**
+ * Bring every stored User.level back in line with `thresholds` (default: the
+ * ladder in force). Runs when an admin saves a new ladder, and once after the
+ * server starts (jobs.runScheduled) to repair levels left behind by an edit
+ * made before this existed.
+ *
+ * One updateMany per level inside the table, each touching only students
+ * whose stored level is wrong, and one pipeline update for every level past
+ * the table (there the level is arithmetic on XP, so a student with a huge
+ * total cannot turn this into millions of queries). Each filter names the XP
+ * range it sets, so an award landing meanwhile can never be overwritten with
+ * a level for XP the student no longer has — addXp sets its own level anyway.
+ * Runs are chained, so two quick saves never interleave.
+ */
+let recomputing = Promise.resolve(0);
+const recomputeLevels = (thresholds = null) => {
+  const run = async () => {
+    const t = Array.isArray(thresholds) && thresholds.length >= 2 ? thresholds.map(Number) : await getLevelThresholds();
+    let changed = 0;
+    for (let level = 1; level < t.length; level++) {
+      // Level 1 also covers students with no XP recorded at all; a missing
+      // level already reads as 1, so those are left unwritten.
+      const filter = level === 1
+        ? { xp: { $not: { $gte: t[1] } }, level: { $nin: [1, null] } }
+        : { xp: { $gte: t[level - 1], $lt: t[level] }, level: { $ne: level } };
+      const r = await User.updateMany(filter, { $set: { level } });
+      changed += r.modifiedCount || 0;
+    }
+    const last = t[t.length - 1];
+    const gap = Math.max(1, last - t[t.length - 2]);
+    const beyond = { $add: [t.length, { $floor: { $divide: [{ $subtract: ['$xp', last] }, gap] } }] };
+    const r = await User.updateMany(
+      { xp: { $gte: last }, $expr: { $ne: ['$level', beyond] } },
+      [{ $set: { level: beyond } }],
+      { updatePipeline: true }
+    );
+    changed += r.modifiedCount || 0;
+    if (changed) console.log(`[rewards] levels recomputed for the current ladder: ${changed} student(s) moved`);
+    return changed;
+  };
+  recomputing = recomputing.catch(() => 0).then(run);
+  return recomputing;
+};
+
+/** Resolves when the last level recompute has finished (for tests and the admin). */
+const levelsSettled = () => recomputing.catch(() => 0);
+
 // Keep the badge catalogue populated; upsert by key so a new default badge
 // reaches databases that were seeded before it existed. Admin edits win
 // because only missing badges are inserted ($setOnInsert).
@@ -207,4 +292,4 @@ const walletCostFor = async (action) => Math.max(0, Number((await getConfig()).w
 
 const xpFor = async (type) => Math.max(0, Math.round(Number((await getConfig()).xpRules[type]) || 0));
 
-module.exports = { getConfig, isEnabled, updateConfig, invalidate, levelFor, levelFloor, levelInfo, seedBadges, xpFor, walletCostFor };
+module.exports = { getConfig, isEnabled, updateConfig, invalidate, levelFor, levelFloor, levelInfo, getLevelThresholds, xpForLevel, levelForUser, recomputeLevels, levelsSettled, seedBadges, xpFor, walletCostFor };

@@ -14,6 +14,7 @@ const {
 const {
   getTaskStudy,
   generateTaskStudy,
+  refuseLessonOverwrite,
   submitTaskQuiz,
   updateStudyProgress
 } = require('../controllers/taskStudyController');
@@ -33,13 +34,18 @@ router.route('/')
 
 // The video + notes + quiz lesson for one task. Declared before '/:id' so
 // '/:id/study' is never swallowed by the task update route.
+// A lesson that already exists is only rebuilt when the request says so
+// (rebuild: true, or replace: 'video'); that is checked before the charge, so
+// a refused rebuild is never priced.
 router.route('/:id/study')
   .get(protect, getTaskStudy)
-  .post(protect, chargeWallet('build_task_lesson'), generateTaskStudy);
+  .post(protect, refuseLessonOverwrite, chargeWallet('build_task_lesson'), generateTaskStudy);
 router.post('/:id/study/quiz', protect, submitTaskQuiz);
 // Watch/read gates. Declared alongside the other study routes and before
 // '/:id', which only ever matches a bare id.
-router.put('/:id/study/progress', protect, xpOnSuccess('task_video_watched', (req) => (req.body?.videoWatched ? `video:${req.params.id}` : null)), updateStudyProgress);
+// The watch XP is paid only for a watch the controller accepted (it checks
+// the seconds seen against the video's length), not for the request's say-so.
+router.put('/:id/study/progress', protect, xpOnSuccess('task_video_watched', (req) => (req.videoWatchAccepted ? `video:${req.params.id}` : null)), updateStudyProgress);
 
 router.route('/:id')
   .put(protect, updateTask);

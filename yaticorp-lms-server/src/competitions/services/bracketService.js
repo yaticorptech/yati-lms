@@ -78,6 +78,8 @@ const drawBracket = async (competition, { firstMatchAt, gapMinutes = 0 } = {}) =
             Match.updateOne({ _id: m._id }, { $set: { scheduledAt: new Date(start.getTime() + i * gap * 60 * 1000) } })));
     }
     await Competition.updateOne({ _id: competition._id }, { $set: { status: 'live' } });
+    // Every player hears who they play first, and when (after the reply).
+    afterReply('telling players of the draw', () => tellDraw(competition));
     await advance(competition._id);     // a round of byes alone moves straight on
     return Match.find({ competitionId: competition._id }).sort({ round: 1, kind: 1, slot: 1 });
 };
@@ -97,7 +99,10 @@ const openMatch = async (match) => {
         teamId: s.teamId,
         lineup: game.seats.filter((seat) => seat.side === i).map((seat) => seat.userId)
     }));
-    return Match.findOneAndUpdate({ _id: claimed._id }, { $push: { gameIds: game._id }, $set: { sides } }, { returnDocument: 'after' });
+    const opened = await Match.findOneAndUpdate({ _id: claimed._id }, { $push: { gameIds: game._id }, $set: { sides } }, { returnDocument: 'after' });
+    // Both teams' players: the game is waiting for them now.
+    afterReply('telling players a match is open', () => tellOpen(competition, claimed, teams));
+    return opened;
 };
 
 /** Open every scheduled match whose time has come. Cheap; called on reads. */
@@ -163,6 +168,7 @@ const decide = async (match, places, by, note = '') => {
         { returnDocument: 'after' }
     );
     if (!done) return null;
+    afterReply('telling players a result', () => tellResult(done));
     // A live game the admin overruled is closed, so nobody plays on in it.
     if (by === 'admin') {
         await PlayGame.updateMany({ matchId: match._id, status: { $in: ['waiting', 'active'] } },
@@ -188,9 +194,60 @@ const adminResult = async (match, { winnerTeamId, order = [], note = '' }) => {
     return done;
 };
 
+/** The first round's fixtures, as drawn: who each team plays and when, or its bye. */
+const tellDraw = async (competition) => {
+    const { tell, when } = require('./notices');
+    const matches = await Match.find({ competitionId: competition._id, round: 0 }).lean();
+    const teams = await Team.find({ _id: { $in: matches.flatMap((m) => m.sides.map((s) => s.teamId)) } }).lean();
+    const team = (id) => teams.find((t) => same(t._id, id));
+    for (const m of matches) {
+        for (const side of m.sides) {
+            const mine = team(side.teamId);
+            if (!mine) continue;
+            const others = m.sides.filter((s) => !same(s.teamId, side.teamId)).map((s) => team(s.teamId)?.teamName).filter(Boolean).join(', ');
+            const message = m.status === 'bye'
+                ? `${competition.name}: ${mine.teamName} has a bye and goes straight into the next round.`
+                : `${competition.name}: ${mine.teamName} plays ${others || 'its first match'}${m.scheduledAt ? ` on ${when(m.scheduledAt)}` : ''}. Join from Games & Competitions → My Games when it opens.`;
+            await tell(mine.players.map((p) => p.userId), competition, `Matches drawn: ${m.roundName || 'first round'}`, message);
+        }
+    }
+};
+
+/** A match's game is open: its players have JOIN_MINUTES to take their seats. */
+const tellOpen = async (competition, match, teams) => {
+    const { tell } = require('./notices');
+    const { JOIN_MINUTES } = require('./gameService');
+    const what = match.kind === 'third-place' ? 'Third-place match' : (match.roundName || 'Your match');
+    for (const side of match.sides) {
+        const mine = teams.find((t) => same(t._id, side.teamId));
+        if (!mine) continue;
+        const others = match.sides.filter((s) => !same(s.teamId, side.teamId)).map((s) => teams.find((t) => same(t._id, s.teamId))?.teamName).filter(Boolean).join(', ');
+        await tell(mine.players.map((p) => p.userId), competition, `${what} is open — join now`,
+            `${competition.name}: ${mine.teamName} vs ${others || 'the other team'}. Join from Games & Competitions → My Games within ${JOIN_MINUTES} minutes.`);
+    }
+};
+
+/** A match is decided: the winners and the others each hear how it went. */
+const tellResult = async (match) => {
+    const { tell } = require('./notices');
+    const competition = await Competition.findById(match.competitionId).lean();
+    if (!competition) return;
+    const teams = await Team.find({ _id: { $in: match.sides.map((s) => s.teamId) } }).lean();
+    const name = (id) => teams.find((t) => same(t._id, id))?.teamName || 'the other team';
+    const what = match.kind === 'third-place' ? 'third-place match' : (match.roundName || 'match');
+    for (const side of match.sides) {
+        const mine = teams.find((t) => same(t._id, side.teamId));
+        if (!mine) continue;
+        const won = same(match.winnerTeamId, mine._id);
+        const others = match.sides.filter((s) => !same(s.teamId, mine._id)).map((s) => name(s.teamId)).join(', ');
+        await tell(mine.players.map((p) => p.userId), competition, won ? `You won your ${what}` : `${what[0].toUpperCase()}${what.slice(1)} lost`,
+            won ? `${competition.name}: ${mine.teamName} beat ${others}.` : `${competition.name}: ${mine.teamName} lost to ${name(match.winnerTeamId)}.`);
+    }
+};
+
 /** Every player of a team in the new round: when it starts, and who they play. */
 const tellNextRound = async (competition, round) => {
-    const { notify } = require('../../rewards/services/notify');
+    const { tell } = require('./notices');
     const { JOIN_MINUTES } = require('./gameService');
     const matches = await Match.find({ competitionId: competition._id, round, status: 'scheduled' }).lean();
     const teams = await Team.find({ _id: { $in: matches.flatMap((m) => m.sides.map((s) => s.teamId)) } }).lean();
@@ -200,10 +257,8 @@ const tellNextRound = async (competition, round) => {
         for (const side of m.sides) {
             const mine = team(side.teamId);
             const others = m.sides.filter((s) => !same(s.teamId, side.teamId)).map((s) => team(s.teamId)?.teamName).filter(Boolean).join(', ');
-            for (const p of mine?.players || []) {
-                await notify(p.userId, `${what} starts in ${NEXT_ROUND_MINUTES} minutes`,
-                    `${competition.name}: ${mine.teamName} plays ${others || 'its next match'}. Join from Games & Competitions → My Games within ${JOIN_MINUTES} minutes of the start.`);
-            }
+            await tell((mine?.players || []).map((p) => p.userId), competition, `${what} starts in ${NEXT_ROUND_MINUTES} minutes`,
+                `${competition.name}: ${mine.teamName} plays ${others || 'its next match'}. Join from Games & Competitions → My Games within ${JOIN_MINUTES} minutes of the start.`);
         }
     }
 };

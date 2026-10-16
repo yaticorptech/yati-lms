@@ -8,7 +8,7 @@ const User = require('../../models/User');
 const { XpTransaction } = require('../models');
 const { getConfig, levelFor } = require('./configService');
 const { isDuplicate } = require('./tx');
-const { notify, celebrate } = require('./notify');
+const { notify, celebrate, linkFor } = require('./notify');
 
 /**
  * @param {object} p
@@ -34,14 +34,22 @@ const addXp = async ({ userId, amount, source, refId = null, courseId = null, de
     throw err;
   }
 
-  const before = await User.findById(userId).select('xp level').lean();
-  const oldLevel = Math.max(1, before?.level || 1);
   const user = await User.findByIdAndUpdate(userId, { $inc: { xp: amount } }, { returnDocument: 'after', select: 'xp level' });
   if (!user) return { duplicate: false, missingUser: true };
 
+  // Both levels come from XP, not from the stored level: the $inc is atomic,
+  // so `user.xp - amount` is exactly what this award started from, and only
+  // the award that actually crosses a threshold reports the level-up — two
+  // awards landing together used to both read the old stored level and both
+  // celebrate the same level.
   const config = await getConfig();
   const level = levelFor(user.xp, config.levelThresholds);
-  if (level !== user.level) await User.updateOne({ _id: userId }, { $set: { level } });
+  const oldLevel = levelFor(user.xp - amount, config.levelThresholds);
+  // Written only while the XP is still the total this award produced. When a
+  // second award lands in between, it holds the later total and writes the
+  // level for that; this one stepping aside means the stored level always
+  // follows the final XP, never whichever write happened to finish last.
+  if (level !== user.level) await User.updateOne({ _id: userId, xp: user.xp }, { $set: { level } });
   await XpTransaction.updateOne({ _id: txn._id }, { $set: { balanceAfter: user.xp } });
 
   // Every full block of XP on the balance (the admin's "1,000 XP = ₹10")
@@ -53,9 +61,9 @@ const addXp = async ({ userId, amount, source, refId = null, courseId = null, de
   }
 
   const leveledUp = level > oldLevel;
-  if (!silent) await notify(userId, 'XP earned', `+${amount} XP ${description || `for ${source.replace(/_/g, ' ')}`}.`);
+  if (!silent) await notify(userId, 'XP earned', `+${amount} XP ${description || `for ${source.replace(/_/g, ' ')}`}.`, await linkFor('progress'));
   if (leveledUp) {
-    await notify(userId, 'Level up!', `You reached Level ${level}. Keep going!`);
+    await notify(userId, 'Level up!', `You reached Level ${level}. Keep going!`, await linkFor('badges'));
     await celebrate(userId, 'level_up', `Level ${level} reached!`, 'Your learning just moved you up a level.', { level, xp: user.xp });
   }
   return { duplicate: false, xp: user.xp, level, oldLevel, leveledUp, amount };

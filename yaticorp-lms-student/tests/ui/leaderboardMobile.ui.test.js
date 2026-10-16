@@ -93,7 +93,7 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
         assert.ok(result.sameLine, 'one line again when there is room');
     });
 
-    test('the seven-column table is put away on a phone, and the rows stacked instead', async () => {
+    test('the table is put away on a phone, and the rows stacked instead', async () => {
         const { result } = await screen({
             entry: entry(360), api, width: PHONE_VIEWPORT, styles: true, script: `
                 await sleep(900);
@@ -105,9 +105,10 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
                     scrollsAnywhere: [...document.querySelectorAll('*')]
                         .some((el) => ['auto', 'scroll'].includes(getComputedStyle(el).overflowX) && el.scrollWidth > el.clientWidth + 1)
                 };` });
-        assert.equal(result.tableVisible, false, 'the table would need 520px, which no phone has');
+        assert.equal(result.tableVisible, false, 'a phone gets the stacked rows');
         assert.equal(result.scrollsAnywhere, false, 'and nothing is left scrolling sideways');
         assert.equal(result.stacked.length, 2, 'the two ranks below the podium are listed');
+        // No badges on the leaderboard (2026-10-15): the name, then the details.
         assert.match(result.stacked[0], /4 .*Meera Krishnan Lv\. 1/);
         assert.match(result.stacked[0], /15 XP/);
         assert.match(result.stacked[0], /3 days/, 'the streak survives the move off the table');
@@ -124,7 +125,9 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
                     stackedVisible: $$('li').filter((l) => /XP/.test(l.innerText) && l.getBoundingClientRect().width > 0).length
                 };` });
         assert.equal(result.tableVisible, true);
-        assert.deepEqual(result.headers, ['Rank', 'Learner', 'Level', 'XP', 'Streak', 'Badge', 'Change']);
+        // Since 2026-10-15: no badges and no Change column (a climb is told
+        // by the rank-up popup).
+        assert.deepEqual(result.headers, ['Rank', 'Learner', 'Level', 'XP', 'Streak']);
         assert.equal(result.stackedVisible, 0, 'only one of the two is ever on screen');
     });
 

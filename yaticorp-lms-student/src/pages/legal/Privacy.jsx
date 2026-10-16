@@ -9,7 +9,8 @@
  * the scopes, say what is done with the data, and carry the Limited Use
  * sentence, or verification is refused.
  */
-import LegalShell, { Bullets, Section, COMPANY } from './legalShell';
+import LegalShell, { Bullets, Section } from './legalShell';
+import { COMPANY } from './company';
 
 export default function Privacy() {
   return (

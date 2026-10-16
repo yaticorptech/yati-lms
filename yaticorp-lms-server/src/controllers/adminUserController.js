@@ -662,10 +662,53 @@ const bulkAddUsers = async (req, res) => {
     }
 };
 
+/** How long the admin panel's link stays usable, and how long the session it opens lasts. */
+const ACCESS_CODE_TTL_MS = 2 * 60 * 1000;
+const ADMIN_VIEW_SESSION = '2h';
+const hashAccessCode = (code) => require('crypto').createHash('sha256').update(String(code)).digest('hex');
+
 /**
  * @desc    Open a student's own dashboard, signed in as them
  * @route   POST /api/admin/users/:id/dashboard-access
  * @access  Private/SuperAdmin
+ *
+ * Answers with a one-time code, not a session: the admin panel opens the
+ * student app at /admin-access#code=…, and the student app trades the code
+ * for the session at POST /api/auth/admin-access/exchange (below). The code
+ * lasts two minutes and works once (models/AdminAccessCode.js), so the link
+ * cannot be passed around, and a link nobody's admin asked for signs nobody
+ * in. It used to carry the two-hour token itself, and the student app saved
+ * any token that arrived that way.
+ */
+const openStudentDashboard = async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'User not found' });
+        const user = await User.findById(req.params.id).select('name status');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        if (user.status !== 'active') {
+            return res.status(400).json({ message: 'This student is blocked. Unblock them to open their dashboard.' });
+        }
+
+        const AdminAccessCode = require('../models/AdminAccessCode');
+        const code = require('crypto').randomBytes(24).toString('base64url');
+        await AdminAccessCode.create({
+            codeHash: hashAccessCode(code),
+            userId: user._id,
+            adminId: req.admin._id,
+            adminName: req.admin.name || 'Super Admin',
+            expiresAt: new Date(Date.now() + ACCESS_CODE_TTL_MS)
+        });
+
+        res.json({ code, expiresInSeconds: ACCESS_CODE_TTL_MS / 1000, name: user.name });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+/**
+ * @desc    Trade the admin panel's one-time code for the student's session
+ * @route   POST /api/auth/admin-access/exchange
+ * @access  Public (rate-limited) — the code is the credential
  *
  * Returns the same payload the student login does, with a token that lasts two
  * hours rather than thirty days and names the superadmin who asked for it
@@ -673,23 +716,47 @@ const bulkAddUsers = async (req, res) => {
  * left alone — otherwise the student's own next visit would be greeted as a
  * returning one, and the count the dashboard shows would be wrong. Each opening
  * is logged.
+ *
+ * Claiming the code and marking it spent is one atomic update, so a code sent
+ * twice at the same moment still opens one session.
  */
-const openStudentDashboard = async (req, res) => {
+const exchangeAdminAccess = async (req, res) => {
     try {
-        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'User not found' });
-        const user = await User.findById(req.params.id).select('-password');
-        if (!user) return res.status(404).json({ message: 'User not found' });
+        const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+        const gone = () => res.status(410).json({
+            code: 'ACCESS_CODE_INVALID',
+            message: 'This link has expired or was already used. Go back to the admin panel and press Dashboard again.'
+        });
+        if (!code || code.length > 100) return gone();
+
+        const AdminAccessCode = require('../models/AdminAccessCode');
+        const grant = await AdminAccessCode.findOneAndUpdate(
+            { codeHash: hashAccessCode(code), usedAt: null, expiresAt: { $gt: new Date() } },
+            { $set: { usedAt: new Date() } },
+            { returnDocument: 'after' }
+        ).lean();
+        if (!grant) return gone();
+
+        // Both ends are checked again now, not just when the code was made:
+        // a student blocked, or an administrator demoted, in between is not let in.
+        const Admin = require('../models/Admin');
+        const [user, admin] = await Promise.all([
+            User.findById(grant.userId).select('-password'),
+            Admin.findById(grant.adminId).select('name email role')
+        ]);
+        if (!admin || admin.role !== 'superadmin') return gone();
+        if (!user) return res.status(404).json({ message: 'That student no longer exists.' });
         if (user.status !== 'active') {
             return res.status(400).json({ message: 'This student is blocked. Unblock them to open their dashboard.' });
         }
 
         const jwt = require('jsonwebtoken');
         const token = jwt.sign(
-            { id: user._id, role: 'student', impersonatedBy: String(req.admin._id) },
+            { id: user._id, role: 'student', impersonatedBy: String(admin._id) },
             process.env.JWT_SECRET,
-            { expiresIn: '2h' }
+            { expiresIn: ADMIN_VIEW_SESSION }
         );
-        console.log(`[admin] ${req.admin.name || req.admin.email} (${req.admin._id}) opened the dashboard of student ${user.cardNumber} (${user._id})`);
+        console.log(`[admin] ${admin.name || admin.email} (${admin._id}) opened the dashboard of student ${user.cardNumber} (${user._id})`);
 
         res.json({
             _id: user._id,
@@ -699,10 +766,12 @@ const openStudentDashboard = async (req, res) => {
             cardNumber: user.cardNumber,
             profilePicture: user.profilePicture || '',
             credits: user.credits || 0,
+            xp: user.xp || 0,
+            level: user.level || 1,
             loginCount: user.loginCount || 0,
             role: 'student',
             token,
-            viewedBy: req.admin.name || 'Super Admin'
+            viewedBy: grant.adminName || admin.name || 'Super Admin'
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -711,6 +780,7 @@ const openStudentDashboard = async (req, res) => {
 
 module.exports = {
     openStudentDashboard,
+    exchangeAdminAccess,
     getUsers,
     getUserById,
     updateUserStatus,

@@ -188,47 +188,160 @@ const evaluate = ({ session, context }) => {
 
 /* ── Practice question bank ────────────────────────────────────────────── */
 
+/*
+ * Every question comes with a way to answer it (asked 2026-10-15: "add sample
+ * answers ... what to tell, what should not tell"): a short sample in the
+ * student's own voice, built from what the profile really holds — where it
+ * holds nothing, a [bracket] marks the part only they can fill in — what a
+ * strong answer says, and what to leave out. The AI writes its own for its
+ * bank (aiInterviewer.coachQuestions); these are the built-in bank's.
+ */
 const generateQuestions = (context) => {
     const out = [];
-    const add = (category, topic, question, hint, difficulty = 'medium') => out.push({ id: `${category}-${out.length + 1}`, category, topic, question, hint, difficulty });
-    add('hr', 'Introduction', 'Tell me about yourself.', 'Present, past, future: what you do now, how you got here, what you want next. Keep it under two minutes.');
-    add('hr', 'Motivation', `Why do you want to work as a ${context.goal || 'professional in this field'}?`, 'Connect your courses and projects to the role. Be specific about what excites you.');
-    add('hr', 'Strengths', 'What are your greatest strengths?', `Pick two, and back each with an example${context.strongSkills[0] ? ` — ${context.strongSkills[0]} is a natural one` : ''}.`);
-    add('hr', 'Weaknesses', 'What is a weakness you are working on?', 'Choose a real one, then show what you are doing about it.');
-    add('hr', 'Goals', 'Where do you see yourself in five years?', 'Show ambition that fits the role: the skills you want and the responsibility you hope to take on.', 'easy');
-    add('hr', 'Fit', 'Why should we choose you over other candidates?', 'Three reasons, each backed by something you have actually done.');
-    add('hr', 'Research', `What do you know about the work of a ${context.goal || 'professional in this field'}?`, 'Name the day-to-day tasks and one current challenge in the field — it shows you did your homework.', 'easy');
+    const add = (category, topic, question, hint, difficulty = 'medium', coach = {}) =>
+        out.push({ id: `${category}-${out.length + 1}`, category, topic, question, hint, difficulty, ...coach });
+    const tip = (sample, say, avoid) => ({ sample, say, avoid });
+    const goal = context.goal || 'professional in this field';
+    const strong = context.strongSkills.slice(0, 2);
+    const skill0 = strong[0] || context.skills[0]?.name;
+    const course = context.completedCourses[0] || context.ongoingCourses[0];
+    const project = context.projects[0]?.name;
+    const where = project ? `"${project}"` : course ? `"${course}"` : 'a course exercise';
+
+    add('hr', 'Introduction', 'Tell me about yourself.', 'Present, past, future: what you do now, how you got here, what you want next. Keep it under two minutes.', 'medium', tip(
+        `I'm a student working towards becoming a ${goal}. ${course ? `I've been learning through courses like "${course}"` : "I've been learning the basics step by step"}${project ? `, and I built "${project}" to put it into practice` : ''}. Next, I want to keep growing my skills and use them in a real team.`,
+        ['Now, how you got here, then what is next', 'One thing you have actually done', 'Why this path suits you'],
+        ['Reading out your whole CV', 'Private details that do not help']));
+    add('hr', 'Motivation', `Why do you want to work as a ${goal}?`, 'Connect your courses and projects to the role. Be specific about what excites you.', 'medium', tip(
+        `I've always enjoyed ${skill0 ? `working with ${skill0}` : 'learning how things work in this field'}, and ${course ? `the "${course}" course` : 'what I have learned so far'} showed me I want to do it every day. I want work where I keep learning and can see the difference it makes.`,
+        ['A real moment that got you interested', 'What you have done about it since', 'What excites you about the work'],
+        ['Talking only about money or perks', '"I just like it" with no reason']));
+    add('hr', 'Strengths', 'What are your greatest strengths?', `Pick two, and back each with an example${context.strongSkills[0] ? ` — ${context.strongSkills[0]} is a natural one` : ''}.`, 'medium', tip(
+        `One of my strengths is ${skill0 || 'learning quickly'}: ${project ? `I used it in "${project}"` : 'I use it in my coursework all the time'}. Another is that I keep going when something is hard, breaking it into small steps until it works.`,
+        ['Two strengths, not ten', 'A real example for each', 'How each helps in this role'],
+        ['Strengths you cannot back up', 'Sounding as if you have no flaws']));
+    add('hr', 'Weaknesses', 'What is a weakness you are working on?', 'Choose a real one, then show what you are doing about it.', 'medium', tip(
+        "I used to take on too much at once and rush the details. Now I plan my week, finish one thing before starting the next, and check my work before handing it in. It's getting better.",
+        ['A real weakness, not a hidden boast', 'What you are doing about it', 'The progress you have seen'],
+        ['"I am a perfectionist"', 'A weakness that rules you out']));
+    add('hr', 'Goals', 'Where do you see yourself in five years?', 'Show ambition that fits the role: the skills you want and the responsibility you hope to take on.', 'easy', tip(
+        `In five years I'd like to be working as a ${goal}, confident in ${skill0 || 'the core skills'} and trusted with bigger tasks. I also want to keep learning, and maybe help newer people the way others helped me.`,
+        ['Growth that fits this role', 'Skills you want to master', 'That you will keep learning'],
+        ['A completely different career', '"I don\'t know"']));
+    add('hr', 'Fit', 'Why should we choose you over other candidates?', 'Three reasons, each backed by something you have actually done.', 'medium', tip(
+        `I've already started building the skills this role needs${strong.length ? `, especially ${humanList(strong)}` : ''}${project ? `, and I've used them in "${project}"` : ''}. I learn fast, I finish what I start, and I really want to grow in this field.`,
+        ['Three reasons, each with proof', 'What you have actually done', 'How keen you are to learn'],
+        ['Putting other candidates down', 'Claims with nothing behind them']));
+    add('hr', 'Research', `What do you know about the work of a ${goal}?`, 'Name the day-to-day tasks and one current challenge in the field — it shows you did your homework.', 'easy', tip(
+        `From what I've read and learned, a ${goal}'s day mixes [the main tasks], working with a team and solving problems as they come up. One challenge right now is [a current challenge], which is why I keep learning.`,
+        ['Real day-to-day tasks', 'One current challenge or trend', 'Where you found it out'],
+        ['Guessing wildly', '"I have not looked into it"']));
     for (const s of context.skills.slice(0, 6)) {
-        add('technical', s.name, `Explain the core concepts of ${s.name} and where you have applied them.`, 'Define it in one sentence, then give a concrete use from a course or project.', s.status === 'Advanced' ? 'hard' : 'medium');
-        add('technical', s.name, `What is a common mistake people make with ${s.name}, and how do you avoid it?`, 'Interviewers love this: it shows depth beyond the basics.', 'medium');
-        add('technical', s.name, `How would you explain ${s.name} to someone who has never heard of it?`, 'Start from what they already know, use one everyday comparison, and skip the jargon.', 'easy');
+        add('technical', s.name, `Explain the core concepts of ${s.name} and where you have applied them.`, 'Define it in one sentence, then give a concrete use from a course or project.', s.status === 'Advanced' ? 'hard' : 'medium', tip(
+            `In one line, ${s.name} is [what it is, in your own words]. I used it in ${where}, where I [what you did with it], and it helped me [the result].`,
+            ['A one-line definition', 'Where you used it', 'What you learned from it'],
+            ['A textbook definition with no example', 'Pretending to know what you do not']));
+        add('technical', s.name, `What is a common mistake people make with ${s.name}, and how do you avoid it?`, 'Interviewers love this: it shows depth beyond the basics.', 'medium', tip(
+            `A common mistake with ${s.name} is [the mistake], which leads to [the problem it causes]. I avoid it by [your habit: a check, a test or a rule], something I learned while working on ${where}.`,
+            ['One specific mistake', 'Why it causes trouble', 'The habit that prevents it'],
+            ['"I never make mistakes"', 'A mistake you cannot explain']));
+        add('technical', s.name, `How would you explain ${s.name} to someone who has never heard of it?`, 'Start from what they already know, use one everyday comparison, and skip the jargon.', 'easy', tip(
+            `Think of ${s.name} as [an everyday comparison]. Just like [the everyday thing], it [what it does]. So whenever you [a common use], ${s.name} is what makes it work.`,
+            ['Start from something they know', 'One simple comparison', 'Why it is useful'],
+            ['Jargon and short forms', 'Going on too long']));
     }
     // No skills recorded yet: general questions about the field instead, so
     // a new student's bank is not left with no technical questions at all.
     if (!context.skills.length) {
         const field = context.goal || 'your chosen field';
-        add('technical', 'Fundamentals', `What are the core skills someone needs to succeed as a ${field}?`, 'Name three, and say how you are building each one.', 'easy');
-        add('technical', 'Fundamentals', `Which tools or methods are used most in ${field}?`, 'Mention what you have tried yourself, even in a course exercise.');
-        add('technical', 'Problem solving', 'Walk me through how you would approach a problem you have never seen before.', 'Break it down, check what you know, try the simplest step, and test it.');
-        add('technical', 'Learning', 'How do you keep your knowledge up to date?', 'Name real sources — courses, communities, practice — and something recent you learned.', 'easy');
+        add('technical', 'Fundamentals', `What are the core skills someone needs to succeed as a ${field}?`, 'Name three, and say how you are building each one.', 'easy', tip(
+            `The three skills I think matter most are [skill 1], [skill 2] and [skill 3]. I'm building them through ${course ? `"${course}"` : 'my courses'} and practising a little every week.`,
+            ['Three clear skills', 'How you are building each', 'Why they matter'],
+            ['A long list with no detail', 'Skills that do not fit the field']));
+        add('technical', 'Fundamentals', `Which tools or methods are used most in ${field}?`, 'Mention what you have tried yourself, even in a course exercise.', 'medium', tip(
+            "The ones I've seen used most are [tool 1] and [tool 2]. I've tried [the one you used] in [a course or exercise], and next I want to learn [the next one].",
+            ['Tools you have actually tried', 'What you did with them', 'What you want to learn next'],
+            ['Naming tools you never used', 'Claiming you know them all']));
+        add('technical', 'Problem solving', 'Walk me through how you would approach a problem you have never seen before.', 'Break it down, check what you know, try the simplest step, and test it.', 'medium', tip(
+            "First I make sure I understand the problem and what \"done\" looks like. Then I split it into small steps, try the simplest one and check that it works. If I'm stuck, I look it up or ask, and I note what I learned.",
+            ['Understand it first', 'Small steps, each one checked', 'When you would ask for help'],
+            ['"I would just search it"', 'Jumping straight to an answer']));
+        add('technical', 'Learning', 'How do you keep your knowledge up to date?', 'Name real sources — courses, communities, practice — and something recent you learned.', 'easy', tip(
+            `I learn from ${course ? `courses like "${course}"` : 'online courses'}, practise with small exercises, and follow people who share tips in this field. Recently I learned [something new] and tried it out the same week.`,
+            ['Real sources you use', 'Something recent you learned', 'How you practised it'],
+            ['A vague "I read a lot"', 'Sources you cannot name']));
     }
     for (const p of context.projects.slice(0, 3)) {
-        add('project', p.name, `Walk me through "${p.name}". What problem did it solve?`, 'Goal, your role, the approach, the result. Mention the tools you used.');
-        add('project', p.name, `What was the hardest part of "${p.name}" and how did you handle it?`, 'A specific obstacle and the decision you made shows problem-solving.');
+        const tools = (p.skills || []).slice(0, 3);
+        add('project', p.name, `Walk me through "${p.name}". What problem did it solve?`, 'Goal, your role, the approach, the result. Mention the tools you used.', 'medium', tip(
+            `"${p.name}" was built to [the problem it solves]. My part was [what you did yourself], and I used ${tools.length ? humanList(tools) : '[the tools you used]'}. In the end, [the result: what works now, who used it, what you learned].`,
+            ['The problem first', 'Your own part in it', 'The result'],
+            ['"We did" with nothing about you', 'Skipping what came of it']));
+        add('project', p.name, `What was the hardest part of "${p.name}" and how did you handle it?`, 'A specific obstacle and the decision you made shows problem-solving.', 'medium', tip(
+            `The hardest part of "${p.name}" was [the obstacle]. I first tried [your first idea], it didn't work because [the reason], so I [what you did instead]. It taught me to [the lesson].`,
+            ['A specific obstacle', 'The choice you made', 'What you learned'],
+            ['"Nothing was hard"', 'Blaming the tools or the team']));
     }
-    if (!context.projects.length) add('project', 'Projects', 'Tell me about something you built, even a small exercise from a course.', 'Interviewers want to see initiative, not scale.');
-    add('behavioral', 'Learning', 'Tell me about a time you had to learn something quickly.', 'Use STAR: Situation, Task, Action, Result.');
-    add('behavioral', 'Teamwork', 'Describe a time you worked in a team and something went wrong.', 'Focus on what you did to fix it, not on blaming others.');
-    add('behavioral', 'Feedback', 'Tell me about feedback that changed how you work.', 'Show that you listened and changed something concrete.');
-    add('behavioral', 'Mistakes', 'Tell me about a mistake you made and what you learned from it.', 'Own it plainly, say how you fixed it, and what you now do differently.');
-    add('behavioral', 'Pressure', 'Describe a time you had to work under pressure.', 'Use STAR, and say how you kept quality up while moving fast.', 'hard');
-    add('situational', 'Deadlines', 'Your deadline is tomorrow and you discover a serious bug. What do you do?', 'Prioritise, communicate early, propose options.');
-    add('situational', 'Ambiguity', 'You are given a vague task. How do you make progress?', 'Ask clarifying questions, state assumptions, deliver a first version.');
-    add('situational', 'Disagreement', 'You disagree with your manager about how to do a task. What do you do?', 'Raise it privately with reasons and data, listen, then commit to the decision.', 'hard');
-    add('situational', 'Teamwork', 'A teammate is not doing their share and the deadline is close. How do you handle it?', 'Talk to them first, offer help, and escalate only with facts if nothing changes.');
-    add('situational', 'Priorities', 'You are given three urgent tasks at once. How do you decide what to do first?', 'Weigh impact and deadline, confirm priorities with whoever set them, and say what will slip.');
+    if (!context.projects.length) add('project', 'Projects', 'Tell me about something you built, even a small exercise from a course.', 'Interviewers want to see initiative, not scale.', 'medium', tip(
+        `In ${course ? `"${course}"` : 'one of my courses'} I built [a small thing] that [what it did]. It was small, but I planned it, fixed the problems myself and finished it. Next I want to build [a bigger idea].`,
+        ['Even small work counts', 'What you did yourself', 'What you would build next'],
+        ['"I have not built anything"', 'Making a small exercise sound huge']));
+    add('behavioral', 'Learning', 'Tell me about a time you had to learn something quickly.', 'Use STAR: Situation, Task, Action, Result.', 'medium', tip(
+        'When I had to learn [the topic] in [a short time] for [a test, task or project], I split it into small parts, practised a little every day and asked for help when I got stuck. I [the result], and I still learn new things that way.',
+        ['Situation, task, action, result', 'What you did, step by step', 'How it turned out'],
+        ['A story with no ending', 'Saying it was easy']));
+    add('behavioral', 'Teamwork', 'Describe a time you worked in a team and something went wrong.', 'Focus on what you did to fix it, not on blaming others.', 'medium', tip(
+        'In a group task, two of us worked on the same part by mistake and we fell behind. I suggested a quick check-in, we split the work clearly, and we finished on time. Since then I always agree on who does what at the start.',
+        ['What went wrong, briefly', 'What you did to fix it', 'What you do differently now'],
+        ['Blaming your teammates', 'A story where you did nothing']));
+    add('behavioral', 'Feedback', 'Tell me about feedback that changed how you work.', 'Show that you listened and changed something concrete.', 'medium', tip(
+        'A teacher told me my work was right but hard to follow. I started adding short notes and checking it from the reader\'s side, and my next piece was much clearer. Now I ask for feedback early.',
+        ['The feedback, in plain words', 'What you changed', 'The difference it made'],
+        ['Getting defensive about it', 'Feedback you ignored']));
+    add('behavioral', 'Mistakes', 'Tell me about a mistake you made and what you learned from it.', 'Own it plainly, say how you fixed it, and what you now do differently.', 'medium', tip(
+        'Once I [the mistake, e.g. handed in work without checking it] and it [what happened]. I owned up, fixed it straight away, and now I always [the habit you built].',
+        ['Own it plainly', 'How you fixed it', 'What you do now'],
+        ['A made-up or tiny mistake', 'Blaming someone else']));
+    add('behavioral', 'Pressure', 'Describe a time you had to work under pressure.', 'Use STAR, and say how you kept quality up while moving fast.', 'hard', tip(
+        'Before [an exam or deadline] I had [several things] due in [a short time]. I listed everything, did the most important parts first and kept checking my work so the quality did not drop. I finished on time and learned to start earlier.',
+        ['How you prioritised', 'How you kept quality up', 'How it turned out'],
+        ['"I work best under pressure" with no story', 'A missed deadline with no lesson']));
+    add('situational', 'Deadlines', 'Your deadline is tomorrow and you discover a serious bug. What do you do?', 'Prioritise, communicate early, propose options.', 'medium', tip(
+        "First I'd check how serious the bug is and who it affects. Then I'd tell my lead straight away with options: fix it now, ship a safe workaround, or move the deadline. Whatever we pick, I'd test the fix properly.",
+        ['Tell people early', 'Options, not just the problem', 'Test the fix'],
+        ['Hiding the bug', 'Panicking or blaming']));
+    add('situational', 'Ambiguity', 'You are given a vague task. How do you make progress?', 'Ask clarifying questions, state assumptions, deliver a first version.', 'medium', tip(
+        "I'd ask a few questions to understand what \"done\" looks like. Then I'd write down my assumptions, make a small first version and show it early, so I can adjust before going too far.",
+        ['Clarifying questions', 'Your assumptions, said out loud', 'An early first version'],
+        ['Waiting to be told everything', 'Guessing silently']));
+    add('situational', 'Disagreement', 'You disagree with your manager about how to do a task. What do you do?', 'Raise it privately with reasons and data, listen, then commit to the decision.', 'hard', tip(
+        "I'd talk to my manager privately, explain my reasons with any facts I have, and listen to theirs. If they still prefer their way, I'd go with it fully and learn from how it turns out.",
+        ['Raise it privately and politely', 'Reasons and facts', 'Commit once it is decided'],
+        ['Arguing in front of others', 'Doing it your way anyway']));
+    add('situational', 'Teamwork', 'A teammate is not doing their share and the deadline is close. How do you handle it?', 'Talk to them first, offer help, and escalate only with facts if nothing changes.', 'medium', tip(
+        "I'd talk to them first, since they may be stuck or busy, and offer to help or split the work differently. If nothing changes and the deadline is at risk, I'd tell the lead calmly, with facts.",
+        ['Talk to them first', 'Offer help', 'Escalate only with facts'],
+        ['Complaining behind their back', 'Quietly doing all their work']));
+    add('situational', 'Priorities', 'You are given three urgent tasks at once. How do you decide what to do first?', 'Weigh impact and deadline, confirm priorities with whoever set them, and say what will slip.', 'medium', tip(
+        "I'd look at the deadline and impact of each task, check with whoever gave them which matters most, and start with that one. I'd tell people early which task might slip and when they can expect it.",
+        ['Impact and deadline', 'Confirm the priorities', 'Say early what will slip'],
+        ['Trying to do all three at once', 'Picking the easiest one first']));
     return out;
 };
+
+/**
+ * What a strong answer says, and what to leave out, by kind of question: for
+ * a question whose own tips have not been written (an AI bank saved before
+ * questions came with them, or a batch the AI could not write).
+ */
+const TIPS = {
+    hr: { say: ['A real example from your own life', 'Why it matters for your goal'], avoid: ['Memorised, generic lines', 'Talking only about money or perks'] },
+    technical: { say: ['A one-line answer first', 'Where you have used it'], avoid: ['A textbook definition with no example', 'Bluffing: say how you would find out'] },
+    project: { say: ['The problem, your part, the result', 'What you learned'], avoid: ['"We did" with nothing about you', 'Skipping what came of it'] },
+    behavioral: { say: ['Situation, task, action, result', 'What you learned'], avoid: ['Blaming others', 'A story with no ending'] },
+    situational: { say: ['Your first step, and why', 'Who you would tell, and when'], avoid: ['Saying it would never happen', 'Handling it alone in silence'] }
+};
+const tipsFor = (category) => TIPS[category] || TIPS.hr;
 
 const recommendTopics = (context) => {
     const topics = [];
@@ -240,4 +353,4 @@ const recommendTopics = (context) => {
     return topics.slice(0, 6);
 };
 
-module.exports = { nextQuestion, evaluate, generateQuestions, recommendTopics, QUESTION_BANK };
+module.exports = { nextQuestion, evaluate, generateQuestions, recommendTopics, tipsFor, QUESTION_BANK };

@@ -243,24 +243,31 @@ function BuildSkillsArt() {
 
 function Stat({ icon: Icon, tone, value, label }) {
   return (
-    <li className="flex items-center gap-1 rounded-full bg-surface/90 py-0.5 pr-2 pl-0.5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur sm:gap-1.5 sm:py-1 sm:pr-2.5 sm:pl-1">
-      <span className={`flex h-5 w-5 items-center justify-center rounded-full ring-1 ring-inset sm:h-6 sm:w-6 ${tone}`}>
-        <Icon className="h-2.5 w-2.5 sm:h-3 sm:w-3" strokeWidth={2.4} />
+    <li className="flex items-center gap-1.5 rounded-full bg-surface/90 py-1 pr-2.5 pl-1 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur">
+      <span className={`flex h-6 w-6 items-center justify-center rounded-full ring-1 ring-inset ${tone}`}>
+        <Icon className="h-3 w-3" strokeWidth={2.4} />
       </span>
-      <span className="text-[0.68rem] whitespace-nowrap text-ink-600 sm:text-[0.74rem]">
+      <span className="text-[0.74rem] whitespace-nowrap text-ink-600">
         <span className="font-black tabular-nums text-ink-900">{value}</span> {label}
       </span>
     </li>
   );
 }
 
-export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 }) {
+export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0, joined = false }) {
   const shownXp = useCountUp(xp, 1000);
   const shownDone = useCountUp(completed, 900);
   const shownStreak = useCountUp(streak, 800);
 
   return (
-    <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset">
+    // `joined`: on a phone this is the head of the card below it (Skills), so
+    // it gives up its own corners, ring and shadow there and keeps a hairline
+    // between it and the list.
+    <section
+      className={`relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset ${
+        joined ? 'max-sm:rounded-none max-sm:border-b max-sm:border-journey-100 max-sm:shadow-none max-sm:ring-0' : ''
+      }`}
+    >
       <div
         aria-hidden
         className="fp-float pointer-events-none absolute -top-24 -left-20 h-64 w-64 rounded-full bg-journey-200/40 blur-3xl"
@@ -276,8 +283,9 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
         <BuildSkillsArt />
       </div>
 
-      {/* On a phone everything is a size down — padding, words, pills — so the
-          heading takes one line and the three pills one row (it was two of each). */}
+      {/* On a phone everything is a size down — padding and words — so the
+          heading takes one line (it was two), and the sentence and the pills
+          are left out. */}
       <div className="relative flex items-start gap-5 p-4 sm:p-6 md:min-h-[236px] md:max-w-[50%] md:items-center lg:pr-0">
         {/* Top of the words, not the middle of them: the row as a whole is
               centred in the banner, and without this the badge centres again
@@ -300,11 +308,15 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
               Big dreams.
             </span>
           </h1>
-          <p className="mt-1.5 max-w-md text-[0.8rem] leading-snug text-ink-600 sm:mt-2 sm:text-sm sm:leading-relaxed">
+          {/* Not on a phone (asked 2026-10-15, "it looks too much"): the
+              heading and the three numbers say it already. */}
+          <p className="mt-2 hidden max-w-md text-sm leading-relaxed text-ink-600 sm:block">
             Gain skills, earn XP and unlock new opportunities in your career journey.
           </p>
 
-          <ul className="mt-3 flex flex-wrap items-center gap-1.5 sm:mt-4 sm:gap-2">
+          {/* Not on a phone either (asked 2026-10-15, "remove it"): there the
+              banner is the head of the skill list, which says the same. */}
+          <ul className="mt-4 hidden flex-wrap items-center gap-2 sm:flex">
             <Stat
               icon={Star}
               tone="bg-amber-50 text-amber-500 ring-amber-100"

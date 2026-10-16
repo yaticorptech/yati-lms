@@ -14,6 +14,11 @@ import { QuizMarkArt } from '../ui/PanelArt';
 import { useCelebrate } from '../ui/Celebration';
 import { useMascot } from '../../mascot/useMascot';
 import PriceTag from '../../../components/rewards/PriceTag';
+import LoadError from '../ui/LoadError';
+
+// How often the seconds watched are saved while a video plays. Often enough
+// that a reload loses little; rare enough to be a trickle, not a stream.
+const PROGRESS_SAVE_MS = 15 * 1000;
 
 // The languages a video lesson can be in. Names in their own script, so a
 // student finds theirs at a glance.
@@ -37,6 +42,16 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
   useHideLoop();
   const [study, setStudy] = useState(null);
   const [loading, setLoading] = useState(true);
+  // The lesson did not LOAD (offline, a 500) — not "there is no lesson". The
+  // two used to look the same: a failed read fell through to the "How do you
+  // want to learn this?" chooser, and choosing paid for a rebuild that threw
+  // away the lesson the student already had, with its progress and score.
+  const [loadFailed, setLoadFailed] = useState(false);
+  // Bumped by "Retry" to read the lesson again.
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  // Bumped when the server turns a "watched" report down, so the player
+  // counts on and reports again (see LessonVideo).
+  const [watchRejected, setWatchRejected] = useState(0);
   // Which mode is building, or null. Not a boolean: with two buttons, a shared
   // flag would put the spinner on both.
   const [generating, setGenerating] = useState(null);
@@ -91,6 +106,8 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
         // one of them would understate what the work was worth.
         onCompleted?.(data.task || { ...task, status: 'Completed' }, {
           xp: (data.xpAwarded || 0) + (data.completionXp || 0),
+          // The task's own share, for its "Done · +N XP" chip.
+          taskXp: data.completionXp || 0,
           // Set only when the quiz was the step that finished the task, so the
           // planner's celebration can show the score alongside the XP.
           score: data.total ? `${data.score} / ${data.total} correct` : undefined
@@ -106,6 +123,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
       try {
         const { data } = await api.put(`/tasks/${task._id}/study/progress`, body);
         applyOutcome(data);
+        if (data?.videoRefused) setWatchRejected((n) => n + 1);
       } catch {
         // A dropped progress ping is recoverable — the gate is re-reported on
         // the next watch or read, so this must not interrupt the lesson.
@@ -114,8 +132,40 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
     [applyOutcome, task._id]
   );
 
+  // The seconds watched, saved as the video plays. They used to live only in
+  // the player's memory, so a reload — or closing the lesson and opening it
+  // again — started the watch count from nothing, and the server-side field
+  // meant to hold it was never written. Sent at most every PROGRESS_SAVE_MS,
+  // and once more when the lesson closes.
+  const savedSecondsRef = useRef({ at: 0, seconds: 0, latest: 0 });
+  const handleVideoProgress = useCallback(
+    (seconds) => {
+      const saved = savedSecondsRef.current;
+      saved.latest = Math.max(saved.latest, seconds || 0);
+      if (saved.latest <= saved.seconds || Date.now() - saved.at < PROGRESS_SAVE_MS) return;
+      saved.at = Date.now();
+      saved.seconds = saved.latest;
+      reportProgress({ watchedSeconds: saved.latest });
+    },
+    [reportProgress]
+  );
+  useEffect(() => {
+    const saved = savedSecondsRef.current;
+    const taskId = task._id;
+    return () => {
+      // Whatever played since the last save, on the way out. Fire and forget:
+      // the panel is going, and a lost ping costs a few seconds of count.
+      if (saved.latest > saved.seconds) {
+        api.put(`/tasks/${taskId}/study/progress`, { watchedSeconds: saved.latest }).catch(() => {});
+      }
+    };
+  }, [task._id]);
+
   const handleVideoWatched = useCallback(
-    (watchedSeconds) => reportProgress({ videoWatched: true, watchedSeconds }),
+    (watchedSeconds) => {
+      savedSecondsRef.current.seconds = Math.max(savedSecondsRef.current.seconds, watchedSeconds || 0);
+      return reportProgress({ videoWatched: true, watchedSeconds });
+    },
     [reportProgress]
   );
 
@@ -126,12 +176,15 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadFailed(false);
 
     api
       .get(`/tasks/${task._id}/study`)
       .then(({ data }) => {
         if (cancelled) return;
         setStudy(data);
+        // Picks the saved count up where the server has it.
+        savedSecondsRef.current.seconds = Math.max(savedSecondsRef.current.seconds, data?.progress?.watchedSeconds || 0);
         // Tell the planner this task is gated by a lesson, so it drops the
         // manual tick even if the list was fetched before the lesson existed.
         if (data) onLessonReady?.(task._id);
@@ -141,7 +194,8 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
         if (data?.autoCompleted) applyOutcome(data);
       })
       .catch(() => {
-        if (!cancelled) setStudy(null);
+        // A failed read, said as one — never the "build a lesson" chooser.
+        if (!cancelled) setLoadFailed(true);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -150,10 +204,10 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
     return () => {
       cancelled = true;
     };
-    // Keyed on the task alone. `onLessonReady` is a fresh function on every
-    // planner render, so including it would refetch the lesson continuously.
+    // Keyed on the task (and a retry). `onLessonReady` is a fresh function on
+    // every planner render, so including it would refetch the lesson continuously.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task._id]);
+  }, [task._id, loadAttempt]);
 
   /**
    * Build the lesson.
@@ -177,6 +231,8 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
         ...(replaceVideo ? { replace: 'video' } : {})
       });
       setStudy(data);
+      // A new video starts its watch count again, here as on the server.
+      savedSecondsRef.current = { at: 0, seconds: data?.progress?.watchedSeconds || 0, latest: 0 };
       // Any rebuild restarts at least the watch gate server-side, so the
       // completion announcement is due again if the student re-earns it.
       announcedRef.current = false;
@@ -199,7 +255,16 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
         'Lesson built'
       );
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not build this lesson.');
+      // The lesson already exists (built in another tab, or a stale screen):
+      // the server refuses to rebuild it without being asked — and charges
+      // nothing — and sends the lesson that is there. Show it.
+      if (err.response?.status === 409 && err.response.data?.code === 'LESSON_EXISTS' && err.response.data.lesson) {
+        setStudy(err.response.data.lesson);
+        onLessonReady?.(task._id);
+        toast.info('This task already has its lesson — here it is.', 'Lesson ready');
+      } else {
+        toast.error(err.response?.data?.message || 'Could not build this lesson.');
+      }
     } finally {
       setGenerating(null);
     }
@@ -254,6 +319,18 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
         <div className="skeleton aspect-video w-full rounded-xl" />
         <div className="skeleton h-4 w-3/4 rounded" />
         <div className="skeleton h-4 w-1/2 rounded" />
+      </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="px-4 pb-6 sm:px-6">
+        <LoadError
+          title="This lesson didn't load"
+          message="Your lesson and your progress in it are safe. Check your connection and try again."
+          onRetry={() => setLoadAttempt((n) => n + 1)}
+        />
       </div>
     );
   }
@@ -466,6 +543,9 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
             video={video}
             watched={study.gates?.videoWatched}
             onWatched={handleVideoWatched}
+            onProgress={handleVideoProgress}
+            initialSeconds={study.progress?.watchedSeconds || 0}
+            watchRejected={watchRejected}
           />
         </section>
       )}

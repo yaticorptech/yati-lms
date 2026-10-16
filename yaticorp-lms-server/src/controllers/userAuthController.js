@@ -24,8 +24,11 @@ const loginUser = async (req, res) => {
             // Counted before the response is shaped, so `loginCount` below is
             // this sign-in's number rather than the previous one — the client
             // uses it to tell a returning student from a brand new one.
-            user.loginCount = (user.loginCount || 0) + 1;
-            await user.save();
+            // A targeted $inc, not save(): save() validates the whole record,
+            // and an older account missing a field today's schema requires
+            // (a phone, say) failed it — so a right password answered 500.
+            await User.updateOne({ _id: user._id }, { $inc: { loginCount: 1 } });
+            const loginCount = (user.loginCount || 0) + 1;
 
             res.json({
                 _id: user._id,
@@ -40,7 +43,7 @@ const loginUser = async (req, res) => {
                 // "Level 1" until the profile has loaded.
                 xp: user.xp || 0,
                 level: user.level || 1,
-                loginCount: user.loginCount,
+                loginCount,
                 role: 'student',
                 token: generateToken(user._id, 'student')
             });
@@ -131,12 +134,16 @@ const updateUserProfile = async (req, res) => {
                 user.profilePicture = pic;
             }
 
-            if (req.body.password) {
-                user.password = req.body.password;
-            }
+            // No password here. It used to be taken as-is — no current
+            // password asked for, no strength rules, and no end to other
+            // sessions. Changing it is PUT /api/user/update-password's job.
 
             const updatedUser = await user.save();
 
+            // No token either. A fresh thirty-day one came back with every
+            // save, and the photo picker kept it — so a superadmin's two-hour
+            // view-as-student turned into a month-long session. The token the
+            // student already holds is unchanged by a profile edit.
             res.json({
                 _id: updatedUser._id,
                 name: updatedUser.name,
@@ -147,8 +154,7 @@ const updateUserProfile = async (req, res) => {
                 credits: updatedUser.credits || 0,
                 xp: updatedUser.xp || 0,
                 level: updatedUser.level || 1,
-                role: 'student',
-                token: generateToken(updatedUser._id, 'student'),
+                role: 'student'
             });
         } else {
             res.status(404).json({ message: 'User not found' });

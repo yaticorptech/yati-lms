@@ -12,10 +12,12 @@ const Quiz = require('../models/Quiz');
 
 // How a course's content is listed everywhere — the player, the outline and the
 // progress check: by the admin's order, and by id where two share a number, so
-// all three always agree on which lesson comes next.
-const CONTENT_ORDER = { order: 1, _id: 1 };
-const { canAccessCourse, canOpenCourse, visibleCoursesFilter } = require('../services/courseAccess');
-const { hasFullAccess } = require('../services/fullAccess');
+// all three always agree on which lesson comes next (services/courseAccess.js).
+const {
+    CONTENT_ORDER, canAccessCourse, canOpenCourse, visibleCoursesFilter, openBundlesFilter, openingBundle,
+    dripStart, moduleUnlockAt, lessonAccess
+} = require('../services/courseAccess');
+const { syncProgress, settleCompletion, refreshProgressRows } = require('../services/courseCompletion');
 const walletService = require('../rewards/services/walletService');
 const { getConfig: getRewardsConfig } = require('../rewards/services/configService');
 const { Wallet, WalletTransaction } = require('../rewards/models');
@@ -118,8 +120,18 @@ const getMyCourses = async (req, res) => {
             userId: req.user._id,
             courseId: { $in: Array.from(progressCourseIds) }
         });
+        // Worked out again against each course's lessons as they are now (an
+        // administrator adding or removing a lesson moves the figure), saved
+        // back where it moved, and any course that reads complete but was never
+        // settled gets its XP and certificate now. Never fails the list.
+        let refreshed = { figures: new Map(), events: [] };
+        try {
+            refreshed = await refreshProgressRows(req.user._id, progressDocs);
+        } catch (e) {
+            console.error('[getMyCourses] progress refresh failed:', e.message);
+        }
         const progressByCourse = new Map(
-            progressDocs.map(p => [p.courseId.toString(), Math.min(100, p.percentage)])
+            progressDocs.map(p => [p.courseId.toString(), Math.min(100, p.percentage || 0)])
         );
 
         // An organization's own course shows only while the student is still
@@ -128,10 +140,12 @@ const getMyCourses = async (req, res) => {
         // clean-up above rather than in the query.
         const coursesWithProgress = courses.filter(course => canAccessCourse(req.user, course)).map(course => {
             const prog = progressDocs.find(p => p.courseId.toString() === course._id.toString());
+            const figures = refreshed.figures.get(course._id.toString());
             return {
                 ...course.toObject(),
-                progress: prog ? Math.min(100, prog.percentage) : 0,
-                completedLessons: prog ? prog.completedLessons.length : 0
+                progress: prog ? Math.min(100, prog.percentage || 0) : 0,
+                // Each lesson once, and only lessons still in the course.
+                completedLessons: figures ? figures.done : prog ? new Set(prog.completedLessons.map(String)).size : 0
             };
         });
 
@@ -156,7 +170,9 @@ const getMyCourses = async (req, res) => {
         res.json({
             courses: coursesWithProgress,
             bundles: bundlesWithProgress,
-            jobsAlwaysOpen: jobsAlwaysOpen(req.user)
+            jobsAlwaysOpen: jobsAlwaysOpen(req.user),
+            // XP from a course found complete just now, for the rewards toast.
+            rewards: { events: refreshed.events }
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -205,10 +221,9 @@ const getCourseContent = async (req, res) => {
         // Content dripping: modules unlock N days after the student's enrollment.
         // Not for the demo cards (services/fullAccess.js): they show the product,
         // so every module is open to them from the start — the account owner's
-        // rule, 2026-10-09. Every other student keeps the drip.
-        const drips = !hasFullAccess(req.user);
-        const enrollment = await Enrollment.findOne({ userId: req.user._id, courseId });
-        const enrollDate = enrollment ? new Date(enrollment.assignedAt || enrollment.createdAt) : null;
+        // rule, 2026-10-09. Every other student keeps the drip. The same rule
+        // (dripStart / moduleUnlockAt) guards the lesson's quiz and its progress.
+        const startedAt = await dripStart(req.user, courseId);
         const now = new Date();
 
         const modules = await Module.find({ courseId }).sort(CONTENT_ORDER);
@@ -216,12 +231,8 @@ const getCourseContent = async (req, res) => {
             modules.map(async (mod) => {
                 const modObj = mod.toObject();
                 const dripDays = modObj.dripDays || 0;
-                let unlockAt = null;
-                let locked = false;
-                if (drips && dripDays > 0 && enrollDate) {
-                    unlockAt = new Date(enrollDate.getTime() + dripDays * 24 * 60 * 60 * 1000);
-                    locked = now < unlockAt;
-                }
+                const unlockAt = moduleUnlockAt(modObj, startedAt);
+                const locked = Boolean(unlockAt) && now < unlockAt;
 
                 const lessons = await Lesson.find({ moduleId: mod._id, isPublished: true }).sort(CONTENT_ORDER);
                 // For a still-locked module, expose only titles/types — never the content.
@@ -236,10 +247,29 @@ const getCourseContent = async (req, res) => {
         // Atomic: opening the course in two tabs at once still makes one row.
         const progress = await Progress.findOrCreate(req.user._id, courseId);
 
+        // The stored percentage, worked out again against the lessons as they
+        // are now: an administrator adding a lesson takes a finished course
+        // back under 100%, and removing the last one left to do finishes it.
+        // A course that reads complete for the first time, or was finished
+        // before certificates were issued on completion, is settled here.
+        const rewards = { events: [] };
+        try {
+            const figures = await syncProgress(progress, modulesWithLessons.flatMap((m) => m.lessons.map((l) => l._id)));
+            if (figures.complete) {
+                const certified = await require('../models/Certificate').exists({ userId: req.user._id, courseId: String(courseId) });
+                // Found on opening the course, not just finished by the
+                // student: settled without counting today toward the streak.
+                if (!figures.wasComplete || !certified) rewards.events.push(...(await settleCompletion({ userId: req.user._id, courseId, repair: true })));
+            }
+        } catch (e) {
+            console.error('[getCourseContent] progress refresh failed:', e.message);
+        }
+
         res.json({
             course,
             modules: modulesWithLessons,
-            progress
+            progress,
+            rewards
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -322,73 +352,60 @@ const updateProgress = async (req, res) => {
             return res.status(400).json({ message: 'Invalid course or lesson' });
         }
 
-        const target = courseId ? await Course.findById(courseId).select('organizationId').lean() : null;
-        if (!target || !canAccessCourse(req.user, target)) return res.status(404).json({ message: 'Course not found' });
-        // No progress (and no lesson or course XP) in a course the student does not have.
-        if (!(await canOpenCourse(req.user, target))) {
-            return res.status(403).json({ code: 'NOT_ENROLLED', message: 'Enrol in this course to open its lessons.' });
-        }
+        // The lesson gate the quiz uses too (services/courseAccess.js): a
+        // real, published lesson of this course, in a course the student has,
+        // not behind a module's drip date, and done already or next in order.
+        // Any id used to be taken, in any order, drip or no drip — so lessons
+        // could be finished all at once, and a course carried to 100% (and to
+        // its XP and certificate) without a lesson being done.
+        const access = await lessonAccess(req.user, lessonId, { courseId });
+        if (!access.ok) return res.status(access.status).json(access.body);
+        const courseLessons = access.lessons;
+        const lesson = courseLessons.find((l) => String(l._id) === lessonId) || access.lesson;
+        const alreadyDone = (access.progress?.completedLessons || []).map(String).includes(lessonId);
 
-        // A real, published lesson of this course. Any id used to be taken, so
-        // made-up ones paid lesson XP and could carry a course to 100% (and so
-        // to its course XP and certificate) without a lesson being done.
-        const modules = await Module.find({ courseId }).sort(CONTENT_ORDER).select('_id').lean();
-        const published = await Lesson.find({ moduleId: { $in: modules.map((m) => m._id) }, isPublished: true }).sort(CONTENT_ORDER).select('_id moduleId type assignmentId').lean();
-        // In the order the course runs: module by module, as the player lists them.
-        const courseLessons = modules.flatMap((m) => published.filter((l) => String(l.moduleId) === String(m._id)));
-        const lesson = courseLessons.find((l) => String(l._id) === lessonId);
-        if (!lesson) return res.status(404).json({ message: 'Lesson not found in this course' });
+        // A quiz lesson is done by passing its quiz, not by asking. A failed
+        // first attempt that earned credits used to complete it, and with it
+        // the course and its certificate. A quiz with no questions (or none
+        // at all) cannot be passed, so it does not hold the course up: the
+        // lesson is completed like any other.
+        if (!alreadyDone && lesson.type === 'quiz') {
+            const quiz = await Quiz.findOne({ lessonId: lesson._id }).select('_id questions._id').lean();
+            const passed = (access.progress?.passedQuizzes || []).map(String).includes(String(quiz?._id));
+            if (quiz && (quiz.questions || []).length > 0 && !passed) {
+                return res.status(403).json({ code: 'QUIZ_NOT_PASSED', message: 'Pass this lesson\'s quiz to complete it.' });
+            }
+        }
 
         const progress = await Progress.findOrCreate(req.user._id, courseId);
+        const lessonOid = new (require('mongoose').Types.ObjectId)(lessonId);
+        // Added in one step, and only if it is not there yet: two clicks at
+        // once used to both find it missing and both push it, so the lesson
+        // counted twice. Whichever request adds it is the one that pays.
+        const added = await Progress.findOneAndUpdate(
+            { _id: progress._id, completedLessons: { $ne: lessonOid } },
+            { $push: { completedLessons: lessonOid }, $set: { lastAccessedLesson: lessonOid } },
+            { returnDocument: 'after' }
+        );
+        const newLesson = Boolean(added);
+        const current = added || await Progress.findOneAndUpdate(
+            { _id: progress._id },
+            { $set: { lastAccessedLesson: lessonOid } },
+            { returnDocument: 'after' }
+        );
 
-        if (!progress.completedLessons.map(String).includes(lessonId)) {
-            // In order: the next lesson is the first one not yet done, as the
-            // player unlocks them. Only the page held this rule; a request
-            // could finish a course's lessons in any order, or all at once.
-            const done = new Set(progress.completedLessons.map(String));
-            const next = courseLessons.find((l) => !done.has(String(l._id)));
-            if (!next || String(next._id) !== lessonId) {
-                return res.status(403).json({ code: 'LESSON_LOCKED', message: 'Finish the earlier lessons first.' });
-            }
-            // A quiz lesson is done by passing its quiz, not by asking. A
-            // failed first attempt that earned credits used to complete it,
-            // and with it the course and its certificate.
-            if (lesson.type === 'quiz') {
-                const quiz = await Quiz.findOne({ lessonId: lesson._id }).select('_id').lean();
-                if (quiz && !(progress.passedQuizzes || []).map(String).includes(String(quiz._id))) {
-                    return res.status(403).json({ code: 'QUIZ_NOT_PASSED', message: 'Pass this lesson\'s quiz to complete it.' });
-                }
-            }
-        }
+        // The share of this course's published lessons that are done, counted
+        // against those lessons, so an id saved before the checks above (or a
+        // lesson since removed) does not count. Complete means every lesson
+        // done — 199 of 200 is not 100%, however it rounds.
+        const figures = await syncProgress(current, courseLessons.map((l) => l._id));
+        const certificateEarned = figures.complete;
 
-        progress.lastAccessedLesson = lessonId;
-
-        const wasComplete = progress.percentage >= 100;
-        const newLesson = !progress.completedLessons.includes(lessonId);
-        if (newLesson) {
-            progress.completedLessons.push(lessonId);
-        }
-
-        // The share of this course's published lessons that are done. Counted
-        // against those lessons, so an id saved before the check above (or a
-        // lesson since removed) no longer counts toward 100%.
-        const lessonIds = new Set(courseLessons.map((l) => String(l._id)));
-        const done = new Set(progress.completedLessons.map(String).filter((id) => lessonIds.has(id))).size;
-        progress.percentage = lessonIds.size === 0 ? 0 : Math.min(100, Math.round((done / lessonIds.size) * 100));
-
-        await progress.save();
-
-        // Check if certificate should be generated
-        let certificateEarned = false;
-        if (progress.percentage === 100) {
-            certificateEarned = true;
-            // In production, we could trigger the certificate generation API or webhook here automatically
-        }
-
-        // Rewards: XP, streak and badges for the lesson, and for the course the
-        // first time it reaches 100%. Both are exactly-once on the server side
-        // (the activity ledger refuses a repeat), so a re-sent request or a
-        // second tab cannot pay twice. Never fails the progress update.
+        // Rewards: XP, streak and badges for the lesson; and, the first time
+        // the course is complete, its XP and its certificate (with that XP).
+        // All exactly-once on the server side (the activity ledger refuses a
+        // repeat, a student holds one certificate per course), so a re-sent
+        // request or a second tab cannot pay twice. Never fails the update.
         const rewards = { events: [] };
         try {
             const { safeRecordActivity } = require('../rewards/services/activityService');
@@ -402,14 +419,13 @@ const updateProgress = async (req, res) => {
                     rewards.events.push(...a.events);
                 }
             }
-            if (progress.percentage === 100 && !wasComplete) {
-                const r = await safeRecordActivity({ userId: req.user._id, type: 'course_complete', refId: courseId, courseId });
-                rewards.events.push(...r.events);
+            if (figures.complete && (newLesson || !figures.wasComplete)) {
+                rewards.events.push(...(await settleCompletion({ userId: req.user._id, courseId })));
             }
         } catch (e) { console.error('[rewards] progress hook failed:', e.message); }
 
         res.json({
-            progress,
+            progress: current,
             certificateEarned,
             rewards
         });
@@ -423,27 +439,16 @@ const updateProgress = async (req, res) => {
 // @access  Private/User
 const getAvailableCourses = async (req, res) => {
     try {
-        const enrollments = await Enrollment.find({ userId: req.user._id });
-        const enrolledCourseIds = new Set();
-        const bundleIds = [];
+        const enrollments = await Enrollment.find({ userId: req.user._id, type: 'Course' }).select('courseId').lean();
+        const enrolledCourseIds = new Set(enrollments.filter((e) => e.courseId).map((e) => e.courseId.toString()));
 
-        for (const enr of enrollments) {
-            if (enr.type === 'Course' && enr.courseId) {
-                enrolledCourseIds.add(enr.courseId.toString());
-            } else if (enr.type === 'Bundle' && enr.bundleId) {
-                bundleIds.push(enr.bundleId);
-            }
-        }
-
-        // Batch-fetch all enrolled bundles in one query (avoids N+1)
-        if (bundleIds.length > 0) {
-            const enrolledBundles = await Bundle.find({ _id: { $in: bundleIds } });
-            enrolledBundles.forEach(bundle => {
-                if (bundle.courses) {
-                    bundle.courses.forEach(cid => enrolledCourseIds.add(cid.toString()));
-                }
-            });
-        }
+        // Not a course the student already has through a bundle: every
+        // published bundle, and any bundle they are enrolled in — the same rule
+        // the player opens courses by (canOpenCourse). Only the enrolled
+        // bundles used to be left out, so a course free in a published bundle
+        // was still offered here at its price, and paid for.
+        const openBundles = await Bundle.find(await openBundlesFilter(req.user)).select('courses').lean();
+        openBundles.forEach((bundle) => (bundle.courses || []).forEach((cid) => enrolledCourseIds.add(cid.toString())));
 
         // Platform courses, and the student's own organization's courses.
         const availableCourses = await Course.find({
@@ -522,6 +527,18 @@ const enrollCourse = async (req, res) => {
 
         if (existingEnrollment) {
             return res.status(400).json({ message: 'You are already enrolled in this course' });
+        }
+
+        // Already the student's through a bundle: nothing to pay for. Refused
+        // rather than charged — the Available list no longer offers these, but
+        // a list loaded before the bundle was published still can.
+        const bundle = await openingBundle(req.user, course._id);
+        if (bundle) {
+            return res.status(409).json({
+                code: 'IN_BUNDLE',
+                bundleId: bundle._id,
+                message: `This course is already yours in the "${bundle.title}" bundle, so there is nothing to pay. Open it from Bundles.`
+            });
         }
 
         // The admin's price is taken from the wallet, every enrolment. Not for

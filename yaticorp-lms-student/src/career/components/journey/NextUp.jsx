@@ -25,9 +25,11 @@ export default function NextUp({ nextPhase, levelProgress }) {
 
   if (!nextLead && !hasLevel) return null;
 
-  // The backend awards 10 XP per completed task, so "how many more tasks" is a
-  // goal in a way that "260 XP" is not.
-  const tasksToLevel = hasLevel ? Math.max(1, Math.ceil(levelProgress.remaining / Math.max(1, TASK_XP))) : 0;
+  // A finished task pays the admin's 'career_task' rule, so "how many more
+  // tasks" is a goal in a way that "260 XP" is not. Only while the rule pays
+  // something: with Rewards locked (null) or a rule of 0, tasks move no XP and
+  // a task count would be a promise nobody keeps — the XP distance stands alone.
+  const tasksToLevel = hasLevel && TASK_XP > 0 ? Math.max(1, Math.ceil(levelProgress.remaining / TASK_XP)) : 0;
 
   return (
     <section className="isolate fp-lift relative flex h-full flex-col overflow-hidden rounded-3xl border border-line-200 bg-surface p-6 shadow-card">
@@ -59,9 +61,11 @@ export default function NextUp({ nextPhase, levelProgress }) {
               <Trophy className="h-3 w-3" />
               Level {levelProgress.nextLevel}
             </p>
-            <p className="mt-1.5 text-sm leading-snug font-black text-ink-900">
-              {tasksToLevel} more {tasksToLevel === 1 ? 'task' : 'tasks'}
-            </p>
+            {tasksToLevel > 0 && (
+              <p className="mt-1.5 text-sm leading-snug font-black text-ink-900">
+                {tasksToLevel} more {tasksToLevel === 1 ? 'task' : 'tasks'}
+              </p>
+            )}
             {/* "110 XP from Level 2" under a heading reading "LEVEL 3" left it
                 unclear which level the number was measured against. It is the
                 distance still to travel, so it says that. */}

@@ -26,9 +26,12 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
   // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
   const TASK_XP = useXpRule('career_task');
   const shownXp = useCountUp(progress.xp, 1000);
-  // Backend awards 10 XP per completed task, so a task count is a target in a
-  // way that a raw XP number is not.
-  const tasksToNextLevel = Math.max(1, Math.ceil(progress.remaining / Math.max(1, TASK_XP)));
+  // A finished task pays the admin's 'career_task' rule, so a task count is a
+  // target in a way that a raw XP number is not. Only while that rule pays
+  // something: null (Rewards locked) or 0 means tasks earn no XP, and the
+  // distance is said in XP alone rather than as a count nobody can meet.
+  const promisesXp = TASK_XP > 0;
+  const tasksToNextLevel = promisesXp ? Math.max(1, Math.ceil(progress.remaining / TASK_XP)) : 0;
 
   return (
     <section className="grid overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card lg:grid-cols-[1.15fr_1fr]">
@@ -58,12 +61,17 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
         </p>
 
         <p className="mt-1.5 text-sm leading-relaxed text-ink-500">
-          {progress.remaining > 0 ? (
+          {progress.remaining > 0 && promisesXp ? (
             <>
               <span className="font-black text-ink-900">
                 {tasksToNextLevel} more {tasksToNextLevel === 1 ? 'task' : 'tasks'}
               </span>{' '}
               to Level {progress.nextLevel}
+            </>
+          ) : progress.remaining > 0 ? (
+            <>
+              <span className="font-black text-ink-900 tabular-nums">{progress.remaining} XP</span> to Level{' '}
+              {progress.nextLevel}
             </>
           ) : (
             'Level target hit — new ground from here.'
@@ -73,6 +81,7 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
         {/* The chain the ring is part of. The level system was always on this
             page; what it never said was why a finished task should matter. */}
         <div className="mt-auto w-full pt-6">
+          {promisesXp && (
           <div className="animate-fade-in-up flex items-center gap-2 rounded-2xl border border-line-200 bg-surface p-3" style={{ animationDelay: '0.5s' }}>
             <span className="flex min-w-0 flex-1 items-center gap-2">
               <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
@@ -84,6 +93,7 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
               +{TASK_XP} XP
             </span>
           </div>
+          )}
 
           <Link
             to="/career/badges"
