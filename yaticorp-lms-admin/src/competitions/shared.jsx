@@ -171,7 +171,7 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
                                 </select></label>
                         )}
                         {f.game === 'chess' && (
-                            <label><span className={LABEL}>Clock (minutes each)</span>
+                            <label><span className={LABEL}>Clock</span>
                                 <input type="number" min={1} max={60} value={f.gameOptions.clockMinutes} onChange={(e) => setOpt('clockMinutes', e.target.value)} className={INPUT} /></label>
                         )}
                         {f.game !== 'chess' && (

@@ -132,7 +132,7 @@ export default function GamePage() {
     return (
         <div className="space-y-4 pb-10" data-game-page={game.game}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <Link to={back} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} aria-hidden="true" /> {game.competition ? game.competition.name : 'Games'}</Link>
+                <Link to={back} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} aria-hidden="true" /> {game.competition ? game.competition.name : 'Games'}</Link>
                 {game.you == null && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"><Eye size={13} aria-hidden="true" /> Watching</span>}
             </div>
 
@@ -140,7 +140,7 @@ export default function GamePage() {
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-2xl" aria-hidden="true">{game.emoji}</span>
                 <div className="min-w-0 flex-1">
                     <h1 className="text-lg font-black text-slate-900 sm:text-xl">{game.label}{game.match ? <span className="font-semibold text-slate-500"> · {game.match.roundName}</span> : game.kind === 'friendly' ? <span className="font-semibold text-slate-500"> · friendly game</span> : null}</h1>
-                    <p className="truncate text-sm text-slate-500">{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
+                    <p className="break-words text-sm text-slate-500">{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
                 </div>
                 {game.status === 'active' && turnLeft != null && (
                     <span className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-black tabular-nums ${turnLeft <= 10 ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-700'}`} aria-label="Time left this turn">
@@ -243,7 +243,9 @@ export default function GamePage() {
                 <section data-outcome className={`rounded-3xl border p-5 shadow-sm ${iWon ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
                     <div className="flex flex-wrap items-center gap-3">
                         <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${iWon ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}><Trophy size={22} aria-hidden="true" /></span>
-                        <div className="min-w-0 flex-1">
+                        {/* A base width: beside the button on a phone, the words
+                            were squeezed one a line, and ran under it. */}
+                        <div className="min-w-0 flex-1 basis-48">
                             <p className="text-lg font-black text-slate-900">
                                 {game.status === 'abandoned' ? 'This game did not go ahead' : iWon ? 'You won!' : tie ? 'A draw' : outcome?.places?.[0] ? `${sideName(outcome.places[0][0])} won` : 'Game over'}
                             </p>

@@ -60,8 +60,10 @@ const AdminMatch = ({ match, onCall }) => {
             )}
             {match.status === 'bye' && <p className="mt-2 text-xs text-slate-500">No opponent this round: goes straight through.</p>}
             {!['scheduled', 'bye'].includes(match.status) && <p className="mt-2 text-xs text-slate-500">{match.scheduledAt ? `Scheduled ${fmtDateTime(match.scheduledAt)}` : ''}{match.games > 1 ? ` · ${match.games} games` : ''}</p>}
-            {match.gameId && match.status === 'live' && (
-                <a href={`${STUDENT_PORTAL}/competitions/play/${match.gameId}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-bold text-indigo-700 hover:underline">Watch the game in the student portal</a>
+            {/* Not while it waits for the organizer: its game is over (nobody joined, or
+                three draws), and the link only led to "did not go ahead". */}
+            {match.gameId && match.status === 'live' && !match.needsDecision && (
+                <a href={`${STUDENT_PORTAL}/competitions/play/${match.gameId}`} target="_blank" rel="noreferrer" className="-mb-2.5 mt-0.5 inline-flex min-h-10 items-center text-xs font-bold text-indigo-700 hover:underline">Watch the game in the student portal</a>
             )}
 
             {open && (deciding ? (
@@ -78,7 +80,7 @@ const AdminMatch = ({ match, onCall }) => {
                     </div>
                 </div>
             ) : (
-                <button type="button" onClick={() => setDeciding(true)} className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-indigo-700"><Gavel size={14} /> Decide this match myself</button>
+                <button type="button" onClick={() => setDeciding(true)} className="-mb-2.5 mt-1 inline-flex min-h-10 items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-indigo-700"><Gavel size={14} /> Decide this match myself</button>
             ))}
         </article>
     );
@@ -146,7 +148,7 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
 
     return (
         <div className="space-y-6 pb-12 animate-fade-in">
-            <Link to={backTo} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} /> All competitions</Link>
+            <Link to={backTo} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} /> All competitions</Link>
 
             <header className={`${CARD} p-5`}>
                 <div className="flex flex-wrap items-start gap-4">

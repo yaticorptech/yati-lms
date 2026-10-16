@@ -285,7 +285,7 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
             </span>
             <span className="block">{quote.rest}</span>
           </h3>
-          <p className="animate-fade-in-up mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500 sm:mt-3 sm:text-[0.95rem] lg:mx-0" style={at(0.2)}>
+          <p className="animate-fade-in-up mx-auto mt-2 hidden max-w-md text-sm leading-relaxed text-slate-500 sm:mt-3 sm:block sm:text-[0.95rem] lg:mx-0" style={at(0.2)}>
             {quote.line}
           </p>
 
@@ -301,9 +301,10 @@ export function LevelIntro({ gameId, level, objective, seconds, stars, onStart }
           </div>
 
           {/* The objective and the clock, so the words above never replace
-              the one thing the student has to know. */}
-          <p className="animate-fade-in-up mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-bold text-slate-500 sm:mt-4 lg:justify-start" style={at(0.3)}>
-            <span className="inline-flex items-center gap-1.5"><Target className="h-3.5 w-3.5 text-violet-500" />{objective}</span>
+              the one thing the student has to know. Phones leave the
+              objective out and keep the pills; with no pill the row goes too. */}
+          <p className={`animate-fade-in-up mt-3 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-bold text-slate-500 sm:mt-4 sm:flex lg:justify-start ${seconds !== undefined || stars > 0 ? 'flex' : 'hidden'}`} style={at(0.3)}>
+            <span className="hidden items-center gap-1.5 sm:inline-flex"><Target className="h-3.5 w-3.5 text-violet-500" />{objective}</span>
             {seconds !== undefined && (
               <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 ring-inset tabular-nums"><Timer className="h-3.5 w-3.5 text-orange-500" />{seconds}s</span>
             )}

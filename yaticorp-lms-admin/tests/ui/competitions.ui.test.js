@@ -368,6 +368,21 @@ export default {
         assert.doesNotMatch(result.matches, /2026/, 'no time on a match nobody plays');
     });
 
+    test('a match that needs the organizer\'s decision has no "Watch the game" link: its game is over', async () => {
+        const stuck = { ...MATCHES[0], status: 'live', gameId: 'g1', games: 1, needsDecision: true, resultNote: 'Nobody joined the game. The organizer will decide this match.' };
+        const stuckApi = byeApi.replace(JSON.stringify(MATCHES), JSON.stringify([stuck, MATCHES[1]]));
+        assert.notEqual(stuckApi, byeApi, 'the stuck match was put in');
+        const { result, errors } = await screen({ entry: page('pages/CompetitionAdmin.jsx', '/competitions/b1', '/competitions/:id'), api: stuckApi, script: `
+            await sleep(600);
+            [...document.querySelectorAll('button')].find((b) => /Matches & rounds/.test(b.innerText)).click(); await sleep(400);
+            const card = [...document.querySelectorAll('article')].find((a) => /Delta/.test(a.innerText));
+            return { text: card.innerText, watch: [...card.querySelectorAll('a')].some((a) => /Watch the game/.test(a.innerText)) };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.text, /Needs your decision/);
+        assert.match(result.text, /Decide this match myself/, 'the way to settle it is there');
+        assert.equal(result.watch, false);
+    });
+
     test('the organizer sees the bye with no match time, and the real match with its time', async () => {
         const { result, errors } = await screen({ entry: page('pages/CompetitionAdmin.jsx', '/competitions/b1', '/competitions/:id'), api: byeApi, script: `
             await sleep(600);
@@ -500,11 +515,13 @@ export default {
             const header = document.querySelector('header'), h1 = header.querySelector('h1');
             const lines = Math.round(h1.getBoundingClientRect().height / parseFloat(getComputedStyle(h1).lineHeight));
             const edit = [...header.querySelectorAll('button')].find((b) => /Edit/.test(b.innerText)).getBoundingClientRect();
-            return { share: h1.parentElement.getBoundingClientRect().width / header.getBoundingClientRect().width, lines, buttonsBelow: edit.top >= h1.getBoundingClientRect().bottom };` });
+            const back = [...document.querySelectorAll('a')].find((a) => /All competitions/.test(a.innerText)).getBoundingClientRect();
+            return { share: h1.parentElement.getBoundingClientRect().width / header.getBoundingClientRect().width, lines, buttonsBelow: edit.top >= h1.getBoundingClientRect().bottom, backHeight: back.height };` });
         assert.deepEqual(errors, []);
         assert.ok(result.share > 0.6, `the name has room (${Math.round(result.share * 100)}% of the card)`);
         assert.ok(result.lines <= 2, `the name is ${result.lines} lines, not a word a line`);
         assert.equal(result.buttonsBelow, true, 'Edit and Cancel are on their own row');
+        assert.ok(result.backHeight >= 40, `All competitions is a finger's height (${result.backHeight}px)`);
     });
 
     test('the college\'s Take part list keeps each name readable, with the badges below it', async () => {
