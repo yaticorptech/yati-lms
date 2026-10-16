@@ -98,14 +98,60 @@ export function levelProgress(xp = 0, level = 1, thresholds) {
   };
 }
 
-/** Local YYYY-MM-DD key. Deliberately not toISOString, which shifts to UTC and
- *  can move a late-evening completion onto the following day. */
+/**
+ * The platform's timezone: the day Career Path's plan, the rewards streak and
+ * the AI allowance all turn over in. Mirrors REWARDS_TIMEZONE on the server
+ * (Asia/Kolkata unless a deployment sets otherwise — set
+ * VITE_PLATFORM_TIMEZONE to the same value there). Tasks now arrive with
+ * their own `day` and `completedDay` worked out by the server, which is the
+ * authority; this is only for "today" and for older answers without them.
+ */
+export const PLATFORM_TIMEZONE = import.meta.env?.VITE_PLATFORM_TIMEZONE || 'Asia/Kolkata';
+
+let dayFormat = null;
+const platformFormat = () => {
+  if (dayFormat) return dayFormat;
+  try {
+    dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: PLATFORM_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
+  } catch {
+    // An unknown zone name: the device's own day, which is what this was before.
+    dayFormat = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  }
+  return dayFormat;
+};
+
+/**
+ * The platform day an instant falls on, as 'YYYY-MM-DD'.
+ *
+ * This used to be the DEVICE's date, while the server stamps every task with
+ * the platform's midnight — so on a phone set to any other timezone, a task
+ * finished late in the evening landed on tomorrow's square and the streak
+ * strip counted it on the wrong day. Deliberately not toISOString, which is
+ * UTC and wrong for everyone.
+ */
 export function dayKey(date) {
   const d = new Date(date);
   if (Number.isNaN(d.getTime())) return null;
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${month}-${day}`;
+  return platformFormat().format(d);
+}
+
+/** Today, on the platform's calendar. */
+export const todayKey = () => dayKey(new Date());
+
+/** Shift a 'YYYY-MM-DD' key by whole days. Plain date arithmetic — no zones. */
+export function shiftKey(key, delta) {
+  const [y, m, d] = String(key).split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10);
+}
+
+/** A key as a Date to label (weekday names and the like), at midday UTC so no zone moves it. */
+export const keyAsDate = (key) => new Date(`${key}T12:00:00Z`);
+
+/** The platform day a task belongs to: the server's `day`, or worked out the same way. */
+export function taskDay(task) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(task?.day || '')) return task.day;
+  const at = task?.assignedDate || task?.createdAt;
+  return at ? dayKey(at) : null;
 }
 
 /** The date a task should be credited to. Tasks completed before `completedAt`
@@ -114,21 +160,21 @@ function completionDate(task) {
   return task.completedAt || task.updatedAt || task.createdAt;
 }
 
+/** The platform day a task was finished on: the server's `completedDay`, or worked out. */
+export function completedDay(task) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(task?.completedDay || '')) return task.completedDay;
+  return dayKey(completionDate(task));
+}
+
 /** Set of day keys on which at least one task was completed. */
 export function activeDays(tasks = []) {
   const days = new Set();
   for (const task of tasks) {
     if (task.status !== 'Completed') continue;
-    const key = dayKey(completionDate(task));
+    const key = completedDay(task);
     if (key) days.add(key);
   }
   return days;
-}
-
-function shiftDays(date, delta) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + delta);
-  return d;
 }
 
 /**
@@ -140,16 +186,16 @@ export function currentStreak(tasks = []) {
   const days = activeDays(tasks);
   if (days.size === 0) return 0;
 
-  const today = new Date();
+  const today = todayKey();
   // Anchor on today if there's activity, otherwise yesterday — so a streak
   // isn't reported as broken simply because it's early in the day.
-  let cursor = days.has(dayKey(today)) ? today : shiftDays(today, -1);
-  if (!days.has(dayKey(cursor))) return 0;
+  let cursor = days.has(today) ? today : shiftKey(today, -1);
+  if (!days.has(cursor)) return 0;
 
   let streak = 0;
-  while (days.has(dayKey(cursor))) {
+  while (days.has(cursor)) {
     streak += 1;
-    cursor = shiftDays(cursor, -1);
+    cursor = shiftKey(cursor, -1);
   }
   return streak;
 }
@@ -157,14 +203,14 @@ export function currentStreak(tasks = []) {
 /** Last `count` days, oldest first, each flagged with whether work happened. */
 export function recentActivity(tasks = [], count = 7) {
   const days = activeDays(tasks);
-  const today = new Date();
+  const today = todayKey();
 
   return Array.from({ length: count }, (_, i) => {
-    const date = shiftDays(today, -(count - 1 - i));
+    const key = shiftKey(today, -(count - 1 - i));
     return {
-      key: dayKey(date),
-      label: date.toLocaleDateString(undefined, { weekday: 'narrow' }),
-      active: days.has(dayKey(date)),
+      key,
+      label: keyAsDate(key).toLocaleDateString(undefined, { weekday: 'narrow', timeZone: 'UTC' }),
+      active: days.has(key),
       isToday: i === count - 1
     };
   });
@@ -212,25 +258,20 @@ export function greeting(date = new Date()) {
  * days" strip beside it and needs no decision about which day a week starts on.
  */
 export function weeklyMomentum(tasks = []) {
-  const today = new Date();
-  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-
-  const todayStart = startOfDay(today);
-  const dayMs = 86400000;
-  const recentFrom = todayStart - 6 * dayMs;
-  const priorFrom = todayStart - 13 * dayMs;
+  // Platform days, compared as 'YYYY-MM-DD' strings — which sort as dates.
+  const today = todayKey();
+  const recentFrom = shiftKey(today, -6);
+  const priorFrom = shiftKey(today, -13);
 
   let recent = 0;
   let prior = 0;
 
   for (const task of tasks) {
     if (task.status !== 'Completed') continue;
-    const when = task.completedAt || task.updatedAt || task.createdAt;
-    if (!when) continue;
-    const at = startOfDay(new Date(when));
-    if (Number.isNaN(at)) continue;
+    const at = completedDay(task);
+    if (!at) continue;
 
-    if (at >= recentFrom && at <= todayStart) recent += 1;
+    if (at >= recentFrom && at <= today) recent += 1;
     else if (at >= priorFrom && at < recentFrom) prior += 1;
   }
 

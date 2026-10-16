@@ -18,7 +18,9 @@ export const getAuthServices = (apiClient) => ({
      * Signup student
      */
     signup: async (userData) => {
-        const res = await apiClient.post('/user/register', userData);
+        // /api/auth/register — the route the sign-up page uses. There has
+        // never been a /user/register on the server; this answered 404.
+        const res = await apiClient.post('/auth/register', userData);
         return res.data;
     },
 

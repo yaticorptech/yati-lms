@@ -2,18 +2,20 @@
  * @author Preethesh Kulal
  * @description Full course player with sidebar curriculum, video/PDF/quiz lesson rendering
  */
-import React, { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
 import saveToDrive from '../integrations/google/saveToDrive';
 import { AuthContext } from '../context/AuthContext';
-import { PlayCircle, FileText, CheckCircle2, ChevronDown, ChevronRight, CheckSquare, Briefcase, Award, Download, HelpCircle, Lock, Paperclip, ArrowLeft, Eye } from 'lucide-react';
+import { PlayCircle, FileText, CheckCircle2, ChevronDown, ChevronRight, CheckSquare, Briefcase, Award, Download, HelpCircle, Lock, Paperclip, ArrowLeft, ArrowRight, Eye, Loader2 } from 'lucide-react';
 import VideoPlayer from '../components/VideoPlayer';
 import CourseOutlineDialog from '../components/course/CourseOutlineDialog';
+import PdfViewer from '../components/course/PdfViewer';
+import Portal from '../components/Portal';
 import { useHideLoop } from '../components/loopVisibility';
 import QuizTaker from '../components/QuizTaker';
 import { useCoursePlayer } from '../shared/hooks/useCoursePlayer';
-import { unlockedLessonIds } from '../shared/playback/resume';
+import { unlockedLessonIds, nextLessonAfter, hasWatched, markWatched } from '../shared/playback/resume';
 import { useMascot } from '../mascot/useMascot';
 import { REACTIONS } from '../mascot/reactions';
 import { saveBlob } from '../native/saveFile';
@@ -28,6 +30,17 @@ const CoursePlayer = () => {
     const { courseId } = useParams();
     const { user, setUser } = React.useContext(AuthContext);
     const navigate = useNavigate();
+    // A lesson named in the address (/learn/:courseId?lesson=<id>) opens
+    // first, when the student can open it. Read once, then taken out of the
+    // address, so a reload later reopens where they are, not where they came in.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [requestedLessonId] = useState(() => searchParams.get('lesson'));
+    useEffect(() => {
+        if (!searchParams.has('lesson')) return;
+        const rest = new URLSearchParams(searchParams);
+        rest.delete('lesson');
+        setSearchParams(rest, { replace: true });
+    }, [searchParams, setSearchParams]);
 
     // The player is opened from My Courses, the Dashboard and Career Path's
     // planner, so Back returns to whichever it was (picking a lesson does not
@@ -46,6 +59,7 @@ const CoursePlayer = () => {
         fetchErrorCode,
         activeLesson,
         setActiveLesson,
+        openLesson,
         expandedModules,
         completedLessons,
         generatingCert,
@@ -54,7 +68,7 @@ const CoursePlayer = () => {
         resumePositionFor,
         reportPlayback,
         generateCertificate: sharedGenerateCertificate
-    } = useCoursePlayer(api, courseId);
+    } = useCoursePlayer(api, courseId, { requestedLessonId });
     const mascot = useMascot();
 
     // Platform-specific UI states
@@ -68,12 +82,28 @@ const CoursePlayer = () => {
     // Said on the page; a refused completion used to go nowhere at all.
     const [lessonNote, setLessonNote] = useState(null);
     const [certError, setCertError] = useState('');
+    // The lesson whose completion is on its way to the server: its button
+    // waits, so a double-click cannot send it twice.
+    const [savingLessonId, setSavingLessonId] = useState(null);
+    // A quiz lesson with nothing to take (no quiz, or no questions in it):
+    // marked done with the button, as a quiz with nothing in it cannot be passed.
+    const [emptyQuizLessonId, setEmptyQuizLessonId] = useState(null);
+    // The locked lesson the student tapped, whose reason is shown under it.
+    const [lockedNoteId, setLockedNoteId] = useState(null);
 
     // Tracks which lesson's video has been watched to the end. Storing the
     // lesson id (rather than a boolean reset by an effect) makes the flag
-    // reset itself the moment a different lesson becomes active.
+    // reset itself the moment a different lesson becomes active. It is kept
+    // on the device too (per student), so a reload does not ask for the whole
+    // video again before the lesson can be marked done.
+    const userKey = user?._id || user?.id || user?.cardNumber || 'me';
     const [watchedLessonId, setWatchedLessonId] = useState(null);
-    const videoWatched = Boolean(activeLesson?._id) && watchedLessonId === activeLesson._id;
+    const videoWatched = Boolean(activeLesson?._id) && (watchedLessonId === activeLesson._id || hasWatched(userKey, activeLesson._id));
+    const onVideoEnded = () => {
+        if (!activeLesson?._id) return;
+        markWatched(userKey, activeLesson._id);
+        setWatchedLessonId(activeLesson._id);
+    };
 
     const handleDownloadPdf = async (url, filename) => {
         if (!url) return;
@@ -95,23 +125,29 @@ const CoursePlayer = () => {
     const completeLesson = async (lessonId) => {
         const firstTime = !completedLessons.includes(lessonId);
         setLessonNote(null);
+        setSavingLessonId(lessonId);
         try {
             await markLessonComplete(lessonId);
         } catch (err) {
             setLessonNote({ lessonId, text: (err.response?.status < 500 && err.response?.data?.message) || 'Your progress was not saved. Please try again.' });
             return;
+        } finally {
+            setSavingLessonId(null);
         }
         if (firstTime) mascot.react(REACTIONS.lessonComplete);
     };
 
     // A quiz's first attempt earns credits whether it passes or not: shown,
     // and nothing more. Only a pass completes the lesson (QuizTaker's onQuizPassed).
-    const showCredits = (creditsEarned) => {
+    // The balance is the server's figure after the attempt; adding to this
+    // page's own copy drifted from it (a second tab, or a stale copy).
+    const showCredits = (creditsEarned, totalCredits) => {
         if (!(creditsEarned > 0)) return;
         setCreditToast({ credits: creditsEarned });
         setTimeout(() => setCreditToast(null), 5000);
         if (user && setUser) {
-            const updatedUser = { ...user, credits: (user.credits || 0) + creditsEarned };
+            const credits = Number.isFinite(totalCredits) ? totalCredits : (user.credits || 0) + creditsEarned;
+            const updatedUser = { ...user, credits };
             setUser(updatedUser);
             localStorage.setItem('studentData', JSON.stringify(updatedUser));
         }
@@ -193,6 +229,10 @@ const CoursePlayer = () => {
     const { course, modules, progress } = courseData;
     const isCompleted = completedLessons.includes(activeLesson?._id);
     const courseFullyCompleted = progress?.percentage === 100;
+    const saving = Boolean(activeLesson) && savingLessonId === activeLesson._id;
+    const quizIsEmpty = activeLesson?.type === 'quiz' && emptyQuizLessonId === activeLesson._id;
+    // A reading shown in the page: a PDF lesson whose file is not for download.
+    const showsPdf = Boolean(activeLesson && activeLesson.type !== 'quiz' && !(activeLesson.videoUrl || activeLesson.videoId) && activeLesson.pdfUrl && !activeLesson.allowDownload);
 
     // A generic/AWS HTML5 video must be watched fully before it can be completed.
     const isVideoLesson = !!(activeLesson && (activeLesson.videoUrl || activeLesson.videoId));
@@ -212,6 +252,15 @@ const CoursePlayer = () => {
         if (days <= 0) return `Available ${dateStr}`;
         return `Unlocks in ${days} day${days === 1 ? '' : 's'} · ${dateStr}`;
     };
+    const availableOn = (unlockAt) => (unlockAt
+        ? `Available on ${new Date(unlockAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}.`
+        : 'Not available yet.');
+    // Why a lesson is locked, said where the student tapped it: a module that
+    // waits on its date says the date, not "complete the previous lessons".
+    const lockReason = (module) => (module.locked ? availableOn(module.unlockAt) : 'Complete the previous lessons to unlock this one.');
+
+    // Where to go once this lesson is done: the next lesson, if it is open.
+    const next = activeLesson ? nextLessonAfter(modules, completedLessons, activeLesson._id) : null;
 
     // Side by side and one screen tall on a computer, the curriculum scrolling
     // inside itself. On a phone the page simply grows: the curriculum card is
@@ -219,22 +268,26 @@ const CoursePlayer = () => {
     return (
         <div className="flex flex-col lg:flex-row gap-6 animate-fade-in lg:h-[calc(100vh-6rem)] relative z-0">
 
-            {/* In-app Credit Toast Notification */}
+            {/* In-app Credit Toast Notification. Out at the end of the page
+                (Portal): inside this `relative z-0` wrapper it sat under the
+                phone's bottom bar. On a phone it sits above that bar. */}
             {creditToast && (
-                <div className="mascot-clear fixed bottom-6 right-6 z-[200] animate-fade-in">
-                    <div className="bg-white border border-emerald-200 shadow-2xl rounded-2xl px-6 py-4 flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <Award size={24} className="text-emerald-600" />
+                <Portal>
+                    <div role="status" aria-live="polite" className="mascot-clear fixed right-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-[130] animate-fade-in sidebar:right-6 sidebar:bottom-6">
+                        <div className="bg-white border border-emerald-200 shadow-2xl rounded-2xl px-6 py-4 flex items-center space-x-4">
+                            <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                <Award size={24} className="text-emerald-600" aria-hidden="true" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-slate-800 text-base">Credits Earned!</p>
+                                <p className="text-emerald-600 font-semibold text-sm">+{creditToast.credits} credits added to your balance</p>
+                            </div>
+                            <button type="button" onClick={() => setCreditToast(null)} aria-label="Dismiss" className="text-slate-400 hover:text-slate-600 ml-2">
+                                <span className="text-lg leading-none" aria-hidden="true">&times;</span>
+                            </button>
                         </div>
-                        <div>
-                            <p className="font-bold text-slate-800 text-base">Credits Earned!</p>
-                            <p className="text-emerald-600 font-semibold text-sm">+{creditToast.credits} credits added to your balance</p>
-                        </div>
-                        <button onClick={() => setCreditToast(null)} className="text-slate-400 hover:text-slate-600 ml-2">
-                            <span className="text-lg leading-none">&times;</span>
-                        </button>
                     </div>
-                </div>
+                </Portal>
             )}
 
             {/* Main Content Area (Video/PDF/Quiz) */}
@@ -256,18 +309,23 @@ const CoursePlayer = () => {
                         </>
                     )}
                 </div>
-                <div className={`bg-black rounded-2xl overflow-hidden shadow-xl shadow-slate-200/50 relative flex flex-col ${activeLesson?.type === 'quiz' ? 'min-h-[75vh]' : 'aspect-video'}`}>
+                {/* A reading gets a tall box that scrolls through its pages; a
+                    quiz grows with its questions; a video keeps its shape. */}
+                <div className={`${showsPdf ? 'bg-slate-200 h-[75vh]' : 'bg-black'} rounded-2xl overflow-hidden shadow-xl shadow-slate-200/50 relative flex flex-col ${activeLesson?.type === 'quiz' ? 'min-h-[75vh]' : showsPdf ? '' : 'aspect-video'}`}>
                     {activeLesson ? (
                         <>
                             {activeLesson.type === 'quiz' ? (
                                 <QuizTaker
+                                    key={activeLesson._id}
                                     lessonId={activeLesson._id}
                                     onQuizPassed={(lessonId) => completeLesson(lessonId)}
                                     onCreditsEarned={showCredits}
+                                    onEmpty={setEmptyQuizLessonId}
                                     isAlreadyCompleted={isCompleted}
                                 />
                             ) : activeLesson.videoUrl || activeLesson.videoId ? (
                                 <VideoPlayer
+                                    key={activeLesson._id}
                                     source={activeLesson.videoSource || 'youtube'}
                                     url={activeLesson.videoUrl}
                                     videoId={activeLesson.videoId}
@@ -276,8 +334,9 @@ const CoursePlayer = () => {
                                     lessonId={activeLesson._id}
                                     resumeFrom={resumePositionFor(activeLesson._id)}
                                     onPositionSaved={(seconds, reason) => reportPlayback(activeLesson._id, seconds, reason)}
-                                    onEnded={() => setWatchedLessonId(activeLesson?._id ?? null)}
-                                    preventSkip={true}
+                                    onEnded={onVideoEnded}
+                                    // A lesson already done can be watched in any order.
+                                    preventSkip={!isCompleted}
                                 />
                             ) : activeLesson.pdfUrl ? (
                                 activeLesson.allowDownload ? (
@@ -292,14 +351,9 @@ const CoursePlayer = () => {
                                         </button>
                                     </div>
                                 ) : (
-                                    <div className="w-full h-full absolute inset-0 bg-slate-900">
-                                        <iframe
-                                            src={`${activeLesson.pdfUrl}#toolbar=0&navpanes=0`}
-                                            title={activeLesson.title}
-                                            className="w-full h-full border-none"
-                                            onError={(e) => console.log('Iframe failed to load PDF', e)}
-                                        />
-                                    </div>
+                                    // Drawn in the page with pdf.js: an <iframe> shows nothing
+                                    // in Android's web view or Chrome on Android.
+                                    <PdfViewer key={activeLesson._id} url={activeLesson.pdfUrl} title={activeLesson.title} />
                                 )
                             ) : (
                                 <div className="w-full h-full bg-slate-900 flex items-center justify-center absolute inset-0 text-slate-500">
@@ -321,33 +375,66 @@ const CoursePlayer = () => {
                         <p className="text-sm text-slate-500 mt-1">{course.title}</p>
                     </div>
 
-                    {activeLesson && activeLesson.type !== 'quiz' && (
+                    {activeLesson && (activeLesson.type !== 'quiz' || quizIsEmpty) && (
                         <div className="flex flex-col items-start sm:items-end">
-                            <button
-                                onClick={() => completeLesson(activeLesson._id)}
-                                disabled={isCompleted || !watchGateOpen}
-                                data-mascot-cta
-                                className={`px-6 py-3 rounded-xl font-bold flex items-center shadow-sm transition-all duration-300 ${isCompleted ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed' : !watchGateOpen ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-4 focus:ring-indigo-100'}`}
-                            >
-                                {isCompleted ? (
-                                    <><CheckCircle2 size={20} className="mr-2" /> Completed</>
-                                ) : !watchGateOpen ? (
-                                    <><Lock size={18} className="mr-2" /> Mark Complete</>
-                                ) : (
-                                    <><CheckCircle2 size={20} className="mr-2" /> Mark Complete</>
+                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => completeLesson(activeLesson._id)}
+                                    disabled={isCompleted || !watchGateOpen || saving}
+                                    data-mascot-cta
+                                    className={`px-6 py-3 rounded-xl font-bold flex items-center shadow-sm transition-all duration-300 ${isCompleted ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed' : !watchGateOpen ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-4 focus:ring-indigo-100 disabled:cursor-wait disabled:opacity-70'}`}
+                                >
+                                    {isCompleted ? (
+                                        <><CheckCircle2 size={20} className="mr-2" /> Completed</>
+                                    ) : saving ? (
+                                        <><Loader2 size={18} className="mr-2 animate-spin" /> Saving…</>
+                                    ) : !watchGateOpen ? (
+                                        <><Lock size={18} className="mr-2" /> Mark Complete</>
+                                    ) : (
+                                        <><CheckCircle2 size={20} className="mr-2" /> Mark Complete</>
+                                    )}
+                                </button>
+                                {isCompleted && next?.open && (
+                                    <button
+                                        type="button"
+                                        onClick={() => openLesson(next.lesson, next.module._id)}
+                                        className="px-5 py-3 rounded-xl font-bold flex items-center bg-indigo-600 text-white shadow-sm transition-colors hover:bg-indigo-700"
+                                    >
+                                        Next lesson <ArrowRight size={18} className="ml-2" />
+                                    </button>
                                 )}
-                            </button>
+                            </div>
                             {!isCompleted && !watchGateOpen && (
                                 <p className="text-xs text-slate-400 mt-1.5">Finish watching the video to complete this lesson.</p>
                             )}
+                            {!isCompleted && quizIsEmpty && (
+                                <p className="text-xs text-slate-500 mt-1.5">This quiz has no questions yet, so you can mark the lesson complete.</p>
+                            )}
+                            {isCompleted && next && !next.open && next.module.locked && (
+                                <p className="text-xs text-slate-500 mt-1.5">The next module opens soon. {availableOn(next.module.unlockAt)}</p>
+                            )}
                         </div>
                     )}
-                    {activeLesson && activeLesson.type === 'quiz' && (
-                        <div className={`px-6 py-3 rounded-xl font-bold flex items-center shadow-sm ${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                            {isCompleted ? (
-                                <><CheckCircle2 size={20} className="mr-2" /> Quiz Passed</>
-                            ) : (
-                                <><HelpCircle size={20} className="mr-2" /> Pass Quiz to Complete</>
+                    {activeLesson && activeLesson.type === 'quiz' && !quizIsEmpty && (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className={`px-6 py-3 rounded-xl font-bold flex items-center shadow-sm ${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                                {isCompleted ? (
+                                    <><CheckCircle2 size={20} className="mr-2" /> Quiz Passed</>
+                                ) : saving ? (
+                                    <><Loader2 size={18} className="mr-2 animate-spin" /> Saving…</>
+                                ) : (
+                                    <><HelpCircle size={20} className="mr-2" /> Pass Quiz to Complete</>
+                                )}
+                            </div>
+                            {isCompleted && next?.open && (
+                                <button
+                                    type="button"
+                                    onClick={() => openLesson(next.lesson, next.module._id)}
+                                    className="px-5 py-3 rounded-xl font-bold flex items-center bg-indigo-600 text-white shadow-sm transition-colors hover:bg-indigo-700"
+                                >
+                                    Next lesson <ArrowRight size={18} className="ml-2" />
+                                </button>
                             )}
                         </div>
                     )}
@@ -389,7 +476,7 @@ const CoursePlayer = () => {
                             </div>
                             <div>
                                 <h3 className="font-bold text-emerald-900 text-lg">Course Completed!</h3>
-                                <p className="text-emerald-700 text-sm">You have finished all lessons. Claim your certificate.</p>
+                                <p className="text-emerald-700 text-sm">You have finished all lessons. Your certificate is in your profile — download a copy here.</p>
                             </div>
                         </div>
                         {certResult ? (
@@ -463,41 +550,56 @@ const CoursePlayer = () => {
                                         const isLessonActive = activeLesson?._id === lesson._id;
                                         const isLessonCompleted = completedLessons.includes(lesson._id);
                                         const isLocked = module.locked || !unlockedIds.has(lesson._id);
+                                        const showReason = isLocked && lockedNoteId === lesson._id;
 
+                                        // A locked lesson still answers a tap: with why it is
+                                        // locked, under it. A disabled button said so only in a
+                                        // tooltip, which a phone never shows.
                                         return (
-                                            <button
-                                                key={lesson._id}
-                                                onClick={() => { if (!isLocked) setActiveLesson(lesson); }}
-                                                disabled={isLocked}
-                                                title={isLocked ? 'Complete the previous lessons to unlock this one' : undefined}
-                                                className={`w-full flex items-start p-4 text-left border-l-4 transition-colors ${isLessonActive
-                                                    ? 'bg-indigo-50 border-indigo-600'
-                                                    : isLocked
-                                                        ? 'border-transparent opacity-50 cursor-not-allowed'
-                                                        : 'border-transparent hover:bg-slate-50/80 hover:border-slate-300'
-                                                    }`}
-                                            >
-                                                <div className="mt-0.5 mr-3 flex-shrink-0">
-                                                    {isLessonCompleted ? (
-                                                        <CheckCircle2 size={18} className="text-emerald-500" />
-                                                    ) : isLocked ? (
-                                                        <Lock size={16} className="text-slate-400" />
-                                                    ) : (
-                                                        <div className={`w-[18px] h-[18px] border-2 rounded-full ${isLessonActive ? 'border-indigo-600' : 'border-slate-300'}`}></div>
-                                                    )}
-                                                </div>
-                                                <div className="flex-1">
-                                                    <p className={`text-sm font-medium ${isLessonActive ? 'text-indigo-900 font-bold' : 'text-slate-700'}`}>
-                                                        {lIdx + 1}. {lesson.title}
-                                                    </p>
-                                                    <div className="flex items-center space-x-3 mt-1.5 opacity-60">
-                                                        {(lesson.videoUrl || lesson.videoId) && <div className="flex items-center text-xs text-slate-500"><PlayCircle size={12} className="mr-1" /> Video</div>}
-                                                        {lesson.pdfUrl && <div className="flex items-center text-xs text-slate-500"><FileText size={12} className="mr-1" /> Reading</div>}
-                                                        {lesson.quizId && <div className="flex items-center text-xs text-slate-500"><CheckSquare size={12} className="mr-1" /> Quiz</div>}
-                                                        {lesson.assignmentId && <div className="flex items-center text-xs text-slate-500"><Briefcase size={12} className="mr-1" /> Assignment</div>}
+                                            <React.Fragment key={lesson._id}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (isLocked) { setLockedNoteId(showReason ? null : lesson._id); return; }
+                                                        setLockedNoteId(null);
+                                                        setActiveLesson(lesson);
+                                                    }}
+                                                    aria-disabled={isLocked || undefined}
+                                                    aria-expanded={isLocked ? showReason : undefined}
+                                                    className={`w-full flex items-start p-4 text-left border-l-4 transition-colors ${isLessonActive
+                                                        ? 'bg-indigo-50 border-indigo-600'
+                                                        : isLocked
+                                                            ? 'border-transparent opacity-50 cursor-help'
+                                                            : 'border-transparent hover:bg-slate-50/80 hover:border-slate-300'
+                                                        }`}
+                                                >
+                                                    <div className="mt-0.5 mr-3 flex-shrink-0">
+                                                        {isLessonCompleted ? (
+                                                            <CheckCircle2 size={18} className="text-emerald-500" />
+                                                        ) : isLocked ? (
+                                                            <Lock size={16} className="text-slate-400" />
+                                                        ) : (
+                                                            <div className={`w-[18px] h-[18px] border-2 rounded-full ${isLessonActive ? 'border-indigo-600' : 'border-slate-300'}`}></div>
+                                                        )}
                                                     </div>
-                                                </div>
-                                            </button>
+                                                    <div className="flex-1">
+                                                        <p className={`text-sm font-medium ${isLessonActive ? 'text-indigo-900 font-bold' : 'text-slate-700'}`}>
+                                                            {lIdx + 1}. {lesson.title}
+                                                        </p>
+                                                        <div className="flex items-center space-x-3 mt-1.5 opacity-60">
+                                                            {(lesson.videoUrl || lesson.videoId) && <div className="flex items-center text-xs text-slate-500"><PlayCircle size={12} className="mr-1" /> Video</div>}
+                                                            {lesson.pdfUrl && <div className="flex items-center text-xs text-slate-500"><FileText size={12} className="mr-1" /> Reading</div>}
+                                                            {lesson.quizId && <div className="flex items-center text-xs text-slate-500"><CheckSquare size={12} className="mr-1" /> Quiz</div>}
+                                                            {lesson.assignmentId && <div className="flex items-center text-xs text-slate-500"><Briefcase size={12} className="mr-1" /> Assignment</div>}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                                {showReason && (
+                                                    <p role="status" className="flex items-center gap-1.5 bg-amber-50 px-4 py-2 pl-12 text-xs font-semibold text-amber-700">
+                                                        <Lock size={12} aria-hidden="true" /> {lockReason(module)}
+                                                    </p>
+                                                )}
+                                            </React.Fragment>
                                         );
                                     })}
                                     {module.lessons.length === 0 && (

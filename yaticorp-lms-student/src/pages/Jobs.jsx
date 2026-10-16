@@ -18,7 +18,7 @@
  * every student; the page opens on Jobs for all of them.
  */
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import {
     Briefcase, MapPin, Loader2, RotateCcw, Search, AlertCircle, Crosshair,
     Bookmark, Sparkles, Compass, Globe, Clock, Check, X, Info, GraduationCap, Plus
@@ -70,16 +70,29 @@ const TABS = [
    student's own city never surfaces. The AI match tab sends the same query
    as Jobs and narrows what comes back, below. */
 // Which resume this browser has already folded into the job search. Keyed on
-// the upload time, so a re-upload counts as new and a page reload does not.
-const RESUME_SEEN_KEY = 'jobs:resumeSeenAt';
-const isNewerResume = (resume) => {
+// the upload time, so a re-upload counts as new and a page reload does not —
+// and on the student, so on a shared computer one student's resume being
+// "seen" never stops the next student's from being folded in.
+const resumeSeenKey = (userId) => `jobs:resumeSeenAt.${userId || 'me'}`;
+const LEGACY_RESUME_SEEN = 'jobs:resumeSeenAt';
+const isNewerResume = (resume, userId) => {
     try {
-        const seen = Number(localStorage.getItem(RESUME_SEEN_KEY) || 0);
-        return new Date(resume.parsedAt || 0).getTime() > seen;
+        let seen = localStorage.getItem(resumeSeenKey(userId));
+        if (seen === null) {
+            // The old marker was one for the whole device. The first student
+            // to open Jobs after the change takes it over, once, so their
+            // resume is not folded in a second time; then it is gone.
+            seen = localStorage.getItem(LEGACY_RESUME_SEEN);
+            if (seen !== null) {
+                localStorage.setItem(resumeSeenKey(userId), seen);
+                localStorage.removeItem(LEGACY_RESUME_SEEN);
+            }
+        }
+        return new Date(resume.parsedAt || 0).getTime() > Number(seen || 0);
     } catch { return true; }
 };
-const markResumeSeen = (resume) => {
-    try { localStorage.setItem(RESUME_SEEN_KEY, String(new Date(resume.parsedAt || Date.now()).getTime())); } catch { /* private mode */ }
+const markResumeSeen = (resume, userId) => {
+    try { localStorage.setItem(resumeSeenKey(userId), String(new Date(resume.parsedAt || Date.now()).getTime())); } catch { /* private mode */ }
 };
 
 const TAB_QUERY = {
@@ -222,7 +235,8 @@ const Chip = ({ label, value, onRemove }) => (
 );
 
 export default function Jobs() {
-    const { isCareerPathEnabled } = useContext(AuthContext);
+    const { isCareerPathEnabled, user } = useContext(AuthContext);
+    const userId = user?._id || user?.id;
     const [params, setParams] = useSearchParams();
     const [form, setForm] = useState(() => formFromParams(params));
     const [tab, setTab] = useState(() => tabFromParam(params.get('tab')));
@@ -286,14 +300,14 @@ export default function Jobs() {
                 clearInterval(timer);
                 setResumeProfile(next);
                 if (next.skills?.length) {
-                    markResumeSeen(next);
+                    markResumeSeen(next, userId);
                     setForm((f) => ({ ...f, skills: [...new Set([...f.skills, ...next.skills])].slice(0, 20) }));
                     setStatus({ message: `Added ${next.skills.length} skills from your resume.`, error: false });
                 }
             } catch { if (tries >= 12) clearInterval(timer); }
         }, 5000);
         return () => clearInterval(timer);
-    }, [resumeProfile?.parseStatus]);
+    }, [resumeProfile?.parseStatus, userId]);
 
     // Bookmarks. savedIds drives the icon on every card; savedJobs is the
     // saved view's own list, fetched once and edited optimistically.
@@ -539,9 +553,9 @@ export default function Jobs() {
             // the search once, even when the URL already names a search —
             // that is the whole point of uploading it. Marked as seen so a
             // student who then removes a chip is not handed it back.
-            const newResume = resume?.skills?.length && isNewerResume(resume);
+            const newResume = resume?.skills?.length && isNewerResume(resume, userId);
             if (newResume) {
-                markResumeSeen(resume);
+                markResumeSeen(resume, userId);
                 if (inbound.skills.length || inbound.role.trim()) {
                     const skills = [...new Set([...inbound.skills, ...resume.skills])].slice(0, 20);
                     extra = { ...extra, skills };
@@ -615,6 +629,39 @@ export default function Jobs() {
         boot();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    /* A new address while the page is already open: a job alert opened from
+       the bell while on Jobs, or the browser's back and forward. The address
+       was only read once, on arrival, so the alert's search changed the URL
+       and nothing else — the student saw the old results under the new
+       link. The page's own writes (the search keeping the URL in step, a tab
+       switch, Reset) all replace the entry, so a REPLACE is the page talking
+       to itself and is left alone; a PUSH or a POP came from outside. */
+    const location = useLocation();
+    const navType = useNavigationType();
+    const searchRef = useRef(search);
+    useEffect(() => { searchRef.current = search; });
+    const seenLocation = useRef(location.key);
+    useEffect(() => {
+        if (seenLocation.current === location.key) return undefined;
+        seenLocation.current = location.key;
+        if (navType === 'REPLACE') return undefined;
+        const next = new URLSearchParams(location.search);
+        const inbound = formFromParams(next);
+        const inboundTab = tabFromParam(next.get('tab'));
+        // After this render rather than inside it: the form and the tab are
+        // set the way a tap sets them, then the search runs on what arrived.
+        const timer = setTimeout(() => {
+            setErrors({});
+            setForm(inbound);
+            tabRef.current = inboundTab;
+            setTab(inboundTab);
+            if ((inboundTab === 'jobs' || inboundTab === 'hidden') && !Object.keys(validate(inbound)).length) {
+                searchRef.current(inbound, inboundTab);
+            }
+        }, 0);
+        return () => clearTimeout(timer);
+    }, [location.key, location.search, navType]);
 
     const onDetectLocation = async () => {
         setDetecting(true);

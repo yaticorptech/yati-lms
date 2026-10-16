@@ -165,8 +165,9 @@ export default function QuestionReview() {
                 </div>
             </section>
 
-            {/* Jump straight to any answer. */}
-            <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-slate-200 bg-white px-5 py-4">
+            {/* Jump straight to any answer. Not on a phone (asked 2026-10-15,
+                "remove it"): Previous and Next above do the job there. */}
+            <div className="hidden flex-wrap items-center gap-2 rounded-3xl border border-slate-200 bg-white px-5 py-4 sm:flex">
                 <span className="mr-1 text-xs font-black uppercase tracking-wider text-slate-500">Jump to</span>
                 {answered.map((t, i) => {
                     const n = r.perQuestion.find((x) => x.index === t.index)?.score ?? 0;

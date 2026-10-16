@@ -13,6 +13,7 @@
  */
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
+import ProfileImage from './ProfileImage';
 
 /** A desk by a window: books, a plant, a pencil cup. Drawn rather than
  *  shipped as a picture so it stays sharp at any size and weighs nothing. */
@@ -142,9 +143,8 @@ export default function WelcomeBanner({
                             aria-label={photo ? 'View your photo' : undefined}
                             className="block rounded-full bg-indigo-100/80 p-1.5 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-default">
                             <span data-photo className="block h-16 w-16 overflow-hidden rounded-full border-4 border-white bg-indigo-50 min-[400px]:h-20 min-[400px]:w-20 sm:h-24 sm:w-24 lg:h-28 lg:w-28">
-                                {photo
-                                    ? <img src={photo} alt={name} className="h-full w-full object-cover" />
-                                    : <span className="flex h-full w-full items-center justify-center text-2xl font-black text-indigo-600">{initials}</span>}
+                                <ProfileImage src={photo} alt={name} className="h-full w-full object-cover"
+                                    fallback={<span className="flex h-full w-full items-center justify-center text-2xl font-black text-indigo-600">{initials}</span>} />
                             </span>
                         </button>
                         {level != null && (

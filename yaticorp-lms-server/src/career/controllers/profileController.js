@@ -4,7 +4,7 @@ const Roadmap = require('../models/Roadmap');
 const SkillProgress = require('../models/SkillProgress');
 const DailyPlan = require('../models/DailyPlan');
 const Achievement = require('../models/Achievement');
-const { startOfDay, addDays, sweepMissedTasks } = require('../services/dailyPlanService');
+const { startOfDay, addDays, toISODate, sweepMissedTasks } = require('../services/dailyPlanService');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 
 // A skipped task the student keeps missing is the signal worth surfacing, so
@@ -54,8 +54,44 @@ const sharedStreak = async (userId, completedDates) => {
   } catch (error) {
     console.error('[career] rewards streak unavailable, using task history:', error.message);
   }
-  return calculateStreak(completedDates);
+  // The dates may be handed over as a function, so a caller only loads them
+  // when the fallback is actually needed.
+  const dates = typeof completedDates === 'function' ? await completedDates() : completedDates;
+  return calculateStreak(dates || []);
 };
+
+/**
+ * Sweep a student's missed tasks at most once a platform day, for the
+ * profile.
+ *
+ * Opening the profile is a read, and it used to write on every visit. The
+ * sweep only has anything to do once a day has ended, so after the first
+ * sweep of the day the rest find nothing — the planner's own read of today's
+ * plan still sweeps every time, since it builds the day's prompt from the
+ * result. Kept in memory: a restart only costs one extra sweep.
+ */
+const sweptOn = new Map();
+const sweepOncePerDay = async (userId) => {
+  const key = String(userId);
+  const day = toISODate(new Date());
+  if (sweptOn.get(key) === day) return;
+  await sweepMissedTasks(userId);
+  if (sweptOn.size > 50000) sweptOn.clear();
+  sweptOn.set(key, day);
+};
+
+/**
+ * Enough finished-task dates to count a streak from, newest first. Bounded:
+ * only read when Rewards is locked, and a streak longer than this many tasks
+ * is still told as one this long.
+ */
+const STREAK_HISTORY_LIMIT = 1000;
+const recentCompletionDates = async (userId) =>
+  (await Task.find({ userId, status: 'Completed', completedAt: { $ne: null } })
+    .sort({ completedAt: -1 })
+    .limit(STREAK_HISTORY_LIMIT)
+    .select('completedAt')
+    .lean()).map((t) => t.completedAt);
 
 // @desc    Everything the profile page shows: goal, progress, streak, misses
 // @route   GET /api/profile/summary
@@ -65,61 +101,72 @@ const getProfileSummary = async (req, res) => {
     const userId = req.user._id;
 
     // Keep the profile honest: without this, a task missed yesterday still
-    // reads as Pending until the student happens to open the planner.
-    await sweepMissedTasks(userId);
-
-    const [goal, roadmap, skills, achievements, allTasks, daysPlanned] = await Promise.all([
-      Goal.findOne({ userId }),
-      Roadmap.findOne({ userId }),
-      SkillProgress.find({ userId }).sort({ skillName: 1 }),
-      Achievement.find({ userId }).sort({ createdAt: -1 }).limit(10),
-      Task.find({ userId }).select('title description category status assignedDate completedAt skippedAt'),
-      DailyPlan.countDocuments({ userId })
-    ]);
-
-    const completed = allTasks.filter((t) => t.status === 'Completed');
-    const skipped = allTasks.filter((t) => t.status === 'Skipped');
-    const pending = allTasks.filter((t) => t.status === 'Pending');
+    // reads as Pending until the student happens to open the planner. Once a
+    // day is enough (see sweepOncePerDay).
+    await sweepOncePerDay(userId);
 
     // Titles already back on today's plan. A row stands for one piece of work
     // however many times it was missed, so once "Do it today" has put a copy
     // back the whole row is handled — listing it again would invite a second
     // copy of the same task onto the same day.
     const today = startOfDay();
-    const plannedTitles = new Set(
-      pending.filter((t) => t.assignedDate && t.assignedDate >= today).map((t) => t.title)
-    );
+
+    // Counted and grouped by the database rather than by loading every task
+    // the student has ever had: this ran on every visit, and a student a year
+    // in carried hundreds of tasks across the wire to make four numbers.
+    const [goal, roadmap, skills, achievements, byStatus, plannedTitles, daysPlanned] = await Promise.all([
+      Goal.findOne({ userId }),
+      Roadmap.findOne({ userId }),
+      SkillProgress.find({ userId }).sort({ skillName: 1 }),
+      Achievement.find({ userId }).sort({ createdAt: -1 }).limit(10),
+      Task.aggregate([{ $match: { userId } }, { $group: { _id: '$status', n: { $sum: 1 } } }]),
+      Task.distinct('title', { userId, status: 'Pending', assignedDate: { $gte: today } }),
+      DailyPlan.countDocuments({ userId })
+    ]);
+
+    const count = (status) => byStatus.find((row) => row._id === status)?.n || 0;
+    const completed = count('Completed');
+    const skipped = count('Skipped');
+    const pending = count('Pending');
+    const total = byStatus.reduce((sum, row) => sum + row.n, 0);
 
     // Rate over *decided* tasks only. Counting today's still-open work as failure
     // would make the number sink every morning and recover every evening.
-    const decided = completed.length + skipped.length;
-    const completionRate = decided ? Math.round((completed.length / decided) * 100) : 0;
+    const decided = completed + skipped;
+    const completionRate = decided ? Math.round((completed / decided) * 100) : 0;
 
     // Group skipped by title so a task missed five times reads as one habit
-    // with a count, which is the thing actually worth acting on.
-    const byTitle = new Map();
-    for (const task of skipped) {
-      if (plannedTitles.has(task.title)) continue;
-      const existing = byTitle.get(task.title);
-      if (existing) {
-        existing.times += 1;
-        if (task.skippedAt > existing.lastSkippedAt) existing.lastSkippedAt = task.skippedAt;
-      } else {
-        byTitle.set(task.title, {
-          _id: task._id,
-          title: task.title,
-          description: task.description,
-          category: task.category,
-          times: 1,
-          lastSkippedAt: task.skippedAt,
-          assignedDate: task.assignedDate
-        });
-      }
-    }
-
-    const skippedTasks = [...byTitle.values()]
-      .sort((a, b) => b.times - a.times || new Date(b.lastSkippedAt) - new Date(a.lastSkippedAt))
-      .slice(0, SKIPPED_LIMIT);
+    // with a count, which is the thing actually worth acting on. The row
+    // carries the most recent miss, which is the one "Do it today" moves.
+    const skippedTasks = (await Task.aggregate([
+      { $match: { userId, status: 'Skipped', title: { $nin: plannedTitles } } },
+      { $sort: { skippedAt: -1 } },
+      {
+        $group: {
+          _id: '$title',
+          taskId: { $first: '$_id' },
+          description: { $first: '$description' },
+          category: { $first: '$category' },
+          // The skill finishing it would grow (taskCompletionService), for
+          // what the mascot says beside this list.
+          skill: { $first: '$skill' },
+          assignedDate: { $first: '$assignedDate' },
+          times: { $sum: 1 },
+          lastSkippedAt: { $max: '$skippedAt' }
+        }
+      },
+      { $sort: { times: -1, lastSkippedAt: -1 } },
+      { $limit: SKIPPED_LIMIT }
+    ])).map((row) => ({
+      _id: row.taskId,
+      title: row._id,
+      description: row.description,
+      category: row.category,
+      skill: row.skill || null,
+      times: row.times,
+      lastSkippedAt: row.lastSkippedAt,
+      assignedDate: row.assignedDate
+    }));
 
     res.status(200).json({
       goal: goal
@@ -136,12 +183,12 @@ const getProfileSummary = async (req, res) => {
         : null,
       currentStage: roadmap?.roadmapData?.currentStage || null,
       stats: {
-        completed: completed.length,
-        skipped: skipped.length,
-        pending: pending.length,
-        total: allTasks.length,
+        completed,
+        skipped,
+        pending,
+        total,
         completionRate,
-        streak: await sharedStreak(userId, completed.map((t) => t.completedAt).filter(Boolean)),
+        streak: await sharedStreak(userId, () => recentCompletionDates(userId)),
         daysPlanned
       },
       skills,
@@ -188,6 +235,9 @@ const redoSkippedTask = async (req, res) => {
     // this piece of work instead of one per attempt.
     task.status = 'Pending';
     task.skippedAt = undefined;
+    // So clearing today's untouched work (an exam tomorrow, a new time
+    // budget) knows this one is the student's history, not a fresh task.
+    task.redoneAt = new Date();
     task.assignedDate = startOfDay();
     task.dueDate = addDays(startOfDay(), 1);
     await task.save();

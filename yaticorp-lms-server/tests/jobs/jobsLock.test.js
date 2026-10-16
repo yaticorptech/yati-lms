@@ -15,7 +15,10 @@ const SkillProgress = require('../../src/career/models/SkillProgress');
 
 let jobs, skills, locked, nearly, ready, exempt;
 const SKILLS = ['React', 'JavaScript', 'Node.js', 'HTML', 'CSS'];
-const give = (st, progress) => SkillProgress.insertMany(SKILLS.map((skillName, i) => ({ userId: st.user._id, skillName, progress: progress[i], level: 'Intermediate' })));
+// Beginner skills, so `progress` is the whole story: a skill above Beginner
+// has already gone past 25% and counts as ready whatever its progress into the
+// current level (services/jobsAccess, the October 2026 audit, #6).
+const give = (st, progress) => SkillProgress.insertMany(SKILLS.map((skillName, i) => ({ userId: st.user._id, skillName, progress: progress[i], level: 'Beginner' })));
 
 before(async () => {
     await connect();

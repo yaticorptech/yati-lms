@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles, X } from 'lucide-react';
 import api from '../services/api';
+import { AuthContext } from '../context/AuthContext';
 
 /**
  * ✨ "New in Career Path" — the releases this browser has not seen yet.
@@ -14,20 +15,36 @@ import api from '../services/api';
  * record, and the server-side notification remains the copy that counts.
  * Dismissing marks every currently listed release as seen; a later release
  * with a newer key shows the card again.
+ *
+ * Kept per student. It was one key for the whole device, so on a shared
+ * computer — a family laptop, a college lab — the first student to dismiss
+ * the card hid it from everyone who signed in after them.
  */
-const SEEN_KEY = 'career.whatsNew.seen';
+const SEEN_PREFIX = 'career.whatsNew.seen';
+// The old device-wide key. Nobody's in particular, so it is not carried over
+// to anyone (the card shows once more at most); it is cleared on dismiss.
+const LEGACY_KEY = SEEN_PREFIX;
 
-const readSeen = () => {
+const readSeen = (key) => {
+  if (!key) return new Set();
   try {
-    return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || '[]'));
+    return new Set(JSON.parse(localStorage.getItem(key) || '[]'));
   } catch {
     return new Set();
   }
 };
 
 export default function WhatsNew() {
+  const { user } = useContext(AuthContext) || {};
+  const userId = user?._id || user?.id || null;
+  const storageKey = userId ? `${SEEN_PREFIX}:${userId}` : null;
   const [releases, setReleases] = useState([]);
-  const [seen, setSeen] = useState(readSeen);
+  const [seenState, setSeenState] = useState(() => ({ key: storageKey, set: readSeen(storageKey) }));
+  // Another student signed in (or the student arrived after the first
+  // render): read their own list. Adjusted during render so no frame shows
+  // the previous student's.
+  if (seenState.key !== storageKey) setSeenState({ key: storageKey, set: readSeen(storageKey) });
+  const seen = seenState.set;
 
   useEffect(() => {
     api
@@ -36,14 +53,17 @@ export default function WhatsNew() {
       .catch(() => {});
   }, []);
 
+  // Nothing until we know whose list to read.
+  if (!storageKey) return null;
   const fresh = releases.filter((r) => !seen.has(r.key));
   if (fresh.length === 0) return null;
 
   const dismiss = () => {
     const next = new Set([...seen, ...releases.map((r) => r.key)]);
-    setSeen(next);
+    setSeenState({ key: storageKey, set: next });
     try {
-      localStorage.setItem(SEEN_KEY, JSON.stringify([...next]));
+      localStorage.setItem(storageKey, JSON.stringify([...next]));
+      localStorage.removeItem(LEGACY_KEY);
     } catch {
       // Storage unavailable: the card simply shows again next visit.
     }

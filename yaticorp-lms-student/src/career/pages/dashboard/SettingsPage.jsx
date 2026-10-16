@@ -299,9 +299,16 @@ export default function SettingsPage() {
    *
    * Rebuilding is not a refresh — once the new roadmap is generated, the
    * server deletes the old one, every task, all skill progress, the planner's
-   * context and all recommendations in its place. The previous version of this page did that on one
+   * context, all recommendations and today's plan in its place
+   * (roadmapController.clearOldJourney). The previous version of this page did that on one
    * unlabelled click, so correcting a typo in "Dream Company" could wipe weeks
    * of finished work with no warning and no way back.
+   *
+   * The warning says what is really lost. XP, levels, badges and achievements
+   * are NOT touched (it used to say the XP could not be recovered, which made
+   * a rebuild sound worse than it is) — but skill progress is, and five skills
+   * at 25% is what opens Jobs, so a rebuild locks Jobs again until they grow
+   * back. That is the cost a student most needs to hear before they agree.
    */
   const handleRebuild = async () => {
     if (blocked('rebuilding your roadmap')) return;
@@ -310,7 +317,9 @@ export default function SettingsPage() {
       const ok = await confirm({
         title: 'Rebuild your roadmap from scratch?',
         message:
-          'Your current roadmap, every task on your planner, your skill progress and your saved recommendations will be deleted and generated again from these details. Finished tasks and the XP you earned for them cannot be recovered.',
+          'Your current roadmap, every task on your planner (finished ones too), your skill progress and your saved recommendations will be deleted and generated again from these details. ' +
+          'Your skills start again from zero, so if Jobs is open for you it locks again until five skills reach 25%. ' +
+          'The XP, level and badges you have earned are kept.',
         confirmLabel: 'Delete and rebuild',
         cancelLabel: 'Keep what I have',
         destructive: true

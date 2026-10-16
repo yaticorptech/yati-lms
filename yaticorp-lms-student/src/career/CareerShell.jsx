@@ -20,7 +20,7 @@ import {
   UserCircle, Award, Settings, Sparkles
 } from 'lucide-react';
 
-import api from './services/api';
+import api, { careerWriteCount } from './services/api';
 import { AuthContext } from './context/AuthContext';
 import CareerProviders from './CareerProviders';
 import WhatsNew from './components/WhatsNew';
@@ -133,24 +133,43 @@ function CareerFrame() {
   // standalone app got fresh numbers because signing in reloaded the page; here
   // the student can finish a task and walk to Rewards without the app ever
   // reloading, so the chip and the rewards page would both go stale.
+  //
+  // Re-read on a tab change only when a Career Path write has finished since
+  // the last read — a quiz passed, a video watched, a task ticked. This used to
+  // refresh on every tab, which with the provider's own read made two
+  // /user/profile calls per tab switch for nothing. The provider reads once on
+  // mount and again on 'yati:progress-changed' (context/AuthContext).
+  const writesSeen = useRef(careerWriteCount());
   useEffect(() => {
+    const now = careerWriteCount();
+    if (now === writesSeen.current) return;
+    writesSeen.current = now;
     refresh?.();
   }, [pathname, refresh]);
 
   // What is left of today's AI allowance. Shown only once it is nearly gone:
   // a counter on screen all day turns a safety limit into a scoreboard, but a
   // student who is about to click Regenerate with two requests left should
-  // know before they spend them, not after.
+  // know before they spend them, not after. Asked per tab, but through the
+  // section's read cache (services/api), so a tab change only reaches the
+  // server when something has been written since — or a minute has passed,
+  // since building today's plan spends AI on a read.
   const [aiLeft, setAiLeft] = useState(null);
   useEffect(() => {
     api.get('/ai-usage').then((r) => setAiLeft(r.data)).catch(() => setAiLeft(null));
   }, [pathname]);
   const lowOnAi = aiLeft && aiLeft.remaining <= 5;
+  // When the allowance comes back, in the student's own clock — it turns over
+  // at the platform's midnight, which is not midnight everywhere.
+  const resetAt = aiLeft?.resetsAt ? new Date(aiLeft.resetsAt) : null;
+  const resetLabel = resetAt && !Number.isNaN(resetAt.getTime())
+    ? resetAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    : null;
 
   // Defined once, rendered in whichever of the two slots the width calls for.
   const aiNotice = lowOnAi ? (
     <span
-      title={`AI requests reset at midnight. ${aiLeft.used} of ${aiLeft.limit} used today.`}
+      title={`AI requests reset ${resetLabel ? `at ${resetLabel}` : 'at midnight'}. ${aiLeft.used} of ${aiLeft.limit} used today.`}
       className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${
         aiLeft.remaining === 0
           ? 'border-amber-300 bg-amber-100 text-amber-800'

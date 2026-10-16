@@ -446,6 +446,96 @@ export default {
         assert.ok(result.stillClickable, 'so they can try again');
     });
 
+    test('an attempt resumed after a reload still runs its clock out and closes', async () => {
+        // Half a second left on a one-minute paper. The clock's time-up only
+        // looked at the working copy, which a reload left blank: it stood at
+        // 0:00 and the paper never closed.
+        const nearlyDone = { ...timed, quiz: { title: 'Weekly GK', description: '', timeLimitMinutes: 1 }, attempt: { status: 'open', elapsedMs: 59_500, timedOut: false, answers: {} } };
+        const { result, errors } = await screen({
+            entry, api: apiModule({ '/quizzes/global/history': noHistory, '/quizzes/global': nearlyDone }, posts), script: `
+                await sleep(2600);
+                return { body: text(document.body), finished: ${posted('/finish')}.map((c) => c[2]) };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.body, /Time’s up!/);
+        assert.deepEqual(result.finished, [{ timedOut: true }], 'the attempt is closed on the server as timed out');
+    });
+
+    test('when time runs out while an answer is being marked, that answer is waited for before closing', async () => {
+        const slow = apiModule({ '/quizzes/global/history': noHistory, '/quizzes/global': { ...paper, quiz: { title: 'Quick', description: '', timeLimitMinutes: 1 / 60 }, attempt: null } }, `(url, body) => {
+          if (url.endsWith('/start')) return { attempt: { status: 'open', elapsedMs: 0, timedOut: false, answers: {} }, questions: ${JSON.stringify(paper.questions)} };
+          if (url.endsWith('/finish')) { window.__finishedBeforeMarked = !window.__marked; return { attempt: { status: 'finished', elapsedMs: 1000, timedOut: !!body.timedOut, answers: {} } }; }
+          // Marking takes longer than the time left.
+          return new Promise((ok) => setTimeout(() => { window.__marked = true; ok((${markGlobal})(url, body)); }, 1500));
+        }`);
+        const { result, errors } = await screen({
+            entry, api: slow, script: `
+                await sleep(700);
+                ${start}
+                $$('li')[0].querySelectorAll('button')[1].click();
+                await sleep(3500);
+                return { body: text(document.body), early: window.__finishedBeforeMarked, finished: ${posted('/finish')}.length };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.finished, 1, 'the attempt is closed once');
+        assert.equal(result.early, false, 'not before the last answer was marked');
+        assert.match(result.body, /1 of 2 correct/, 'the answer given in time counts');
+    });
+
+    test('a won quiz tells the header and the celebrations even if the student has already left the tab', async () => {
+        const winning = apiModule({ '/quizzes/global/history': noHistory, '/quizzes/global': timed }, `(url, body) => {
+          if (url.endsWith('/start')) return { attempt: { status: 'open', elapsedMs: 0, timedOut: false, answers: {} }, questions: ${JSON.stringify(paper.questions)} };
+          if (url.endsWith('/finish')) return new Promise((ok) => setTimeout(() => ok({ attempt: { status: 'finished', elapsedMs: 1000, timedOut: false, score: 100, correctCount: 2, answers: {} }, win: { won: true, xp: 20 }, rewards: { events: [{ type: 'xp', amount: 20 }] } }), 800));
+          return (${markGlobal})(url, body);
+        }`);
+        const leaving = `
+import { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import GlobalQuiz from '${srcFile('components/GlobalQuiz.jsx')}';
+function Tab() { const [on, setOn] = useState(true); window.__leave = () => setOn(false); return on ? <GlobalQuiz /> : <p>Another tab</p>; }
+createRoot(document.getElementById('root')).render(<Tab />);`;
+        const { result, errors } = await screen({
+            entry: leaving, api: winning, script: `
+                window.__heard = { progress: 0, rewards: [] };
+                window.addEventListener('yati:progress-changed', () => { window.__heard.progress += 1; });
+                window.addEventListener('yati:rewards', (e) => { window.__heard.rewards.push(e.detail); });
+                await sleep(700);
+                ${start}
+                ${answer(1)}
+                ${nextQuestion}
+                ${answer(1)}
+                click(/See your score/); await sleep(100);
+                window.__leave();
+                await sleep(1500);
+                return window.__heard;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.progress, 1, 'the XP and wallet figures are told to re-read');
+        assert.deepEqual(result.rewards, [[{ type: 'xp', amount: 20 }]], 'the reward events go to the celebrations');
+    });
+
+    test('an answer the server has no open attempt for brings the paper back as the server has it', async () => {
+        const noAttempt = `
+const fresh = ${JSON.stringify(timed)};
+window.__calls = [];
+export default {
+  get: (url) => { window.__calls.push(['GET', url]);
+    if (url.endsWith('/history')) return Promise.resolve({ data: ${JSON.stringify(noHistory)} });
+    return Promise.resolve({ data: fresh }); },
+  post: (url, body) => { window.__calls.push(['POST', url, body]);
+    if (url.endsWith('/start')) return Promise.resolve({ data: { attempt: { status: 'open', elapsedMs: 0, answers: {} }, questions: fresh.questions } });
+    return Promise.reject({ response: { status: 409, data: { code: 'NO_ATTEMPT', message: 'There is no attempt open.' } } }); },
+  put: () => Promise.resolve({ data: {} }), delete: () => Promise.resolve({ data: {} })
+};`;
+        const { result, errors } = await screen({
+            entry, api: noAttempt, script: `
+                await sleep(700);
+                ${start}
+                ${answer(1)}
+                await sleep(500);
+                return { body: text(document.body), gets: window.__calls.filter((c) => c[0] === 'GET' && c[1].endsWith('/quizzes/global')).length };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.gets, 2, 'the paper is fetched again');
+        assert.doesNotMatch(result.body, /There is no attempt open/, 'not left as an error under a question that can never be marked');
+    });
+
     test('an empty bank is explained rather than left blank', async () => {
         const { result } = await screen({
             entry, api: apiModule({ '/quizzes/global/history': noHistory, '/quizzes/global': { available: 0, categories: [], questions: [], quiz: null, attempt: null } }),

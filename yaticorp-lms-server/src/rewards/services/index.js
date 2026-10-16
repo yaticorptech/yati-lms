@@ -7,6 +7,7 @@ module.exports = {
   walletRules: require('./walletRuleService'),
   badges: require('./badgeService'),
   activity: require('./activityService'),
+  history: require('./learningHistory'),
   leaderboard: require('./leaderboardService'),
   eligibility: require('./eligibility'),
   jobs: require('./jobs'),

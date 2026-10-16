@@ -21,7 +21,11 @@ const streakSchema = new mongoose.Schema({
   // Best weekly leaderboard finish, kept here because it is per-student
   // progress rather than a ledger entry. Drives the Top 10 badge.
   bestWeeklyRank: { type: Number, default: null },
-  top10Weeks: { type: Number, default: 0 }
+  top10Weeks: { type: Number, default: 0 },
+  // The weeks ('W:2026-08-24') already counted in top10Weeks. A payout run
+  // that stopped half-way is finished by the next one; this keeps a student
+  // it had already reached from being counted for the same week twice.
+  top10WeekKeys: { type: [String], default: [] }
 }, { timestamps: true });
 
 module.exports = mongoose.model('RewardStreak', streakSchema, 'rewards_streaks');

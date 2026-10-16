@@ -15,7 +15,7 @@ const ORDINAL = { 1: '1st', 2: '2nd', 3: '3rd' };
 const award = async (competition) => {
     const { addXp } = require('../../rewards/services/xpService');
     const { awardPoints } = require('../../rewards/services/rewardPointsService');
-    const { notify } = require('../../rewards/services/notify');
+    const { tell } = require('./notices');
     const teams = await Team.find({ competitionId: competition._id, status: 'approved' }).lean();
     const id = String(competition._id);
 
@@ -37,7 +37,7 @@ const award = async (competition) => {
             const extras = [prize?.xp ? `+${prize.xp} XP` : '', prize?.rewardPoints ? `+${prize.rewardPoints} reward points` : '', competition.participationXp ? `+${competition.participationXp} XP for taking part` : '']
                 .filter(Boolean).join(', ');
             const cert = require('./certificate').eligible(competition, { place }) ? ' Your certificate is ready in Games & Competitions.' : '';
-            await notify(userId, place ? `🏆 ${ORDINAL[place]} place!` : 'Competition complete', `${won}${extras ? ` ${extras}.` : ''}${cert}`);
+            await tell([userId], competition, place ? `🏆 ${ORDINAL[place]} place!` : 'Competition complete', `${won}${extras ? ` ${extras}.` : ''}${cert}`);
         }
     }
     await Competition.updateOne({ _id: competition._id }, { $set: { awardedAt: new Date() } });

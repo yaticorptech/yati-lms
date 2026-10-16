@@ -92,6 +92,14 @@ const goalSchema = new mongoose.Schema(
     },
     state: {
       type: String // Optional
+    },
+    // Set while a roadmap for this goal is being generated, cleared when the
+    // build finishes either way. The roadmap does not exist until the AI
+    // answers (half a minute or more), so without this a refresh mid-build
+    // landed on a roadmap page that read "you have none" and offered to build
+    // a second one alongside the first. See roadmapController.
+    roadmapBuildingAt: {
+      type: Date
     }
   },
   {

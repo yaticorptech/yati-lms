@@ -15,13 +15,31 @@ before(async () => {
     me = await makeUser('Cert'); api = app.call(me.token);
     other = await makeUser('CertOther');
     const Course = require('../../src/models/Course');
+    const Module = require('../../src/models/Module');
+    const Lesson = require('../../src/models/Lesson');
     const Progress = require('../../src/models/Progress');
     courses = [await Course.create({ title: 'Cert course A' }), await Course.create({ title: 'Cert course B' }), await Course.create({ title: 'Cert course C' })];
-    for (const c of courses.slice(0, 2)) await Progress.create({ userId: me.user._id, courseId: c._id, percentage: 100 });
-    await Progress.create({ userId: me.user._id, courseId: courses[2]._id, percentage: 60 });
+    // Completion is counted from the lessons, not a stored percentage: A and
+    // B have their one lesson done, C one of its two.
+    const lessonsOf = async (course, n) => {
+        const m = await Module.create({ courseId: course._id, title: 'Module', order: 1 });
+        const out = [];
+        for (let i = 0; i < n; i++) out.push(await Lesson.create({ moduleId: m._id, title: `Lesson ${i + 1}`, order: i }));
+        return out;
+    };
+    for (const c of courses.slice(0, 2)) {
+        const [only] = await lessonsOf(c, 1);
+        await Progress.create({ userId: me.user._id, courseId: c._id, percentage: 100, completedLessons: [only._id] });
+    }
+    const [first] = await lessonsOf(courses[2], 2);
+    await Progress.create({ userId: me.user._id, courseId: courses[2]._id, percentage: 50, completedLessons: [first._id] });
 });
 
 after(async () => {
+    const Module = require('../../src/models/Module');
+    const moduleIds = (await Module.find({ courseId: { $in: courses.map(c => c._id) } }).select('_id').lean()).map((m) => m._id);
+    await require('../../src/models/Lesson').deleteMany({ moduleId: { $in: moduleIds } });
+    await Module.deleteMany({ _id: { $in: moduleIds } });
     await require('../../src/models/Course').deleteMany({ _id: { $in: courses.map(c => c._id) } });
     await cleanup([me.user, other.user], app.server);
 });

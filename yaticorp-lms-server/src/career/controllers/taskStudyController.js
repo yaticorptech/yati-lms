@@ -45,6 +45,23 @@ const passMarkFor = (total, user) => (total > 0 && hasFullAccess(user)
 const VIDEO_WATCHED_FRACTION = 0.9;
 
 /**
+ * Whether `seconds` of distinct playback is enough to call this video watched.
+ *
+ * The browser counts the seconds it saw play (LessonVideo), against the
+ * player's own idea of the length; the stored length comes from the YouTube
+ * Data API and can differ from it by a few seconds, so the bar here sits a
+ * little under 90% — 5% of the video or ten seconds, whichever is more. A
+ * video whose length was never stored cannot be measured against, and is
+ * taken on trust as before.
+ */
+const watchedEnough = (seconds, durationSeconds) => {
+  const length = Number(durationSeconds) || 0;
+  if (length <= 0) return true;
+  const slack = Math.max(10, Math.round(length * 0.05));
+  return (Number(seconds) || 0) >= Math.floor(length * VIDEO_WATCHED_FRACTION) - slack;
+};
+
+/**
  * The three gates that finish a task on their own: watch, read, pass.
  *
  * A step the lesson does not *have* is treated as already met — some lessons
@@ -85,19 +102,31 @@ const lessonGates = (study, user) => {
 /**
  * Complete the task if — and only if — every applicable gate has been met.
  *
- * Called after any progress change. `completeTask` is idempotent, so the
- * repeated calls this produces cannot double-award XP.
+ * Called after any progress change, and whenever a lesson is opened.
+ * `completeTask` is idempotent, so the repeated calls this produces cannot
+ * double-award XP.
+ *
+ * The gates are judged on the lesson as it is stored NOW, read again here,
+ * not on the copy the caller loaded before its own write. Two requests landing
+ * together — "video watched" and "notes read" in the same second — each used
+ * to check its own in-memory copy, in which only its own gate was met, and
+ * the task stayed open with every gate passed. Whichever request writes last
+ * now sees both.
  */
-const maybeAutoComplete = async (user, study) => {
+const maybeAutoComplete = async (user, loaded) => {
+  const study = (loaded?._id && (await TaskStudy.findById(loaded._id))) || loaded;
   const gates = lessonGates(study, user);
-  if (!gates.allMet) return { gates, autoCompleted: false, task: null, completionXp: 0 };
+  if (!gates.allMet) return { gates, autoCompleted: false, task: null, completionXp: 0, study };
 
-  const task = await Task.findOne({ _id: study.taskId, userId: user._id });
-  const { completed, xp } = await completeTask(user._id, task);
+  const found = await Task.findOne({ _id: study.taskId, userId: user._id });
+  const { completed, xp, task } = await completeTask(user._id, found);
 
   if (completed) {
-    study.autoCompletedAt = new Date();
-    await study.save();
+    // One field, written on its own, so this never overwrites a progress
+    // change another request saved in the meantime.
+    const at = new Date();
+    await TaskStudy.updateOne({ _id: study._id }, { $set: { autoCompletedAt: at } });
+    study.autoCompletedAt = at;
   }
 
   // Reported so the browser can show what the completion was actually worth.
@@ -107,7 +136,7 @@ const maybeAutoComplete = async (user, study) => {
   // What the ledger actually paid, not the rule: a task reopened and finished
   // again completes without being credited a second time, and reporting the
   // rule then celebrated XP the student never received.
-  return { gates, autoCompleted: completed, task, completionXp: completed ? xp || 0 : 0 };
+  return { gates, autoCompleted: completed, task: task || found, completionXp: completed ? xp || 0 : 0, study };
 };
 
 /**
@@ -236,10 +265,53 @@ const getTaskStudy = async (req, res) => {
       }
     }
 
-    const outcome = await watchForDemoCard(req.user, study);
-    res.status(200).json({ ...publicView(study, req.user), ...completionFields(outcome) });
+    // Opening a lesson also finishes a task whose gates are all met but which
+    // never completed — the state two racing progress reports used to leave
+    // behind (see maybeAutoComplete). A no-op for everything else.
+    const outcome = (await watchForDemoCard(req.user, study)) || (await maybeAutoComplete(req.user, study));
+    res.status(200).json({ ...publicView(outcome?.study || study, req.user), ...completionFields(outcome) });
   } catch (error) {
     res.status(statusFor(error)).json(aiAwareBody(error));
+  }
+};
+
+/**
+ * A lesson already exists for this task and the request did not ask to
+ * replace it.
+ *
+ * A full build writes a new video, new notes and a new quiz, and resets the
+ * best score, the attempts and the watch/read progress. The planner used to
+ * reach it by accident: a lesson that failed to LOAD left the panel showing
+ * its "How do you want to learn this?" chooser, and choosing rebuilt — and
+ * charged for — a lesson the student already had, throwing their progress
+ * away. Replacing one is now explicit: `rebuild: true`, or `replace: 'video'`
+ * for the video swap. Anything else is answered with the lesson that is
+ * there, so the panel can simply show it.
+ */
+const LESSON_EXISTS = 'LESSON_EXISTS';
+
+const wantsLessonRebuild = (req) => req.body?.rebuild === true || req.body?.replace === 'video';
+
+const refuseExistingLesson = (res, study, user) =>
+  res.status(409).json({
+    code: LESSON_EXISTS,
+    message: 'This task already has its lesson.',
+    lesson: publicView(study, user)
+  });
+
+/**
+ * Mounted before the wallet charge as well as checked inside the controller,
+ * so a refused rebuild is never priced — not even charged and refunded.
+ */
+const refuseLessonOverwrite = async (req, res, next) => {
+  try {
+    if (!wantsLessonRebuild(req)) {
+      const existing = await TaskStudy.findOne({ userId: req.user._id, taskId: req.params.id });
+      if (existing) return refuseExistingLesson(res, existing, req.user);
+    }
+    next();
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -314,6 +386,13 @@ const generateTaskStudy = async (req, res) => {
     const task = await Task.findOne({ _id: req.params.id, userId: req.user._id });
     if (!task) {
       return res.status(404).json({ message: 'Task not found.' });
+    }
+
+    // Never a silent rebuild over a lesson the student already has (see
+    // refuseLessonOverwrite, which also runs before the charge).
+    if (!wantsLessonRebuild(req)) {
+      const existing = await TaskStudy.findOne({ userId: req.user._id, taskId: task._id });
+      if (existing) return refuseExistingLesson(res, existing, req.user);
     }
 
     const goal = await Goal.findOne({ userId: req.user._id });
@@ -466,13 +545,17 @@ const submitTaskQuiz = async (req, res) => {
     const passMark = passMarkFor(total, req.user);
     const passed = score >= passMark;
 
-    // First pass only — a quiz already beaten cannot be re-farmed for XP.
-    const earnsXp = passed && study.bestScore < passMark;
-
-    study.attempts += 1;
-    study.lastAttemptAt = new Date();
-    study.bestScore = Math.max(study.bestScore, score);
-    await study.save();
+    // One atomic write, answered with the lesson as it was before it. A
+    // read-modify-save here raced the progress route: whichever saved second
+    // could carry a stale copy of the other's change. The earlier score also
+    // decides the XP — first pass only, so a quiz already beaten cannot be
+    // re-farmed — and two passes landing together see each other.
+    const before = await TaskStudy.findOneAndUpdate(
+      { _id: study._id },
+      { $inc: { attempts: 1 }, $set: { lastAttemptAt: new Date() }, $max: { bestScore: score } },
+      { returnDocument: 'before' }
+    );
+    const earnsXp = passed && (before?.bestScore || 0) < passMark;
 
     // Once per task, ever. bestScore says whether THIS quiz was passed before,
     // but a full rebuild writes a new quiz and zeroes it — so the ledger key is
@@ -489,7 +572,7 @@ const submitTaskQuiz = async (req, res) => {
 
     // Passing is usually the last of the three gates, so this is where the task
     // most often finishes itself.
-    const { gates, autoCompleted, completionXp } = await maybeAutoComplete(req.user, study);
+    const { gates, autoCompleted, completionXp, study: now } = await maybeAutoComplete(req.user, study);
 
     res.status(200).json({
       score,
@@ -497,8 +580,8 @@ const submitTaskQuiz = async (req, res) => {
       passed,
       xpAwarded: quizXp,
       completionXp,
-      bestScore: study.bestScore,
-      attempts: study.attempts,
+      bestScore: now?.bestScore ?? Math.max(before?.bestScore || 0, score),
+      attempts: now?.attempts ?? (before?.attempts || 0) + 1,
       results,
       gates,
       autoCompleted
@@ -516,40 +599,65 @@ const updateStudyProgress = async (req, res) => {
   try {
     const { videoWatched, notesRead, watchedSeconds } = req.body;
 
-    const study = await TaskStudy.findOne({ userId: req.user._id, taskId: req.params.id });
-    if (!study) return res.status(404).json({ message: 'No lesson found for this task.' });
+    const current = await TaskStudy.findOne({ userId: req.user._id, taskId: req.params.id })
+      .select('video.durationSeconds progress');
+    if (!current) return res.status(404).json({ message: 'No lesson found for this task.' });
 
-    if (!study.progress) study.progress = {};
+    const length = Number(current.video?.durationSeconds) || 0;
+    const set = {};
+    const max = {};
 
-    // Progress only ever moves forwards. The browser reports these, so treating
-    // them as a free-form assignment would let a stale tab or a crafted request
-    // un-watch a video the student has already finished.
+    // Progress only ever moves forwards ($max, and flags only ever set to
+    // true). The browser reports these, so treating them as a free-form
+    // assignment would let a stale tab or a crafted request un-watch a video
+    // the student has already finished. Seconds are capped at the video's
+    // length: a request cannot claim more of it than there is.
     if (Number.isFinite(watchedSeconds)) {
-      study.progress.watchedSeconds = Math.max(
-        study.progress.watchedSeconds || 0,
-        Math.max(0, Math.floor(watchedSeconds))
-      );
+      let seconds = Math.max(0, Math.floor(watchedSeconds));
+      if (length > 0) seconds = Math.min(seconds, Math.ceil(length));
+      max['progress.watchedSeconds'] = seconds;
     }
 
-    if (videoWatched === true && !study.progress.videoWatched) {
-      study.progress.videoWatched = true;
-      study.progress.videoWatchedAt = new Date();
+    // "Watched" is checked against the seconds actually seen, not taken on
+    // the request's word. It used to be: `videoWatched: true` on its own
+    // passed the gate (and paid the watch XP) without a second of the video
+    // having played.
+    const seen = Math.max(current.progress?.watchedSeconds || 0, max['progress.watchedSeconds'] || 0);
+    const videoRefused = videoWatched === true && !current.progress?.videoWatched && !watchedEnough(seen, length);
+    if (videoWatched === true && !current.progress?.videoWatched && !videoRefused) {
+      set['progress.videoWatched'] = true;
+      set['progress.videoWatchedAt'] = new Date();
     }
 
-    if (notesRead === true && !study.progress.notesRead) {
-      study.progress.notesRead = true;
-      study.progress.notesReadAt = new Date();
+    if (notesRead === true && !current.progress?.notesRead) {
+      set['progress.notesRead'] = true;
+      set['progress.notesReadAt'] = new Date();
     }
 
-    await study.save();
+    // One atomic write rather than load-modify-save, so two reports landing
+    // together (the video gate and the notes gate) cannot each save a copy
+    // missing the other's change.
+    const update = {};
+    if (Object.keys(set).length) update.$set = set;
+    if (Object.keys(max).length) update.$max = max;
+    if (Object.keys(update).length) await TaskStudy.updateOne({ _id: current._id }, update);
 
-    const { gates, autoCompleted, task, completionXp } = await maybeAutoComplete(req.user, study);
+    // Judged on the lesson as stored after the write (maybeAutoComplete reads
+    // it again), so the last of two racing reports sees both gates.
+    const { gates, autoCompleted, task, completionXp, study } = await maybeAutoComplete(req.user, current);
+
+    // The watch XP rule (taskRoutes) pays only for a watch the server
+    // accepted, once per task by its ledger key.
+    req.videoWatchAccepted = videoWatched === true && !!study?.progress?.videoWatched;
 
     res.status(200).json({
-      progress: study.progress,
+      progress: study?.progress,
       gates,
       autoCompleted,
       completionXp,
+      // Said outright, so the panel can keep the gate open rather than
+      // believe the video was counted.
+      videoRefused: videoRefused || undefined,
       task: autoCompleted ? task : undefined
     });
   } catch (error) {
@@ -560,8 +668,11 @@ const updateStudyProgress = async (req, res) => {
 module.exports = {
   getTaskStudy,
   generateTaskStudy,
+  refuseLessonOverwrite,
+  LESSON_EXISTS,
   submitTaskQuiz,
   updateStudyProgress,
+  watchedEnough,
   // Shared with taskController so the planner list can show how far through a
   // lesson each task is without re-deriving the gate rules and drifting from
   // the ones that actually complete the task.

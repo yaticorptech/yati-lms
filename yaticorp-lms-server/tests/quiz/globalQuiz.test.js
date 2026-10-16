@@ -135,39 +135,23 @@ describe('the "a new Global Quiz is live" check', () => {
     });
 });
 
-describe('marking it', () => {
-    const RIGHT = { 'What is 2 + 2?': 1, 'Which is a colour?': 0, 'Capital of France?': 1, 'Filler question 4': 0, 'Filler question 5': 1, 'Filler question 6': 0 };
-    const answersFor = (rows, pick) => rows.map((q) => ({ questionId: q.questionId, answer: pick(q) }));
+const RIGHT = { 'What is 2 + 2?': 1, 'Which is a colour?': 0, 'Capital of France?': 1, 'Filler question 4': 0, 'Filler question 5': 1, 'Filler question 6': 0 };
+const answersFor = (rows, pick) => rows.map((q) => ({ questionId: q.questionId, answer: pick(q) }));
 
-    test('scores every answer and explains it', async () => {
+describe('marking without an attempt', () => {
+    // Marking used to work with no attempt at all, for "an older app": it
+    // marked any question in the bank and sent back every answer and
+    // explanation, with no clock and no one-try rule.
+    test('nothing is marked, and no answer or explanation comes back', async () => {
         const rows = mine((await api('GET', '/quizzes/global?limit=25')).body.questions);
         const r = await api('POST', '/quizzes/global/submit', { answers: answersFor(rows, (q) => RIGHT[q.questionText]) });
-        assert.equal(r.status, 200);
-        assert.equal(r.body.score, 100); assert.equal(r.body.correctCount, 6); assert.equal(r.body.practiceOnly, true);
-        assert.match(r.body.results.find((x) => x.questionText === 'What is 2 + 2?').explanation, /make four/);
+        assert.equal(r.status, 409); assert.equal(r.body.code, 'NO_ATTEMPT');
+        assert.doesNotMatch(JSON.stringify(r.body), /make four|correctAnswer|explanation/);
     });
 
-    test('a wrong answer comes back with the right one', async () => {
-        const rows = mine((await api('GET', '/quizzes/global?limit=25')).body.questions);
-        const r = await api('POST', '/quizzes/global/submit', { answers: answersFor(rows, (q) => (RIGHT[q.questionText] + 1) % 2) });
-        assert.ok(r.body.score < 100);
-        const wrong = r.body.results.find((x) => !x.isCorrect);
-        assert.equal(wrong.correctAnswer, RIGHT[wrong.questionText]);
-    });
-
-    test('a partly finished paper is marked out of what was answered', async () => {
-        const rows = mine((await api('GET', '/quizzes/global?limit=25')).body.questions).slice(0, 1);
-        const r = await api('POST', '/quizzes/global/submit', { answers: answersFor(rows, (q) => RIGHT[q.questionText]) });
-        assert.equal(r.body.totalQuestions, 1); assert.equal(r.body.score, 100);
-    });
-
-    test('an empty or unknown submission is refused', async () => {
+    test('an empty submission is refused', async () => {
         assert.equal((await api('POST', '/quizzes/global/submit', { answers: [] })).status, 400);
         assert.equal((await api('POST', '/quizzes/global/submit', {})).status, 400);
-        const stranger = await api('POST', '/quizzes/global/submit', { answers: [{ questionId: new mongoose.Types.ObjectId().toString(), answer: 0 }] });
-        assert.equal(stranger.status, 400); assert.match(stranger.body.message, /not in the quiz bank/);
-        const rubbish = await api('POST', '/quizzes/global/submit', { answers: [{ questionId: 'not-an-id', answer: 0 }] });
-        assert.equal(rubbish.status, 400);
     });
 
     test('it records nothing: no credits, no progress, no reward activity', async () => {
@@ -176,7 +160,8 @@ describe('marking it', () => {
             credits: (await db.collection('users').findOne({ _id: me.user._id })).credits || 0,
             progress: await db.collection('progresses').countDocuments({ userId: me.user._id }),
             activity: await db.collection('rewards_learning_activities').countDocuments({ userId: me.user._id }),
-            xp: await db.collection('rewards_xp_transactions').countDocuments({ userId: me.user._id })
+            xp: await db.collection('rewards_xp_transactions').countDocuments({ userId: me.user._id }),
+            attempts: await db.collection('global_quiz_attempts').countDocuments({ userId: me.user._id })
         };
         const rows = mine((await api('GET', '/quizzes/global?limit=25')).body.questions);
         await api('POST', '/quizzes/global/submit', { answers: answersFor(rows, (q) => RIGHT[q.questionText]) });
@@ -184,6 +169,7 @@ describe('marking it', () => {
         assert.equal(await db.collection('progresses').countDocuments({ userId: me.user._id }), before.progress);
         assert.equal(await db.collection('rewards_learning_activities').countDocuments({ userId: me.user._id }), before.activity);
         assert.equal(await db.collection('rewards_xp_transactions').countDocuments({ userId: me.user._id }), before.xp);
+        assert.equal(await db.collection('global_quiz_attempts').countDocuments({ userId: me.user._id }), before.attempts);
     });
 });
 
@@ -227,6 +213,27 @@ describe('one attempt', () => {
         assert.match(paper.body.attempt.answers[q].explanation, /make four/);
     });
 
+    test('a question sent many times in one submission is kept once', async () => {
+        // One request carrying the same question over and over used to store
+        // every copy, and score each — a paper could pass 100%.
+        const rows = mine((await api('GET', '/quizzes/global')).body.questions);
+        const q = idOf(rows, 'Which is a colour?');
+        const r = await api('POST', '/quizzes/global/submit', { answers: Array.from({ length: 20 }, () => ({ questionId: q, answer: 1 })) });
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(r.body.results.length, 1);
+        assert.equal(r.body.results[0].isCorrect, false);
+        const stored = await require('../../src/models/GlobalQuizAttempt').findOne({ userId: me.user._id, quizId: live._id }).lean();
+        assert.equal(stored.answers.filter((a) => String(a.questionId) === q).length, 1);
+    });
+
+    test('a question not on this paper is not marked', async () => {
+        const Q = require('../../src/models/GlobalQuestion');
+        const fromDraft = await Q.findOne({ quizId: draft._id }).select('_id').lean();
+        const r = await api('POST', '/quizzes/global/submit', { answers: [{ questionId: String(fromDraft._id), answer: 0 }, { questionId: 'not-an-id', answer: 0 }] });
+        assert.equal(r.status, 400); assert.match(r.body.message, /not in this quiz/);
+        assert.doesNotMatch(JSON.stringify(r.body), /correctAnswer/);
+    });
+
     test('the score closes the attempt, and the quiz cannot be taken again', async () => {
         const r = await api('POST', '/quizzes/global/finish', { timedOut: false });
         assert.equal(r.status, 200, JSON.stringify(r.body));
@@ -259,6 +266,8 @@ describe('one attempt', () => {
         assert.equal(paper.body.attempt.timedOut, true);
         assert.equal(paper.body.attempt.correctCount, 1, 'only the answer given in time counts');
         assert.equal(paper.body.attempt.totalQuestions, 6);
+        // It finished when its twelve minutes ran out, not when it was found.
+        assert.equal(paper.body.attempt.elapsedMs, 12 * 60_000);
         assert.equal((await otherApi('POST', '/quizzes/global/start')).status, 409);
     });
 
@@ -296,8 +305,13 @@ describe('past quizzes', () => {
         const r = await api('GET', '/quizzes/global/history');
         assert.equal(r.status, 200, JSON.stringify(r.body));
         const rows = r.body.attempts;
-        assert.equal(rows.length, 2, 'the open attempt at the other quiz is not history yet');
-        const [latest, older] = rows;
+        // The attempt left open at the other quiz, which is no longer the
+        // published one, could never be finished: it is closed now, as it
+        // stood, and listed — newest, since it closed just now.
+        assert.equal(rows.length, 3);
+        const [stranded, latest, older] = rows;
+        assert.equal(stranded.title, `${TAG} draft`);
+        assert.equal(stranded.correctCount, 0); assert.equal(stranded.totalQuestions, 1); assert.equal(stranded.current, false);
         assert.equal(latest.title, `${TAG} live`);
         assert.equal(latest.score, 17); assert.equal(latest.correctCount, 1); assert.equal(latest.totalQuestions, 6);
         assert.equal(latest.current, true, 'the published quiz is flagged: the tab already shows it');
@@ -307,10 +321,93 @@ describe('past quizzes', () => {
         assert.ok(new Date(latest.finishedAt) > new Date(older.finishedAt));
     });
 
+    test('an attempt stored with a repeated answer is scored again from its answers', async () => {
+        const fixed = await makeUser('Repaired'); extraUsers.push(fixed.user);
+        const Attempt = require('../../src/models/GlobalQuizAttempt');
+        const q = new mongoose.Types.ObjectId();
+        await Attempt.create({
+            userId: fixed.user._id, quizId: new mongoose.Types.ObjectId(), order: [q, new mongoose.Types.ObjectId()],
+            answers: [1, 2, 3].map(() => ({ questionId: q, answer: 0, isCorrect: true })),
+            startedAt: new Date(Date.now() - 60_000), finishedAt: new Date(), correctCount: 3, totalQuestions: 2, score: 150
+        });
+        const r = await app.call(fixed.token)('GET', '/quizzes/global/history');
+        assert.equal(r.body.attempts[0].correctCount, 1);
+        assert.equal(r.body.attempts[0].score, 50);
+        const stored = await Attempt.findOne({ userId: fixed.user._id }).lean();
+        assert.equal(stored.answers.length, 1, 'the repeats are gone from the record');
+        assert.equal(stored.score, 50);
+    });
+
     test("never shows another student's attempts", async () => {
         const rows = (await otherApi('GET', '/quizzes/global/history')).body.attempts;
         assert.equal(rows.length, 1);
         assert.equal(rows[0].timedOut, true);
         assert.equal(rows[0].correctCount, 1);
+    });
+});
+
+/* A win, and "Finish the Global Quiz", paid once each by the request that
+   closes the attempt; the win kept on the attempt as it was decided then. */
+describe('finishing and winning', () => {
+    const config = () => require('../../src/rewards/services/configService');
+    let saved;
+    before(async () => {
+        const cfg = await config().getConfig();
+        const Setting = require('../../src/models/Setting');
+        saved = { rewardsOn: (await Setting.findOne().select('isRewardsEnabled').lean())?.isRewardsEnabled, winScore: cfg.globalQuiz?.winScore, xp: { ...cfg.xpRules } };
+        await Setting.updateOne({}, { $set: { isRewardsEnabled: true } });
+        await config().updateConfig({ xpRules: { global_quiz_complete: 5, global_quiz_win: 7 }, globalQuiz: { winScore: 50 } });
+        config().invalidate();
+    });
+    after(async () => {
+        const keys = ['global_quiz_complete', 'global_quiz_win'];
+        await require('../../src/models/Setting').updateOne({}, saved.rewardsOn === undefined ? { $unset: { isRewardsEnabled: 1 } } : { $set: { isRewardsEnabled: saved.rewardsOn } });
+        await config().updateConfig({
+            removeRules: { xp: keys.filter((k) => !(k in saved.xp)) },
+            xpRules: Object.fromEntries(keys.filter((k) => k in saved.xp).map((k) => [k, saved.xp[k]])),
+            ...(saved.winScore !== undefined ? { globalQuiz: { winScore: saved.winScore } } : {})
+        });
+        config().invalidate();
+    });
+
+    test('pays the win and the finish once, to the request that closed it, and says so', async () => {
+        const winner = await makeUser('Winner'); extraUsers.push(winner.user);
+        const call = app.call(winner.token);
+        const opened = await call('POST', '/quizzes/global/start');
+        assert.equal(opened.status, 201);
+        const rows = mine(opened.body.questions);
+        for (const q of rows) assert.equal((await call('POST', '/quizzes/global/submit', { answers: [{ questionId: q.questionId, answer: RIGHT[q.questionText] }] })).status, 200);
+        const done = await call('POST', '/quizzes/global/finish', {});
+        assert.equal(done.status, 200, JSON.stringify(done.body));
+        assert.equal(done.body.attempt.score, 100);
+        assert.equal(done.body.win.won, true); assert.equal(done.body.win.winScore, 50); assert.equal(done.body.win.xp, 7);
+        assert.ok(done.body.rewards.events.some((e) => e.kind === 'xp'), 'the XP comes back for the app to show');
+
+        const { LearningActivity } = require('../../src/rewards/models');
+        const finishes = () => LearningActivity.countDocuments({ userId: winner.user._id, type: 'global_quiz_complete' });
+        assert.equal(await finishes(), 1);
+        assert.equal((await LearningActivity.findOne({ userId: winner.user._id, type: 'global_quiz_complete' }).lean()).refId, `global-complete:${live._id}`);
+        // Finish again: the attempt was already closed, so nothing more is paid.
+        const again = await call('POST', '/quizzes/global/finish', {});
+        assert.equal(again.status, 200);
+        assert.equal(again.body.win.xp, 0);
+        assert.deepEqual(again.body.rewards.events, []);
+        assert.equal(await finishes(), 1);
+    });
+
+    test('a later change to the win score does not rewrite a past win', async () => {
+        await config().updateConfig({ globalQuiz: { winScore: 100 } }); config().invalidate();
+        const loser = await makeUser('Loser'); extraUsers.push(loser.user);
+        const call = app.call(loser.token);
+        const rows = mine((await call('POST', '/quizzes/global/start')).body.questions);
+        // Five of six right: 83%, short of the new win score of 100.
+        for (const [i, q] of rows.entries()) await call('POST', '/quizzes/global/submit', { answers: [{ questionId: q.questionId, answer: i === 0 ? (RIGHT[q.questionText] + 1) % 2 : RIGHT[q.questionText] }] });
+        const done = await call('POST', '/quizzes/global/finish', {});
+        assert.equal(done.body.attempt.score, 83); assert.equal(done.body.win.won, false);
+        await config().updateConfig({ globalQuiz: { winScore: 80 } }); config().invalidate();
+        const history = (await call('GET', '/quizzes/global/history')).body.attempts;
+        assert.equal(history[0].won, false, 'decided against the score in force when it closed');
+        const winnerRow = await require('../../src/models/GlobalQuizAttempt').findOne({ quizId: live._id, score: 100 }).lean();
+        assert.equal(winnerRow.won, true); assert.equal(winnerRow.winScore, 50);
     });
 });

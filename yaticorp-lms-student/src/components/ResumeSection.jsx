@@ -21,6 +21,8 @@ import Portal from './Portal';
 import { saveBlob } from '../native/saveFile';
 import PriceTag from './rewards/PriceTag';
 import { isShortOfFunds, serverMessage } from '../utils/walletCharge';
+import useConfirmDialog from './useConfirmDialog';
+import useBackClose from '../native/useBackClose';
 
 const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
@@ -37,6 +39,8 @@ export default function ResumeSection() {
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const inputRef = useRef(null);
+    // "Remove your resume?" asked in the app's own dialog, not the browser's.
+    const [confirm, confirmDialog] = useConfirmDialog();
 
     // A failed load is not the student's problem to read about: the card
     // simply shows the "nothing uploaded" state and the actions still work.
@@ -47,6 +51,8 @@ export default function ResumeSection() {
         return () => window.removeEventListener('keydown', onKey);
     }, [showAbout]);
 
+    // Android's back button closes the explainer, as Escape does.
+    useBackClose(() => setShowAbout(false), showAbout);
     const load = useCallback(() => api.get('/user/resume')
         .then((r) => { setResume(r.data.resume); setAts(r.data.ats); })
         .catch((err) => console.warn('[resume] load failed:', err.response?.data?.message || err.message))
@@ -120,7 +126,13 @@ export default function ResumeSection() {
     };
 
     const remove = async () => {
-        if (!window.confirm('Remove your uploaded resume?\n\nYour ATS resume stays available — it is built from your courses.')) return;
+        const ok = await confirm({
+            title: 'Remove your uploaded resume?',
+            message: 'Your ATS resume stays available — it is built from your courses.',
+            confirmLabel: 'Remove',
+            destructive: true
+        });
+        if (!ok) return;
         setRemoving(true);
         setError('');
         try {
@@ -163,7 +175,7 @@ export default function ResumeSection() {
         : '';
 
     return (
-        <section id="your-resume" aria-labelledby="your-resume-title" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
+        <section id="your-resume" aria-labelledby="your-resume-title" className="scroll-mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
             {/* ── Header ───────────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-3">
@@ -279,6 +291,7 @@ export default function ResumeSection() {
                 </Portal>
             )}
             {showBio && <BioPopup onClose={() => setShowBio(false)} />}
+            {confirmDialog}
         </section>
     );
 }

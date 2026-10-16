@@ -11,9 +11,12 @@
  *
  * It refetches rather than reusing the cached `studentData` blob because XP and
  * level are written by the server every time a task is completed, and the level
- * ring and rewards page are wrong the moment they go stale. `refresh` is called
- * by CareerShell on every navigation within the section — in the standalone app
- * a full page load did the same job.
+ * ring and rewards page are wrong the moment they go stale. It reads once when
+ * the section mounts (and when the signed-in student changes), again whenever
+ * anything in the app announces 'yati:progress-changed', and when CareerShell
+ * sees a Career Path write finish between tab changes. It used to be refreshed
+ * on every tab as well, which with this provider's own read made two
+ * /user/profile calls per tab switch.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import lmsApi from '../../utils/api';
@@ -27,8 +30,17 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   // The XP and level last seen, to tell a real change from a routine re-read.
   const seen = useRef(null);
+  // The LMS session, read through a ref so `refresh` keeps one identity: the
+  // LMS re-reads its user on every 'yati:progress-changed', and a refresh
+  // rebuilt on each new user object re-ran the mount read below every time.
+  const lmsUserRef = useRef(lmsUser);
+  useEffect(() => {
+    lmsUserRef.current = lmsUser;
+  });
+  const lmsUserId = lmsUser?._id || lmsUser?.id || null;
 
   const refresh = useCallback(async () => {
+    const lmsUser = lmsUserRef.current;
     if (!lmsUser) {
       setUser(null);
       setLoading(false);
@@ -57,7 +69,9 @@ export const AuthProvider = ({ children }) => {
       // the section, and the event also empties the Career Path read cache
       // (services/api.js), so firing it each time wiped the cache on every
       // tab change and it never served a read.
-      if (moved) window.dispatchEvent(new CustomEvent('yati:progress-changed'));
+      // Marked as this provider's own, so its listener below does not answer
+      // its own announcement with another read.
+      if (moved) window.dispatchEvent(new CustomEvent('yati:progress-changed', { detail: { source: 'career-auth' } }));
       // Handed back as well as stored. A caller that has just completed
       // something needs the new XP total in the same tick to work out what the
       // server actually awarded, and `setUser` will not have landed by then.
@@ -71,11 +85,21 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [lmsUser]);
+  }, []);
 
   useEffect(() => {
     if (!lmsLoading) refresh();
-  }, [lmsLoading, refresh]);
+  }, [lmsLoading, lmsUserId, refresh]);
+
+  // Anything elsewhere that moved XP (a Global Quiz win, a wallet charge, an
+  // interview) announces it; the level chip and the rewards page follow.
+  useEffect(() => {
+    const onProgress = (event) => {
+      if (event?.detail?.source !== 'career-auth') refresh();
+    };
+    window.addEventListener('yati:progress-changed', onProgress);
+    return () => window.removeEventListener('yati:progress-changed', onProgress);
+  }, [refresh]);
 
   return (
     <AuthContext.Provider

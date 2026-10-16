@@ -79,6 +79,15 @@ const protectUser = async (req, res, next) => {
             if (!req.user || req.user.status !== 'active') {
                 return res.status(401).json({ message: 'Not authorized or account inactive' });
             }
+            // Signed in before the student last changed their password: that
+            // session ended with the change (models/User.js, passwordChangedAt).
+            if (req.user.tokenPredatesPassword(decoded.iat)) {
+                return res.status(401).json({ code: 'PASSWORD_CHANGED', message: 'Your password was changed. Please sign in again.' });
+            }
+            // An administrator's view-as-student (adminUserController) names
+            // the superadmin behind it. Kept on the request so the few things
+            // only the student may do (changing their password) can refuse it.
+            req.impersonatedBy = decoded.impersonatedBy || null;
             next();
         } catch (error) {
     console.error(error);

@@ -45,7 +45,7 @@ describe('the mock interview welcome screen', { skip: skipWithoutChrome }, () =>
                     eyebrow: /AI Mock Interview/i.test(body),
                     heading: text($$('h1')[0]),
                     explains: /asks the next question/.test(body),
-                    back: !!find(/^\s*Interview\s*$/, 'a')
+                    back: !!find(/^\\s*Interview\\s*$/, 'a')
                 };` });
         assert.deepEqual(errors, []);
         assert.equal(result.eyebrow, true);

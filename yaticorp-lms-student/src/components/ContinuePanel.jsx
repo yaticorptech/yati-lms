@@ -27,12 +27,28 @@ import { Link, useLocation } from 'react-router-dom';
 import { X, Flame, ArrowRight, Target, Check, Lightbulb, Sparkles } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
+import useBackClose from '../native/useBackClose';
+import { useStudentBusy } from './busyScreen';
 // The brain's motion lives with the rest of the Career Path artwork.
 import '../career/components/artwork.css';
 import './continuePanel.css';
 
 // Once per browser session, so it returns tomorrow but not on every click.
-const SEEN_KEY = 'yati:dailyActivitySeen';
+// Per student: on a shared computer the first student to sign in used to
+// "see" it for everyone after them in the same session.
+const seenKey = (userId) => `yati:dailyActivitySeen.${userId || 'me'}`;
+const readSeen = (userId) => {
+  try {
+    // The old, shared marker from before: taken over by whoever is signed in
+    // now (it was theirs this session), then dropped.
+    if (sessionStorage.getItem('yati:dailyActivitySeen')) {
+      sessionStorage.removeItem('yati:dailyActivitySeen');
+      sessionStorage.setItem(seenKey(userId), '1');
+    }
+    return !!sessionStorage.getItem(seenKey(userId));
+  } catch { return false; }
+};
+const markSeen = (userId) => { try { sessionStorage.setItem(seenKey(userId), '1'); } catch { /* shown again next visit */ } };
 
 /**
  * A preview of the card, for looking at it rather than answering it.
@@ -183,6 +199,7 @@ function BrainArt({ happy = false, className = '' }) {
 
 export default function ContinuePanel() {
   const { user, isCareerPathEnabled } = useContext(AuthContext);
+  const userId = user?._id || user?.id;
   // Re-read the URL on every in-app navigation, so typing the preview address
   // works whether the page is reloaded or reached from inside the app.
   const location = useLocation();
@@ -194,6 +211,12 @@ export default function ContinuePanel() {
   const [sending, setSending] = useState(false);
   const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  // Fetched and worth showing, but not opened yet: it waits while the student
+  // is busy — a lesson, a mock interview, a game, a popup, typing — the same
+  // rule the "new Global Quiz" notice follows (busyScreen.js). It used to
+  // open over a lesson's video the moment the answer came back.
+  const [waiting, setWaiting] = useState(false);
+  const busy = useStudentBusy(waiting);
 
   const close = useCallback(() => {
     setLeaving(true);
@@ -216,7 +239,7 @@ export default function ContinuePanel() {
     }
 
     if (!isCareerPathEnabled) return;
-    if (sessionStorage.getItem(SEEN_KEY)) return;
+    if (readSeen(userId)) return;
 
     let cancelled = false;
     Promise.all([
@@ -231,17 +254,28 @@ export default function ContinuePanel() {
         if (cancelled || !a?.eligible || a.done) return;
         if (today?.data && today.data.eligible && !today.data.returning) return;
 
-        sessionStorage.setItem(SEEN_KEY, '1');
+        markSeen(userId);
         setActivity(a.activity);
         setNext(today?.data?.eligible ? today.data : null);
-        window.setTimeout(() => !cancelled && setOpen(true), 700);
+        setWaiting(true);
       })
       .catch(() => {});
 
     return () => {
       cancelled = true;
     };
-  }, [user, isCareerPathEnabled, location.search, location.hash]);
+  }, [user, userId, isCareerPathEnabled, location.search, location.hash]);
+
+  // Opens once the student is free, after a beat so it does not land on the
+  // very frame they finish something.
+  useEffect(() => {
+    if (!waiting || busy) return undefined;
+    const t = window.setTimeout(() => { setWaiting(false); setOpen(true); }, 700);
+    return () => window.clearTimeout(t);
+  }, [waiting, busy]);
+
+  // Android's back button closes it, the same as Escape.
+  useBackClose(close, open && !leaving);
 
   useEffect(() => {
     if (!open) return;

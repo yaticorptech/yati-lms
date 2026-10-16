@@ -23,6 +23,8 @@ import { saveBlob } from '../native/saveFile';
 import { AuthContext } from '../context/AuthContext';
 import { pdfPageOne } from '../utils/pdfPageOne';
 import PriceTag from './rewards/PriceTag';
+import useConfirmDialog from './useConfirmDialog';
+import useBackClose from '../native/useBackClose';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
@@ -259,9 +261,13 @@ export default function CertificatesFrame({ certificates, loading, certError, do
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [showAbout]);
+    // Android's back button closes the explainer, as Escape does.
+    useBackClose(() => setShowAbout(false), showAbout);
     const [removingId, setRemovingId] = useState(null);
     const [error, setError] = useState('');
     const [justAdded, setJustAdded] = useState(null);
+    // "Delete this certificate?" asked in the app's own dialog, not the browser's.
+    const [confirm, confirmDialog] = useConfirmDialog();
 
     useEffect(() => {
         api.get('/user/achievements')
@@ -299,12 +305,17 @@ export default function CertificatesFrame({ certificates, loading, certError, do
     const remove = async (item) => {
         const issued = item.source === 'course';
         const competition = item.source === 'competition';
-        const ask = issued
-            ? `Delete "${item.title}" from My Certificates?\n\nThe certificate stays valid — download it again from the course and it comes back here.`
-            : competition
-                ? `Delete "${item.title}" from My Certificates?\n\nIt stays yours in Games & Competitions — download it again there and it comes back here.`
-                : `Delete "${item.title}" from your frame?`;
-        if (!window.confirm(ask)) return;
+        const ok = await confirm({
+            title: issued || competition ? `Delete "${item.title}" from My Certificates?` : `Delete "${item.title}" from your frame?`,
+            message: issued
+                ? 'The certificate stays valid — download it again from the course and it comes back here.'
+                : competition
+                    ? 'It stays yours in Games & Competitions — download it again there and it comes back here.'
+                    : 'The file you uploaded is removed for good.',
+            confirmLabel: 'Delete',
+            destructive: true
+        });
+        if (!ok) return;
         setRemovingId(item.id);
         setError('');
         try {
@@ -343,7 +354,7 @@ export default function CertificatesFrame({ certificates, loading, certError, do
     /* One card, five bands, separated by hairlines rather than gaps — the
        resume block below it needs the room. */
     return (
-        <section id="certificates" aria-labelledby="my-certificates-title" className="scroll-mt-20 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
+        <section id="certificates" aria-labelledby="my-certificates-title" className="scroll-mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
             {/* ── Header ───────────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-3">
@@ -489,6 +500,7 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                     onDone={(a) => { setAchievements((rows) => [a, ...rows]); setJustAdded(`up-${a.id}`); setUploading(false); }}
                 />
             )}
+            {confirmDialog}
         </section>
     );
 }

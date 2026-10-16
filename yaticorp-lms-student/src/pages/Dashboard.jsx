@@ -22,6 +22,7 @@ import Portal from '../components/Portal';
 import CourseOutlineDialog from '../components/course/CourseOutlineDialog';
 import { useRewards } from '../context/useRewards';
 import { money } from '../components/rewards/format';
+import useBackClose from '../native/useBackClose';
 
 
 const getInitials = (title = '') => title.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
@@ -157,14 +158,30 @@ const TABS = [
     { key: 'activity', label: 'Weekly activity', icon: CalendarDays }
 ];
 
+const DEFAULT_TAB = 'available';
+
 const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, buyingCourseId, enrollCourse, refresh, weeklyActivity }) => {
-    // The sidebar's Explore Courses opens straight on Available Courses (?tab=).
     const [params, setParams] = useSearchParams();
-    const [activeTab, setActiveTab] = useState(() => (TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'available'));
     const navigate = useNavigate();
     // An administrator can take the Global Quiz away; its tab goes with it.
     const { isGlobalQuizEnabled, isCareerPathEnabled } = useContext(AuthContext);
     const tabs = TABS.filter((t) => t.key !== 'quiz' || isGlobalQuizEnabled !== false);
+    /* The open tab lives in the address (?tab=), both ways, the way Games &
+       Competitions keeps its tabs. Read only once, it ignored "Take the quiz"
+       from the new-quiz notice when the student was already on the Dashboard
+       — the address said ?tab=quiz and the page stayed on Available Courses —
+       and a tap never wrote it back, so the notice could not tell the student
+       was on the quiz already. Checked against the tabs actually offered:
+       ?tab=quiz with the Global Quiz switched off opens the default instead. */
+    const asked = params.get('tab');
+    const activeTab = tabs.some((t) => t.key === asked) ? asked : DEFAULT_TAB;
+    const setActiveTab = useCallback((key) => {
+        setParams((prev) => {
+            const next = new URLSearchParams(prev);
+            if (key === DEFAULT_TAB) next.delete('tab'); else next.set('tab', key);
+            return next;
+        }, { replace: true });
+    }, [setParams]);
     const [selectedBundle, setSelectedBundle] = useState(null);
 
     /* The tab strip scrolls sideways rather than wrapping. Two things make a
@@ -176,6 +193,10 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
        the cascade the effect rules warn about. */
     const stripRef = useRef(null);
     const tappedRef = useRef(false);
+    // The tab last set from inside the page (a tap, an arrow key). Any other
+    // change of tab came in through the address — arriving on /?tab=quiz, or
+    // the new-quiz notice — and the page then goes to the tabs.
+    const ownTabRef = useRef(null);
     const markEdges = useCallback(() => {
         const el = stripRef.current;
         if (!el?.parentElement) return;
@@ -223,13 +244,49 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
         // A tab the student tapped (not the first one shown on arrival) also
         // brings the page to it: the strip settles at the top of the screen,
         // just under the header, with that tab's content beneath it.
+        const bar = strip?.closest('[data-tab-bar]');
+        const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
         if (tappedRef.current) {
             tappedRef.current = false;
-            const bar = strip?.closest('[data-tab-bar]');
-            const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
             bar?.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' });
+            return undefined;
         }
+        // A tab named by the address the page did not write itself: the
+        // student was sent to it, so they are taken to it. The cards above
+        // (leaderboard, wallet) are still loading on arrival and push the
+        // strip down as they land, so it is brought into view again once they
+        // have settled — unless the student has started scrolling meanwhile.
+        const fromAddress = ownTabRef.current !== activeTab && activeTab === asked;
+        if (!fromAddress || !bar) { ownTabRef.current = activeTab; return undefined; }
+        const scroller = (() => { for (let p = bar.parentElement; p; p = p.parentElement) { if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p; } return null; })();
+        let landedAt = null;
+        const bring = () => { bar.scrollIntoView({ block: 'start', behavior: 'auto' }); landedAt = scroller ? scroller.scrollTop : window.scrollY; };
+        // Marked as handled only once it has scrolled: React's development
+        // double run of effects would otherwise use the mark up and skip it.
+        const first = setTimeout(() => { ownTabRef.current = activeTab; bring(); }, 60);
+        const again = setTimeout(() => {
+            const now = scroller ? scroller.scrollTop : window.scrollY;
+            if (landedAt !== null && Math.abs(now - landedAt) < 2) bring();
+        }, 900);
+        return () => { clearTimeout(first); clearTimeout(again); };
+        // `asked` is read for the moment the tab changed, not as a reason to run.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, markEdges, moveInk]);
+
+    /* The tab strip is a real tab list from the keyboard too: arrow keys move
+       along it (wrapping at the ends), Home and End jump, and the tab under
+       the focus opens — so only the open tab is in the Tab order. */
+    const onTabKey = (e) => {
+        const keys = tabs.map((t) => t.key);
+        const at = keys.indexOf(activeTab);
+        const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: keys.length - 1 }[e.key];
+        if (to === undefined) return;
+        e.preventDefault();
+        const key = keys[(to + keys.length) % keys.length];
+        ownTabRef.current = key;
+        setActiveTab(key);
+        stripRef.current?.querySelector(`#my-learning-tab-${key}`)?.focus();
+    };
     const [enrollModal, setEnrollModal] = useState(null); // { _id, title }
     // The available course whose Preview (what is inside it) is open.
     const [previewCourse, setPreviewCourse] = useState(null);
@@ -249,9 +306,17 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
     const [enrolling, setEnrolling] = useState(false);
     // Why enrolling failed, said in the summary (a short wallet has its own dialog).
     const [enrollError, setEnrollError] = useState('');
+    // The course is already the student's through a bundle (409 IN_BUNDLE):
+    // the dialog then offers the way to it instead of a payment.
+    // Kept against the course it was said about, so it never shows for another.
+    const [inBundleFor, setInBundleFor] = useState(null);
+    const inBundle = !!enrollModal && inBundleFor === enrollModal._id;
 
     // Escape closes the bundle and enrol popups, as it does the app's other
-    // dialogs — but not while an enrolment is going through.
+    // dialogs — but not while an enrolment is going through. Android's back
+    // button does the same.
+    useBackClose(() => { if (!enrolling) setEnrollModal(null); }, !!enrollModal);
+    useBackClose(() => setSelectedBundle(null), !!selectedBundle);
     const popupOpen = !!(selectedBundle || enrollModal);
     useEffect(() => {
         if (!popupOpen) return undefined;
@@ -299,6 +364,15 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
             // To the new course, on the page that lists what they are enrolled in.
             navigate('/enrolled-courses');
         } catch (error) {
+            // Already theirs in a bundle: the server says which, and there is
+            // nothing to pay. The list was loaded before that bundle opened,
+            // so it is read again and stops offering the course.
+            if (error.response?.data?.code === 'IN_BUNDLE') {
+                setInBundleFor(enrollModal._id);
+                setEnrollError(error.response.data.message || 'This course is already yours in a bundle. Open it from Bundles.');
+                refresh();
+                return;
+            }
             // A short wallet gets the app-wide dialog with the way to earn more.
             if (error.response?.status !== 402) setEnrollError((error.response?.status < 500 && error.response?.data?.message) || 'You were not enrolled. Please try again.');
         } finally {
@@ -317,7 +391,11 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                 negative margin, which widened the page by that margin on a
                 phone and set every section scrolling sideways; it stays inside
                 its column. */}
-            <div data-tab-bar className="flex scroll-mt-20 items-end gap-3 border-b border-slate-200 lg:scroll-mt-6">
+            {/* scroll-mt-4: the layout's scroller already keeps a header's
+                height clear at the top (StudentLayout, scroll-pt-16); this is
+                the breathing room under it. lg:scroll-mt-6 used to put the
+                strip under the 64px desktop header. */}
+            <div data-tab-bar className="flex scroll-mt-4 items-end gap-3 border-b border-slate-200">
                 {/* The fades are drawn in the page's own grey, so they blend
                     into it instead of showing as white blocks at the edges. */}
                 <div className="tab-scroll-wrap relative min-w-0 flex-1 [--tab-fade:var(--color-slate-50)]">
@@ -326,15 +404,19 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                         onScroll={markEdges}
                         role="tablist"
                         aria-label="My learning"
+                        onKeyDown={onTabKey}
                         className="tab-scroll relative flex scroll-ps-7 items-center gap-x-4 sm:gap-x-5 lg:gap-x-7"
                     >
                         {tabs.map(({ key, label, icon: Icon }) => (
                             <button
                                 key={key}
+                                id={`my-learning-tab-${key}`}
                                 role="tab"
                                 aria-selected={activeTab === key}
+                                aria-controls="my-learning-panel"
+                                tabIndex={activeTab === key ? 0 : -1}
                                 data-active={activeTab === key ? 'true' : 'false'}
-                                onClick={() => { if (key === activeTab) stripRef.current?.closest('[data-tab-bar]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); else { tappedRef.current = true; setActiveTab(key); } }}
+                                onClick={() => { if (key === activeTab) stripRef.current?.closest('[data-tab-bar]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); else { tappedRef.current = true; ownTabRef.current = key; setActiveTab(key); } }}
                                 className={`tab-btn relative flex shrink-0 items-center gap-2 whitespace-nowrap px-1 pb-3 pt-1 text-sm font-bold lg:text-base ${activeTab === key ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <Icon size={18} strokeWidth={1.8} className={`tab-icon ${activeTab === key ? 'text-indigo-500' : 'text-slate-400'}`} />
@@ -352,7 +434,7 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
             {/* My Learning Content. No "My Learning" heading above it: the tab
                 strip already says where the student is, and the heading only
                 pushed each tab's content further down the page. */}
-            <div>
+            <div id="my-learning-panel" role="tabpanel" aria-labelledby={`my-learning-tab-${activeTab}`}>
                 {/* Each tab's content eases in when it is chosen. */}
                 <div key={activeTab} className="tab-panel">
                 {activeTab === 'activity' ? (
@@ -661,13 +743,23 @@ const DashboardCourses = ({ courses, bundles, availableCourses, loading, error, 
                                 >
                                     Cancel
                                 </button>
-                                <button
-                                    onClick={handleConfirmEnroll}
-                                    disabled={enrolling || (enrollModal.price > 0 && wallet && wallet.available < enrollModal.price)}
-                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors"
-                                >
-                                    {enrolling ? 'Enrolling...' : enrollModal.price > 0 && wallet ? `Pay ₹${enrollModal.price} & Enroll` : 'Confirm Enroll'}
-                                </button>
+                                {inBundle ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setEnrollModal(null); tappedRef.current = true; ownTabRef.current = 'bundles'; setActiveTab('bundles'); }}
+                                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors"
+                                    >
+                                        Open Bundles
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleConfirmEnroll}
+                                        disabled={enrolling || (enrollModal.price > 0 && wallet && wallet.available < enrollModal.price)}
+                                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors"
+                                    >
+                                        {enrolling ? 'Enrolling...' : enrollModal.price > 0 && wallet ? `Pay ₹${enrollModal.price} & Enroll` : 'Confirm Enroll'}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

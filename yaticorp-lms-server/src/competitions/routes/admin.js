@@ -195,6 +195,8 @@ const manage = (scope = 'platform') => {
         if (to === 'cancelled') {
             await require('../models/PlayGame').updateMany({ competitionId: c._id, status: { $in: ['waiting', 'active'] } },
                 { $set: { status: 'abandoned', finishedAt: new Date(), nextDeadline: null }, $inc: { version: 1 } });
+            const entered = await Team.find({ competitionId: c._id, status: { $in: ['pending', 'approved'] } }).lean();
+            await require('../services/notices').tellTeams(entered, c, 'Competition cancelled', `${c.name} has been cancelled by the organizer. Any games still running have ended.`);
         }
         res.json(await views.detail(c._id, { admin: true }));
     }));
@@ -205,7 +207,11 @@ const manage = (scope = 'platform') => {
     router.delete('/:id', wrap(async (req, res) => {
         const c = await find(req.params.id, req);
         const PlayGame = require('../models/PlayGame');
+        // Its players are told before the teams go; the notice opens the
+        // Games page, since the competition's own page is gone.
+        const entered = await Team.find({ competitionId: c._id, status: { $in: ['pending', 'approved'] } }).lean();
         await Competition.deleteOne({ _id: c._id });
+        await require('../services/notices').tellTeams(entered, c, 'Competition removed', `${c.name} has been removed by the organizer.`, { link: '/competitions' });
         await Promise.all([Team.deleteMany({ competitionId: c._id }), Match.deleteMany({ competitionId: c._id }), PlayGame.deleteMany({ competitionId: c._id })]);
         res.json({ deleted: true });
     }));
@@ -226,9 +232,12 @@ const manage = (scope = 'platform') => {
             { returnDocument: 'after' }
         );
         if (!team) throw fail(404, 'Team not found.');
+        const { tellTeams } = require('../services/notices');
         if (status === 'approved') {
-            const { notify } = require('../../rewards/services/notify');
-            for (const p of team.players) await notify(p.userId, 'Your team is in', `${team.teamName} is approved for ${c.name}. Your matches will appear in Games & Competitions.`);
+            await tellTeams([team], c, 'Your team is in', `${team.teamName} is approved for ${c.name}. Your matches will appear in Games & Competitions.`);
+        } else {
+            // A team turned down used to hear nothing at all.
+            await tellTeams([team], c, 'Your team was not accepted', `${team.teamName} was not accepted for ${c.name}.${team.note ? ` Note from the organizer: ${team.note}` : ''}`);
         }
         res.json({ team: views.teamView(team, { admin: true }) });
     }));
@@ -265,8 +274,8 @@ const manage = (scope = 'platform') => {
         return ids.map((x) => ({ userId: x, name: students.find((st) => String(st._id) === x)?.name || 'Student' }));
     };
     const tellPlayers = async (c, team, userIds) => {
-        const { notify } = require('../../rewards/services/notify');
-        for (const userId of userIds) await notify(userId, 'You are in a team', `You play for ${team.teamName} in ${c.name}. Your matches will appear in Games & Competitions.`);
+        const { tell } = require('../services/notices');
+        await tell(userIds, c, 'You are in a team', `You play for ${team.teamName} in ${c.name}. Your matches will appear in Games & Competitions.`);
     };
 
     router.get('/:id/students', wrap(async (req, res) => {
@@ -310,7 +319,9 @@ const manage = (scope = 'platform') => {
         team.teamName = teamName(req.body);
         team.players = await ownPlayers(c, req.body, team._id);
         await team.save();
-        await tellPlayers(c, team, team.players.map((p) => String(p.userId)).filter((x) => !before.includes(x)));
+        const after = team.players.map((p) => String(p.userId));
+        await tellPlayers(c, team, after.filter((x) => !before.includes(x)));
+        await require('../services/notices').tell(before.filter((x) => !after.includes(x)), c, 'You are no longer in a team', `You were taken off ${team.teamName} in ${c.name}.`);
         res.json(await views.detail(c._id, { admin: true }));
     }));
 
@@ -319,6 +330,7 @@ const manage = (scope = 'platform') => {
         if (!mongoose.isValidObjectId(req.params.teamId)) throw fail(404, 'Team not found.');
         const gone = await Team.findOneAndDelete({ _id: req.params.teamId, competitionId: c._id });
         if (!gone) throw fail(404, 'Team not found.');
+        await require('../services/notices').tellTeams([gone], c, 'Your team was withdrawn', `${gone.teamName} is no longer in ${c.name}.`);
         res.json(await views.detail(c._id, { admin: true }));
     }));
 
@@ -343,8 +355,16 @@ const manage = (scope = 'platform') => {
         if (m.status !== 'scheduled') throw fail(409, 'Only a match that has not started can be rescheduled.');
         const at = req.body?.scheduledAt ? new Date(req.body.scheduledAt) : null;
         if (at && Number.isNaN(at.getTime())) throw fail(400, 'That is not a date and time.');
+        const moved = String(m.scheduledAt || '') !== String(at || '');
         m.scheduledAt = at;
         await m.save();
+        if (moved) {
+            const { tellTeams, when } = require('../services/notices');
+            const teams = await Team.find({ _id: { $in: m.sides.map((s) => s.teamId) } }).lean();
+            await tellTeams(teams, c, 'Match time changed', at
+                ? `${c.name}: your ${m.roundName || 'match'} is now on ${when(at)}.`
+                : `${c.name}: your ${m.roundName || 'match'} no longer has a set time. The organizer will start it.`);
+        }
         res.json(await views.detail(c._id, { admin: true }));
     }));
 

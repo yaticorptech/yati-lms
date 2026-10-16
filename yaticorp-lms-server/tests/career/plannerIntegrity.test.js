@@ -116,9 +116,17 @@ describe('swapping a lesson video', () => {
     assert.equal(swapped.progress.watchedSeconds, 0);
     assert.equal(swap.body.gates.quizPassed, true, 'the quiz still reads as passed');
 
-    // A full rebuild may reset the score — but passing again pays nothing.
+    // A build over an existing lesson is refused unless it is asked for
+    // outright: the lesson, its score and its progress are left alone.
+    const refused = await invoke(generateTaskStudy, user, { params: { id: String(task._id) }, body: { mode: 'video', lang: 'en' } });
+    assert.equal(refused.status, 409);
+    assert.equal(refused.body.code, 'LESSON_EXISTS');
+    assert.equal(refused.body.lesson.video.videoId, 'vid-two', 'answered with the lesson that is there');
+    assert.equal((await TaskStudy.findOne({ taskId: task._id }).lean()).bestScore, before.bestScore, 'nothing was reset');
+
+    // A full rebuild (asked for) may reset the score — but passing again pays nothing.
     nextVideoId = 'vid-three';
-    const rebuild = await invoke(generateTaskStudy, user, { params: { id: String(task._id) }, body: { mode: 'video', lang: 'en' } });
+    const rebuild = await invoke(generateTaskStudy, user, { params: { id: String(task._id) }, body: { mode: 'video', lang: 'en', rebuild: true } });
     assert.equal(rebuild.status, 201);
     assert.equal(rebuild.body.bestScore, 0);
     const again = await invoke(submitTaskQuiz, user, { params: { id: String(task._id) }, body: { answers: [0, 0, 0, 0, 0] } });

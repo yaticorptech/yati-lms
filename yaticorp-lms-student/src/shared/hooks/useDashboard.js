@@ -27,12 +27,21 @@ export const useDashboard = (apiClient) => {
     const fetchData = async () => {
         if (!loaded.current) setLoading(true);
         try {
-            const [userCourses, available] = await Promise.all([
-                courseService.getUserCourses(),
+            // The enrolled list straight from the server rather than through
+            // courseService.getUserCourses, which keeps only the two lists:
+            // the answer can also carry rewards events — XP for a course the
+            // server has just found complete (a completion repaired on read) —
+            // and those go to the celebrations like any other.
+            const [mine, available] = await Promise.all([
+                apiClient.get('/user/courses'),
                 courseService.getAvailableCourses()
             ]);
-            setCourses(userCourses.courses);
-            setBundles(userCourses.bundles);
+            const events = mine.data?.rewards?.events;
+            if (Array.isArray(events) && events.length) {
+                window.dispatchEvent(new CustomEvent('yati:rewards', { detail: events }));
+            }
+            setCourses(mine.data?.courses || []);
+            setBundles(mine.data?.bundles || []);
             setAvailableCourses(available);
             setError(null);
             loaded.current = true;

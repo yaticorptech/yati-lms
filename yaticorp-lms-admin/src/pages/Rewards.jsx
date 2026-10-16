@@ -225,6 +225,10 @@ const WALLET_GROUPS = [
     }
 ];
 
+// A rule no screen can trigger today: shown, so its amount is not lost, but
+// marked so nobody expects it to pay.
+const NOT_EARNED = 'Not currently earned: no page in the student app asks for this any more.';
+
 const XP_GROUPS = [
     {
         title: 'Courses', rules: [
@@ -251,8 +255,11 @@ const XP_GROUPS = [
     },
     {
         title: 'Interview Ready', rules: [
-            ['interview_practice', 'Practise an interview question', 'Each question, the first time it is practised.'],
-            ['interview_prep', 'Prepare for interviews', 'One-time bonus after five practised questions.'],
+            // Kept, not deleted (an admin's amounts stay as they were), but
+            // flagged: only "mark a question practised" pays these, and the
+            // practice bank no longer has that button (2026-10-14).
+            ['interview_practice', 'Practise an interview question', 'Each question, the first time it is practised.', NOT_EARNED],
+            ['interview_prep', 'Prepare for interviews', 'One-time bonus after five practised questions.', NOT_EARNED],
             ['mock_interview', 'Complete a mock interview', 'Each finished AI mock interview.'],
             ['interview_improved', 'Beat your best interview score', 'A mock interview that tops the previous best.'],
             ['interview_challenge', 'Complete the weekly interview challenge', 'A full interview at the challenge score, once a week.']
@@ -303,7 +310,7 @@ function RuleList({ groups, values, prefix, step = 1, onSet, onRemove, addLabel 
     const [adding, setAdding] = useState(false);
     const [pick, setPick] = useState('');
     const [amount, setAmount] = useState('');
-    const all = groups.flatMap((g) => g.rules.map(([k, label]) => ({ k, label, group: g.title })));
+    const all = groups.flatMap((g) => g.rules.map(([k, label, , unearned]) => ({ k, label: unearned ? `${label} (not currently earned)` : label, group: g.title })));
     const missing = all.filter((r) => !(r.k in (values || {})));
     const add = () => {
         if (!pick) return;
@@ -319,10 +326,13 @@ function RuleList({ groups, values, prefix, step = 1, onSet, onRemove, addLabel 
                     <div key={g.title}>
                         {groups.length > 1 && <p className="mb-2 text-xs font-black uppercase tracking-wider text-indigo-500">{g.title}</p>}
                         <div className="grid sm:grid-cols-2 gap-3">
-                            {live.map(([k, label, hint]) => (
-                                <div key={k}>
+                            {live.map(([k, label, hint, unearned]) => (
+                                <div key={k} className={unearned ? 'opacity-70' : ''}>
                                     <div className="mb-1 flex items-start justify-between gap-2">
-                                        <label className={`${LABEL} !mb-0`}>{label}</label>
+                                        <label className={`${LABEL} !mb-0`}>
+                                            {label}
+                                            {unearned && <span className="ml-1.5 inline-block rounded-full bg-amber-100 px-1.5 py-px align-middle text-[10px] font-bold normal-case tracking-normal text-amber-700">Not currently earned</span>}
+                                        </label>
                                         <button type="button" onClick={() => onRemove(k)} title="Remove this rule" aria-label={`Remove ${label}`}
                                             className="-mt-1 rounded-md p-1 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-600"><Trash2 size={13} /></button>
                                     </div>
@@ -330,7 +340,7 @@ function RuleList({ groups, values, prefix, step = 1, onSet, onRemove, addLabel 
                                         {prefix && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{prefix}</span>}
                                         <input type="number" min="0" step={step} value={values[k] ?? 0} onChange={(e) => onSet(k, Number(e.target.value))} className={`${INPUT} ${prefix ? (prefix.length > 1 ? 'pl-12' : 'pl-7') : ''}`} />
                                     </div>
-                                    <p className="mt-1 text-[11px] leading-snug text-slate-400">{hint}</p>
+                                    <p className="mt-1 text-[11px] leading-snug text-slate-400">{hint}{unearned && <span className="block text-amber-700">{unearned}</span>}</p>
                                 </div>
                             ))}
                         </div>

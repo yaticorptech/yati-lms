@@ -56,6 +56,24 @@ function reportToMac() {
     };
     let last = '';
     setInterval(() => { if (location.pathname !== last) { last = location.pathname; setTimeout(snapshot, 4000); setTimeout(snapshot, 12000); } }, 1000);
+    // How smooth each scroll is on the phone itself (2026-10-15, "make the
+    // entire website smooth scrolling"): from the first scroll event to 250 ms
+    // after the last, every frame's gap is timed, and a scroll of at least
+    // 300 ms is reported: frames a second, frames over 34 ms (one dropped at
+    // 60 Hz) and over 50 ms, and the longest gap.
+    let gaps = null; let quietTimer = 0; let lastT = 0; let began = 0;
+    const tick = (t) => { if (!gaps) return; if (lastT) gaps.push(t - lastT); lastT = t; requestAnimationFrame(tick); };
+    document.addEventListener('scroll', () => {
+        if (!gaps) { gaps = []; lastT = 0; began = performance.now(); requestAnimationFrame(tick); }
+        clearTimeout(quietTimer);
+        quietTimer = setTimeout(() => {
+            const g = gaps; gaps = null;
+            const ms = performance.now() - began;
+            if (!g || g.length < 5 || ms < 300) return;
+            const total = g.reduce((a, b) => a + b, 0);
+            send('scroll', { ms: Math.round(ms), fps: Math.round(g.length / (total / 1000)), over34: g.filter((x) => x > 34).length, over50: g.filter((x) => x > 50).length, worst: Math.round(Math.max(...g)), frames: g.length });
+        }, 250);
+    }, { capture: true, passive: true });
     send('app-start', { ua: navigator.userAgent.slice(0, 160), origin: location.origin });
 }
 

@@ -73,7 +73,10 @@ router.get('/quizzes/global/history', protectUser, getGlobalQuizHistory);
 router.get('/quizzes/global/live', protectUser, getGlobalQuizLive);
 router.post('/quizzes/global/start', protectUser, startGlobalQuiz);
 router.post('/quizzes/global/submit', protectUser, submitGlobalQuiz);
-router.post('/quizzes/global/finish', protectUser, xpOnSuccess('global_quiz_complete', () => `global:${today()}`), finishGlobalQuiz);
+// "Finish the Global Quiz" XP is paid inside finishGlobalQuiz, once per quiz, by
+// the request that closes the attempt — not here per day, which a Finish on an
+// already-closed attempt could collect again every day.
+router.post('/quizzes/global/finish', protectUser, finishGlobalQuiz);
 
 // Ticket Routes
 router.post('/tickets', protectUser, createTicket);

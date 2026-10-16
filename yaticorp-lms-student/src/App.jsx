@@ -12,7 +12,9 @@ import StudentLayout from './layouts/StudentLayout';
 import YatiLoader from './components/YatiLoader';
 import LoopWalker from './components/LoopWalker';
 import { useLoopHidden } from './components/loopVisibility';
+import { useSayPageOnNav } from './components/loopGuide';
 import Login from './pages/Login';
+import { loginPathFor } from './utils/sessionExpiry';
 import EnrolledCourses from './pages/EnrolledCourses';
 // A guardian answering a part-time job permission request. Outside the auth
 // guard on purpose: a parent has no account and arrives from a link.
@@ -36,32 +38,42 @@ const InterviewReport = React.lazy(() => import('./interview/InterviewReport'));
 const QuestionReview = React.lazy(() => import('./interview/QuestionReview'));
 const InterviewHistory = React.lazy(() => import('./interview/InterviewHistory'));
 
+/**
+ * Signed in, or off to the sign-in page — which is told where the student was
+ * heading (?next=), so a shared or bookmarked link still lands there once they
+ * have signed in. No loading screen: the saved student is known at once
+ * (context/AuthContext), and a login the server no longer accepts is caught by
+ * the first request it makes (utils/sessionExpiry).
+ */
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useContext(AuthContext);
-  if (loading) return <YatiLoader fullScreen label="Loading your account" />;
-  if (!user) return <Navigate to="/login" replace />;
+  const { user } = useContext(AuthContext);
+  const location = useLocation();
+  if (!user) return <Navigate to={loginPathFor(`${location.pathname}${location.search}${location.hash}`)} replace />;
   return children;
 };
 
 import Profile from './pages/Profile';
-import CoursePlayer from './pages/CoursePlayer';
-import CoursePreview from './pages/CoursePreview';
 import Signup from './pages/Signup';
-import ResetPassword from './pages/ResetPassword';
 import AdminAccess from './pages/AdminAccess';
-import Community from './pages/Community';
-import PostDetail from './pages/PostDetail';
 import NotFound from './pages/NotFound';
+// Downloaded when first opened rather than with the sign-in page: the player
+// brings the video players, the community its editor, and every student sees
+// the sign-in page first. Login and Signup stay in the first download.
+const CoursePlayer = React.lazy(() => import('./pages/CoursePlayer'));
+const CoursePreview = React.lazy(() => import('./pages/CoursePreview'));
+const ResetPassword = React.lazy(() => import('./pages/ResetPassword'));
+const Community = React.lazy(() => import('./pages/Community'));
+const PostDetail = React.lazy(() => import('./pages/PostDetail'));
 import { RewardsProvider } from './context/RewardsContext';
 
 // ─── Career Path (FuturePath) ────────────────────────────────────────────────
 // The AI career-roadmap section, ported from the standalone FuturePath app. It
 // is student-only and self-contained under src/career/; the API it talks to is
 // mounted at /api/career on the same server, behind the same student token.
-// Lazily loaded — it pulls in chart.js and react-markdown, which no other
-// student screen needs.
-import CareerShell from './career/CareerShell';
-import CareerProviders from './career/CareerProviders';
+// Lazily loaded, shell and pages alike — the section pulls in chart.js and
+// react-markdown, which no other student screen needs.
+const CareerShell = React.lazy(() => import('./career/CareerShell'));
+const CareerProviders = React.lazy(() => import('./career/CareerProviders'));
 // The mascot workbench: dev builds only, reached by typing /dev/mascot.
 const MascotDemo = import.meta.env.DEV ? React.lazy(() => import('./pages/dev/MascotDemo')) : null;
 const CareerOverview = React.lazy(() => import('./career/pages/dashboard/Overview'));
@@ -80,17 +92,18 @@ const CareerOnboarding = React.lazy(() => import('./career/pages/Onboarding'));
  *
  * Hiding the sidebar tab is not enough — /career is a URL a student may have
  * bookmarked, and the section's own pages would otherwise mount and start
- * calling an API that now answers 403. Waiting on `loading` matters: the
- * setting arrives with it, and redirecting before it does would bounce every
- * student off a section that is open.
+ * calling an API that now answers 403. Waiting on `settingsLoading` matters:
+ * the setting arrives with it, and redirecting before it does would bounce
+ * every student off a section that is open. The wait is bounded — the
+ * settings read gives up after ten seconds and leaves sections open.
  */
 /**
  * The lock an administrator can put on the Jobs section, same shape as the
  * career one below: the sidebar tab is not the only way in.
  */
 const JobsGate = () => {
-  const { loading, isJobsEnabled } = useContext(AuthContext);
-  if (loading) return <CareerFallback />;
+  const { settingsLoading, isJobsEnabled } = useContext(AuthContext);
+  if (settingsLoading) return <CareerFallback />;
   return isJobsEnabled ? <Outlet /> : <Navigate to="/" replace />;
 };
 
@@ -117,8 +130,8 @@ const SkillsGate = () => {
 };
 
 const CareerGate = () => {
-  const { loading, isCareerPathEnabled } = useContext(AuthContext);
-  if (loading) return <CareerFallback />;
+  const { settingsLoading, isCareerPathEnabled } = useContext(AuthContext);
+  if (settingsLoading) return <CareerFallback />;
   return isCareerPathEnabled ? <Outlet /> : <Navigate to="/" replace />;
 };
 
@@ -127,9 +140,11 @@ const CareerGate = () => {
 const CareerFallback = () => <YatiLoader label="Loading this page" />;
 
 // ─── Loop Walker ─────────────────────────────────────────────────────────────
-// Loop runs over to any element tagged data-explain="<key>" and to the main
-// buttons, and explains it once it is standing beside it. Never anything in a
-// nav bar. The words live here, module-level so every render hands the mascot
+// Loop stands in the bottom-right corner and never walks (mode 'stand', asked
+// 2026-10-15): not after the cursor or a finger, not over to what it explains,
+// not away when poked. It explains any element tagged data-explain="<key>" and
+// the main buttons from there, pointing at them. Never anything in a nav bar.
+// The words live here, module-level so every render hands the mascot
 // the same objects. On a touch screen there is no cursor, so Loop says "tap"
 // rather than "click".
 const LOOP_TOUCH = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
@@ -195,9 +210,76 @@ const describeLoopButton = (label, el) => {
   return `${name} ${line} Go on, ${LOOP_CLICK} it!`;
 };
 
+// What each page is for, said every time a student opens it from the navigation
+// (the sidebar, top bar, phone menus and Career Path's strip; asked
+// 2026-10-15). Taken from what each page shows. Short enough to read at a
+// glance: the words appear all at once, stay a few seconds and then go.
+// Not for My Profile and Career Path's Settings, where Loop is out of sight,
+// nor for a page that opens with a popup of its own (Jobs while it is
+// locked): Loop says nothing over a popup.
+const LOOP_PAGES = {
+  '/': { label: 'Dashboard', text: "Your home base. Jump back into your last course, find new ones to enrol in, and see how far you've come." },
+  '/enrolled-courses': { label: 'My Courses', text: `Every course you're enrolled in, with how far you've got in each. ${LOOP_CLICK[0].toUpperCase()}${LOOP_CLICK.slice(1)} Resume to carry on where you left off.` },
+  '/community': { label: 'Community', text: 'Ask questions, share tips and celebrate wins with other students and instructors. Start a discussion anytime!' },
+  '/career': { label: 'Career Path', text: "Your career journey: today's quest, the stages to your goal and your fastest-growing skills. New here? Start onboarding to get your roadmap." },
+  '/career/planner': { label: "Today's Plan", text: "Today's tasks, picked from your roadmap. Finish them all and you can unlock one more." },
+  '/career/calendar': { label: 'Calendar', text: 'Your tasks day by day. Add exams and events, and set up your class timetable. The day before an exam stays free.' },
+  '/career/roadmap': { label: 'Roadmap', text: `Your step-by-step path to your goal. ${LOOP_CLICK[0].toUpperCase()}${LOOP_CLICK.slice(1)} a phase to open it, or turn it into daily tasks.` },
+  '/career/skills': { label: 'Skills', text: 'The skills you build as you finish tasks: the ones in progress, the ones you have mastered, and the ones ready to start.' },
+  '/career/recommendations': { label: 'Ideas & Resources', text: 'Handpicked for your goal: courses, certifications, books, internships, scholarships and practice sites, plus ideas from your roadmap.' },
+  '/career/profile': { label: 'My Progress', text: 'Where you stand: your level and XP, your skills and achievements, and any tasks still to do from earlier days.' },
+  '/career/badges': { label: 'Rewards', text: 'Your level, XP and badges, how close the next badge is, and the roadmap milestones you can share.' },
+  '/interview': { label: 'Interview Prep', text: 'Get interview-ready: practise common questions, then take an AI mock interview by voice and get feedback to improve.' },
+  '/jobs': { label: 'Jobs', text: 'Jobs that match your skills and goal. Filter by type and location, apply, and save the ones you like.' },
+  '/scholarships': { label: 'Scholarships', text: 'Scholarships you qualify for. Fill in the eligibility form once, then see each match with its amount and deadline.' },
+  '/competitions': { label: 'Games & Competitions', text: 'Play Chess, Ludo, Carrom and UNO with friends, train with Brain Boosters, and compete for your college.' }
+};
+
+// What each tab of a page is for, said every time a student opens
+// that tab (asked 2026-10-15). Keyed by the page's ?tab= id; `default` is the
+// tab the page shows with no ?tab. Written from what each panel shows (and the
+// server's rules: bundles cost nothing, the Global Quiz pays XP for a win, a
+// competition takes teams from a college's coordinator).
+const CAP_CLICK = `${LOOP_CLICK[0].toUpperCase()}${LOOP_CLICK.slice(1)}`;
+const LOOP_TABS = {
+  '/': {
+    default: 'available',
+    available: { label: 'Available Courses', text: `Courses you can join: free ones say Free, paid ones show the price from your wallet. ${CAP_CLICK} Enroll Now to join, or the play button to preview.` },
+    completed: { label: 'Completed', text: 'Every course you have finished. Review Course takes you back through one whenever you like.' },
+    bundles: { label: 'Bundles', text: 'Groups of courses that go together. View Courses Inside shows them, and the bar shows your progress across the bundle.' },
+    quiz: { label: 'Global Quiz', text: 'A general-knowledge quiz your institution sets from time to time. One attempt each; score high enough and you win XP.' },
+    activity: { label: 'Weekly activity', text: 'Your learning streak, the days you were active this week, and how this week compares with the last.' }
+  },
+  '/enrolled-courses': {
+    default: 'courses',
+    courses: { label: 'My courses', text: "The courses you're enrolled in, with how far you've got in each. Start, resume or review any of them." },
+    bundles: { label: 'Bundles', text: 'Groups of courses that go together. Open one to see its courses and your progress across them.' },
+    organization: { label: 'Organization', text: 'Courses your organization made just for its students, all free. Start one and it opens straight away.' }
+  },
+  '/competitions': {
+    default: 'games',
+    games: { label: 'Games', text: "Play Chess, Ludo, Carrom or UNO with friends. Play Now makes a room with a code to share, or join a friend's room with theirs." },
+    'brain-boosters': { label: 'Brain Boosters', text: "Quick memory, logic, word and number games. Each level's stars earn you XP, within today's play time." },
+    competitions: { label: 'Competitions', text: "Inter-college competitions: live, open and coming up. Your college's coordinator picks the team, so ask them to put you in." },
+    mine: { label: 'My Games', text: 'The competitions your coordinator put you in: your team, and your upcoming, live and finished matches.' },
+    leaderboard: { label: 'Leaderboard', text: 'Overall rankings by college, team or player, from the points earned across every competition.' },
+    results: { label: 'Results', text: 'The winners of every finished competition: first, second and third place.' },
+    history: { label: 'History', text: 'Your own past competitions: your team, your place, the matches you won, and your certificate to download.' }
+  },
+  '/jobs': {
+    default: 'jobs',
+    jobs: { label: 'Jobs', text: 'Search for jobs: add your skills or resume, choose the job type and location, then Find jobs.' },
+    match: { label: 'Career Match', text: 'Jobs ranked by how well they match your resume or your course skills, best match first.' },
+    hidden: { label: 'Hidden Opportunities', text: 'Jobs you qualify for that a plain search would not show, found from your skills.' },
+    saved: { label: 'Saved Jobs', text: 'The jobs you bookmarked, kept here so you can come back to them.' },
+    opportunities: { label: 'Part-Time Jobs', text: "Part-time jobs on the dates you're free that match your interests. No resume needed." }
+  }
+};
+
 function App() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const here = pathname.replace(/\/+$/, '') || '/';
+  useSayPageOnNav(here, new URLSearchParams(search).get('tab'), LOOP_PAGES, LOOP_TABS);
   const showLoop = !LOOP_HIDDEN_ON.includes(here);
   // A game in play hides Loop without unmounting it (components/loopVisibility).
   const loopHidden = useLoopHidden() || LOOP_QUIET_ON.includes(here);
@@ -207,12 +289,13 @@ function App() {
         screen) and 108px on a phone; within that it follows the screen, about
         a quarter of its shorter side (loop-walker.js, figH): ~94px on a 360px
         phone, ~101px on a 390px one.
-        hint={false}: no "Drag to lead it…" pill in the corner, on any screen. */}
-    {showLoop && <LoopWalker hidden={loopHidden} greeting={LOOP_GREETING} explain={LOOP_EXPLAIN} describeButton={describeLoopButton} height={120} mobileHeight={108} hint={false} />}
+        hint={false}: no "Drag to lead it…" pill in the corner, on any screen.
+        On a phone its feet stay above the bottom bar (data-loop-skip). */}
+    {showLoop && <LoopWalker hidden={loopHidden} mode="stand" side="right" greeting={LOOP_GREETING} explain={LOOP_EXPLAIN} describeButton={describeLoopButton} height={120} mobileHeight={108} hint={false} />}
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/reset-password" element={<React.Suspense fallback={<CareerFallback />}><ResetPassword /></React.Suspense>} />
       {/* A superadmin opening a student's dashboard from the admin Users page. */}
       <Route path="/admin-access" element={<AdminAccess />} />
       {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
@@ -221,7 +304,7 @@ function App() {
       <Route path="/jobs/guardian/:token" element={<React.Suspense fallback={<CareerFallback />}><GuardianReview /></React.Suspense>} />
       <Route path="/privacy" element={<React.Suspense fallback={<CareerFallback />}><Privacy /></React.Suspense>} />
       <Route path="/terms" element={<React.Suspense fallback={<CareerFallback />}><Terms /></React.Suspense>} />
-      <Route path="/preview/:courseId" element={<CoursePreview />} />
+      <Route path="/preview/:courseId" element={<React.Suspense fallback={<CareerFallback />}><CoursePreview /></React.Suspense>} />
       <Route path="/learning-bio/shared/:code" element={<React.Suspense fallback={<YatiLoader fullScreen label="Loading Learning Bio" />}><SharedBioPage /></React.Suspense>} />
       {/* RewardsProvider sits inside the auth guard so every page in the
           shell can show XP toasts and milestone celebrations. */}
@@ -246,9 +329,9 @@ function App() {
         <Route path="interview/report/:id/questions" element={<React.Suspense fallback={<CareerFallback />}><QuestionReview /></React.Suspense>} />
         <Route path="interview/history" element={<React.Suspense fallback={<CareerFallback />}><InterviewHistory /></React.Suspense>} />
         <Route path="profile" element={<Profile key="profile" view="profile" />} />
-        <Route path="learn/:courseId" element={<CoursePlayer />} />
-        <Route path="community" element={<Community />} />
-        <Route path="community/:postId" element={<PostDetail />} />
+        <Route path="learn/:courseId" element={<React.Suspense fallback={<CareerFallback />}><CoursePlayer /></React.Suspense>} />
+        <Route path="community" element={<React.Suspense fallback={<CareerFallback />}><Community /></React.Suspense>} />
+        <Route path="community/:postId" element={<React.Suspense fallback={<CareerFallback />}><PostDetail /></React.Suspense>} />
 
         {/* Career Path. The onboarding wizard sits outside the shell because it
             is a focused five-step flow — the section's tab strip has nothing to
@@ -277,14 +360,16 @@ function App() {
         <Route
           path="career/onboarding"
           element={
-            <CareerProviders>
-              <React.Suspense fallback={<CareerFallback />}>
-                <CareerOnboarding />
-              </React.Suspense>
-            </CareerProviders>
+            <React.Suspense fallback={<CareerFallback />}>
+              <CareerProviders>
+                <React.Suspense fallback={<CareerFallback />}>
+                  <CareerOnboarding />
+                </React.Suspense>
+              </CareerProviders>
+            </React.Suspense>
           }
         />
-        <Route path="career" element={<CareerShell />}>
+        <Route path="career" element={<React.Suspense fallback={<CareerFallback />}><CareerShell /></React.Suspense>}>
           <Route index element={<React.Suspense fallback={<CareerFallback />}><CareerOverview /></React.Suspense>} />
           <Route path="planner" element={<React.Suspense fallback={<CareerFallback />}><CareerPlanner /></React.Suspense>} />
           <Route path="calendar" element={<React.Suspense fallback={<CareerFallback />}><CareerCalendar /></React.Suspense>} />

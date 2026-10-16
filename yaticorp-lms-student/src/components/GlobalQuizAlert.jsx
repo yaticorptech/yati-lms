@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Globe2, X, ArrowRight, Clock } from 'lucide-react';
 import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
-import { useLoopHidden } from './loopVisibility';
+import { useStudentBusy } from './busyScreen';
 
 // How often a page asks whether a new quiz is out (and again whenever the
 // app comes back to the front).
@@ -12,17 +12,8 @@ const CHECK_MS = 60 * 1000;
 // question: the quiz waits on the Dashboard's Global Quiz tab regardless.
 const SHOW_MS = 20 * 1000;
 
-// Pages that are themselves the important thing: a lesson, an interview, a
-// game, setting up Career Path. The notice waits until the student leaves.
-const BUSY_PATHS = [/^\/learn\//, /^\/interview\/mock\//, /^\/competitions\/play\//, /^\/career\/onboarding/];
-
-// Something on screen the notice must not get in front of: a popup, a
-// celebration, or the student typing.
-const busyOnScreen = () => {
-    if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"], [data-game-celebration]')) return true;
-    const el = document.activeElement;
-    return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
-};
+// What counts as busy — the pages, Yati hiding, a popup, typing — is shared
+// with the daily puzzle (ContinuePanel): see busyScreen.js.
 
 const seenKey = (userId) => `yati.gqAnnounced.${userId || 'me'}`;
 const readSeen = (userId) => { try { return localStorage.getItem(seenKey(userId)) || ''; } catch { return ''; } };
@@ -48,9 +39,7 @@ export default function GlobalQuizAlert() {
     const userId = user?._id || user?.id;
     const navigate = useNavigate();
     const { pathname, search } = useLocation();
-    const loopHidden = useLoopHidden();
     const [quiz, setQuiz] = useState(null);           // the live quiz worth announcing, or null
-    const [screenBusy, setScreenBusy] = useState(false);
     // When this quiz's notice first came on screen, and for how long it has shown (it waits while the student is busy).
     const shownFor = useRef({ mark: '', since: 0, total: 0 });
 
@@ -76,16 +65,10 @@ export default function GlobalQuizAlert() {
     }, [check]);
 
     // What is on screen changes without React knowing (a popup opening, a field taking the cursor): looked at twice a second while there is something to announce.
-    useEffect(() => {
-        if (!quiz) return undefined;
-        const look = () => setScreenBusy(busyOnScreen());
-        look();
-        const timer = setInterval(look, 500);
-        return () => clearInterval(timer);
-    }, [quiz]);
+    const busy = useStudentBusy(!!quiz);
 
+    // The Dashboard keeps its open tab in the address (?tab=), both ways.
     const onQuizTab = pathname === '/' && new URLSearchParams(search).get('tab') === 'quiz';
-    const busy = loopHidden || screenBusy || BUSY_PATHS.some((re) => re.test(pathname));
 
     // Already on the Global Quiz tab: they have found it, so it is not announced.
     useEffect(() => {
