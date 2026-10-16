@@ -2,14 +2,19 @@
  * One inter-college competition: its details (who organizes it, the game, the
  * dates, the colleges taking part, the team limits, the rules, the prizes and
  * certificates), the knockout round by round, and the winners once decided.
+ *
+ * Once it is over this is its results page (Results → View Full Results): the
+ * winners, the final standings of every team, the rounds and the rules. The
+ * prizes box and the list of colleges taking part are left out there — the
+ * standings name every team, and the prizes have been given.
  */
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-    ArrowLeft, CalendarClock, Building2, Users, ScrollText, Trophy, Award, Clock, Swords, Gift, Download, Loader2, UserCheck
+    ArrowLeft, CalendarClock, Building2, Users, ScrollText, Trophy, Award, Clock, Swords, Gift, Download, Loader2, UserCheck, ListOrdered
 } from 'lucide-react';
 import { competitionsApi, ORDINAL, fmtDateTime } from './api';
-import { StatusChip, GameChip, Rounds, Podium } from './parts';
+import { StatusChip, GameChip, Rounds, Podium, Standings } from './parts';
 import { saveBlob } from '../native/saveFile';
 import PriceTag from '../components/rewards/PriceTag';
 
@@ -49,6 +54,8 @@ export default function CompetitionDetail() {
     const myTeamId = c.myTeam?.status === 'approved' ? c.myTeam.id : null;
     // A college's own competition: for its students only, in teams it makes.
     const own = !!c.hostOrganizationId;
+    // Over: this is its results page (see the top).
+    const finished = c.status === 'completed';
     const download = () => {
         setSaving(true);
         competitionsApi.certificate(c.id).then((blob) => saveBlob(blob, `Certificate_${c.name.replace(/\s+/g, '_')}.pdf`, { title: 'Certificate' }))
@@ -57,7 +64,7 @@ export default function CompetitionDetail() {
 
     return (
         <div className="space-y-5 pb-10">
-            <Link to="/competitions?tab=competitions" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700">
+            <Link to="/competitions?tab=competitions" className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700">
                 <ArrowLeft size={16} aria-hidden="true" /> Competitions
             </Link>
 
@@ -77,7 +84,7 @@ export default function CompetitionDetail() {
                 {c.myTeam && (
                     <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl bg-violet-50 px-4 py-3 ring-1 ring-violet-100">
                         <UserCheck size={18} className="text-violet-600" aria-hidden="true" />
-                        <p className="min-w-0 flex-1 text-sm text-violet-900">
+                        <p className="min-w-0 flex-1 basis-56 text-sm text-violet-900">
                             You play for <strong>{c.myTeam.teamName}</strong> ({c.myTeam.collegeName}){c.myTeam.status !== 'approved' ? ' — waiting for the organizer to approve the team.' : '.'}
                             {c.myTeam.place ? <> Your team finished <strong>{ORDINAL[c.myTeam.place]}</strong>.</> : null}
                         </p>
@@ -115,12 +122,20 @@ export default function CompetitionDetail() {
                 </section>
             )}
 
+            {finished && teams.length > 0 && (
+                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><ListOrdered size={19} className="text-indigo-600" aria-hidden="true" /> Final standings</h2>
+                    <Standings teams={teams} rounds={rounds} winners={c.winners} myTeamId={c.myTeam?.id} showCollege={!own} />
+                </section>
+            )}
+
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><Swords size={19} className="text-indigo-600" aria-hidden="true" /> Tournament rounds</h2>
                 <Rounds rounds={rounds} myTeamId={myTeamId} />
             </section>
 
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className={`grid grid-cols-1 gap-5 ${finished ? '' : 'lg:grid-cols-2'}`}>
+                {!finished && (
                 <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><Gift size={19} className="text-indigo-600" aria-hidden="true" /> Prizes &amp; rewards</h2>
                     {c.prizeDetails && <p className="mb-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">🏆 {c.prizeDetails}</p>}
@@ -144,6 +159,7 @@ export default function CompetitionDetail() {
                                 : c.participationCertificates ? 'A participation certificate for every player.' : 'This competition does not give certificates.'}
                     </p>
                 </section>
+                )}
 
                 <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><ScrollText size={19} className="text-indigo-600" aria-hidden="true" /> Competition rules</h2>
@@ -151,10 +167,11 @@ export default function CompetitionDetail() {
                 </section>
             </div>
 
+            {!finished && (
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><Building2 size={19} className="text-indigo-600" aria-hidden="true" /> {own ? 'Teams' : 'Participating colleges'} <span className="text-sm font-semibold text-slate-400">({teams.length})</span></h2>
                 {teams.length === 0 ? <p className="text-sm text-slate-500">{own ? 'Your college is making the teams.' : c.status === 'registration' ? 'Colleges are registering now.' : 'No colleges yet.'}</p> : (
-                    <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                    <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                         {teams.map((t) => (
                             <li key={t.id} className={`rounded-2xl border p-3 ${t.id === c.myTeam?.id ? 'border-violet-200 bg-violet-50/50' : 'border-slate-200'}`}>
                                 <p className="truncate text-sm font-bold text-slate-900">{t.teamName} {t.place && <span className="text-amber-600">· {ORDINAL[t.place]}</span>}</p>
@@ -165,6 +182,7 @@ export default function CompetitionDetail() {
                     </ul>
                 )}
             </section>
+            )}
         </div>
     );
 }

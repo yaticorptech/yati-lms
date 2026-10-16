@@ -24,7 +24,8 @@ import {
     Gamepad2, Brain, Trophy, UserCheck, BarChart3, History, Users, UsersRound, Crown, CalendarClock, Building2, Loader2,
     ArrowRight, Award, Download, Medal, Clock, Gift, Search, Play, ChevronRight, Link2, Ticket, MoreVertical, Copy, LogOut, Check, X
 } from 'lucide-react';
-import { competitionsApi, GAMES, ORDINAL, fmtDateTime, fmtDate, prizeLine, gameImage, gameIcon } from './api';
+import useRowsShown from './useRowsShown';
+import { competitionsApi, GAMES, ORDINAL, fmtDateTime, fmtDate, gameImage, gameIcon } from './api';
 import { StatusChip, GameChip, MatchCard, Empty } from './parts';
 import { saveBlob } from '../native/saveFile';
 import PriceTag from '../components/rewards/PriceTag';
@@ -101,7 +102,7 @@ const RoomRow = ({ room: r, onLeft }) => {
                     {r.status === 'waiting' && <button type="button" role="menuitem" onClick={leave} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50"><LogOut size={13} aria-hidden="true" /> {r.host ? 'Close room' : 'Leave room'}</button>}
                 </span>
             ) : (
-                <Link to={`/competitions/play/${r.id}`} className="shrink-0 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 transition-colors hover:bg-indigo-100">
+                <Link to={`/competitions/play/${r.id}`} className="inline-flex min-h-9 shrink-0 items-center rounded-lg bg-indigo-50 px-3 text-xs font-bold text-indigo-700 transition-colors hover:bg-indigo-100">
                     {r.status === 'waiting' ? 'Open room' : 'Continue'}
                 </Link>
             )}
@@ -150,7 +151,7 @@ const GamesTab = () => {
             {games.length === 0 && <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">No game called “{q.trim()}”. We have Chess, Ludo, Carrom and UNO.</p>}
             {/* On a wide screen the row has a set height — the photo's share of
                 the window plus the card's text and button — and may shrink. */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 lg:h-[calc(7vw+129px)] lg:min-h-0 lg:shrink lg:grid-rows-[minmax(0,1fr)]">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 lg:h-[calc(7vw+129px)] lg:min-h-0 lg:shrink lg:grid-rows-[minmax(0,1fr)]">
                 {games.map(([id, g]) => (
                     <article key={id} data-game={id} className="flex flex-col overflow-hidden rounded-[18px] bg-white shadow-sm ring-1 ring-slate-100 lg:min-h-0">
                         {/* Shorter than the photo, cropping its bottom; on a wide screen
@@ -187,7 +188,7 @@ const GamesTab = () => {
                 ))}
             </div>
 
-            <div className="grid gap-3 lg:flex-[1_0_auto] lg:grid-cols-[1.1fr_1fr]">
+            <div className="grid grid-cols-1 gap-3 lg:flex-[1_0_auto] lg:grid-cols-[1.1fr_1fr]">
                 <section className="relative flex flex-col justify-center overflow-hidden rounded-[18px] bg-gradient-to-br from-violet-50 via-indigo-50/70 to-fuchsia-50/60 p-3.5 ring-1 ring-violet-100">
                     <UsersRound size={48} aria-hidden="true" className="pointer-events-none absolute right-5 top-3 text-indigo-200/60" />
                     <span aria-hidden="true" className="pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-violet-100/60" />
@@ -248,7 +249,6 @@ export const CompetitionCard = ({ c }) => (
                     <div className="flex gap-1.5"><dt className="inline-flex items-center gap-1.5 text-slate-400"><Clock size={13} aria-hidden="true" /> Register by</dt><dd className="font-semibold text-slate-700">{fmtDateTime(c.registrationDeadline)}</dd></div>
                 )}
                 <div className="flex gap-1.5"><dt className="inline-flex items-center gap-1.5 text-slate-400"><CalendarClock size={13} aria-hidden="true" /> Date</dt><dd className="font-semibold text-slate-700">{fmtDateTime(c.startsAt)}</dd></div>
-                {prizeLine(c) && <div className="flex gap-1.5"><dt className="inline-flex items-center gap-1.5 text-slate-400"><Gift size={13} aria-hidden="true" /> Prize</dt><dd className="min-w-0 truncate font-semibold text-amber-700">{prizeLine(c)}</dd></div>}
             </dl>
             {c.myTeam && <p className="text-xs font-bold text-violet-700">Your team: {c.myTeam.teamName}</p>}
             <Link to={`/competitions/${c.id}`} className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-colors hover:bg-indigo-700">
@@ -319,7 +319,7 @@ const CompetitionsTab = () => {
             {groups.map(([title, rows]) => (
                 <div key={title}>
                     <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{title}</h3>
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{rows.map((c) => <CompetitionCard key={c.id} c={c} />)}</div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{rows.map((c) => <CompetitionCard key={c.id} c={c} />)}</div>
                 </div>
             ))}
         </div>
@@ -329,7 +329,7 @@ const CompetitionsTab = () => {
 /* ── My games ─────────────────────────────────────────────────────────── */
 
 const MatchList = ({ rows, empty }) => (rows.length
-    ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{rows.map((m) => <MatchCard key={m.id} match={m} playing={m.playing} myTeamId={m.myTeamId} showCompetition />)}</div>
+    ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{rows.map((m) => <MatchCard key={m.id} match={m} playing={m.playing} myTeamId={m.myTeamId} showCompetition />)}</div>
     : <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">{empty}</p>);
 
 const MINE_TABS = [['registered', 'Registered'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['completed', 'Completed']];
@@ -373,7 +373,7 @@ const MineTab = () => {
                                     column two words wide. */}
                                 <span className="min-w-0 flex-1">
                                     <span className="flex items-start justify-between gap-2">
-                                        <Link to={`/competitions/${c.id}`} className="min-w-0 break-words text-sm font-bold text-slate-900 hover:text-indigo-700">{c.name}</Link>
+                                        <Link to={`/competitions/${c.id}`} className="-my-2 min-w-0 break-words py-2 text-sm font-bold text-slate-900 hover:text-indigo-700">{c.name}</Link>
                                         <span className="shrink-0"><StatusChip status={c.status} phase={c.phase} /></span>
                                     </span>
                                     <span className="mt-0.5 block text-xs text-slate-500">Team: {c.myTeam?.teamName} · {c.myTeam?.status === 'approved' ? 'Approved' : 'Pending approval'} · {fmtDateTime(c.startsAt)}</span>
@@ -399,26 +399,36 @@ const BOARDS = [
 ];
 const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
+/** Rankings shown before the list scrolls (the user's choice, 2026-10-14). */
+const RANKS_SHOWN = 2;
+const RANK_NOUN = { colleges: ['college', 'colleges'], teams: ['team', 'teams'], players: ['player', 'players'] };
+
 const LeaderboardTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.leaderboard);
     const [board, setBoard] = useState('colleges');
+    const listRef = useRef(null);
+    const rows = data?.[board] || [];
+    // The top two show; the rest scroll inside the list, like the Final standings.
+    const more = useRowsShown(listRef, RANKS_SHOWN, rows.length, { key: board });
     if (error) return <Failed error={error} onRetry={reload} />;
     if (!data) return <Loading />;
-    const rows = data[board] || [];
     const label = (r) => (board === 'colleges' ? r.collegeName : board === 'teams' ? r.teamName : r.name);
     const sub = (r) => (board === 'colleges' ? `${r.competitions} competition${r.competitions === 1 ? '' : 's'}` : board === 'teams' ? `${r.collegeName} · ${r.competition}` : r.collegeName);
     return (
         <Box>
-            <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Ranking">
+            {/* One line on a phone: the three share the row (they wrapped
+                Individual onto a second line), and below 380px the icons go so
+                the words fit. From sm up, each is as wide as its words. */}
+            <div className="mb-4 flex gap-1 sm:gap-2" role="tablist" aria-label="Ranking">
                 {BOARDS.map((b) => (
                     <button key={b.id} type="button" role="tab" aria-selected={board === b.id} onClick={() => setBoard(b.id)}
-                        className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3.5 text-sm font-bold transition-colors ${board === b.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                        <b.icon size={15} aria-hidden="true" /> {b.label}
+                        className={`inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 text-[13px] font-bold transition-colors sm:flex-none sm:px-3.5 sm:text-sm ${board === b.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        <b.icon size={15} aria-hidden="true" className="hidden shrink-0 min-[380px]:block" /> {b.label}
                     </button>
                 ))}
             </div>
             {rows.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">No results yet. Rankings fill in as matches are played.</p> : (
-                <ol className="divide-y divide-slate-100" data-ranking={board}>
+                <ol ref={listRef} className={`divide-y divide-slate-100 ${more ? 'overflow-y-auto overscroll-contain' : ''}`} data-ranking={board}>
                     {rows.map((r) => (
                         <li key={r.id} className="flex items-center gap-3 py-2.5">
                             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-black tabular-nums ${MEDAL[r.rank] ? 'text-xl' : 'bg-slate-100 text-sm text-slate-600'}`}>{MEDAL[r.rank] || r.rank}</span>
@@ -432,7 +442,7 @@ const LeaderboardTab = () => {
                     ))}
                 </ol>
             )}
-            <p className="mt-4 text-xs text-slate-400">3 points a match won, 1 a match played; 10 / 6 / 4 for finishing 1st / 2nd / 3rd. A college's points are its teams' added up.</p>
+            {more && <p data-ranking-more className="mt-2 text-xs text-slate-500">Showing {RANKS_SHOWN} of {rows.length} {RANK_NOUN[board][1]}. Scroll the list to see the rest.</p>}
         </Box>
     );
 };
@@ -447,7 +457,9 @@ const ResultsTab = () => {
     if (!data) return <Loading />;
     if (!data.competitions.length) return <Empty icon={Medal} title="No results yet">Finished competitions, their winners and match results appear here.</Empty>;
     return (
-        <div className="grid gap-4 lg:grid-cols-2">
+        // One column on a phone, each card no wider than it: without a set
+        // column, a long winner's line widened the card past the screen.
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {data.competitions.map(({ competition: c, teams }) => (
                 <Box key={c.id}>
                     <div data-result={c.id} className="space-y-3">
@@ -498,8 +510,11 @@ const HistoryTab = () => {
                         <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black ${r.place === 1 ? 'bg-amber-100 text-amber-700' : r.place ? 'bg-slate-100 text-slate-700' : 'bg-indigo-50 text-indigo-600'}`}>
                             {r.place ? ORDINAL[r.place] : <Award size={18} aria-hidden="true" />}
                         </span>
-                        <span className="min-w-0 flex-1">
-                            <Link to={`/competitions/${r.competition.id}`} className="block truncate text-sm font-bold text-slate-900 hover:text-indigo-700">{r.competition.emoji} {r.competition.name}</Link>
+                        {/* A base width: beside Certificate on a small phone the
+                            name was cut to "QA Chec…" and the details squeezed to a
+                            narrow column; now the button goes under them. */}
+                        <span className="min-w-0 flex-1 basis-56">
+                            <Link to={`/competitions/${r.competition.id}`} className="block break-words py-0.5 text-sm font-bold text-slate-900 hover:text-indigo-700">{r.competition.emoji} {r.competition.name}</Link>
                             <span className="block text-xs text-slate-500">
                                 {r.competition.gameLabel} · {r.collegeName ? `${r.collegeName} · ` : ''}{r.teamName} · {r.place ? `${ORDINAL[r.place]} place` : 'Took part'} · {r.score.won}/{r.score.played} matches won · {fmtDate(r.competition.completedAt)}
                             </span>
@@ -587,7 +602,7 @@ export default function CompetitionsHome() {
                         <div className="relative lg:max-w-[50rem] lg:pr-6">
                             <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/90"><Gamepad2 size={16} aria-hidden="true" /> Play · Compete · Win</p>
                             <h1 className="mt-1.5 text-[1.6rem] font-black leading-tight sm:text-3xl">Games <span className="text-violet-300">&amp;</span> Competitions</h1>
-                            <p className="mt-1.5 max-w-lg text-sm text-white/90">Compete with your college friends. Play your favourite games and win exciting matches.</p>
+                            <p className="mt-1.5 hidden max-w-lg text-sm text-white/90 sm:block">Compete with your college friends. Play your favourite games and win exciting matches.</p>
                             <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
                                 {HERO_PILLS.map(([Icon, label, tone]) => (
                                     <li key={label} className="flex items-center gap-2 text-xs font-semibold">

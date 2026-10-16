@@ -611,7 +611,7 @@ export default function Games() {
                   </span>
                 </h1>
 
-                <p className="mt-2.5 max-w-md text-sm leading-relaxed text-slate-700">
+                <p className="mt-2.5 hidden max-w-md text-sm leading-relaxed text-slate-700 sm:block">
                   Where every challenge makes you <span className="font-bold text-[#173a63]">sharper</span>. {totalGames} <span className="font-bold text-[#173a63]">quick</span> games for memory,
                   logic, words and numbers.
                 </p>
@@ -681,7 +681,7 @@ export default function Games() {
           );
         })}
 
-        <p className="px-1 text-xs leading-relaxed text-ink-400">
+        <p className="hidden px-1 text-xs leading-relaxed text-ink-400 sm:block">
           Your level and stars in each game are saved to your account when a level ends, so they follow you between devices and count on the leaderboard. A level pays XP for its best stars, once per star — replaying at the same stars pays nothing.
         </p>
       </div>

@@ -92,7 +92,7 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
         assert.match(result.text, /Inter-College Chess Cup/);
         assert.match(result.text, /4 Colleges/);
         assert.match(result.text, /8 Players/);
-        assert.match(result.text, /Trophy and medals/, 'the prize');
+        assert.doesNotMatch(result.text, /Trophy and medals|Prize/, 'no prize line on the card (the user removed it, 14 Oct)');
         assert.match(result.text, /Your team: Alpha Knights/);
         assert.equal(result.href, '/competitions/c1');
         assert.deepEqual(result.before.sort(), ['c1', 'c2'], 'a finished competition belongs to Results, not here');
@@ -111,6 +111,17 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
         assert.equal(result.join, '/competitions/play/g1', 'it opens on Live when a match is on');
         assert.match(result.match, /Your team Alpha Knights/);
         assert.match(result.match, /Opponent Beta Rooks \(Beta College\)/);
+    });
+
+    test('a match waiting for the organizer to decide it offers no Join game', async () => {
+        const waiting = { ...MATCH, needsDecision: true, gameStatus: 'abandoned', resultNote: 'Nobody joined the game. The organizer will decide this match.' };
+        const { result, errors } = await screen({ entry: home('mine'), api: api({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [waiting], completed: [], results: [] } }), styles: true, script: `
+            await sleep(600);
+            const card = $('[data-match="m1"]');
+            return { text: text(card), links: [...card.querySelectorAll('a')].map((a) => a.innerText.trim()) };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.text, /Waiting for the organizer to decide this match/);
+        assert.ok(!result.links.some((l) => /Join game|Watch/.test(l)), `no way into a game that is over (${result.links})`);
     });
 
     test('My Games on a phone: a registered competition reads across the row, not down a narrow column', async () => {
@@ -309,6 +320,183 @@ createRoot(document.getElementById('root')).render(
     });
 });
 
+describe('a finished competition\'s results page', { skip: skipWithoutStyles }, () => {
+    const team = (id, teamName, college, player) => ({ id, teamName, collegeName: college, status: 'approved', players: [{ userId: `u-${id}`, name: player }] });
+    const side = (t) => ({ teamId: t.id, teamName: t.teamName, collegeName: t.collegeName, lineup: [] });
+    const match = (id, round, roundName, kind, a, b, winner) => ({ id, round, roundName, kind, slot: 0, status: b ? 'completed' : 'bye', scheduledAt: '2026-10-14T05:30:00.000Z',
+        sides: b ? [side(a), side(b)] : [side(a)], winnerTeamId: winner.id, places: b ? [[winner.id], [(winner === a ? b : a).id]] : [[a.id]], decidedBy: b ? 'game' : 'bye', resultNote: '', needsDecision: false, gameId: null, games: b ? 1 : 0 });
+    const page = (competition, teams, rounds) => ({ entry: `
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import CompetitionDetail from '${srcFile('competitions/CompetitionDetail.jsx')}';
+createRoot(document.getElementById('root')).render(
+  <MemoryRouter initialEntries={['/competitions/${competition.id}']}><Routes><Route path="/competitions/:id" element={<CompetitionDetail />} /></Routes></MemoryRouter>);`,
+    api: apiModule({ [`/competitions/${competition.id}`]: { competition, teams, rounds } }) });
+    const read = `
+        await sleep(700);
+        const headings = [...document.querySelectorAll('h2')].map((h) => h.innerText.trim());
+        const rows = [...document.querySelectorAll('[data-standing]')].map((li) => li.innerText.replace(/\\s+/g, ' ').trim());
+        return { headings, rows };`;
+
+    test('the winners, then every team in its final place; no prizes box and no college list', async () => {
+        const [a, b, c, d] = [team('t1', 'SSS team', 'sssss', 'Hari Kiran'), team('t2', 'Alpha Knights', 'neworg', 'Asha'), team('t3', 'Beta Rooks', 'beta', 'Ravi'), team('t4', 'Gamma', 'gamma', 'Gauri')];
+        const rounds = [
+            { round: 0, name: 'Semi Final', matches: [match('m1', 0, 'Semi Final', 'main', a, d, a), match('m2', 0, 'Semi Final', 'main', b, c, b)] },
+            { round: 1, name: 'Final', matches: [match('m3', 1, 'Final', 'main', a, b, a), match('m4', 1, 'Third place', 'third-place', c, d, c)] }
+        ];
+        const done = { ...DONE, id: 'r1', winners: [{ place: 1, teamId: 't1', teamName: 'SSS team', collegeName: 'sssss' }, { place: 2, teamId: 't2', teamName: 'Alpha Knights', collegeName: 'neworg' }, { place: 3, teamId: 't3', teamName: 'Beta Rooks', collegeName: 'beta' }],
+            myTeam: { ...b } };
+        const { result, errors } = await screen({ ...page(done, [d, c, b, a], rounds), styles: true, script: read });
+        assert.deepEqual(errors, []);
+        assert.ok(result.headings.some((h) => /Winners/.test(h)));
+        assert.ok(result.headings.indexOf('Final standings') > result.headings.findIndex((h) => /Winners/.test(h)), 'the standings follow the winners');
+        assert.ok(!result.headings.some((h) => /Prizes/.test(h)), 'no Prizes & rewards once it is over');
+        assert.ok(!result.headings.some((h) => /Participating colleges/.test(h)), 'the standings name every team instead');
+        assert.ok(result.headings.some((h) => /Competition rules/.test(h)), 'the rules stay');
+        assert.deepEqual(result.rows, [
+            '1 SSS team sssss · Hari Kiran Won the final Won 2 of 2',
+            '2 Alpha KnightsYour team neworg · Asha Lost the final Won 1 of 2', // the tag sits beside the name, not after a space
+            '3 Beta Rooks beta · Ravi Won the third-place match Won 1 of 2',
+            '4 Gamma gamma · Gauri Lost the third-place match Won 0 of 2'
+        ]);
+    });
+
+    test('on a phone each team keeps its name whole, with its result underneath', async () => {
+        const [a, b, c, d] = [team('t1', 'SSS team', 'sssss', 'Hari Kiran'), team('t2', 'Alpha Knights', 'neworg', 'Asha'), team('t3', 'Beta Rooks', 'Sample Beta College', 'Ravi'), team('t4', 'Gamma Pawns', 'Sample Gamma College', 'Gauri')];
+        const rounds = [
+            { round: 0, name: 'Semi Final', matches: [match('m1', 0, 'Semi Final', 'main', a, d, a), match('m2', 0, 'Semi Final', 'main', b, c, b)] },
+            { round: 1, name: 'Final', matches: [match('m3', 1, 'Final', 'main', a, b, a), match('m4', 1, 'Third place', 'third-place', c, d, c)] }
+        ];
+        const done = { ...DONE, id: 'r4', myTeam: { ...b }, winners: [{ place: 1, teamId: 't1', teamName: 'SSS team', collegeName: 'sssss' }, { place: 2, teamId: 't2', teamName: 'Alpha Knights', collegeName: 'neworg' }, { place: 3, teamId: 't3', teamName: 'Beta Rooks', collegeName: 'Sample Beta College' }] };
+        const { result, errors } = await screen({ ...page(done, [a, b, c, d], rounds), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            return [...document.querySelectorAll('[data-standing]')].map((li) => {
+                const name = li.querySelector('p.font-bold'), res = [...li.querySelectorAll('p')].find((p) => /final|match/.test(p.innerText));
+                return { whole: name.scrollWidth <= name.clientWidth + 1, below: res.getBoundingClientRect().top >= name.getBoundingClientRect().bottom - 1 };
+            });` });
+        assert.deepEqual(errors, []);
+        for (const [i, r] of result.entries()) {
+            assert.equal(r.whole, true, `row ${i + 1}: the name is not cut off`);
+            assert.equal(r.below, true, `row ${i + 1}: the result is under the name`);
+        }
+    });
+
+    test('teams out in the same round share a rank', async () => {
+        const t = ['A', 'B', 'C', 'D', 'E', 'F'].map((x) => team(x, `Team ${x}`, `College ${x}`, `Player ${x}`));
+        const [A, B, C, D, E, F] = t;
+        const rounds = [
+            { round: 0, name: 'Quarter Final', matches: [match('q1', 0, 'Quarter Final', 'main', A, B, A), match('q2', 0, 'Quarter Final', 'main', C, D, C), match('q3', 0, 'Quarter Final', 'main', E, F, E)] },
+            { round: 1, name: 'Semi Final', matches: [match('s1', 1, 'Semi Final', 'main', A, E, A), match('s2', 1, 'Semi Final', 'main', C, null, C)] },
+            { round: 2, name: 'Final', matches: [match('f1', 2, 'Final', 'main', A, C, A)] }
+        ];
+        const done = { ...DONE, id: 'r2', myTeam: null, winners: [{ place: 1, teamId: 'A', teamName: 'Team A', collegeName: 'College A' }, { place: 2, teamId: 'C', teamName: 'Team C', collegeName: 'College C' }] };
+        const { result, errors } = await screen({ ...page(done, t, rounds), styles: true, script: read });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result.rows.map((r) => r.split(' College')[0]), ['1 Team A', '2 Team C', '3 Team E', '4 Team B', '4 Team D', '4 Team F']);
+        assert.match(result.rows[2], /Out in the Semi Final Won 1 of 2$/);
+        assert.match(result.rows[3], /Out in the Quarter Final Won 0 of 1$/);
+        assert.match(result.rows[1], /Lost the final Won 1 of 2$/, 'a bye is not a match won');
+    });
+
+    test('with many teams the list shows two and scrolls for the rest, on a laptop and a phone', async () => {
+        const t = ['A', 'B', 'C', 'D', 'E', 'F'].map((x) => team(x, `Team ${x}`, `College ${x}`, `Player ${x}`));
+        const [A, B, C, D, E, F] = t;
+        const rounds = [
+            { round: 0, name: 'Quarter Final', matches: [match('q1', 0, 'Quarter Final', 'main', A, B, A), match('q2', 0, 'Quarter Final', 'main', C, D, C), match('q3', 0, 'Quarter Final', 'main', E, F, E)] },
+            { round: 1, name: 'Semi Final', matches: [match('s1', 1, 'Semi Final', 'main', A, E, A), match('s2', 1, 'Semi Final', 'main', C, null, C)] },
+            { round: 2, name: 'Final', matches: [match('f1', 2, 'Final', 'main', A, C, A)] }
+        ];
+        const many = { ...DONE, id: 'r5', myTeam: null, winners: [{ place: 1, teamId: 'A', teamName: 'Team A', collegeName: 'College A' }, { place: 2, teamId: 'C', teamName: 'Team C', collegeName: 'College C' }] };
+        const look = `
+            await sleep(700);
+            const list = document.querySelector('[data-standings]'), rows = [...list.children];
+            const two = rows[0].getBoundingClientRect().height + rows[1].getBoundingClientRect().height + 2;
+            const before = { shownTop: rows[1].getBoundingClientRect().bottom <= list.getBoundingClientRect().bottom + 1,
+                             thirdHidden: rows[2].getBoundingClientRect().top >= list.getBoundingClientRect().bottom - 1 };
+            list.scrollTop = list.scrollHeight; await sleep(200);
+            const last = rows.at(-1).getBoundingClientRect(), box = list.getBoundingClientRect();
+            return { height: list.getBoundingClientRect().height, two, scrolls: list.scrollHeight > list.clientHeight + 5, before,
+                     lastShown: last.bottom <= box.bottom + 1 && last.top >= box.top - 1, note: document.querySelector('[data-standings-more]')?.innerText };`;
+        for (const where of [{ width: 1280, height: 900 }, { device: DEVICES.galaxyZFold6Folded }]) {
+            const { result, errors } = await screen({ ...page(many, t, rounds), styles: true, ...where, script: look });
+            assert.deepEqual(errors, []);
+            const label = where.device ? 'phone' : 'laptop';
+            assert.ok(Math.abs(result.height - result.two) <= 1.5, `${label}: as tall as two teams (${result.height} vs ${result.two})`);
+            assert.equal(result.scrolls, true, `${label}: the rest scroll`);
+            assert.equal(result.before.shownTop, true, `${label}: the first two show whole`);
+            assert.equal(result.before.thirdHidden, true, `${label}: the third waits below`);
+            assert.equal(result.lastShown, true, `${label}: scrolling reaches the last team`);
+            assert.equal(result.note, 'Showing 2 of 6 teams. Scroll the list to see the rest.');
+        }
+    });
+
+    test('with two teams there is nothing to scroll', async () => {
+        const [a, b] = [team('t1', 'SSS team', 'sssss', 'Hari Kiran'), team('t2', 'Alpha Knights', 'neworg', 'Asha')];
+        const two = { ...DONE, id: 'r6', myTeam: null, winners: [{ place: 1, teamId: 't1', teamName: 'SSS team', collegeName: 'sssss' }, { place: 2, teamId: 't2', teamName: 'Alpha Knights', collegeName: 'neworg' }] };
+        const { result, errors } = await screen({ ...page(two, [a, b], [{ round: 0, name: 'Final', matches: [match('f', 0, 'Final', 'main', a, b, a)] }]), styles: true, script: `
+            await sleep(700);
+            const list = document.querySelector('[data-standings]');
+            return { scrolls: list.scrollHeight > list.clientHeight + 1, note: !!document.querySelector('[data-standings-more]') };` });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result, { scrolls: false, note: false });
+    });
+
+    test('on a small phone the team line keeps its width, and two columns of rounds do not widen the page', async () => {
+        const [a, b, c, d] = [team('t1', 'SSS team', 'sssss', 'Hari Kiran'), team('t2', 'Alpha Mobile', 'Sample Alpha College', 'Asha'), team('t3', 'Beta Rooks', 'beta', 'Ravi'), team('t4', 'Gamma', 'gamma', 'Gauri')];
+        const rounds = [
+            { round: 0, name: 'Semi Final', matches: [match('m1', 0, 'Semi Final', 'main', a, d, a), match('m2', 0, 'Semi Final', 'main', b, c, b)] },
+            { round: 1, name: 'Final', matches: [match('m3', 1, 'Final', 'main', a, b, a), match('m4', 1, 'Third place', 'third-place', c, d, c)] }
+        ];
+        const done = { ...DONE, id: 'r7', certificates: true, winners: [{ place: 1, teamId: 't1', teamName: 'SSS team', collegeName: 'sssss' }, { place: 2, teamId: 't2', teamName: 'Alpha Mobile', collegeName: 'Sample Alpha College' }, { place: 3, teamId: 't3', teamName: 'Beta Rooks', collegeName: 'beta' }],
+            myTeam: { ...b, place: 2 } };
+        // In the app's own frame (a padded page scrolling inside <main>), where
+        // the second column of rounds sits far enough right to show the bug.
+        const bare = page(done, [a, b, c, d], rounds);
+        const framed = { ...bare, entry: bare.entry.replace('element={<CompetitionDetail />}',
+            'element={<div className="flex h-dvh"><main className="relative flex-1 overflow-auto"><div className="mx-auto p-4 pb-[7.5rem]"><CompetitionDetail /></div></main></div>}') };
+        assert.notEqual(framed.entry, bare.entry, 'the frame was put in');
+        const { result, errors } = await screen({ ...framed, styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            const line = [...document.querySelectorAll('header p')].find((p) => /You play for/.test(p.innerText));
+            const box = line.parentElement.getBoundingClientRect(), text = line.getBoundingClientRect();
+            const cert = [...document.querySelectorAll('header button')].find((x) => /My certificate/.test(x.innerText)).getBoundingClientRect();
+            const back = [...document.querySelectorAll('a')].find((x) => /Competitions/.test(x.innerText)).getBoundingClientRect();
+            const main = document.querySelector('main');
+            return { share: text.width / box.width, certBelow: cert.top >= text.bottom - 1, wide: main.scrollWidth - main.clientWidth + Math.max(0, innerWidth - screen.width), backHeight: back.height };` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.share > 0.6, `"You play for…" has room (${Math.round(result.share * 100)}% of its box)`);
+        assert.equal(result.certBelow, true, 'My certificate goes under it');
+        assert.ok(result.wide <= 1, `the page fits the screen (${result.wide}px too wide)`);
+        assert.ok(result.backHeight >= 40, `the back link is a finger's height (${result.backHeight}px)`);
+    });
+
+    test('on a phone the podium shows each team and college name whole', async () => {
+        const [a, b, c, d] = [team('t1', 'Delta Bishops', 'Sample Delta College', 'Dhanya'), team('t2', 'Alpha Knights', 'Sample Alpha College', 'Asha'), team('t3', 'Gamma Pawns', 'Sample Gamma College', 'Gauri'), team('t4', 'Beta Rooks', 'Sample Beta College', 'Ravi')];
+        const rounds = [
+            { round: 0, name: 'Semi Final', matches: [match('m1', 0, 'Semi Final', 'main', a, d, a), match('m2', 0, 'Semi Final', 'main', b, c, b)] },
+            { round: 1, name: 'Final', matches: [match('m3', 1, 'Final', 'main', a, b, a), match('m4', 1, 'Third place', 'third-place', c, d, c)] }
+        ];
+        const done = { ...DONE, id: 'r8', myTeam: null, winners: [a, b, c].map((t, i) => ({ place: i + 1, teamId: t.id, teamName: t.teamName, collegeName: t.collegeName })) };
+        const { result, errors } = await screen({ ...page(done, [a, b, c, d], rounds), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            return [...document.querySelectorAll('[data-podium] p')].filter((p) => p.innerText.trim()).map((p) => ({ text: p.innerText.trim(), whole: p.scrollWidth <= p.clientWidth + 1 && p.scrollHeight <= p.clientHeight + 1 }));` });
+        assert.deepEqual(errors, []);
+        for (const name of ['Delta Bishops', 'Sample Delta College', 'Alpha Knights', 'Sample Alpha College', 'Gamma Pawns', 'Sample Gamma College']) {
+            const p = result.find((x) => x.text === name);
+            assert.ok(p, `${name} is on the podium`);
+            assert.equal(p.whole, true, `${name} is not cut off`);
+        }
+    });
+
+    test('before it is over the page still shows the prizes, and no standings', async () => {
+        const live = { ...COMP, id: 'r3', status: 'live', phase: 'live' };
+        const { result, errors } = await screen({ ...page(live, [], []), styles: true, script: read });
+        assert.deepEqual(errors, []);
+        assert.ok(result.headings.some((h) => /Prizes/.test(h)));
+        assert.ok(!result.headings.includes('Final standings'));
+    });
+});
+
 describe('a college\'s own competition', { skip: skipWithoutStyles }, () => {
     // Hosted by a college for its own students only: teams, not colleges.
     const OWN = { ...COMP, id: 'c9', name: 'Delta Chess Day', organizedBy: 'Sample Delta College', hostOrganizationId: 'o1', status: 'registration', phase: 'registration-open',
@@ -412,5 +600,153 @@ describe('the game page', { skip: skipWithoutStyles }, () => {
             return { outcome: text($('[data-outcome]')) };` });
         assert.match(result.outcome, /You won!/);
         assert.match(result.outcome, /Checkmate/);
+    });
+});
+
+describe('on a small phone', { skip: skipWithoutStyles }, () => {
+    test('a finished game: the status line is whole, and the result text is not squeezed under its button', async () => {
+        const reason = 'White ran out of time';
+        const lost = gameRow({ status: 'finished', outcome: { places: [[1], [0]], reason },
+            view: { ...chessView('finished'), message: 'White ran out of time — Ravi wins the game on the clock.', outcome: { places: [[1], [0]], reason } } });
+        const { result, errors } = await screen({ entry: page, api: apiModule({ '/competitions/play/g1': { game: lost } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            const status = [...document.querySelectorAll('header p')].find((p) => /ran out of time/.test(p.innerText));
+            const card = $('[data-outcome]'), heading = [...card.querySelectorAll('p')].find((p) => /won/.test(p.innerText));
+            const words = heading.parentElement.getBoundingClientRect(), button = [...card.querySelectorAll('a')].find((a) => /Back to/.test(a.innerText)).getBoundingClientRect();
+            const back = [...document.querySelectorAll('a')].find((a) => /Games/.test(a.innerText)).getBoundingClientRect();
+            return { statusWhole: status.scrollWidth <= status.clientWidth + 1, share: words.width / card.getBoundingClientRect().width,
+                     apart: button.top >= words.bottom - 1 || button.left >= words.right - 1, backHeight: back.height };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.statusWhole, true, 'the status line wraps instead of ending in "…"');
+        assert.ok(result.share > 0.6, `the result text has room (${Math.round(result.share * 100)}% of the card)`);
+        assert.equal(result.apart, true, 'the button does not sit on the text');
+        assert.ok(result.backHeight >= 40, `the back link is a finger's height (${result.backHeight}px)`);
+    });
+
+    test('Leaderboard: College, Team and Individual on one line, every word whole', async () => {
+        for (const device of [DEVICES.galaxyZFold6Folded, DEVICES.galaxyA55]) {
+            const { result, errors } = await screen({ entry: home('leaderboard'), api: api(), styles: true, device, script: `
+                await sleep(700);
+                const tabs = [...document.querySelectorAll('[role="tablist"][aria-label="Ranking"] [role="tab"]')];
+                const tops = tabs.map((t) => Math.round(t.getBoundingClientRect().top));
+                const list = tabs[0].parentElement;
+                return { labels: tabs.map((t) => t.innerText.trim()), oneLine: new Set(tops).size === 1,
+                         whole: tabs.every((t) => t.scrollWidth <= t.clientWidth + 1), inside: list.scrollWidth <= list.clientWidth + 1 };` });
+            assert.deepEqual(errors, []);
+            assert.deepEqual(result.labels, ['College', 'Team', 'Individual']);
+            assert.equal(result.oneLine, true, `${device.width}px: the three on one line`);
+            assert.equal(result.whole, true, `${device.width}px: no label cut off`);
+            assert.equal(result.inside, true, `${device.width}px: nothing sticks out of the row`);
+        }
+    });
+
+    test('Leaderboard: the top two show, and the rest scroll inside the list', async () => {
+        const college = (i) => ({ id: `o${i}`, rank: i, collegeName: `College ${i}`, competitions: 1, played: 2, won: 1, titles: 0, points: 20 - i });
+        const many = { ...BOARD, colleges: [1, 2, 3, 4, 5, 6].map(college) };
+        const { result, errors } = await screen({ entry: home('leaderboard'), api: api({ '/competitions/leaderboard': many }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            const list = document.querySelector('[data-ranking="colleges"]'), rows = [...list.children];
+            const two = rows[0].getBoundingClientRect().height + rows[1].getBoundingClientRect().height;
+            const height = list.getBoundingClientRect().height, scrolls = list.scrollHeight > list.clientHeight + 5;
+            list.scrollTop = list.scrollHeight; await sleep(200);
+            const last = rows.at(-1).getBoundingClientRect(), box = list.getBoundingClientRect();
+            const note = document.querySelector('[data-ranking-more]')?.innerText;
+            [...document.querySelectorAll('[aria-label="Ranking"] [role="tab"]')].find((t) => /Team/.test(t.innerText)).click(); await sleep(400);
+            return { height, two, scrolls, lastShown: last.bottom <= box.bottom + 1, note,
+                     teamNote: document.querySelector('[data-ranking-more]')?.innerText || null };` });
+        assert.deepEqual(errors, []);
+        assert.ok(Math.abs(result.height - result.two) <= 1.5, `as tall as two rows (${result.height} vs ${result.two})`);
+        assert.equal(result.scrolls, true, 'the rest scroll');
+        assert.equal(result.lastShown, true, 'scrolling reaches the last college');
+        assert.equal(result.note, 'Showing 2 of 6 colleges. Scroll the list to see the rest.');
+        assert.equal(result.teamNote, null, 'one team ranked: nothing to scroll, no note');
+    });
+
+    test('Your Games: Continue and Open room are a finger\'s height', async () => {
+        const rooms = [
+            { id: 'r1', game: 'chess', label: 'Chess', emoji: '♟️', code: 'GZVS8K', status: 'waiting', host: true, seats: [{ name: 'Asha' }] },
+            { id: 'r2', game: 'uno', label: 'UNO', emoji: '🃏', code: '7C3S36', status: 'active', host: true, seats: [{ name: 'Asha' }, { name: 'Ravi' }] }
+        ];
+        const { result, errors } = await screen({ entry: home(), api: api({ '/competitions/rooms/mine': { rooms } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            return $$('[data-room] a').map((a) => [a.innerText.trim(), Math.round(a.getBoundingClientRect().height)]);` });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result.map(([label]) => label).sort(), ['Continue', 'Open room']);
+        for (const [label, height] of result) assert.ok(height >= 36, `${label} is ${height}px tall`);
+    });
+
+    test('History: the competition name is whole, and Certificate goes under it rather than squeezing it', async () => {
+        const long = { ...RESULT, competition: { ...RESULT.competition, name: 'Inter-College Chess Championship 2026' } };
+        const { result, errors } = await screen({ entry: home('history'), api: api({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [], completed: [], results: [long] } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            const row = $('[data-history] li'), name = row.querySelector('a'), words = name.parentElement.getBoundingClientRect();
+            const cert = [...row.querySelectorAll('button')].find((b) => /Certificate/.test(b.innerText)).getBoundingClientRect();
+            return { whole: name.scrollWidth <= name.clientWidth + 1 && /Championship 2026/.test(name.innerText), share: words.width / row.getBoundingClientRect().width, below: cert.top >= words.bottom - 1 };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.whole, true, 'the name is not cut to "…"');
+        assert.ok(result.share > 0.6, `the details have room (${Math.round(result.share * 100)}% of the row)`);
+        assert.equal(result.below, true, 'Certificate is under them');
+    });
+
+    test('the banners\' description lines, the stars note and a game\'s tagline and goal are left out on a phone, and kept on a laptop', async () => {
+        const look = `
+            await sleep(900);
+            const line = (re) => [...document.querySelectorAll('p')].find((p) => re.test(p.textContent));
+            const shown = (el) => !!el && el.getClientRects().length > 0;
+            return { hero: shown(line(/Compete with your college friends/)), boosters: shown(line(/Where every challenge makes you/)), boostersThere: !!line(/Where every challenge makes you/) };`;
+        // Brain Boosters reads the signed-in student, so it gets one here.
+        const boosters = `
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
+import { AuthContext } from '${srcFile('context/AuthContext.jsx')}';
+import CompetitionsHome from '${srcFile('competitions/CompetitionsHome.jsx')}';
+createRoot(document.getElementById('root')).render(
+  <AuthContext.Provider value={{ user: { name: 'Asha' } }}><MemoryRouter initialEntries={['/competitions?tab=brain-boosters']}><CompetitionsHome /></MemoryRouter></AuthContext.Provider>);`;
+        const boostersApi = api({ '/games/time': {} });
+        // The page, then a game's "Ready?" screen (Sequence Recall's).
+        const boostersLook = `
+            await sleep(2500);
+            const line = (re) => [...document.querySelectorAll('p')].find((p) => re.test(p.textContent));
+            const shown = (el) => !!el && el.getClientRects().length > 0;
+            const page = { boosters: shown(line(/Where every challenge makes you/)), boostersThere: !!line(/Where every challenge makes you/), stars: shown(line(/Your level and stars in each game/)), starsThere: !!line(/Your level and stars in each game/) };
+            const card = document.querySelector('[data-game="sequence-recall"]');
+            (card.matches('button') ? card : card.querySelector('button')).click();
+            await sleep(1500);
+            const goal = [...document.querySelectorAll('span')].find((el) => /^Repeat a run of \\d+ to clear this level\\.$/.test(el.textContent));
+            return { ...page, tagline: shown(line(/Repeating a sequence back is how every skill starts/)), taglineThere: !!line(/Repeating a sequence back is how every skill starts/), goal: shown(goal), goalThere: !!goal };`;
+        const phone = await screen({ entry: boosters, api: boostersApi, styles: true, device: DEVICES.galaxyZFold6Folded, script: boostersLook });
+        const laptop = await screen({ entry: boosters, api: boostersApi, styles: true, width: 1366, height: 900, script: boostersLook });
+        const games = await screen({ entry: home(), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: look });
+        const gamesLaptop = await screen({ entry: home(), api: api(), styles: true, width: 1366, height: 900, script: look });
+        assert.equal(games.result.hero, false, 'phone: no "Compete with your college friends…"');
+        assert.equal(gamesLaptop.result.hero, true, 'laptop: it is there');
+        assert.equal(phone.result.boostersThere && laptop.result.boostersThere, true, 'the Brain Boosters page rendered');
+        assert.equal(phone.result.boosters, false, 'phone: no "Where every challenge makes you sharper…"');
+        assert.equal(laptop.result.boosters, true, 'laptop: it is there');
+        assert.equal(phone.result.starsThere && phone.result.taglineThere, true, 'the stars note and the game\'s tagline rendered');
+        assert.equal(phone.result.stars, false, 'phone: no "Your level and stars in each game are saved…"');
+        assert.equal(laptop.result.stars, true, 'laptop: it is there');
+        assert.equal(phone.result.tagline, false, 'phone: no "Repeating a sequence back is how every skill starts."');
+        assert.equal(laptop.result.tagline, true, 'laptop: it is there');
+        assert.equal(phone.result.goalThere, true, 'the game\'s goal rendered');
+        assert.equal(phone.result.goal, false, 'phone: no "Repeat a run of 3 to clear this level."');
+        assert.equal(laptop.result.goal, true, 'laptop: it is there');
+    });
+
+    test('Results: a card with long college names stays inside the screen', async () => {
+        const LONG = { ...DONE, winners: [{ place: 1, teamId: 't1', teamName: 'Alpha Knights', collegeName: 'Sample Delta College of Engineering and Technology' },
+            { place: 2, teamId: 't2', teamName: 'Beta Rooks', collegeName: 'Sample Alpha College of Arts, Science and Commerce' }] };
+        // In the app's own frame: the page scrolls inside <main>, which is where
+        // a card too wide shows (bare, the phone just widens its viewport).
+        const framed = home('results').replace('element={<><CompetitionsHome /><Where /></>}',
+            'element={<div className="flex h-dvh"><main className="relative flex-1 overflow-auto"><div className="mx-auto p-4 pb-[7.5rem]"><CompetitionsHome /><Where /></div></main></div>}');
+        assert.notEqual(framed, home('results'), 'the frame was put in');
+        const { result, errors } = await screen({ entry: framed, api: api({ '/competitions/history': { competitions: [{ competition: LONG, teams: [{}, {}], rounds: [] }] } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            const card = $('[data-result="c3"]').closest('section').getBoundingClientRect(), main = $('main');
+            return { right: card.right, width: screen.width, wide: main.scrollWidth - main.clientWidth + Math.max(0, innerWidth - screen.width) };` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.right <= result.width + 0.5, `the card ends inside the screen (${Math.round(result.right)} of ${result.width}px)`);
+        assert.ok(result.wide <= 1, 'and the page does not scroll sideways');
     });
 });
