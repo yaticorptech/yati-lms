@@ -9,14 +9,25 @@
  */
 import { Clock, Info } from 'lucide-react';
 
-/** Local midnight, phrased the way a person would say it. */
+/**
+ * When the allowance comes back, phrased the way a person would say it, in
+ * the student's own clock: "at 12:00 am (in about 5 hours)".
+ *
+ * The moment is the server's — the platform's midnight for Career Path's own
+ * allowance, midnight Pacific for the AI provider's — and it is not midnight
+ * everywhere. A notice that always said "at midnight" was wrong for anyone
+ * outside the platform's timezone, and for the provider's quota for everyone.
+ */
 const whenItReturns = (resetsAt) => {
-  if (!resetsAt) return 'at midnight';
+  if (!resetsAt) return 'later today';
   const at = new Date(resetsAt);
-  if (Number.isNaN(at.getTime())) return 'at midnight';
-  const hours = Math.max(0, Math.round((at - Date.now()) / 3600000));
-  if (hours <= 1) return 'within the hour';
-  return `in about ${hours} hour${hours === 1 ? '' : 's'}`;
+  if (Number.isNaN(at.getTime())) return 'later today';
+  const ms = at - Date.now();
+  if (ms <= 0) return 'now';
+  const clock = at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const hours = Math.round(ms / 3600000);
+  if (hours < 1) return `at ${clock} (within the hour)`;
+  return `at ${clock} (in about ${hours} hour${hours === 1 ? '' : 's'})`;
 };
 
 /**

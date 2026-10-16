@@ -109,31 +109,90 @@ export const newest = (local, server) => {
 };
 
 /**
- * Sequential unlocking: every completed lesson plus the first one still to do.
- * Modules are walked in order, so a lesson later in the course stays locked
- * until everything before it is finished.
+ * Sequential unlocking: every completed lesson, wherever it sits, plus the
+ * first one still to do. Modules are walked in order, so a lesson later in the
+ * course stays locked until everything before it is finished. A lesson done
+ * already stays open even when one is added before it: only the lessons up to
+ * the first one not done used to be open, so an administrator inserting an
+ * earlier lesson locked a student out of lessons they had finished.
  */
 export const unlockedLessonIds = (modules, completedLessons) => {
     const ordered = modules.flatMap((m) => m.lessons || []);
-    let firstIncomplete = ordered.findIndex((l) => !completedLessons.includes(l._id));
-    if (firstIncomplete === -1) firstIncomplete = ordered.length;
-    return new Set(ordered.slice(0, firstIncomplete + 1).map((l) => l._id));
+    const done = new Set((completedLessons || []).map(String));
+    const open = new Set(ordered.filter((l) => done.has(String(l._id))).map((l) => l._id));
+    const next = ordered.find((l) => !done.has(String(l._id)));
+    if (next) open.add(next._id);
+    return open;
 };
 
 /**
- * Which lesson a course opens on. The remembered one, if it is still there,
- * still unlocked and not behind a drip-locked module; otherwise the first
- * lesson of the first module, as before.
+ * The lesson with this id and its module, when the student can open it now:
+ * unlocked, and not inside a module still waiting on its drip date. Else null.
  */
-export const chooseLessonToOpen = (modules, completedLessons, rememberedId) => {
-    const first = modules[0] || null;
-    const fallback = { module: first, lesson: first?.lessons?.[0] || null };
-    if (!rememberedId) return fallback;
-    if (!unlockedLessonIds(modules, completedLessons).has(rememberedId)) return fallback;
+export const findOpenLesson = (modules, completedLessons, lessonId) => {
+    if (!lessonId) return null;
+    if (!unlockedLessonIds(modules, completedLessons).has(lessonId)) return null;
     for (const module of modules) {
         if (module.locked) continue;
-        const lesson = (module.lessons || []).find((l) => l._id === rememberedId);
+        const lesson = (module.lessons || []).find((l) => l._id === lessonId);
         if (lesson) return { module, lesson };
     }
-    return fallback;
+    return null;
+};
+
+/** Every lesson in course order, each with its module. */
+const inCourseOrder = (modules) => modules.flatMap((module) => (module.lessons || []).map((lesson) => ({ module, lesson })));
+
+/**
+ * Which lesson a course opens on. The remembered one, if it is still there,
+ * still unlocked and not behind a drip-locked module. Otherwise where the
+ * student is up to: the first lesson not done yet — or, when that one waits
+ * on a module's drip date, the last one they finished. A finished course
+ * opens on its first lesson. Never a lesson in a drip-locked module: with
+ * nothing open, the first module is shown with no lesson in it.
+ */
+export const chooseLessonToOpen = (modules, completedLessons, rememberedId) => {
+    const remembered = findOpenLesson(modules, completedLessons, rememberedId);
+    if (remembered) return remembered;
+    const all = inCourseOrder(modules);
+    const done = new Set((completedLessons || []).map(String));
+    const open = all.filter(({ module }) => !module.locked);
+    const next = all.find(({ lesson }) => !done.has(String(lesson._id)));
+    if (next && !next.module.locked) return next;
+    if (next) {
+        const finished = open.filter(({ lesson }) => done.has(String(lesson._id)));
+        if (finished.length) return finished[finished.length - 1];
+    }
+    if (open.length) return open[0];
+    return { module: modules[0] || null, lesson: null };
+};
+
+/**
+ * The lesson after this one in course order, with its module and whether the
+ * student can open it yet (`open`). Null after the last lesson.
+ */
+export const nextLessonAfter = (modules, completedLessons, lessonId) => {
+    const all = inCourseOrder(modules);
+    const at = all.findIndex(({ lesson }) => lesson._id === lessonId);
+    if (at === -1 || at === all.length - 1) return null;
+    const next = all[at + 1];
+    return { ...next, open: Boolean(findOpenLesson(modules, completedLessons, next.lesson._id)) };
+};
+
+const WATCHED_PREFIX = 'yati:video-watched:';
+
+/**
+ * That this student watched this lesson's video to the end. Kept on the
+ * device, so a reload does not ask for the whole video again before the
+ * lesson can be marked done. Per student: two people sharing a browser each
+ * watch for themselves.
+ */
+export const markWatched = (userKey, lessonId, storage) => {
+    if (!lessonId) return;
+    writeJson(`${WATCHED_PREFIX}${userKey || 'me'}:${lessonId}`, { at: Date.now() }, storage);
+};
+
+export const hasWatched = (userKey, lessonId, storage) => {
+    if (!lessonId) return false;
+    return Boolean(readJson(`${WATCHED_PREFIX}${userKey || 'me'}:${lessonId}`, storage));
 };

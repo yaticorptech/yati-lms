@@ -60,16 +60,18 @@ export default function PhaseDialog({
 
   // On document.body, outside the page: the page slides in with a transform
   // and a transformed ancestor would pin this to the page's bottom edge.
+  // In the middle of the screen on a phone too, not a sheet along the bottom
+  // (asked 2026-10-15), scrolling inside when the phase is long.
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="phase-dialog-title"
-      className="futurepath-portal fixed inset-0 z-[110] flex items-end justify-center p-0 sm:items-center sm:p-4"
+      className="futurepath-portal fixed inset-0 z-[110] flex items-center justify-center p-4"
     >
       <div className="animate-fade-in absolute inset-0 bg-slate-900/55 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="animate-scale-in relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-surface shadow-float sm:max-h-[86vh] sm:rounded-3xl">
+      <div className="animate-scale-in relative flex max-h-[80dvh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-surface shadow-float sm:max-h-[86vh]">
         {/* The phase's own colour along the top, so the dialog is visibly the
             platform the student just pressed and not a generic sheet. */}
         <span aria-hidden className={`h-1.5 w-full shrink-0 bg-gradient-to-r ${palette.stripe}`} />
@@ -143,7 +145,7 @@ export default function PhaseDialog({
           )}
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+        <div data-phase-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
           <PhaseDetail
             stage={stage}
             state={state}

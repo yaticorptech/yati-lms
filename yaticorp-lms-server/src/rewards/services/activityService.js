@@ -64,16 +64,24 @@ const DESCRIPTIONS = {
  */
 const recordActivity = async ({ userId, type, refId, courseId = null, meta = {}, skipXp = false }) => {
   const config = await getConfig();
-  if (!config.enabled) return { enabled: false, duplicate: false, events: [] };
   const day = dayKey();
 
+  // The fact is recorded whether or not Rewards is switched on: it is the
+  // student's learning history ("Your Progress", the quiz average, the
+  // ledger-based badges), not a payout. Returning before this insert while
+  // Rewards was off meant every lesson and quiz done in that time was simply
+  // never counted, even after Rewards came back on.
   let activity;
   try {
     activity = await LearningActivity.create({ userId, type, refId: String(refId), courseId: courseId ? String(courseId) : null, day, meta });
   } catch (err) {
-    if (isDuplicate(err)) return { enabled: true, duplicate: true, events: [] };
+    if (isDuplicate(err)) return { enabled: config.enabled !== false, duplicate: true, events: [] };
     throw err;
   }
+
+  // Only the payouts — XP, the streak and its milestones, badges — wait on
+  // the switch.
+  if (!config.enabled) return { enabled: false, duplicate: false, events: [] };
 
   const events = [];
   const xpAmount = skipXp ? 0 : Number(config.xpRules[type] || 0);

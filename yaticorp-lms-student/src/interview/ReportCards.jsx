@@ -52,7 +52,6 @@ export function DeliveryCard({ communication }) {
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-600"><Mic size={22} /></span>
                 <div className="min-w-0 flex-1">
                     <h2 className="text-xl font-black text-slate-900">How you sounded</h2>
-                    <p className="mt-0.5 text-xs leading-snug text-slate-500">Measured from your spoken answers: pace, pauses, filler words and length. No guesses about mood or personality.</p>
                     {verdict && <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${verdict[1]}`}><AudioLines size={13} /> Overall: {verdict[0]}</span>}
                 </div>
             </div>
@@ -114,12 +113,9 @@ export function RecommendationCard({ report, onPractice, onRetake, onDetail }) {
     return (
         <section className="@container flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm animate-fade-in-up sm:p-6">
             <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
+                <div className="flex items-center gap-3">
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-500"><Lightbulb size={22} /></span>
-                    <div>
-                        <h2 className="text-xl font-black leading-tight text-slate-900">AI recommendation</h2>
-                        <p className="mt-0.5 text-xs text-slate-500">What to work on before your next interview.</p>
-                    </div>
+                    <h2 className="text-xl font-black leading-tight text-slate-900">AI recommendation</h2>
                 </div>
                 <span className="hidden shrink-0 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-600 @[30rem]:block">Practice · Improve · Succeed</span>
             </div>

@@ -31,7 +31,7 @@ const measure = `
     const bar = document.querySelector('nav > div').getBoundingClientRect();
     return {
         vw: innerWidth,
-        items: links.map((a, i) => ({ href: a.getAttribute('href'), label: labels[i].textContent, current: a.getAttribute('aria-current') })),
+        items: links.map((a, i) => ({ href: a.getAttribute('href'), label: labels[i].textContent, name: a.getAttribute('aria-label'), current: a.getAttribute('aria-current') })),
         gaps: boxes.slice(1).map((b, i) => b.left - boxes[i].right),
         firstLeft: boxes[0].left, lastRight: boxes.at(-1).right, barLeft: bar.left, barRight: bar.right,
         pageScrolls: document.documentElement.scrollWidth > innerWidth
@@ -52,6 +52,11 @@ describe('phone bottom bar', { skip: skipWithoutStyles }, () => {
             assert.ok(!result.items.some((i) => i.href === '/profile'), 'My Profile is not in the bar');
             assert.equal(result.items[2].href, '/career');
             assert.equal(result.items[2].current, 'page', 'Career Path is marked as the page you are on');
+            // Voice control says what is on screen: every accessible name starts
+            // with the word under the icon ("Grants (Scholarships)", not "Scholarships").
+            for (const item of result.items) assert.ok(item.name.startsWith(item.label), `"${item.name}" starts with "${item.label}"`);
+            assert.deepEqual(result.items.map((i) => i.name),
+                ['Home (Dashboard)', 'Courses (My Courses)', 'Career Path', 'Forum (Community)', 'Jobs', 'Grants (Scholarships)', 'Interview Prep', 'Games & Competitions']);
 
             // A gap at or below zero means two words touch or overlap.
             assert.ok(Math.min(...result.gaps) > 2, `closest labels are ${Math.min(...result.gaps).toFixed(1)}px apart`);

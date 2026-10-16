@@ -13,6 +13,7 @@ const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers'
 const TAG = `admin-quiz-${Date.now()}`;
 let app, userApp, boss, me, api, studentApi, original, wasPublished = [];
 const made = [];
+const extraUsers = [];
 
 const Q = (question, extra = {}) => ({ question, options: ['Venus', 'Mercury', 'Mars'], correctAnswerIndex: 1, explanation: 'Mercury orbits closest.', category: TAG, difficulty: 'easy', ...extra });
 const newQuiz = async (size, title = `${TAG} ${size}`, extra = {}) => {
@@ -45,7 +46,7 @@ after(async () => {
     for (const q of wasPublished) await GlobalQuiz.updateOne({ _id: q._id }, { $set: { status: 'published', publishedAt: q.publishedAt } });
     await require('../../src/models/Setting').updateOne({}, original ? { $set: { globalQuiz: original } } : { $unset: { globalQuiz: 1 } });
     await new Promise((r) => userApp.server.close(r));
-    await cleanup([me.user], app.server, [boss.admin]);
+    await cleanup([me.user, ...extraUsers], app.server, [boss.admin]);
 });
 
 describe('quizzes', () => {
@@ -184,6 +185,39 @@ describe('publishing', () => {
         assert.equal(r.status, 200); assert.equal(r.body.deletedQuestions, 3);
         assert.equal(await Attempt.countDocuments({ quizId: a._id }), 0);
         assert.equal((await api('GET', `/global-quiz/quizzes/${a._id}/questions`)).status, 404);
+    });
+});
+
+describe('unpublishing mid-attempt', () => {
+    // A student part-way through a quiz when it was unpublished could never
+    // finish it (Finish needs the published quiz), and the open attempt never
+    // reached their history.
+    test('closes every open attempt, scored as it stood, in the history', async () => {
+        const quiz = await newQuiz(3, `${TAG} mid`, { timeLimitMinutes: 10 });
+        await fill(quiz, 3, 40);
+        assert.equal((await api('POST', `/global-quiz/quizzes/${quiz._id}/publish`)).status, 200);
+        const [mid, late] = [await makeUser('Mid'), await makeUser('Late')];
+        extraUsers.push(mid.user, late.user);
+        const asMid = userApp.call(mid.token);
+        const paper = await asMid('POST', '/quizzes/global/start');
+        assert.equal(paper.status, 201);
+        assert.equal((await asMid('POST', '/quizzes/global/submit', { answers: [{ questionId: paper.body.questions[0].questionId, answer: 1 }] })).status, 200);
+        assert.equal((await userApp.call(late.token)('POST', '/quizzes/global/start')).status, 201);
+        // The second one ran out of time half an hour ago, and nobody looked.
+        const Attempt = require('../../src/models/GlobalQuizAttempt');
+        const startedAt = new Date(Date.now() - 30 * 60_000);
+        await Attempt.updateOne({ userId: late.user._id, quizId: quiz._id }, { $set: { startedAt } });
+
+        assert.equal((await api('POST', `/global-quiz/quizzes/${quiz._id}/unpublish`)).status, 200);
+
+        const closed = await Attempt.findOne({ userId: mid.user._id, quizId: quiz._id }).lean();
+        assert.ok(closed.finishedAt); assert.equal(closed.timedOut, false);
+        assert.equal(closed.correctCount, 1); assert.equal(closed.totalQuestions, 3); assert.equal(closed.score, 33);
+        const timed = await Attempt.findOne({ userId: late.user._id, quizId: quiz._id }).lean();
+        assert.equal(timed.timedOut, true);
+        assert.equal(new Date(timed.finishedAt).getTime(), startedAt.getTime() + 10 * 60_000, 'finished when its time ran out');
+        const history = (await asMid('GET', '/quizzes/global/history')).body.attempts;
+        assert.equal(history.length, 1); assert.equal(history[0].title, `${TAG} mid`); assert.equal(history[0].score, 33);
     });
 });
 

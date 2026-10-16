@@ -1,7 +1,8 @@
-import { useCallback, useContext, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import {
-  Flame, CheckCircle2, TrendingUp, Award, RotateCcw, GraduationCap, Compass, CalendarDays, MapPin, ArrowRight, Zap, Check, Lock, Flag, Sparkles, Trophy
+  Flame, CheckCircle2, TrendingUp, Award, RotateCcw, GraduationCap, Compass, CalendarDays, MapPin, ArrowRight, Zap, Check, Lock, Flag, Sparkles, Trophy,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../services/api';
@@ -11,7 +12,7 @@ import Card, { CardHeader } from '../components/ui/Card';
 import ProgressArt from '../components/progress/ProgressArt';
 import { SkillsArt } from '../components/ui/PanelArt';
 import ProgressStats from '../components/progress/ProgressStats';
-import { dayKey } from '../utils/progress';
+import { completedDay, shiftKey, todayKey } from '../utils/progress';
 import useLevelProgress from '../context/useLevelProgress';
 import LoadError from '../components/ui/LoadError';
 import { phaseStates, journeyPercent, phaseTitle, parseChoices } from '../utils/roadmap';
@@ -21,6 +22,7 @@ import useCountUp from '../../hooks/useCountUp';
 import YatiLoader from '../../components/YatiLoader';
 import useMinimumLoading from '../../hooks/useMinimumLoading';
 import { useXpRule } from '../../context/useRewards';
+import { usePointLoopWhenNear } from '../../components/loopGuide';
 
 // Title-casing these would produce "Mca" or "Qa Engineer", which reads worse
 // than the lowercase original. Degrees and tech terms stay uppercase.
@@ -314,6 +316,202 @@ function SkillsPanel({ skills }) {
   );
 }
 
+// "HTML", "HTML and CSS", "HTML, CSS and JavaScript".
+const listOf = (names) => (names.length < 2 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+const TAP = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches ? 'Tap' : 'Click';
+
+/**
+ * What Yati says when the student comes near Still to do (asked 2026-10-15:
+ * "complete these task to gain the skill"). Finishing a task grows the skill
+ * it is tagged with, when that skill is one the student tracks
+ * (taskCompletionService), so only those skills are named; the XP is the
+ * admin's task rule, left out when it pays nothing. Null with nothing to do.
+ */
+const stillToDoLine = (tasks, skills, taskXp) => {
+  if (!tasks?.length) return null;
+  const tracked = new Map((skills || []).map((s) => [String(s.skillName || '').trim().toLowerCase(), s.skillName]));
+  const grows = [...new Set(tasks.map((t) => tracked.get(String(t.skill || '').trim().toLowerCase())).filter(Boolean))].slice(0, 3);
+  const one = tasks.length === 1;
+  const gain = grows.length ? `grow your ${listOf(grows)} ${grows.length === 1 ? 'skill' : 'skills'}` : 'keep your skills growing';
+  const xp = taskXp > 0 ? ` and earn ${taskXp} XP${one ? '' : ' each'}` : '';
+  return `${one ? 'Finish this task' : `Finish these ${tasks.length} tasks`} to ${gain}${xp}. ${TAP} “Do it today” to put ${one ? 'it' : 'one'} back on today's plan.`;
+};
+
+/**
+ * Still to do, folded (asked 2026-10-15: "make it drop down only name
+ * visible", "visible only 5", "add scroll button"). Each task shows its
+ * name, in full ("make sure that full heading of task is visible"), with "Do
+ * it today" beside it ("with that heading make sure that do it today button
+ * is also visible"), and opens to say the rest — what to do, and when it
+ * was last on the plan. Five rows show at
+ * a time and the rest scroll inside the card; the button at the foot scrolls
+ * on, and back to the top from the end.
+ */
+const STILL_ROWS = 5;
+const STILL_ROW_H = 48; // about one one-line row, kept in view when scrolling on
+
+/**
+ * How tall the list's window is: the first five names as they wrap, plus the
+ * open task's details, so five rows still show with one of them open — an
+ * open task is often taller than five names on its own, and its "Do it today"
+ * would otherwise sit out of sight inside the window. Null with five or fewer.
+ */
+const stillWindow = (box, openId) => {
+  const rows = box ? [...box.querySelectorAll('[data-still-row]')] : [];
+  if (rows.length <= STILL_ROWS) return null;
+  // Exact heights, hairlines and all: whole-pixel ones add up short and clip
+  // the fifth name's last line.
+  const first = rows.slice(0, STILL_ROWS);
+  const names = first.reduce((h, row) => h + row.getBoundingClientRect().height, 0);
+  // An open task further down still gets its room.
+  const open = openId && !first.some((row) => row.getAttribute('data-still-row') === openId)
+    ? box.querySelector(`[data-still-row="${openId}"] [data-still-body]`)?.getBoundingClientRect().height || 0
+    : 0;
+  return Math.ceil(names + open);
+};
+
+function StillToDoList({ tasks, redoingId, onRedo }) {
+  const [openId, setOpenId] = useState(null);
+  const boxRef = useRef(null);
+  const scrolls = tasks.length > STILL_ROWS;
+  // Rows wholly below the visible part, and whether the end is in view.
+  const [below, setBelow] = useState(0);
+  const [atEnd, setAtEnd] = useState(!scrolls);
+  const [win, setWin] = useState(null);
+  const measure = useCallback(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const bottom = box.scrollTop + box.clientHeight;
+    setBelow([...box.querySelectorAll('[data-still-row]')].filter((li) => li.offsetTop >= bottom - 4).length);
+    setAtEnd(bottom >= box.scrollHeight - 4);
+    setWin(stillWindow(box, openId));
+  }, [openId]);
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box || typeof ResizeObserver !== 'function') return undefined;
+    // Fires once on observing, and again whenever a row opens, closes or goes.
+    const watch = new ResizeObserver(measure);
+    watch.observe(box);
+    if (box.firstElementChild) watch.observe(box.firstElementChild);
+    // And once the web font is in: names set in the fallback font measure a
+    // little short, and the window then clips the fifth.
+    let live = true;
+    document.fonts?.ready.then(() => live && measure());
+    return () => {
+      live = false;
+      watch.disconnect();
+    };
+  }, [measure]);
+
+  const still = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  // The window for the row now open, set before the first paint too so the
+  // whole list never flashes up first. And the open row brought into view,
+  // never past its name — reckoned against the new window, which the list
+  // has not grown to yet at this point.
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const next = stillWindow(box, openId);
+    setWin(next);
+    const row = openId ? box?.querySelector(`[data-still-row="${openId}"]`) : null;
+    if (!row) return;
+    const view = next ?? box.clientHeight;
+    const by = Math.min(row.offsetTop - box.scrollTop, row.offsetTop + row.offsetHeight - (box.scrollTop + view));
+    if (by > 2) box.scrollTo({ top: box.scrollTop + by, behavior: still() ? 'auto' : 'smooth' });
+  }, [openId]);
+
+  const scrollOn = () => {
+    const box = boxRef.current;
+    if (!box) return;
+    box.scrollTo({ top: atEnd ? 0 : box.scrollTop + box.clientHeight - STILL_ROW_H, behavior: still() ? 'auto' : 'smooth' });
+  };
+
+  return (
+    <div>
+        <div
+          ref={boxRef}
+          onScroll={measure}
+          className="relative overflow-x-hidden overflow-y-auto [overflow-anchor:none]"
+          style={{ maxHeight: win ?? undefined }}
+        >
+          <ul className="divide-y divide-line-100">
+            {tasks.map((task) => {
+              const open = openId === task._id;
+              const toggle = () => setOpenId(open ? null : task._id);
+              return (
+                <li key={task._id} data-still-row={task._id} className="py-3">
+                  {/* The name, "Do it today", then the arrow (asked
+                      2026-10-15: "keep the button before the arrow here in
+                      desktop"). On a phone the name and its arrow share the
+                      first line and the button goes under them — beside the
+                      name it squeezed a long one into five short lines. */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <button
+                      type="button"
+                      onClick={toggle}
+                      aria-expanded={open}
+                      aria-controls={`still-${task._id}`}
+                      className="order-1 min-w-0 flex-1 py-0.5 text-left text-sm leading-snug font-semibold text-ink-900"
+                    >
+                      {task.title}
+                    </button>
+                    <div className="order-3 basis-full sm:order-2 sm:basis-auto sm:shrink-0">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={RotateCcw}
+                        loading={redoingId === task._id}
+                        loadingText="Adding…"
+                        onClick={() => onRedo(task)}
+                        className="whitespace-nowrap"
+                      >
+                        Do it today
+                      </Button>
+                    </div>
+                    {/* The same toggle as the name, for the eye and the
+                        thumb; the name is the one a keyboard reaches. */}
+                    <button
+                      type="button"
+                      onClick={toggle}
+                      tabIndex={-1}
+                      aria-hidden
+                      className="order-2 -my-1 shrink-0 p-1 text-ink-400 sm:order-3"
+                    >
+                      <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                  {open && (
+                    <div id={`still-${task._id}`} data-still-body className="animate-fade-in pt-2 pb-1">
+                      {/* No "came up N times" tag (removed 2026-10-16, "dont show this"). */}
+                      {task.description && <p className="text-sm leading-relaxed text-ink-500">{task.description}</p>}
+                      {task.lastSkippedAt && (
+                        <p className="mt-1.5 text-xs text-ink-400">
+                          Last on your plan {new Date(task.lastSkippedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      {scrolls && (
+        <button
+          type="button"
+          onClick={scrollOn}
+          className="mx-auto mt-2 flex items-center gap-1 rounded-full bg-surface-100 px-3 py-1.5 text-xs font-bold text-ink-600 ring-1 ring-line-200 ring-inset transition-colors hover:bg-surface-50"
+        >
+          {atEnd ? (
+            <>Back to top <ChevronUp className="h-3.5 w-3.5" /></>
+          ) : (
+            <>{below > 0 ? `${below} more` : 'More'} <ChevronDown className="h-3.5 w-3.5" /></>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Profile() {
   // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
   const TASK_XP = useXpRule('career_task');
@@ -338,6 +536,18 @@ export default function Profile() {
   const levelInfo = useLevelProgress(user?.xp, user?.level);
   const [summaryFailed, setSummaryFailed] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  // Today's Plan's "Pending tasks · View" chip opens this page at Still to do
+  // (#still-to-do): brought into view once the list has loaded and is drawn.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash !== '#still-to-do' || showLoader || loadingSummary) return undefined;
+    const smooth = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const timer = setTimeout(() => document.getElementById('still-to-do')?.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' }), 200);
+    return () => clearTimeout(timer);
+  }, [hash, showLoader, loadingSummary]);
+  // Yati's words for Still to do, said when the student scrolls near it.
+  const stillLine = stillToDoLine(summary?.skippedTasks, summary?.skills, TASK_XP);
+  usePointLoopWhenNear('#still-to-do', !showLoader && !loadingSummary && !!stillLine);
 
   // No signed-out redirect here. This page renders inside ProtectedRoute, which
   // already holds it back until there is a session.
@@ -416,14 +626,14 @@ export default function Profile() {
     ? parseChoices(currentPhaseTitle)?.lead || currentPhaseTitle
     : null;
 
-  // Completions per day for the last seven days, counted from history.
-  const today = new Date();
+  // Completions per day for the last seven days, counted from history — on
+  // the platform's calendar (the server's `completedDay`), so a phone on
+  // another timezone does not shift a late finish onto the next day's bar.
+  const today = todayKey();
   const series = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() - (6 - i));
-    const key = dayKey(d);
+    const key = shiftKey(today, -(6 - i));
     return history.filter(
-      (t) => t.status === 'Completed' && t.completedAt && dayKey(new Date(t.completedAt)) === key
+      (t) => t.status === 'Completed' && t.completedAt && completedDay(t) === key
     ).length;
   });
 
@@ -433,7 +643,7 @@ export default function Profile() {
   const activeDays = new Set(
     history
       .filter((t) => t.status === 'Completed' && t.completedAt)
-      .map((t) => dayKey(new Date(t.completedAt)))
+      .map((t) => completedDay(t))
   ).size;
 
   return (
@@ -509,7 +719,9 @@ export default function Profile() {
                     data-mascot-target="pending-task"
                     className="group mt-2.5 inline-flex items-center gap-1 text-xs font-black text-journey-700 hover:underline"
                   >
-                    Earn {TASK_XP} XP now
+                    {/* A figure only while the rule pays one (null while
+                        Rewards is locked, 0 when the rule pays nothing). */}
+                    {TASK_XP > 0 ? `Earn ${TASK_XP} XP now` : "Go to today's plan"}
                     <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 </div>
@@ -567,7 +779,6 @@ export default function Profile() {
                   <CardHeader
                     icon={TrendingUp}
                     title="Skills"
-                    subtitle="Built up as you complete tasks"
                     accent="brand"
                   />
                   <Link
@@ -585,7 +796,7 @@ export default function Profile() {
             {summary.achievements?.length > 0 && (
               <Card>
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <CardHeader icon={Trophy} title="Achievements" subtitle="Moments that happened along the way" accent="pink" />
+                  <CardHeader icon={Trophy} title="Achievements" accent="pink" />
                   <Link
                     to="/career/badges"
                     className="group inline-flex shrink-0 items-center gap-1 text-xs font-black text-journey-700 hover:underline"
@@ -614,7 +825,14 @@ export default function Profile() {
               </Card>
             )}
 
-            <Card>
+            <Card
+              id="still-to-do"
+              className="scroll-mt-4"
+              data-explain-label={stillLine ? 'Still to do' : undefined}
+              data-explain-text={stillLine || undefined}
+              data-explain-emo="joy"
+              data-explain-gesture="point"
+            >
               <CardHeader
                 icon={Flame}
                 title="Still to do"
@@ -631,46 +849,7 @@ export default function Profile() {
                   </p>
                 </div>
               ) : (
-                <ul className="divide-y divide-line-100">
-                  {summary.skippedTasks.map((task) => (
-                    <li key={task._id} className="flex flex-wrap items-start gap-3 py-3.5 first:pt-0 sm:gap-4">
-                      {/* Full width on a phone, with the button beneath; a
-                          zero flex basis used to squeeze the title into a
-                          few words a line beside it. */}
-                      <div className="min-w-0 basis-full sm:flex-1 sm:basis-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-ink-900">{task.title}</h3>
-                          {/* A repeat is a signal the task is too big, not a
-                              demerit — stated plainly, without a red badge. */}
-                          {task.times > 1 && (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                              came up {task.times} times
-                            </span>
-                          )}
-                        </div>
-                        {task.description && (
-                          <p className="mt-1 text-sm leading-relaxed text-ink-500">{task.description}</p>
-                        )}
-                        {task.lastSkippedAt && (
-                          <p className="mt-1.5 text-xs text-ink-400">
-                            Last on your plan {new Date(task.lastSkippedAt).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        icon={RotateCcw}
-                        loading={redoingId === task._id}
-                        loadingText="Adding…"
-                        onClick={() => handleRedo(task)}
-                        className="w-full sm:w-auto"
-                      >
-                        Do it today
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
+                <StillToDoList tasks={summary.skippedTasks} redoingId={redoingId} onRedo={handleRedo} />
               )}
             </Card>
           </>

@@ -3,22 +3,30 @@
  * the page says which one is showing; switching back to the AI text never
  * loses what they wrote.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Save, Sparkles, PenLine } from 'lucide-react';
 import { Btn } from './ui';
+import Portal from '../components/Portal';
+import useBackClose from '../native/useBackClose';
 
 export default function BioEditor({ bio, onSave, onClose }) {
     const [headline, setHeadline] = useState(bio.custom.headline || bio.ai.headline || '');
     const [text, setText] = useState(bio.custom.bio || bio.ai.bio || '');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    // Escape and Android's back button close it, as the X does.
+    useBackClose(onClose);
+    useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
     const save = async (useCustom) => {
         setBusy(true); setError('');
         try { await onSave(useCustom ? { headline, bio: text, useCustom: true } : { useCustom: false }); onClose(); }
         catch (e) { setError(e.message); }
         finally { setBusy(false); }
     };
+    // Out on <body>, over the bottom bar: drawn inside the page it sat in the
+    // page's fade-in layer, under the phone's top and bottom bars.
     return (
+        <Portal>
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
             <div role="dialog" aria-modal="true" aria-labelledby="bio-edit-title" onClick={(e) => e.stopPropagation()} className="rw-pop w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl">
                 <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
@@ -44,5 +52,6 @@ export default function BioEditor({ bio, onSave, onClose }) {
                 </div>
             </div>
         </div>
+        </Portal>
     );
 }

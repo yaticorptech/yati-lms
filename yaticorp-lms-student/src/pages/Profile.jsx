@@ -1,5 +1,4 @@
-import React, { useContext, useState, useEffect, useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useCallback, useContext, useState, useEffect, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
 import saveToDrive from '../integrations/google/saveToDrive';
@@ -11,6 +10,8 @@ import {
     Award, Loader2, Check, X,
     Flame, Gem, Coins, Building2
 } from 'lucide-react';
+import ContinueStrip from '../components/ContinueStrip';
+import useBackClose from '../native/useBackClose';
 import { currentStreak, recentActivity, weeklyMomentum } from '../career/utils/progress';
 import useLevelProgress from '../career/context/useLevelProgress';
 import { StatTile, ProgressRing } from '../components/ProfileWidgets';
@@ -30,6 +31,22 @@ import PhotoPicker from '../components/PhotoPicker';
 import WeeklyActivityCard from '../components/WeeklyActivityCard';
 
 /**
+ * The line under "Your account is ready" when the Organization ID given at
+ * signup did not lead to a join request. "Whenever you have the right ID" is
+ * only true when the ID was the problem — not shaped like an ID ('invalid'),
+ * or no active organization has it ('not_found'). When the server could not
+ * send the request ('error') it read as blaming the student for an outage.
+ * An older server says 'unknown', or nothing: the plain pointer then.
+ */
+const orgHint = (org) => {
+    const why = org?.reason;
+    const where = <strong>My Profile → Personal Information → Organization/College</strong>;
+    if (why === 'invalid' || why === 'not_found') return <>Add it from {where} whenever you have the right Organization ID.</>;
+    if (why === 'error') return <>You can try again from {where}.</>;
+    return <>You can add it from {where}.</>;
+};
+
+/**
  * The Dashboard and My Profile are two pages drawn by this one component,
  * because they share everything underneath: the student's details, the edit
  * form, the photo picker and cropper, and the same data fetches. `view` picks
@@ -47,30 +64,25 @@ const Profile = ({ view = 'dashboard' }) => {
     const [signupOrg, setSignupOrg] = useState(() => {
         try { const v = sessionStorage.getItem('yati.signupOrg'); sessionStorage.removeItem('yati.signupOrg'); return v ? JSON.parse(v) : null; } catch { return null; }
     });
-    const { user, setUser, isCareerPathEnabled } = useContext(AuthContext);
+    const { user, setUser, isCareerPathEnabled, isCreditSystemEnabled } = useContext(AuthContext);
     // Streak, XP, rank, badges and wallet from the rewards system. Null while
     // loading or when an admin has locked the section; the page then falls
     // back to the Career Path numbers it always showed.
     const rewards = useRewards();
     const rw = rewards.enabled ? rewards.summary : null;
-    // The stat cards link to #leaderboard / #wallet on this page; client-side
-    // routing does not scroll to a hash on its own.
-    const { hash } = useLocation();
-    useEffect(() => {
-        if (!hash) return;
-        const el = document.getElementById(hash.slice(1));
-        if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
-    }, [hash, rw]);
+    // Links to #leaderboard, #wallet or #certificates on this page are scrolled
+    // to by the layout (StudentLayout), which waits for the section to exist.
+    // This page used to do it as well, keyed on the rewards summary — so every
+    // refresh of the wallet (a quiz started, a prize won, any charge) threw the
+    // student back up to #wallet from wherever they had scrolled.
     const [certificates, setCertificates] = useState([]);
     // Career Path standing. Fetched here so the profile shows one student rather
     // than two: credits are earned in courses, XP and levels in Career Path, and
     // until now neither page mentioned the other's existence.
     const [career, setCareer] = useState(null);
-    // Courses with progress, for "continue where you left off"; Career Path
-    // task history, for the streak and the week's activity dots.
     // The course data the Dashboard used to own. The page is the two merged,
-    // so one hook feeds "Your Progress", the continue card, the leaderboard's
-    // course filter and the course tabs alike, refreshing every 30s as before.
+    // so one hook feeds "Your Progress", the Continue strip under the welcome
+    // banner and the course tabs alike, refreshing every 30s as before.
     const dashboard = useDashboard(api);
     const courses = dashboard.courses;
     const [history, setHistory] = useState([]);
@@ -89,8 +101,16 @@ const Profile = ({ view = 'dashboard' }) => {
     // ready-made avatar instead
     const [pickerOpen, setPickerOpen] = useState(false);
 
-    // Photo viewer
+    // Photo viewer. A dialog like the others: Escape and Android's back button close it.
     const [viewingPhoto, setViewingPhoto] = useState(false);
+    const photoOpen = viewingPhoto && !!user?.profilePicture;
+    useBackClose(() => setViewingPhoto(false), photoOpen);
+    useEffect(() => {
+        if (!photoOpen) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') setViewingPhoto(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [photoOpen]);
 
     // The student's XP and level, kept with the rest of what the device saves
     // about them (sign-in sends them too), so the banner opens on their own
@@ -106,12 +126,29 @@ const Profile = ({ view = 'dashboard' }) => {
         } catch { /* no storage: the banner waits for the profile next time */ }
     };
 
+    // The level and XP on the welcome banner. Read again whenever XP may have
+    // moved without a page change — a lesson, a quiz, a Global Quiz win, a
+    // Career Path task (they say so on the window) — or the banner sat on the
+    // figure the page opened with until the next reload. A failed re-read
+    // keeps what is shown; only the first one falls back to the saved session.
+    const loadStanding = useCallback((first = false) => api.get('/user/profile')
+        .then(r => { const u = r.data?.user || null; setCareer(u); rememberStanding(u); })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        .catch(() => { if (first) setCareer(null); }), []);
+    useEffect(() => {
+        const again = () => loadStanding();
+        window.addEventListener('yati:progress-changed', again);
+        window.addEventListener('yati:rewards', again);
+        return () => {
+            window.removeEventListener('yati:progress-changed', again);
+            window.removeEventListener('yati:rewards', again);
+        };
+    }, [loadStanding]);
+
     useEffect(() => {
         const fetchCertificates = async () => {
             try {
-                api.get('/user/profile')
-                    .then(r => { const u = r.data?.user || null; setCareer(u); rememberStanding(u); })
-                    .catch(() => setCareer(null));
+                loadStanding(true);
                 if (isCareerPathEnabled) {
                     api.get('/career/tasks/history')
                         .then(r => setHistory(Array.isArray(r.data) ? r.data : []))
@@ -255,11 +292,15 @@ const Profile = ({ view = 'dashboard' }) => {
 
     return (
         <div className="relative z-0 w-full space-y-6 pb-8 animate-fade-in">
-            {/* Floating success toast */}
+            {/* Floating success toast. On <body>: inside this page's z-0 layer
+                it sat under the phone's bottom bar, where nobody saw it. Above
+                the bar on a phone; in the corner once the sidebar is there. */}
             {saveSuccess && (
-                <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[200] bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl font-bold text-sm flex items-center gap-2">
-                    <Check size={16} /> Profile updated successfully!
-                </div>
+                <Portal>
+                    <div role="status" className="fixed right-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-[200] flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-xl sidebar:bottom-6 sidebar:right-6">
+                        <Check size={16} aria-hidden="true" /> Profile updated successfully!
+                    </div>
+                </Portal>
             )}
             {/* ── The opening card ────────────────────────────────────────
                 My Profile: Personal Information — the photo and its camera, the
@@ -338,7 +379,7 @@ const Profile = ({ view = 'dashboard' }) => {
                         <div className="min-w-0 flex-1 text-sm">
                             <p className="font-bold text-slate-800">Your account is ready</p>
                             {signupOrg.message && <p className="mt-0.5 text-slate-600">{signupOrg.message}</p>}
-                            {!signupOrg.requested && <p className="mt-0.5 text-xs text-slate-500">Add it from <strong>My Profile → Personal Information → Organization/College</strong> whenever you have the right Organization ID.</p>}
+                            {!signupOrg.requested && <p className="mt-0.5 text-xs text-slate-500">{orgHint(signupOrg)}</p>}
                         </div>
                         <button type="button" onClick={() => setSignupOrg(null)} aria-label="Dismiss" className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-white hover:text-slate-600"><X size={16} /></button>
                     </div>
@@ -355,6 +396,8 @@ const Profile = ({ view = 'dashboard' }) => {
                     xpTo={isCareerPathEnabled ? '/career' : undefined}
                     onViewPhoto={() => setViewingPhoto(true)}
                 />
+                {/* The one course to go back to, straight under the greeting. */}
+                <ContinueStrip courses={courses} />
                 </>
             )}
 
@@ -362,11 +405,13 @@ const Profile = ({ view = 'dashboard' }) => {
             {/* Stat tiles (Career Path numbers, shown only when rewards are locked;
                 otherwise the progress card carries them) */}
             {onProfile && !rw && (
-            <div className="stagger grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <div className={`stagger grid grid-cols-2 gap-3 sm:gap-4 ${isCreditSystemEnabled === false ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
                 <StatTile tone="amber" icon={Coins} value={xp} label="Current XP" sub={`${ring.remaining} XP to level ${ring.nextLevel}`} emoji="🪙" to={isCareerPathEnabled ? '/career' : undefined} />
                 <StatTile tone="sky" icon={Gem} value={level} label="Your level" sub={isCareerPathEnabled ? 'From Career Path tasks' : 'Levels come from Career Path'} percent={ring.percent} to={isCareerPathEnabled ? '/career' : undefined} />
                 <StatTile tone="orange" icon={Flame} value={streak} suffix={streak === 1 ? ' day' : ' days'} label="Streak" sub={streak ? 'Keep it alive today' : 'Finish a task to start one'} emoji="🔥" to={isCareerPathEnabled ? '/career/planner' : undefined} />
-                <StatTile tone="rose" icon={Award} value={user?.credits || 0} label="Credits" sub="Earned from course quizzes" emoji="🏅" />
+                {/* Only while the credit system is on: with it off, credits are
+                    neither earned nor spent, and a "0 Credits" tile is a promise. */}
+                {isCreditSystemEnabled !== false && <StatTile tone="rose" icon={Award} value={user?.credits || 0} label="Credits" sub="Earned from course quizzes" emoji="🏅" />}
             </div>
             )}
 
@@ -429,23 +474,26 @@ const Profile = ({ view = 'dashboard' }) => {
             )}
 
             {/* ── Photo Viewer Modal ── */}
-            {viewingPhoto && user?.profilePicture && (
+            {photoOpen && (
                 <Portal>
                     <div
                         className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
                         onClick={() => setViewingPhoto(false)}
                     >
-                        <div className="relative max-w-sm w-full" onClick={e => e.stopPropagation()}>
+                        <div role="dialog" aria-modal="true" aria-label={`Profile photo of ${user.name || 'you'}`} className="relative max-w-sm w-full" onClick={e => e.stopPropagation()}>
                             <img
                                 src={pictureUrl(user.profilePicture)}
                                 alt={user.name}
                                 className="w-full rounded-2xl shadow-2xl object-cover"
                             />
                             <button
+                                type="button"
+                                autoFocus
                                 onClick={() => setViewingPhoto(false)}
+                                aria-label="Close photo"
                                 className="absolute top-3 right-3 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
                             >
-                                <X size={16} />
+                                <X size={16} aria-hidden="true" />
                             </button>
                             <p className="text-center text-white/70 text-sm mt-3 font-medium">{user.name}</p>
                         </div>

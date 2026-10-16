@@ -104,8 +104,11 @@ describe('enrolling', () => {
         const open = await asBuyer('GET', `/courses/${ids.paid}`);
         assert.equal(open.status, 200);
         assert.equal(open.body.modules[0].lessons[0].videoId, VIDEO, 'the lessons, video and all');
-        assert.equal((await asBuyer('GET', `/lessons/${lessons.quiz._id}/quiz`)).status, 200);
+        // The quiz is the second lesson: it opens once the first is done, as
+        // the player unlocks it (the server holds the order too now).
+        assert.equal((await asBuyer('GET', `/lessons/${lessons.quiz._id}/quiz`)).status, 403);
         assert.equal((await asBuyer('POST', '/progress/update', { courseId: ids.paid, lessonId: String(lessons[ids.paid]._id) })).status, 200);
+        assert.equal((await asBuyer('GET', `/lessons/${lessons.quiz._id}/quiz`)).status, 200);
     });
 
     test('opens it for that student only', async () => {
@@ -134,14 +137,15 @@ describe('bundles', () => {
         // inside the bundle instead.
         const Progress = require('../../src/models/Progress');
         // Opening the course above already gave the buyer a Progress record.
-        await Progress.updateOne({ userId: buyer.user._id, courseId: ids.inBundle }, { $set: { percentage: 50 } }, { upsert: true });
+        // Its one lesson done: the figure is worked out from the lessons.
+        await Progress.updateOne({ userId: buyer.user._id, courseId: ids.inBundle }, { $set: { completedLessons: [lessons[ids.inBundle]._id] } }, { upsert: true });
         try {
             const res = await asBuyer('GET', '/courses');
             assert.equal(res.status, 200);
             assert.ok(!res.body.courses.some((c) => c._id === ids.inBundle), 'not enrolled in it');
             const bundle = res.body.bundles.find((b) => b._id === ids.bundle);
-            assert.equal(bundle.courses.find((c) => c._id === ids.inBundle).progress, 50);
-            assert.equal(bundle.progress, 50);
+            assert.equal(bundle.courses.find((c) => c._id === ids.inBundle).progress, 100);
+            assert.equal(bundle.progress, 100);
             // Somebody else's progress is their own.
             const theirs = (await asOther('GET', '/courses')).body.bundles.find((b) => b._id === ids.bundle);
             assert.equal(theirs.courses.find((c) => c._id === ids.inBundle).progress, 0);

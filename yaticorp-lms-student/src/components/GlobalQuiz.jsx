@@ -37,6 +37,16 @@ import { clock, toneFor, shortDate } from './quiz/quizFormat';
 
 const minutes = (n) => `${n} minute${n === 1 ? '' : 's'}`;
 
+// The server's ways of saying "the attempt is not where you think it is":
+// taken already, out of time, or none open at all (a reload, another device).
+// Each is answered the same way — the paper is fetched again and shown as the
+// server has it.
+const STALE_ATTEMPT = ['ALREADY_ATTEMPTED', 'TIME_UP', 'NO_ATTEMPT'];
+const staleAttempt = (e) => STALE_ATTEMPT.includes(e?.response?.data?.code);
+
+// How long a closing paper waits for an answer that is still being marked.
+const FINISH_GRACE_MS = 3000;
+
 // `startedAt` is when Start was pressed: 0 until then, and the clock's zero.
 // `saved` says the server has the attempt closed; `finishedAt` freezes the clock;
 // `result` is the server's final score once it has one, which is what is shown.
@@ -142,11 +152,28 @@ export default function GlobalQuiz() {
     const [starting, setStarting] = useState(false);
     const [now, setNow] = useState(0);               // the clock, moved on once a second while the paper is open
     const savedRef = useRef(null);                   // the paper whose result has been sent
+    const rootRef = useRef(null);                    // the tab's own box, for bringing the score into view
+    // The paper on screen now, for answers that land after it has changed.
+    const keyRef = useRef(key);
+    useEffect(() => { keyRef.current = key; }, [key]);
+    // The paper whose pending answer the finish stopped waiting for.
+    const [graceOver, setGraceOver] = useState(null);
 
     useEffect(() => {
         let cancelled = false;
         api.get('/user/quizzes/global')
-            .then((r) => { if (!cancelled) { setNow(Date.now()); setLoaded({ key, paper: r.data, error: '', seed: seedFrom(r.data, key) }); } })
+            .then((r) => {
+                if (cancelled) return;
+                const seed = seedFrom(r.data, key);
+                setNow(Date.now());
+                setLoaded({ key, paper: r.data, error: '', seed });
+                // The working copy starts from the server's record straight
+                // away. The clock's time-up only ever looked at this copy, and
+                // after a reload mid-attempt it was still blank (the screen was
+                // drawn from the seed) — so the clock stood at 0:00 and the
+                // paper never closed.
+                setWork(seed);
+            })
             .catch((e) => !cancelled && setLoaded({ key, paper: null, error: e.response?.data?.message || 'Could not load the quiz.', seed: FRESH }));
         return () => { cancelled = true; };
     }, [key]);
@@ -183,20 +210,38 @@ export default function GlobalQuiz() {
     }, [running, limitMs, startedAt, key]);
 
     // The score is final the moment it is shown: the server closes the attempt.
+    // When the clock runs out with an answer still being marked, that answer
+    // is waited for (briefly) first: closing straight away raced it, and the
+    // last answer the student gave could be refused as "time up" or left out
+    // of the score.
     useEffect(() => {
         if (!ready || !started || !showScore || saved || savedRef.current === key) return undefined;
+        if (pending && graceOver !== key) {
+            const t = setTimeout(() => setGraceOver(key), FINISH_GRACE_MS);
+            return () => clearTimeout(t);
+        }
         savedRef.current = key;
-        let cancelled = false;
         api.post('/user/quizzes/global/finish', { timedOut })
             .then((r) => {
-                if (cancelled) return;
+                // XP was paid whether or not the student is still on this tab:
+                // the header, the wallet and the celebrations are told
+                // regardless. Leaving the tab used to cancel this, and the
+                // header kept the old XP until the next reload.
+                const events = r.data?.rewards?.events;
+                if (events?.length) window.dispatchEvent(new CustomEvent('yati:rewards', { detail: events }));
+                if (r.data?.win?.xp > 0 || events?.length) window.dispatchEvent(new CustomEvent('yati:progress-changed'));
                 setWork((prev) => (prev.key === key ? { ...prev, saved: true, result: resultOf(r.data?.attempt) || prev.result, win: r.data?.win || null } : prev));
-                // A win paid XP: the header's XP and wallet figures re-read.
-                if (r.data?.win?.xp > 0) window.dispatchEvent(new CustomEvent('yati:progress-changed'));
             })
-            .catch((e) => { if (!cancelled) { savedRef.current = null; setMarkError(e.response?.data?.message || 'Your result could not be saved. Check your connection.'); } });
-        return () => { cancelled = true; };
-    }, [ready, started, showScore, saved, timedOut, key]);
+            .catch((e) => {
+                if (keyRef.current !== key) return;
+                savedRef.current = null;
+                // No attempt open on the server (closed elsewhere, or never
+                // opened there): show the paper as the server has it.
+                if (staleAttempt(e)) { setNonce((n) => n + 1); return; }
+                setMarkError(e.response?.data?.message || 'Your result could not be saved. Check your connection.');
+            });
+        return undefined;
+    }, [ready, started, showScore, saved, timedOut, key, pending, graceOver]);
 
     // Every quiz the student has taken, for the banner's record and the list.
     // Read again once a quiz is finished, so the record counts it.
@@ -216,7 +261,14 @@ export default function GlobalQuiz() {
     // forget an attempt that was resumed.
     const step = (change) => setWork((prev) => ({ ...(prev.key === key ? prev : loaded.seed), key, ...change }));
     const goTo = (index) => { setMarkError(''); step({ at: index }); };
-    const finish = () => { step({ showScore: true, finishedAt: Date.now(), celebrate: true, finishedHere: true }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    // The score is at the top of the tab. The page scrolls inside the layout's
+    // <main>, not the window, so window.scrollTo moved nothing: the quiz's own
+    // box is brought into view instead.
+    const finish = () => {
+        step({ showScore: true, finishedAt: Date.now(), celebrate: true, finishedHere: true });
+        const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        rootRef.current?.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' });
+    };
     // The popup that greets a just-finished paper; a resumed, finished attempt opens without it.
     const closeCelebration = () => step({ celebrate: false });
 
@@ -233,7 +285,7 @@ export default function GlobalQuiz() {
             })
             .catch((e) => {
                 // Already taken (or timed out) on another screen: the server has the result.
-                if (['ALREADY_ATTEMPTED', 'TIME_UP'].includes(e.response?.data?.code)) load();
+                if (staleAttempt(e)) load();
                 else setMarkError(e.response?.data?.message || 'Could not start the quiz.');
             })
             .finally(() => setStarting(false));
@@ -252,8 +304,9 @@ export default function GlobalQuiz() {
                     : prev));
             })
             .catch((e) => {
-                // The attempt was closed meanwhile (time up, or finished elsewhere): show the result the server has.
-                if (['ALREADY_ATTEMPTED', 'TIME_UP'].includes(e.response?.data?.code)) { load(); return; }
+                // The attempt was closed meanwhile (time up, finished elsewhere), or
+                // the server has none open: show the paper as the server has it.
+                if (staleAttempt(e)) { load(); return; }
                 setMarkError(e.response?.data?.message || 'Could not mark that answer.');
                 // The choice is rolled back so the question can be answered again.
                 setWork((prev) => {
@@ -393,7 +446,7 @@ export default function GlobalQuiz() {
         // One even tint behind the banner and the cards. It used to fade to
         // white at the bottom in a wave, which made the panel look as if it
         // stopped halfway down whatever card sat lowest.
-        <div className="relative isolate overflow-hidden rounded-[2rem] bg-violet-50/60 p-2 sm:p-3 animate-fade-in">
+        <div ref={rootRef} className="relative isolate scroll-mt-4 overflow-hidden rounded-[2rem] bg-violet-50/60 p-2 sm:p-3 animate-fade-in">
 
             {/* ── Banner ──────────────────────────────────────────── */}
             {/* The tab's header: what the Global Quiz is, where the student stands
@@ -426,7 +479,8 @@ export default function GlobalQuiz() {
                     <h3 className="mt-3 text-[1.7rem] font-black leading-tight tracking-tight sm:text-[2.1rem]">
                         Test your <span className="bg-gradient-to-r from-amber-200 via-pink-200 to-sky-200 bg-clip-text text-transparent">general knowledge</span>
                     </h3>
-                    <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-white/80">
+                    {/* Not on a phone (asked 2026-10-15). */}
+                    <p className="mt-1.5 hidden max-w-xl text-sm leading-relaxed text-white/80 sidebar:block">
                         Your institution sets a new paper from time to time: quick questions, one attempt each, and XP when your score is a win.
                     </p>
 
@@ -582,7 +636,12 @@ export default function GlobalQuiz() {
                         {showScore ? (
                             <p className="flex items-center justify-center gap-2 rounded-[1.4rem] border border-emerald-100 bg-emerald-50/70 px-5 py-3 text-sm font-bold text-emerald-700"><CheckCircle2 size={16} /> Quiz complete</p>
                         ) : (
-                            <div className={`sticky bottom-3 grid gap-2.5 rounded-[1.4rem] border border-violet-100 bg-white/95 p-2.5 shadow-lg backdrop-blur ${allAnswered || currentAnswered || nextOpen < 0 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            // Above the phone's floating bottom bar (which ends
+                            // 0.5rem plus the home-indicator inset from the
+                            // bottom, about 5rem tall): at bottom-3 the buttons
+                            // sat behind it. Once the sidebar replaces the bar,
+                            // back down to the edge.
+                            <div className={`sticky bottom-[calc(6rem+env(safe-area-inset-bottom))] sidebar:bottom-3 grid gap-2.5 rounded-[1.4rem] border border-violet-100 bg-white/95 p-2.5 shadow-lg backdrop-blur ${allAnswered || currentAnswered || nextOpen < 0 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                                 {allAnswered ? (
                                     <button type="button" onClick={finish} disabled={!!pending}
                                         className="inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-violet-200 hover:bg-violet-700 disabled:opacity-45">

@@ -7,7 +7,8 @@
  * promise worth being careful about, so each has its own clause rather than
  * being swept under a generic "as is".
  */
-import LegalShell, { Bullets, Section, COMPANY } from './legalShell';
+import LegalShell, { Bullets, Section } from './legalShell';
+import { COMPANY } from './company';
 
 export default function Terms() {
   return (

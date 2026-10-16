@@ -5,6 +5,7 @@
 import axios from 'axios';
 import { clearCareerCache } from '../career/services/api';
 import { onWalletResponse, onWalletError } from './walletCharge';
+import { expireSessionOn401 } from './sessionExpiry';
 
 const apiBaseURL = import.meta.env.VITE_API_URL;
 
@@ -33,9 +34,13 @@ api.interceptors.request.use(config => {
 const clearAfterSave = (config) => {
     if (config && (config.method || 'get').toLowerCase() !== 'get') clearCareerCache();
 };
+// No default timeout on purpose: AI answers and uploads can take minutes.
+// A request that needs a limit (the start-up settings read) sets its own.
 api.interceptors.response.use(
     (response) => { clearAfterSave(response.config); return onWalletResponse(response); },
-    (error) => { clearAfterSave(error.config); return onWalletError(error); }
+    // A 401 means the session is over (sessionExpiry.js): signed out, back to
+    // the sign-in page. The error still reaches the caller.
+    (error) => { clearAfterSave(error.config); expireSessionOn401(error); return onWalletError(error); }
 );
 
 export default api;

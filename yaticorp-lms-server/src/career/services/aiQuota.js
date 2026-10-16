@@ -29,18 +29,31 @@ const PER_STUDENT = Number(process.env.CAREER_AI_DAILY_PER_STUDENT || 30);
  */
 const PER_SERVICE = Number(process.env.CAREER_AI_DAILY_TOTAL || 0);
 
-/** 'YYYY-MM-DD' in server-local time — the same day a student would name. */
-const dayKey = (date = new Date()) => {
-  const d = new Date(date);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
+/*
+ * The allowance runs on the platform's day — the timezone the daily plan, the
+ * rewards streak and the leaderboard all turn over in (REWARDS_TIMEZONE,
+ * Asia/Kolkata by default). It used to run on the server process's own clock,
+ * which only agreed with everything else on a machine set to IST: on a server
+ * running UTC the allowance came back at 05:30 in the morning while the plan
+ * it pays for turned over at midnight, and the "resets at midnight" the
+ * student was told was neither.
+ */
+const platformDay = require('../../rewards/config/constants');
 
-/** Local midnight tonight, so the UI can say when the allowance comes back. */
-const resetsAt = () => {
-  const d = new Date();
-  d.setHours(24, 0, 0, 0);
-  return d;
+/** 'YYYY-MM-DD' in the platform timezone — the day the plan and the streak use. */
+const dayKey = (date = new Date()) => platformDay.dayKey(new Date(date));
+
+/** The next platform midnight, so the UI can say when the allowance comes back. */
+const resetsAt = (now = new Date()) => platformDay.startOfDay(platformDay.addDays(dayKey(now), 1));
+
+/**
+ * The next midnight in another timezone. The provider's own free-tier quota
+ * turns over at midnight Pacific Time, not at ours, so a refusal from Google
+ * reports that moment rather than the platform's.
+ */
+const nextMidnightIn = (timeZone, now = new Date()) => {
+  const key = platformDay.dayKey(now, timeZone);
+  return platformDay.startOfDay(platformDay.addDays(key, 1), timeZone);
 };
 
 /**
@@ -51,21 +64,30 @@ const resetsAt = () => {
  * for a fault that does not exist.
  */
 class AiBudgetError extends Error {
-  constructor(message, code) {
+  constructor(message, code, at = resetsAt()) {
     super(message);
     this.name = 'AiBudgetError';
     this.status = 429;
     this.code = code;
-    this.resetsAt = resetsAt();
+    this.resetsAt = at;
   }
 }
 
-/** What this student has spent today, and what everyone has. */
+/**
+ * What this student has spent today, and what everyone has.
+ *
+ * Only calls that came back count. A failed call costs the provider nothing,
+ * and charging it to the student meant a day whose plan kept failing (a model
+ * outage, a reply that would not parse) quietly spent their whole allowance on
+ * nothing — and then refused them the retry that would have worked. Failures
+ * are still recorded, with `ok: false`, for the operator's view of the day.
+ */
 const usageToday = async (userId) => {
   const day = dayKey();
+  const spent = { day, ok: { $ne: false } };
   const [mine, all] = await Promise.all([
-    userId ? AiUsage.countDocuments({ userId, day }) : Promise.resolve(0),
-    PER_SERVICE > 0 ? AiUsage.countDocuments({ day }) : Promise.resolve(0)
+    userId ? AiUsage.countDocuments({ ...spent, userId }) : Promise.resolve(0),
+    PER_SERVICE > 0 ? AiUsage.countDocuments(spent) : Promise.resolve(0)
   ]);
   return { day, mine, all };
 };
@@ -92,7 +114,7 @@ const assertWithinBudget = async () => {
     if (userId && mine >= PER_STUDENT) {
       throw new AiBudgetError(
         `You have used today's AI allowance (${PER_STUDENT} requests). ` +
-        'It resets at midnight — your roadmap, plan and past lessons all stay available in the meantime.',
+        'Your roadmap, plan and past lessons all stay available until it resets.',
         'student-daily-cap'
       );
     }
@@ -100,7 +122,7 @@ const assertWithinBudget = async () => {
     if (PER_SERVICE > 0 && all >= PER_SERVICE) {
       throw new AiBudgetError(
         "Career Path has reached today's AI limit for everyone. " +
-        'It resets at midnight. Everything already generated is still here.',
+        'Everything already generated is still here until it resets.',
         'service-daily-cap'
       );
     }
@@ -141,6 +163,7 @@ module.exports = {
   remainingForStudent,
   dayKey,
   resetsAt,
+  nextMidnightIn,
   AiBudgetError,
   PER_STUDENT,
   PER_SERVICE

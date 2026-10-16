@@ -4,14 +4,16 @@
  * first-person paragraphs. Nothing else on it: no bars, no counts.
  */
 import { useCallback, useContext, useEffect, useState } from 'react';
-import { X, Sparkles, Download, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { X, Sparkles, Download, Loader2, ArrowRight } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import { bioApi } from './api';
 import BioText from './BioText';
 import { ErrorBox } from './ui';
 import Portal from '../components/Portal';
-import { pictureUrl } from '../native/pictures';
 import PriceTag from '../components/rewards/PriceTag';
+import useBackClose from '../native/useBackClose';
+import ProfileImage from '../components/ProfileImage';
 
 /** The photo on its blob, with the two little accents from the design. */
 const Portrait = ({ avatar, name }) => (
@@ -27,9 +29,8 @@ const Portrait = ({ avatar, name }) => (
             <path d="M12 21s-7-4.6-9.3-8.6C.9 9.2 2.6 5 6.5 5c2 0 3.4 1.1 4.2 2.3l1.3 2 1.3-2C14.1 6.1 15.5 5 17.5 5c3.9 0 5.6 4.2 3.8 7.4C19 16.4 12 21 12 21z" />
         </svg>
         <span className="absolute inset-[9%] overflow-hidden rounded-full bg-violet-100 shadow-xl ring-4 ring-white sm:ring-8">
-            {avatar
-                ? <img src={pictureUrl(avatar)} alt={name} className="h-full w-full object-cover" />
-                : <span className="flex h-full w-full items-center justify-center text-4xl font-black text-violet-400 sm:text-6xl md:text-7xl">{(name || '?').trim().charAt(0).toUpperCase()}</span>}
+            <ProfileImage src={avatar} alt={name} className="h-full w-full object-cover"
+                fallback={<span className="flex h-full w-full items-center justify-center text-4xl font-black text-violet-400 sm:text-6xl md:text-7xl">{(name || '?').trim().charAt(0).toUpperCase()}</span>} />
         </span>
     </div>
 );
@@ -44,6 +45,8 @@ export default function BioPopup({ onClose }) {
     const load = useCallback(() => bioApi.full().then((d) => { setData(d); setError(null); }).catch((e) => { setError(e); setData(null); }), []);
     useEffect(() => { load(); }, [load]);
     useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+    // Android's back button closes it, as Escape does.
+    useBackClose(onClose);
 
     const name = data?.user?.name || me?.name || '';
     const avatar = data?.user?.avatar || me?.profilePicture || '';
@@ -76,6 +79,13 @@ export default function BioPopup({ onClose }) {
                                 ) : !data ? <ErrorBox error={error} onRetry={load} />
                                     : <BioText text={data.bio.bio} className="space-y-3 [&>p]:text-[14px] [&>p]:leading-relaxed [&>p]:text-slate-700 sm:space-y-5 sm:[&>p]:text-[17px] md:[&>p]:text-lg" />}
                             </div>
+                            {/* The whole bio — journey, skills, courses, projects, who
+                                can see it — lives on its own page, and this popup was
+                                the only door to it that nobody had put a handle on. */}
+                            <Link to="/learning-bio" onClick={onClose}
+                                className="mt-5 inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-white px-4 py-2 text-sm font-bold text-violet-700 transition-colors hover:bg-violet-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 sm:mt-7">
+                                Open full Learning Bio <ArrowRight size={15} aria-hidden="true" />
+                            </Link>
                         </div>
                     </div>
                 </div>

@@ -7,7 +7,8 @@
 const mongoose = require('mongoose');
 const User = require('../../models/User');
 const { XpTransaction, Streak, RewardUserBadge, RewardBadge, LeaderboardSnapshot } = require('../models');
-const { periodWindow } = require('../config/constants');
+const { periodWindow, dayKey, addDays } = require('../config/constants');
+const { getLevelThresholds, levelFor } = require('./configService');
 
 const PERIODS = ['daily', 'weekly', 'monthly', 'all'];
 const SCOPES = ['global', 'institution', 'class', 'course'];
@@ -29,8 +30,12 @@ const scopeUserIds = async (scope, me) => {
  * Every ranked user for a window, sorted. Returns [{userId, xp}] — the whole
  * list, so the caller can find any position. Fine at LMS scale; a paged
  * variant would replace this if the student count grows past tens of thousands.
+ *
+ * `offset` -1 is the period that just closed: the payout job ranks it with
+ * this same function, so the students paid are the students the board showed
+ * (it used to rank the raw ledger, deactivated accounts included).
  */
-const ranking = async ({ period, scope = 'global', courseId = null, me = null }) => {
+const ranking = async ({ period, scope = 'global', courseId = null, me = null, offset = 0, now = new Date() }) => {
   const ids = await scopeUserIds(scope, me);
   if (ids && ids.length === 0) return [];
 
@@ -41,7 +46,7 @@ const ranking = async ({ period, scope = 'global', courseId = null, me = null })
     return users.map((u) => ({ userId: u._id, xp: u.xp }));
   }
 
-  const { start, end } = periodWindow(period);
+  const { start, end } = periodWindow(period, now, offset);
   const match = { amount: { $gt: 0 } };
   if (start) match.createdAt = { $gte: start, $lt: end };
   if (scope === 'course' && courseId) match.courseId = String(courseId);
@@ -80,15 +85,26 @@ const getBoard = async ({ period = 'weekly', scope = 'global', courseId = null, 
   const wanted = [...top, ...around];
   const userIds = wanted.map((r) => r.userId);
 
-  const [users, streaks, badges, catalogue, snapshot] = await Promise.all([
-    User.find({ _id: { $in: userIds } }).select('name profilePicture level xp institution className').lean(),
-    Streak.find({ userId: { $in: userIds } }).select('userId current lastActivityDay').lean(),
+  const [users, streaks, badges, catalogue, snapshot, ladder] = await Promise.all([
+    User.find({ _id: { $in: userIds } }).select('name profilePicture xp institution className').lean(),
+    // The student's own streak too: their row is shown even when unranked.
+    Streak.find({ userId: { $in: [...userIds, me._id] } }).select('userId current lastActivityDay').lean(),
     RewardUserBadge.aggregate([{ $match: { userId: { $in: userIds } } }, { $sort: { unlockedAt: -1 } }, { $group: { _id: '$userId', badgeKey: { $first: '$badgeKey' }, count: { $sum: 1 } } }]),
     RewardBadge.find({}).select('key title emoji').lean(),
-    scope === 'global' ? latestSnapshot(period, periodWindow(period).key, 'global') : null
+    scope === 'global' ? latestSnapshot(period, periodWindow(period).key, 'global') : null,
+    getLevelThresholds()
   ]);
   const userBy = Object.fromEntries(users.map((u) => [String(u._id), u]));
-  const streakBy = Object.fromEntries(streaks.map((s) => [String(s.userId), s.current]));
+  // The same rule as the student's own streak card (streakService.summary): a
+  // streak whose last day was before yesterday is over, even though the
+  // stored number is only reset by the next activity. Raw `current` showed a
+  // student who stopped a month ago still "on a 40-day streak" here.
+  const today = dayKey();
+  const yesterday = addDays(today, -1);
+  const streakBy = Object.fromEntries(streaks.map((s) => [String(s.userId), s.lastActivityDay === today || s.lastActivityDay === yesterday ? s.current : 0]));
+  // Levels from XP under the admin's ladder, not the stored User.level, which
+  // lags behind a ladder edit until it is recomputed.
+  const levelOf = (xp) => levelFor(xp || 0, ladder);
   const badgeBy = Object.fromEntries(badges.map((b) => [String(b._id), b]));
   const badgeMeta = Object.fromEntries(catalogue.map((b) => [b.key, b]));
   const prevRank = snapshot ? Object.fromEntries(snapshot.ranks.map((r) => [String(r.userId), r.rank])) : {};
@@ -100,7 +116,7 @@ const getBoard = async ({ period = 'weekly', scope = 'global', courseId = null, 
     const prev = prevRank[String(r.userId)];
     return {
       rank, userId: r.userId, name: u?.name || 'Student', profilePicture: u?.profilePicture || '',
-      level: u?.level || 1, xp: r.xp, totalXp: u?.xp || 0, streak: streakBy[String(r.userId)] || 0,
+      level: levelOf(u?.xp), xp: r.xp, totalXp: u?.xp || 0, streak: streakBy[String(r.userId)] || 0,
       badge: b ? { key: b.badgeKey, emoji: badgeMeta[b.badgeKey]?.emoji || '🎖️', title: badgeMeta[b.badgeKey]?.title || '', count: b.count } : null,
       movement: prev ? prev - rank : null, // + moved up, - moved down
       isMe: String(r.userId) === meId
@@ -111,7 +127,7 @@ const getBoard = async ({ period = 'weekly', scope = 'global', courseId = null, 
     period, scope, courseId, periodKey: periodWindow(period).key, total: rows.length,
     entries: top.map((r, i) => shape(r, i)),
     around: around.map((r) => shape(r, rows.indexOf(r))),
-    me: myIndex >= 0 ? shape(rows[myIndex], myIndex) : { rank: null, xp: 0, isMe: true, name: me.name, level: me.level || 1, streak: streakBy[meId] || 0, movement: null },
+    me: myIndex >= 0 ? shape(rows[myIndex], myIndex) : { rank: null, xp: 0, isMe: true, name: me.name, level: levelOf(me.xp), streak: streakBy[meId] || 0, movement: null },
     snapshotAt: snapshot?.takenAt || null
   };
 };

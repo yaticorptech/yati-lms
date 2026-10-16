@@ -8,13 +8,14 @@
  */
 const User = require('../../models/User');
 const { RewardBadge, RewardUserBadge, LearningActivity, Streak, Wallet } = require('../models');
-const { seedBadges } = require('./configService');
+const { seedBadges, getLevelThresholds, levelFor } = require('./configService');
 const { isDuplicate } = require('./tx');
-const { notify, celebrate } = require('./notify');
+const { notify, celebrate, linkFor } = require('./notify');
+const { historyCounts } = require('./learningHistory');
 
 const computeStats = async (userId) => {
-  const [user, streak, counts, prep, wallet] = await Promise.all([
-    User.findById(userId).select('xp level').lean(),
+  const [user, streak, counts, prep, wallet, history, ladder] = await Promise.all([
+    User.findById(userId).select('xp').lean(),
     Streak.findOne({ userId }).lean(),
     LearningActivity.aggregate([
       { $match: { userId } },
@@ -22,17 +23,23 @@ const computeStats = async (userId) => {
     ]),
     // Required lazily: the interview module also requires this service.
     require('../../interview/models').InterviewPrep.findOne({ userId }).select('readiness').lean().catch(() => null),
-    Wallet.findOne({ userId }).select('rewardPointsEarned').lean()
+    Wallet.findOne({ userId }).select('rewardPointsEarned').lean(),
+    // Lessons, passes and courses from the ledger AND course progress: those
+    // done while Rewards was off are only in the second (learningHistory.js).
+    historyCounts(userId),
+    getLevelThresholds()
   ]);
   const by = Object.fromEntries(counts.map((c) => [c._id, c]));
   return {
-    lessons: by.lesson_complete?.n || 0,
-    quizzes: by.quiz_complete?.n || 0,
+    lessons: Math.max(by.lesson_complete?.n || 0, history.lessons),
+    // A passed quiz is a completed one, so the passes set a floor.
+    quizzes: Math.max(by.quiz_complete?.n || 0, history.quizzesPassed),
     perfect_quizzes: by.quiz_complete?.perfect || 0,
-    courses: by.course_complete?.n || 0,
+    courses: Math.max(by.course_complete?.n || 0, history.courses),
     certificates: by.certificate_earned?.n || 0,
     xp: user?.xp || 0,
-    level: user?.level || 1,
+    // From XP under the admin's ladder: the stored level lags a ladder edit.
+    level: levelFor(user?.xp || 0, ladder),
     longest_streak: streak?.longest || 0,
     current_streak: streak?.current || 0,
     top10_weeks: streak?.top10Weeks || 0,
@@ -66,7 +73,7 @@ const evaluate = async (userId, config) => {
       if (isDuplicate(err)) continue;
       throw err;
     }
-    await notify(userId, `${badge.emoji} Badge unlocked: ${badge.title}`, badge.description);
+    await notify(userId, `${badge.emoji} Badge unlocked: ${badge.title}`, badge.description, await linkFor('badges'));
     await celebrate(userId, 'badge', `${badge.title} unlocked!`, badge.description, { key: badge.key, emoji: badge.emoji, rewardPoints: 0, value: 0 });
     unlocked.push({ key: badge.key, title: badge.title, emoji: badge.emoji, rewardPoints: 0 });
   }

@@ -90,6 +90,13 @@ router.use('/admin', require('./routes/adminRoutes'));
 // not close them. The address stays under /api/career, where the code is.
 router.use('/games', require('./routes/gameRoutes'));
 
+// The bell. Ahead of the lock too: it is not only Career Path's — the rewards
+// module posts its notices here (XP, levels, badges, wallet), and with Career
+// Path closed those were refused with the rest, so a student never heard
+// about them. While the section is locked the routes answer with the reward
+// notices alone (see routes/notificationRoutes.js).
+router.use('/notifications', require('./routes/notificationRoutes'));
+
 // Everything below is the student section, and an administrator can lock it
 // from Platform Settings. The gate is here rather than only in the student app
 // because a hidden tab is not a closed door.
@@ -108,7 +115,6 @@ router.use('/badges', require('./routes/badgeRoutes'));
 router.use('/recommendations', require('./routes/recommendationRoutes'));
 router.use('/scholarships', require('./routes/scholarshipRoutes'));
 router.use('/chat', require('./routes/chatRoutes'));
-router.use('/notifications', require('./routes/notificationRoutes'));
 router.use('/study', require('./routes/studyRoutes'));
 router.use('/profile', require('./routes/profileRoutes'));
 // The student's own exams and events, typed in by hand.

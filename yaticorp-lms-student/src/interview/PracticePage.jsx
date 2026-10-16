@@ -1,7 +1,7 @@
-/** The personalised practice bank: questions by category, with a hint for each. */
+/** The personalised practice bank: questions by category, each with how to answer it — a hint, a sample answer, what to say and what not to. */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, ListChecks, CheckCircle2, Lightbulb, ChevronDown, MessageSquareText } from 'lucide-react';
+import { ArrowLeft, ListChecks, CheckCircle2, Lightbulb, ChevronDown, MessageSquareText, Quote, Check, X } from 'lucide-react';
 import { interviewApi } from './api';
 import { Section, ErrorBox, Analyzing } from '../learningbio/ui';
 import { Collapse } from './ui';
@@ -22,12 +22,14 @@ export default function PracticePage() {
     useEffect(() => { load(); }, [load]);
     // While the AI is still writing the personal bank, the server hands out
     // the built-in one and says so; this asks again every few seconds until
-    // the personal one has taken its place.
+    // the personal one has taken its place. The same while it is writing the
+    // sample answers (`coaching`).
+    const waiting = !!(data?.generating || data?.coaching);
     useEffect(() => {
-        if (!data?.generating) return;
+        if (!waiting) return;
         const t = setInterval(load, 4000);
         return () => clearInterval(t);
-    }, [data?.generating, load]);
+    }, [waiting, load]);
 
     // /interview/practice#q-<id> — a question picked on the dashboard — opens
     // that question and brings it into view, instead of the top of the list.
@@ -97,11 +99,39 @@ export default function PracticePage() {
                                     <ChevronDown size={16} className={`mt-1 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                                 </button>
                                 <Collapse open={isOpen}>
-                                    <div className="border-t border-slate-100 px-4 py-3">
-                                        <p className="flex items-start gap-2 rounded-xl bg-amber-50/70 px-3 py-2 text-sm text-slate-700"><Lightbulb size={15} className="mt-0.5 shrink-0 text-amber-500" /> {q.hint}</p>
+                                    <div className="space-y-2.5 border-t border-slate-100 px-4 py-3">
+                                        <p className="flex items-start gap-2 rounded-xl bg-amber-50/70 px-3 py-2 text-sm text-slate-700"><Lightbulb size={15} className="mt-0.5 shrink-0 text-amber-500" /> <span><span className="font-bold text-amber-700">How to answer: </span>{q.hint}</span></p>
+                                        {/* A sample answer and what to say and not to (asked
+                                            2026-10-15). Written for this student, so it can
+                                            still be on its way for a bank saved before. */}
+                                        {q.sample ? (
+                                            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2.5">
+                                                <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-indigo-600"><Quote size={12} /> Sample answer</p>
+                                                <p className="mt-1 text-sm leading-relaxed text-slate-700">{q.sample}</p>
+                                                <p className="mt-1.5 text-[11px] text-slate-400">Make it yours: swap in your own examples{q.sample.includes('[') ? ' where it says [ ]' : ''}.</p>
+                                            </div>
+                                        ) : data.coaching ? (
+                                            <p className="animate-pulse rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-400">Writing a sample answer for you…</p>
+                                        ) : null}
+                                        {(q.say?.length > 0 || q.avoid?.length > 0) && (
+                                            <div className="grid gap-2 sm:grid-cols-2">
+                                                {q.say?.length > 0 && (
+                                                    <div className="rounded-xl bg-emerald-50/70 px-3 py-2.5">
+                                                        <p className="text-[11px] font-black uppercase tracking-wider text-emerald-700">What to say</p>
+                                                        <ul className="mt-1 space-y-1">{q.say.map((x) => <li key={x} className="flex items-start gap-1.5 text-sm text-slate-700"><Check size={14} strokeWidth={3} className="mt-0.5 shrink-0 text-emerald-600" />{x}</li>)}</ul>
+                                                    </div>
+                                                )}
+                                                {q.avoid?.length > 0 && (
+                                                    <div className="rounded-xl bg-rose-50/70 px-3 py-2.5">
+                                                        <p className="text-[11px] font-black uppercase tracking-wider text-rose-700">What not to say</p>
+                                                        <ul className="mt-1 space-y-1">{q.avoid.map((x) => <li key={x} className="flex items-start gap-1.5 text-sm text-slate-700"><X size={14} strokeWidth={3} className="mt-0.5 shrink-0 text-rose-500" />{x}</li>)}</ul>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                         {/* No "I practised this" button any more; a question
                                             practised earlier keeps its tag. */}
-                                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
                                             <span className="min-w-0 flex-1 basis-48 text-xs text-slate-400">Say your answer out loud — it is the best rehearsal.</span>
                                             {isDone && <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700"><CheckCircle2 size={13} /> Practised</span>}
                                         </div>

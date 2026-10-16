@@ -21,6 +21,7 @@ import BioText from './BioText';
 import { pictureUrl } from '../native/pictures';
 import PriceTag from '../components/rewards/PriceTag';
 import CourseOutlineDialog from '../components/course/CourseOutlineDialog';
+import ProfileImage from '../components/ProfileImage';
 
 export default function LearningBioPage() {
     const [data, setData] = useState(undefined);
@@ -85,9 +86,8 @@ export default function LearningBioPage() {
                     <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
                         <div className="mx-auto w-full max-w-[260px] md:mx-0">
                             <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-100 to-violet-100 shadow-md ring-1 ring-indigo-100">
-                                {data.user.avatar
-                                    ? <img src={pictureUrl(data.user.avatar)} alt={data.user.name} className="h-full w-full object-cover" />
-                                    : <div className="flex h-full w-full flex-col items-center justify-center text-indigo-400"><Avatar name={data.user.name} size="h-24 w-24" /><Link to="/profile" className="mt-3 text-xs font-bold text-indigo-600 hover:underline">Add a photo on your profile</Link></div>}
+                                <ProfileImage src={data.user.avatar} alt={data.user.name} className="h-full w-full object-cover"
+                                    fallback={<div className="flex h-full w-full flex-col items-center justify-center text-indigo-400"><Avatar name={data.user.name} size="h-24 w-24" /><Link to="/profile" className="mt-3 text-xs font-bold text-indigo-600 hover:underline">Add a photo on your profile</Link></div>} />
                             </div>
                         </div>
                         <div className="min-w-0">

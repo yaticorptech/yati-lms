@@ -5,7 +5,7 @@
  */
 const { RewardTransaction, Wallet } = require('../models');
 const { runInTransaction, isDuplicate } = require('./tx');
-const { notify, celebrate } = require('./notify');
+const { notify, LINKS } = require('./notify');
 
 const getOrCreateWallet = async (userId, session = null) => {
   const w = await Wallet.findOneAndUpdate(
@@ -43,7 +43,7 @@ const awardPoints = async ({ userId, points, source, claimKey, description = '',
   }
 
   if (!quiet) {
-    await notify(userId, 'Reward points earned', `+${points} reward points — ${description || source.replace(/_/g, ' ')}.`);
+    await notify(userId, 'Reward points earned', `+${points} reward points — ${description || source.replace(/_/g, ' ')}.`, LINKS.progress);
   }
   // Points unlock badges ('reward_points'), so a points award is a moment to
   // look. Required here, not at the top: badgeService is loaded after this.

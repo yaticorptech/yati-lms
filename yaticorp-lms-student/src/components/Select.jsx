@@ -22,6 +22,7 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
+import useBackClose from '../native/useBackClose';
 import './select.css';
 
 const SHOW_TAGS = 3;         // tags shown in a closed multiple field before "+N more"
@@ -108,6 +109,9 @@ export default function Select({
         // it, which on a phone had already moved while the sheet was open.
         if (refocus) triggerRef.current?.focus({ preventScroll: true });
     }, []);
+
+    // Android's back button closes the phone popup, as Escape does.
+    useBackClose(() => close(), open && phone);
 
     const choose = (option) => {
         if (!option || option.disabled) return;

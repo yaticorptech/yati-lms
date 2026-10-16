@@ -10,6 +10,7 @@ import api from '../../utils/api';
 import WalletSection from './WalletSection';
 import { money, num, balance, SOURCE_LABEL, txTitle } from './format';
 import Portal from '../Portal';
+import useBackClose from '../../native/useBackClose';
 
 const ICON = {
     xp_reward: { Icon: Sparkles, cls: 'bg-amber-100 text-amber-600' },
@@ -41,6 +42,8 @@ const ago = (d) => {
 // carries its own heading), so the dialog is still announced by name.
 const Sheet = ({ title, label, onClose, children, wide }) => {
     useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+    // Android's back button closes the sheet instead of leaving the dashboard.
+    useBackClose(onClose);
     // Centred, and never taller than the screen: the panel scrolls inside
     // itself so its own header stays put instead of being pushed off the top
     // of the page.
@@ -62,10 +65,32 @@ const Sheet = ({ title, label, onClose, children, wide }) => {
     );
 };
 
+/**
+ * The full wallet — balance, transactions, reward points, XP — in its popup.
+ * "View All Transactions" opens it from this card, and the wallet button in
+ * the top bar opens it over whatever page the student is on (StudentLayout).
+ */
+export function WalletSheet({ onClose }) {
+    return (
+        <Sheet onClose={onClose} label="Wallet and transactions" wide>
+            <div className="relative">
+                <button onClick={onClose} className="absolute right-3 top-3 z-20 rounded-full bg-white p-1.5 text-slate-400 shadow-md ring-1 ring-slate-200 hover:text-slate-600" aria-label="Close"><X size={16} /></button>
+                <WalletSection />
+            </div>
+        </Sheet>
+    );
+}
+
 export default function WalletCard() {
     const [data, setData] = useState(null);
+    const [error, setError] = useState(null);
     const [sheet, setSheet] = useState(false);
-    const load = useCallback(() => api.get('/rewards/wallet').then((r) => setData(r.data)).catch(() => {}), []);
+    // A failed load says so and offers another try. It used to be swallowed,
+    // and the card sat on its loading skeleton for good.
+    const load = useCallback(() => api.get('/rewards/wallet')
+        .then((r) => { setData(r.data); setError(null); })
+        .catch((e) => setError(e.response?.data?.message || 'Could not load your wallet')), []);
+    const closeSheet = useCallback(() => setSheet(false), []);
     useEffect(() => {
         load();
         // Back on the tab: re-read, so a rate the admin just changed shows
@@ -89,7 +114,12 @@ export default function WalletCard() {
                 <button onClick={() => setSheet(true)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-indigo-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50">View All Transactions</button>
             </div>
 
-            {!data ? (
+            {!data && error ? (
+                <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+                    <span>{error}</span>
+                    <button type="button" onClick={load} className="rounded-xl border border-red-200 bg-white px-3 py-1.5 text-sm font-bold text-red-700 hover:bg-red-100">Try again</button>
+                </div>
+            ) : !data ? (
                 <div className="grid gap-3 sm:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-32 rounded-2xl" />)}</div>
             ) : (
                 <>
@@ -150,14 +180,7 @@ export default function WalletCard() {
                 </>
             )}
 
-            {sheet && (
-                <Sheet onClose={() => setSheet(false)} label="Wallet and transactions" wide>
-                    <div className="relative">
-                        <button onClick={() => setSheet(false)} className="absolute right-3 top-3 z-20 rounded-full bg-white p-1.5 text-slate-400 shadow-md ring-1 ring-slate-200 hover:text-slate-600" aria-label="Close"><X size={16} /></button>
-                        <WalletSection />
-                    </div>
-                </Sheet>
-            )}
+            {sheet && <WalletSheet onClose={closeSheet} />}
         </section>
     );
 }

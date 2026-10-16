@@ -1,5 +1,6 @@
 /** Small shared pieces for the Learning Bio card and page. */
 import { Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import ProfileImage from '../components/ProfileImage';
 
 export const Section = ({ id, icon: Icon, title, hint, action, children }) => (
     <section id={id} className="lift rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 animate-fade-in-up">
@@ -41,7 +42,7 @@ export const Empty = ({ icon: Icon = Sparkles, title, children }) => (
 
 export const Avatar = ({ src, name, size = 'h-16 w-16' }) => (
     <span className={`flex ${size} shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-xl font-black text-white shadow-md ring-2 ring-white`}>
-        {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : (name || '?').trim().charAt(0).toUpperCase()}
+        <ProfileImage src={src} className="h-full w-full object-cover" fallback={(name || '?').trim().charAt(0).toUpperCase()} />
     </span>
 );
 

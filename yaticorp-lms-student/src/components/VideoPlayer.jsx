@@ -355,26 +355,32 @@ const Html5VideoPlayer = ({ url, title, lessonId, resumeFrom, onPositionSaved, o
     );
 };
 
+// Mounted afresh for each lesson (see its key below), so one lesson's key or
+// error never shows on the next; a reply for a lesson already left is dropped.
 const VdoCipherPlayer = ({ videoId, title }) => {
     const [otpData, setOtpData] = useState(null);
     const [error, setError] = useState(null);
 
     useEffect(() => {
+        let current = true;
         const fetchOTP = async () => {
             try {
                 const res = await api.post('/vdocipher/generate-otp', { videoId });
+                if (!current) return;
                 if (res.data.otp && res.data.playbackInfo) {
                     setOtpData(res.data);
                 } else {
                     setError('Failed to securely load video');
                 }
             } catch (err) {
+                if (!current) return;
                 console.error("VdoCipher OTP Error:", err);
                 setError('Error loading video. Please try again.');
             }
         };
 
         if (videoId) fetchOTP();
+        return () => { current = false; };
     }, [videoId]);
 
     if (error) {
@@ -433,7 +439,7 @@ const VideoPlayer = ({ source, url, videoId, libraryId, title, lessonId, resumeF
     if (source === 'vdocipher') {
         if (!videoId) return <div className="w-full h-full bg-slate-900 flex items-center justify-center absolute inset-0 text-white rounded-2xl">Missing VdoCipher Video ID</div>;
 
-        return <VdoCipherPlayer videoId={videoId} title={title} />;
+        return <VdoCipherPlayer key={`${lessonId || ''}:${videoId}`} videoId={videoId} title={title} />;
     }
 
     // 3. Bunny.net Stream Player

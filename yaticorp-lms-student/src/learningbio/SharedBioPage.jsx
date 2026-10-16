@@ -31,7 +31,7 @@ export default function SharedBioPage() {
                 <Section icon={Brain} title="Skills"><SkillProgress skills={data.skills} /></Section>
                 <Section icon={BookOpen} title="Completed courses">{data.courses.completed.length ? <ul className="grid gap-1.5 sm:grid-cols-2">{data.courses.completed.map((c) => <li key={c.title} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800">✓ {c.title}</li>)}</ul> : <p className="text-sm text-slate-500">None yet.</p>}</Section>
                 <Section icon={Award} title="Certificates"><CertificateList certificates={data.certificates.map((c, i) => ({ ...c, id: String(i), source: 'lms' }))} /></Section>
-                <Section icon={Rocket} title="Projects"><ProjectList projects={data.projects.map((p, i) => ({ ...p, id: String(i), status: 'Completed' }))} /></Section>
+                <Section icon={Rocket} title="Projects"><ProjectList linkable={false} projects={data.projects.map((p, i) => ({ ...p, id: String(i), status: 'Completed' }))} /></Section>
                 <Section icon={Trophy} title="Achievements"><AchievementBadges achievements={data.achievements.map((a, i) => ({ ...a, id: String(i) }))} /></Section>
                 <Section icon={Heart} title="Interests"><InterestTags interests={data.interests} /></Section>
             </div>

@@ -241,7 +241,11 @@ export default function Badges() {
   if (failed) return <LoadError title="We couldn't load your rewards" onRetry={retry} retrying={retrying} />;
 
   const { ceiling, percent, remaining: xpToLevel, known: ladderKnown } = progress;
-  const tasksToLevel = Math.max(1, Math.ceil(xpToLevel / TASK_XP));
+  // How many tasks the next level is, at what a task pays now. Only while a
+  // task pays something: with Rewards locked the rule is null, and a rule of 0
+  // used to come out as "Infinity tasks". Then the XP distance stands alone.
+  const promisesXp = TASK_XP > 0;
+  const tasksToLevel = promisesXp ? Math.max(1, Math.ceil(xpToLevel / TASK_XP)) : 0;
   const unlockedCount = badges.filter((b) => b.unlocked).length;
 
   // Earned badges first, then whichever locked one is closest. A student who is
@@ -255,6 +259,10 @@ export default function Badges() {
   const nextBadge = ordered.find((b) => !b.unlocked);
   const nextTier = nextBadge ? tierFor(nextBadge.xpRequired) : null;
   const nextToGo = nextBadge ? Math.max(0, (nextBadge.xpRequired || 0) - xp) : 0;
+  // "First Task Completed" is earned by finishing a task, not by XP (the
+  // server's rule since the badges followed the admin's ladder), so it is
+  // measured in tasks — "0 XP to go" read as already earned.
+  const nextByTask = nextBadge?.rule === 'first_task';
   const nextPct =
     nextBadge && nextBadge.xpRequired > 0
       ? Math.min(100, Math.round((xp / nextBadge.xpRequired) * 100))
@@ -356,14 +364,16 @@ export default function Badges() {
                 className="fp-press group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
               >
                 <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
-                Earn {TASK_XP} XP now
+                {promisesXp ? `Earn ${TASK_XP} XP now` : "Go to today's plan"}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
               <span className="text-xs font-bold text-ink-500">
                 {!ladderKnown ? null : xpToLevel > 0 ? (
                   <>
                     <span className="text-ink-900 tabular-nums">
-                      {tasksToLevel} {tasksToLevel === 1 ? 'task' : 'tasks'}
+                      {promisesXp
+                        ? `${tasksToLevel} ${tasksToLevel === 1 ? 'task' : 'tasks'}`
+                        : `${xpToLevel} XP`}
                     </span>{' '}
                     to Level {level + 1}
                   </>
@@ -385,11 +395,6 @@ export default function Badges() {
                 </span>
                 Your badges
               </h2>
-              {/* Says why the list is short, so a one-card page reads as a ladder
-                  rather than as everything there is. */}
-              <p className="mt-1 text-sm text-ink-500">
-                One at a time — earn the badge you can see and the next one appears.
-              </p>
             </div>
             <span className="rounded-full bg-surface-100 px-3 py-1 text-xs font-bold text-ink-600 tabular-nums">
               {unlockedCount} earned
@@ -449,7 +454,13 @@ export default function Badges() {
                   <div className="mb-1.5 flex items-center justify-between text-[0.68rem] font-bold text-ink-500">
                     <span className="tabular-nums">{nextPct}%</span>
                     <span className="tabular-nums">
-                      <span className="font-black text-ink-900">{nextToGo} XP</span> to go
+                      {nextByTask ? (
+                        <span className="font-black text-ink-900">Finish 1 task</span>
+                      ) : (
+                        <>
+                          <span className="font-black text-ink-900">{nextToGo} XP</span> to go
+                        </>
+                      )}
                     </span>
                   </div>
                   <div
@@ -471,7 +482,7 @@ export default function Badges() {
                     className="fp-press group mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-3 py-2 text-xs font-black text-white shadow-md shadow-journey-500/25 transition-all hover:from-journey-700 hover:to-indigo-700"
                   >
                     <Zap className="h-3.5 w-3.5 fill-amber-300 text-amber-300" />
-                    +{TASK_XP} XP with today&apos;s task
+                    {promisesXp ? `+${TASK_XP} XP with today's task` : "Do today's task"}
                     <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 </div>

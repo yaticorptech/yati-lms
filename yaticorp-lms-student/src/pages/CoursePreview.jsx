@@ -90,7 +90,9 @@ const CoursePreview = () => {
             <div className="bg-amber-500 text-white text-center py-2 px-4 text-sm font-bold flex items-center justify-center gap-2 sticky top-0 z-50">
                 <Eye size={16} />
                 Admin Preview Mode — This is how students see this course
-                <button onClick={() => window.close()} className="ml-4 text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors">
+                {/* The same close as the error screen's: a tab a script did not
+                    open cannot be closed by one, and the button did nothing. */}
+                <button type="button" onClick={closeTab} className="ml-4 text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors">
                     Close Preview
                 </button>
             </div>

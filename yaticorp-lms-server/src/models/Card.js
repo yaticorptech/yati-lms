@@ -22,6 +22,13 @@ const cardSchema = new mongoose.Schema({
     SerialNumber: {
         type: String
     },
+    /**
+     * 'unactivated' and 'activated' both mean free to sign up with: nothing
+     * activates a card by hand (the old verify-card step flipped it on the
+     * way through), and deleting a student puts their card back to
+     * 'unactivated'. Registration accepts either and marks the card 'used';
+     * 'inactive' is a card an administrator has withdrawn.
+     */
     status: {
         type: String,
         enum: ['unactivated', 'activated', 'used', 'inactive'],

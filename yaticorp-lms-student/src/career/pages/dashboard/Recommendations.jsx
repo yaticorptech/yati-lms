@@ -69,15 +69,14 @@ function CategoryTile({ icon: Icon, title, description, count, tone, onOpen }) {
   );
 }
 
-/** A heading over a run of tiles, with a control that opens or closes them all. */
-function GroupHeading({ title, subtitle }) {
+/** A heading over a run of tiles. Just the title: the line under each was removed (asked 2026-10-15). */
+function GroupHeading({ title }) {
   return (
     <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         <h2 className="bg-gradient-to-r from-journey-700 to-brand-600 bg-clip-text text-lg font-black text-transparent">
           {title}
         </h2>
-        <p className="mt-0.5 text-sm text-ink-500">{subtitle}</p>
       </div>
     </div>
   );
@@ -362,11 +361,11 @@ export default function Recommendations() {
 
   // Column count per group, so the five roadmap tiles sit on one row rather
   // than wrapping a lone fifth tile onto a line of its own.
-  const renderGroup = (categories, title, subtitle, cols) => {
+  const renderGroup = (categories, title, cols) => {
     if (categories.length === 0) return null;
     return (
       <section>
-        <GroupHeading title={title} subtitle={subtitle} />
+        <GroupHeading title={title} />
         <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${cols}`}>
           {categories.map((c) => (
             <CategoryTile
@@ -517,13 +516,11 @@ export default function Recommendations() {
           {renderGroup(
             visibleRoadmap,
             'From your roadmap',
-            "The path you're on, and what it asks for.",
             'xl:grid-cols-5'
           )}
           {renderGroup(
             visibleCurated,
             'Curated for you',
-            'Specific, named opportunities your mentor found — most link straight out.',
             'xl:grid-cols-4'
           )}
 

@@ -14,8 +14,11 @@ const createTicket = async (req, res) => {
         if (!name || !email || !subject || !message) {
             return res.status(400).json({ message: 'Name, email, subject and message are required.' });
         }
+        // Only an in-app address is kept; anything else is dropped rather
+        // than refusing the ticket over it.
+        const path = typeof req.body.path === 'string' && /^\/(?!\/)/.test(req.body.path) ? req.body.path.slice(0, 300) : undefined;
 
-        const ticket = await Ticket.create({ name, email, cardNumber, subject, message, page });
+        const ticket = await Ticket.create({ name, email, cardNumber, subject, message, page, path });
 
         // Email the admin
         const adminEmail = process.env.ADMIN_EMAIL;

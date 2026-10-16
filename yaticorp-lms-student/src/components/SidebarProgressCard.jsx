@@ -108,9 +108,13 @@ function LevelRing({ level, percent, nextLevel }) {
  * anchor; the button is gone, and so is the reason for the overlay.
  */
 export default function SidebarProgressCard({ user, onNavigate }) {
-  const level = user?.level || 1;
   const xp = user?.xp || 0;
-  const progress = useLevelProgress(xp, level);
+  const progress = useLevelProgress(xp, user?.level || 1);
+  // The level the ring shows is worked out from XP on the admin's ladder,
+  // like the header's. The stored user.level is only a fallback while the
+  // ladder loads: it lags an admin's ladder edit, and the sidebar then said
+  // "Level 3" beside a header that said "Level 4".
+  const level = progress.level;
   // The card reads as a total against the next threshold, which is how a level
   // bar is read everywhere else — not as "XP into this level".
   const ceiling = xp + progress.remaining;

@@ -134,6 +134,25 @@ describe('the skills rule', () => {
         assert.deepEqual(r.skills.map((s) => s.progress), [90, 40, 30, 26, 25, 10], 'highest first, for the locked page');
     });
 
+    test('a skill that levelled up stays ready: Intermediate at 0% is past 25%', async () => {
+        // Finishing a level moves a skill up and restarts its progress at 0
+        // (taskCompletionService). Counting only `progress` locked Jobs again
+        // the moment the student levelled up.
+        await SkillProgress.deleteMany({ userId: student._id });
+        await SkillProgress.insertMany([
+            ...['A', 'B', 'C', 'D'].map((n) => ({ userId: student._id, skillName: n, level: 'Intermediate', progress: 0 })),
+            { userId: student._id, skillName: 'E', level: 'Beginner', progress: 25 }
+        ]);
+        const r = await jobsAccessFor(student);
+        assert.equal(r.open, true);
+        assert.equal(r.ready, 5);
+        const a = r.skills.find((s) => s.name === 'A');
+        assert.equal(a.progress, 100, 'shown against the bar as done, not as 0%');
+        assert.equal(a.level, 'Intermediate');
+        assert.equal(a.levelProgress, 0);
+        assert.equal(r.skills[r.skills.length - 1].name, 'E', 'a levelled-up skill ranks above any Beginner');
+    });
+
     test('the same skill stored twice counts once', async () => {
         await SkillProgress.deleteMany({ userId: student._id });
         await SkillProgress.insertMany([...['React', 'react', 'REACT', 'Node', 'SQL'].map((n) => ({ userId: student._id, skillName: n, progress: 50 }))]);

@@ -62,7 +62,9 @@ export default function CurrentMission({ completedToday = 0, totalToday = 0 }) {
     <Link
       to="/career/planner"
       data-mascot-target="start-quest"
-      aria-label={`${started ? 'Continue' : 'Start'} today's quest and earn ${TASK_XP} XP`}
+      // The XP promise only while there is one: null (Rewards locked) or a
+      // rule of 0 pays nothing, and "+0 XP" or a made-up figure would mislead.
+      aria-label={`${started ? 'Continue' : 'Start'} today's quest${TASK_XP > 0 ? ` and earn ${TASK_XP} XP` : ''}`}
       className="fp-sweep fp-btn fp-btn-warm fp-beacon group relative inline-flex min-h-12 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 px-4 py-3 text-sm font-black whitespace-nowrap text-white sm:gap-2.5 sm:px-5"
     >
       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/25">
@@ -72,7 +74,7 @@ export default function CurrentMission({ completedToday = 0, totalToday = 0 }) {
           of line, so the narrowest screens get the short form. */}
       <span className="hidden sm:inline">{started ? 'Continue today’s quest' : 'Start today’s quest'}</span>
       <span className="sm:hidden">{started ? 'Continue quest' : 'Start quest'}</span>
-      <span className="fp-chip-breathe rounded-lg px-2 py-0.5 text-xs tabular-nums">+{TASK_XP} XP</span>
+      {TASK_XP > 0 && <span className="fp-chip-breathe rounded-lg px-2 py-0.5 text-xs tabular-nums">+{TASK_XP} XP</span>}
       <ArrowRight className="fp-btn-arrow h-4 w-4 shrink-0" />
     </Link>
   );

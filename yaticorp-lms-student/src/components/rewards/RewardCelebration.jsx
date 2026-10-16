@@ -4,8 +4,10 @@
  * slate/indigo language (not the Career Path palette) so it fits wherever it
  * appears — the course player, the profile, the dashboard.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Sparkles } from 'lucide-react';
+import Portal from '../Portal';
+import useBackClose from '../../native/useBackClose';
 
 const PALETTE = ['#6366f1', '#a855f7', '#f59e0b', '#10b981', '#f43f5e', '#0ea5e9'];
 
@@ -63,7 +65,19 @@ export const CelebrationOverlay = ({ event, onClose, remaining = 0 }) => {
     const p = event.payload || {};
     const emoji = p.emoji || look.emoji;
     const [leaving, setLeaving] = useState(false);
-    const close = () => { setLeaving(true); setTimeout(onClose, 180); };
+    // Closed once, however it is asked: a double click, Escape on top of a
+    // click, or the seven-second timer firing as the student taps. Each used
+    // to schedule its own onClose, and every extra one dismissed the NEXT
+    // celebration in the queue before it was ever seen.
+    const closing = useRef(false);
+    const close = () => {
+        if (closing.current) return;
+        closing.current = true;
+        setLeaving(true);
+        setTimeout(onClose, 180);
+    };
+    // Android's back button closes it, rather than leaving the page under it.
+    useBackClose(close);
 
     useEffect(() => {
         const t = setTimeout(close, 7000);
@@ -82,30 +96,36 @@ export const CelebrationOverlay = ({ event, onClose, remaining = 0 }) => {
     if (event.kind === 'leaderboard_reward' && p.rank) chips.push({ text: `Rank #${p.rank}`, cls: look.chip });
 
     return (
-        <div className={`fixed inset-0 z-[205] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm ${leaving ? 'rw-fade-out' : 'animate-fade-in'}`} onClick={close} role="dialog" aria-modal="true" aria-label={event.title}>
-            <Confetti count={event.kind === 'xp' ? 20 : 70} />
-            <div className={`relative w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl ${leaving ? '' : 'rw-pop'}`} onClick={(e) => e.stopPropagation()}>
-                <button onClick={close} className="absolute right-3 top-3 rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X size={16} /></button>
-                <div className={`rw-burst mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br ${look.ring} text-5xl shadow-lg`} aria-hidden="true">{emoji}</div>
-                <p className="mt-5 text-2xl font-black tracking-tight text-slate-900">{event.title}</p>
-                {event.message && <p className="mt-1 text-sm text-slate-500">{event.message}</p>}
-                {chips.length > 0 && (
-                    <div className="mt-4 flex flex-wrap justify-center gap-2">
-                        {chips.map((c, i) => (
-                            <span key={i} className={`rw-rise inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold ring-1 ${c.cls}`} style={{ animationDelay: `${0.2 + i * 0.12}s` }}>{c.text}</span>
-                        ))}
-                    </div>
-                )}
-                <button onClick={close} className="mt-6 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700">
-                    {remaining > 0 ? `Next (${remaining} more)` : 'Keep learning'}
-                </button>
+        <Portal>
+            <div className={`fixed inset-0 z-[205] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm ${leaving ? 'rw-fade-out' : 'animate-fade-in'}`} onClick={close} role="dialog" aria-modal="true" aria-label={event.title}>
+                <Confetti count={event.kind === 'xp' ? 20 : 70} />
+                <div className={`relative w-full max-w-sm rounded-3xl bg-white p-7 text-center shadow-2xl ${leaving ? '' : 'rw-pop'}`} onClick={(e) => e.stopPropagation()}>
+                    <button onClick={close} className="absolute right-3 top-3 rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X size={16} /></button>
+                    <div className={`rw-burst mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br ${look.ring} text-5xl shadow-lg`} aria-hidden="true">{emoji}</div>
+                    <p className="mt-5 text-2xl font-black tracking-tight text-slate-900">{event.title}</p>
+                    {event.message && <p className="mt-1 text-sm text-slate-500">{event.message}</p>}
+                    {chips.length > 0 && (
+                        <div className="mt-4 flex flex-wrap justify-center gap-2">
+                            {chips.map((c, i) => (
+                                <span key={i} className={`rw-rise inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold ring-1 ${c.cls}`} style={{ animationDelay: `${0.2 + i * 0.12}s` }}>{c.text}</span>
+                            ))}
+                        </div>
+                    )}
+                    <button onClick={close} className="mt-6 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700">
+                        {remaining > 0 ? `Next (${remaining} more)` : 'Keep learning'}
+                    </button>
+                </div>
             </div>
-        </div>
+        </Portal>
     );
 };
 
+// Above the phone's bottom bar until the sidebar takes over from it: that
+// happens at the `sidebar` breakpoint (64rem wide and 30rem tall, see
+// index.css), not at sm. From 640px to 1024px the toast used to drop to
+// bottom-6 and sit underneath the bar.
 export const RewardToast = ({ text, onClose }) => (
-    <div data-loop-avoid className="mascot-clear fixed bottom-24 right-4 z-[200] animate-fade-in sm:bottom-6 sm:right-6" role="status">
+    <div data-loop-avoid className="mascot-clear fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-[200] animate-fade-in sidebar:bottom-6 sidebar:right-6" role="status">
         <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-white px-4 py-3 shadow-xl">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><Sparkles size={18} /></span>
             <p className="text-sm font-bold text-slate-800">{text}</p>

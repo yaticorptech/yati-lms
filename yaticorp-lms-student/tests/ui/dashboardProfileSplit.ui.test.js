@@ -292,9 +292,10 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         for (let i = 0; i < 3; i++) assert.equal(result[top[i]].x, result[bottom[i]].x, `${top[i]} and ${bottom[i]} share a column`);
     });
 
-    test('every tile has a chevron and opens what it shows, wherever on the tile it is pressed', async () => {
-        // Pressed near the chevron, away from the text: the whole tile is the
-        // control, not just its words.
+    test('no tile has an arrow; the details are plain, and Organization and Level open what they show wherever pressed', async () => {
+        // Asked 2026-10-15: "dont give arrow near name phone number ... we have
+        // edit option there". Pressed at the right, away from the text: where an
+        // arrow used to be, and still the tile's own control when it has one.
         const PRESS = (label) => `
             await sleep(1500);
             const tile = [...$('[data-personal-info]').querySelectorAll('dl > div')].find((d) => d.querySelector('dt').innerText.trim() === '${label}');
@@ -314,9 +315,9 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
             return result;
         };
         const phone = await run('Phone Number');
-        assert.equal(phone.chevrons, 6, 'all six tiles carry a chevron');
-        assert.equal(phone.form, true, 'Phone Number opens Edit Profile');
-        assert.equal((await run('Email')).form, true, 'so does Email');
+        assert.equal(phone.chevrons, 0, 'no tile carries an arrow');
+        assert.equal(phone.form, false, 'Phone Number is a plain detail: Edit Profile at the top changes it');
+        assert.equal((await run('Email')).form, false, 'so is Email');
         assert.equal((await run('Organization/College')).popup, true, 'Organization/College opens the organization popup');
         assert.equal((await run('Level')).href, '/career', 'and Level opens Career Path, where levels are earned');
     });
@@ -423,9 +424,11 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
                 await sleep(1500);
                 const card = () => $$('article').find((a) => (a.title || '').startsWith('Modern React'));
                 const del = card().querySelector('button[aria-label="Delete Modern React"]');
-                let asked = '';
-                window.confirm = (q) => { asked = q; return true; };
-                del.click(); await sleep(400);
+                del.click(); await sleep(300);
+                // Asked in the app's own dialog, not the browser's window.confirm.
+                const dialog = $('[role=alertdialog][aria-modal=true]');
+                const asked = text(dialog);
+                [...dialog.querySelectorAll('button')].find((b) => b.innerText.trim() === 'Delete').click(); await sleep(400);
                 return { hadButton: !!del, asked, gone: !card(),
                          call: window.__calls.find((c) => c[0] === 'DELETE') };` });
         assert.deepEqual(errors, []);

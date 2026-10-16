@@ -79,8 +79,11 @@ const PostDetail = () => {
                         </div>
                     </div>
 
-                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 leading-tight">{post.title}</h1>
-                    <div className="prose prose-slate max-w-none text-slate-600 text-lg leading-relaxed whitespace-pre-wrap">
+                    {/* overflow-wrap:anywhere on the title, the post and every
+                        reply: a pasted link is one unbroken word, and it ran the
+                        card off the side of a phone. */}
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 leading-tight [overflow-wrap:anywhere]">{post.title}</h1>
+                    <div className="prose prose-slate max-w-none text-slate-600 text-lg leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                         {post.content}
                     </div>
                 </div>
@@ -114,7 +117,7 @@ const PostDetail = () => {
                                         {new Date(comment.createdAt).toLocaleDateString()}
                                     </span>
                                 </div>
-                                <div className="text-slate-600 whitespace-pre-wrap leading-relaxed">
+                                <div className="text-slate-600 whitespace-pre-wrap leading-relaxed [overflow-wrap:anywhere]">
                                     {comment.content}
                                 </div>
                             </div>

@@ -1,6 +1,13 @@
 const Notification = require('../models/Notification');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
 const { syncFeatureNotifications, listFeatureReleases } = require('../services/featureReleaseService');
+const { noticeLink } = require('../../rewards/services/notify');
+
+// With Career Path locked (req.careerOpen false, set by the route) only the
+// rewards module's notices and Games & Competitions' are the student's to see
+// or change; the rest stay as they are until the section opens again.
+const OPEN_TYPES = ['reward', 'competition'];
+const scope = (req) => (req.careerOpen === false ? { userId: req.user._id, type: { $in: OPEN_TYPES } } : { userId: req.user._id });
 
 // @desc    Get user notifications
 // @route   GET /api/notifications
@@ -9,9 +16,13 @@ const getNotifications = async (req, res) => {
   try {
     // Any feature release this student has not been told about becomes a
     // notification first, so the bell they are about to read includes it.
-    await syncFeatureNotifications(req.user);
-    const notifications = await Notification.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    res.status(200).json(notifications);
+    // Career Path's own announcements only while the section is open.
+    if (req.careerOpen !== false) await syncFeatureNotifications(req.user);
+    const notifications = await Notification.find(scope(req)).sort({ createdAt: -1 }).lean();
+    // Reward notices saved before they carried a link get the one their title
+    // implies, and none points into a locked Career Path.
+    const careerIsOpen = req.careerOpen !== false;
+    res.status(200).json(notifications.map((n) => (OPEN_TYPES.includes(n.type) ? { ...n, link: noticeLink(n, { careerIsOpen }) } : n)));
   } catch (error) {
     res.status(statusFor(error)).json(aiAwareBody(error));
   }
@@ -23,7 +34,7 @@ const getNotifications = async (req, res) => {
 const markAsRead = async (req, res) => {
   try {
     const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
+      { _id: req.params.id, ...scope(req) },
       { isRead: true },
       { new: true }
     );
@@ -44,7 +55,7 @@ const deleteNotification = async (req, res) => {
   try {
     const removed = await Notification.findOneAndDelete({
       _id: req.params.id,
-      userId: req.user._id
+      ...scope(req)
     });
     if (!removed) return res.status(404).json({ message: 'Notification not found.' });
     res.status(200).json({ message: 'Notification deleted' });
@@ -63,7 +74,7 @@ const deleteNotification = async (req, res) => {
 // at the "Clear all" button.
 const clearNotifications = async (req, res) => {
   try {
-    const { deletedCount } = await Notification.deleteMany({ userId: req.user._id });
+    const { deletedCount } = await Notification.deleteMany(scope(req));
     res.status(200).json({ cleared: deletedCount });
   } catch (error) {
     res.status(statusFor(error)).json(aiAwareBody(error));
@@ -74,7 +85,8 @@ const clearNotifications = async (req, res) => {
 // @route   GET /api/career/notifications/features
 // @access  Private
 const getFeatureReleases = (req, res) => {
-  res.status(200).json(listFeatureReleases());
+  // Every release here is a Career Path feature: nothing to show while it is locked.
+  res.status(200).json(req.careerOpen === false ? [] : listFeatureReleases());
 };
 
 module.exports = {

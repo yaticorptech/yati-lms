@@ -17,11 +17,28 @@
  */
 import { isNative } from '../native/platform';
 
+/**
+ * The ready-made avatars the student app carries (its public/avatars), and what
+ * its own pictures.js does with one it does not: an avatar saved from an older,
+ * larger set (girls/7, boys/8) is shown as one that exists, the same one every
+ * time, rather than as a broken image. Kept in step with the student app's
+ * AVATAR_COUNTS by hand — the two apps share no code.
+ */
+const AVATAR_COUNTS = { boys: 6, girls: 6, kids: 6, elders: 9 };
+const carried = (path) => {
+    const m = path.match(/^\/avatars\/(boys|girls|kids|elders)\/(\d+)\.(?:jpe?g|png|webp)$/i);
+    if (!m) return path;
+    const group = m[1].toLowerCase();
+    const n = Number(m[2]);
+    if (n >= 1 && n <= AVATAR_COUNTS[group]) return path;
+    return `/avatars/${group}/${((Math.max(1, n) - 1) % AVATAR_COUNTS[group]) + 1}.jpg`;
+};
+
 const avatarPath = (value) => {
-    if (value.startsWith('/avatars/')) return value;
+    if (value.startsWith('/avatars/')) return carried(value);
     try {
         const url = new URL(value);
-        if (/^https?:$/.test(url.protocol) && url.pathname.startsWith('/avatars/')) return url.pathname;
+        if (/^https?:$/.test(url.protocol) && url.pathname.startsWith('/avatars/')) return carried(url.pathname);
     } catch {
         // relative or odd: shown as given
     }

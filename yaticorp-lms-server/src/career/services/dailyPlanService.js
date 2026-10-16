@@ -8,6 +8,7 @@ const CalendarEvent = require('../models/CalendarEvent');
 const TaskStudy = require('../models/TaskStudy');
 const SkillProgress = require('../models/SkillProgress');
 const { generateDailyTasksFromAI } = require('./geminiService');
+const { AiBudgetError } = require('./aiQuota');
 
 // How much history the day's prompt carries. Enough for the model to see the
 // direction of travel without bloating the prompt with weeks of titles.
@@ -22,6 +23,11 @@ const MIN_USEFUL_MINUTES = 15;
 // belongs to a request that died (a restart mid-call). Without the cut-off the
 // planner, which now waits on a generating day, would wait until midnight.
 const STALE_CLAIM_MS = 3 * 60 * 1000;
+
+// How long a failed day waits before "Try again" may build it again. Long
+// enough that a student hammering the button cannot turn one outage into a
+// dozen AI calls; short enough that a real retry is never kept waiting.
+const RETRY_COOLDOWN_MS = 30 * 1000;
 
 // Size of an extra task requested after the day's budget is already used up.
 // Short on purpose: they have done their planned work, so this is a bonus round
@@ -146,6 +152,19 @@ const sweepMissedTasks = async (userId) => {
 };
 
 /**
+ * How many of yesterday's tasks ran out unfinished — read from the data.
+ *
+ * The planner's "N tasks moved to your backlog" used to show the count the
+ * sweep above returned, but several requests sweep (the planner, the profile,
+ * the app's own header), and whichever got there first took the number: the
+ * planner nearly always saw 0. Yesterday's Skipped tasks are the same answer
+ * on every request, all day. A task picked back up since — finished, or put
+ * back on today — has stopped being Skipped and drops out of the count.
+ */
+const missedYesterday = async (userId, today = startOfDay()) =>
+  Task.countDocuments({ userId, status: 'Skipped', assignedDate: { $gte: addDays(today, -1), $lt: today } });
+
+/**
  * The titles the day's prompt needs so it does not repeat itself.
  * Skipped titles are deduplicated — the same task missed four times should read
  * as one idea the student keeps avoiding, not four separate failures.
@@ -214,7 +233,8 @@ const validSkillTag = (tag, tracked) => {
 };
 
 /**
- * Withdraw work already handed out for a day that has since become an exam eve.
+ * Withdraw work already handed out for a day that has since become an exam eve
+ * (or been reshaped to a new time budget).
  *
  * Refusing to *generate* is only half of it. An exam added at four in the
  * afternoon finds today's task already written and sitting in the planner, and
@@ -223,12 +243,23 @@ const validSkillTag = (tag, tracked) => {
  * costing them the streak for an evening they spent revising, which is exactly
  * what the clear day was for.
  *
- * Only Pending tasks are withdrawn. Anything already Completed stays: the
- * student did it, and the XP and streak credit are theirs. Lessons belonging to
- * a withdrawn task go with it rather than being left pointing at a task that no
- * longer exists.
+ * Only UNTOUCHED Pending tasks are withdrawn. Kept, because deleting them
+ * deletes something the student owns:
+ *   • anything Completed — the XP and streak credit are theirs;
+ *   • a task with a lesson built for it — the lesson was paid for (wallet
+ *     rule) or at least cost an AI call, and may be half watched, half read or
+ *     half passed. Deleting the task took the lesson, its progress and its
+ *     quiz score with it, silently;
+ *   • a task brought back from the backlog ("Do it today") — that moves the
+ *     original Skipped record onto today, so deleting it erased the only copy
+ *     of that piece of work from the student's history. Recognised by
+ *     `redoneAt`, or for tasks moved before that stamp existed, by having been
+ *     created before today.
+ * Kept tasks stay on today's plan; if the day ends with them open, the sweep
+ * moves them to the backlog like any other missed task, lesson intact.
  *
- * @returns {Promise<number>} how many tasks were withdrawn
+ * @returns {Promise<{cleared: number, kept: object[]}>} how many tasks were
+ *   withdrawn, and the pending ones left in place
  */
 const clearTodaysPendingWork = async (userId, today = startOfDay()) => {
   const tomorrow = addDays(today, 1);
@@ -236,18 +267,63 @@ const clearTodaysPendingWork = async (userId, today = startOfDay()) => {
     userId,
     assignedDate: { $gte: today, $lt: tomorrow },
     status: 'Pending'
-  }).select('_id').lean();
+  }).select('_id title duration createdAt redoneAt').lean();
 
-  if (!pending.length) return 0;
+  if (!pending.length) return { cleared: 0, kept: [] };
 
-  const ids = pending.map((t) => t._id);
-  await Promise.all([
-    Task.deleteMany({ _id: { $in: ids } }),
-    TaskStudy.deleteMany({ userId, taskId: { $in: ids } })
-  ]);
+  const lessons = await TaskStudy.find({ userId, taskId: { $in: pending.map((t) => t._id) } })
+    .select('taskId')
+    .lean();
+  const hasLesson = new Set(lessons.map((l) => String(l.taskId)));
+  const keep = (task) =>
+    hasLesson.has(String(task._id)) ||
+    !!task.redoneAt ||
+    (task.createdAt && new Date(task.createdAt) < today);
 
-  return ids.length;
+  const kept = pending.filter(keep);
+  const ids = pending.filter((task) => !keep(task)).map((task) => task._id);
+  // Still conditional on Pending, so a task finished in the moment between
+  // the read above and this write is not deleted out from under its credit.
+  if (ids.length) await Task.deleteMany({ _id: { $in: ids }, status: 'Pending' });
+
+  return { cleared: ids.length, kept };
 };
+
+/**
+ * What a failed build tells the student, and when it may be tried again.
+ *
+ * The student gets words, never the provider's error: "Failed to generate
+ * today's plan: fetch failed" or a quota id is the operator's to read, in the
+ * log. A spent allowance keeps its code and the moment it comes back, so the
+ * planner can say so instead of offering a retry that can only fail the same
+ * way; everything else may be retried after a short cooldown.
+ */
+const planFailure = (error) => {
+  if (error instanceof AiBudgetError) {
+    return { message: error.message, code: error.code, resetsAt: error.resetsAt, retryAfter: error.resetsAt };
+  }
+  const retryAfter = new Date(Date.now() + RETRY_COOLDOWN_MS);
+  // A student's own key that Google refused, or no key at all: already
+  // written for the student, and theirs to act on.
+  if (error?.name === 'AiKeyError') return { message: error.message, code: null, resetsAt: null, retryAfter };
+  return {
+    message: "We couldn't build today's plan just now. Please try again in a few minutes.",
+    code: null,
+    resetsAt: null,
+    retryAfter
+  };
+};
+
+/** A failed day as ensureTodaysPlan reports it. */
+const failedDay = (plan) => ({
+  status: 'failed',
+  generated: 0,
+  message: plan.error,
+  code: plan.code || null,
+  resetsAt: plan.resetsAt || null,
+  retryAfter: plan.retryAfter || null,
+  timeBudgetMinutes: plan.timeBudgetMinutes
+});
 
 /**
  * Ensure today's tasks exist, generating them once if they do not.
@@ -256,9 +332,13 @@ const clearTodaysPendingWork = async (userId, today = startOfDay()) => {
  * duplicate-key error tells a losing racer to stand down instead of spending a
  * second Gemini call and writing a second copy of the day.
  *
+ * A day whose build failed stays failed until the student asks again —
+ * `retry: true`, which only the planner's "Try again" sends — and not before
+ * its cooldown (`retryAfter`) is over. Every other read just reports it.
+ *
  * @returns {Promise<{status: string, generated: number, message?: string}>}
  */
-const ensureTodaysPlan = async (userId, budgetOverride) => {
+const ensureTodaysPlan = async (userId, budgetOverride, { retry = false } = {}) => {
   const today = startOfDay();
 
   // Tested before the claimed-day check below, so it covers a day whose plan
@@ -266,7 +346,7 @@ const ensureTodaysPlan = async (userId, budgetOverride) => {
   // Gemini call, so an exam eve costs nothing to generate.
   const exams = await examsTomorrow(userId, today);
   if (exams.length > 0) {
-    const cleared = await clearTodaysPendingWork(userId, today);
+    const { cleared } = await clearTodaysPendingWork(userId, today);
     return {
       status: 'exam-eve',
       generated: 0,
@@ -284,6 +364,19 @@ const ensureTodaysPlan = async (userId, budgetOverride) => {
     await DailyPlan.deleteOne({ _id: existing._id, status: 'generating', updatedAt: existing.updatedAt });
     existing = null;
   }
+
+  // A failed day is reported as failed — not rebuilt — unless this is an
+  // explicit retry and its cooldown is over. It used to be deleted on failure,
+  // so the Overview, the Skills page and the planner each started their own
+  // AI call on the next visit and failed again, every visit, all day.
+  let failed = null;
+  if (existing?.status === 'failed') {
+    const due = !existing.retryAfter || Date.now() >= new Date(existing.retryAfter).getTime();
+    if (!retry || !due) return failedDay(existing);
+    failed = existing;
+    existing = null;
+  }
+
   if (existing) {
     return {
       status: existing.status,
@@ -297,7 +390,7 @@ const ensureTodaysPlan = async (userId, budgetOverride) => {
   // They are never asked up front — being interrogated before seeing anything is
   // its own kind of friction — they just adjust it if today is different.
   const user = await User.findById(userId).select('dailyTimeBudget');
-  const minutes = budgetOverride || user?.dailyTimeBudget || 60;
+  const minutes = budgetOverride || failed?.timeBudgetMinutes || user?.dailyTimeBudget || 60;
 
   // A plan needs somewhere to go. Without these the student has not finished
   // onboarding, and the planner shows its "generate a roadmap first" state.
@@ -310,20 +403,30 @@ const ensureTodaysPlan = async (userId, budgetOverride) => {
   }
 
   // Claim the day. Losing this race is the normal outcome for concurrent
-  // requests, not an error.
+  // requests, not an error. A retried failed day is taken back the same way:
+  // conditional on the same updatedAt, so two retries racing build it once.
   let claim;
-  try {
-    claim = await DailyPlan.create({
-      userId,
-      date: today,
-      status: 'generating',
-      timeBudgetMinutes: minutes
-    });
-  } catch (error) {
-    if (error.code === 11000) {
-      return { status: 'generating', generated: 0, timeBudgetMinutes: minutes };
+  if (failed) {
+    claim = await DailyPlan.findOneAndUpdate(
+      { _id: failed._id, status: 'failed', updatedAt: failed.updatedAt },
+      { $set: { status: 'generating', timeBudgetMinutes: minutes }, $unset: { error: 1, code: 1, resetsAt: 1, retryAfter: 1 } },
+      { returnDocument: 'after' }
+    );
+    if (!claim) return { status: 'generating', generated: 0, timeBudgetMinutes: minutes };
+  } else {
+    try {
+      claim = await DailyPlan.create({
+        userId,
+        date: today,
+        status: 'generating',
+        timeBudgetMinutes: minutes
+      });
+    } catch (error) {
+      if (error.code === 11000) {
+        return { status: 'generating', generated: 0, timeBudgetMinutes: minutes };
+      }
+      throw error;
     }
-    throw error;
   }
 
   try {
@@ -387,20 +490,27 @@ const ensureTodaysPlan = async (userId, budgetOverride) => {
       plannedMinutes
     };
   } catch (error) {
-    // Record the failure but release the day, so the student can retry rather
-    // than being locked out until midnight by one bad Gemini call.
+    // Record the failure and KEEP the day, failed. Deleting it (as this used
+    // to) made the next read of today's plan — from any page — start another
+    // AI call, so one bad spell burned the student's allowance on repeats of
+    // the same failure. The planner's "Try again" asks for a rebuild, after
+    // the cooldown; the student can always ask, they are just never asked
+    // for them.
+    const failure = planFailure(error);
     claim.status = 'failed';
-    claim.error = error.message;
+    claim.error = failure.message;
+    claim.code = failure.code || undefined;
+    claim.resetsAt = failure.resetsAt || undefined;
+    claim.retryAfter = failure.retryAfter;
     await claim.save();
-    await DailyPlan.deleteOne({ _id: claim._id });
 
     console.error('Daily plan generation failed:', error.message);
     // `code` distinguishes "the day's AI allowance is spent" from "generation
     // broke". Both leave the student's existing tasks readable — the plan
     // builder never throws past here — but only one of them is worth telling
-    // them to come back tomorrow for, and only one is worth an operator's
+    // them to come back later for, and only one is worth an operator's
     // attention.
-    return { status: 'failed', generated: 0, message: error.message, code: error.code };
+    return { status: 'failed', generated: 0, timeBudgetMinutes: minutes, ...failure };
   }
 };
 
@@ -529,7 +639,7 @@ const setTodaysTimeBudget = async (userId, minutes, remember = false) => {
   // itself is still remembered above, ready for the day after the exam.
   const exams = await examsTomorrow(userId, today);
   if (exams.length > 0) {
-    const cleared = await clearTodaysPendingWork(userId, today);
+    const { cleared } = await clearTodaysPendingWork(userId, today);
     return {
       status: 'exam-eve',
       generated: 0,
@@ -563,31 +673,34 @@ const setTodaysTimeBudget = async (userId, minutes, remember = false) => {
     status: 'Completed'
   }).select('title duration');
 
-  const spent = doneToday.reduce((total, task) => total + parseMinutes(task.duration), 0);
+  // Clear only what has not been started. Completed work is untouched, and so
+  // is a pending task with a lesson behind it or one brought back from the
+  // backlog (see clearTodaysPendingWork) — those stay on today's plan and
+  // their time counts as spent, like finished work.
+  const { kept } = await clearTodaysPendingWork(userId, today);
+  const onPlan = [...doneToday, ...kept];
+
+  const spent = onPlan.reduce((total, task) => total + parseMinutes(task.duration), 0);
   const remaining = minutes - spent;
 
-  // Clear only what has not been started. Completed work is untouched, and the
-  // withdrawn tasks take their lessons with them rather than leaving TaskStudy
-  // rows pointing at tasks that no longer exist.
-  await clearTodaysPendingWork(userId, today);
-
   if (remaining < MIN_USEFUL_MINUTES) {
-    plan.taskCount = doneToday.length;
+    plan.taskCount = onPlan.length;
     plan.status = 'ready';
     await plan.save();
     return {
       status: 'ready',
       generated: 0,
       timeBudgetMinutes: minutes,
-      alreadyDone: true
+      // "You have done enough today" is only true with nothing left open.
+      alreadyDone: kept.length === 0
     };
   }
 
   try {
     const history = await buildHistory(userId);
-    // Today's finished work joins the "do not repeat" list, so the smaller plan
-    // continues from it rather than re-issuing it.
-    history.completed = [...doneToday.map((t) => t.title), ...history.completed];
+    // Today's finished (and kept) work joins the "do not repeat" list, so the
+    // smaller plan continues from it rather than re-issuing it.
+    history.completed = [...onPlan.map((t) => t.title), ...history.completed];
 
     const tracked = await trackedSkillNames(userId);
     const aiData = await generateDailyTasksFromAI(goal, roadmap, history, remaining, tracked);
@@ -626,7 +739,7 @@ const setTodaysTimeBudget = async (userId, minutes, remember = false) => {
       );
     }
 
-    plan.taskCount = doneToday.length + created.length;
+    plan.taskCount = onPlan.length + created.length;
     plan.status = 'ready';
     await plan.save();
 
@@ -639,7 +752,8 @@ const setTodaysTimeBudget = async (userId, minutes, remember = false) => {
     };
   } catch (error) {
     console.error('Time budget reshape failed:', error.message);
-    return { status: 'failed', generated: 0, timeBudgetMinutes: minutes, message: error.message };
+    // Words for the student, as on a failed first build.
+    return { status: 'failed', generated: 0, timeBudgetMinutes: minutes, ...planFailure(error) };
   }
 };
 
@@ -651,6 +765,9 @@ module.exports = {
   parseMinutes,
   fitToBudget,
   sweepMissedTasks,
+  missedYesterday,
+  clearTodaysPendingWork,
+  planFailure,
   ensureTodaysPlan,
   setTodaysTimeBudget,
   addAnotherTask

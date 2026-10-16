@@ -71,7 +71,14 @@ const questionSchema = new mongoose.Schema({
     topic: String,
     question: String,
     hint: String,
-    difficulty: { type: String, default: 'medium' }
+    difficulty: { type: String, default: 'medium' },
+    // How to answer it, written for this student (asked 2026-10-15: "add
+    // sample answers ... what to tell, what should not tell"). Missing on a
+    // question until they are written: banks saved before then are filled in
+    // afterwards, keeping their questions (interview/index.js, coach).
+    sample: String,
+    say: { type: [String], default: undefined },
+    avoid: { type: [String], default: undefined }
 }, { _id: false });
 
 const prepSchema = new mongoose.Schema({

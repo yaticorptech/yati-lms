@@ -258,9 +258,10 @@ const cancelRequest = async (req, res) => {
  * An active organization answers 409: ending that membership stays with the
  * organization (its students page) or a superadmin.
  *
- * Clears the membership only. Courses, progress, XP and certificates are the
- * student's own and stay; the approved request is marked as ended so the
- * history reads truthfully.
+ * Clears the membership only. Progress, XP and certificates are the student's
+ * own and stay; the organization's own courses are for members, so they are
+ * no longer open to them (the progress in them is kept for a rejoin). The
+ * approved request is marked as ended so the history reads truthfully.
  */
 const leaveOrganization = async (req, res) => {
     try {
@@ -292,10 +293,13 @@ const leaveOrganization = async (req, res) => {
             { $set: { status: 'cancelled', decisionReason: 'Left the organization', decidedAt: new Date(), decidedBy: null } }
         );
 
+        // Said as it is: the organization's own courses are for its members,
+        // so they go with the membership. Progress in them is kept (Progress
+        // rows are the student's), and is there again if they rejoin.
         res.json({
             message: organization
-                ? `You have left ${organization.name}. Your courses and progress are unchanged.`
-                : 'You have left your organization. Your courses and progress are unchanged.'
+                ? `You have left ${organization.name}. Courses provided by ${organization.name} will no longer be available; your progress is kept if you rejoin.`
+                : 'You have left your organization. Its courses will no longer be available; your progress is kept if you rejoin.'
         });
     } catch (error) {
         console.error('[organizations] leave failed:', error);
