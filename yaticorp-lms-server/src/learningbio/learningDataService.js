@@ -85,10 +85,13 @@ const collect = async (userId) => {
     ]);
     if (!user) return null;
 
-    /* Courses — the ATS builder already joined progress to lessons and skills. */
+    /* Courses — the ATS builder already joined progress to lessons and skills.
+       A certificate the student deleted from My Certificates (hiddenAt) is not
+       shown here either; it still counts as evidence for the course's skills. */
     const courses = (resume?.courses || []).map((c) => ({
         id: c.id, title: c.title, percentage: c.percentage, completed: c.completed,
-        certificate: c.certificate ? { id: String(c.certificate._id), number: c.certificate.certificateNumber || '', issuedAt: c.certificate.issuedAt, pdfUrl: c.certificate.pdfUrl } : null,
+        certified: !!c.certificate,
+        certificate: c.certificate && !c.certificate.hiddenAt ? { id: String(c.certificate._id), number: c.certificate.certificateNumber || '', issuedAt: c.certificate.issuedAt, pdfUrl: c.certificate.pdfUrl } : null,
         topics: c.topics, skills: c.skills, updatedAt: c.updatedAt
     }));
     // A course enrolled but not yet opened still counts as "currently learning".
@@ -125,7 +128,7 @@ const collect = async (userId) => {
         cur.courses.push(c.title);
         if (c.completed) cur.completed = true;
         if (assessedCourses.has(c.id)) cur.assessed = true;
-        if (c.certificate) cur.certified = true;
+        if (c.certified) cur.certified = true;
         skillFromCourses.set(k, cur);
     }
     const skills = (resume?.skills || []).map((s) => {
@@ -141,9 +144,11 @@ const collect = async (userId) => {
         };
     }).sort((a, b) => b.percent - a.percent || a.name.localeCompare(b.name));
 
-    /* Certificates — issued by the LMS, plus ones the student uploaded. */
+    /* Certificates — issued by the LMS, plus ones the student uploaded; not
+       the ones they deleted from My Certificates. */
+    const shownCerts = certs.filter((c) => !c.hiddenAt);
     const certificates = [
-        ...certs.map((c) => {
+        ...shownCerts.map((c) => {
             const course = courses.find((x) => x.id === String(c.courseId));
             return { id: String(c._id), title: course ? `${course.title} — Certificate of Completion` : 'Certificate of Completion', course: course?.title || '', issuer: 'YATI LMS', date: c.issuedAt, number: c.certificateNumber || '', url: c.pdfUrl, source: 'lms' };
         }),
@@ -170,7 +175,7 @@ const collect = async (userId) => {
     const timeline = [
         ...completedCourses.map((c) => ({ date: c.updatedAt, kind: 'course', title: `Completed ${c.title}` })),
         ...ongoingCourses.filter((c) => c.percentage > 0).map((c) => ({ date: c.updatedAt, kind: 'started', title: `Started ${c.title}`, detail: `${c.percentage}% so far` })),
-        ...certs.map((c) => { const course = courses.find((x) => x.id === String(c.courseId)); return { date: c.issuedAt, kind: 'certificate', title: `Earned ${course?.title || 'course'} certificate` }; }),
+        ...shownCerts.map((c) => { const course = courses.find((x) => x.id === String(c.courseId)); return { date: c.issuedAt, kind: 'certificate', title: `Earned ${course?.title || 'course'} certificate` }; }),
         ...projects.map((p) => ({ date: p.completedAt, kind: 'project', title: `Built ${p.name}` })),
         ...achievements.filter((a) => a.source !== 'uploaded').slice(0, 8).map((a) => ({ date: a.earnedAt, kind: 'achievement', title: `${a.emoji} ${a.title}` })),
         ...(goal?.createdAt ? [{ date: goal.createdAt, kind: 'goal', title: `Set the goal: ${goal.careerGoal || 'Career Path started'}` }] : []),
@@ -185,6 +190,10 @@ const collect = async (userId) => {
         // public share shape (index.js publicShape) never copies them.
         user: { id: String(user._id), name: user.name, email: user.email || '', phone: user.phone || '', avatar: user.profilePicture || '', accountType: user.accountType, institution: user.institution || '', className: user.className || '', xp: user.xp || 0, level: user.level || 1, joinedAt: user.createdAt },
         audience: audienceFor(goal, user),
+        // Where Career Path says they are in school or after it. Interview Prep
+        // pitches its questions to it (interview/level.js). Not part of the
+        // fingerprint: the bio does not use it.
+        schooling: { educationLevel: goal?.educationLevel || '', currentClass: goal?.currentClass || '', board: goal?.board || '' },
         education: resume?.education || [],
         experience: resume?.experience || [],
         learningGoal: goal?.careerGoal || '',

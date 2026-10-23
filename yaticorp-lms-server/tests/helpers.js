@@ -40,6 +40,18 @@ const makeUser = async (label = 'Test') => {
 };
 
 /**
+ * Let throwaway students past the Jobs lock (five Career Path skills at 25%,
+ * enforced by the server since 2026-10-13) the way an exempt account is let
+ * through: the account's own jobsAlwaysOpen switch. For tests about what Jobs
+ * does, not about who may open it (that is tests/jobs/jobsLock.test.js).
+ */
+const openJobs = async (...users) => {
+    const User = require('../src/models/User');
+    const ids = users.map((u) => u.user?._id || u._id);
+    await User.updateMany({ _id: { $in: ids } }, { $set: { jobsAlwaysOpen: true } });
+};
+
+/**
  * An Express app with one router mounted, and a `call` bound to that mount, so
  * a test asks for '/dashboard' rather than the whole path. Defaults to the
  * interview API; pass a mount and router for anything else.
@@ -91,4 +103,4 @@ const fakeContext = (over = {}) => ({
     projects: [{ name: 'Sales Dashboard', description: 'A retail sales dashboard', skills: ['Python', 'SQL'] }], certificates: [], interests: ['Data'], hash: 'h1', ...over
 });
 
-module.exports = { connect, makeUser, makeAdmin, startApp, cleanup, fakeContext };
+module.exports = { connect, makeUser, makeAdmin, startApp, cleanup, fakeContext, openJobs };

@@ -83,6 +83,20 @@ router.use(require('./services/aiContext').withAiContext);
 // career_* itself.
 router.use('/admin', require('./routes/adminRoutes'));
 
+// Brain games: the account's copy of each student's level and stars, and the
+// leaderboard built from them. Play and scoring stay in the browser. Also
+// ahead of the lock: the games are Brain Boosters now, a tab of Games &
+// Competitions rather than a Career Path screen, so closing Career Path must
+// not close them. The address stays under /api/career, where the code is.
+router.use('/games', require('./routes/gameRoutes'));
+
+// The bell. Ahead of the lock too: it is not only Career Path's — the rewards
+// module posts its notices here (XP, levels, badges, wallet), and with Career
+// Path closed those were refused with the rest, so a student never heard
+// about them. While the section is locked the routes answer with the reward
+// notices alone (see routes/notificationRoutes.js).
+router.use('/notifications', require('./routes/notificationRoutes'));
+
 // Everything below is the student section, and an administrator can lock it
 // from Platform Settings. The gate is here rather than only in the student app
 // because a hidden tab is not a closed door.
@@ -101,7 +115,6 @@ router.use('/badges', require('./routes/badgeRoutes'));
 router.use('/recommendations', require('./routes/recommendationRoutes'));
 router.use('/scholarships', require('./routes/scholarshipRoutes'));
 router.use('/chat', require('./routes/chatRoutes'));
-router.use('/notifications', require('./routes/notificationRoutes'));
 router.use('/study', require('./routes/studyRoutes'));
 router.use('/profile', require('./routes/profileRoutes'));
 // The student's own exams and events, typed in by hand.
@@ -118,9 +131,6 @@ router.use('/milestones', require('./routes/milestoneRoutes'));
 // What is left of this student's daily AI allowance, so the UI can say so
 // before they spend it rather than only when it runs out.
 router.use('/ai-usage', require('./routes/aiUsageRoutes'));
-// Brain games: the account's copy of each student's level and stars, and the
-// leaderboard built from them. Play and scoring stay in the browser.
-router.use('/games', require('./routes/gameRoutes'));
 // An unknown path under /api/career is a client mistake, and should be answered
 // in the language the client speaks rather than with Express's HTML error page.
 router.use((req, res) => {

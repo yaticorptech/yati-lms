@@ -3,6 +3,7 @@
  * except redeem, withdraw and "I've seen these events" — and those never
  * accept an amount the server does not recompute.
  */
+const mongoose = require('mongoose');
 const User = require('../../models/User');
 const { Wallet, WalletTransaction, RewardTransaction, WithdrawalRequest, RewardEvent, RewardUserBadge, LearningActivity, XpTransaction } = require('../models');
 const { periodWindow, dayKey, addDays } = require('../config/constants');
@@ -31,11 +32,13 @@ const getSummary = async (req, res) => {
     await S.wallet.grantStartingCredit(userId);
     await S.wallet.convertXp(userId).catch(() => null);
     const week = periodWindow('weekly');
-    const [user, wallet, streak, rank, badgeCount, badges, activity, weekActivity, xpWeek, dailyActivity, dailyXp] = await Promise.all([
+    // No weekly rank here any more: ranking every student on each refresh of
+    // this summary cost a full leaderboard per call, and no screen read it
+    // (the leaderboard card asks /leaderboard for its own).
+    const [user, wallet, streak, badgeCount, badges, activity, weekActivity, xpWeek, dailyActivity, dailyXp, history] = await Promise.all([
       User.findById(userId).select('xp level accountType walletAccess institution className').lean(),
       S.points.getOrCreateWallet(userId),
       S.streak.summary(userId, config),
-      S.leaderboard.myRank(req.user, 'weekly'),
       RewardUserBadge.countDocuments({ userId }),
       S.badges.listForUser(userId),
       LearningActivity.aggregate([{ $match: { userId } }, { $group: { _id: '$type', n: { $sum: 1 }, score: { $avg: '$meta.score' } } }]),
@@ -44,7 +47,10 @@ const getSummary = async (req, res) => {
       // The last seven days, day by day, for the little trend charts on the
       // progress tiles. Days are the platform's, not the server's.
       LearningActivity.aggregate([{ $match: { userId, day: { $gte: addDays(dayKey(), -6) } } }, { $group: { _id: { day: '$day', type: '$type' }, n: { $sum: 1 } } }]),
-      XpTransaction.aggregate([{ $match: { userId, createdAt: { $gte: startOfDayOffset(-6) } } }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: TIMEZONE } }, xp: { $sum: '$amount' } } }])
+      XpTransaction.aggregate([{ $match: { userId, createdAt: { $gte: startOfDayOffset(-6) } } }, { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: TIMEZONE } }, xp: { $sum: '$amount' } } }]),
+      // The totals from the ledger and course progress together: lessons and
+      // quizzes done while Rewards was off are only in the second.
+      S.history.historyCounts(userId)
     ]);
     const days = Array.from({ length: 7 }, (_, i) => addDays(dayKey(), i - 6));
     const daily = { lessons: days.map(() => 0), quizzes: days.map(() => 0), courses: days.map(() => 0), xp: days.map(() => 0), streak: days.map((d) => (streak.calendar || []).some((c) => c.day === d && c.active) ? 1 : 0) };
@@ -57,10 +63,11 @@ const getSummary = async (req, res) => {
     for (const row of dailyXp) { const i = days.indexOf(row._id); if (i >= 0) daily.xp[i] += row.xp; }
     const by = Object.fromEntries(activity.map((a) => [a._id, a]));
     const byWeek = Object.fromEntries(weekActivity.map((a) => [a._id, a.n]));
+    const passed = Math.max(by.quiz_pass?.n || 0, history.quizzesPassed);
     const stats = {
-      lessons: { total: by.lesson_complete?.n || 0, thisWeek: byWeek.lesson_complete || 0 },
-      quizzes: { passed: by.quiz_pass?.n || 0, completed: by.quiz_complete?.n || 0, avgScore: by.quiz_complete?.score != null ? Math.round(by.quiz_complete.score) : null, thisWeek: byWeek.quiz_pass || 0 },
-      courses: { completed: by.course_complete?.n || 0, thisWeek: byWeek.course_complete || 0 },
+      lessons: { total: Math.max(by.lesson_complete?.n || 0, history.lessons), thisWeek: byWeek.lesson_complete || 0 },
+      quizzes: { passed, completed: Math.max(by.quiz_complete?.n || 0, passed), avgScore: by.quiz_complete?.score != null ? Math.round(by.quiz_complete.score) : null, thisWeek: byWeek.quiz_pass || 0 },
+      courses: { completed: Math.max(by.course_complete?.n || 0, history.courses), thisWeek: byWeek.course_complete || 0 },
       xpThisWeek: xpWeek[0]?.xp || 0
     };
     const monetary = S.eligibility.monetaryEnabledFor(user, config);
@@ -72,7 +79,6 @@ const getSummary = async (req, res) => {
       walletRules: config.enabled === false ? {} : config.walletRules,
       level: S.config.levelInfo(user.xp || 0, config.levelThresholds),
       streak,
-      rank,
       badges: { unlocked: badgeCount, total: badges.length, recent: badges.filter((b) => b.unlocked).sort((a, b) => new Date(b.unlockedAt) - new Date(a.unlockedAt)).slice(0, 4) },
       stats,
       series: { days, ...daily },
@@ -96,7 +102,11 @@ const getBadges = async (req, res) => {
 const getLeaderboard = async (req, res) => {
   try {
     // The card asks for ten, and for more when the student opens the full board.
-    const limit = Math.min(100, Math.max(3, Number(req.query.limit) || 10));
+    // Up to 500: the card lists everyone ranked, scrolling inside itself
+    // (asked 2026-10-15, "let it show all the leaderboard candidates"); the
+    // ranking is worked out in full either way, so this only sets how many
+    // names and pictures are looked up.
+    const limit = Math.min(500, Math.max(3, Number(req.query.limit) || 10));
     const board = await S.leaderboard.getBoard({ period: req.query.period, scope: req.query.scope, courseId: req.query.courseId || null, me: req.user, limit });
     res.json(board);
   } catch (error) { err(res, error); }
@@ -211,12 +221,24 @@ const getUnseenEvents = async (req, res) => {
   try { res.json(await RewardEvent.find({ userId: req.user._id, seenAt: null }).sort({ createdAt: 1 }).limit(10).lean()); } catch (error) { err(res, error); }
 };
 
-// @route POST /api/rewards/events/seen { ids: [] }
+// @route POST /api/rewards/events/seen
+//        { ids: [] }               these events (the celebration queue, as each is dismissed)
+//        { kind, level? }          every unseen event of a kind — e.g. { kind: 'level_up', level: 4 }
+//                                  from a screen that celebrated that level itself
+//        {}                        everything unseen
 const markEventsSeen = async (req, res) => {
   try {
-    const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+    const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(String).filter((id) => mongoose.isValidObjectId(id));
+    const kind = typeof req.body?.kind === 'string' ? req.body.kind : null;
     const q = { userId: req.user._id, seenAt: null };
     if (ids.length) q._id = { $in: ids };
+    else if (Array.isArray(req.body?.ids) && req.body.ids.length) return res.json({ marked: 0 }); // only bad ids: never "all"
+    if (kind) {
+      if (!RewardEvent.schema.path('kind').enumValues.includes(kind)) return res.status(400).json({ message: 'Unknown event kind.' });
+      q.kind = kind;
+      const level = Number(req.body.level);
+      if (Number.isFinite(level) && level > 0) q['payload.level'] = level;
+    }
     const r = await RewardEvent.updateMany(q, { $set: { seenAt: new Date() } });
     res.json({ marked: r.modifiedCount });
   } catch (error) { err(res, error); }

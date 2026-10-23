@@ -3,6 +3,7 @@
  * @description Student management: add/edit/delete students with QR-only card flow
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../utils/api';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { UserCheck, UserSearch, Upload, Download, QrCode, Lock, Camera, Keyboard, Eye, EyeOff, Copy } from 'lucide-react';
@@ -241,15 +242,17 @@ const Users = () => {
     /**
      * A student's own dashboard, in a new tab, signed in as them. The tab is
      * opened before the request so a popup blocker sees it come from the
-     * click; the sign-in travels in the URL fragment, which the browser never
-     * sends to any server, and the student app takes it out of the address bar
-     * at once.
+     * click. What travels is a one-time code, not the sign-in: it lasts two
+     * minutes and works once, and the student app trades it with the server
+     * for the two-hour session (POST /api/auth/admin-access/exchange). It sits
+     * in the URL fragment, which the browser never sends to any server, and
+     * the student app takes it out of the address bar at once.
      */
     const openStudentDashboard = async (user) => {
         const tab = window.open('', '_blank');
         try {
             const { data } = await api.post(`/admin/users/${user._id}/dashboard-access`);
-            const target = `${STUDENT_APP.replace(/\/$/, '')}/admin-access#access=${encodeURIComponent(JSON.stringify(data))}`;
+            const target = `${STUDENT_APP.replace(/\/$/, '')}/admin-access#code=${encodeURIComponent(data.code)}`;
             if (tab) tab.location.href = target;
             else window.location.assign(target);
         } catch (err) {
@@ -768,6 +771,11 @@ const Users = () => {
                 )}
             </div>
 
+            {/* The popups go on <body>, as on Organizations. This page is its own
+                layer (relative z-0), so inside it even the highest popup stayed under
+                the app's top bar, which hid each popup's heading and close button
+                on a phone. */}
+            {createPortal(<>
             {/* User Management Modal */}
             {
                 selectedUser && (
@@ -1576,6 +1584,7 @@ const Users = () => {
                 message="Are you sure you want to permanently delete this student? This will remove all their data, clear their enrollments, and free up their card for reuse."
                 itemName={userToDelete?.name}
             />
+            </>, document.body)}
         </div >
     );
 };

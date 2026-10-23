@@ -23,8 +23,9 @@ const aiUsageSchema = new mongoose.Schema(
       // still spend, and losing it from the total would make the total a lie.
     },
 
-    // 'YYYY-MM-DD' in server-local time. Stored rather than derived so the cap
-    // query is an index hit instead of a date range computed per request.
+    // 'YYYY-MM-DD' in the platform timezone (aiQuota.dayKey). Stored rather
+    // than derived so the cap query is an index hit instead of a date range
+    // computed per request.
     day: {
       type: String,
       required: true,
@@ -40,10 +41,12 @@ const aiUsageSchema = new mongoose.Schema(
 
     model: { type: String },
 
-    // Whether the call came back. Failures still count against a student's
-    // daily cap — otherwise a broken prompt is an unlimited retry budget — but
-    // they are tracked separately because a failed call does not consume the
-    // provider's own quota.
+    // Whether the call came back. Only successful calls count against the
+    // daily caps (aiQuota.usageToday): a failed call does not consume the
+    // provider's quota, and charging it to the student spent their allowance
+    // on a day whose plan kept failing. Retries are bounded elsewhere — a
+    // failed daily plan waits for an explicit "Try again" (dailyPlanService).
+    // Failures are still recorded for the operator's view of the day.
     ok: { type: Boolean, default: true },
 
     // Milliseconds, for spotting a model that has become slow.

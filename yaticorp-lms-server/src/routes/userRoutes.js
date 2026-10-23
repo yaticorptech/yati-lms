@@ -12,7 +12,7 @@ const { xpOnSuccess, today } = require('../rewards/services/xpHooks');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { updatePassword } = require('../controllers/userPasswordController');
 const { upload } = require('../middleware/uploadMiddleware');
-const { getMyCourses, getJobsAccess, getBundles, getBundleContent, getCourseContent, updateProgress, getAvailableCourses, getOrganizationCourses, enrollCourse, searchContent } = require('../controllers/userCourseController');
+const { getMyCourses, getCourseOutline, getJobsAccess, getBundles, getBundleContent, getCourseContent, updateProgress, getAvailableCourses, getOrganizationCourses, enrollCourse, searchContent } = require('../controllers/userCourseController');
 const { createTicket, getMyTickets } = require('../controllers/ticketController');
 const { getMyCertificates } = require('../controllers/certificateController');
 const { getAnnouncementsForUser, clearUserNotifications } = require('../controllers/announcementController');
@@ -37,7 +37,10 @@ router.get('/jobs-access', protectUser, getJobsAccess);
 router.get('/courses/available', protectUser, getAvailableCourses);
 router.get('/courses/organization', protectUser, getOrganizationCourses);
 router.get('/courses/:id', protectUser, getCourseContent);
-router.post('/courses/:id/enroll', protectUser, enrollCourse);
+// What is inside a course, for its Preview: sections and lesson titles, nothing that plays.
+router.get('/courses/:id/outline', protectUser, getCourseOutline);
+// XP rule (optional): enrolling, once a day however many courses (free ones can be taken in bulk).
+router.post('/courses/:id/enroll', protectUser, xpOnSuccess('course_enroll', () => `enroll:${today()}`), enrollCourse);
 // Where the student is in a course's videos, so a phone and a laptop pick up
 // from the same place.
 const { getPlayback, savePlayback } = require('../controllers/playbackController');
@@ -59,14 +62,21 @@ const aiKeyCtrl = require('../controllers/userAiKeyController');
 router.route('/ai-key').get(protectUser, aiKeyCtrl.getAiKey).put(protectUser, aiKeyCtrl.setAiKey).delete(protectUser, aiKeyCtrl.deleteAiKey);
 
 // Quiz Routes
-const { getQuizForStudent, submitQuizAnswers, getGlobalQuiz, startGlobalQuiz, submitGlobalQuiz, finishGlobalQuiz } = require('../controllers/userQuizController');
+const { getGlobalQuizLive, getQuizForStudent, submitQuizAnswers, getGlobalQuiz, startGlobalQuiz, submitGlobalQuiz, finishGlobalQuiz, getGlobalQuizHistory } = require('../controllers/userQuizController');
 router.get('/lessons/:lessonId/quiz', protectUser, getQuizForStudent);
 router.post('/lessons/:lessonId/quiz/submit', protectUser, submitQuizAnswers);
 // One paper across every course the student can open. Practice: it records nothing.
 router.get('/quizzes/global', protectUser, getGlobalQuiz);
+// The student's past attempts, with their scores.
+router.get('/quizzes/global/history', protectUser, getGlobalQuizHistory);
+// Whether a quiz is live (no questions): what the "new Global Quiz" notice checks every minute.
+router.get('/quizzes/global/live', protectUser, getGlobalQuizLive);
 router.post('/quizzes/global/start', protectUser, startGlobalQuiz);
 router.post('/quizzes/global/submit', protectUser, submitGlobalQuiz);
-router.post('/quizzes/global/finish', protectUser, xpOnSuccess('global_quiz_complete', () => `global:${today()}`), finishGlobalQuiz);
+// "Finish the Global Quiz" XP is paid inside finishGlobalQuiz, once per quiz, by
+// the request that closes the attempt — not here per day, which a Finish on an
+// already-closed attempt could collect again every day.
+router.post('/quizzes/global/finish', protectUser, finishGlobalQuiz);
 
 // Ticket Routes
 router.post('/tickets', protectUser, createTicket);

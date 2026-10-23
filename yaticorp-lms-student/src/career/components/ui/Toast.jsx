@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 const ToastContext = createContext(null);
@@ -85,11 +86,19 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      <div className="pointer-events-none fixed top-4 right-4 z-[100] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3">
-        {toasts.map((t) => (
-          <Toast key={t.id} toast={t} onDismiss={dismiss} />
-        ))}
-      </div>
+      {/* data-loop-avoid: Yati, the mascot, keeps off the toasts and stops talking over them (loop-walker.js, AVOID).
+          On <body>, and just under the app's top bar (the Global Quiz notice's place). This provider sits inside
+          the page, whose layer is under the top bar, so the toasts were drawn behind it with their first line
+          hidden; and at the very top they covered the wallet and the profile. Above the Global Quiz notice
+          (z-120, the same corner): a toast answers what the student just did, and lasts seconds. */}
+      {createPortal(
+        <div data-loop-avoid className="pointer-events-none fixed right-3 top-[4.75rem] z-[130] flex w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-3 sidebar:right-6 sidebar:top-20">
+          {toasts.map((t) => (
+            <Toast key={t.id} toast={t} onDismiss={dismiss} />
+          ))}
+        </div>,
+        document.body
+      )}
     </ToastContext.Provider>
   );
 }

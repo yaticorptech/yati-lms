@@ -54,10 +54,13 @@ const lms = apiModule({
     '/user/courses/c1': COURSE
 });
 // The stub replaces the whole module, so the named helpers the pages import
-// from it are given here too: the 404-means-none rule and today's plan read.
+// from it are given here too: the 404-means-none rule, today's plan read, and
+// the write count the shell checks before re-reading the student's XP.
 const careerModule = `${career}
 export const noneIfMissing = (promise) => promise.catch(() => null);
-export const getTodaysPlan = () => Promise.resolve({ data: routes['/tasks'] });`;
+export const getTodaysPlan = () => Promise.resolve({ data: routes['/tasks'] });
+export const careerWriteCount = () => 0;
+export const clearCareerCache = () => {};`;
 const modules = { 'career/services/api': careerModule };
 
 /** The whole app, as main.jsx mounts it, signed in, at `route`. */

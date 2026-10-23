@@ -8,7 +8,7 @@
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
-const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, makeAdmin, startApp, cleanup, openJobs } = require('../helpers');
 
 const Opportunity = require('../../src/jobboard/models/Opportunity');
 const OpportunityProfile = require('../../src/jobboard/models/OpportunityProfile');
@@ -52,6 +52,7 @@ before(async () => {
     await connect();
     young = await makeUser('Sowndarya');
     older = await makeUser('Elder');
+    await openJobs(young, older);
     admin = await makeAdmin('Ops');
     await profileFor(young.user._id, 13);
     await profileFor(older.user._id, 19);
@@ -192,6 +193,26 @@ describe('sending the request', () => {
         assert.equal(/devaki\.rao@example\.com/.test(JSON.stringify(r.body)), false, 'and never returned in full');
     });
 
+    // The student's screen read "Your guardian has received a permission
+    // request" over a note saying the email could not be sent (2026-10-16).
+    test('a refused send is marked on the application for the screen, and a good send clears it', async () => {
+        const row = await Application.findOne({ userId: young.user._id, opportunityId: String(job._id) });
+        const mailer = require('../../src/utils/emailService');
+        const real = mailer.sendEmail;
+        try {
+            await Application.updateOne({ _id: row._id }, { $set: { mailSentAt: null } });
+            mailer.sendEmail = async () => { throw new Error('No email provider configured.'); };
+            const failed = await api('POST', `/opportunities/applications/${row.id}/request`);
+            assert.equal(failed.body.mail.sent, false);
+            assert.equal(failed.body.application.mailFailed, true, 'the screen is told it did not go');
+            assert.equal(/No email provider/.test(JSON.stringify(failed.body)), false, "but never the provider's reason");
+            mailer.sendEmail = async () => {};
+            const ok = await api('POST', `/opportunities/applications/${row.id}/request`);
+            assert.equal(ok.body.mail.sent, true, 'a refused send may be tried again');
+            assert.equal(ok.body.application.mailFailed, false, 'and a good one clears the mark');
+        } finally { mailer.sendEmail = real; }
+    });
+
     test('the mail carries both answers as buttons, and neither one decides on its own', async () => {
         const mailer = require('../../src/utils/emailService');
         const real = mailer.sendEmail;
@@ -228,7 +249,7 @@ describe('sending the request', () => {
             minimumAge: 13, location: { area: 'Peenya', city: 'Bengaluru' }, compensation: { label: '₹700' },
             safetyClassification: 'supervised', status: 'open', guardianApprovalRequired: true
         });
-        const grown = await makeUser('Grown');
+        const grown = await makeUser('Grown'); await openJobs(grown);
         const profile = await profileFor(grown.user._id, 23);
         const elder = startApp({ mount: '/api/jobs', router: require('../../src/jobboard') });
         const call = elder.call(grown.token);

@@ -12,8 +12,16 @@
  *   GET    /:id                            in full: all teams (any status, with contacts) and every match
  *   PUT    /:id                            edit (the game and the format only until the matches are drawn)
  *   POST   /:id/status                     { status: 'registration' | 'closed' | 'cancelled' | 'draft' }
- *   DELETE /:id                            delete a draft nobody has registered for
+ *   DELETE /:id                            delete it for good, with its teams, matches and games
  *   PUT    /:id/teams/:teamId              { status: 'approved' | 'rejected', note }
+ *
+ *   A college's own competition (hostOrganizationId) is for its students
+ *   only; nobody registers — the college makes the teams, until the draw:
+ *   GET    /:id/students                   the college's students, to pick from
+ *   POST   /:id/teams                      a team { teamName, players: [userId] }, approved as made
+ *   PATCH  /:id/teams/:teamId              change its name or players
+ *   DELETE /:id/teams/:teamId              take it out
+ *
  *   POST   /:id/draw                       draw round 1 { firstMatchAt?, gapMinutes? }
  *   PUT    /:id/matches/:matchId           { scheduledAt }
  *   POST   /:id/matches/:matchId/start     open the match's game now
@@ -25,9 +33,10 @@ const mongoose = require('mongoose');
 const Competition = require('../models/Competition');
 const Team = require('../models/Team');
 const Match = require('../models/Match');
+const User = require('../../models/User');
 const views = require('../services/views');
 const bracket = require('../services/bracketService');
-const { friendlyOptions } = require('../services/gameService');
+const { gameOptions } = require('../services/gameService');
 const { upload: imageUpload } = require('../../middleware/uploadMiddleware');
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((err) => {
@@ -42,7 +51,8 @@ const num = (v, lo, hi, dflt) => (v == null || v === '' || Number.isNaN(Number(v
 const fromBody = (body, current = null) => {
     const b = body || {};
     const game = String(b.game ?? current?.game ?? '');
-    if (!Competition.GAMES.includes(game)) throw fail(400, 'Choose the game: Chess, Ludo, Carrom or UNO.');
+    // UNO is no longer offered (2026-10-23); one made before then can still be edited.
+    if (!require('../games').IDS.includes(game) && !(current && game === current.game)) throw fail(400, 'Choose the game: Chess, Ludo or Carrom.');
     const name = String(b.name ?? current?.name ?? '').trim();
     if (!name) throw fail(400, 'Give the competition a name.');
     const startsAt = new Date(b.startsAt ?? current?.startsAt);
@@ -58,7 +68,7 @@ const fromBody = (body, current = null) => {
     if (bannerUrl && !/^https?:\/\//.test(bannerUrl)) throw fail(400, 'The banner must be an uploaded image.');
 
     // What each game allows: two teams a match for chess and carrom, up to
-    // four for ludo and UNO; doubles only in carrom.
+    // four for ludo; doubles only in carrom.
     const teamsPerMatch = ['chess', 'carrom'].includes(game) ? 2 : num(b.teamsPerMatch ?? current?.teamsPerMatch, 2, 4, 4);
     const playersPerSide = game === 'carrom' ? num(b.playersPerSide ?? current?.playersPerSide, 1, 2, 1) : 1;
     const playersPerTeam = Math.max(playersPerSide, num(b.playersPerTeam ?? current?.playersPerTeam, 1, 10, playersPerSide));
@@ -78,7 +88,7 @@ const fromBody = (body, current = null) => {
         playersPerTeam,
         playersPerSide,
         teamsPerMatch,
-        gameOptions: friendlyOptions(game, b.gameOptions ?? current?.gameOptions ?? {}),
+        gameOptions: gameOptions(game, b.gameOptions ?? current?.gameOptions ?? {}),
         rules: String(b.rules ?? current?.rules ?? '').slice(0, 5000),
         prizes: [...new Map(prizes.map((p) => [p.place, p])).values()].sort((x, y) => x.place - y.place),
         prizeDetails: String(b.prizeDetails ?? current?.prizeDetails ?? '').trim().slice(0, 600),
@@ -186,15 +196,24 @@ const manage = (scope = 'platform') => {
         if (to === 'cancelled') {
             await require('../models/PlayGame').updateMany({ competitionId: c._id, status: { $in: ['waiting', 'active'] } },
                 { $set: { status: 'abandoned', finishedAt: new Date(), nextDeadline: null }, $inc: { version: 1 } });
+            const entered = await Team.find({ competitionId: c._id, status: { $in: ['pending', 'approved'] } }).lean();
+            await require('../services/notices').tellTeams(entered, c, 'Competition cancelled', `${c.name} has been cancelled by the organizer. Any games still running have ended.`);
         }
         res.json(await views.detail(c._id, { admin: true }));
     }));
 
+    // Whatever its state: the organizer's page asks first, and says what goes
+    // with it (registrations, results, certificates). Games in progress end;
+    // prizes already given stay with the students.
     router.delete('/:id', wrap(async (req, res) => {
         const c = await find(req.params.id, req);
-        if (!['draft', 'cancelled'].includes(c.status)) throw fail(409, 'Only a draft or a cancelled competition can be deleted.');
-        if (await Team.exists({ competitionId: c._id, status: { $in: ['pending', 'approved'] } })) throw fail(409, 'Teams are registered for it; cancel it instead.');
-        await Promise.all([Team.deleteMany({ competitionId: c._id }), Match.deleteMany({ competitionId: c._id }), Competition.deleteOne({ _id: c._id })]);
+        const PlayGame = require('../models/PlayGame');
+        // Its players are told before the teams go; the notice opens the
+        // Games page, since the competition's own page is gone.
+        const entered = await Team.find({ competitionId: c._id, status: { $in: ['pending', 'approved'] } }).lean();
+        await Competition.deleteOne({ _id: c._id });
+        await require('../services/notices').tellTeams(entered, c, 'Competition removed', `${c.name} has been removed by the organizer.`, { link: '/competitions' });
+        await Promise.all([Team.deleteMany({ competitionId: c._id }), Match.deleteMany({ competitionId: c._id }), PlayGame.deleteMany({ competitionId: c._id })]);
         res.json({ deleted: true });
     }));
 
@@ -214,11 +233,106 @@ const manage = (scope = 'platform') => {
             { returnDocument: 'after' }
         );
         if (!team) throw fail(404, 'Team not found.');
+        const { tellTeams } = require('../services/notices');
         if (status === 'approved') {
-            const { notify } = require('../../rewards/services/notify');
-            for (const p of team.players) await notify(p.userId, 'Your team is in', `${team.teamName} is approved for ${c.name}. Your matches will appear in Games & Competitions.`);
+            await tellTeams([team], c, 'Your team is in', `${team.teamName} is approved for ${c.name}. Your matches will appear in Games & Competitions.`);
+        } else {
+            // A team turned down used to hear nothing at all.
+            await tellTeams([team], c, 'Your team was not accepted', `${team.teamName} was not accepted for ${c.name}.${team.note ? ` Note from the organizer: ${team.note}` : ''}`);
         }
         res.json({ team: views.teamView(team, { admin: true }) });
+    }));
+
+    /* ── A college's own competition: the college makes the teams ── */
+
+    const ownCompetition = async (req, { changing = true } = {}) => {
+        const c = await find(req.params.id, req);
+        if (!c.hostOrganizationId) throw fail(400, 'Colleges register their own teams for this competition.');
+        if (changing) {
+            if (['completed', 'cancelled'].includes(c.status)) throw fail(409, 'A finished or cancelled competition cannot change.');
+            if (await Match.exists({ competitionId: c._id })) throw fail(409, 'The matches are drawn; teams can no longer change.');
+        }
+        return c;
+    };
+    const teamName = (body) => {
+        const name = String(body?.teamName || '').trim().slice(0, 80);
+        if (!name) throw fail(400, 'Give the team a name.');
+        return name;
+    };
+    /** The players picked: the college's own students, each in one team only. */
+    const ownPlayers = async (c, body, exceptTeamId = null) => {
+        const ids = [...new Set((Array.isArray(body?.players) ? body.players : []).map(String))];
+        if (ids.length < c.playersPerSide) throw fail(400, `Pick at least ${c.playersPerSide} player${c.playersPerSide === 1 ? '' : 's'}.`);
+        if (ids.length > c.playersPerTeam) throw fail(400, `A team has at most ${c.playersPerTeam} player${c.playersPerTeam === 1 ? '' : 's'}.`);
+        if (!ids.every((x) => mongoose.isValidObjectId(x))) throw fail(400, 'Pick players from the college\'s own students.');
+        const students = await User.find({ _id: { $in: ids }, organizationId: c.hostOrganizationId }).select('name').lean();
+        if (students.length !== ids.length) throw fail(400, 'Every player must be one of the college\'s own students.');
+        const clash = await Team.findOne({ competitionId: c._id, status: { $ne: 'withdrawn' }, 'players.userId': { $in: ids }, ...(exceptTeamId ? { _id: { $ne: exceptTeamId } } : {}) }).lean();
+        if (clash) {
+            const who = clash.players.find((p) => ids.includes(String(p.userId)));
+            throw fail(409, `${who?.name || 'A player'} is already in ${clash.teamName}.`);
+        }
+        return ids.map((x) => ({ userId: x, name: students.find((st) => String(st._id) === x)?.name || 'Student' }));
+    };
+    const tellPlayers = async (c, team, userIds) => {
+        const { tell } = require('../services/notices');
+        await tell(userIds, c, 'You are in a team', `You play for ${team.teamName} in ${c.name}. Your matches will appear in Games & Competitions.`);
+    };
+
+    router.get('/:id/students', wrap(async (req, res) => {
+        const c = await ownCompetition(req, { changing: false });
+        const rows = await User.find({ organizationId: c.hostOrganizationId }).select('name email cardNumber').sort({ name: 1 }).lean();
+        res.json({ students: rows.map((st) => ({ id: String(st._id), name: st.name, email: st.email, cardNumber: st.cardNumber || '' })) });
+    }));
+
+    router.post('/:id/teams', wrap(async (req, res) => {
+        const c = await ownCompetition(req);
+        const name = teamName(req.body);
+        const players = await ownPlayers(c, req.body);
+        if (await Team.countDocuments({ competitionId: c._id, status: 'approved' }) >= c.maxTeams) throw fail(409, `Already ${c.maxTeams} teams — the limit.`);
+        await Team.dropOldIndex();
+        const college = await require('../../organizations/models/Organization').findById(c.hostOrganizationId).select('name').lean();
+        let team = null;
+        // Numbered after the last one; two made at once take the next number.
+        for (let tries = 0; tries < 5 && !team; tries++) {
+            const last = await Team.findOne({ competitionId: c._id, organizationId: c.hostOrganizationId }).sort({ entry: -1 }).select('entry').lean();
+            try {
+                team = await Team.create({
+                    competitionId: c._id, organizationId: c.hostOrganizationId, entry: (last?.entry || 0) + 1,
+                    collegeName: college?.name || c.organizedBy, teamName: name, players, status: 'approved', reviewedAt: new Date(),
+                    coordinator: { adminId: req.admin?._id || null, name: req.admin?.name || '', email: req.admin?.email || '' }
+                });
+            } catch (err) {
+                if (err?.code !== 11000) throw err;
+            }
+        }
+        if (!team) throw fail(409, 'Could not add the team just now. Try again.');
+        await tellPlayers(c, team, players.map((p) => p.userId));
+        res.status(201).json(await views.detail(c._id, { admin: true }));
+    }));
+
+    router.patch('/:id/teams/:teamId', wrap(async (req, res) => {
+        const c = await ownCompetition(req);
+        if (!mongoose.isValidObjectId(req.params.teamId)) throw fail(404, 'Team not found.');
+        const team = await Team.findOne({ _id: req.params.teamId, competitionId: c._id });
+        if (!team) throw fail(404, 'Team not found.');
+        const before = team.players.map((p) => String(p.userId));
+        team.teamName = teamName(req.body);
+        team.players = await ownPlayers(c, req.body, team._id);
+        await team.save();
+        const after = team.players.map((p) => String(p.userId));
+        await tellPlayers(c, team, after.filter((x) => !before.includes(x)));
+        await require('../services/notices').tell(before.filter((x) => !after.includes(x)), c, 'You are no longer in a team', `You were taken off ${team.teamName} in ${c.name}.`);
+        res.json(await views.detail(c._id, { admin: true }));
+    }));
+
+    router.delete('/:id/teams/:teamId', wrap(async (req, res) => {
+        const c = await ownCompetition(req);
+        if (!mongoose.isValidObjectId(req.params.teamId)) throw fail(404, 'Team not found.');
+        const gone = await Team.findOneAndDelete({ _id: req.params.teamId, competitionId: c._id });
+        if (!gone) throw fail(404, 'Team not found.');
+        await require('../services/notices').tellTeams([gone], c, 'Your team was withdrawn', `${gone.teamName} is no longer in ${c.name}.`);
+        res.json(await views.detail(c._id, { admin: true }));
     }));
 
     router.post('/:id/draw', wrap(async (req, res) => {
@@ -242,8 +356,16 @@ const manage = (scope = 'platform') => {
         if (m.status !== 'scheduled') throw fail(409, 'Only a match that has not started can be rescheduled.');
         const at = req.body?.scheduledAt ? new Date(req.body.scheduledAt) : null;
         if (at && Number.isNaN(at.getTime())) throw fail(400, 'That is not a date and time.');
+        const moved = String(m.scheduledAt || '') !== String(at || '');
         m.scheduledAt = at;
         await m.save();
+        if (moved) {
+            const { tellTeams, when } = require('../services/notices');
+            const teams = await Team.find({ _id: { $in: m.sides.map((s) => s.teamId) } }).lean();
+            await tellTeams(teams, c, 'Match time changed', at
+                ? `${c.name}: your ${m.roundName || 'match'} is now on ${when(at)}.`
+                : `${c.name}: your ${m.roundName || 'match'} no longer has a set time. The organizer will start it.`);
+        }
         res.json(await views.detail(c._id, { admin: true }));
     }));
 

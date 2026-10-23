@@ -3,6 +3,7 @@
  *   nextQuestion   — the next thing to ask, given the transcript so far
  *   evaluate       — the report, once the interview is over
  *   generateQuestions — a personalised practice bank
+ *   coachQuestions — a sample answer and tips for each of its questions
  *
  * Each falls back to templateInterviewer when Gemini is not configured,
  * over its daily budget, or answers with something unusable — so the
@@ -15,6 +16,7 @@ const aiQuota = require('../career/services/aiQuota');
 const { geminiClient, describeKeyError, aiConfiguredFor } = require('../utils/userAiKey');
 const { runFor } = require('../career/services/aiContext');
 const template = require('./templateInterviewer');
+const { brief, judging } = require('./level');
 
 const MODEL = process.env.INTERVIEW_AI_MODEL || process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 const configured = () => String(process.env.INTERVIEW_AI || '').toLowerCase() !== 'template' && !!String(process.env.GEMINI_API_KEY || '').trim();
@@ -49,7 +51,7 @@ const call = async (prompt, { userId, kind, maxOutputTokens = 900 }) => {
 };
 
 const profile = (c) => JSON.stringify({
-    name: c.name, audience: c.audience, education: c.education, experience: c.experience, goal: c.goal,
+    name: c.name, level: c.level?.label || undefined, audience: c.audience, education: c.education, experience: c.experience, goal: c.goal,
     strongSkills: c.strongSkills, learningSkills: c.learningSkills, completedCourses: c.completedCourses, ongoingCourses: c.ongoingCourses,
     projects: c.projects.map((p) => ({ name: p.name, description: p.description, skills: p.skills })),
     assessments: c.assessments, certificates: c.certificates, interests: c.interests
@@ -69,6 +71,19 @@ const STAGE_GUIDE = {
     closing: 'Thank them by name and say the interview is complete and the evaluation follows.'
 };
 
+/**
+ * Who the interview is for, as its first sentence says it. A school student
+ * is not interviewed "for the role of" anything: they are a student who hopes
+ * to become one, in a practice interview.
+ */
+const opening = (session, context, { mock = false } = {}) => {
+    const kind = session.type === 'full' ? 'full mock' : mock ? `mock ${session.type}` : session.type;
+    if (context.level?.school) return `a ${kind} practice interview with ${context.level.label}${session.role ? ` who hopes to become a ${session.role}` : ''}`;
+    return `a ${kind} interview${session.role ? ` for the role of ${session.role}` : ''}`;
+};
+// The level's paragraph, with the blank line around it, or nothing.
+const levelBlock = (context) => { const b = brief(context.level); return b ? `\n${b}\n` : ''; };
+
 /* ── nextQuestion ─────────────────────────────────────────────────────── */
 
 /**
@@ -87,11 +102,11 @@ const nextQuestion = async ({ session, context, nextStage, canFollowUp, lastTurn
     if (!(await configuredFor(userId))) return { ...fallback(), interviewer: 'template' };
     const stage = nextStage;
     const transcript = session.turns.map((t) => `Q${t.index + 1} [${t.stage}]: ${t.question}\nA${t.index + 1}: ${t.answer || '(no answer)'}`).join('\n');
-    const prompt = `You are a warm, professional interviewer conducting a ${session.type === 'full' ? 'full mock' : session.type} interview${session.role ? ` for the role of ${session.role}` : ''}. Speak naturally, one question at a time, as a human interviewer would. Never use bullet points. Never repeat a question already asked.
+    const prompt = `You are a warm, professional interviewer conducting ${opening(session, context)}. Speak naturally, one question at a time, as a human interviewer would. Never use bullet points. Never repeat a question already asked.
 
 CANDIDATE PROFILE (use it — name their actual skills, courses and projects):
 ${profile(context)}
-
+${levelBlock(context)}
 TRANSCRIPT SO FAR:
 ${transcript || '(nothing yet)'}
 
@@ -141,7 +156,7 @@ const evaluate = async ({ session, context, userId, delivery = '' }) => {
         return `Q${t.index + 1} [${t.stage}]${note}: ${t.question}\nA${t.index + 1}: ${t.answer}`;
     }).join('\n\n');
     const repeated = answered.filter((t) => (t.clarifications || 0) > 0).length;
-    const prompt = `You are an experienced interviewer writing an honest evaluation of a mock ${session.type} interview${session.role ? ` for the role of ${session.role}` : ''}. Judge only what the candidate actually said, and judge it as an interviewer deciding whether to hire — not as a teacher being kind. This is practice: a soft score teaches nothing, and the candidate would rather read it here than be turned down without knowing why. Be specific, be direct, and stay respectful.
+    const prompt = `You are an experienced interviewer writing an honest evaluation of ${opening(session, context, { mock: true })}. Judge only what the candidate actually said, and judge it as ${context.level?.school ? 'an admission or scholarship panel would judge a student of this age' : 'an interviewer deciding whether to hire'} — not as a teacher being kind. This is practice: a soft score teaches nothing, and the candidate would rather read it here than be turned down without knowing why. Be specific, be direct, and stay respectful.
 
 SCORE HONESTLY, USING THE WHOLE RANGE:
   85-100  thorough, specific answers that address the questions, with real examples and reasoning
@@ -154,7 +169,7 @@ Do NOT invent strengths, and never praise the candidate for turning up or for co
 
 CANDIDATE PROFILE:
 ${profile(context)}
-
+${judging(context.level) ? `\n${judging(context.level)}\n` : ''}
 TRANSCRIPT:
 ${transcript}
 ${delivery ? `\nDELIVERY (measured from the spoken answers; weigh it in the communication and confidence scores): ${delivery}\n` : ''}
@@ -201,13 +216,13 @@ Answer ONLY with JSON of this exact shape:
 const generateQuestions = async ({ context, userId }) => {
     const fallback = () => ({ questions: template.generateQuestions(context), topics: template.recommendTopics(context), model: 'template' });
     if (!(await configuredFor(userId))) return fallback();
-    const prompt = `Create a personalised interview practice bank for this candidate${context.goal ? `, who wants to become a ${context.goal}` : ''}. Base every technical and project question on the profile's real skills, courses and projects; do not invent technologies.
+    const prompt = `Create a personalised interview practice bank for this candidate${context.level?.label ? `, ${context.level.label}` : ''}${context.goal ? `, who wants to become a ${context.goal}` : ''}. Base every technical and project question on the profile's real skills, courses and projects; do not invent technologies.${context.level?.school ? ' Every question must be one a student of this age could really be asked, and could answer from their own school life and studies.' : ''}
 
 PROFILE:
 ${profile(context)}
-
+${levelBlock(context)}
 Answer ONLY with JSON: {"topics": [5-6 of {"topic": string, "reason": "why it matters for them, under 12 words"}], "questions": [30-40 of {"category": "hr"|"technical"|"project"|"behavioral"|"situational", "topic": string, "question": string, "hint": "how to answer well, one sentence", "difficulty": "easy"|"medium"|"hard"}]}
-Mix: about 6 hr, 12-15 technical across their skills, 5 project, 5 behavioral, 4 situational. Vary the difficulty, and never ask the same thing twice in different words.`;
+Mix: about 6 hr, 12-15 technical across their skills${context.level?.school ? ' and the subjects of their class' : ''}, 5 project, 5 behavioral, 4 situational.${context.level?.school ? ' Here "hr" means questions about themselves, their studies and their plans; "project" means school projects and activities; "situational" means situations at school, with friends, teachers and exams.' : ''} Vary the difficulty, and never ask the same thing twice in different words.`;
     try {
         // Room for 40 questions with their hints; 3000 tokens held about 24.
         const out = await call(prompt, { userId, kind: 'interview-bank', maxOutputTokens: 7000 });
@@ -223,4 +238,53 @@ Mix: about 6 hr, 12-15 technical across their skills, 5 project, 5 behavioral, 4
     }
 };
 
-module.exports = { nextQuestion, evaluate, generateQuestions, configured, configuredFor, MODEL };
+/* ── how to answer each practice question ─────────────────────────────── */
+
+/**
+ * A sample answer and the tips for each practice question (asked 2026-10-15:
+ * "add sample answers ... how to answer, what to tell, what should not tell").
+ *
+ * Asked for after the bank, not with it, in batches of ten written side by
+ * side: forty questions with all of this run past what one answer can hold,
+ * and the bank itself must not wait on it. Returns id -> { question, sample,
+ * say, avoid } for the questions it managed; a batch that fails is left out
+ * and tried again on a later visit (index.js, coach). Nothing without an AI.
+ */
+const COACH_BATCH = 10;
+const coachQuestions = async ({ questions, context, userId }) => {
+    const tips = new Map();
+    if (!questions.length || !(await configuredFor(userId))) return tips;
+    const short = (xs) => (Array.isArray(xs) ? xs : []).map((x) => String(x || '').trim().slice(0, 90)).filter(Boolean).slice(0, 3);
+    const batches = [];
+    for (let i = 0; i < questions.length; i += COACH_BATCH) batches.push(questions.slice(i, i + COACH_BATCH));
+    await Promise.all(batches.map(async (batch) => {
+        const prompt = `You are an interview coach helping this candidate${context.goal ? `, who wants to become a ${context.goal},` : ''} answer practice questions. Write in simple, friendly English that suits their age and level (see "level", "audience" and "education").
+
+PROFILE:
+${profile(context)}
+${levelBlock(context)}
+For each question give:
+- "sample": a short model answer in the candidate's own voice, 2 to 4 sentences and under 70 words. Build it only from the profile's real courses, skills, projects and goal. Never invent employers, jobs, grades, numbers or awards; where the profile has nothing to draw on, keep it general and honest, and put the part only they can fill in inside [square brackets].
+- "say": 2 or 3 short points a strong answer makes, each under 10 words.
+- "avoid": 2 short things to leave out or not do, each under 10 words.
+
+QUESTIONS:
+${JSON.stringify(batch.map((q) => ({ id: q.id, category: q.category, question: q.question })))}
+
+Answer ONLY with JSON: {"coach": [{"id": string, "sample": string, "say": [string], "avoid": [string]}]}, one entry per question, with the same ids.`;
+        try {
+            const out = await call(prompt, { userId, kind: 'interview-coach', maxOutputTokens: 3000 });
+            for (const c of out.coach || []) {
+                const q = batch.find((x) => x.id === c?.id);
+                const sample = String(c?.sample || '').trim().slice(0, 600);
+                const say = short(c?.say), avoid = short(c?.avoid);
+                if (q && sample && say.length && avoid.length) tips.set(q.id, { question: q.question, sample, say, avoid });
+            }
+        } catch (err) {
+            console.warn('[interview] sample answers for a batch failed:', err.message);
+        }
+    }));
+    return tips;
+};
+
+module.exports = { nextQuestion, evaluate, generateQuestions, coachQuestions, configured, configuredFor, MODEL };

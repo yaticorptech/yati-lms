@@ -1,8 +1,11 @@
 /**
- * Games & Competitions — the section's home, in six tabs:
+ * Competitions — the section's home (it was "Games & Competitions" until
+ * 2026-10-23, when the menu got a section of its own for Games, the brain
+ * games), in six tabs:
  *
- *   Games          Chess, Ludo, Carrom and UNO: start a friendly game and share
- *                  its code, or join one with a code
+ *   Games          Chess, Ludo and Carrom, each leading to its competitions, and
+ *                  Join with a code: a competition match's code opens that match
+ *                  (playing with friends, and UNO, were removed on 2026-10-23)
  *   Competitions   inter-college competitions, filtered by game: open,
  *                  closing soon, upcoming, live
  *   My Games       the competitions my college entered me in, and my matches:
@@ -14,15 +17,17 @@
  *
  * The tab lives in the address (?tab=) so a link can open the right one.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Gamepad2, Trophy, UserCheck, BarChart3, History, Users, UsersRound, Crown, CalendarClock, Building2, Loader2,
-    ArrowRight, Award, Download, Medal, Clock, Gift, Search, Play, ChevronRight, Link2, Ticket, MoreVertical, Copy, LogOut, Check, X
+    ArrowRight, Award, Download, Medal, Clock, Gift, Search, ChevronRight, Link2, Ticket
 } from 'lucide-react';
-import { competitionsApi, GAMES, ORDINAL, fmtDateTime, fmtDate, prizeLine, gameImage, gameIcon } from './api';
+import useRowsShown from './useRowsShown';
+import { competitionsApi, GAMES, ORDINAL, fmtDateTime, fmtDate, gameImage, gameIcon } from './api';
 import { StatusChip, GameChip, MatchCard, Empty } from './parts';
 import { saveBlob } from '../native/saveFile';
+import PriceTag from '../components/rewards/PriceTag';
 
 const TABS = [
     { id: 'games', label: 'Games', icon: Gamepad2 },
@@ -62,68 +67,23 @@ const Loading = () => <div className="grid gap-3 sm:grid-cols-2">{[0, 1].map((i)
 
 /* ── Games ───────────────────────────────────────────────────────────── */
 
-/** One of my friendly rooms: open it, copy its code, or leave it. */
-const RoomRow = ({ room: r, onLeft }) => {
-    const [menu, setMenu] = useState(false);
-    const [copied, setCopied] = useState(false);
-    const [busy, setBusy] = useState(false);
-    const copy = () => {
-        navigator.clipboard?.writeText(r.code).catch(() => {});
-        setCopied(true); setMenu(false);
-        setTimeout(() => setCopied(false), 1500);
-    };
-    const leave = () => {
-        setBusy(true); setMenu(false);
-        competitionsApi.leave(r.id).then(onLeft).catch(() => {}).finally(() => setBusy(false));
-    };
-    return (
-        <li className="relative flex items-center gap-3 py-1.5" data-room={r.id}>
-            <img src={gameIcon(r.game)} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover shadow-sm" />
-            <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold text-slate-900">{r.label} {r.code && <span className="font-semibold text-slate-400">· <span className="font-mono text-slate-600">{r.code}</span></span>}</span>
-                <span className="block truncate text-xs text-slate-500">{r.seats.map((s) => s.name).join(', ')}</span>
-            </span>
-            {/* ⋮ swaps the button for the row's choices, in the row itself: the
-                list scrolls, so a popup hanging below would be cut off. */}
-            {menu ? (
-                <span role="menu" className="flex shrink-0 items-center gap-1">
-                    {r.code && <button type="button" role="menuitem" onClick={copy} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"><Copy size={13} aria-hidden="true" /> Copy code</button>}
-                    {r.status === 'waiting' && <button type="button" role="menuitem" onClick={leave} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50"><LogOut size={13} aria-hidden="true" /> {r.host ? 'Close room' : 'Leave room'}</button>}
-                </span>
-            ) : (
-                <Link to={`/competitions/play/${r.id}`} className="shrink-0 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 transition-colors hover:bg-indigo-100">
-                    {r.status === 'waiting' ? 'Open room' : 'Continue'}
-                </Link>
-            )}
-            <button type="button" onClick={() => setMenu((m) => !m)} aria-haspopup="menu" aria-expanded={menu} aria-label={`More for ${r.label} ${r.code || ''}`} disabled={busy}
-                className="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
-                {busy ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : copied ? <Check size={18} className="text-emerald-600" aria-hidden="true" /> : menu ? <X size={18} aria-hidden="true" /> : <MoreVertical size={18} aria-hidden="true" />}
-            </button>
-        </li>
-    );
-};
-
 const GamesTab = () => {
     const navigate = useNavigate();
-    const rooms = useLoad(competitionsApi.myRooms);
-    const [busy, setBusy] = useState('');
-    const [error, setError] = useState('');
-    const [code, setCode] = useState('');
     const [q, setQ] = useState('');
-
-    const create = (game) => {
-        setBusy(game); setError('');
-        competitionsApi.createRoom(game).then((r) => navigate(`/competitions/play/${r.game.id}`))
-            .catch((e) => setError(e.message)).finally(() => setBusy(''));
-    };
+    const [code, setCode] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    // A player types their competition match's code: straight into the match.
     const join = (e) => {
         e.preventDefault();
-        setBusy('join'); setError('');
-        competitionsApi.joinRoom(code).then((r) => navigate(`/competitions/play/${r.game.id}`))
-            .catch((err) => setError(err.message)).finally(() => setBusy(''));
+        setBusy(true); setError('');
+        competitionsApi.joinMatch(code).then((r) => navigate(`/competitions/play/${r.game.id}`))
+            .catch((err) => setError(err.message)).finally(() => setBusy(false));
     };
+    // A game's competitions: the Competitions tab, filtered to it.
+    const competitionsOf = (game) => navigate(game ? `?tab=competitions&game=${game}` : '?tab=competitions');
     const games = Object.entries(GAMES).filter(([, g]) => g.label.toLowerCase().includes(q.trim().toLowerCase()));
-    const list = rooms.data?.rooms || [];
+    const names = Object.values(GAMES).map((g) => g.label);
 
     return (
         <div className="flex flex-1 flex-col gap-3 lg:min-h-0 lg:flex-[1_1_auto]">
@@ -137,10 +97,10 @@ const GamesTab = () => {
                 </label>
             </div>
 
-            {games.length === 0 && <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">No game called “{q.trim()}”. We have Chess, Ludo, Carrom and UNO.</p>}
+            {games.length === 0 && <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">No game called “{q.trim()}”. We have {names.slice(0, -1).join(', ')} and {names[names.length - 1]}.</p>}
             {/* On a wide screen the row has a set height — the photo's share of
                 the window plus the card's text and button — and may shrink. */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 lg:h-[calc(7vw+129px)] lg:min-h-0 lg:shrink lg:grid-rows-[minmax(0,1fr)]">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 lg:h-[calc(7vw+129px)] lg:min-h-0 lg:shrink lg:grid-rows-[minmax(0,1fr)]">
                 {games.map(([id, g]) => (
                     <article key={id} data-game={id} className="flex flex-col overflow-hidden rounded-[18px] bg-white shadow-sm ring-1 ring-slate-100 lg:min-h-0">
                         {/* Shorter than the photo, cropping its bottom; on a wide screen
@@ -167,9 +127,9 @@ const GamesTab = () => {
                                 </div>
                             </div>
                             <p className="mt-1.5 line-clamp-2 flex-1 text-xs leading-snug text-slate-600">{g.blurb}</p>
-                            <button type="button" onClick={() => create(id)} disabled={!!busy}
-                                className={`mt-2.5 flex min-h-9 w-full items-center justify-between rounded-xl px-3.5 text-[13px] font-bold text-white shadow-md transition-colors disabled:opacity-60 ${g.button}`}>
-                                <span className="inline-flex items-center gap-2">{busy === id ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Play size={15} fill="currentColor" aria-hidden="true" />} Play Now</span>
+                            <button type="button" onClick={() => competitionsOf(id)} data-see-competitions={id}
+                                className={`mt-2.5 flex min-h-9 w-full items-center justify-between rounded-xl px-3.5 text-[13px] font-bold text-white shadow-md transition-colors ${g.button}`}>
+                                <span className="inline-flex items-center gap-2"><Trophy size={15} aria-hidden="true" /> See competitions</span>
                                 <ChevronRight size={15} aria-hidden="true" />
                             </button>
                         </div>
@@ -177,39 +137,45 @@ const GamesTab = () => {
                 ))}
             </div>
 
-            <div className="grid gap-3 lg:flex-[1_0_auto] lg:grid-cols-[1.1fr_1fr]">
-                <section className="relative flex flex-col justify-center overflow-hidden rounded-[18px] bg-gradient-to-br from-violet-50 via-indigo-50/70 to-fuchsia-50/60 p-3.5 ring-1 ring-violet-100">
+            <div className="grid grid-cols-1 gap-3 lg:flex-[1_0_auto] lg:grid-cols-[1.1fr_1fr]">
+                {/* A competition match's code, from My Games or the coordinator. */}
+                <section className="relative flex flex-col justify-center overflow-hidden rounded-[18px] bg-gradient-to-br from-violet-50 via-indigo-50/70 to-fuchsia-50/60 p-3.5 ring-1 ring-violet-100" data-join-code>
                     <UsersRound size={48} aria-hidden="true" className="pointer-events-none absolute right-5 top-3 text-indigo-200/60" />
                     <span aria-hidden="true" className="pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-violet-100/60" />
                     <div className="relative">
                         <h2 className="flex items-center gap-2 text-base font-black text-slate-900"><Link2 size={18} className="text-indigo-600" aria-hidden="true" /> Join with a code</h2>
-                        <p className="mt-0.5 text-xs text-slate-600">A friend who made a room can tell you its 6-character code.</p>
+                        <p className="mt-0.5 text-xs text-slate-600">Your competition match has a 6-character code: it is on your match in My Games, or ask your coordinator.</p>
                         <form onSubmit={join} className="mt-2.5 flex flex-wrap gap-2.5">
                             <label className="relative min-w-0 flex-1 basis-48">
-                                <span className="sr-only">Room code</span>
+                                <span className="sr-only">Match code</span>
                                 <Ticket size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                                 <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
                                     placeholder="Enter code (e.g. K7Q2XM)" inputMode="text" autoCapitalize="characters"
                                     className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 font-mono text-[15px] tracking-[0.25em] text-slate-900 shadow-sm placeholder:font-sans placeholder:text-sm placeholder:tracking-normal placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
                             </label>
-                            <button type="submit" disabled={code.length !== 6 || !!busy}
+                            <button type="submit" disabled={code.length !== 6 || busy}
                                 className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-700 disabled:opacity-50">
-                                {busy === 'join' ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : null} Join Room <ChevronRight size={16} aria-hidden="true" />
+                                {busy ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : null} Join Match <ChevronRight size={16} aria-hidden="true" />
                             </button>
                         </form>
+                        {error && <p role="alert" className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}
                     </div>
                 </section>
-                <section className="rounded-[18px] bg-white p-3.5 shadow-sm ring-1 ring-slate-100" data-your-games>
-                    <div className="flex items-center justify-between gap-3">
-                        <h2 className="flex items-center gap-2 text-base font-black text-slate-900"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white"><Gamepad2 size={15} aria-hidden="true" /></span> Your Games</h2>
-                        {list.length > 3 && <span className="text-xs font-semibold text-slate-400">{list.length} rooms · scroll for more</span>}
+
+                {/* How the games are played now: in competitions, for a college. */}
+                <section className="flex flex-col justify-center rounded-[18px] bg-white p-3.5 shadow-sm ring-1 ring-slate-100" data-how-to-play>
+                    <h2 className="flex items-center gap-2 text-base font-black text-slate-900"><Building2 size={18} className="text-indigo-600" aria-hidden="true" /> Play for your college</h2>
+                    <p className="mt-0.5 max-w-xl text-xs text-slate-600">The games are played in competitions. Your college enters you in a team; your matches appear in My Games when they are drawn.</p>
+                    <div className="mt-2.5 flex flex-wrap gap-2.5">
+                        <button type="button" onClick={() => competitionsOf(null)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-700">
+                            <Trophy size={15} aria-hidden="true" /> See competitions <ChevronRight size={16} aria-hidden="true" />
+                        </button>
+                        <button type="button" onClick={() => navigate('?tab=mine')} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-white px-4 text-sm font-bold text-indigo-700 shadow-sm ring-1 ring-indigo-100 hover:bg-indigo-50">
+                            <UserCheck size={15} aria-hidden="true" /> My Games
+                        </button>
                     </div>
-                    {!rooms.data ? <p className="mt-2 text-sm text-slate-500">{rooms.error || 'Loading…'}</p>
-                        : list.length === 0 ? <p className="mt-2 text-sm text-slate-500">No friendly games open. Start one above and share its code.</p>
-                            : <ul className="scroll-fade mt-0.5 max-h-[8.75rem] divide-y divide-slate-100 overflow-y-auto pr-1" data-rooms>{list.map((r) => <RoomRow key={r.id} room={r} onLeft={rooms.reload} />)}</ul>}
                 </section>
             </div>
-            {error && <p role="alert" className="rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700">{error}</p>}
         </div>
     );
 };
@@ -224,12 +190,13 @@ export const CompetitionCard = ({ c }) => (
             : <div className={`flex h-14 items-center justify-center bg-gradient-to-br sm:h-20 ${GAMES[c.game]?.tone || 'from-indigo-500 to-violet-600'}`}><span className="text-3xl drop-shadow sm:text-4xl" aria-hidden="true">{c.emoji}</span></div>}
         <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
             <div>
-                <div className="mb-2 flex flex-wrap gap-1.5"><StatusChip status={c.status} phase={c.phase} /><GameChip emoji={c.emoji} label={c.gameLabel} /></div>
+                <div className="mb-2 flex flex-wrap gap-1.5"><StatusChip status={c.status} phase={c.phase} /><GameChip emoji={c.emoji} label={c.gameLabel} />
+                    {c.hostOrganizationId && <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-600">Your college</span>}</div>
                 <h3 className="font-black leading-snug text-slate-900">{c.name}</h3>
                 <p className="mt-0.5 truncate text-xs text-slate-500">Organized by {c.organizedBy}</p>
             </div>
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-700">
-                <span className="inline-flex items-center gap-1.5"><Building2 size={14} className="text-slate-400" aria-hidden="true" /> {c.teamsCount} {c.teamsCount === 1 ? 'College' : 'Colleges'}</span>
+                <span className="inline-flex items-center gap-1.5"><Building2 size={14} className="text-slate-400" aria-hidden="true" /> {c.teamsCount} {c.hostOrganizationId ? (c.teamsCount === 1 ? 'Team' : 'Teams') : c.teamsCount === 1 ? 'College' : 'Colleges'}</span>
                 <span className="inline-flex items-center gap-1.5"><Users size={14} className="text-slate-400" aria-hidden="true" /> {c.playersCount || 0} {c.playersCount === 1 ? 'Player' : 'Players'}</span>
             </p>
             <dl className="space-y-1 text-xs text-slate-600">
@@ -237,7 +204,6 @@ export const CompetitionCard = ({ c }) => (
                     <div className="flex gap-1.5"><dt className="inline-flex items-center gap-1.5 text-slate-400"><Clock size={13} aria-hidden="true" /> Register by</dt><dd className="font-semibold text-slate-700">{fmtDateTime(c.registrationDeadline)}</dd></div>
                 )}
                 <div className="flex gap-1.5"><dt className="inline-flex items-center gap-1.5 text-slate-400"><CalendarClock size={13} aria-hidden="true" /> Date</dt><dd className="font-semibold text-slate-700">{fmtDateTime(c.startsAt)}</dd></div>
-                {prizeLine(c) && <div className="flex gap-1.5"><dt className="inline-flex items-center gap-1.5 text-slate-400"><Gift size={13} aria-hidden="true" /> Prize</dt><dd className="min-w-0 truncate font-semibold text-amber-700">{prizeLine(c)}</dd></div>}
             </dl>
             {c.myTeam && <p className="text-xs font-bold text-violet-700">Your team: {c.myTeam.teamName}</p>}
             <Link to={`/competitions/${c.id}`} className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-colors hover:bg-indigo-700">
@@ -247,9 +213,37 @@ export const CompetitionCard = ({ c }) => (
     </article>
 );
 
+/**
+ * On a phone a row of choices scrolls sideways. Whichever one is chosen, the
+ * row slides on its own to show it and the whole of the next one — so the
+ * next choice is always there to tap, and nobody has to drag the row to find
+ * it. (Centring the chosen one left a wide next tab half cut off.) The row
+ * must be `relative`, so its buttons' offsetLeft is measured from it.
+ */
+const useChosenInView = (rowRef, chosen, selector) => {
+    useEffect(() => {
+        const row = rowRef.current;
+        const current = row?.querySelector(selector);
+        if (!row || !current || row.scrollWidth <= row.clientWidth) return;
+        const next = current.nextElementSibling;
+        const GAP = 8;
+        // The first option goes back to the start, with whatever leads the row
+        // (the tab bar's gamepad tile) in view again.
+        const first = !current.previousElementSibling?.matches('button');
+        // Otherwise the next one's right edge in view, but never past the chosen one's left.
+        const edge = next ? next.offsetLeft + next.offsetWidth : current.offsetLeft + current.offsetWidth;
+        const left = first ? 0 : Math.min(edge - row.clientWidth + GAP, current.offsetLeft - GAP);
+        row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+    }, [rowRef, chosen, selector]);
+};
+
 const CompetitionsTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.list);
-    const [game, setGame] = useState('all');
+    const [params] = useSearchParams();
+    const [game, setGame] = useState(() => (GAMES[params.get('game')] ? params.get('game') : 'all'));
+    // The game filters scroll the way the section's tab bar does.
+    const filtersRef = useRef(null);
+    useChosenInView(filtersRef, game, '[aria-pressed="true"]');
     if (error) return <Failed error={error} onRetry={reload} />;
     if (!data) return <Loading />;
     const list = data.competitions.filter((c) => c.status !== 'completed' && (game === 'all' || c.game === game));
@@ -260,8 +254,8 @@ const CompetitionsTab = () => {
     ].filter(([, rows]) => rows.length);
     return (
         <div className="space-y-6">
-            {/* The four games, as a filter */}
-            <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter by game">
+            {/* The games, as a filter */}
+            <div ref={filtersRef} className="relative flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filter by game">
                 {[['all', 'All games', '🎮'], ...Object.entries(GAMES).map(([id, g]) => [id, g.label, g.emoji])].map(([id, label, emoji]) => (
                     <button key={id} type="button" onClick={() => setGame(id)} aria-pressed={game === id} data-game-filter={id}
                         className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm font-bold transition-colors ${game === id ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300'}`}>
@@ -281,7 +275,7 @@ const CompetitionsTab = () => {
             {groups.map(([title, rows]) => (
                 <div key={title}>
                     <h3 className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{title}</h3>
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{rows.map((c) => <CompetitionCard key={c.id} c={c} />)}</div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{rows.map((c) => <CompetitionCard key={c.id} c={c} />)}</div>
                 </div>
             ))}
         </div>
@@ -291,7 +285,7 @@ const CompetitionsTab = () => {
 /* ── My games ─────────────────────────────────────────────────────────── */
 
 const MatchList = ({ rows, empty }) => (rows.length
-    ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{rows.map((m) => <MatchCard key={m.id} match={m} playing={m.playing} myTeamId={m.myTeamId} showCompetition />)}</div>
+    ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{rows.map((m) => <MatchCard key={m.id} match={m} playing={m.playing} myTeamId={m.myTeamId} showCompetition />)}</div>
     : <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">{empty}</p>);
 
 const MINE_TABS = [['registered', 'Registered'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['completed', 'Completed']];
@@ -299,17 +293,21 @@ const MINE_TABS = [['registered', 'Registered'], ['upcoming', 'Upcoming'], ['liv
 const MineTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.me);
     const [sub, setSub] = useState(null);
+    // Open on Live when a match is on now: that is what the student came for.
+    const active = sub || (data?.live?.length ? 'live' : 'registered');
+    // On a phone the four tabs scroll sideways, as the game filters do: the
+    // chosen one and the next one slide into view.
+    const tabsRef = useRef(null);
+    useChosenInView(tabsRef, active, '[aria-selected="true"]');
     if (error) return <Failed error={error} onRetry={reload} />;
     if (!data) return <Loading />;
     if (!data.competitions.length) {
         return <Empty icon={UserCheck} title="You are not in a competition yet">When your college's coordinator puts you in a team, your competitions and matches appear here.</Empty>;
     }
-    // Open on Live when a match is on now: that is what the student came for.
-    const active = sub || (data.live.length ? 'live' : 'registered');
     const counts = { registered: data.competitions.length, upcoming: data.upcoming.length, live: data.live.length, completed: data.completed.length };
     return (
         <div className="space-y-4">
-            <div className="flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="My games">
+            <div ref={tabsRef} className="relative flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="My games">
                 {MINE_TABS.map(([id, label]) => (
                     <button key={id} type="button" role="tab" aria-selected={active === id} onClick={() => setSub(id)}
                         className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-sm font-bold transition-colors ${active === id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:text-indigo-700'}`}>
@@ -331,7 +329,7 @@ const MineTab = () => {
                                     column two words wide. */}
                                 <span className="min-w-0 flex-1">
                                     <span className="flex items-start justify-between gap-2">
-                                        <Link to={`/competitions/${c.id}`} className="min-w-0 break-words text-sm font-bold text-slate-900 hover:text-indigo-700">{c.name}</Link>
+                                        <Link to={`/competitions/${c.id}`} className="-my-2 min-w-0 break-words py-2 text-sm font-bold text-slate-900 hover:text-indigo-700">{c.name}</Link>
                                         <span className="shrink-0"><StatusChip status={c.status} phase={c.phase} /></span>
                                     </span>
                                     <span className="mt-0.5 block text-xs text-slate-500">Team: {c.myTeam?.teamName} · {c.myTeam?.status === 'approved' ? 'Approved' : 'Pending approval'} · {fmtDateTime(c.startsAt)}</span>
@@ -357,26 +355,36 @@ const BOARDS = [
 ];
 const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
+/** Rankings shown before the list scrolls (the user's choice, 2026-10-14). */
+const RANKS_SHOWN = 2;
+const RANK_NOUN = { colleges: ['college', 'colleges'], teams: ['team', 'teams'], players: ['player', 'players'] };
+
 const LeaderboardTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.leaderboard);
     const [board, setBoard] = useState('colleges');
+    const listRef = useRef(null);
+    const rows = data?.[board] || [];
+    // The top two show; the rest scroll inside the list, like the Final standings.
+    const more = useRowsShown(listRef, RANKS_SHOWN, rows.length, { key: board });
     if (error) return <Failed error={error} onRetry={reload} />;
     if (!data) return <Loading />;
-    const rows = data[board] || [];
     const label = (r) => (board === 'colleges' ? r.collegeName : board === 'teams' ? r.teamName : r.name);
     const sub = (r) => (board === 'colleges' ? `${r.competitions} competition${r.competitions === 1 ? '' : 's'}` : board === 'teams' ? `${r.collegeName} · ${r.competition}` : r.collegeName);
     return (
         <Box>
-            <div className="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Ranking">
+            {/* One line on a phone: the three share the row (they wrapped
+                Individual onto a second line), and below 380px the icons go so
+                the words fit. From sm up, each is as wide as its words. */}
+            <div className="mb-4 flex gap-1 sm:gap-2" role="tablist" aria-label="Ranking">
                 {BOARDS.map((b) => (
                     <button key={b.id} type="button" role="tab" aria-selected={board === b.id} onClick={() => setBoard(b.id)}
-                        className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3.5 text-sm font-bold transition-colors ${board === b.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                        <b.icon size={15} aria-hidden="true" /> {b.label}
+                        className={`inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 text-[13px] font-bold transition-colors sm:flex-none sm:px-3.5 sm:text-sm ${board === b.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        <b.icon size={15} aria-hidden="true" className="hidden shrink-0 min-[380px]:block" /> {b.label}
                     </button>
                 ))}
             </div>
             {rows.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">No results yet. Rankings fill in as matches are played.</p> : (
-                <ol className="divide-y divide-slate-100" data-ranking={board}>
+                <ol ref={listRef} className={`divide-y divide-slate-100 ${more ? 'overflow-y-auto overscroll-contain' : ''}`} data-ranking={board}>
                     {rows.map((r) => (
                         <li key={r.id} className="flex items-center gap-3 py-2.5">
                             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-black tabular-nums ${MEDAL[r.rank] ? 'text-xl' : 'bg-slate-100 text-sm text-slate-600'}`}>{MEDAL[r.rank] || r.rank}</span>
@@ -390,7 +398,7 @@ const LeaderboardTab = () => {
                     ))}
                 </ol>
             )}
-            <p className="mt-4 text-xs text-slate-400">3 points a match won, 1 a match played; 10 / 6 / 4 for finishing 1st / 2nd / 3rd. A college's points are its teams' added up.</p>
+            {more && <p data-ranking-more className="mt-2 text-xs text-slate-500">Showing {RANKS_SHOWN} of {rows.length} {RANK_NOUN[board][1]}. Scroll the list to see the rest.</p>}
         </Box>
     );
 };
@@ -405,13 +413,15 @@ const ResultsTab = () => {
     if (!data) return <Loading />;
     if (!data.competitions.length) return <Empty icon={Medal} title="No results yet">Finished competitions, their winners and match results appear here.</Empty>;
     return (
-        <div className="grid gap-4 lg:grid-cols-2">
+        // One column on a phone, each card no wider than it: without a set
+        // column, a long winner's line widened the card past the screen.
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {data.competitions.map(({ competition: c, teams }) => (
                 <Box key={c.id}>
                     <div data-result={c.id} className="space-y-3">
                         <div>
                             <p className="font-black text-slate-900">🏆 {c.name}</p>
-                            <p className="text-xs text-slate-500">{c.emoji} {c.gameLabel} · {teams.length} participating colleges · {fmtDate(c.completedAt)}</p>
+                            <p className="text-xs text-slate-500">{c.emoji} {c.gameLabel} · {teams.length} {c.hostOrganizationId ? 'teams' : 'participating colleges'} · {fmtDate(c.completedAt)}</p>
                         </div>
                         <dl className="space-y-1.5">
                             {PLACE_LINE.map(([place, label]) => {
@@ -456,8 +466,11 @@ const HistoryTab = () => {
                         <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black ${r.place === 1 ? 'bg-amber-100 text-amber-700' : r.place ? 'bg-slate-100 text-slate-700' : 'bg-indigo-50 text-indigo-600'}`}>
                             {r.place ? ORDINAL[r.place] : <Award size={18} aria-hidden="true" />}
                         </span>
-                        <span className="min-w-0 flex-1">
-                            <Link to={`/competitions/${r.competition.id}`} className="block truncate text-sm font-bold text-slate-900 hover:text-indigo-700">{r.competition.emoji} {r.competition.name}</Link>
+                        {/* A base width: beside Certificate on a small phone the
+                            name was cut to "QA Chec…" and the details squeezed to a
+                            narrow column; now the button goes under them. */}
+                        <span className="min-w-0 flex-1 basis-56">
+                            <Link to={`/competitions/${r.competition.id}`} className="block break-words py-0.5 text-sm font-bold text-slate-900 hover:text-indigo-700">{r.competition.emoji} {r.competition.name}</Link>
                             <span className="block text-xs text-slate-500">
                                 {r.competition.gameLabel} · {r.collegeName ? `${r.collegeName} · ` : ''}{r.teamName} · {r.place ? `${ORDINAL[r.place]} place` : 'Took part'} · {r.score.won}/{r.score.played} matches won · {fmtDate(r.competition.completedAt)}
                             </span>
@@ -465,7 +478,7 @@ const HistoryTab = () => {
                         {r.certificate && (
                             <button type="button" onClick={() => download(r.competition.id, r.competition.name)} disabled={saving === r.competition.id}
                                 className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-60">
-                                {saving === r.competition.id ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />} Certificate
+                                {saving === r.competition.id ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />} Certificate <PriceTag action="download_competition_certificate" />
                             </button>
                         )}
                     </li>
@@ -479,40 +492,107 @@ const HistoryTab = () => {
 
 const HERO_BG = '/illustrations/games-hero-bg.png';
 const HERO_ART = '/illustrations/games-hero-art.png';
-const HERO_PILLS = [[Users, 'Play with friends', 'text-white'], [Trophy, 'Join competitions', 'text-amber-300'], [UsersRound, 'Create rooms', 'text-white'], [Crown, 'Climb leaderboard', 'text-amber-300']];
+const HERO_PILLS = [[Trophy, 'Join competitions', 'text-amber-300'], [UsersRound, 'Play for your college', 'text-white'], [Crown, 'Climb leaderboard', 'text-amber-300']];
+
+const BODIES = { games: GamesTab, competitions: CompetitionsTab, mine: MineTab, leaderboard: LeaderboardTab, results: ResultsTab, history: HistoryTab };
 
 export default function CompetitionsHome() {
     const [params, setParams] = useSearchParams();
     const tab = TABS.some((t) => t.id === params.get('tab')) ? params.get('tab') : 'games';
     const select = (id) => setParams(id === 'games' ? {} : { tab: id }, { replace: true });
-    const Body = useMemo(() => ({ games: GamesTab, competitions: CompetitionsTab, mine: MineTab, leaderboard: LeaderboardTab, results: ResultsTab, history: HistoryTab }[tab]), [tab]);
+    const Body = BODIES[tab];
     const fill = tab === 'games';
 
     // On a phone the bar scrolls sideways. Whichever tab is chosen, the bar
     // brings it to the middle on its own, so the ones either side — the next
     // section — are in view, and nobody has to drag the bar to find them.
+    // The next tab is shown whole: the middle alone can stop a few pixels
+    // short, which once left History cut at the edge of a 344px phone. The first tab keeps the bar at its start.
     const barRef = useRef(null);
     useEffect(() => {
         const bar = barRef.current;
         const current = bar?.querySelector('[aria-current="page"]');
         if (!bar || !current || bar.scrollWidth <= bar.clientWidth) return;
-        const left = current.offsetLeft - (bar.clientWidth - current.offsetWidth) / 2;
+        const pad = parseFloat(getComputedStyle(bar).paddingRight) || 0;
+        const middle = current.offsetLeft - (bar.clientWidth - current.offsetWidth) / 2;
+        const next = current.nextElementSibling;
+        const nextWhole = next ? next.offsetLeft + next.offsetWidth + pad - bar.clientWidth : middle;
+        const first = current.previousElementSibling?.tagName !== 'BUTTON';
+        // Never so far that the chosen tab's own start goes off the left.
+        const left = first ? 0 : Math.min(Math.max(middle, nextWhole), current.offsetLeft - pad);
         bar.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
     }, [tab]);
 
+    // The highlight under the chosen tab glides from one tab to the next, and
+    // the bar's ends fade where more tabs are hidden past them (asked
+    // 2026-10-16: "make the scroll smooth...make those nav animation").
+    // Written straight to the elements: these follow every scroll and resize.
+    const pillRef = useRef(null);
+    const fadeLeft = useRef(null);
+    const fadeRight = useRef(null);
+    const placed = useRef(false);
+    const placePill = useCallback((glide) => {
+        const bar = barRef.current;
+        const pill = pillRef.current;
+        const current = bar?.querySelector('[aria-current="page"]');
+        if (!pill || !current) return;
+        if (!glide) pill.style.transition = 'none';
+        pill.style.width = `${current.offsetWidth}px`;
+        pill.style.height = `${current.offsetHeight}px`;
+        pill.style.transform = `translate(${current.offsetLeft}px, ${current.offsetTop}px)`;
+        pill.style.opacity = '1';
+        if (!glide) { void pill.offsetWidth; pill.style.transition = ''; }
+    }, []);
+    const showEdges = useCallback(() => {
+        const bar = barRef.current;
+        if (!bar) return;
+        const end = bar.scrollWidth - bar.clientWidth;
+        if (fadeLeft.current) fadeLeft.current.style.opacity = bar.scrollLeft > 2 ? '1' : '0';
+        if (fadeRight.current) fadeRight.current.style.opacity = bar.scrollLeft < end - 2 ? '1' : '0';
+    }, []);
+    // A new tab: the highlight glides there (the very first time it is simply there).
+    useLayoutEffect(() => {
+        placePill(placed.current);
+        placed.current = true;
+        showEdges();
+    }, [tab, placePill, showEdges]);
+    // Set up once: a watcher made again on every tab change reports at once,
+    // and that report snapped the highlight over before it could glide.
+    useEffect(() => {
+        const bar = barRef.current;
+        if (!bar) return undefined;
+        const resized = () => { placePill(false); showEdges(); };
+        const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(resized) : null;
+        ro?.observe(bar);
+        document.fonts?.ready?.then(resized);
+        bar.addEventListener('scroll', showEdges, { passive: true });
+        return () => { ro?.disconnect(); bar.removeEventListener('scroll', showEdges); };
+    }, [placePill, showEdges]);
+
     return (
         <div className={`flex flex-col gap-3 ${fill ? 'lg:h-[calc(100vh-8rem)] lg:min-h-[36rem]' : ''}`}>
-            {/* The section's own bar: the gamepad tile, then the six tabs in a
-                row. On a phone the row scrolls sideways. */}
-            <nav ref={barRef} aria-label="Games & Competitions" className="relative flex shrink-0 items-center gap-1.5 overflow-x-auto rounded-[22px] bg-white p-1.5 shadow-sm ring-1 ring-slate-100 no-scrollbar">
-                <span aria-hidden="true" className="mr-1 flex h-10 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30"><Gamepad2 size={26} /></span>
-                {TABS.map((t) => (
-                    <button key={t.id} type="button" onClick={() => select(t.id)} aria-current={tab === t.id ? 'page' : undefined}
-                        className={`inline-flex min-h-10 shrink-0 items-center gap-2.5 rounded-2xl px-4 text-sm font-semibold transition-colors ${tab === t.id ? 'bg-indigo-100 text-indigo-700 shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-700'}`}>
-                        <t.icon size={20} aria-hidden="true" className="shrink-0" /> {t.label}
-                    </button>
-                ))}
-            </nav>
+            {/* The section's own bar: the six tabs in a row, with no tile
+                before them (removed 2026-10-16). On a phone the row
+                scrolls sideways, smoothly, its ends fading where more tabs
+                are hidden; the highlight slides to the chosen tab. */}
+            <div className="relative shrink-0 rounded-[22px] bg-white shadow-sm ring-1 ring-slate-100">
+                <nav ref={barRef} aria-label="Competitions" data-section-tabs className="relative flex items-center gap-1.5 overflow-x-auto overscroll-x-contain scroll-smooth rounded-[22px] p-1.5 no-scrollbar">
+                    <span ref={pillRef} aria-hidden="true"
+                        className="pointer-events-none absolute left-0 top-0 rounded-2xl bg-indigo-100 opacity-0 shadow-sm transition-[transform,width,height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none" />
+                    {TABS.map((t) => {
+                        const on = tab === t.id;
+                        return (
+                            <button key={t.id} type="button" onClick={() => select(t.id)} aria-current={on ? 'page' : undefined}
+                                className={`relative inline-flex min-h-10 shrink-0 items-center gap-2.5 rounded-2xl px-4 text-sm font-semibold transition-[color,background-color,transform] duration-200 active:scale-95 motion-reduce:active:scale-100 ${on ? 'text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-700'}`}>
+                                {/* Re-mounted when chosen, so its little hop plays each time. */}
+                                <t.icon key={on ? 'on' : 'off'} size={20} aria-hidden="true" className={`shrink-0 ${on ? 'tab-icon-pop' : ''}`} /> {t.label}
+                            </button>
+                        );
+                    })}
+                </nav>
+                <span ref={fadeLeft} aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-10 rounded-l-[22px] bg-gradient-to-r from-white via-white/80 to-transparent opacity-0 transition-opacity duration-200" />
+                <span ref={fadeRight} aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-10 rounded-r-[22px] bg-gradient-to-l from-white via-white/80 to-transparent opacity-0 transition-opacity duration-200" />
+            </div>
 
             {/* On a wide screen the Games tab is exactly the window's height: the
                 banner and the two boxes take any spare room, and the game photos
@@ -523,17 +603,30 @@ export default function CompetitionsHome() {
                     {/* The scene, behind the words, where there is room for both. */}
                     <span aria-hidden="true" className="absolute inset-0 hidden lg:block" style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: 'cover', backgroundPosition: 'right center' }} />
                     <div className="relative lg:max-w-[50rem] lg:pr-6">
-                        <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/90"><Gamepad2 size={16} aria-hidden="true" /> Play · Compete · Win</p>
-                        <h1 className="mt-1.5 text-[1.6rem] font-black leading-tight sm:text-3xl">Games <span className="text-violet-300">&amp;</span> Competitions</h1>
-                        <p className="mt-1.5 max-w-lg text-sm text-white/90">Compete with your college friends. Play your favourite games and win exciting matches.</p>
-                        <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+                        <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/90"><Trophy size={16} aria-hidden="true" /> Play · Compete · Win</p>
+                        <h1 className="mt-1.5 text-[1.6rem] font-black leading-tight sm:text-3xl">Competitions</h1>
+                        <p className="mt-1.5 hidden max-w-lg text-sm text-white/90 sm:block">Chess, Ludo and Carrom in inter-college competitions. Play for your college and win exciting matches.</p>
+                        {/* On a phone the pills and the picture are the Games tab's
+                            alone: on the other tabs they filled over half the
+                            screen and pushed the tab itself (a live match's
+                            Join game) below the fold (2026-10-17). */}
+                        <ul className={`mt-3 flex flex-wrap gap-x-5 gap-y-2 ${tab === 'games' ? '' : 'max-sm:hidden'}`}>
                             {HERO_PILLS.map(([Icon, label, tone]) => (
                                 <li key={label} className="flex items-center gap-2 text-xs font-semibold">
                                     <span className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/15 ${tone}`}><Icon size={14} aria-hidden="true" /></span> {label}
                                 </li>
                             ))}
                         </ul>
-                        <img src={HERO_ART} alt="" className="mt-5 w-full rounded-2xl lg:hidden" />
+                        {/* Below lg, the picture is part of the banner, not a
+                            card inside it: it runs to the banner's sides and
+                            bottom (the negative margins undo the padding), and
+                            its top and sides fade into the banner's purple. Its
+                            top 22 of 378 rows are cropped off (aspect 866/356,
+                            kept from the bottom): they hold the picture's own
+                            light edge line and rounded corners, which showed
+                            as a hairline even under the fade. */}
+                        {tab === 'games' && <img src={HERO_ART} alt="" data-hero-art
+                            className="-mx-5 -mb-5 mt-1 block aspect-[866/356] w-[calc(100%+2.5rem)] max-w-none object-cover object-bottom [mask-composite:intersect] [mask-image:linear-gradient(to_bottom,transparent,transparent_8%,black_42%),linear-gradient(to_right,transparent,black_7%,black_93%,transparent)] sm:-mx-7 sm:-mb-3 sm:w-[calc(100%+3.5rem)] lg:hidden" />}
                     </div>
                 </header>
 

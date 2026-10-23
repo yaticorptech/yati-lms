@@ -2,7 +2,7 @@ const User = require('../models/User');
 const Achievement = require('../models/Achievement');
 const SkillProgress = require('../models/SkillProgress');
 const Task = require('../models/Task');
-const { addXP } = require('./gamificationService');
+const { addXP, evaluateBadges } = require('./gamificationService');
 const { tokenise, overlapScore } = require('./lmsContext');
 
 // XP for a finished task: the admin's 'career_task' rule (Rewards → Reward rules).
@@ -82,12 +82,26 @@ const runCompletionSideEffects = async (userId, task) => {
     // two completions race past the creditedAt check below.
     const taskXp = await xpFor('career_task');
     if (taskXp > 0) xpPaid = await addXP(userId, taskXp, `completing "${task.title}"`, { refId: `task:${task._id}` });
+    // "First Task Completed" is earned by the task, not by XP, so it lands
+    // even when nothing was paid (a rule of 0). addXP checks the badges only
+    // when it pays.
+    if (!xpPaid) await evaluateBadges(userId, { announce: true });
 
     // A finished task is a meaningful learning activity: it advances the
     // daily streak and counts toward badges. XP was paid just above, so the
     // activity is recorded without paying it again.
     const { safeRecordActivity } = require('../../rewards/services/activityService');
     await safeRecordActivity({ userId, type: 'career_task', refId: task._id, skipXp: true });
+
+    // XP rule (optional): every task in today's plan done, once a day. Only a
+    // finished day counts; a skipped task leaves it unfinished.
+    const { recordIfRuled } = require('../../rewards/services/xpHooks');
+    const { startOfDay, addDays } = require('./dailyPlanService');
+    const dayStart = startOfDay();
+    const todays = await Task.find({ userId, assignedDate: { $gte: dayStart, $lt: addDays(dayStart, 1) } }).select('status').lean();
+    if (todays.length && todays.every((t) => t.status === 'Completed')) {
+      await recordIfRuled({ userId, type: 'day_plan_complete', refId: `day:${require('../../rewards/config/constants').dayKey()}` });
+    }
 
     // ONE skill, the one this task was about. This loop used to run over every
     // skill the student had, so a task on SQL joins advanced their public
@@ -97,6 +111,7 @@ const runCompletionSideEffects = async (userId, task) => {
     const skill = skillAdvancedBy(task, skills);
 
     if (skill) {
+      const levelBefore = skill.level;
       skill.progress = Math.min((Number(skill.progress) || 0) + SKILL_STEP, 100);
 
       if (skill.progress === 100) {
@@ -109,6 +124,13 @@ const runCompletionSideEffects = async (userId, task) => {
       }
       skill.lastUpdated = new Date();
       await skill.save();
+      // XP rule (optional): a skill moving up a level here, through finished
+      // tasks — never from the level the Skills page lets a student type in.
+      // Keyed by the skill's name, not its id: a rebuilt roadmap makes new
+      // skill rows, and the same level must not pay twice.
+      if (skill.level !== levelBefore) {
+        await recordIfRuled({ userId, type: 'skill_level_up', refId: `skill:${String(skill.skillName || '').trim().toLowerCase()}:${skill.level}` });
+      }
     }
   } catch (error) {
     console.error('Gamification error:', error);
@@ -124,35 +146,77 @@ const runCompletionSideEffects = async (userId, task) => {
  * re-checks the completion gates — so without this guard a student could bank
  * XP repeatedly for the same task.
  *
+ * Both steps are single atomic writes, conditional on the state they change.
+ * This used to read the task, check it in memory and then save it, so two
+ * requests finishing the same task together (the video gate and the notes
+ * gate landing in the same second) could both see "not completed", both
+ * save, and both run the side effects — the skill moved +10 instead of +5.
+ * Now only the request whose write actually flipped the task completes it,
+ * and only the one that stamped creditedAt pays for it.
+ *
  * Returns `completed: false` when the task was already done, so callers can
- * tell a fresh completion from a no-op and only celebrate the former.
+ * tell a fresh completion from a no-op and only celebrate the former. `task`
+ * is the task as it now stands in the database.
  */
 const completeTask = async (userId, task) => {
   if (!task) return { completed: false, task: null, xp: 0 };
   if (task.status === 'Completed') return { completed: false, task, xp: 0 };
 
-  task.status = 'Completed';
-  // Stamp the first completion only, so re-saving never shifts the date this
-  // task's streak credit belongs to.
-  task.completedAt = new Date();
-  // Finishing a missed task clears the skip: the profile should credit the
-  // catch-up rather than keep listing it as missed.
-  task.skippedAt = undefined;
+  // Stamp the completion date with the flip itself, so re-saving never shifts
+  // the date this task's streak credit belongs to. Finishing a missed task
+  // clears the skip: the profile should credit the catch-up rather than keep
+  // listing it as missed.
+  const done = await Task.findOneAndUpdate(
+    { _id: task._id, userId, status: { $ne: 'Completed' } },
+    { $set: { status: 'Completed', completedAt: new Date() }, $unset: { skippedAt: 1 } },
+    { returnDocument: 'after' }
+  );
+  if (!done) {
+    // Another request completed it first. Report it as it stands.
+    const current = await Task.findOne({ _id: task._id, userId });
+    return { completed: false, task: current || task, xp: 0 };
+  }
 
   // Pay out once per task, ever. The status guard above stops a repeated
   // completion, but not a reopen followed by another tick — and that loop was
-  // worth 10 XP and five points of skill progress every time round it.
-  const alreadyCredited = !!task.creditedAt;
-  if (!alreadyCredited) task.creditedAt = new Date();
-  await task.save();
+  // worth 10 XP and five points of skill progress every time round it. Also
+  // conditional, so of two completions only one can claim the payout.
+  const credited = await Task.findOneAndUpdate(
+    { _id: task._id, userId, creditedAt: null },
+    { $set: { creditedAt: new Date() } },
+    { returnDocument: 'after' }
+  );
 
-  const xp = alreadyCredited ? 0 : await runCompletionSideEffects(userId, task);
+  const xp = credited ? await runCompletionSideEffects(userId, credited) : 0;
 
-  return { completed: true, task, credited: !alreadyCredited, xp };
+  return { completed: true, task: credited || done, credited: !!credited, xp };
+};
+
+/**
+ * The XP each of these tasks actually paid on completion, from the ledger.
+ *
+ * Screens used to show "Done · +N XP" and "XP earned" as the number of
+ * finished tasks times TODAY's 'career_task' rule — so an admin changing the
+ * rule rewrote history, a task re-completed after a reopen (paid once) read as
+ * paid twice, and a rule of 0 at the time read as paid. The ledger row keyed
+ * `career:task:<id>` (addXP above, via the rewards XP service) is what was
+ * really credited. Tasks with no row paid nothing.
+ *
+ * @returns {Promise<Map<string, number>>} task id → XP paid
+ */
+const xpPaidForTasks = async (userId, taskIds = []) => {
+  const paid = new Map();
+  if (!userId || !taskIds.length) return paid;
+  const XpTransaction = require('../../rewards/models/XpTransaction');
+  const keys = taskIds.map((id) => `career:task:${id}`);
+  const rows = await XpTransaction.find({ userId, key: { $in: keys } }).select('key amount').lean();
+  for (const row of rows) paid.set(String(row.key).slice('career:task:'.length), Number(row.amount) || 0);
+  return paid;
 };
 
 module.exports = {
   completeTask,
+  xpPaidForTasks,
   runCompletionSideEffects,
   // Exported for tests: pure, and the part most worth pinning down.
   skillAdvancedBy

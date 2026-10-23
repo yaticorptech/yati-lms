@@ -19,18 +19,21 @@ const PostDetail = () => {
     const showLoader = useMinimumLoading(loading);
     const [replyContent, setReplyContent] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    // Said under the box, not in a browser alert; what was typed stays for another try.
+    const [replyError, setReplyError] = useState('');
 
     const handleReply = async (e) => {
         e.preventDefault();
         if (!replyContent.trim()) return;
 
         setSubmitting(true);
+        setReplyError('');
         try {
             await addComment(replyContent);
             setReplyContent('');
         } catch (err) {
             console.error('Failed to post reply:', err);
-            alert('Failed to post reply. Please try again.');
+            setReplyError((err.response?.status < 500 && err.response?.data?.message) || 'Your reply was not sent. Please try again.');
         } finally {
             setSubmitting(false);
         }
@@ -76,8 +79,11 @@ const PostDetail = () => {
                         </div>
                     </div>
 
-                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 leading-tight">{post.title}</h1>
-                    <div className="prose prose-slate max-w-none text-slate-600 text-lg leading-relaxed whitespace-pre-wrap">
+                    {/* overflow-wrap:anywhere on the title, the post and every
+                        reply: a pasted link is one unbroken word, and it ran the
+                        card off the side of a phone. */}
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-4 leading-tight [overflow-wrap:anywhere]">{post.title}</h1>
+                    <div className="prose prose-slate max-w-none text-slate-600 text-lg leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                         {post.content}
                     </div>
                 </div>
@@ -111,7 +117,7 @@ const PostDetail = () => {
                                         {new Date(comment.createdAt).toLocaleDateString()}
                                     </span>
                                 </div>
-                                <div className="text-slate-600 whitespace-pre-wrap leading-relaxed">
+                                <div className="text-slate-600 whitespace-pre-wrap leading-relaxed [overflow-wrap:anywhere]">
                                     {comment.content}
                                 </div>
                             </div>
@@ -131,7 +137,7 @@ const PostDetail = () => {
                     <div className="flex-1 w-full relative">
                         <textarea
                             value={replyContent}
-                            onChange={(e) => setReplyContent(e.target.value)}
+                            onChange={(e) => { setReplyContent(e.target.value); if (replyError) setReplyError(''); }}
                             placeholder="Add to the discussion..."
                             rows="3"
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all resize-none pb-12"
@@ -146,6 +152,7 @@ const PostDetail = () => {
                                 <Send size={16} className={submitting ? 'animate-pulse' : ''} />
                             </button>
                         </div>
+                        {replyError && <p role="alert" className="mt-2 px-2 text-sm font-semibold text-red-600">{replyError}</p>}
                     </div>
                 </form>
             </div>

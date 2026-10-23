@@ -2,39 +2,43 @@
  * @author Preethesh Kulal
  * @description Student quiz retrieval and answer submission with credit rewards
  */
-const mongoose = require('mongoose');
 const Quiz = require('../models/Quiz');
-const GlobalQuestion = require('../models/GlobalQuestion');
 const GlobalQuizAttempt = require('../models/GlobalQuizAttempt');
 const { livePaper } = require('../services/globalQuizService');
 const { chargeFor, refundCharge, sendShort } = require('../rewards/services/walletRuleService');
 const Setting = require('../models/Setting');
-const { canAccessCourse } = require('../services/courseAccess');
+const { lessonAccess } = require('../services/courseAccess');
 
 /**
- * Whether the student may use this lesson's quiz: the lesson's course must be
- * one they can open. An organization's own course is its members' alone.
+ * Whether the student may use this lesson's quiz right now: the same gate as
+ * marking a lesson done (services/courseAccess.js) — a published lesson, in a
+ * course they have, not behind its module's drip date, and done already or
+ * next in order. Only the course's own access used to be checked, so a quiz
+ * further on, or in a module not open yet, could be fetched and taken.
+ * Sends the refusal itself and answers null, or answers the gate's result. A
+ * course the student does not have is "not found", as before: no hint of what
+ * is inside it.
  */
-const lessonOpenTo = async (user, lessonId) => {
-    if (!mongoose.isValidObjectId(lessonId)) return false;
-    const lesson = await require('../models/Lesson').findById(lessonId).select('moduleId').lean();
-    if (!lesson) return false;
-    const mod = await require('../models/Module').findById(lesson.moduleId).select('courseId').lean();
-    if (!mod) return false;
-    const course = await require('../models/Course').findById(mod.courseId).select('organizationId').lean();
-    return canAccessCourse(user, course);
+const quizGate = async (req, res) => {
+    const access = await lessonAccess(req.user, req.params.lessonId);
+    if (access.ok) return access;
+    if (access.status === 403 && access.body.code !== 'NOT_ENROLLED') res.status(403).json(access.body);
+    else res.status(404).json({ message: 'Quiz not found for this lesson' });
+    return null;
 };
+
+// A lesson whose quiz is missing, or was saved with no questions: there is
+// nothing to pass, so the player lets the lesson be marked done instead.
+const noQuiz = (res) => res.status(404).json({ code: 'NO_QUIZ', message: 'This lesson has no quiz questions yet.' });
 
 // @desc    Get quiz for a specific lesson (Student view - hides correct answers)
 // @route   GET /api/user/lessons/:lessonId/quiz
 // @access  Private/User
 const getQuizForStudent = async (req, res) => {
     try {
-        if (!(await lessonOpenTo(req.user, req.params.lessonId))) return res.status(404).json({ message: 'Quiz not found for this lesson' });
+        if (!(await quizGate(req, res))) return;
         const quiz = await Quiz.findOne({ lessonId: req.params.lessonId }).lean();
-        if (!quiz) {
-            return res.status(404).json({ message: 'Quiz not found for this lesson' });
-        }
+        if (!quiz || !(quiz.questions || []).length) return noQuiz(res);
 
         // Security: Remove correctAnswerIndex and explanation before sending to client
         const safeQuestions = quiz.questions.map(q => ({
@@ -60,95 +64,83 @@ const getQuizForStudent = async (req, res) => {
 const submitQuizAnswers = async (req, res) => {
     try {
         const { answers } = req.body; // Array of selected indices matching question order
-        if (!(await lessonOpenTo(req.user, req.params.lessonId))) return res.status(404).json({ message: 'Quiz not found for this lesson' });
+        const access = await quizGate(req, res);
+        if (!access) return;
         const quiz = await Quiz.findOne({ lessonId: req.params.lessonId });
-
-        if (!quiz) {
-            return res.status(404).json({ message: 'Quiz not found' });
-        }
+        if (!quiz || !quiz.questions.length) return noQuiz(res);
 
         if (!Array.isArray(answers) || answers.length !== quiz.questions.length) {
             return res.status(400).json({ message: 'Invalid answers payload' });
         }
 
         let correctCount = 0;
-        const results = quiz.questions.map((q, index) => {
+        const marked = quiz.questions.map((q, index) => {
             const isCorrect = answers[index] === q.correctAnswerIndex;
             if (isCorrect) correctCount++;
-            return {
-                questionId: q._id,
-                providedAnswer: answers[index],
-                correctAnswer: q.correctAnswerIndex,
-                isCorrect,
-                explanation: q.explanation
-            };
+            return { q, index, isCorrect };
         });
 
-        const scorePercentage = Math.round((correctCount / quiz.questions.length) * 100);
-        const passed = scorePercentage >= quiz.passingScore;
+        const total = quiz.questions.length;
+        // Shown rounded; passed on the exact share. A rounded score let a
+        // 79.5% attempt through an 80% pass mark.
+        const scorePercentage = Math.round((correctCount / total) * 100);
+        const passed = correctCount * 100 >= quiz.passingScore * total;
+
+        // The review — every right answer and its explanation — only once the
+        // quiz is passed. A failed attempt used to send them all back, so the
+        // next attempt could simply copy them: it now hears which questions
+        // it got right and wrong, and nothing more.
+        const results = marked.map(({ q, index, isCorrect }) => (passed
+            ? { questionId: q._id, providedAnswer: answers[index], correctAnswer: q.correctAnswerIndex, isCorrect, explanation: q.explanation }
+            : { questionId: q._id, providedAnswer: answers[index], isCorrect }));
 
         let creditsEarned = 0;
         let totalCredits = 0;
         const rewards = { events: [] };
 
         try {
-            const Setting = require('../models/Setting');
             const settings = await Setting.findOne();
             const isCreditSystemEnabled = settings ? settings.isCreditSystemEnabled : true;
 
             const User = require('../models/User');
-            let user = await User.findById(req.user._id);
-            totalCredits = user?.credits || 0;
-
             const Progress = require('../models/Progress');
-            const Lesson = require('../models/Lesson');
-            const lesson = await Lesson.findById(quiz.lessonId);
+            totalCredits = (await User.findById(req.user._id).select('credits').lean())?.credits || 0;
+            const courseId = String(access.course._id);
 
-            if (lesson && user) {
-                // Lesson has no direct courseId — must resolve via moduleId → Module
-                const Module = require('../models/Module');
-                const module = await Module.findById(lesson.moduleId, 'courseId').lean();
-                const courseId = module?.courseId;
+            // Atomic find-or-create, so a quiz submitted twice at once
+            // cannot leave two progress rows for the course.
+            const progress = await Progress.findOrCreate(req.user._id, courseId);
 
-                if (!courseId) {
-                    console.error('Could not resolve courseId for lesson', lesson._id);
-                } else {
-                    // Atomic find-or-create, so a quiz submitted twice at once
-                    // cannot leave two progress rows for the course.
-                    const progress = await Progress.findOrCreate(req.user._id, courseId);
-
-                    // Check First Attempt Logic - if system is enabled
-                    if (isCreditSystemEnabled && (!progress.attemptedQuizzesForCredit || !progress.attemptedQuizzesForCredit.includes(quiz._id))) {
-                        // Mark as attempted for credit
-                        progress.attemptedQuizzesForCredit = progress.attemptedQuizzesForCredit || [];
-                        progress.attemptedQuizzesForCredit.push(quiz._id);
-
-                        // Add credits strictly relative to the first score regardless of pass/fail
-                        creditsEarned = scorePercentage;
-                        user.credits = (user.credits || 0) + creditsEarned;
-                        await user.save();
-                        totalCredits = user.credits;
-                    }
-
-                    // Standard pass logic (independent of credits)
-                    if (passed && !progress.passedQuizzes.includes(quiz._id)) {
-                        progress.passedQuizzes.push(quiz._id);
-                    }
-
-                    await progress.save();
-
-                    // Rewards: completing a quiz pays once, passing it pays once
-                    // more; the activity ledger makes retakes free of both.
-                    const { safeRecordActivity } = require('../rewards/services/activityService');
-                    const done = await safeRecordActivity({ userId: req.user._id, type: 'quiz_complete', refId: quiz._id, courseId, meta: { score: scorePercentage, passed } });
-                    rewards.events.push(...done.events);
-                    if (passed) {
-                        const won = await safeRecordActivity({ userId: req.user._id, type: 'quiz_pass', refId: quiz._id, courseId, meta: { score: scorePercentage } });
-                        rewards.events.push(...won.events);
-                    }
+            // The first attempt earns credits, pass or fail — once. The
+            // attempt is marked in the same step that checks it, so two
+            // submits at once cannot both find it unmarked and both be paid.
+            // The amount (the score, as a number of credits) is unchanged
+            // here: what a first attempt should be worth is a product
+            // decision still to be made.
+            if (isCreditSystemEnabled) {
+                const first = await Progress.updateOne(
+                    { _id: progress._id, attemptedQuizzesForCredit: { $ne: quiz._id } },
+                    { $push: { attemptedQuizzesForCredit: quiz._id } }
+                );
+                if (first.modifiedCount === 1) {
+                    creditsEarned = scorePercentage;
+                    const paid = await User.findByIdAndUpdate(req.user._id, { $inc: { credits: creditsEarned } }, { returnDocument: 'after' }).select('credits').lean();
+                    totalCredits = paid?.credits ?? totalCredits + creditsEarned;
                 }
             }
 
+            // Standard pass logic (independent of credits)
+            if (passed) await Progress.updateOne({ _id: progress._id }, { $addToSet: { passedQuizzes: quiz._id } });
+
+            // Rewards: completing a quiz pays once, passing it pays once
+            // more; the activity ledger makes retakes free of both.
+            const { safeRecordActivity } = require('../rewards/services/activityService');
+            const done = await safeRecordActivity({ userId: req.user._id, type: 'quiz_complete', refId: quiz._id, courseId, meta: { score: scorePercentage, passed } });
+            rewards.events.push(...done.events);
+            if (passed) {
+                const won = await safeRecordActivity({ userId: req.user._id, type: 'quiz_pass', refId: quiz._id, courseId, meta: { score: scorePercentage } });
+                rewards.events.push(...won.events);
+            }
         } catch (err) {
             console.error('Error awarding credits/progress:', err);
         }
@@ -156,12 +148,14 @@ const submitQuizAnswers = async (req, res) => {
         res.json({
             score: scorePercentage,
             correctCount,
-            totalQuestions: quiz.questions.length,
+            totalQuestions: total,
             passed,
             creditsEarned,
+            // The balance after this attempt, as the server has it: the page
+            // shows this rather than adding the credits to its own copy.
             totalCredits,
             rewards,
-            results // Send back the correct answers and explanations for review
+            results
         });
 
     } catch (error) {
@@ -208,28 +202,31 @@ const quizOff = (res) => res.status(403).json({ code: 'GLOBAL_QUIZ_OFF', message
 
 const timeUp = (attempt, quiz) => (quiz.timeLimitMinutes || 0) > 0 && Date.now() - attempt.startedAt.getTime() > quiz.timeLimitMinutes * 60_000 + TIME_GRACE_MS;
 
-/** Close an attempt and score it out of the whole paper. */
-const closeAttempt = async (attempt, { timedOut = false, total }) => {
-    if (attempt.finishedAt) return attempt;
-    attempt.finishedAt = new Date();
-    attempt.timedOut = !!timedOut;
-    attempt.totalQuestions = total;
-    attempt.correctCount = attempt.answers.filter((a) => a.isCorrect).length;
-    attempt.score = total ? Math.round((attempt.correctCount / total) * 100) : 0;
-    await attempt.save();
-    return attempt;
-};
+/**
+ * Close an attempt and score it out of the whole paper: each question once,
+ * the first answer standing, only questions on the paper (GlobalQuizAttempt
+ * holds the rules). Answers `{ attempt, closedNow }` — whether this call is
+ * the one that closed it.
+ */
+const closeAttempt = async (attempt, live, { timedOut = false } = {}) => attempt.closeAndScore({
+    total: live.questions.length,
+    timedOut,
+    timeLimitMinutes: live.quiz.timeLimitMinutes || 0,
+    winScore: await GlobalQuizAttempt.currentWinScore(),
+    paperIds: new Set([...live.questions.map((q) => String(q._id)), ...(attempt.order || []).map(String)])
+});
 
 /**
  * The attempt as the student app reads it. `byId` holds the quiz's questions,
  * so each answer the student gave comes back with its mark and explanation —
- * what they were already shown when it was marked.
+ * what they were already shown when it was marked. The first answer to a
+ * question is the one shown, as it is the one that counts.
  */
 const attemptView = (attempt, byId) => {
     if (!attempt) return null;
     const finished = !!attempt.finishedAt;
     const answers = {};
-    for (const a of attempt.answers) {
+    for (const a of attempt.countedAnswers()) {
         const q = byId[String(a.questionId)];
         answers[String(a.questionId)] = {
             questionId: String(a.questionId), questionText: q?.question || '',
@@ -246,15 +243,21 @@ const attemptView = (attempt, byId) => {
     };
 };
 
-/** The published paper, the student's attempt at it (if any), and the questions by id. */
+/**
+ * The published paper, the student's attempt at it (if any), and the
+ * questions by id. An open attempt whose time has run out closes now, so a
+ * reload cannot stretch the clock (`closedNow` says it was this call); a
+ * closed one stored with a repeated answer counted twice is put right.
+ */
 const paperFor = async (user) => {
     const live = await livePaper();
-    if (!live) return { live: null, attempt: null, byId: {} };
+    if (!live) return { live: null, attempt: null, byId: {}, closedNow: false };
     const byId = Object.fromEntries(live.questions.map((q) => [String(q._id), q]));
     let attempt = await GlobalQuizAttempt.findOne({ userId: user._id, quizId: live.quiz._id });
-    // An open attempt whose time has run out closes now, so a reload cannot stretch the clock.
-    if (attempt && !attempt.finishedAt && timeUp(attempt, live.quiz)) attempt = await closeAttempt(attempt, { timedOut: true, total: live.questions.length });
-    return { live, attempt, byId };
+    let closedNow = false;
+    if (attempt && !attempt.finishedAt && timeUp(attempt, live.quiz)) ({ attempt, closedNow } = await closeAttempt(attempt, live, { timedOut: true }));
+    else if (attempt?.finishedAt) await attempt.repairScore();
+    return { live, attempt, byId, closedNow };
 };
 
 // @desc    The published Global Quiz. The administrator decides the paper —
@@ -343,9 +346,12 @@ const startGlobalQuiz = async (req, res) => {
     }
 };
 
-// @desc    Mark answers. With an attempt open, each answer is kept as part of
-//          it, and the first answer to a question is the one that stands.
-//          Without one (an older app), the marking is stateless.
+// @desc    Mark answers, as part of the student's open attempt at the
+//          published quiz: each one is kept, and the first answer to a
+//          question is the one that stands. Without an open attempt nothing
+//          is marked. Marking used to work with no attempt at all ("an older
+//          app"), and it marked any question in the bank — answers and
+//          explanations included — with no attempt, clock or one-try rule.
 // @route   POST /api/user/quizzes/global/submit
 // @access  Private/User
 const submitGlobalQuiz = async (req, res) => {
@@ -355,36 +361,51 @@ const submitGlobalQuiz = async (req, res) => {
         const answers = Array.isArray(req.body?.answers) ? req.body.answers.slice(0, MAX_QUESTIONS) : null;
         if (!answers || !answers.length) return res.status(400).json({ message: 'Answer at least one question first.' });
 
-        const ids = answers.map((a) => a.questionId).filter((id) => mongoose.isValidObjectId(id));
-        const rows = ids.length ? await GlobalQuestion.find({ _id: { $in: ids } }).lean() : [];
-        const byId = Object.fromEntries(rows.map((q) => [String(q._id), q]));
-        const marked = answers.filter((a) => byId[a.questionId]);
-        if (!marked.length) return res.status(400).json({ message: 'Those questions are not in the quiz bank.' });
-
-        const { live, attempt, byId: liveById } = await paperFor(req.user);
-        if (attempt?.finishedAt) {
-            return res.status(409).json({ code: attempt.timedOut ? 'TIME_UP' : 'ALREADY_ATTEMPTED', message: attempt.timedOut ? 'Time is up for this quiz.' : 'You have already taken this quiz.', attempt: attemptView(attempt, liveById) });
+        const { live, attempt: found, byId: liveById } = await paperFor(req.user);
+        if (!live || !found) return res.status(409).json({ code: 'NO_ATTEMPT', message: 'Start the quiz first.' });
+        if (found.finishedAt) {
+            return res.status(409).json({ code: found.timedOut ? 'TIME_UP' : 'ALREADY_ATTEMPTED', message: found.timedOut ? 'Time is up for this quiz.' : 'You have already taken this quiz.', attempt: attemptView(found, liveById) });
         }
-        const kept = attempt ? Object.fromEntries(attempt.answers.map((a) => [String(a.questionId), a])) : {};
+
+        // Each question once, and only questions on this paper. The same
+        // question sent many times in one go used to be stored, and scored,
+        // as many answers.
+        const asked = new Map();
+        for (const a of answers) {
+            const id = String(a?.questionId ?? '');
+            if (!liveById[id] || asked.has(id)) continue;
+            asked.set(id, Number.isInteger(a.answer) ? a.answer : null);
+        }
+        if (!asked.size) return res.status(400).json({ message: 'Those questions are not in this quiz.' });
+
+        // Each answer is added only if the question has none yet and the
+        // attempt is still open, in one step: two submissions at once cannot
+        // both add an answer to the same question.
+        for (const [id, given] of asked) {
+            const q = liveById[id];
+            await GlobalQuizAttempt.updateOne(
+                { _id: found._id, finishedAt: null, 'answers.questionId': { $ne: q._id } },
+                { $push: { answers: { questionId: q._id, answer: given, isCorrect: given === q.correctAnswerIndex } } }
+            );
+        }
+        const attempt = (await GlobalQuizAttempt.findById(found._id)) || found;
+        const kept = Object.fromEntries(attempt.countedAnswers().map((a) => [String(a.questionId), a]));
 
         let correctCount = 0;
-        const results = marked.map((a) => {
-            const q = byId[a.questionId];
-            // An answer already on record is the one that counts, whatever is sent now.
-            const given = kept[a.questionId] ? kept[a.questionId].answer : (a.answer ?? null);
-            const isCorrect = given === q.correctAnswerIndex;
+        const results = [...asked.keys()].filter((id) => kept[id]).map((id) => {
+            const q = liveById[id];
+            // The answer on record is the one that counts, whatever is sent now.
+            const { answer, isCorrect } = kept[id];
             if (isCorrect) correctCount++;
             return {
-                questionId: String(q._id), questionText: q.question,
-                providedAnswer: given, correctAnswer: q.correctAnswerIndex,
+                questionId: id, questionText: q.question,
+                providedAnswer: answer, correctAnswer: q.correctAnswerIndex,
                 isCorrect, explanation: q.explanation || ''
             };
         });
-        if (attempt) {
-            for (const r of results) {
-                if (!kept[r.questionId] && liveById[r.questionId]) attempt.answers.push({ questionId: r.questionId, answer: r.providedAnswer, isCorrect: r.isCorrect });
-            }
-            await attempt.save();
+        // Closed meanwhile (time up, or finished on another screen) before any of these was kept.
+        if (!results.length) {
+            return res.status(409).json({ code: attempt.timedOut ? 'TIME_UP' : 'ALREADY_ATTEMPTED', message: attempt.timedOut ? 'Time is up for this quiz.' : 'You have already taken this quiz.', attempt: attemptView(attempt, liveById) });
         }
         res.json({
             score: Math.round((correctCount / results.length) * 100),
@@ -407,38 +428,134 @@ const finishGlobalQuiz = async (req, res) => {
         if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
         const found = await paperFor(req.user);
         const { live, byId } = found;
-        let { attempt } = found;
+        let { attempt, closedNow } = found;
         if (!live || !attempt) return res.status(404).json({ message: 'Start the quiz first.' });
-        attempt = await closeAttempt(attempt, { timedOut: !!req.body?.timedOut || timeUp(attempt, live.quiz), total: live.questions.length });
+        if (!attempt.finishedAt) ({ attempt, closedNow } = await closeAttempt(attempt, live, { timedOut: !!req.body?.timedOut || timeUp(attempt, live.quiz) }));
 
-        // A win — a final score at or above the admin's win score — pays the
-        // "Win the Global Quiz" XP rule, once per quiz (the activity ledger
-        // refuses the same quiz twice). Never a reason to fail the finish.
-        let win = { won: false, winScore: null, xp: 0 };
-        try {
-            const rewards = await require('../rewards/services/configService').getConfig();
-            const winScore = Number(rewards.globalQuiz?.winScore ?? 60);
-            const xp = Math.max(0, Math.round(Number(rewards.xpRules?.global_quiz_win) || 0));
-            win = { won: (attempt.score || 0) >= winScore, winScore, xp: 0 };
-            if (win.won && xp > 0 && rewards.enabled !== false) {
-                const { safeRecordActivity } = require('../rewards/services/activityService');
-                const done = await safeRecordActivity({ userId: req.user._id, type: 'global_quiz_win', refId: `global-win:${live.quiz._id}`, meta: { score: attempt.score } });
-                if (done && done.enabled && !done.duplicate && !done.error) win.xp = xp;
-            }
-        } catch (e) {
-            console.error('[global quiz] win XP failed:', e.message);
+        // A win — a final score at or above the win score in force when the
+        // attempt closed, decided then and kept on it — pays the "Win the
+        // Global Quiz" XP rule, once per quiz (the activity ledger refuses
+        // the same quiz twice). Nothing is a win while Rewards is off: the
+        // history says the same. Never a reason to fail the finish.
+        const events = [];
+        // One closed before wins were kept on the attempt is decided now, once.
+        if (attempt.won == null) await attempt.decideWin(await GlobalQuizAttempt.currentWinScore());
+        const paid = await GlobalQuizAttempt.payWin(attempt);
+        events.push(...paid.events);
+        const win = { won: !!attempt.won, winScore: attempt.winScore ?? null, xp: paid.xp };
+
+        // "Finish the Global Quiz" (an optional rule) is paid by the request
+        // that closed the attempt, once per quiz. It used to be paid for any
+        // successful Finish, keyed by the day, so pressing Finish on an
+        // already-closed attempt paid it again every day.
+        if (closedNow) {
+            const { recordIfRuled } = require('../rewards/services/xpHooks');
+            const done = await recordIfRuled({ userId: req.user._id, type: 'global_quiz_complete', refId: `global-complete:${live.quiz._id}`, meta: { score: attempt.score } });
+            if (done?.events) events.push(...done.events);
         }
-        res.json({ attempt: attemptView(attempt, byId), win });
+        // The XP events, so the app can show them and re-read its figures.
+        res.json({ attempt: attemptView(attempt, byId), win, rewards: { events } });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// How many past attempts the history returns. A quiz a week is a year of them.
+const HISTORY_LIMIT = 60;
+
+// @desc    The student's finished Global Quiz attempts, newest first: each
+//          quiz's title, when it was taken, and how it went. The published
+//          quiz's own attempt is flagged `current`, since the tab shows that
+//          one as its result card already. A quiz an administrator has since
+//          deleted keeps its row: the attempt is still the student's.
+// @route   GET /api/user/quizzes/global/history
+// @access  Private/User
+const getGlobalQuizHistory = async (req, res) => {
+    try {
+        const config = await quizConfig();
+        if (config.enabled === false && !hasFullAccess(req.user)) return quizOff(res);
+        const GlobalQuiz = require('../models/GlobalQuiz');
+        const live = await GlobalQuiz.findOne({ status: 'published' }).sort({ publishedAt: -1 }).select('_id').lean();
+
+        // An attempt left open at a quiz that is no longer the published one
+        // could never be finished (Finish needs the published quiz) and so
+        // was never listed. Unpublishing closes them now; one left open from
+        // before that is closed here, scored as it stood.
+        const stranded = await GlobalQuizAttempt.find({ userId: req.user._id, finishedAt: null, ...(live ? { quizId: { $ne: live._id } } : {}) }).select('quizId').lean();
+        for (const quizId of new Set(stranded.map((a) => String(a.quizId)))) {
+            const quiz = await GlobalQuiz.findById(quizId).select('_id timeLimitMinutes').lean();
+            if (quiz) await GlobalQuizAttempt.closeOpenAt(quiz);
+        }
+
+        const rows = await GlobalQuizAttempt.find({ userId: req.user._id, finishedAt: { $ne: null } })
+            .sort({ finishedAt: -1 })
+            .limit(HISTORY_LIMIT)
+            .populate('quizId', 'title');
+
+        // Whether each one was a win is decided when it closes and kept on it
+        // (the same rule Finish pays XP by). One closed before that was kept
+        // is decided now, by the win score in force, and kept from here on.
+        // Nothing is called a win while Rewards is off.
+        const winScore = await GlobalQuizAttempt.currentWinScore();
+        for (const a of rows) {
+            await a.repairScore();
+            await a.decideWin(winScore);
+        }
+
+        res.json({
+            winScore,
+            attempts: rows.map((a) => ({
+                id: String(a._id),
+                quizId: a.quizId?._id ? String(a.quizId._id) : String(a.quizId),
+                title: a.quizId?.title || 'A past quiz',
+                finishedAt: a.finishedAt,
+                elapsedMs: Math.max(0, new Date(a.finishedAt) - new Date(a.startedAt)),
+                timedOut: !!a.timedOut,
+                correctCount: a.correctCount || 0,
+                totalQuestions: a.totalQuestions || 0,
+                score: a.score || 0,
+                won: !!a.won,
+                current: !!live && String(a.quizId?._id || a.quizId) === String(live._id)
+            }))
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    Just whether a Global Quiz is live, for the "a new quiz is out"
+//          notice every page checks every minute: its title and dates and
+//          whether this student has taken it — no questions, so it is cheap
+//          to ask often. Nothing while the Global Quiz is switched off.
+// @route   GET /api/user/quizzes/global/live
+// @access  Private/User
+const getGlobalQuizLive = async (req, res) => {
+    try {
+        const all = require('../services/fullAccess').hasFullAccess(req.user);
+        if (!all && (await quizConfig()).enabled === false) return res.json({ quiz: null });
+        await require('../services/globalQuizService').ensureMigrated();
+        const quiz = await require('../models/GlobalQuiz').findOne({ status: 'published' }).sort({ publishedAt: -1 })
+            .select('title description publishedAt openDays').lean();
+        if (!quiz) return res.json({ quiz: null });
+        const attempted = await GlobalQuizAttempt.exists({ userId: req.user._id, quizId: quiz._id });
+        res.json({
+            quiz: {
+                id: String(quiz._id), title: quiz.title, description: quiz.description || '',
+                publishedAt: quiz.publishedAt, closesAt: closesAtOf(quiz), closed: isClosed(quiz), attempted: !!attempted
+            }
+        });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
 
 module.exports = {
+    getGlobalQuizLive,
     getQuizForStudent,
     submitQuizAnswers,
     getGlobalQuiz,
     startGlobalQuiz,
     submitGlobalQuiz,
-    finishGlobalQuiz
+    finishGlobalQuiz,
+    getGlobalQuizHistory
 };

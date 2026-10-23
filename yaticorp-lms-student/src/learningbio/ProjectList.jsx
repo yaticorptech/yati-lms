@@ -1,10 +1,20 @@
 /** Projects — build-type work the student completed on their Career Path roadmap. */
+import { useContext } from 'react';
 import { Rocket, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
 import { fmtDate } from './api';
 import { Empty } from './ui';
 
-export default function ProjectList({ projects = [] }) {
+/**
+ * `linkable` is false on a shared bio, read by someone else: "View Project"
+ * opens the reader's own planner, not the author's. It also goes while an
+ * administrator has Career Path switched off — the planner is part of it, and
+ * the link only bounced the student back to the Dashboard without a word.
+ */
+export default function ProjectList({ projects = [], linkable = true }) {
+    const { isCareerPathEnabled } = useContext(AuthContext) || {};
+    const showLink = linkable && isCareerPathEnabled !== false;
     if (!projects.length) return <Empty icon={Rocket} title="No projects yet">Complete a build task on your Career Path roadmap and it shows up here as a project.</Empty>;
     return (
         <ul className="stagger grid gap-3 sm:grid-cols-2">
@@ -23,7 +33,7 @@ export default function ProjectList({ projects = [] }) {
                     </div>
                     <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
                         <span>{fmtDate(p.completedAt)}</span>
-                        <Link to="/career/planner" className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:underline">View Project <ArrowRight size={12} /></Link>
+                        {showLink && <Link to="/career/planner" className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:underline">View Project <ArrowRight size={12} /></Link>}
                     </div>
                 </li>
             ))}

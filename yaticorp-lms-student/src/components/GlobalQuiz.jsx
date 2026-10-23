@@ -24,19 +24,28 @@
  * first attempt of a lesson's own quiz, inside the course player.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Globe, CheckCircle2, XCircle, Loader2, Info, ArrowRight, Tag, Play, Timer, ListChecks, Lock, Trophy, X, CalendarClock } from 'lucide-react';
+import { Globe, CheckCircle2, XCircle, Loader2, Info, ArrowRight, Tag, Play, Timer, ListChecks, Lock, Trophy, X, CalendarClock, TrendingUp, Star } from 'lucide-react';
 import Portal from './Portal';
 import api from '../utils/api';
-import { GlobeScene, Waves, ScriptNote } from './quiz/QuizArt';
+import { GlobeScene } from './quiz/QuizArt';
 import PriceTag from './rewards/PriceTag';
+import useCountUp from '../hooks/useCountUp';
+import QuizHistory from './quiz/QuizHistory';
+import { useHideLoop } from './loopVisibility';
+// The clock and the score's colour, shared with the list of past quizzes.
+import { clock, toneFor, shortDate } from './quiz/quizFormat';
 
-/** A span of time as the clock shows it: m:ss, or h:mm:ss past an hour. */
-const clock = (ms) => {
-    const s = Math.max(0, Math.ceil(ms / 1000));
-    const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const sec = s % 60;
-    return `${h ? `${h}:` : ''}${h ? String(m).padStart(2, '0') : m}:${String(sec).padStart(2, '0')}`;
-};
 const minutes = (n) => `${n} minute${n === 1 ? '' : 's'}`;
+
+// The server's ways of saying "the attempt is not where you think it is":
+// taken already, out of time, or none open at all (a reload, another device).
+// Each is answered the same way — the paper is fetched again and shown as the
+// server has it.
+const STALE_ATTEMPT = ['ALREADY_ATTEMPTED', 'TIME_UP', 'NO_ATTEMPT'];
+const staleAttempt = (e) => STALE_ATTEMPT.includes(e?.response?.data?.code);
+
+// How long a closing paper waits for an answer that is still being marked.
+const FINISH_GRACE_MS = 3000;
 
 // `startedAt` is when Start was pressed: 0 until then, and the clock's zero.
 // `saved` says the server has the attempt closed; `finishedAt` freezes the clock;
@@ -71,6 +80,62 @@ const TimerPill = ({ reading, limited, running, urgent, compact }) => (
     </span>
 );
 
+/**
+ * The score as a ring that draws in from nothing while the figure counts up.
+ * A score of 0 draws no arc at all: a zero-length stroke with round ends was
+ * the lone orange dot sitting at the top of an empty ring.
+ */
+const ScoreRing = ({ score, size = 152 }) => {
+    const [shown, setShown] = useState(0);
+    useEffect(() => { const t = setTimeout(() => setShown(score), 80); return () => clearTimeout(t); }, [score]);
+    const counted = useCountUp(score, 900);
+    const stroke = 12;
+    const r = (size - stroke) / 2;
+    const c = 2 * Math.PI * r;
+    const tone = toneFor(score);
+    return (
+        <div className="relative mx-auto shrink-0 animate-pop-in" style={{ width: size, height: size }} role="img" aria-label={`Your score ${score}%`}>
+            <span aria-hidden="true" className="absolute inset-4 rounded-full opacity-25 blur-2xl" style={{ background: tone }} />
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="relative -rotate-90">
+                <circle cx={size / 2} cy={size / 2} r={r} fill="#fff" stroke="#f1effb" strokeWidth={stroke} />
+                {score > 0 && (
+                    <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={tone} strokeWidth={stroke} strokeLinecap="round"
+                        strokeDasharray={c} strokeDashoffset={c * (1 - shown / 100)}
+                        style={{ transition: 'stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1)' }} />
+                )}
+            </svg>
+            <span className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-4xl font-black tabular-nums text-slate-900">{counted}%</span>
+                <span className="mt-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Your score</span>
+            </span>
+        </div>
+    );
+};
+
+const TILE_TONES = {
+    emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    rose: 'bg-rose-50 text-rose-700 ring-rose-100',
+    violet: 'bg-violet-50 text-violet-700 ring-violet-100'
+};
+/** One figure of the result — correct, wrong, time — popping in after the ring. */
+const ResultTile = ({ tone, icon: Icon, label, delay, children }) => (
+    <div className={`animate-pop-in rounded-2xl px-2 py-3 text-center ring-1 ring-inset ${TILE_TONES[tone]}`} style={{ animationDelay: `${delay}s` }}>
+        <p className="text-2xl font-black leading-none tabular-nums">{children}</p>
+        <p className="mt-1.5 flex items-center justify-center gap-1 text-[11px] font-bold opacity-80"><Icon size={12} /> {label}</p>
+    </div>
+);
+
+/** One figure in the banner — the student's record, or what a quiz is — counting up as it pops in. */
+const HeroStat = ({ icon: Icon, label, value, suffix = '', delay = 0 }) => {
+    const counted = useCountUp(typeof value === 'number' ? value : 0, 900);
+    return (
+        <div className="animate-pop-in rounded-2xl bg-white/10 px-3.5 py-2.5 ring-1 ring-inset ring-white/15 backdrop-blur-sm" style={{ animationDelay: `${delay}s` }}>
+            <dt className="flex items-center gap-1.5 text-[11px] font-bold text-white/70"><Icon size={13} aria-hidden="true" /> {label}</dt>
+            <dd className="mt-0.5 text-xl font-black tabular-nums">{typeof value === 'number' ? `${counted}${suffix}` : value}</dd>
+        </div>
+    );
+};
+
 export default function GlobalQuiz() {
     const [nonce, setNonce] = useState(0);           // bumped to fetch the paper again
     // Both pieces of state carry the paper they belong to, so a request that
@@ -87,11 +152,28 @@ export default function GlobalQuiz() {
     const [starting, setStarting] = useState(false);
     const [now, setNow] = useState(0);               // the clock, moved on once a second while the paper is open
     const savedRef = useRef(null);                   // the paper whose result has been sent
+    const rootRef = useRef(null);                    // the tab's own box, for bringing the score into view
+    // The paper on screen now, for answers that land after it has changed.
+    const keyRef = useRef(key);
+    useEffect(() => { keyRef.current = key; }, [key]);
+    // The paper whose pending answer the finish stopped waiting for.
+    const [graceOver, setGraceOver] = useState(null);
 
     useEffect(() => {
         let cancelled = false;
         api.get('/user/quizzes/global')
-            .then((r) => { if (!cancelled) { setNow(Date.now()); setLoaded({ key, paper: r.data, error: '', seed: seedFrom(r.data, key) }); } })
+            .then((r) => {
+                if (cancelled) return;
+                const seed = seedFrom(r.data, key);
+                setNow(Date.now());
+                setLoaded({ key, paper: r.data, error: '', seed });
+                // The working copy starts from the server's record straight
+                // away. The clock's time-up only ever looked at this copy, and
+                // after a reload mid-attempt it was still blank (the screen was
+                // drawn from the seed) — so the clock stood at 0:00 and the
+                // paper never closed.
+                setWork(seed);
+            })
             .catch((e) => !cancelled && setLoaded({ key, paper: null, error: e.response?.data?.message || 'Could not load the quiz.', seed: FRESH }));
         return () => { cancelled = true; };
     }, [key]);
@@ -106,37 +188,72 @@ export default function GlobalQuiz() {
     // question-by-question review is only shown right after finishing.
     const returned = !!showScore && !w.finishedHere;
     const running = started && !showScore;
+    // Loop, the mascot, steps aside while the paper is being taken and while
+    // its answers are reviewed straight after; it is back for the list.
+    useHideLoop(started && !returned);
     const limitMs = (paper?.quiz?.timeLimitMinutes || 0) * 60_000;
 
     // The clock. It only moves while the paper is open, and when a time limit
-    // runs out it closes the paper itself, score and all.
+    // runs out it closes the paper itself, score and all. It closes at the
+    // limit, not at the tick that noticed: that tick comes up to a second
+    // late, and "Time taken" read 10:01 on a 10-minute paper.
     useEffect(() => {
         if (!running) return undefined;
         const tick = setInterval(() => {
             const t = Date.now();
             setNow(t);
             if (limitMs && t - startedAt >= limitMs) {
-                setWork((prev) => (prev.key === key && prev.startedAt === startedAt && !prev.showScore ? { ...prev, showScore: true, timedOut: true, finishedAt: t, celebrate: true, finishedHere: true } : prev));
+                setWork((prev) => (prev.key === key && prev.startedAt === startedAt && !prev.showScore ? { ...prev, showScore: true, timedOut: true, finishedAt: startedAt + limitMs, celebrate: true, finishedHere: true } : prev));
             }
         }, 1000);
         return () => clearInterval(tick);
     }, [running, limitMs, startedAt, key]);
 
     // The score is final the moment it is shown: the server closes the attempt.
+    // When the clock runs out with an answer still being marked, that answer
+    // is waited for (briefly) first: closing straight away raced it, and the
+    // last answer the student gave could be refused as "time up" or left out
+    // of the score.
     useEffect(() => {
         if (!ready || !started || !showScore || saved || savedRef.current === key) return undefined;
+        if (pending && graceOver !== key) {
+            const t = setTimeout(() => setGraceOver(key), FINISH_GRACE_MS);
+            return () => clearTimeout(t);
+        }
         savedRef.current = key;
-        let cancelled = false;
         api.post('/user/quizzes/global/finish', { timedOut })
             .then((r) => {
-                if (cancelled) return;
+                // XP was paid whether or not the student is still on this tab:
+                // the header, the wallet and the celebrations are told
+                // regardless. Leaving the tab used to cancel this, and the
+                // header kept the old XP until the next reload.
+                const events = r.data?.rewards?.events;
+                if (events?.length) window.dispatchEvent(new CustomEvent('yati:rewards', { detail: events }));
+                if (r.data?.win?.xp > 0 || events?.length) window.dispatchEvent(new CustomEvent('yati:progress-changed'));
                 setWork((prev) => (prev.key === key ? { ...prev, saved: true, result: resultOf(r.data?.attempt) || prev.result, win: r.data?.win || null } : prev));
-                // A win paid XP: the header's XP and wallet figures re-read.
-                if (r.data?.win?.xp > 0) window.dispatchEvent(new CustomEvent('yati:progress-changed'));
             })
-            .catch((e) => { if (!cancelled) { savedRef.current = null; setMarkError(e.response?.data?.message || 'Your result could not be saved. Check your connection.'); } });
+            .catch((e) => {
+                if (keyRef.current !== key) return;
+                savedRef.current = null;
+                // No attempt open on the server (closed elsewhere, or never
+                // opened there): show the paper as the server has it.
+                if (staleAttempt(e)) { setNonce((n) => n + 1); return; }
+                setMarkError(e.response?.data?.message || 'Your result could not be saved. Check your connection.');
+            });
+        return undefined;
+    }, [ready, started, showScore, saved, timedOut, key, pending, graceOver]);
+
+    // Every quiz the student has taken, for the banner's record and the list.
+    // Read again once a quiz is finished, so the record counts it.
+    const historyKey = `${key}:${saved ? 'saved' : ''}`;
+    const [history, setHistory] = useState({ rows: undefined, winScore: null });
+    useEffect(() => {
+        let cancelled = false;
+        api.get('/user/quizzes/global/history')
+            .then((r) => { if (!cancelled) setHistory({ rows: r.data?.attempts || [], winScore: r.data?.winScore ?? null }); })
+            .catch(() => { if (!cancelled) setHistory((h) => (h.rows === undefined ? { rows: null, winScore: null } : h)); });
         return () => { cancelled = true; };
-    }, [ready, started, showScore, saved, timedOut, key]);
+    }, [historyKey]);
 
     const load = () => { setNonce((n) => n + 1); setMarkError(''); };
     // Changes to the paper start from where the server left it, never from
@@ -144,7 +261,14 @@ export default function GlobalQuiz() {
     // forget an attempt that was resumed.
     const step = (change) => setWork((prev) => ({ ...(prev.key === key ? prev : loaded.seed), key, ...change }));
     const goTo = (index) => { setMarkError(''); step({ at: index }); };
-    const finish = () => { step({ showScore: true, finishedAt: Date.now(), celebrate: true, finishedHere: true }); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    // The score is at the top of the tab. The page scrolls inside the layout's
+    // <main>, not the window, so window.scrollTo moved nothing: the quiz's own
+    // box is brought into view instead.
+    const finish = () => {
+        step({ showScore: true, finishedAt: Date.now(), celebrate: true, finishedHere: true });
+        const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        rootRef.current?.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' });
+    };
     // The popup that greets a just-finished paper; a resumed, finished attempt opens without it.
     const closeCelebration = () => step({ celebrate: false });
 
@@ -161,7 +285,7 @@ export default function GlobalQuiz() {
             })
             .catch((e) => {
                 // Already taken (or timed out) on another screen: the server has the result.
-                if (['ALREADY_ATTEMPTED', 'TIME_UP'].includes(e.response?.data?.code)) load();
+                if (staleAttempt(e)) load();
                 else setMarkError(e.response?.data?.message || 'Could not start the quiz.');
             })
             .finally(() => setStarting(false));
@@ -180,8 +304,9 @@ export default function GlobalQuiz() {
                     : prev));
             })
             .catch((e) => {
-                // The attempt was closed meanwhile (time up, or finished elsewhere): show the result the server has.
-                if (['ALREADY_ATTEMPTED', 'TIME_UP'].includes(e.response?.data?.code)) { load(); return; }
+                // The attempt was closed meanwhile (time up, finished elsewhere), or
+                // the server has none open: show the paper as the server has it.
+                if (staleAttempt(e)) { load(); return; }
                 setMarkError(e.response?.data?.message || 'Could not mark that answer.');
                 // The choice is rolled back so the question can be answered again.
                 setWork((prev) => {
@@ -240,27 +365,71 @@ export default function GlobalQuiz() {
     // The panel stays inside its column. It used to bleed past it with a
     // negative margin, which widened the page by that margin on a phone and
     // set the whole tab scrolling sideways.
-    // The score as a ring that fills to it, with the tally beneath: shared by
-    // the popup at the finish and the result shown on a later visit.
+    // The score as a ring that fills to it, with the tally beneath, for the
+    // popup at the finish. A later visit has its own card (below), the ring
+    // beside the tally.
+    // Correct, wrong and the time, shared by the popup and the result card.
+    const tiles = (place) => (
+        <div className={`mt-5 grid grid-cols-3 gap-2 sm:gap-3 ${place}`}>
+            <ResultTile tone="emerald" icon={CheckCircle2} label="Correct" delay={0.35}>{correct}</ResultTile>
+            <ResultTile tone="rose" icon={XCircle} label="Wrong" delay={0.45}>{answered - correct}</ResultTile>
+            <ResultTile tone="violet" icon={Timer} label="Time taken" delay={0.55}>
+                <span role="timer" aria-label={`Time taken ${clock(elapsed)}`}>{clock(elapsed)}</span>
+            </ResultTile>
+        </div>
+    );
+    // The published quiz, not taken yet: the first row of the list, with its
+    // Start button. Its facts (questions, time, one attempt) sit beside the
+    // button rather than in tiles above it.
+    const startRow = started ? null : (
+        <div className="rounded-2xl bg-gradient-to-r from-violet-50 via-violet-50/40 to-white p-3 ring-1 ring-inset ring-violet-200 sm:p-4">
+            <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap">
+                <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-violet-600 text-white shadow-md shadow-violet-200">
+                    {!paper.quiz?.closed && <span aria-hidden="true" className="absolute inset-0 rounded-full bg-violet-400 opacity-30 motion-safe:animate-ping" />}
+                    <Play size={20} className="relative" />
+                </span>
+                <div className="min-w-0 flex-1">
+                    <p className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-black text-slate-900 first-letter:uppercase">{paper.quiz?.title || 'Global Quiz'}</span>
+                        <span className="shrink-0 rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">New</span>
+                    </p>
+                    {paper.quiz?.description && <p className="mt-0.5 truncate text-sm text-slate-600 first-letter:uppercase">{paper.quiz.description}</p>}
+                    <p className="mt-0.5 text-xs text-slate-500">
+                        {total} question{total === 1 ? '' : 's'} · {limit ? minutes(limit) : 'No time limit'} · One attempt
+                    </p>
+                </div>
+                {paper.quiz?.closed ? (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 ring-1 ring-rose-200"><CalendarClock size={14} /> Closed</span>
+                ) : (
+                    <button type="button" onClick={start} disabled={starting}
+                        className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-black text-white shadow-md shadow-violet-200 hover:bg-violet-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
+                        {starting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} Start quiz <PriceTag action="start_global_quiz" />
+                    </button>
+                )}
+            </div>
+            {markError && <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{markError}</p>}
+        </div>
+    );
+    // Where the student stands with the Global Quiz right now, for the banner's chip.
+    const closesOn = paper.quiz?.closesAt ? shortDate(paper.quiz.closesAt) : null;
+    const status = running ? { dot: 'bg-amber-300', text: `In progress · ${paper.quiz?.title || 'Global Quiz'}` }
+        : showScore && !returned ? { dot: 'bg-emerald-400', text: 'Quiz complete' }
+            : !started ? (paper.quiz?.closed
+                ? { dot: 'bg-rose-400', text: `Closed${closesOn ? ` on ${closesOn}` : ''}` }
+                : { dot: 'bg-emerald-400', pulse: true, text: `New quiz live${closesOn ? ` · open until ${closesOn}` : ''}` })
+                : { dot: 'bg-violet-300', text: 'All caught up — watch for the next quiz' };
+    // Their record across every quiz taken, for the banner's figures.
+    const taken = history.rows || [];
+    const record = taken.length ? {
+        taken: taken.length,
+        average: Math.round(taken.reduce((sum, a) => sum + a.score, 0) / taken.length),
+        best: Math.max(...taken.map((a) => a.score)),
+        wins: taken.filter((a) => a.won).length
+    } : null;
     const scoreDetails = !showScore ? null : (
         <>
-            <div className="relative mx-auto mt-5 h-36 w-36">
-                <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-                    <circle cx="60" cy="60" r="52" fill="none" strokeWidth="12" className="stroke-slate-100" />
-                    <circle cx="60" cy="60" r="52" fill="none" strokeWidth="12" strokeLinecap="round"
-                        strokeDasharray={`${(2 * Math.PI * 52 * score) / 100} ${2 * Math.PI * 52}`}
-                        className={score >= 80 ? 'stroke-emerald-500' : score >= 50 ? 'stroke-violet-600' : 'stroke-amber-500'} />
-                </svg>
-                <span className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-4xl font-black tabular-nums text-slate-900">{score}%</span>
-                    <span className="text-[11px] font-bold text-slate-400">Your score</span>
-                </span>
-            </div>
-            <div className="mx-auto mt-5 grid max-w-sm grid-cols-3 gap-2">
-                <div className="rounded-2xl bg-emerald-50 px-2 py-2.5"><p className="text-lg font-black text-emerald-600">{correct}</p><p className="text-[11px] font-bold text-emerald-700/70">Correct</p></div>
-                <div className="rounded-2xl bg-rose-50 px-2 py-2.5"><p className="text-lg font-black text-rose-600">{answered - correct}</p><p className="text-[11px] font-bold text-rose-700/70">Wrong</p></div>
-                <div className="rounded-2xl bg-violet-50 px-2 py-2.5"><p role="timer" aria-label={`Time taken ${clock(elapsed)}`} className="text-lg font-black tabular-nums text-violet-700">{clock(elapsed)}</p><p className="text-[11px] font-bold text-violet-700/70">Time taken</p></div>
-            </div>
+            <div className="mt-5"><ScoreRing score={score} /></div>
+            {tiles('mx-auto max-w-sm')}
             {total - answered > 0 && <p className="mt-2 text-xs font-semibold text-slate-500">{total - answered} left unanswered</p>}
             {w.win?.won && (
                 <p className="mx-auto mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3.5 py-1.5 text-sm font-black text-amber-700 ring-1 ring-amber-200">
@@ -274,97 +443,79 @@ export default function GlobalQuiz() {
     );
 
     return (
-        <div className="relative isolate overflow-hidden rounded-[2rem] bg-violet-50/60 p-2 sm:p-3 animate-fade-in">
-            <Waves className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-40 w-full opacity-70" />
+        // One even tint behind the banner and the cards. It used to fade to
+        // white at the bottom in a wave, which made the panel look as if it
+        // stopped halfway down whatever card sat lowest.
+        <div ref={rootRef} className="relative isolate scroll-mt-4 overflow-hidden rounded-[2rem] bg-violet-50/60 p-2 sm:p-3 animate-fade-in">
 
             {/* ── Banner ──────────────────────────────────────────── */}
-            <div className="relative overflow-hidden rounded-[1.6rem] bg-gradient-to-r from-violet-100 via-violet-100/60 to-violet-200/80 px-5 pb-5 pt-5 sm:px-7">
-                <Waves className="pointer-events-none absolute inset-x-0 bottom-0 h-24 w-full" />
-                <GlobeScene className="pointer-events-none absolute -right-6 -top-5 hidden h-[215px] w-auto sm:block" />
-
-                <div className="relative flex items-start gap-3">
-                    <div className="min-w-0 flex-1">
-                        {/* The icon sits beside the eyebrow, not beside the whole block,
-                            so on a phone the title and text get the full width. */}
-                        <div className="flex items-center gap-2.5">
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80 text-violet-600 shadow-sm ring-1 ring-violet-200/60"><Globe size={22} /></span>
-                            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-600">Global Quiz</p>
-                        </div>
-                        <h3 className="mt-3 text-[1.65rem] font-black leading-tight tracking-tight text-slate-900 first-letter:uppercase [overflow-wrap:anywhere] sm:text-3xl">{paper.quiz?.title || 'Global Quiz'}</h3>
-                        {paper.quiz?.description && <p className="mt-1 max-w-lg text-[15px] font-semibold text-slate-600 first-letter:uppercase [overflow-wrap:anywhere]">{paper.quiz.description}</p>}
-                        <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-500">
-                            {paper.available} general question{paper.available === 1 ? '' : 's'}
-                            {paper.categories?.length ? ` across ${paper.categories.length} categor${paper.categories.length === 1 ? 'y' : 'ies'}` : ''}, mixed into one paper.
-                        </p>
-                        <p className="mt-1.5 flex max-w-lg items-start gap-1.5 text-[13px] leading-snug text-slate-500"><Info size={14} className="mt-px shrink-0 text-violet-400" /> One attempt each. A winning score earns XP.</p>
-                        {/* The admin's day limit: until when a new attempt can be started. */}
-                        {paper.quiz?.closesAt && (
-                            <p className={`mt-1.5 flex max-w-lg items-start gap-1.5 text-[13px] font-semibold leading-snug ${paper.quiz.closed ? 'text-rose-600' : 'text-slate-500'}`}>
-                                <CalendarClock size={14} className={`mt-px shrink-0 ${paper.quiz.closed ? 'text-rose-500' : 'text-violet-400'}`} />
-                                {paper.quiz.closed ? 'Closed on ' : 'Open until '}{new Date(paper.quiz.closesAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                            </p>
-                        )}
-                    </div>
-                    {/* The note and the globe share the right-hand end: the note
-                        flows, and the spacer holds open the room the globe is
-                        drawn over, so the two can never sit on top of each other. */}
-                    <ScriptNote lines={['Small', 'Steps', 'Big Knowledge!']}
-                        className="mt-1 hidden shrink-0 text-[16px] leading-tight text-violet-500 lg:block" tilt={-8} />
-                    <div aria-hidden="true" className="hidden w-[200px] shrink-0 sm:block" />
+            {/* The tab's header: what the Global Quiz is, where the student stands
+                with it right now, and their record. The quiz itself — its title,
+                its facts, its Start button — is a row in the list below, so none
+                of that is repeated here; the old banner said it all twice. */}
+            <header className="relative overflow-hidden rounded-[1.6rem] bg-gradient-to-br from-[#2d2693] via-[#3b31c4] to-[#6a45e0] px-5 py-6 text-white shadow-lg shadow-violet-900/10 sm:px-8 sm:py-7">
+                <span aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.14]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.75) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
+                <span aria-hidden="true" className="pointer-events-none absolute -bottom-28 -left-20 h-72 w-72 rounded-full bg-fuchsia-500/25 blur-3xl" />
+                <span aria-hidden="true" className="pointer-events-none absolute -top-24 right-32 h-64 w-64 rounded-full bg-sky-400/20 blur-3xl" />
+                {/* The globe sits wholly inside the banner now (it used to run off
+                    the edge), floating, with a glow behind it. Not on a phone,
+                    where the words need the width. */}
+                <div aria-hidden="true" className="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 md:block lg:right-8">
+                    <span className="absolute inset-8 rounded-full bg-sky-300/35 blur-2xl" />
+                    <GlobeScene className="drift relative h-[160px] w-auto lg:h-[185px]" />
                 </div>
 
-                {/* What the paper is, before and after it is taken, as three even
-                    tiles. While it is being taken the progress strip below carries
-                    the count and the clock, so they are not shown twice. */}
-                {(!started || (showScore && !returned)) && (
-                    <div className="relative mt-5 grid max-w-xl grid-cols-3 gap-2">
-                        <div className="rounded-2xl bg-white/85 px-3 py-2.5 shadow-sm ring-1 ring-white">
-                            <p className="flex items-center gap-1 text-[11px] font-bold text-slate-400"><ListChecks size={13} className="text-violet-500" /> Questions</p>
-                            <p className="mt-0.5 text-lg font-black tabular-nums text-slate-900">{total}</p>
-                        </div>
-                        <div className="rounded-2xl bg-white/85 px-3 py-2.5 shadow-sm ring-1 ring-white">
-                            <p className="flex items-center gap-1 text-[11px] font-bold text-slate-400"><Timer size={13} className="text-violet-500" /> {started ? (pill.limited ? 'Time left' : 'Time taken') : limit ? 'Time limit' : 'Time'}</p>
-                            {started
-                                ? <p role="timer" aria-label={`${pill.limited ? 'Time left' : 'Time taken'} ${reading}`} className="mt-0.5 text-lg font-black tabular-nums text-slate-900">{reading}</p>
-                                : <p className="mt-0.5 text-lg font-black leading-tight text-slate-900">{limit ? minutes(limit) : 'No time limit'}</p>}
-                        </div>
-                        <div className="rounded-2xl bg-white/85 px-3 py-2.5 shadow-sm ring-1 ring-white">
-                            <p className="flex items-center gap-1 text-[11px] font-bold text-slate-400"><Lock size={12} className="text-violet-500" /> Attempt</p>
-                            <p className={`mt-0.5 text-lg font-black ${showScore ? 'text-slate-500' : 'text-slate-900'}`}>{showScore ? 'Used' : 'One only'}</p>
-                        </div>
+                <div className="relative md:pr-[250px] lg:pr-[300px]">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ring-1 ring-inset ring-white/20"><Globe size={13} aria-hidden="true" /> Global Quiz</span>
+                        <span className="inline-flex min-w-0 items-center gap-2 rounded-full bg-black/15 px-3 py-1 text-xs font-bold ring-1 ring-inset ring-white/15">
+                            <span className="relative flex h-2 w-2 shrink-0">
+                                {status.pulse && <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 motion-safe:animate-ping ${status.dot}`} />}
+                                <span className={`relative inline-flex h-2 w-2 rounded-full ${status.dot}`} />
+                            </span>
+                            <span className="truncate first-letter:uppercase">{status.text}</span>
+                        </span>
                     </div>
-                )}
-            </div>
-
-            {/* ── Before Start: what to expect, and the button ────── */}
-            {!started && (
-                <div className="relative mt-4 animate-fade-in-up rounded-3xl border border-violet-100 bg-white p-6 text-center shadow-sm sm:p-8">
-                    <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-100 text-violet-600"><Play size={30} /></span>
-                    <h4 className="mt-4 text-xl font-black text-slate-900">Ready when you are</h4>
-                    <p className="mx-auto mt-1 max-w-md text-sm text-slate-600">
-                        You get one attempt at this paper: {total} question{total === 1 ? '' : 's'}, one at a time, each marked as you answer it.{' '}
-                        {limit ? `You have ${minutes(limit)} for the whole paper; the clock starts when you press Start.` : 'There is no time limit, but the clock shows how long you take.'}
+                    <h3 className="mt-3 text-[1.7rem] font-black leading-tight tracking-tight sm:text-[2.1rem]">
+                        Test your <span className="bg-gradient-to-r from-amber-200 via-pink-200 to-sky-200 bg-clip-text text-transparent">general knowledge</span>
+                    </h3>
+                    {/* Not on a phone (asked 2026-10-15). */}
+                    <p className="mt-1.5 hidden max-w-xl text-sm leading-relaxed text-white/80 sidebar:block">
+                        Your institution sets a new paper from time to time: quick questions, one attempt each, and XP when your score is a win.
                     </p>
-                    {markError && <p className="mx-auto mt-3 max-w-md rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700">{markError}</p>}
-                    {paper.quiz?.closed ? (
-                        <p className="mx-auto mt-5 inline-flex max-w-md items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-bold text-rose-700">
-                            <CalendarClock size={16} /> This quiz is closed. Watch for the next one.
-                        </p>
-                    ) : (
-                    <button type="button" onClick={start} disabled={starting}
-                        className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-8 py-3 text-base font-black text-white shadow-md shadow-violet-200 hover:bg-violet-700 disabled:cursor-wait disabled:opacity-60">
-                        {starting ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />} Start quiz <PriceTag action="start_global_quiz" />
-                    </button>
+
+                    {/* The student's record once they have one; until then, what a
+                        quiz is. Not while a paper is open: the question comes first. */}
+                    {!running && (
+                        <dl className="mt-5 grid max-w-2xl grid-cols-2 gap-2 sm:grid-cols-4">
+                            {record ? (
+                                <>
+                                    <HeroStat icon={ListChecks} label="Quizzes taken" value={record.taken} delay={0.1} />
+                                    <HeroStat icon={TrendingUp} label="Average" value={record.average} suffix="%" delay={0.18} />
+                                    <HeroStat icon={Trophy} label="Best score" value={record.best} suffix="%" delay={0.26} />
+                                    <HeroStat icon={Star} label="Wins" value={record.wins} delay={0.34} />
+                                </>
+                            ) : (
+                                <>
+                                    <HeroStat icon={ListChecks} label="Questions" value={total} delay={0.1} />
+                                    <HeroStat icon={Timer} label="Time" value={limit ? minutes(limit) : 'No limit'} delay={0.18} />
+                                    <HeroStat icon={Lock} label="Attempts" value="One" delay={0.26} />
+                                    <HeroStat icon={Star} label="Win XP at" value={history.winScore != null ? `${history.winScore}%+` : 'A high score'} delay={0.34} />
+                                </>
+                            )}
+                        </dl>
                     )}
                 </div>
-            )}
+            </header>
 
-            {/* ── A later visit: the score, and nothing else ─────── */}
-            {returned && (
-                <div className="relative mt-4 animate-fade-in-up rounded-3xl border border-violet-100 bg-white p-6 text-center shadow-sm">
-                    <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700"><CheckCircle2 size={14} /> {timedOut ? 'Finished when the time ran out' : 'Quiz completed'}</p>
-                    <p className="mt-2 text-lg font-black text-slate-900">{correct} of {total} correct</p>
-                    {scoreDetails}
+            {/* ── The quizzes: a new one to start, and every one taken ──
+                One list. A quiz the admin has published and the student has not
+                taken yet comes first, with its Start button; then each quiz taken,
+                with its score — the latest included, which used to have a large
+                result card of its own above the list. */}
+            {(!started || returned) && (
+                <div className="relative mt-3 animate-fade-in-up rounded-[1.6rem] border border-violet-100 bg-white p-5 shadow-sm sm:p-6">
+                    <QuizHistory rows={history.rows} newQuiz={startRow} />
                 </div>
             )}
 
@@ -386,7 +537,7 @@ export default function GlobalQuiz() {
                                         </p>
                                     </div>
                                 </div>
-                                <p className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600"><Info size={14} className="mt-0.5 shrink-0 text-slate-400" /> That was your one attempt at this quiz. Your course progress, credits and XP are unchanged — take a lesson&apos;s own quiz inside the course to earn those.</p>
+                                <p className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600"><Info size={14} className="mt-0.5 shrink-0 text-slate-400" /> That was your one attempt at this quiz. It does not count towards your course progress — take a lesson&apos;s own quiz inside the course for that.</p>
                             </div>
                         )}
 
@@ -485,7 +636,12 @@ export default function GlobalQuiz() {
                         {showScore ? (
                             <p className="flex items-center justify-center gap-2 rounded-[1.4rem] border border-emerald-100 bg-emerald-50/70 px-5 py-3 text-sm font-bold text-emerald-700"><CheckCircle2 size={16} /> Quiz complete</p>
                         ) : (
-                            <div className={`sticky bottom-3 grid gap-2.5 rounded-[1.4rem] border border-violet-100 bg-white/95 p-2.5 shadow-lg backdrop-blur ${allAnswered || currentAnswered || nextOpen < 0 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            // Above the phone's floating bottom bar (which ends
+                            // 0.5rem plus the home-indicator inset from the
+                            // bottom, about 5rem tall): at bottom-3 the buttons
+                            // sat behind it. Once the sidebar replaces the bar,
+                            // back down to the edge.
+                            <div className={`sticky bottom-[calc(6rem+env(safe-area-inset-bottom))] sidebar:bottom-3 grid gap-2.5 rounded-[1.4rem] border border-violet-100 bg-white/95 p-2.5 shadow-lg backdrop-blur ${allAnswered || currentAnswered || nextOpen < 0 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                                 {allAnswered ? (
                                     <button type="button" onClick={finish} disabled={!!pending}
                                         className="inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-violet-200 hover:bg-violet-700 disabled:opacity-45">

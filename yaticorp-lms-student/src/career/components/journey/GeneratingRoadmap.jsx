@@ -5,9 +5,10 @@ import { YatiOrbit } from '../../../components/YatiLoader';
 /**
  * ✨ What the student watches while their roadmap is being written.
  *
- * Generation takes roughly ten seconds — long enough that a bare spinner reads
+ * Generation takes about half a minute — long enough that a bare spinner reads
  * as a stall, and long enough that the moment is worth something. This names
- * what is being worked out, in the order the prompt actually asks for it.
+ * what is being worked out, in the order the server really does it: the route
+ * is planned first, its order checked, and only then is each stage written.
  *
  * The stages advance on a timer, and are deliberately NOT dressed as measured
  * progress: no percentage, no bar, and the final stage holds until the real
@@ -17,13 +18,15 @@ import { YatiOrbit } from '../../../components/YatiLoader';
  */
 const STAGES = [
   { emoji: '🧭', label: 'Reading where you are today' },
-  { emoji: '🎯', label: 'Working out what your goal really needs' },
-  { emoji: '🗺️', label: 'Mapping the stages between the two' },
-  { emoji: '🧠', label: 'Choosing the skills each stage builds' },
-  { emoji: '✨', label: 'Writing your roadmap' }
+  { emoji: '🎯', label: 'Working out the real route to your goal' },
+  { emoji: '🗺️', label: 'Putting every stage in the right order' },
+  { emoji: '✅', label: 'Checking each exam comes before what it opens' },
+  { emoji: '✨', label: 'Writing up every stage' }
 ];
 
-const STAGE_MS = 2200;
+// Paced to a roughly 25-second generation, so the last step is the one
+// waiting on the response rather than holding for most of it.
+const STAGE_MS = 5000;
 
 export default function GeneratingRoadmap() {
   const [reached, setReached] = useState(0);
@@ -54,7 +57,7 @@ export default function GeneratingRoadmap() {
           <h2 className="mt-1.5 text-xl leading-tight font-black text-ink-900 sm:text-2xl">
             Creating your career journey
           </h2>
-          <p className="mt-1 text-sm text-ink-500">This usually takes about 10 seconds.</p>
+          <p className="mt-1 text-sm text-ink-500">This usually takes about half a minute.</p>
         </div>
 
         <ol className="mt-8 space-y-3">

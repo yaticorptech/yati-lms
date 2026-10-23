@@ -14,6 +14,7 @@ import {
 import { opportunitiesApi } from './api';
 import { labelFor, reasonSentence, ageLabel, whereLabel, hoursLabel, dateLabel } from './helpers';
 import PriceTag from '../components/rewards/PriceTag';
+import { statusLabel } from './application/status';
 
 const Fact = ({ icon: Icon, label, children }) => (
     <div className="flex items-start gap-2.5">
@@ -25,14 +26,18 @@ const Fact = ({ icon: Icon, label, children }) => (
     </div>
 );
 
-const GUARDIAN_TEXT = {
-    none: 'Guardian approval is required before you take this up. Request it from the banner at the top of the page.',
-    pending: 'Your guardian approval request is pending. You can mark interest now; the organisation is told once it is approved.',
-    approved: 'Your guardian has approved local jobs like this one.',
-    rejected: 'Your guardian has not approved local jobs yet.'
+/**
+ * The guardian line, for this job. Approval is asked per application now: the
+ * line used to read a board-wide status that no longer moves, and told an
+ * under-18 to "request it from the banner", which has no such button.
+ */
+const guardianLine = (application) => {
+    const status = application?.status;
+    if (!status || status === 'needs-guardian') return 'Required before you take this up. Apply, and we ask your parent or guardian to approve it.';
+    return `${statusLabel(status)}.`;
 };
 
-export default function OpportunityDetails({ id, vocab, guardian, onClose, onInterested, onReport, onApply }) {
+export default function OpportunityDetails({ id, vocab, onClose, onInterested, onReport, onApply }) {
     // Keyed by id: while the answer on hand is for another listing (or none),
     // the dialog is loading. No flag to flip, so nothing to set in the effect.
     const [state, setState] = useState({ id: null, opp: null, rules: null, error: '' });
@@ -158,7 +163,7 @@ export default function OpportunityDetails({ id, vocab, guardian, onClose, onInt
                                 {opp.supervision && <p className="mt-1.5 text-sm text-slate-700"><span className="font-semibold">Supervision:</span> {opp.supervision}</p>}
                                 {opp.safetyNotes && <p className="mt-1 text-sm text-slate-700">{opp.safetyNotes}</p>}
                                 {opp.guardianApprovalRequired && (
-                                    <p className="mt-2 text-sm text-slate-700"><span className="font-semibold">Guardian approval:</span> {GUARDIAN_TEXT[guardian?.status] || GUARDIAN_TEXT.none}</p>
+                                    <p className="mt-2 text-sm text-slate-700"><span className="font-semibold">Guardian approval:</span> {guardianLine(opp.application)}</p>
                                 )}
                             </section>
 
@@ -197,7 +202,8 @@ export default function OpportunityDetails({ id, vocab, guardian, onClose, onInt
                         {onApply && (
                             <button type="button" onClick={() => onApply(opp)}
                                 className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60">
-                                <Briefcase size={16} aria-hidden="true" /> Apply for part-time job <PriceTag action="apply_part_time" />
+                                {/* Applied already: the same dialog opens on where it stands. */}
+                                <Briefcase size={16} aria-hidden="true" /> {opp.application ? 'View my application' : <>Apply for part-time job <PriceTag action="apply_part_time" /></>}
                             </button>
                         )}
                         <button type="button" onClick={() => onReport(opp)}

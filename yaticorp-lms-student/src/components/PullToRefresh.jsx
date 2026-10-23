@@ -6,7 +6,8 @@
  *
  * It only starts when the scroller is already at the top and the finger moves
  * mostly downwards, and never from inside something that scrolls on its own
- * and is not at its top (a list, a dialog), so ordinary scrolling and sideways
+ * and is not at its top (a list), nor from a dialog or any overlay pinned over
+ * the page (see scrolledAncestor), so ordinary scrolling and sideways
  * swipes are untouched. The pull is damped, so it feels like rubber, and it
  * has to pass THRESHOLD before letting go refreshes.
  */
@@ -16,10 +17,23 @@ import { ArrowDown, RefreshCw } from 'lucide-react';
 const THRESHOLD = 70;   // px of (damped) pull that counts as "refresh"
 const MAX = 110;
 
+/**
+ * Whether a touch that starts at `el` belongs to something other than the
+ * page: a list scrolled down, a dialog, or an overlay laid over the page.
+ * A pull there reloaded the page from inside an open form — and threw away
+ * whatever had been typed into it — whenever the overlay was not marked as
+ * a dialog. So anything pinned over the page counts (position: fixed, the
+ * way every popup and sheet is drawn), so does a surface that takes its own
+ * touches (touch-action: none — a drawing pad, a game board), and so does
+ * anything that opts out with data-no-pull.
+ */
 const scrolledAncestor = (el, stop) => {
     for (let n = el; n && n !== stop; n = n.parentElement) {
+        if (n.nodeType !== 1) continue;
         if (n.scrollTop > 0) return true;
-        if (n.getAttribute?.('role') === 'dialog') return true;
+        if (n.getAttribute('role') === 'dialog' || n.hasAttribute('data-no-pull')) return true;
+        const style = window.getComputedStyle(n);
+        if (style.position === 'fixed' || style.touchAction === 'none') return true;
     }
     return false;
 };

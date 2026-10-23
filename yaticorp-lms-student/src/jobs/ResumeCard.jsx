@@ -14,10 +14,11 @@
  */
 import { useRef, useState } from 'react';
 import {
-    FileText, Upload, Loader2, X, Check, GraduationCap, BadgeCheck, ShieldCheck
+    FileText, Upload, Loader2, X, Check, GraduationCap, BadgeCheck
 } from 'lucide-react';
 import { jobsApi } from './api';
 import PriceTag from '../components/rewards/PriceTag';
+import Portal from '../components/Portal';
 
 const ACCEPT = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
 // A Word .docx is taken from the demo cards only (`acceptWord`).
@@ -113,19 +114,21 @@ export default function ResumeCard({ profile, onProfile, onApply, acceptWord = f
                             {profile.headline || profile.filename}
                         </p>
                     </div>
+                    {/* Small words, but each with a finger-sized touch area around
+                        it (found under 24px on a phone, 2026-10-16). */}
                     <button type="button" onClick={() => startReview(profile)}
-                        className="shrink-0 text-xs font-bold text-indigo-600 hover:text-indigo-700">
+                        className="relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] shrink-0 text-xs font-bold text-indigo-600 hover:text-indigo-700">
                         Apply
                     </button>
                     <button type="button" onClick={() => inputRef.current?.click()}
                         title="Replace with a new resume"
-                        className="shrink-0 text-xs font-semibold text-slate-500 hover:text-slate-700">
+                        className="relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] shrink-0 text-xs font-semibold text-slate-500 hover:text-slate-700">
                         Replace
                     </button>
                     <button type="button" onClick={remove}
                         title="Delete the extracted profile"
                         aria-label="Delete resume profile"
-                        className="shrink-0 rounded p-1 text-slate-400 transition-colors hover:bg-white hover:text-rose-500">
+                        className="relative shrink-0 rounded p-1 text-slate-400 transition-colors after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] hover:bg-white hover:text-rose-500">
                         <X size={13} />
                     </button>
                 </div>
@@ -178,20 +181,19 @@ export default function ResumeCard({ profile, onProfile, onApply, acceptWord = f
             {!profile && !error && (
                 <div className="mt-3 space-y-1.5 text-xs text-slate-500">
                     <p>Your resume helps us personalize your job matches.</p>
-                    <p className="flex items-start gap-1.5">
-                        <ShieldCheck size={14} className="mt-px shrink-0 text-emerald-500" />
-                        <span>Parsed securely and discarded — only the skills and education are kept, and you can delete them any time.</span>
-                    </p>
                 </div>
             )}
             {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
 
             {/* ── Review before anything is applied ─────────────────────── */}
+            {/* On <body>, above the phone's bottom bar: inside the page it ranked
+                below the bar, which covered its buttons when the skills ran long. */}
             {review && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-                    <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+                <Portal>
+                <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+                    <div role="dialog" aria-modal="true" aria-labelledby="resume-review-title" className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
                         <div className="border-b border-slate-100 bg-slate-50 p-5">
-                            <h3 className="flex items-center gap-2 font-bold text-slate-800">
+                            <h3 id="resume-review-title" className="flex items-center gap-2 font-bold text-slate-800">
                                 <FileText size={17} className="text-indigo-600" />
                                 Here&apos;s what your resume says
                             </h3>
@@ -267,6 +269,7 @@ export default function ResumeCard({ profile, onProfile, onApply, acceptWord = f
                         </div>
                     </div>
                 </div>
+                </Portal>
             )}
         </div>
     );

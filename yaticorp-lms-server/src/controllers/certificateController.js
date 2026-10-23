@@ -8,65 +8,59 @@ const path = require('path');
 const QRCode = require('qrcode');
 const Certificate = require('../models/Certificate');
 const Progress = require('../models/Progress');
+const { courseLessons } = require('../services/courseAccess');
+const { syncProgress, issueCertificate, settleCompletion } = require('../services/courseCompletion');
 const Course = require('../models/Course');
 const User = require('../models/User');
 
-// @desc    Generate Certificate when course is 100% complete
+// @desc    The certificate's PDF, for a course that is complete
 // @route   POST /api/certificates/generate
 // @access  Private/User
+// The record is made when the course is finished, not here: this route is
+// priced (Wallet rules → download_certificate) and charges on every call, so
+// the certificate the profile says is "earned automatically" no longer waits
+// for — or costs — a download.
 const generateCertificate = async (req, res) => {
     try {
         const { courseId } = req.body;
         const userId = req.user._id;
-
-        // 1. Check if progress is 100%
-        const progress = await Progress.findOne({ userId, courseId });
-        if (!progress || progress.percentage < 100) {
+        // A plain value only: an object here ({"$gt": ""}) would match some course.
+        if (typeof courseId !== 'string' && typeof courseId !== 'number') {
             return res.status(400).json({ message: 'Course is not completed yet.' });
         }
 
-        // 2. Check if certificate already exists (but we still want to generate it)
-        // If it exists, we just fetch the existing date so it's consistent.
-        // If not, we create a new record.
-        let existingCert = await Certificate.findOne({ userId, courseId });
-        let issuedDate = existingCert ? existingCert.issuedAt : new Date();
+        // 1. Complete, counted against the course's lessons as they are now —
+        // not the stored percentage, which an administrator adding a lesson
+        // used to leave at 100%.
+        const progress = await Progress.findOne({ userId, courseId: String(courseId) });
+        if (!progress) return res.status(400).json({ message: 'Course is not completed yet.' });
+        const { lessons } = await courseLessons(String(courseId));
+        const figures = await syncProgress(progress, lessons.map((l) => l._id));
+        if (!figures.complete) {
+            return res.status(400).json({ message: 'Course is not completed yet.' });
+        }
+
+        // 2. The certificate itself is issued when the course is finished
+        // (services/courseCompletion.js), with its XP. This is the PDF of it;
+        // a course finished before certificates were issued that way gets its
+        // record — and its XP, once — here, with the same numbering.
+        // A download is not a day of learning: anything settled here leaves the streak alone.
+        if (!figures.wasComplete) await settleCompletion({ userId, courseId: String(courseId), repair: true });
+        const { certificate: existingCert } = await issueCertificate({ userId, courseId: String(courseId), repair: true });
+        const issuedDate = existingCert.issuedAt || new Date();
 
         // Downloaded again after the student deleted it from their profile:
         // they want it, so it goes back in the frame, with its own number.
-        if (existingCert?.hiddenAt) {
+        if (existingCert.hiddenAt) {
             existingCert.hiddenAt = null;
             await existingCert.save();
         }
 
         const course = await Course.findById(courseId);
         const user = await User.findById(userId);
+        if (!course || !user) return res.status(404).json({ message: 'Course not found' });
 
-        let certNumber = existingCert?.certificateNumber;
-
-        if (!existingCert) {
-            // Fallback for card number if it doesn't exist on the user model yet
-            const displayCardNumber = user.cardNumber || Math.random().toString(36).substr(2, 6).toUpperCase();
-            // Each certificate the student earns gets the next sequence number:
-            // YATI<card>-01 for the first course, -02 for the second, and so on.
-            const heldSoFar = await Certificate.countDocuments({ userId });
-            certNumber = `YATI${displayCardNumber}-${String(heldSoFar + 1).padStart(2, '0')}`;
-
-            // Save to DB on first generation
-            existingCert = await Certificate.create({
-                userId,
-                courseId,
-                pdfUrl: 'dynamic', // No longer caching files visually
-                certificateNumber: certNumber,
-                issuedAt: issuedDate
-            });
-
-            // Rewards for the first issue. The PDF streams regardless.
-            try {
-                const { safeRecordActivity } = require('../rewards/services/activityService');
-                await safeRecordActivity({ userId, type: 'certificate_earned', refId: courseId, courseId });
-            } catch (e) { console.error('[rewards] certificate hook failed:', e.message); }
-        }
-
+        const certNumber = existingCert.certificateNumber;
 
         // 3. Setup PDF Generator for Streaming
         const doc = new PDFDocument({

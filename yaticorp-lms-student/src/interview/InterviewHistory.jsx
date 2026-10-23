@@ -11,7 +11,9 @@ import { markReturn } from './scrollMemory';
 import { useXpRule } from '../context/useRewards';
 
 export default function InterviewHistory() {
-    // The admin's 'mock_interview' rule (Rewards → Reward rules), not a number of our own.
+    // The admin's 'mock_interview' rule (Rewards → Reward rules), not a number
+    // of our own; null while Rewards is locked, when nothing is paid, and then
+    // no XP is promised at all.
     const MOCK_XP = useXpRule('mock_interview');
     const navigate = useNavigate();
     const [data, setData] = useState(undefined);
@@ -41,7 +43,7 @@ export default function InterviewHistory() {
             )}
             <Section icon={History} title="Interview history">
                 {!rows.length ? (
-                    <div className="animate-fade-in-up"><Empty title="No mock interviews yet">Your first one takes about ten minutes and earns {MOCK_XP} XP.</Empty><div className="mt-3 text-center"><Btn tone="primary" icon={Mic} onClick={() => navigate('/interview/mock/new')}>Start my first interview</Btn></div></div>
+                    <div className="animate-fade-in-up"><Empty title="No mock interviews yet">Your first one takes about ten minutes{MOCK_XP > 0 ? ` and earns ${MOCK_XP} XP` : ''}.</Empty><div className="mt-3 text-center"><Btn tone="primary" icon={Mic} onClick={() => navigate('/interview/mock/new')}>Start my first interview</Btn></div></div>
                 ) : (
                     <ul className="stagger space-y-2">
                         {rows.map((s, i) => {

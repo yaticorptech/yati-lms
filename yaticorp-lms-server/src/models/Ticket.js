@@ -15,6 +15,9 @@ const ticketSchema = new mongoose.Schema({
         enum: ['login', 'signup', 'dashboard', 'other'],
         default: 'other'
     },
+    // The address the student wrote from (/learn/…, /career/planner), which
+    // `page` is too coarse to say: support needs to know where they were stuck.
+    path: { type: String, maxlength: 300 },
     status: {
         type: String,
         enum: ['open', 'in-progress', 'resolved'],

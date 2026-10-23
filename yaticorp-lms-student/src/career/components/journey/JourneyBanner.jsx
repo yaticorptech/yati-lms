@@ -123,8 +123,9 @@ export default function JourneyBanner({ name, greeting, level = 1, progress, str
           </span>
         </h1>
 
+        {/* Not on a phone (asked 2026-10-15). */}
         <p
-          className="cb-in mt-2.5 text-[0.78rem] leading-[1.5] text-slate-600 sm:text-[0.85rem]"
+          className="cb-in mt-2.5 hidden text-[0.78rem] leading-[1.5] text-slate-600 sm:text-[0.85rem] sidebar:block"
           style={{ animationDelay: '0.22s' }}
         >
           Your tasks, exams and classes are all in one place — so every day brings you

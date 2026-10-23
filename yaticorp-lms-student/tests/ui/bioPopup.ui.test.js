@@ -19,10 +19,12 @@ export default {
   post: () => Promise.resolve({ data: {} })
 };`;
 
+// In a router, as it always is in the app: it links to the full Learning Bio page.
 const entry = `
 import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
 import BioPopup from '${srcFile('learningbio/BioPopup.jsx')}';
-createRoot(document.getElementById('root')).render(<BioPopup onClose={() => {}} />);`;
+createRoot(document.getElementById('root')).render(<MemoryRouter><BioPopup onClose={() => {}} /></MemoryRouter>);`;
 
 const read = `
   await sleep(800);

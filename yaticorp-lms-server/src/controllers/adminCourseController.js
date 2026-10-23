@@ -597,10 +597,14 @@ const previewCourse = async (req, res) => {
         const course = await Course.findById(courseId);
         if (!course) return res.status(404).json({ message: 'Course not found' });
 
-        const modules = await Module.find({ courseId }).sort('order');
+        // In the order students get them (CONTENT_ORDER: the admin's order,
+        // then id where two share a number). By 'order' alone two lessons on
+        // the same number came out either way round, unlike the player.
+        const { CONTENT_ORDER } = require('../services/courseAccess');
+        const modules = await Module.find({ courseId }).sort(CONTENT_ORDER);
         const modulesWithLessons = await Promise.all(
             modules.map(async (mod) => {
-                const lessons = await Lesson.find({ moduleId: mod._id }).sort('order');
+                const lessons = await Lesson.find({ moduleId: mod._id }).sort(CONTENT_ORDER);
                 return { ...mod.toObject(), lessons };
             })
         );

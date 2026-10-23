@@ -211,8 +211,11 @@ const changeMyPassword = async (req, res) => {
         const admin = await Admin.findById(req.admin._id);
         if (!admin) return res.status(404).json({ message: 'Your account could not be found.' });
 
+        // 400, not 401: a mistyped password is a mistake in the form, and the
+        // admin panel reads any 401 as an expired session — it signed the
+        // person out instead of showing them this message.
         if (!(await admin.matchPassword(currentPassword))) {
-            return res.status(401).json({ message: 'That is not your current password.' });
+            return res.status(400).json({ code: 'WRONG_CURRENT_PASSWORD', message: 'That is not your current password.' });
         }
         if (await admin.matchPassword(newPassword)) {
             return res.status(400).json({ message: 'The new password is the same as the current one.' });
@@ -266,6 +269,11 @@ const getDashboard = async (req, res) => {
             : 0;
 
         const pendingRequests = await countPendingRequests(organizationId);
+        const { Teacher } = require('../../teacher/models');
+        const [teachers, pendingTeacherRequests] = await Promise.all([
+            Teacher.countDocuments({ organizationId }),
+            require('../../teacher/orgAdmin').countPending(organizationId)
+        ]);
 
         const recentActivity = rows
             .filter((r) => r.lastActive)
@@ -274,6 +282,7 @@ const getDashboard = async (req, res) => {
             .map((r) => ({
                 _id: r._id,
                 name: r.name,
+                profilePicture: r.profilePicture || '',
                 progressPercent: r.progressPercent,
                 coursesEnrolled: r.coursesEnrolled,
                 lastActive: r.lastActive
@@ -288,7 +297,9 @@ const getDashboard = async (req, res) => {
                 coursesCompleted: rows.reduce((sum, r) => sum + r.coursesCompleted, 0),
                 certificates: rows.reduce((sum, r) => sum + r.certificates, 0),
                 totalXp: rows.reduce((sum, r) => sum + r.xp, 0),
-                pendingRequests
+                pendingRequests,
+                teachers,
+                pendingTeacherRequests
             },
             recentActivity
         });
@@ -629,6 +640,9 @@ const decideRequest = async (req, res) => {
             });
         }
 
+        // XP rule (optional): the student's first organization, once ever, so
+        // leaving and rejoining pays nothing more.
+        await require('../../rewards/services/xpHooks').recordIfRuled({ userId: student._id, type: 'organization_join', refId: 'organization' });
         res.json({ message: `${student.name} is now a member of your organization.` });
     } catch (error) {
         if (error.name === 'CastError') {

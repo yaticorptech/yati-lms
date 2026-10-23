@@ -13,6 +13,7 @@
  */
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
+import ProfileImage from './ProfileImage';
 
 /** A desk by a window: books, a plant, a pencil cup. Drawn rather than
  *  shipped as a picture so it stays sharp at any size and weighs nothing. */
@@ -93,6 +94,11 @@ export default function WelcomeBanner({
             <span className="min-w-0 flex-1">
                 {/* The level the student is at, first. "260 XP to reach Level 4"
                     named only the next one, and read as though they were on it. */}
+                {/* No level yet (a device that has never saved one, before
+                    the profile answers): a placeholder, not a made-up Level 1. */}
+                {level == null ? (
+                    <span className="skeleton block h-5 w-44 max-w-full rounded-md" aria-label="Loading your level" />
+                ) : (
                 <span className="block text-sm text-slate-700">
                     <strong className="font-bold text-indigo-600">Level {level}</strong>
                     {/* Left out until the admin's level ladder has loaded, rather
@@ -104,8 +110,9 @@ export default function WelcomeBanner({
                         </>
                     )}
                 </span>
+                )}
                 <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-indigo-100"
-                    role="progressbar" aria-label={`Progress through level ${level}`}
+                    role="progressbar" aria-label={level == null ? 'Progress through your level' : `Progress through level ${level}`}
                     aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
                     <span className="block h-full rounded-full bg-indigo-600 transition-[width] duration-700" style={{ width: `${percent}%` }} />
                 </span>
@@ -136,14 +143,15 @@ export default function WelcomeBanner({
                             aria-label={photo ? 'View your photo' : undefined}
                             className="block rounded-full bg-indigo-100/80 p-1.5 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-default">
                             <span data-photo className="block h-16 w-16 overflow-hidden rounded-full border-4 border-white bg-indigo-50 min-[400px]:h-20 min-[400px]:w-20 sm:h-24 sm:w-24 lg:h-28 lg:w-28">
-                                {photo
-                                    ? <img src={photo} alt={name} className="h-full w-full object-cover" />
-                                    : <span className="flex h-full w-full items-center justify-center text-2xl font-black text-indigo-600">{initials}</span>}
+                                <ProfileImage src={photo} alt={name} className="h-full w-full object-cover"
+                                    fallback={<span className="flex h-full w-full items-center justify-center text-2xl font-black text-indigo-600">{initials}</span>} />
                             </span>
                         </button>
-                        <span className="absolute -bottom-1 -right-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-indigo-600 shadow-sm ring-4 ring-indigo-50">
-                            Lv {level}
-                        </span>
+                        {level != null && (
+                            <span className="absolute -bottom-1 -right-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-indigo-600 shadow-sm ring-4 ring-indigo-50">
+                                Lv {level}
+                            </span>
+                        )}
                     </div>
 
                     <div className="min-w-0">

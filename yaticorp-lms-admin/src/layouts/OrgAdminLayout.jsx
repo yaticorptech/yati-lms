@@ -11,17 +11,19 @@
  * refuse it anyway — this turns a wall of 403s into one clear explanation.
  * The check is a read, not the security boundary: the server enforces it.
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, UserPlus, BookOpen, Settings, LogOut, RefreshCw, Trophy,
-    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft
+    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft, Hourglass, Languages, Presentation
 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from '../utils/useAutoLogout';
 import initials from '../utils/initials';
 import OrgBottomNav from '../components/OrgBottomNav';
+import PullToRefresh from '../components/PullToRefresh';
+import PageLoading from '../components/PageLoading';
 import { getViewedOrganization, stopViewingOrganization } from '../utils/viewOrganization';
 import useCenterTabs from '../hooks/useCenterTabs';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -32,9 +34,14 @@ const NAV = [
     { to: '/organization', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
     { to: '/organization/students', label: 'Students', short: 'Students', icon: Users },
     { to: '/organization/requests', label: 'Student requests', short: 'Requests', icon: UserPlus, badge: 'pendingRequests' },
+    // Its teachers, and teachers asking to join (src/pages/org/OrgTeachers.jsx).
+    { to: '/organization/teachers', label: 'Teachers', short: 'Teachers', icon: Presentation, badge: 'pendingTeacherRequests' },
     { to: '/organization/courses', label: 'Courses', short: 'Courses', icon: BookOpen },
     // Inter-college competitions: register the college's team, pick players.
     { to: '/organization/competitions', label: 'Competitions', short: 'Compete', icon: Trophy },
+    // Students' English: writing to review and progress. In the sidebar only:
+    // a seventh item would not fit the phone's bottom bar.
+    { to: '/organization/linguistic', label: 'English', short: 'English', icon: Languages, sidebarOnly: true },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
 
@@ -162,7 +169,7 @@ const OrgAdminLayout = () => {
     const [organization, setOrganization] = useState(null);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState('');
-    const [counts, setCounts] = useState({ pendingRequests: 0 });
+    const [counts, setCounts] = useState({ pendingRequests: 0, pendingTeacherRequests: 0 });
 
     const isActive = (path, exact) => (exact ? location.pathname === path : location.pathname === path || location.pathname.startsWith(path + '/'));
 
@@ -225,12 +232,50 @@ const OrgAdminLayout = () => {
                 } catch { return; }
             }
             // An older answer arriving after a newer one does not win.
-            if (seq === countSeq.current) setCounts({ pendingRequests: pending });
+            if (seq === countSeq.current) setCounts((c) => ({ ...c, pendingRequests: pending }));
         };
         loadCount();
         window.addEventListener('organization-requests-changed', loadCount);
         return () => window.removeEventListener('organization-requests-changed', loadCount);
     }, [location.pathname, active]);
+
+    /**
+     * The same badge for teachers asking to join, beside "Teachers": asked on
+     * navigation and when the Teachers page decides a request. Silent on
+     * failure, and a server without the endpoint simply shows no number.
+     */
+    const teacherSeq = useRef(0);
+    useEffect(() => {
+        if (!active) return undefined;
+        const loadTeacherCount = async () => {
+            const seq = ++teacherSeq.current;
+            try {
+                const r = await api.get('/organizations/me/teachers/requests/count');
+                if (seq === teacherSeq.current && typeof r.data?.pending === 'number') setCounts((c) => ({ ...c, pendingTeacherRequests: r.data.pending }));
+            } catch { /* no number rather than an error */ }
+        };
+        loadTeacherCount();
+        window.addEventListener('organization-teacher-requests-changed', loadTeacherCount);
+        window.addEventListener('organization-requests-changed', loadTeacherCount);
+        return () => {
+            window.removeEventListener('organization-teacher-requests-changed', loadTeacherCount);
+            window.removeEventListener('organization-requests-changed', loadTeacherCount);
+        };
+    }, [location.pathname, active]);
+
+    /**
+     * Pulling the page down on a phone loads it afresh, without reloading the
+     * app: the page opens again (and asks the server for everything it shows),
+     * and so do the organization's details and the requests badge. Anything
+     * kept in the address — a search, a filter, a page number — stays.
+     */
+    const scrollerRef = useRef(null);
+    const [pageKey, setPageKey] = useState(0);
+    const refreshPage = () => {
+        setPageKey((k) => k + 1);
+        window.dispatchEvent(new Event('organization-requests-changed'));
+        return api.get('/organizations/me/status').then((res) => setOrganization(res.data.organization)).catch(() => {});
+    };
 
     const [lastPath, setLastPath] = useState(location.pathname);
     if (lastPath !== location.pathname) {
@@ -285,7 +330,7 @@ const OrgAdminLayout = () => {
             {showSessionModal && (
                 <Dialog onClose={confirmLogout} size="max-w-sm" z="z-[200]">
                     <div className="p-6 text-center">
-                        <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">⏳</div>
+                        <div className="w-14 h-14 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4"><Hourglass size={26} className="text-indigo-600" /></div>
                         <DialogTitle className="text-lg font-bold text-slate-800 mb-1">Session Expired</DialogTitle>
                         <p className="text-slate-500 text-sm">Your session has expired. Please login again.</p>
                     </div>
@@ -426,9 +471,7 @@ const OrgAdminLayout = () => {
                                         <a href={STUDENT_PORTAL} target="_blank" rel="noopener noreferrer" className={`${MENU_ITEM} lg:hidden`}>
                                             <ExternalLink size={16} className="text-slate-400" /> Student Portal
                                         </a>
-                                        <button onClick={() => window.location.reload()} className={`${MENU_ITEM} w-full sm:hidden`}>
-                                            <RefreshCw size={16} className="text-slate-400" /> Refresh data
-                                        </button>
+                                        {/* No "Refresh data" here: a phone pulls the page down to refresh it. */}
                                         <div className="my-1 h-px bg-slate-100" />
                                         {viewing ? (
                                             <button onClick={() => { setProfileDropdownOpen(false); exitView(); }}
@@ -449,15 +492,16 @@ const OrgAdminLayout = () => {
                 </header>
 
                 {/* Bottom padding on phones keeps the last card clear of the floating nav bar. */}
-                <div className="flex-1 overflow-y-auto p-4 pb-28 custom-scrollbar lg:p-8">
+                <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 pb-28 custom-scrollbar lg:p-8">
                     <div className="mx-auto w-full max-w-7xl">
-                        <ErrorBoundary resetKey={location.pathname}><Outlet /></ErrorBoundary>
+                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} /></Suspense></ErrorBoundary>
                     </div>
                 </div>
+                <PullToRefresh scrollerRef={scrollerRef} onRefresh={refreshPage} className={viewing ? 'top-28 lg:top-32' : 'top-16 lg:top-20'} />
             </main>
 
             {/* ── Phones and tablets: the floating bar along the bottom ────── */}
-            <OrgBottomNav items={NAV} counts={counts} />
+            <OrgBottomNav items={NAV.filter((n) => !n.sidebarOnly)} counts={counts} />
         </div>
     );
 };

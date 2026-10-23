@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Compass, Sparkles, ArrowRight, RotateCw } from 'lucide-react';
 import api from '../../services/api';
@@ -41,27 +41,54 @@ export default function RoadmapPage() {
   // load must never be invited to build a new one over it.
   const [loadError, setLoadError] = useState(null);
 
+  // A roadmap is being built for this student right now — by onboarding, or
+  // in another tab — and is not saved yet. The server says so (code
+  // ROADMAP_BUILDING); the page then shows the build and checks back until
+  // the roadmap is there. It used to read the same 404 as "you have none" and
+  // offer "Map my journey", which started a second full build alongside the
+  // first (a refresh during onboarding's build was enough to land here).
+  const [building, setBuilding] = useState(false);
+  const buildPoll = useRef({ timer: 0, alive: true });
+  useEffect(() => {
+    const poll = buildPoll.current;
+    poll.alive = true;
+    return () => {
+      poll.alive = false;
+      clearTimeout(poll.timer);
+    };
+  }, []);
+
   // Only a 404 means "none". Anything else — offline, a 500, an expired
   // session — is a failed read, and is rethrown rather than read as absence.
+  // A 404 that says the roadmap is being built is answered as such.
   const noneOn404 = (request) =>
     request.catch((err) => {
-      if (err.response?.status === 404) return null;
+      if (err.response?.status === 404) return err.response.data?.code === 'ROADMAP_BUILDING' ? { building: true } : null;
       throw err;
     });
 
-  const fetchRoadmap = async () => {
-    setLoading(true);
+  const fetchRoadmap = async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true);
     setLoadError(null);
+    clearTimeout(buildPoll.current.timer);
     try {
       // Both 404 legitimately — no goal yet, or a goal with no roadmap
-      // behind it — so neither is allowed to reject the other.
+      // behind it — so neither is allowed to reject the other. Past the read
+      // cache: a page waiting on a build must see the roadmap the moment it lands.
       const [roadmapRes, goalRes] = await Promise.all([
-        noneOn404(api.get('/roadmap')),
+        noneOn404(api.get('/roadmap', { fresh: true })),
         noneOn404(api.get('/goals'))
       ]);
-      setRoadmap(roadmapRes ? roadmapRes.data.roadmapData : null);
-      setCompletedPhases(roadmapRes?.data.completedPhases || []);
+      if (!buildPoll.current.alive) return;
+      const stillBuilding = !!roadmapRes?.building;
+      setBuilding(stillBuilding);
+      setRoadmap(roadmapRes?.data ? roadmapRes.data.roadmapData : null);
+      setCompletedPhases(roadmapRes?.data?.completedPhases || []);
       setGoal(goalRes?.data || null);
+      // Check back while it builds. A build is half a minute or so; the
+      // server drops a build mark that has gone stale, so this cannot wait
+      // for ever.
+      if (stillBuilding) buildPoll.current.timer = setTimeout(() => fetchRoadmap({ quiet: true }), 4000);
     } catch (err) {
       setLoadError(err.response?.data?.message || 'We could not load your roadmap. Check your connection and try again.');
     } finally {
@@ -98,6 +125,10 @@ export default function RoadmapPage() {
         // read failed). Show it rather than offering to replace it — this
         // page never sends { rebuild: true }; only Settings does.
         fetchRoadmap();
+      } else if (err.response?.data?.code === 'ROADMAP_BUILDING') {
+        // One is already being built: wait for it rather than start another.
+        setBuilding(true);
+        fetchRoadmap({ quiet: true });
       } else {
         setError(err.response?.data?.message || 'Failed to generate roadmap');
       }
@@ -186,7 +217,7 @@ export default function RoadmapPage() {
       {/* The page title is the destination itself once a roadmap exists, and
           it is rendered inside the hero below. A generic "Your path, one step
           at a time" above it was a second heading saying less than the first. */}
-      {!roadmap && !generating && !loadError && (
+      {!roadmap && !generating && !building && !loadError && (
         <PageHeader
           eyebrow="My Roadmap"
           title="Your path, one step at a time"
@@ -203,11 +234,18 @@ export default function RoadmapPage() {
       )}
 
       {/* Generation replaces the page while it runs, whether or not a roadmap
-          is already there. It takes about ten seconds, and a spinner on a
-          button for ten seconds reads as a stall — the one moment in this
+          is already there. It takes about half a minute, and a spinner on a
+          button for that long reads as a stall — the one moment in this
           section that is genuinely worth watching deserves to be watched. */}
       {generating ? (
         <GeneratingRoadmap />
+      ) : building && !roadmap ? (
+        <div className="space-y-3">
+          <p role="status" className="rounded-xl border border-journey-100 bg-journey-50/70 px-4 py-3 text-sm font-semibold text-journey-800">
+            Your roadmap is still being built. It will appear here by itself in a moment — no need to start again.
+          </p>
+          <GeneratingRoadmap />
+        </div>
       ) : loadError ? (
         <section className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-rose-800" role="alert">
           <h2 className="text-lg font-bold">Your roadmap did not load</h2>

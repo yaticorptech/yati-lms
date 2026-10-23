@@ -4,8 +4,9 @@
  * Pinned down here: a student who moved from organization A to B does not
  * bring A's private courses into B's counts, averages or student page; a
  * duplicated Progress row cannot push a student past 100% or past the number
- * of courses they are enrolled in; and two first visits to a course at the same
- * moment leave one progress row, not two.
+ * of courses they are enrolled in; two first visits to a course at the same
+ * moment leave one progress row, not two; and a streak that has lapsed reads
+ * as none on the student page, as it does for the student.
  *
  * Builds two organizations, three courses, a student and the admins, and
  * removes all of them afterwards.
@@ -160,6 +161,7 @@ describe('creating progress', () => {
 
     test('opening a course in several tabs at once makes one row', async () => {
         const fresh = await Course().create({ title: `Tabs ${STAMP}`, isPublished: true });
+        await Enrollment().create({ userId: mover.user._id, courseId: fresh._id, type: 'Course' });
         try {
             const as = userApp.call(mover.token);
             const replies = await Promise.all(Array.from({ length: 6 }, () => as('GET', `/courses/${fresh._id}`)));
@@ -176,6 +178,7 @@ describe('creating progress', () => {
         const Lesson = require('../../src/models/Lesson');
         const m = await Module.create({ courseId: fresh._id, title: 'M', order: 0 });
         const l = await Lesson.create({ moduleId: m._id, title: 'L', order: 0 });
+        await Enrollment().create({ userId: mover.user._id, courseId: fresh._id, type: 'Course' });
         try {
             const as = userApp.call(mover.token);
             const replies = await Promise.all(Array.from({ length: 4 }, () => as('POST', '/progress/update', { courseId: fresh._id, lessonId: l._id })));
@@ -188,5 +191,38 @@ describe('creating progress', () => {
             await Module.deleteMany({ _id: m._id });
             await Course().deleteOne({ _id: fresh._id });
         }
+    });
+});
+
+describe('the streak on a student page', () => {
+    const Streak = () => require('../../src/rewards/models/Streak');
+    const { dayKey, addDays } = require('../../src/rewards/config/constants');
+    const today = dayKey();
+    const page = async () => {
+        const r = await asB('GET', `/me/students/${mover.user._id}`);
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        return r.body.rewards;
+    };
+
+    test('a streak last kept five days ago is over, though the stored number still says 1', async () => {
+        await Streak().deleteMany({ userId: mover.user._id });
+        await Streak().create({ userId: mover.user._id, current: 1, longest: 3, lastActivityDay: addDays(today, -5), activeDays: [addDays(today, -9), addDays(today, -5)] });
+        const rewards = await page();
+        assert.equal(rewards.currentStreak, 0);
+        assert.equal(rewards.longestStreak, 3);
+        assert.equal(rewards.doneToday, false);
+        assert.deepEqual(rewards.week.map((d) => d.day), Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)));
+        assert.deepEqual(rewards.week.filter((d) => d.active).map((d) => d.day), [addDays(today, -5)]);
+    });
+
+    test('kept yesterday it is still running; kept today it is done for the day', async () => {
+        await Streak().updateOne({ userId: mover.user._id }, { $set: { current: 2, lastActivityDay: addDays(today, -1) } });
+        let rewards = await page();
+        assert.equal(rewards.currentStreak, 2);
+        assert.equal(rewards.doneToday, false);
+        await Streak().updateOne({ userId: mover.user._id }, { $set: { current: 3, lastActivityDay: today } });
+        rewards = await page();
+        assert.equal(rewards.currentStreak, 3);
+        assert.equal(rewards.doneToday, true);
     });
 });

@@ -31,9 +31,7 @@ const READ = `
     const card = $('section');
     const badge = Array.from(card.querySelectorAll('span')).find((el) => /^Overall:/.test(el.innerText.trim()));
     const title = card.querySelector('h2').getBoundingClientRect();
-    const blurb = card.querySelector('h2 + p').getBoundingClientRect();
-    const box = card.getBoundingClientRect();
-    return { verdict: badge ? text(badge) : null, titleLines: Math.round(title.height / parseFloat(getComputedStyle(card.querySelector('h2')).lineHeight)), blurbShare: blurb.width / box.width };`;
+    return { verdict: badge ? text(badge) : null, titleLines: Math.round(title.height / parseFloat(getComputedStyle(card.querySelector('h2')).lineHeight)), blurb: !!card.querySelector('h2 + p') };`;
 
 describe('the delivery verdict', { skip: skipWithoutStyles }, () => {
     const expect = { screenshot: 'Overall: Needs work', allGood: 'Overall: Excellent', oneOfThree: 'Overall: Good', half: 'Overall: Fair', typed: null };
@@ -45,9 +43,12 @@ describe('the delivery verdict', { skip: skipWithoutStyles }, () => {
         });
     }
 
-    test('on a phone the title keeps one line and the description the card width', async () => {
+    // The line under the title ("Measured from your spoken answers…") was
+    // removed on 2026-10-15; the verdict sits straight under the title.
+    test('on a phone the title keeps one line, with no description under it', async () => {
         const { result } = await screen({ entry: entry(CASES.screenshot), api: 'export default {}', width: 390, height: 800, styles: true, script: READ });
         assert.equal(result.titleLines, 1, '"How you sounded" on one line');
-        assert.ok(result.blurbShare > 0.6, `the description gets most of the card, not ${Math.round(result.blurbShare * 100)}%`);
+        assert.equal(result.blurb, false, 'no description line');
+        assert.equal(result.verdict, 'Overall: Needs work');
     });
 });

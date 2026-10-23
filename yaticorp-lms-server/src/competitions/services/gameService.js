@@ -45,6 +45,17 @@ const commit = async (game, changes) => {
     return next;
 };
 
+/**
+ * Playing with friends (rooms with a code) was removed on 2026-10-23: only
+ * competition matches are played now. A friendly game saved before then is
+ * turned away, not shown.
+ */
+const FRIENDLY_GONE = 'Playing with friends is no longer available. Play in a competition instead.';
+const playable = (game) => {
+    if (game.kind === 'friendly') throw new PlayError(FRIENDLY_GONE, 410);
+    return game;
+};
+
 /** Called once a game finishes; a competition match moves on from here. */
 const finished = async (game) => {
     if (game.kind === 'match') {
@@ -166,8 +177,7 @@ const present = (game, userId, extras = {}) => {
         status: game.status,
         version: game.version,
         you: seat >= 0 ? seat : null,
-        host: game.hostId ? String(game.hostId) === String(userId) : false,
-        code: game.kind === 'friendly' && seat >= 0 ? game.code : null,
+        code: game.kind === 'match' && seat >= 0 ? game.code || null : null,
         seats: game.seats.map((s) => ({ name: s.name, side: s.side, joined: !!s.joinedAt })),
         minSeats: e.minSeats,
         maxSeats: e.maxSeats,
@@ -180,7 +190,7 @@ const present = (game, userId, extras = {}) => {
 
 /** One poll. `since` lets a caller hear "nothing new" without the body. */
 const poll = async (gameId, userId, since) => {
-    const game = await catchUp(await load(gameId));
+    const game = await catchUp(playable(await load(gameId)));
     if (since != null && Number(since) === game.version) return { unchanged: true, version: game.version };
     return { game: present(game, userId, await context(game)) };
 };
@@ -206,7 +216,7 @@ const context = async (game) => {
 
 /** Apply one action from one player, retrying if someone else wrote first. */
 const act = async (gameId, userId, action) => {
-    let game = await catchUp(await load(gameId));
+    let game = await catchUp(playable(await load(gameId)));
     for (let tries = 0; tries < 4; tries += 1) {
         const seat = seatOf(game, userId);
         if (seat < 0) throw new PlayError('You are not playing in this game.', 403);
@@ -232,7 +242,7 @@ const act = async (gameId, userId, action) => {
 
 /** A seated player says they are here. A match starts once everyone is. */
 const join = async (gameId, userId) => {
-    let game = await catchUp(await load(gameId));
+    let game = await catchUp(playable(await load(gameId)));
     for (let tries = 0; tries < 4; tries += 1) {
         const seat = seatOf(game, userId);
         if (seat < 0) throw new PlayError('You are not playing in this game.', 403);
@@ -246,13 +256,44 @@ const join = async (gameId, userId) => {
     throw new PlayError('Could not join just now. Try again.', 409);
 };
 
-/* ── Friendly rooms ───────────────────────────────────────────────────── */
+/* ── Match codes (asked 2026-10-23) ───────────────────────────────────── */
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[crypto.randomInt(0, CODE_CHARS.length)]).join('');
 
-/** Options a student may set on a friendly game, each clamped by its engine. */
-const friendlyOptions = (game, raw = {}) => {
+/**
+ * Every open match game in `rows` given its 6-character code, if it has none
+ * yet (one opened before codes existed). Codes are unique; a clash draws
+ * another. Changes the rows in place.
+ */
+const withCodes = async (rows) => {
+    for (const g of rows) {
+        if (g.code || g.kind !== 'match' || !['waiting', 'active'].includes(g.status)) continue;
+        for (let tries = 0; tries < 5 && !g.code; tries += 1) {
+            const code = newCode();
+            try {
+                const r = await PlayGame.updateOne({ _id: g._id, code: null }, { $set: { code } });
+                if (r.modifiedCount) g.code = code;
+                else g.code = (await PlayGame.findById(g._id).select('code').lean())?.code || null;
+            } catch (err) { if (err?.code !== 11000) throw err; }
+        }
+    }
+    return rows;
+};
+
+/** A player types their match's code: the game to open, if it is theirs. */
+const joinByCode = async (user, rawCode) => {
+    const code = String(rawCode || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(code)) throw new PlayError('Enter the 6-character match code.');
+    const game = await PlayGame.findOne({ code, kind: 'match' }).select('status seats').lean();
+    if (!game) throw new PlayError('No match has that code. Check it in My Games.', 404);
+    if (seatOf(game, user._id) < 0) throw new PlayError('That code is for another match. Your own match code is in My Games.', 403);
+    if (!['waiting', 'active'].includes(game.status)) throw new PlayError('That match is over. See the result in My Games.', 409);
+    return { game: { id: String(game._id) } };
+};
+
+/** A competition's game options, each clamped to what its engine allows (UNO's for one made before it was removed). */
+const gameOptions = (game, raw = {}) => {
     const pick = (k, lo, hi) => (raw[k] == null || raw[k] === '' ? undefined : Math.max(lo, Math.min(hi, Number(raw[k]) || lo)));
     const o = {
         chess: { clockMinutes: pick('clockMinutes', 1, 60) },
@@ -261,82 +302,6 @@ const friendlyOptions = (game, raw = {}) => {
         carrom: { turnSeconds: pick('turnSeconds', 15, 120) }
     }[game] || {};
     return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
-};
-
-const createRoom = async (user, game, options) => {
-    if (!engine(game)) throw new PlayError('Choose Chess, Ludo, Carrom or UNO.');
-    for (let tries = 0; tries < 5; tries += 1) {
-        try {
-            const row = await PlayGame.create({
-                kind: 'friendly', game, code: newCode(), hostId: user._id,
-                options: friendlyOptions(game, options),
-                seats: [{ userId: user._id, name: user.name || 'Player', side: 0, joinedAt: new Date() }]
-            });
-            return { game: present(row, user._id) };
-        } catch (err) {
-            if (err?.code !== 11000) throw err;     // a code already taken: draw another
-        }
-    }
-    throw new PlayError('Could not make a room just now. Try again.', 503);
-};
-
-const joinRoom = async (user, rawCode) => {
-    const code = String(rawCode || '').trim().toUpperCase();
-    if (!/^[A-Z0-9]{6}$/.test(code)) throw new PlayError('Enter the 6-character room code.');
-    for (let tries = 0; tries < 4; tries += 1) {
-        const game = await PlayGame.findOne({ code, kind: 'friendly', status: { $in: ['waiting', 'active'] } });
-        if (!game) throw new PlayError('No open room has that code.', 404);
-        if (seatOf(game, user._id) >= 0) return { game: present(game, user._id) };
-        if (game.status !== 'waiting') throw new PlayError('That game has already started.', 409);
-        const e = engine(game.game);
-        if (game.seats.length >= e.maxSeats) throw new PlayError(`That room is full (${e.maxSeats} players).`, 409);
-        const seats = [...game.seats.map((s) => s.toObject()), { userId: user._id, name: user.name || 'Player', side: game.seats.length, joinedAt: new Date() }];
-        const saved = await commit(game, { seats });
-        if (saved) return { game: present(saved, user._id) };
-    }
-    throw new PlayError('Could not join just now. Try again.', 409);
-};
-
-/** The host starts a friendly game once enough players have joined. */
-const startRoom = async (gameId, userId) => {
-    const game = await load(gameId);
-    if (game.kind !== 'friendly') throw new PlayError('Competition games start on their own.', 400);
-    if (String(game.hostId) !== String(userId)) throw new PlayError('Only the person who made the room can start it.', 403);
-    if (game.status !== 'waiting') return { game: present(game, userId) };
-    const e = engine(game.game);
-    const n = game.seats.length;
-    if (n < e.minSeats) throw new PlayError(`${e.label} needs at least ${e.minSeats} players.`);
-    if (game.game === 'carrom' && n === 3) throw new PlayError('Carrom is played by 2 (singles) or 4 (doubles).');
-    // Carrom doubles: partners sit opposite (sides 0, 1, 0, 1).
-    const seats = game.seats.map((s, i) => ({ ...s.toObject(), side: game.game === 'carrom' && n === 4 ? i % 2 : i }));
-    const saved = await begin(game, seats);
-    if (!saved) throw new PlayError('The room changed while starting. Try again.', 409);
-    return { game: present(saved, userId) };
-};
-
-/** Leave a room before it starts; the host leaving closes it. */
-const leaveRoom = async (gameId, userId) => {
-    const game = await load(gameId);
-    if (game.kind !== 'friendly' || game.status !== 'waiting') throw new PlayError('Only a room that has not started can be left.', 409);
-    if (seatOf(game, userId) < 0) return { left: true };
-    if (String(game.hostId) === String(userId)) {
-        await commit(game, { status: 'abandoned', finishedAt: new Date() });
-        return { left: true, closed: true };
-    }
-    const seats = game.seats.filter((s) => String(s.userId) !== String(userId)).map((s, i) => ({ ...s.toObject(), side: i }));
-    await commit(game, { seats });
-    return { left: true };
-};
-
-/** My friendly games still open or in play, newest first. */
-const myRooms = async (userId) => {
-    const rows = await PlayGame.find({ kind: 'friendly', 'seats.userId': userId, status: { $in: ['waiting', 'active'] } })
-        .sort({ updatedAt: -1 }).limit(10);
-    return rows.map((g) => {
-        const p = present(g, userId);
-        delete p.view;
-        return p;
-    });
 };
 
 /**
@@ -357,17 +322,20 @@ const openMatchGame = async ({ competition, match, teams }) => {
     } else {
         seats = sides.flatMap((players, side) => players.map((p) => ({ ...p, side })));
     }
-    return PlayGame.create({
-        kind: 'match', game: competition.game,
-        competitionId: competition._id, matchId: match._id,
-        sideTeams: match.sides.map((s) => s.teamId),
-        options: competition.gameOptions || {},
-        seats,
-        joinDeadline: new Date(Date.now() + JOIN_MINUTES * 60 * 1000)
-    });
+    for (let tries = 0; ; tries += 1) {
+        try {
+            return await PlayGame.create({
+                kind: 'match', game: competition.game, code: newCode(),
+                competitionId: competition._id, matchId: match._id,
+                sideTeams: match.sides.map((s) => s.teamId),
+                options: competition.gameOptions || {},
+                seats,
+                joinDeadline: new Date(Date.now() + JOIN_MINUTES * 60 * 1000)
+            });
+        } catch (err) {
+            if (err?.code !== 11000 || tries >= 4) throw err;     // a code already taken: draw another
+        }
+    }
 };
 
-module.exports = {
-    PlayError, JOIN_MINUTES, poll, act, join, catchUp, present,
-    createRoom, joinRoom, startRoom, leaveRoom, myRooms, openMatchGame, friendlyOptions
-};
+module.exports = { PlayError, JOIN_MINUTES, FRIENDLY_GONE, poll, act, join, catchUp, present, openMatchGame, gameOptions, withCodes, joinByCode };

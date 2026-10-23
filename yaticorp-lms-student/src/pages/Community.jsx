@@ -3,6 +3,7 @@
  * @description Student community forum: create posts, view discussions, add comments
  */
 import React, { useState, useEffect, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { MessageSquare, Plus, X, MessageCircle, AlertCircle, Sparkles, HelpCircle, Lightbulb, Users, Clock3 } from 'lucide-react';
 import { CommunityArt, FirstPostArt } from '../components/PageArt';
@@ -11,6 +12,7 @@ import { AuthContext } from '../context/AuthContext';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import YatiLoader from '../components/YatiLoader';
 import useMinimumLoading from '../hooks/useMinimumLoading';
+import useBackClose from '../native/useBackClose';
 
 const Community = () => {
     const { user } = useContext(AuthContext);
@@ -72,83 +74,73 @@ const Community = () => {
     }
 }, [toast]);
 
-const handleCreatePost = async (e) => {
-    e.preventDefault();
-    if (!newPost.title.trim() || !newPost.content.trim()) return;
+    // Sent once. A failure says so and leaves the form open with what was
+    // typed, for the student to send again; it used to resend by itself,
+    // which made a second copy whenever the first had in fact been saved, and
+    // the "created" / "updated" message only ever showed after that resend.
+    const handleCreatePost = async (e) => {
+        e.preventDefault();
+        if (submitting || !newPost.title.trim() || !newPost.content.trim()) return;
 
-    setSubmitting(true);
-    try {
-
-        // ✅ ADD THIS CONDITION (only change)
-        if (editingPostId) {
-            const res = await api.put(`/community/${editingPostId}`, newPost);
-
-            setPosts(posts.map(post =>
-                post._id === editingPostId ? res.data.post : post
-            ));
-
-            setEditingPostId(null);
-        } else {
-            // ✅ SAME OLD LOGIC (unchanged)
-            const res = await api.post('/community', newPost);
-
-            setPosts([{ ...res.data.post, commentCount: 0 }, ...posts]);
-        }
-
-        setShowModal(false);
-        setNewPost({ title: '', content: '' });
-
-    } catch (err) {
-        console.error('Failed:', err);
+        setSubmitting(true);
+        const editing = editingPostId;
         try {
+            if (editing) {
+                const res = await api.put(`/community/${editing}`, newPost);
+                setPosts((list) => list.map((post) => (post._id === editing ? { ...post, ...res.data.post } : post)));
+                setEditingPostId(null);
+            } else {
+                const res = await api.post('/community', newPost);
+                setPosts((list) => [{ ...res.data.post, commentCount: 0 }, ...list]);
+            }
+            setShowModal(false);
+            setNewPost({ title: '', content: '' });
+            setToast({ show: true, message: editing ? 'Post updated successfully' : 'Post created successfully', type: 'success' });
+        } catch (err) {
+            console.error('Failed:', err);
+            // The server's own words for a refusal ("Title and content are required"); a plain sentence for a crash.
+            const reason = err.response?.status < 500 ? err.response?.data?.message : null;
+            setToast({ show: true, message: reason || (editing ? 'Could not update your post. Please try again.' : 'Could not create your post. Please try again.'), type: 'error' });
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
-    if (editingPostId) {
-        const res = await api.put(`/community/${editingPostId}`, newPost);
-
-        setPosts(posts.map(post =>
-            post._id === editingPostId ? res.data.post : post
-        ));
-
-        setEditingPostId(null);
-
-        setToast({ show: true, message: 'Post updated successfully', type: 'success' });
-
-    } else {
-        const res = await api.post('/community', newPost);
-
-        setPosts([{ ...res.data.post, commentCount: 0 }, ...posts]);
-
-        setToast({ show: true, message: 'Post created successfully', type: 'success' });
-    }
-
-    setShowModal(false);
-    setNewPost({ title: '', content: '' });
-
-} catch (err) {
-    console.error('Failed:', err);
-
-    setToast({ show: true, message: 'Failed to create post', type: 'error' });
-}
-    } finally {
-        setSubmitting(false);
-    }
-};
     const handleDeletePost = async (postId) => {
-    try {
-        await api.delete(`/community/${postId}`);
-        setPosts(posts.filter(post => post._id !== postId));
-        setDeletePostId(null);
-    } catch (err) {
-        console.error("Delete failed:", err);
-        alert("Failed to delete post");
-    }
-};
+        try {
+            await api.delete(`/community/${postId}`);
+            setPosts((list) => list.filter((post) => post._id !== postId));
+            setDeletePostId(null);
+            setToast({ show: true, message: 'Post deleted', type: 'success' });
+        } catch (err) {
+            console.error('Delete failed:', err);
+            setDeletePostId(null);
+            setToast({ show: true, message: (err.response?.status < 500 && err.response?.data?.message) || 'Could not delete your post. Please try again.', type: 'error' });
+        }
+    };
 
 const handleEditPost = (post) => {
     setNewPost({ title: post.title, content: post.content });
     setShowModal(true);
     setEditingPostId(post._id);
 };
+
+    // The two popups close on Escape and on Android's back button, the way the
+    // app's other dialogs do — but the form not while it is being sent.
+    const closeForm = () => { if (!submitting) setShowModal(false); };
+    const closeDelete = () => setDeletePostId(null);
+    useBackClose(closeForm, showModal);
+    useBackClose(closeDelete, !!deletePostId);
+    useEffect(() => {
+        if (!showModal && !deletePostId) return undefined;
+        const onKey = (e) => {
+            if (e.key !== 'Escape') return;
+            if (deletePostId) setDeletePostId(null);
+            else if (!submitting) setShowModal(false);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [showModal, deletePostId, submitting]);
 
     return (
         <div className="space-y-6 animate-fade-in relative max-w-5xl mx-auto">
@@ -297,8 +289,10 @@ const handleEditPost = (post) => {
                                             {timeAgo(post.createdAt)}
                                         </span>
                                     </div>
-                                    <h3 className="mb-1.5 line-clamp-1 text-lg font-black text-slate-900 transition-colors group-hover:text-indigo-700 sm:text-xl">{post.title}</h3>
-                                    <p className="mb-4 line-clamp-2 leading-relaxed text-slate-500">{post.content}</p>
+                                    {/* overflow-wrap:anywhere — a pasted link is one long word, and
+                                        without it the card ran off the side of a phone. */}
+                                    <h3 className="mb-1.5 line-clamp-1 text-lg font-black text-slate-900 transition-colors [overflow-wrap:anywhere] group-hover:text-indigo-700 sm:text-xl">{post.title}</h3>
+                                    <p className="mb-4 line-clamp-2 leading-relaxed text-slate-500 [overflow-wrap:anywhere]">{post.content}</p>
 
                                     <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-500">
                                           {/* TOP ROW → Edit + Delete */}
@@ -342,42 +336,48 @@ const handleEditPost = (post) => {
             </div>
 
 
-            {/* Toast Notification */}
-{toast.show && (
-    <div className="fixed top-6 right-6 z-50 animate-fade-in">
-        <div
-            className={`px-6 py-4 rounded-xl shadow-lg text-white font-semibold ${
-                toast.type === 'success'
-                    ? 'bg-green-500'
-                    : 'bg-red-500'
-            }`}
-        >
-            {toast.message}
-        </div>
-    </div>
-)}
+            {/* Toast. On <body>, just under the app's top bar and over the post
+                form: inside the page it sat behind the top bar, and under the
+                form it hid the error that keeps the form open. The Career Path
+                toasts' place (career/components/ui/Toast.jsx). */}
+            {toast.show && createPortal(
+                <div role="status" aria-live="polite" data-loop-avoid
+                    className="fixed right-3 left-3 top-[4.75rem] z-[130] animate-fade-in sm:left-auto sidebar:right-6 sidebar:top-20">
+                    <div className={`rounded-xl px-5 py-3.5 font-semibold text-white shadow-lg sm:max-w-sm ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
+                        {toast.message}
+                    </div>
+                </div>,
+                document.body
+            )}
 
-            {/* Create Post Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Create Post Modal. On <body> (createPortal), not in the page:
+                inside the page's fade-in layer it ranked under the phone's top
+                and bottom bars, which covered its Post button on a short
+                screen. A real dialog, so pull-to-refresh leaves it alone and
+                the app's pop-in notices wait for it. */}
+            {showModal && createPortal(
+                <div className="fixed inset-0 z-[120] flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+                    <div role="dialog" aria-modal="true" aria-labelledby="community-post-title" className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
-                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <h2 id="community-post-title" className="text-xl font-bold text-slate-800 flex items-center gap-2">
                                 <MessageSquare size={20} className="text-indigo-600" />
                                 Start a Discussion
                             </h2>
                             <button
-                                onClick={() => setShowModal(false)}
+                                type="button"
+                                onClick={closeForm}
+                                aria-label="Close"
                                 className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
                             >
-                                <X size={20} />
+                                <X size={20} aria-hidden="true" />
                             </button>
                         </div>
                         <div className="p-6 overflow-y-auto">
                             <form id="createPostForm" onSubmit={handleCreatePost} className="space-y-5">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">Title</label>
+                                    <label htmlFor="community-post-title-input" className="block text-sm font-bold text-slate-700 mb-2">Title</label>
                                     <input
+                                        id="community-post-title-input"
                                         type="text"
                                         required
                                         placeholder="What's on your mind?"
@@ -387,8 +387,9 @@ const handleEditPost = (post) => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">Details</label>
+                                    <label htmlFor="community-post-details" className="block text-sm font-bold text-slate-700 mb-2">Details</label>
                                     <textarea
+                                        id="community-post-details"
                                         required
                                         rows="6"
                                         placeholder="Describe your question, idea, or thought in detail..."
@@ -402,7 +403,7 @@ const handleEditPost = (post) => {
                         <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3 rounded-b-3xl">
                             <button
                                 type="button"
-                                onClick={() => setShowModal(false)}
+                                onClick={closeForm}
                                 className="px-6 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition-colors"
                             >
                                 Cancel
@@ -417,30 +418,34 @@ const handleEditPost = (post) => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
-            {/* Delete Confirmation Modal */}
-{deletePostId && (
-    <div className="fixed inset-0 z-50 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
-        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
+            {/* Delete Confirmation Modal — on <body> and a real dialog, as above. */}
+{deletePostId && createPortal(
+    <div className="fixed inset-0 z-[120] flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+        <div role="alertdialog" aria-modal="true" aria-labelledby="community-delete-title" aria-describedby="community-delete-text" className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
 
-            <h2 className="text-xl font-bold text-slate-800 mb-4">
+            <h2 id="community-delete-title" className="text-xl font-bold text-slate-800 mb-4">
                 Delete Post
             </h2>
 
-            <p className="text-slate-500 mb-6">
+            <p id="community-delete-text" className="text-slate-500 mb-6">
                 Are you sure you want to delete this post? This action cannot be undone.
             </p>
 
             <div className="flex justify-end gap-3">
                 <button
-                    onClick={() => setDeletePostId(null)}
+                    type="button"
+                    autoFocus
+                    onClick={closeDelete}
                     className="px-5 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl"
                 >
                     Cancel
                 </button>
 
                 <button
+                    type="button"
                     onClick={() => handleDeletePost(deletePostId)}
                     className="px-5 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 shadow-md"
                 >
@@ -449,7 +454,8 @@ const handleEditPost = (post) => {
             </div>
 
         </div>
-    </div>
+    </div>,
+    document.body
 )}
         </div>
     );

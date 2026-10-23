@@ -7,6 +7,7 @@ import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import axios from 'axios';
 import { PlayCircle, FileText, HelpCircle, PenTool, Layout, ChevronDown, ChevronRight, Eye, ArrowLeft } from 'lucide-react';
 import VideoPlayer from '../components/VideoPlayer';
+import { useHideLoop } from '../components/loopVisibility';
 
 const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -22,6 +23,8 @@ const CoursePreview = () => {
     const [loading, setLoading] = useState(() => Boolean(token));
     const [error, setError] = useState(() => (token ? null : 'No admin token provided.'));
     const [activeLesson, setActiveLesson] = useState(null);
+    // Loop, the mascot, steps aside while a lesson's video or notes are open.
+    useHideLoop(!!activeLesson);
     const [expandedModules, setExpandedModules] = useState({});
 
     useEffect(() => {
@@ -87,7 +90,9 @@ const CoursePreview = () => {
             <div className="bg-amber-500 text-white text-center py-2 px-4 text-sm font-bold flex items-center justify-center gap-2 sticky top-0 z-50">
                 <Eye size={16} />
                 Admin Preview Mode — This is how students see this course
-                <button onClick={() => window.close()} className="ml-4 text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors">
+                {/* The same close as the error screen's: a tab a script did not
+                    open cannot be closed by one, and the button did nothing. */}
+                <button type="button" onClick={closeTab} className="ml-4 text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors">
                     Close Preview
                 </button>
             </div>

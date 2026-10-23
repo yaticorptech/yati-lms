@@ -16,12 +16,72 @@ const TITLE = { 1: 'Winner', 2: 'Runner-up', 3: 'Third Place' };
  */
 const eligible = (competition, team) => (team?.place ? competition.certificates !== false : competition.participationCertificates !== false);
 
+/*
+ * The winners' certificate: the account owner's design (2026-10-10), the red
+ * "Games Competition" banner with the trophy, the founder's signature and the
+ * QR code. public/assets/competition_winner_template.jpg is that
+ * design with the words that change taken out; they are written back here.
+ *
+ * Every position is in the template picture's own pixels (1500 × 1049), so the
+ * student app's preview (CompetitionCertificatePreview.jsx) can use the same
+ * numbers on its copy of the picture.
+ */
+const path = require('path');
+const fs = require('fs');
+const WINNER_TEMPLATE = path.join(__dirname, '..', '..', '..', 'public', 'assets', 'competition_winner_template.jpg');
+const TPL_W = 1500;
+const TPL_H = 1049;
+const RED = '#8b1418';
+const LEAD = { 1: 'has won first place in the', 2: 'has finished runner-up in the', 3: 'has finished third in the' };
+
+/** The words on a winner's certificate — shared with the preview's wording. */
+const winnerWords = ({ competition, team, place }) => ({
+    subtitle: `of Achievement — ${TITLE[place]}`,
+    lead: LEAD[place],
+    paragraph: `This certificate is awarded in recognition of your outstanding performance with ${team.teamName} (${team.collegeName}) in ${GAME[competition.game] || competition.game}. Your achievement reflects your skill, team spirit and sportsmanship, and the effort you brought to every match.`,
+    date: (competition.completedAt ? new Date(competition.completedAt) : new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+});
+
+/** The largest size, down to `min`, at which `text` fits `width` points. */
+const fit = (doc, text, font, size, width, min) => {
+    let s = size;
+    doc.font(font);
+    while (s > min && doc.fontSize(s).widthOfString(text) > width) s -= 0.5;
+    return s;
+};
+
+const drawWinner = (doc, { competition, team, playerName, place }) => {
+    const W = doc.page.width;
+    const H = doc.page.height;
+    const X = (px) => (px / TPL_W) * W;
+    const Y = (px) => (px / TPL_H) * H;
+    const words = winnerWords({ competition, team, place });
+
+    doc.image(WINNER_TEMPLATE, 0, 0, { width: W, height: H });
+    doc.fillColor('#1f1f1f').font('Helvetica').fontSize(X(30)).text(words.subtitle, X(155), Y(314), { lineBreak: false });
+    doc.fillColor(RED).font('Times-Bold').fontSize(fit(doc, playerName, 'Times-Bold', X(84), X(560), 22)).text(playerName, X(152), Y(392), { lineBreak: false });
+    doc.fillColor('#1f1f1f').font('Helvetica').fontSize(X(26)).text(words.lead, X(157), Y(519), { lineBreak: false });
+    doc.fillColor(RED).font('Times-Bold').fontSize(fit(doc, competition.name, 'Times-Bold', X(48), X(800), 14)).text(competition.name, X(155), Y(556), { lineBreak: false });
+    doc.fillColor('#222222').font('Helvetica').fontSize(X(24)).text(words.paragraph, X(157), Y(636), { width: X(735), lineGap: X(9) });
+    // The date, under the digital signature. (The design's stamp was taken
+    // off at the account owner's request, 2026-10-10, and its date with it.)
+    doc.fillColor('#111111').font('Times-Roman').fontSize(X(19)).text(`Date: ${words.date}`, X(838), Y(930), { lineBreak: false });
+};
+
 const draw = (res, { competition, team, playerName, place }) => {
     const doc = new PDFDocument({ layout: 'landscape', size: 'A4', margin: 0 });
     const name = `${competition.name}`.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'Competition';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="Certificate_${name}.pdf"`);
     doc.pipe(res);
+
+    // 1st, 2nd and 3rd: the designed certificate. Without its picture (a
+    // deploy that left it out), they get the plain one below rather than none.
+    if (place && fs.existsSync(WINNER_TEMPLATE)) {
+        drawWinner(doc, { competition, team, playerName, place });
+        doc.end();
+        return;
+    }
 
     const W = doc.page.width;
     const H = doc.page.height;
@@ -67,4 +127,4 @@ const draw = (res, { competition, team, playerName, place }) => {
     doc.end();
 };
 
-module.exports = { draw, eligible, TITLE };
+module.exports = { draw, eligible, winnerWords, TITLE, GAME };

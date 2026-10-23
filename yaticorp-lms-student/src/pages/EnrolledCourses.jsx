@@ -2,16 +2,21 @@
  * @author Preethesh Kulal
  * @description Student enrolled courses and bundles listing with progress bars
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { PlayCircle, Clock, BookOpen, Award, X, Compass, Layers, CheckCircle2, TrendingUp, Sparkles, Building2, Loader2 } from 'lucide-react';
+import { PlayCircle, Clock, BookOpen, Award, X, Compass, Layers, CheckCircle2, TrendingUp, Sparkles, Building2, Loader2, RotateCcw } from 'lucide-react';
 import { CoursesArt, NoBundlesArt, NoCoursesArt } from '../components/PageArt';
 import api from '../utils/api';
+import { AuthContext } from '../context/AuthContext';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import YatiLoader from '../components/YatiLoader';
 import useMinimumLoading from '../hooks/useMinimumLoading';
+import Portal from '../components/Portal';
+import useBackClose from '../native/useBackClose';
 
 const EnrolledCourses = () => {
+    // Career Path can be switched off by an administrator; its link goes with it.
+    const careerOn = useContext(AuthContext)?.isCareerPathEnabled !== false;
     const [courses, setCourses] = useState([]);
     const [bundles, setBundles] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -30,6 +35,11 @@ const EnrolledCourses = () => {
     const activeTab = requestedTab === 'organization' && !org.organization ? 'courses' : requestedTab;
     const [startingId, setStartingId] = useState(null);
     const [startError, setStartError] = useState('');
+    // The list could not be loaded, and there is nothing loaded to show
+    // instead. It used to fall through to "Nothing enrolled yet", which told a
+    // student with a dropped connection that they had no courses.
+    const [loadError, setLoadError] = useState(false);
+    const loadedOnce = useRef(false);
     const navigate = useNavigate();
 
     const fetchMyCourses = async () => {
@@ -44,12 +54,24 @@ const EnrolledCourses = () => {
                 setCourses((res.data.courses || []).filter((c) => !c.organizationId));
                 setBundles(res.data.bundles || []);
                 if (orgRes) setOrg({ organization: orgRes.data?.organization || null, courses: orgRes.data?.courses || [] });
+                loadedOnce.current = true;
+                setLoadError(false);
+                // A course found complete just now has paid its XP.
+                if (res.data.rewards?.events?.length) window.dispatchEvent(new CustomEvent('yati:rewards', { detail: res.data.rewards.events }));
             } catch (err) {
                 console.error('Failed to fetch courses:', err);
+                // A refresh that fails keeps what is already on screen.
+                if (!loadedOnce.current) setLoadError(true);
             } finally {
                 setLoading(false);
             }
         };
+
+    const retryLoad = () => {
+        setLoadError(false);
+        setLoading(true);
+        fetchMyCourses();
+    };
 
     // An organization course is free: starting one enrols the student and
     // opens it straight away.
@@ -60,8 +82,9 @@ const EnrolledCourses = () => {
             await api.post(`/user/courses/${course._id}/enroll`);
             navigate(`/learn/${course._id}`);
         } catch (err) {
-            // Enrolled already (another tab, or an admin did it): just open it.
-            if (err.response?.status === 400) return navigate(`/learn/${course._id}`);
+            // Enrolled already (another tab, or an admin did it), or already
+            // theirs through a bundle: just open it.
+            if (err.response?.status === 400 || err.response?.data?.code === 'IN_BUNDLE') return navigate(`/learn/${course._id}`);
             setStartError(err.response?.data?.message || 'Could not start this course. Please try again.');
             setStartingId(null);
         }
@@ -77,6 +100,16 @@ const EnrolledCourses = () => {
     // The same loader as Career Path: the orbit, a line, a bar — held for a
     // moment so it never flickers.
     const showLoader = useMinimumLoading(loading);
+
+    // The bundle popup closes with Escape, and with Android's back button.
+    const closeBundle = () => setSelectedBundle(null);
+    useBackClose(closeBundle, Boolean(selectedBundle));
+    useEffect(() => {
+        if (!selectedBundle) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') setSelectedBundle(null); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [selectedBundle]);
 
 
     // What the hero says: how many, how many finished, how far on average.
@@ -218,6 +251,18 @@ const EnrolledCourses = () => {
 
                 {showLoader ? (
                     <YatiLoader label="Loading your courses" />
+                ) : loadError ? (
+                    <div role="alert" className="animate-fade-in-up rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center sm:p-12">
+                        <h3 className="text-xl font-black text-slate-900">Your courses could not be loaded</h3>
+                        <p className="mx-auto mt-2 max-w-md text-slate-600">Check your connection, then try again.</p>
+                        <button
+                            type="button"
+                            onClick={retryLoad}
+                            className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 font-black text-white transition-colors hover:bg-indigo-700"
+                        >
+                            <RotateCcw size={18} /> Try again
+                        </button>
+                    </div>
                 ) : activeTab === 'courses' ? (
                     courses.length > 0 ? (
                         <div className="lms-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -307,7 +352,7 @@ const EnrolledCourses = () => {
                             <h3 className="relative text-xl sm:text-2xl font-black text-slate-900 mb-2">Nothing enrolled yet</h3>
                             <p className="relative text-slate-600 max-w-md mb-6">
                                 Once you're enrolled, your courses live here with your progress on each one. Have a
-                                look at what's available, or pick up your Career Path in the meantime.
+                                look at what's available{careerOn ? ', or pick up your Career Path in the meantime' : ''}.
                             </p>
                             <div className="lms-stagger relative flex flex-wrap items-center justify-center gap-3">
                                 <Link
@@ -317,13 +362,17 @@ const EnrolledCourses = () => {
                                     <Sparkles size={18} />
                                     Browse courses
                                 </Link>
-                                <Link
-                                    to="/career"
-                                    className="inline-flex items-center gap-2 px-6 py-3 min-h-12 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors"
-                                >
-                                    <Compass size={18} />
-                                    See my path
-                                </Link>
+                                {/* Only while Career Path is switched on: otherwise the
+                                    route sends the student straight back home. */}
+                                {careerOn && (
+                                    <Link
+                                        to="/career"
+                                        className="inline-flex items-center gap-2 px-6 py-3 min-h-12 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-xl border border-slate-200 transition-colors"
+                                    >
+                                        <Compass size={18} />
+                                        See my path
+                                    </Link>
+                                )}
                             </div>
                         </div>
                     )
@@ -401,83 +450,92 @@ const EnrolledCourses = () => {
                 )}
             </div>
 
-            {/* Bundle View Overlay Modal */}
+            {/* Bundle View Overlay Modal: a real dialog, out at the end of the
+                page (Portal) so the phone's bars cannot cover it and the
+                app's pop-in notices wait for it. */}
             {selectedBundle && (
-                <div className="fixed inset-0 z-50 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white rounded-3xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto flex flex-col">
-                        <div className="sticky top-0 bg-white/90 backdrop-blur pb-4 pt-6 px-8 border-b border-slate-100 z-10 flex justify-between items-start">
-                            <div className="flex items-center space-x-4">
-                                <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl">
-                                    <Award size={28} />
+                <Portal>
+                    <div className="fixed inset-0 z-50 flex justify-center items-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) closeBundle(); }}>
+                        <div role="dialog" aria-modal="true" aria-labelledby="enrolled-bundle-title" className="bg-white rounded-3xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto flex flex-col">
+                            <div className="sticky top-0 bg-white/90 backdrop-blur pb-4 pt-6 px-8 border-b border-slate-100 z-10 flex justify-between items-start">
+                                <div className="flex items-center space-x-4">
+                                    <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl">
+                                        <Award size={28} aria-hidden="true" />
+                                    </div>
+                                    <div>
+                                        <h2 id="enrolled-bundle-title" className="text-2xl font-bold text-slate-800">{selectedBundle.title}</h2>
+                                        <p className="text-slate-500 font-medium">Included Courses in this Bundle</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="text-2xl font-bold text-slate-800">{selectedBundle.title}</h2>
-                                    <p className="text-slate-500 font-medium">Included Courses in this Bundle</p>
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={closeBundle}
+                                    aria-label="Close"
+                                    className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
+                                >
+                                    <X size={24} aria-hidden="true" />
+                                </button>
                             </div>
-                            <button
-                                onClick={() => setSelectedBundle(null)}
-                                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors"
-                            >
-                                <X size={24} />
-                            </button>
-                        </div>
-                        <div className="p-8">
-                            <div className="lms-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {selectedBundle.courses && selectedBundle.courses.length > 0 ? (
-                                    selectedBundle.courses.map(bc => {
-                                        // Attempt to match bundle sub-course with full course object from primary courses array
-                                        const fullCourse = courses.find(c => c._id === bc._id) || bc;
-                                        const progress = getProgressVal(bc._id);
-                                        return (
-                                            <div key={bc._id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:-translate-y-1 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 group flex flex-col">
-                                                <div className="h-40 bg-slate-100 relative overflow-hidden">
-                                                    {fullCourse.thumbnail || bc.thumbnail ? (
-                                                        <img src={fullCourse.thumbnail || bc.thumbnail} alt={bc.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex justify-center items-center bg-indigo-50 text-indigo-200">
-                                                            <BookOpen size={40} />
+                            <div className="p-8">
+                                <div className="lms-stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {selectedBundle.courses && selectedBundle.courses.length > 0 ? (
+                                        selectedBundle.courses.map(bc => {
+                                            // Attempt to match bundle sub-course with full course object from primary courses array
+                                            const fullCourse = courses.find(c => c._id === bc._id) || bc;
+                                            // The server puts the student's progress on each course in
+                                            // the bundle, enrolled or not; `courses` has only the enrolled
+                                            // ones, so a course opened through the bundle alone read 0%.
+                                            const progress = Math.max(Number(bc.progress) || 0, getProgressVal(bc._id));
+                                            return (
+                                                <div key={bc._id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:-translate-y-1 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 group flex flex-col">
+                                                    <div className="h-40 bg-slate-100 relative overflow-hidden">
+                                                        {fullCourse.thumbnail || bc.thumbnail ? (
+                                                            <img src={fullCourse.thumbnail || bc.thumbnail} alt={bc.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex justify-center items-center bg-indigo-50 text-indigo-200">
+                                                                <BookOpen size={40} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="p-5 flex-1 flex flex-col">
+                                                        <h3 className="font-bold text-md text-slate-800 line-clamp-2 min-h-[48px] mb-2 group-hover:text-indigo-600 transition-colors">
+                                                            {bc.title}
+                                                        </h3>
+                                                        <div className="mt-auto pt-4">
+                                                            <div className="flex justify-between items-end mb-2">
+                                                                <span className="text-xs font-semibold text-slate-500 flex items-center">
+                                                                    <Clock size={12} className="mr-1" /> Progress
+                                                                </span>
+                                                                <span className="text-xs font-bold text-indigo-600">{progress}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden mb-4">
+                                                                <div
+                                                                    className={`h-2.5 rounded-full transition-all duration-1000 ease-out relative ${progress >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500'}`}
+                                                                    style={{ width: `${progress}%` }}
+                                                                />
+                                                            </div>
+                                                            <Link
+                                                                to={`/learn/${bc._id}`}
+                                                                className="w-full flex justify-center items-center space-x-2 py-2.5 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold text-sm rounded-lg transition-colors border border-slate-200 hover:border-indigo-200"
+                                                            >
+                                                                <span>{progress >= 100 ? 'Review Course' : progress > 0 ? 'Resume Course' : 'Start Course'}</span>
+                                                                {progress >= 100 ? <CheckCircle2 size={16} /> : <PlayCircle size={16} />}
+                                                            </Link>
                                                         </div>
-                                                    )}
-                                                </div>
-                                                <div className="p-5 flex-1 flex flex-col">
-                                                    <h3 className="font-bold text-md text-slate-800 line-clamp-2 min-h-[48px] mb-2 group-hover:text-indigo-600 transition-colors">
-                                                        {bc.title}
-                                                    </h3>
-                                                    <div className="mt-auto pt-4">
-                                                        <div className="flex justify-between items-end mb-2">
-                                                            <span className="text-xs font-semibold text-slate-500 flex items-center">
-                                                                <Clock size={12} className="mr-1" /> Progress
-                                                            </span>
-                                                            <span className="text-xs font-bold text-indigo-600">{progress}%</span>
-                                                        </div>
-                                                        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden mb-4">
-                                                            <div
-                                                                className={`h-2.5 rounded-full transition-all duration-1000 ease-out relative ${progress >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500'}`}
-                                                                style={{ width: `${progress}%` }}
-                                                            />
-                                                        </div>
-                                                        <Link
-                                                            to={`/learn/${bc._id}`}
-                                                            className="w-full flex justify-center items-center space-x-2 py-2.5 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold text-sm rounded-lg transition-colors border border-slate-200 hover:border-indigo-200"
-                                                        >
-                                                            <span>{progress > 0 ? 'Resume Course' : 'Start Course'}</span>
-                                                            <PlayCircle size={16} />
-                                                        </Link>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })
-                                ) : (
-                                    <div className="col-span-full py-12 text-center bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
-                                        <p className="text-slate-500 font-medium">This bundle does not contain any published courses yet.</p>
-                                    </div>
-                                )}
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="col-span-full py-12 text-center bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
+                                            <p className="text-slate-500 font-medium">This bundle does not contain any published courses yet.</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </Portal>
             )}
         </div>
     );
@@ -506,7 +564,7 @@ const OrganizationCourses = ({ org, startingId, startError, onStart }) => {
                 )}
                 <div className="min-w-0">
                     <p className="truncate font-black text-slate-900">{organization.name}</p>
-                    <p className="text-sm text-slate-500">Courses from your organization, only for its students. All free.</p>
+                    <p className="text-sm text-slate-500">Courses from your organization.</p>
                 </div>
             </div>
 

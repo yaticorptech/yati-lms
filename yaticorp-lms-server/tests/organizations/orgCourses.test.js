@@ -216,10 +216,19 @@ describe('students', () => {
     test("the organization's own students see it and can take it", async () => {
         const available = (await asStudentA('GET', '/courses/available')).body.availableCourses.map((c) => c._id);
         assert.ok(available.includes(courseA._id));
-        assert.equal((await asStudentA('GET', `/courses/${courseA._id}`)).status, 200);
+        // Seen, but its lessons open once enrolled: Start course on the
+        // Organization tab enrols (free to members) and then opens it.
+        const before = await asStudentA('GET', `/courses/${courseA._id}`);
+        assert.equal(before.status, 403); assert.equal(before.body.code, 'NOT_ENROLLED');
         assert.equal((await asStudentA('POST', `/courses/${courseA._id}/enroll`)).status, 200);
+        assert.equal((await asStudentA('GET', `/courses/${courseA._id}`)).status, 200);
         assert.ok((await asStudentA('GET', '/courses')).body.courses.some((c) => c._id === courseA._id));
         assert.equal((await asStudentA('GET', `/lessons/${lessonA._id}/quiz`)).status, 200);
+        // A quiz lesson is completed by passing its quiz, not by asking (2026-10-12).
+        const asked = await asStudentA('POST', '/progress/update', { courseId: courseA._id, lessonId: lessonA._id });
+        assert.equal(asked.status, 403); assert.equal(asked.body.code, 'QUIZ_NOT_PASSED');
+        const passed = await asStudentA('POST', `/lessons/${lessonA._id}/quiz/submit`, { answers: [0] });
+        assert.equal(passed.status, 200); assert.equal(passed.body.passed, true);
         assert.equal((await asStudentA('POST', '/progress/update', { courseId: courseA._id, lessonId: lessonA._id })).status, 200);
     });
 

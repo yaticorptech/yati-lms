@@ -9,20 +9,23 @@
  * the scopes, say what is done with the data, and carry the Limited Use
  * sentence, or verification is refused.
  */
-import LegalShell, { Bullets, Section, COMPANY } from './legalShell';
+import LegalShell, { Bullets, Section } from './legalShell';
+import { COMPANY, filled } from './company';
 
 export default function Privacy() {
   return (
     <LegalShell
       title="Privacy Policy"
-      updated={COMPANY.effectiveDate}
+      updated={filled(COMPANY.effectiveDate)}
       intro={`This policy explains what ${COMPANY.legalName} collects when you use YATICORP Learning, why, who else sees it, and what you can ask us to do about it. It covers the student app, the Career Path and Jobs sections, and the optional connection to your Google account.`}
     >
       <Section id="who" title="Who we are">
         <p>
-          YATICORP Learning is operated by {COMPANY.legalName}, {COMPANY.address}. For anything in this
+          YATICORP Learning is operated by {[COMPANY.legalName, filled(COMPANY.address)].filter(Boolean).join(', ')}. For anything in this
           policy, write to <a className="font-semibold text-indigo-600 hover:underline" href={`mailto:${COMPANY.privacyEmail}`}>{COMPANY.privacyEmail}</a>.
-          Our grievance officer is {COMPANY.grievanceOfficer}.
+          {filled(COMPANY.grievanceOfficer)
+            ? <> Our grievance officer is {COMPANY.grievanceOfficer}.</>
+            : <> Grievances go to the same address and are answered by our grievance officer.</>}
         </p>
       </Section>
 

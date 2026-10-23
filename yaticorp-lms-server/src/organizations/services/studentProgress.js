@@ -344,15 +344,28 @@ const studentDetail = async (student, organizationId = null) => {
     try {
         const Streak = require('../../rewards/models/Streak');
         const UserBadge = require('../../rewards/models/RewardUserBadge');
+        const { dayKey, addDays } = require('../../rewards/config/constants');
         const [streak, badges] = await Promise.all([
-            Streak.findOne({ userId }).select('current longest lastActivityDay').lean(),
+            Streak.findOne({ userId }).select('current longest lastActivityDay activeDays').lean(),
             UserBadge.countDocuments({ userId })
         ]);
         if (streak || badges) {
+            // The streak as the student sees it (rewards/services/streakService
+            // summary): alive while they learned today or yesterday, and over
+            // after that even though the stored number is not zeroed until
+            // their next activity — which had this page say "1 days" for a
+            // streak that ended a week ago.
+            const today = dayKey();
+            const doneToday = streak?.lastActivityDay === today;
+            const alive = doneToday || streak?.lastActivityDay === addDays(today, -1);
+            const active = new Set(streak?.activeDays || []);
             rewards = {
-                currentStreak: streak?.current ?? 0,
+                currentStreak: alive ? streak?.current ?? 0 : 0,
                 longestStreak: streak?.longest ?? 0,
                 lastActivityDay: streak?.lastActivityDay || null,
+                doneToday,
+                // The last seven days, oldest first, today last.
+                week: Array.from({ length: 7 }, (_, i) => { const day = addDays(today, i - 6); return { day, active: active.has(day) }; }),
                 badges
             };
         }

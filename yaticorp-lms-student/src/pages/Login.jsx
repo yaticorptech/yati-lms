@@ -4,12 +4,14 @@
  */
 import Mascot from '../components/Mascot';
 import React, { useState, useContext, useEffect, useRef } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
 import { AuthContext } from '../context/AuthContext';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
 import { isNative } from '../native/platform';
-import { GraduationCap, Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard } from 'lucide-react';
+import useBackClose from '../native/useBackClose';
+import { SESSION_ENDED_KEY, safeNextPath } from '../utils/sessionExpiry';
+import teacherApi, { enterTeacher, hasTeacherSession, readSigninAs, rememberSigninAs, TEACHER_SESSION_ENDED } from '../teacher/teacherSession';
+import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info, GraduationCap, BookOpenCheck } from 'lucide-react';
 
 // --- Contact Admin Modal ---
 const ContactAdminModal = ({ onClose, page = 'login' }) => {
@@ -17,6 +19,8 @@ const ContactAdminModal = ({ onClose, page = 'login' }) => {
     const [loading, setLoading] = useState(false);
     const [done, setDone] = useState(false);
     const [error, setError] = useState('');
+    // Android's back button closes this, rather than leaving the page.
+    useBackClose(onClose);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -34,16 +38,16 @@ const ContactAdminModal = ({ onClose, page = 'login' }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div role="dialog" aria-modal="true" aria-labelledby="contact-admin-title" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                 <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
                     <div className="flex items-center space-x-3">
                         <div className="p-2 bg-indigo-100 rounded-lg"><MessageCircleQuestion size={20} className="text-indigo-600" /></div>
                         <div>
-                            <h2 className="text-lg font-bold text-slate-800">Contact Admin</h2>
+                            <h2 id="contact-admin-title" className="text-lg font-bold text-slate-800">Contact Admin</h2>
                             <a href="tel:9535440195" className="text-sm text-indigo-600 font-semibold hover:underline">📞 9535440195</a>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
                 </div>
 
                 {done ? (
@@ -57,32 +61,32 @@ const ContactAdminModal = ({ onClose, page = 'login' }) => {
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                        {error && <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
+                        {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Name *</label>
-                                <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                                <label htmlFor="contact-name" className="block text-xs font-semibold text-slate-700 mb-1">Name *</label>
+                                <input id="contact-name" required autoComplete="name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Your name" />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">Email *</label>
-                                <input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+                                <label htmlFor="contact-email" className="block text-xs font-semibold text-slate-700 mb-1">Email *</label>
+                                <input id="contact-email" required type="email" autoComplete="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="your@email.com" />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Card Number (optional)</label>
-                            <input value={form.cardNumber} onChange={e => setForm({ ...form, cardNumber: e.target.value })}
+                            <label htmlFor="contact-card" className="block text-xs font-semibold text-slate-700 mb-1">Card Number (optional)</label>
+                            <input id="contact-card" autoComplete="off" value={form.cardNumber} onChange={e => setForm({ ...form, cardNumber: e.target.value })}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="If you have one" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Subject *</label>
-                            <input required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })}
+                            <label htmlFor="contact-subject" className="block text-xs font-semibold text-slate-700 mb-1">Subject *</label>
+                            <input id="contact-subject" required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Brief description of your issue" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">Message *</label>
-                            <textarea required rows="4" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })}
+                            <label htmlFor="contact-message" className="block text-xs font-semibold text-slate-700 mb-1">Message *</label>
+                            <textarea id="contact-message" required rows="4" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue in detail..." />
                         </div>
                         <div className="flex justify-end space-x-3 pt-1">
@@ -99,18 +103,22 @@ const ContactAdminModal = ({ onClose, page = 'login' }) => {
 };
 
 // --- Forgot Password Modal ---
-const ForgotPasswordModal = ({ onClose }) => {
+const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
     const [cardNumber, setCardNumber] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+    // Android's back button closes this, rather than leaving the page.
+    useBackClose(onClose);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError('');
         try {
-            const res = await api.post('/auth/student/forgot-password', { cardNumber });
+            const res = role === 'teacher'
+                ? await teacherApi.post('/auth/forgot-password', { cardNumber })
+                : await api.post('/auth/student/forgot-password', { cardNumber });
             setMessage(res.data.message);
         } catch (err) {
             setError(err.response?.data?.message || 'Something went wrong. Please try again.');
@@ -121,13 +129,13 @@ const ForgotPasswordModal = ({ onClose }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div role="dialog" aria-modal="true" aria-labelledby="forgot-password-title" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
                 <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
                     <div className="flex items-center space-x-3">
                         <div className="p-2 bg-indigo-100 rounded-lg"><KeyRound size={18} className="text-indigo-600" /></div>
-                        <h2 className="text-lg font-bold text-slate-800">Forgot Password</h2>
+                        <h2 id="forgot-password-title" className="text-lg font-bold text-slate-800">Forgot Password</h2>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
                 </div>
                 <div className="p-6">
                     {message ? (
@@ -141,10 +149,10 @@ const ForgotPasswordModal = ({ onClose }) => {
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <p className="text-sm text-slate-500">Enter your Card Number and we'll send a password reset link to your registered email.</p>
-                            {error && <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
+                            {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
                             <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Card Number</label>
-                                <input required maxLength={12} inputMode="numeric" pattern="[0-9]*" value={cardNumber} onChange={e => setCardNumber(e.target.value.replace(/\D/g, ''))}
+                                <label htmlFor="forgot-card-number" className="block text-sm font-semibold text-slate-700 mb-1">Card Number</label>
+                                <input id="forgot-card-number" required maxLength={12} inputMode="numeric" pattern="[0-9]*" autoComplete="username" value={cardNumber} onChange={e => setCardNumber(e.target.value.replace(/\D/g, ''))}
                                     className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono tracking-wider text-slate-800"
                                     placeholder="12-Digit Card Number" />
                             </div>
@@ -162,6 +170,39 @@ const ForgotPasswordModal = ({ onClose }) => {
     );
 };
 
+/**
+ * "Who's signing in?" — asked the first time this device opens the sign-in
+ * page. Students and teachers use the same cards, so the card cannot tell;
+ * the person says. The answer is remembered, and the switch at the top of
+ * the form changes it any time.
+ */
+const RoleChooser = ({ onChoose }) => (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-labelledby="role-chooser-title" className="lg-rise w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="border-b border-slate-100 bg-gradient-to-br from-indigo-50 to-violet-50 px-6 py-5 text-center">
+                <h2 id="role-chooser-title" className="text-xl font-black tracking-tight text-slate-900">Who&apos;s signing in?</h2>
+                <p className="mt-1 text-sm text-slate-500">Choose once — you can switch any time at the top of the form.</p>
+            </div>
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+                {[
+                    ['student', 'Student', 'Courses, Career Path, jobs, interviews and games.', GraduationCap, 'from-indigo-500 to-violet-600'],
+                    ['teacher', 'Teacher', 'Research path, publications, thesis writing and plagiarism checks.', BookOpenCheck, 'from-emerald-500 to-teal-600']
+                ].map(([id, label, hint, Icon, tone]) => (
+                    <button key={id} type="button" onClick={() => onChoose(id)}
+                        className="group flex flex-col items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                        <span className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${tone} text-white shadow-md`}><Icon size={24} aria-hidden="true" /></span>
+                        <span>
+                            <span className="block text-base font-black text-slate-900">I&apos;m a {label.toLowerCase()}</span>
+                            <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>
+                        </span>
+                        <span className="mt-auto inline-flex items-center gap-1 text-xs font-bold text-indigo-600">Continue <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" /></span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
 // A twinkling star. Module-level so the page's re-renders (every keystroke
 // in the password box) do not remount it and restart its animation.
 const Sparkle = ({ className, delay = 0, size = 'text-base' }) => (
@@ -171,6 +212,11 @@ const Sparkle = ({ className, delay = 0, size = 'text-base' }) => (
 // --- Main Login Page ---
 const Login = () => {
     const { user, login } = useContext(AuthContext);
+    // Where the student was heading when they were asked to sign in (a link
+    // to a lesson, a page left when the session ended). Only a path in this
+    // app is taken; anything else means the dashboard.
+    const [searchParams] = useSearchParams();
+    const next = safeNextPath(searchParams.get('next') || '/');
     const [cardNumber, setCardNumber] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -178,6 +224,32 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const [showForgot, setShowForgot] = useState(false);
     const [showContact, setShowContact] = useState(false);
+    const errorRef = useRef(null);
+    const scanButtonRef = useRef(null);
+    // Sent here because the server no longer accepted the saved login
+    // (utils/sessionExpiry): said once, so it is not a mystery why they are
+    // signing in again. Read on the first render; cleared below.
+    const [sessionEnded] = useState(() => { try { return sessionStorage.getItem(SESSION_ENDED_KEY) === '1' || sessionStorage.getItem(TEACHER_SESSION_ENDED) === '1'; } catch { return false; } });
+    useEffect(() => { try { sessionStorage.removeItem(SESSION_ENDED_KEY); sessionStorage.removeItem(TEACHER_SESSION_ENDED); } catch { /* storage off */ } }, []);
+
+    /* Student or teacher. ?as= decides when a link carries it (a teacher's
+       reset email, "Choose Teacher"); otherwise the choice this device made
+       last; otherwise nobody has said yet, and the chooser asks. */
+    const [role, setRole] = useState(() => {
+        const asked = searchParams.get('as');
+        return asked === 'teacher' || asked === 'student' ? asked : readSigninAs();
+    });
+    const isTeacher = role === 'teacher';
+    // A card of the other kind: the error offers the right sign-in.
+    const [otherKind, setOtherKind] = useState(null);
+    const chooseRole = (r) => {
+        rememberSigninAs(r);
+        setRole(r);
+        setError('');
+        setOtherKind(null);
+        setScannedCard(false);
+        setCardNumber('');
+    };
 
     /* Signing in by card.
        The number is printed on the card and twelve digits long, which is a
@@ -212,12 +284,16 @@ const Login = () => {
         setScanError('');
         setLoading(true);
         try {
-            const res = await api.post('/auth/card-scan', { code: decodedText });
+            const res = isTeacher
+                ? await teacherApi.post('/auth/card-scan', { code: decodedText })
+                : await api.post('/auth/card-scan', { code: decodedText });
             setCardNumber(res.data.cardNumber);
             setScannedCard(true);
             setError('');
             setTimeout(() => passwordRef.current?.focus(), 60);
         } catch (err) {
+            const code = err.response?.data?.code;
+            if (code === 'TEACHER_CARD' || code === 'STUDENT_CARD') setOtherKind(code === 'TEACHER_CARD' ? 'teacher' : 'student');
             setScanError(
                 err.response?.data?.message
                     || (!err.response
@@ -232,14 +308,19 @@ const Login = () => {
     useEffect(() => {
         if (!scanning) { stopScanner(); return undefined; }
         let cancelled = false;
-        const inst = new Html5Qrcode(SCANNER_ID);
-        scannerRef.current = inst;
-        inst.start(
-            { facingMode: 'environment' },
-            { fps: 10, qrbox: { width: 220, height: 220 } },
-            (decodedText) => { if (!cancelled) resolveScan(decodedText); },
-            () => {}   // a frame without a code is not an error
-        ).catch(() => {
+        // The scanner library is fetched when the camera is first asked for,
+        // not with the page: most sign-ins never open it.
+        import('html5-qrcode').then(({ Html5Qrcode }) => {
+            if (cancelled) return undefined;
+            const inst = new Html5Qrcode(SCANNER_ID);
+            scannerRef.current = inst;
+            return inst.start(
+                { facingMode: 'environment' },
+                { fps: 10, qrbox: { width: 220, height: 220 } },
+                (decodedText) => { if (!cancelled) resolveScan(decodedText); },
+                () => {}   // a frame without a code is not an error
+            );
+        }).catch(() => {
             if (cancelled) return;
             scannerRef.current = null;
             setScanning(false);
@@ -252,20 +333,58 @@ const Login = () => {
 
     useEffect(() => () => stopScanner(), []);
 
-    if (user) return <Navigate to="/" replace />;
+    // Android's back button closes the "How it works" sheet, rather than leaving the page.
+    useBackClose(() => setShowHow(false), showHow);
+
+    // A new error is brought into view (role="alert" also reads it out).
+    useEffect(() => {
+        if (error) errorRef.current?.scrollIntoView?.({ block: 'nearest' });
+    }, [error]);
+
+    if (user) return <Navigate to={next} replace />;
+    // A teacher is signed in on this device: their dashboard.
+    if (hasTeacherSession()) return <Navigate to="/teacher" replace />;
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
+        // In scan mode there is no number box for the browser to insist on,
+        // so an empty card went to the server and came back as "Invalid card
+        // number or password" — about a password the student had typed right.
+        if (!cardNumber) {
+            setError('Scan your card or type your card number first.');
+            (mode === 'scan' ? scanButtonRef.current : document.getElementById('login-card-number'))?.focus();
+            return;
+        }
         setLoading(true);
-        const res = await login(cardNumber, password);
-        if (!res.success) setError(res.error);
-        setLoading(false);
+        setOtherKind(null);
+        if (isTeacher) {
+            try {
+                const res = await teacherApi.post('/auth/login', { cardNumber, password });
+                enterTeacher(res.data);
+            } catch (err) {
+                if (err.response?.data?.code === 'STUDENT_CARD') setOtherKind('student');
+                setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Sign-in failed'));
+                setLoading(false);
+                passwordRef.current?.focus();
+            }
+            return;
+        }
+        const res = await login(cardNumber, password, next);
+        // On success the page is already on its way to the dashboard: the
+        // button keeps saying so until it gets there.
+        if (!res.success) {
+            if (res.code === 'TEACHER_CARD') setOtherKind('teacher');
+            setError(res.error);
+            setLoading(false);
+            passwordRef.current?.focus();
+        }
     };
 
     return (
         <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-3 sm:p-6">
-            {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
+            {!role && <RoleChooser onChoose={chooseRole} />}
+            {showForgot && <ForgotPasswordModal role={isTeacher ? 'teacher' : 'student'} onClose={() => setShowForgot(false)} />}
             {showContact && <ContactAdminModal onClose={() => setShowContact(false)} page="login" />}
             {showHow && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onClick={() => setShowHow(false)}>
@@ -296,7 +415,10 @@ const Login = () => {
             <div className="lg-rise grid w-full max-w-5xl overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-indigo-200/70 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
 
                 {/* ── Left: the welcome panel ──────────────────────────── */}
-                <aside className="relative overflow-hidden bg-gradient-to-b from-indigo-600 via-violet-600 to-violet-200 p-7 text-white sm:p-9 lg:min-h-[640px]">
+                {/* Below lg the form comes first and this panel follows it: on a
+                    phone it is about a screen tall, and a student opening the
+                    page to sign in had to scroll past it to find the form. */}
+                <aside className="relative order-2 overflow-hidden bg-gradient-to-b from-indigo-600 via-violet-600 to-violet-200 p-7 text-white sm:p-9 lg:order-1 lg:min-h-[640px]">
                     <div aria-hidden="true" className="pointer-events-none absolute inset-0">
                         <div className="lg-blob absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
                         <div className="absolute right-10 top-24 h-12 w-12 rounded-full bg-white/15" />
@@ -339,18 +461,41 @@ const Login = () => {
                 </aside>
 
                 {/* ── Right: the sign-in card ──────────────────────────── */}
-                <section className="relative bg-white px-5 py-8 sm:px-10 sm:py-10">
+                <section className="relative order-1 bg-white px-5 py-8 sm:px-10 sm:py-10 lg:order-2">
                     <div className="mx-auto max-w-md">
                         <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
+                            {/* The compact header a phone gets, with the welcome panel below the form. */}
+                            <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-indigo-500 lg:hidden">Welcome back to LearnHub</p>
+                            {/* Student or teacher, as one switch: the chooser's answer, changeable. */}
+                            <div role="radiogroup" aria-label="Signing in as" className="mb-5 grid w-full max-w-xs grid-cols-2 overflow-hidden rounded-full border border-slate-200 bg-slate-50 p-1">
+                                {[['student', 'Student', GraduationCap], ['teacher', 'Teacher', BookOpenCheck]].map(([id, label, Icon]) => (
+                                    <button key={id} type="button" role="radio" aria-checked={role === id} onClick={() => chooseRole(id)}
+                                        className={`inline-flex items-center justify-center gap-1.5 rounded-full py-2 text-sm font-bold transition-all ${role === id ? (id === 'teacher' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-indigo-600 text-white shadow-sm') : 'text-slate-500 hover:text-slate-800'}`}>
+                                        <Icon size={15} aria-hidden="true" /> {label}
+                                    </button>
+                                ))}
+                            </div>
                             <span className="lg-float flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 ring-1 ring-indigo-100">
                                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300"><Lock size={18} /></span>
                             </span>
-                            <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">Let&apos;s get you signed in</h2>
-                            <p className="mt-1.5 text-sm text-slate-500">Scan your card or use your password to access your account.</p>
+                            <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">{isTeacher ? 'Teacher sign in' : <>Let&apos;s get you signed in</>}</h2>
+                            <p className="mt-1.5 text-sm text-slate-500">{isTeacher ? 'Scan your card or type its number, then your password, to open your teacher dashboard.' : 'Scan your card or use your password to access your account.'}</p>
                         </div>
 
                         <form className="lg-rise mt-6 space-y-5" onSubmit={handleLogin} style={{ animationDelay: '0.2s' }}>
-                            {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">{error}</div>}
+                            {sessionEnded && !error && (
+                                <p role="status" className="flex items-start gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm font-medium text-indigo-800">
+                                    <Info size={16} className="mt-0.5 shrink-0" /> Your session has ended — please sign in again.
+                                </p>
+                            )}
+                            {error && (
+                                <div ref={errorRef} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">
+                                    {error}
+                                    {otherKind && (
+                                        <> <button type="button" onClick={() => chooseRole(otherKind)} className="font-bold text-indigo-600 underline">Switch to {otherKind === 'teacher' ? 'Teacher' : 'Student'}</button></>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Scan / type, as one bordered switch */}
                             <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
@@ -379,7 +524,7 @@ const Login = () => {
                                     <div id={SCANNER_ID} className={`overflow-hidden rounded-xl bg-slate-900 ${scanning ? 'block' : 'hidden'}`} />
                                     {!scanning ? (
                                         <>
-                                            <button type="button" onClick={() => { setScanError(''); setScanning(true); }} disabled={loading} aria-label="Scan your card"
+                                            <button ref={scanButtonRef} type="button" onClick={() => { setScanError(''); setError(''); setScanning(true); }} disabled={loading} aria-label="Scan your card"
                                                 className="lg-scan-ring mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-white text-indigo-500 shadow-lg shadow-indigo-200 transition-transform hover:scale-105 disabled:opacity-60">
                                                 {loading ? <Loader2 size={40} className="animate-spin" /> : <ScanLine size={44} strokeWidth={1.8} />}
                                             </button>
@@ -399,8 +544,8 @@ const Login = () => {
                                 </div>
                             ) : (
                                 <div>
-                                    <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><CreditCard size={15} className="text-slate-500" /> Card Number</label>
-                                    <input type="text" required maxLength="12" inputMode="numeric" pattern="[0-9]*" value={cardNumber} onChange={e => setCardNumber(e.target.value.replace(/\D/g, ''))}
+                                    <label htmlFor="login-card-number" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><CreditCard size={15} className="text-slate-500" /> Card Number</label>
+                                    <input id="login-card-number" type="text" required maxLength="12" inputMode="numeric" pattern="[0-9]*" autoComplete="username" value={cardNumber} onChange={e => setCardNumber(e.target.value.replace(/\D/g, ''))}
                                         className="block w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono tracking-wider text-slate-800 shadow-sm placeholder-slate-400 transition duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                         placeholder="12-Digit Card Number" />
                                 </div>
@@ -408,13 +553,14 @@ const Login = () => {
 
                             {scanError && (
                                 <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                                    <CameraOff size={14} className="mt-0.5 shrink-0" /> {scanError}
+                                    <CameraOff size={14} className="mt-0.5 shrink-0" />
+                                    <span>{scanError}{otherKind && !error && <> <button type="button" onClick={() => chooseRole(otherKind)} className="font-bold text-indigo-700 underline">Switch to {otherKind === 'teacher' ? 'Teacher' : 'Student'}</button></>}</span>
                                 </p>
                             )}
 
                             <div>
                                 <div className="flex items-center justify-between">
-                                    <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Password</label>
+                                    <label htmlFor="login-password" className="flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Password</label>
                                     <button type="button" onClick={() => setShowForgot(true)} className="text-xs font-semibold text-indigo-600 transition-colors hover:text-indigo-800 hover:underline">
                                         Forgot password?
                                     </button>
@@ -422,15 +568,18 @@ const Login = () => {
                                 <div className="relative mt-2">
                                     <input
                                         ref={passwordRef}
+                                        id="login-password"
                                         type={showPassword ? 'text' : 'password'}
                                         required
+                                        autoComplete="current-password"
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
                                         className="block w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3.5 pr-12 text-slate-800 shadow-sm placeholder-slate-400 transition duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                         placeholder="Enter your password"
                                     />
-                                    <button type="button" onClick={() => setShowPassword(v => !v)} tabIndex={-1}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-700">
+                                    <button type="button" onClick={() => setShowPassword(v => !v)}
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
                                 </div>
@@ -438,7 +587,7 @@ const Login = () => {
 
                             <button type="submit" disabled={loading}
                                 className="group relative flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:hover:translate-y-0">
-                                {loading ? 'Authenticating…' : 'Access Platform'}
+                                {loading ? 'Authenticating…' : isTeacher ? 'Open Teacher Dashboard' : 'Access Platform'}
                                 {!loading && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
                             </button>
                         </form>
@@ -451,7 +600,9 @@ const Login = () => {
                         </button>
 
                         <p className="mt-5 text-center text-xs text-slate-500">
-                            Don&apos;t have an account? <Link to="/signup" className="font-bold text-indigo-600 hover:underline">Sign up here</Link>
+                            {isTeacher
+                                ? <>New teacher? <Link to="/signup?as=teacher" className="font-bold text-emerald-700 hover:underline">Register your card</Link></>
+                                : <>Don&apos;t have an account? <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-600 hover:underline">Sign up here</Link></>}
                         </p>
                         {/* Inside the app the admin console travels in the same bundle, under
                             /admin/. On the website it is its own site, so no link here. */}
