@@ -36,3 +36,11 @@ export const rankUpSince = (userId, periodKey, now) => {
     } catch { return null; /* private mode */ }
 };
 
+/** Whether `now` is better than the best place already celebrated this week, without storing it. */
+export const climbedSince = (userId, periodKey, now) => {
+    if (!userId || !periodKey || !now) return false;
+    try {
+        const prev = readPlaces(localStorage.getItem(`rw:rank:${userId}:${periodKey}`));
+        return !!prev && now < prev.best;
+    } catch { return false; /* private mode */ }
+};
