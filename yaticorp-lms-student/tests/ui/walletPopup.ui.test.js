@@ -96,8 +96,8 @@ describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
         const read = `
             await sleep(800);
             const fs = (sel, re) => { const el = $$(sel).find((e) => re.test(e.innerText)); return el ? Math.round(parseFloat(getComputedStyle(el).fontSize)) : null; };
-            const tile = $$('#wallet div').find((d) => /TOTAL EARNED/.test(d.innerText) && d.className.includes('rounded-2xl'));
-            return { height: Math.round($('#wallet').getBoundingClientRect().height),
+            const tile = $$('#wallet-sheet div').find((d) => /TOTAL EARNED/.test(d.innerText) && d.className.includes('rounded-2xl'));
+            return { height: Math.round($('#wallet-sheet').getBoundingClientRect().height),
                      heading: fs('h2', /Wallet/), balance: fs('p', /1,50,000/),
                      tilePad: Math.round(parseFloat(getComputedStyle(tile).paddingTop)) };`;
 
@@ -125,7 +125,7 @@ describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
             entry, api, styles: true, width: 500, script: `
                 await sleep(800);
                 const box = $('#phone');
-                const wide = $$('#wallet *').filter((el) => el.getBoundingClientRect().right > box.getBoundingClientRect().right + 1)
+                const wide = $$('#wallet-sheet *').filter((el) => el.getBoundingClientRect().right > box.getBoundingClientRect().right + 1)
                     .map((el) => el.tagName + '.' + String(el.className).slice(0, 40));
                 return { overflow: box.scrollWidth - box.clientWidth, wide: wide.slice(0, 5) };` });
         assert.deepEqual(errors, []);

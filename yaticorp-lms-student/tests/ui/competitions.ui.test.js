@@ -35,13 +35,12 @@ const RESULT = { competition: { id: 'c3', name: 'Chess Cup 2025', game: 'chess',
     teamName: 'Alpha Knights', collegeName: 'Alpha College', place: 1, score: { won: 3, played: 3 }, certificate: true };
 
 const api = (extra = {}) => apiModule({
-    '/competitions/rooms/mine': { rooms: [] },
     '/competitions/me': { competitions: [COMP], upcoming: [], live: [MATCH], completed: [], results: [RESULT] },
     '/competitions/leaderboard': BOARD,
     '/competitions/history': { competitions: [{ competition: DONE, teams: [{}, {}, {}, {}], rounds: [] }] },
     ...extra,
     '/competitions': { competitions: [COMP, LUDO, DONE] }
-}, `(url) => (url.includes('/rooms') ? { game: { id: 'room1', code: 'K7Q2XM' } } : {})`);
+});
 
 const home = (tab = '') => `
 import { createRoot } from 'react-dom/client';
@@ -53,11 +52,11 @@ createRoot(document.getElementById('root')).render(
     <Routes><Route path="/competitions" element={<><CompetitionsHome /><Where /></>} /><Route path="*" element={<Where />} /></Routes>
   </MemoryRouter>);`;
 
-describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => {
-    test('six tabs; the games are Chess, Ludo, Carrom and UNO, with a photo each, and Play Now opens a room', async () => {
+describe('the Competitions section (Chess, Ludo and Carrom)', { skip: skipWithoutStyles }, () => {
+    test('six tabs; the games are Chess, Ludo and Carrom, with a photo each, and each opens its competitions', async () => {
         const { result, errors } = await screen({ entry: home(), api: api(), styles: true, script: `
             await sleep(600);
-            const tabs = $$('nav[aria-label="Games & Competitions"] button').map((b) => b.innerText.trim());
+            const tabs = $$('nav[data-section-tabs] button').map((b) => b.innerText.trim());
             const games = $$('[data-game]').map((g) => g.dataset.game);
             const photos = $$('[data-game] img').map((i) => i.getAttribute('src'));
             const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
@@ -65,16 +64,16 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
             const searched = $$('[data-game]').map((g) => g.dataset.game);
             setter.call(search, ''); search.dispatchEvent(new Event('input', { bubbles: true })); await sleep(150);
             // The cards came back after the search, so find the button now.
-            [...$('[data-game="ludo"]').querySelectorAll('button')].find((b) => /Play Now/.test(b.innerText)).click(); await sleep(500);
-            return { tabs, games, photos, searched, where: $('#where').innerText, posted: window.__calls.filter((c) => c[0] === 'POST').map((c) => [c[1], c[2]]) };` });
+            $('[data-see-competitions="ludo"]').click(); await sleep(500);
+            return { tabs, games, photos, searched, where: $('#where').innerText, filter: $('[data-game-filter][aria-pressed="true"]')?.dataset.gameFilter, posted: window.__calls.filter((c) => c[0] === 'POST').length };` });
         assert.deepEqual(errors, []);
         assert.deepEqual(result.tabs, ['Games', 'Competitions', 'My Games', 'Leaderboard', 'Results', 'History']);
-        assert.deepEqual(result.games, ['chess', 'ludo', 'carrom', 'uno']);
-        assert.deepEqual(result.photos, ['/games/chess.jpg', '/games/chess-icon.png', '/games/ludo.jpg', '/games/ludo-icon.png', '/games/carrom.jpg', '/games/carrom-icon.png', '/games/uno.jpg', '/games/uno-icon.png']);
+        assert.deepEqual(result.games, ['chess', 'ludo', 'carrom'], 'no UNO');
+        assert.deepEqual(result.photos, ['/games/chess.jpg', '/games/chess-icon.png', '/games/ludo.jpg', '/games/ludo-icon.png', '/games/carrom.jpg', '/games/carrom-icon.png']);
         assert.deepEqual(result.searched, ['carrom'], 'Search games narrows the cards');
-        assert.equal(result.posted[0][0], '/competitions/rooms');
-        assert.equal(result.posted[0][1].game, 'ludo');
-        assert.equal(result.where, '/competitions/play/room1', 'straight into the new room');
+        assert.equal(result.where, '/competitions?tab=competitions&game=ludo', 'Ludo\'s competitions');
+        assert.equal(result.filter, 'ludo', 'filtered to Ludo');
+        assert.equal(result.posted, 0, 'no room is made');
     });
 
     test('the Competitions tab: game filters, then the competitions as simple cards', async () => {
@@ -88,11 +87,11 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
             return { text: text(card), href: view?.getAttribute('href'), before, ludoOnly,
                      ludoPhase: $('[data-competition="c2"] [data-phase]')?.innerText,
                      filters: $$('[data-game-filter]').map((b) => b.innerText.trim()) };` });
-        assert.deepEqual(result.filters.map((f) => f.replace(/^\S+\s/, '')), ['All games', 'Chess', 'Ludo', 'Carrom', 'UNO']);
+        assert.deepEqual(result.filters.map((f) => f.replace(/^\S+\s/, '')), ['All games', 'Chess', 'Ludo', 'Carrom']);
         assert.match(result.text, /Inter-College Chess Cup/);
         assert.match(result.text, /4 Colleges/);
         assert.match(result.text, /8 Players/);
-        assert.match(result.text, /Trophy and medals/, 'the prize');
+        assert.doesNotMatch(result.text, /Trophy and medals|Prize/, 'no prize line on the card (the user removed it, 14 Oct)');
         assert.match(result.text, /Your team: Alpha Knights/);
         assert.equal(result.href, '/competitions/c1');
         assert.deepEqual(result.before.sort(), ['c1', 'c2'], 'a finished competition belongs to Results, not here');
@@ -111,6 +110,17 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
         assert.equal(result.join, '/competitions/play/g1', 'it opens on Live when a match is on');
         assert.match(result.match, /Your team Alpha Knights/);
         assert.match(result.match, /Opponent Beta Rooks \(Beta College\)/);
+    });
+
+    test('a match waiting for the organizer to decide it offers no Join game', async () => {
+        const waiting = { ...MATCH, needsDecision: true, gameStatus: 'abandoned', resultNote: 'Nobody joined the game. The organizer will decide this match.' };
+        const { result, errors } = await screen({ entry: home('mine'), api: api({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [waiting], completed: [], results: [] } }), styles: true, script: `
+            await sleep(600);
+            const card = $('[data-match="m1"]');
+            return { text: text(card), links: [...card.querySelectorAll('a')].map((a) => a.innerText.trim()) };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.text, /Waiting for the organizer to decide this match/);
+        assert.ok(!result.links.some((l) => /Join game|Watch/.test(l)), `no way into a game that is over (${result.links})`);
     });
 
     test('My Games on a phone: a registered competition reads across the row, not down a narrow column', async () => {
@@ -176,54 +186,131 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
         assert.match(result.players, /Asha/);
     });
 
-    test('Your Games: open a room, copy its code, or leave it; three rows show, the rest scroll', async () => {
-        const rooms = [
-            { id: 'r1', game: 'chess', label: 'Chess', emoji: '♟️', code: 'GZVS8K', status: 'waiting', host: false, seats: [{ name: 'Bhagyashree' }] },
-            { id: 'r2', game: 'carrom', label: 'Carrom', emoji: '🟤', code: '7C3S36', status: 'active', host: true, seats: [{ name: 'Bhagyashree' }, { name: 'Asha' }] },
-            ...['ludo', 'ludo', 'uno', 'chess'].map((game, i) => ({ id: `x${i}`, game, label: game.toUpperCase(), emoji: '', code: `CODE0${i}`, status: 'waiting', host: true, seats: [{ name: 'Bhagyashree' }] }))
-        ];
-        const { result, errors } = await screen({ entry: home(), api: api({ '/competitions/rooms/mine': { rooms } }), styles: true, script: `
+    test('playing with friends is gone (no room to start, no rooms list); Join with a code opens a competition match', async () => {
+        const post = `(url, body) => (url === '/competitions/matches/join' ? (body.code === 'K7Q2XM' ? { game: { id: 'g9' } } : Promise.reject({ response: { status: 403, data: { message: 'That code is for another match. Your own match code is in My Games.' } } })) : {})`;
+        const { result, errors } = await screen({ entry: home(), api: apiModule({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [MATCH], completed: [], results: [] }, '/competitions': { competitions: [COMP, LUDO, DONE] } }, post), styles: true, script: `
             await sleep(600);
-            const box = $('[data-your-games]');
-            const rows = $$('[data-room]').map((r) => text(r));
-            const links = $$('[data-room] a').map((a) => [a.innerText.trim(), a.getAttribute('href')]);
-            $('[data-room="r1"] button[aria-haspopup]').click(); await sleep(100);
-            const menu1 = $$('[data-room="r1"] [role=menuitem]').map((b) => b.innerText.trim());
-            $$('[data-room="r1"] [role=menuitem]').find((b) => /Leave room/.test(b.innerText)).click(); await sleep(400);
-            $('[data-room="r2"] button[aria-haspopup]').click(); await sleep(100);
-            const menu2 = $$('[data-room="r2"] [role=menuitem]').map((b) => b.innerText.trim());
-            const list = $('[data-rooms]'); const row = $('[data-room="r1"]');
-            const scroll = { rows: $$('[data-room]').length, shown: Math.round(list.clientHeight / row.getBoundingClientRect().height * 10) / 10, scrolls: list.scrollHeight > list.clientHeight + 2, scrollable: getComputedStyle(list).overflowY };
-            return { rows, links, menu1, menu2, scroll, posted: window.__calls.filter((c) => c[0] === 'POST').map((c) => c[1]), reloaded: window.__calls.filter((c) => c[1] === '/competitions/rooms/mine').length };` });
+            const buttons = $$('button').map((b) => b.innerText.trim());
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+            const box = $('[data-join-code] input');
+            setter.call(box, 'abc-999'); box.dispatchEvent(new Event('input', { bubbles: true })); await sleep(100);
+            const cleaned = box.value;
+            setter.call(box, 'ZZZZZZ'); box.dispatchEvent(new Event('input', { bubbles: true })); await sleep(100);
+            $('[data-join-code] button[type=submit]').click(); await sleep(400);
+            const refused = text($('[data-join-code] [role=alert]'));
+            setter.call(box, 'k7q2xm'); box.dispatchEvent(new Event('input', { bubbles: true })); await sleep(100);
+            $('[data-join-code] button[type=submit]').click(); await sleep(500);
+            return { playNow: buttons.some((b) => /Play Now|Join Room/i.test(b)), rooms: !!$('[data-your-games]') || !!$('[data-rooms]'),
+                friends: /with friends|Create rooms/i.test(document.body.innerText), cleaned, refused, where: $('#where').innerText,
+                sent: window.__calls.filter((c) => c[0] === 'POST').map((c) => [c[1], c[2].code]), asked: window.__calls.some((c) => c[1].includes('/rooms')) };` });
         assert.deepEqual(errors, []);
-        assert.match(result.rows[0], /Chess · GZVS8K Bhagyashree/);
-        assert.match(result.rows[1], /Carrom · 7C3S36 Bhagyashree, Asha/);
-        assert.deepEqual(result.links.slice(0, 2), [['Open room', '/competitions/play/r1'], ['Continue', '/competitions/play/r2']]);
-        assert.equal(result.scroll.rows, 6, 'every room is in the list');
-        assert.equal(result.scroll.scrollable, 'auto');
-        assert.ok(result.scroll.scrolls, 'but the list scrolls');
-        assert.ok(result.scroll.shown >= 2.9 && result.scroll.shown <= 3.3, `about three rows show at once (${result.scroll.shown})`);
-        assert.deepEqual(result.menu1, ['Copy code', 'Leave room'], 'a room not started can be left');
-        assert.deepEqual(result.posted, ['/competitions/play/r1/leave']);
-        assert.equal(result.reloaded, 2, 'the list is asked for again after leaving');
-        assert.deepEqual(result.menu2, ['Copy code'], 'a game in play cannot be left here');
+        assert.equal(result.playNow, false); assert.equal(result.rooms, false);
+        assert.equal(result.friends, false, 'no "Play with friends" or "Create rooms" anywhere');
+        assert.equal(result.cleaned, 'ABC999', 'letters and numbers only, in capitals');
+        assert.match(result.refused, /another match/);
+        assert.deepEqual(result.sent, [['/competitions/matches/join', 'ZZZZZZ'], ['/competitions/matches/join', 'K7Q2XM']]);
+        assert.equal(result.where, '/competitions/play/g9', 'straight into the match');
+        assert.equal(result.asked, false, 'rooms are never asked for');
+    });
+
+    test('My Games shows the match code on a match about to be played', async () => {
+        const { result, errors } = await screen({ entry: home('mine'), api: api({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [{ ...MATCH, gameCode: 'K7Q2XM' }], completed: [], results: [RESULT] } }), styles: true, script: `
+            await sleep(800);
+            return $('[data-match-code]')?.innerText.replace(/\\s+/g, ' ').trim();` });
+        assert.deepEqual(errors, []);
+        assert.equal(result, 'Match code K7Q2XM');
     });
 
     test('on a phone the tab bar scrolls to the chosen tab by itself, with the next one in view', async () => {
         const { result, errors } = await screen({ entry: home('results'), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
-            const bar = () => $('nav[aria-label="Games & Competitions"]');
-            const shown = (label) => { const b = $$('nav[aria-label="Games & Competitions"] button').find((x) => x.innerText.trim() === label); const r = b.getBoundingClientRect(); const n = bar().getBoundingClientRect(); return r.left >= n.left - 1 && r.right <= n.right + 1; };
+            const bar = () => $('nav[data-section-tabs]');
+            const box = (label) => { const b = $$('nav[data-section-tabs] button').find((x) => x.innerText.trim() === label); return [b.getBoundingClientRect(), bar().getBoundingClientRect()]; };
+            const shown = (label) => { const [r, n] = box(label); return r.left >= n.left - 1 && r.right <= n.right + 1; };
+            const peeks = (label) => { const [r, n] = box(label); return r.left < n.right - 8; };
             await sleep(900);
             const atResults = { scrolled: bar().scrollLeft, results: shown('Results'), history: shown('History'), games: shown('Games') };
-            $$('nav[aria-label="Games & Competitions"] button').find((x) => x.innerText.trim() === 'Games').click(); await sleep(900);
-            return { atResults, atGames: { scrolled: bar().scrollLeft, games: shown('Games'), competitions: shown('Competitions') } };` });
+            $$('nav[data-section-tabs] button').find((x) => x.innerText.trim() === 'Games').click(); await sleep(900);
+            return { atResults, atGames: { scrolled: bar().scrollLeft, games: shown('Games'), next: peeks('Competitions') } };` });
         assert.deepEqual(errors, []);
         assert.ok(result.atResults.scrolled > 0, 'the bar moved on its own');
         assert.equal(result.atResults.results, true, 'Results is in view');
         assert.equal(result.atResults.history, true, 'and so is the next tab');
         assert.equal(result.atResults.games, false, 'the far end is off screen');
         assert.equal(result.atGames.scrolled, 0, 'back to Games: the bar scrolls back');
-        assert.ok(result.atGames.games && result.atGames.competitions);
+        // On the narrowest phone the next tab is only partly in view, enough to
+        // show the row goes on.
+        assert.ok(result.atGames.games, 'Games is in view');
+        assert.ok(result.atGames.next, 'and the next tab shows at the edge');
+    });
+
+    // Asked 2026-10-16: "make the scroll smooth...make those nav animation".
+    test('the tab highlight glides to the chosen tab and lands on it; the ends fade where tabs are hidden', async () => {
+        const { result, errors } = await screen({ entry: home(), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(1200);
+            const bar = $('nav[aria-label="Games & Competitions"]');
+            const pill = bar.querySelector('span[aria-hidden="true"]');
+            const fades = () => [...bar.parentElement.children].filter((c) => c !== bar).map((f) => getComputedStyle(f).opacity);
+            const btn = (label) => $$('nav[aria-label="Games & Competitions"] button').find((b) => b.innerText.trim() === label);
+            const onIt = (b) => { const p = pill.getBoundingClientRect(), r = b.getBoundingClientRect(); return Math.abs(p.left - r.left) < 1.5 && Math.abs(p.width - r.width) < 1.5; };
+            const atStart = { onGames: onIt(btn('Games')), fades: fades() };
+            const t0 = performance.now(); btn('Leaderboard').click();
+            const xs = [];
+            while (performance.now() - t0 < 600) { xs.push(Math.round(pill.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft)); await sleep(40); }
+            await sleep(900);
+            return { atStart, steps: new Set(xs).size, onLeaderboard: onIt(btn('Leaderboard')), fades: fades(), hop: btn('Leaderboard').querySelector('svg').classList.contains('tab-icon-pop') };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.atStart.onGames, true, 'the highlight starts on the chosen tab');
+        assert.deepEqual(result.atStart.fades, ['0', '1'], 'at the start only the far end fades');
+        assert.ok(result.steps > 3, `it glides there, not jumps (${result.steps} positions on the way)`);
+        assert.equal(result.onLeaderboard, true, 'and lands exactly on the new tab');
+        assert.deepEqual(result.fades, ['1', '1'], 'scrolled along, both ends fade');
+        assert.equal(result.hop, true, 'its icon hops');
+    });
+
+    test('on a phone the game filters scroll to the chosen game by itself, with the next one in view', async () => {
+        const { result, errors } = await screen({ entry: home('competitions'), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            const row = () => $('[aria-label="Filter by game"]');
+            const pick = (id) => $('[data-game-filter="' + id + '"]');
+            const shown = (id) => { const r = pick(id).getBoundingClientRect(); const n = row().getBoundingClientRect(); return r.left >= n.left - 1 && r.right <= n.right + 1; };
+            await sleep(700);
+            const before = { overflows: row().scrollWidth > row().clientWidth, scrolled: row().scrollLeft, carrom: shown('carrom') };
+            pick('ludo').click(); await sleep(900);
+            const atLudo = { scrolled: row().scrollLeft, ludo: shown('ludo'), carrom: shown('carrom'), pressed: pick('ludo').getAttribute('aria-pressed') };
+            pick('all').click(); await sleep(900);
+            return { before, atLudo, atAll: { scrolled: row().scrollLeft, all: shown('all') }, sideways: document.documentElement.scrollWidth > innerWidth + 1 };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.before.overflows, true, 'the filters are wider than the phone, so the row scrolls');
+        assert.equal(result.before.carrom, false, 'Carrom starts off screen');
+        assert.equal(result.atLudo.pressed, 'true');
+        assert.ok(result.atLudo.scrolled > 0, 'choosing Ludo moved the row on its own');
+        assert.equal(result.atLudo.ludo, true, 'Ludo is in view');
+        assert.equal(result.atLudo.carrom, true, 'and so is the next game');
+        assert.equal(result.atAll.scrolled, 0, 'back to All games: the row scrolls back');
+        assert.equal(result.atAll.all, true);
+        assert.equal(result.sideways, false, 'the page itself never scrolls sideways');
+    });
+
+    test('on a phone the My Games tabs scroll to the chosen tab by itself, with the next one in view', async () => {
+        const { result, errors } = await screen({
+            entry: home('mine'), api: api({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [], completed: [], results: [] } }),
+            styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            const row = () => $('[aria-label="My games"]');
+            const tab = (label) => $$('[aria-label="My games"] [role="tab"]').find((b) => b.innerText.replace(/\\s*\\d+$/, '').trim() === label);
+            const shown = (label) => { const r = tab(label).getBoundingClientRect(), n = row().getBoundingClientRect(); return r.left >= n.left - 1 && r.right <= n.right + 1; };
+            await sleep(700);
+            const before = { overflows: row().scrollWidth > row().clientWidth, completed: shown('Completed') };
+            tab('Live').click(); await sleep(900);
+            const atLive = { scrolled: row().scrollLeft, live: shown('Live'), completed: shown('Completed') };
+            tab('Registered').click(); await sleep(900);
+            return { before, atLive, atFirst: { scrolled: row().scrollLeft, registered: shown('Registered') } };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.before.overflows, true, 'four tabs are wider than the phone, so the row scrolls');
+        assert.equal(result.before.completed, false, 'Completed starts off screen');
+        assert.ok(result.atLive.scrolled > 0, 'choosing Live moved the row on its own');
+        assert.equal(result.atLive.live, true);
+        assert.equal(result.atLive.completed, true, 'and the next tab, Completed, is in view');
+        assert.equal(result.atFirst.scrolled, 0, 'back to Registered: the row scrolls back');
+        assert.equal(result.atFirst.registered, true);
     });
 
     test('it fits a phone without scrolling sideways', async () => {
@@ -233,6 +320,248 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
                 return { sideways: document.documentElement.scrollWidth > innerWidth + 1 };` });
             assert.equal(result.sideways, false, tab || 'games');
         }
+    });
+});
+
+describe('a round with an odd number of teams', { skip: skipWithoutStyles }, () => {
+    test('the team with the bye goes straight through: its card has no match time', async () => {
+        const SCHEDULED = { ...MATCH, status: 'scheduled', gameId: null, gameStatus: null };
+        const BYE = { ...MATCH, id: 'm2', slot: 1, status: 'bye', gameId: null, gameStatus: null, games: 0, winnerTeamId: 't3', decidedBy: 'bye',
+            sides: [{ teamId: 't3', teamName: 'Gamma Pawns', collegeName: 'Gamma College', lineup: [] }] };
+        const entry = `
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
+import { Rounds } from '${srcFile('competitions/parts.jsx')}';
+createRoot(document.getElementById('root')).render(
+  <MemoryRouter><Rounds rounds={${JSON.stringify([{ round: 0, name: 'Semi Final', matches: [SCHEDULED, BYE] }])}} /></MemoryRouter>);`;
+        const { result, errors } = await screen({ entry, api: api(), script: `
+            await sleep(300);
+            const card = (id) => document.querySelector('[data-match="' + id + '"]').innerText;
+            return { match: card('m1'), bye: card('m2') };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.bye, /goes straight through/);
+        assert.doesNotMatch(result.bye, /2026/, 'no time on a match nobody plays');
+        assert.match(result.match, /2026/, 'a real match keeps its time');
+    });
+});
+
+describe('a finished competition\'s results page', { skip: skipWithoutStyles }, () => {
+    const team = (id, teamName, college, player) => ({ id, teamName, collegeName: college, status: 'approved', players: [{ userId: `u-${id}`, name: player }] });
+    const side = (t) => ({ teamId: t.id, teamName: t.teamName, collegeName: t.collegeName, lineup: [] });
+    const match = (id, round, roundName, kind, a, b, winner) => ({ id, round, roundName, kind, slot: 0, status: b ? 'completed' : 'bye', scheduledAt: '2026-10-14T05:30:00.000Z',
+        sides: b ? [side(a), side(b)] : [side(a)], winnerTeamId: winner.id, places: b ? [[winner.id], [(winner === a ? b : a).id]] : [[a.id]], decidedBy: b ? 'game' : 'bye', resultNote: '', needsDecision: false, gameId: null, games: b ? 1 : 0 });
+    const page = (competition, teams, rounds) => ({ entry: `
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import CompetitionDetail from '${srcFile('competitions/CompetitionDetail.jsx')}';
+createRoot(document.getElementById('root')).render(
+  <MemoryRouter initialEntries={['/competitions/${competition.id}']}><Routes><Route path="/competitions/:id" element={<CompetitionDetail />} /></Routes></MemoryRouter>);`,
+    api: apiModule({ [`/competitions/${competition.id}`]: { competition, teams, rounds } }) });
+    const read = `
+        await sleep(700);
+        const headings = [...document.querySelectorAll('h2')].map((h) => h.innerText.trim());
+        const rows = [...document.querySelectorAll('[data-standing]')].map((li) => li.innerText.replace(/\\s+/g, ' ').trim());
+        return { headings, rows };`;
+
+    test('the winners, then every team in its final place; no prizes box and no college list', async () => {
+        const [a, b, c, d] = [team('t1', 'SSS team', 'sssss', 'Hari Kiran'), team('t2', 'Alpha Knights', 'neworg', 'Asha'), team('t3', 'Beta Rooks', 'beta', 'Ravi'), team('t4', 'Gamma', 'gamma', 'Gauri')];
+        const rounds = [
+            { round: 0, name: 'Semi Final', matches: [match('m1', 0, 'Semi Final', 'main', a, d, a), match('m2', 0, 'Semi Final', 'main', b, c, b)] },
+            { round: 1, name: 'Final', matches: [match('m3', 1, 'Final', 'main', a, b, a), match('m4', 1, 'Third place', 'third-place', c, d, c)] }
+        ];
+        const done = { ...DONE, id: 'r1', winners: [{ place: 1, teamId: 't1', teamName: 'SSS team', collegeName: 'sssss' }, { place: 2, teamId: 't2', teamName: 'Alpha Knights', collegeName: 'neworg' }, { place: 3, teamId: 't3', teamName: 'Beta Rooks', collegeName: 'beta' }],
+            myTeam: { ...b } };
+        const { result, errors } = await screen({ ...page(done, [d, c, b, a], rounds), styles: true, script: read });
+        assert.deepEqual(errors, []);
+        assert.ok(result.headings.some((h) => /Winners/.test(h)));
+        assert.ok(result.headings.indexOf('Final standings') > result.headings.findIndex((h) => /Winners/.test(h)), 'the standings follow the winners');
+        assert.ok(!result.headings.some((h) => /Prizes/.test(h)), 'no Prizes & rewards once it is over');
+        assert.ok(!result.headings.some((h) => /Participating colleges/.test(h)), 'the standings name every team instead');
+        assert.ok(result.headings.some((h) => /Competition rules/.test(h)), 'the rules stay');
+        assert.deepEqual(result.rows, [
+            '1 SSS team sssss · Hari Kiran Won the final Won 2 of 2',
+            '2 Alpha KnightsYour team neworg · Asha Lost the final Won 1 of 2', // the tag sits beside the name, not after a space
+            '3 Beta Rooks beta · Ravi Won the third-place match Won 1 of 2',
+            '4 Gamma gamma · Gauri Lost the third-place match Won 0 of 2'
+        ]);
+    });
+
+    test('on a phone each team keeps its name whole, with its result underneath', async () => {
+        const [a, b, c, d] = [team('t1', 'SSS team', 'sssss', 'Hari Kiran'), team('t2', 'Alpha Knights', 'neworg', 'Asha'), team('t3', 'Beta Rooks', 'Sample Beta College', 'Ravi'), team('t4', 'Gamma Pawns', 'Sample Gamma College', 'Gauri')];
+        const rounds = [
+            { round: 0, name: 'Semi Final', matches: [match('m1', 0, 'Semi Final', 'main', a, d, a), match('m2', 0, 'Semi Final', 'main', b, c, b)] },
+            { round: 1, name: 'Final', matches: [match('m3', 1, 'Final', 'main', a, b, a), match('m4', 1, 'Third place', 'third-place', c, d, c)] }
+        ];
+        const done = { ...DONE, id: 'r4', myTeam: { ...b }, winners: [{ place: 1, teamId: 't1', teamName: 'SSS team', collegeName: 'sssss' }, { place: 2, teamId: 't2', teamName: 'Alpha Knights', collegeName: 'neworg' }, { place: 3, teamId: 't3', teamName: 'Beta Rooks', collegeName: 'Sample Beta College' }] };
+        const { result, errors } = await screen({ ...page(done, [a, b, c, d], rounds), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            return [...document.querySelectorAll('[data-standing]')].map((li) => {
+                const name = li.querySelector('p.font-bold'), res = [...li.querySelectorAll('p')].find((p) => /final|match/.test(p.innerText));
+                return { whole: name.scrollWidth <= name.clientWidth + 1, below: res.getBoundingClientRect().top >= name.getBoundingClientRect().bottom - 1 };
+            });` });
+        assert.deepEqual(errors, []);
+        for (const [i, r] of result.entries()) {
+            assert.equal(r.whole, true, `row ${i + 1}: the name is not cut off`);
+            assert.equal(r.below, true, `row ${i + 1}: the result is under the name`);
+        }
+    });
+
+    test('teams out in the same round share a rank', async () => {
+        const t = ['A', 'B', 'C', 'D', 'E', 'F'].map((x) => team(x, `Team ${x}`, `College ${x}`, `Player ${x}`));
+        const [A, B, C, D, E, F] = t;
+        const rounds = [
+            { round: 0, name: 'Quarter Final', matches: [match('q1', 0, 'Quarter Final', 'main', A, B, A), match('q2', 0, 'Quarter Final', 'main', C, D, C), match('q3', 0, 'Quarter Final', 'main', E, F, E)] },
+            { round: 1, name: 'Semi Final', matches: [match('s1', 1, 'Semi Final', 'main', A, E, A), match('s2', 1, 'Semi Final', 'main', C, null, C)] },
+            { round: 2, name: 'Final', matches: [match('f1', 2, 'Final', 'main', A, C, A)] }
+        ];
+        const done = { ...DONE, id: 'r2', myTeam: null, winners: [{ place: 1, teamId: 'A', teamName: 'Team A', collegeName: 'College A' }, { place: 2, teamId: 'C', teamName: 'Team C', collegeName: 'College C' }] };
+        const { result, errors } = await screen({ ...page(done, t, rounds), styles: true, script: read });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result.rows.map((r) => r.split(' College')[0]), ['1 Team A', '2 Team C', '3 Team E', '4 Team B', '4 Team D', '4 Team F']);
+        assert.match(result.rows[2], /Out in the Semi Final Won 1 of 2$/);
+        assert.match(result.rows[3], /Out in the Quarter Final Won 0 of 1$/);
+        assert.match(result.rows[1], /Lost the final Won 1 of 2$/, 'a bye is not a match won');
+    });
+
+    test('with many teams the list shows two and scrolls for the rest, on a laptop and a phone', async () => {
+        const t = ['A', 'B', 'C', 'D', 'E', 'F'].map((x) => team(x, `Team ${x}`, `College ${x}`, `Player ${x}`));
+        const [A, B, C, D, E, F] = t;
+        const rounds = [
+            { round: 0, name: 'Quarter Final', matches: [match('q1', 0, 'Quarter Final', 'main', A, B, A), match('q2', 0, 'Quarter Final', 'main', C, D, C), match('q3', 0, 'Quarter Final', 'main', E, F, E)] },
+            { round: 1, name: 'Semi Final', matches: [match('s1', 1, 'Semi Final', 'main', A, E, A), match('s2', 1, 'Semi Final', 'main', C, null, C)] },
+            { round: 2, name: 'Final', matches: [match('f1', 2, 'Final', 'main', A, C, A)] }
+        ];
+        const many = { ...DONE, id: 'r5', myTeam: null, winners: [{ place: 1, teamId: 'A', teamName: 'Team A', collegeName: 'College A' }, { place: 2, teamId: 'C', teamName: 'Team C', collegeName: 'College C' }] };
+        const look = `
+            await sleep(700);
+            const list = document.querySelector('[data-standings]'), rows = [...list.children];
+            const two = rows[0].getBoundingClientRect().height + rows[1].getBoundingClientRect().height + 2;
+            const before = { shownTop: rows[1].getBoundingClientRect().bottom <= list.getBoundingClientRect().bottom + 1,
+                             thirdHidden: rows[2].getBoundingClientRect().top >= list.getBoundingClientRect().bottom - 1 };
+            list.scrollTop = list.scrollHeight; await sleep(200);
+            const last = rows.at(-1).getBoundingClientRect(), box = list.getBoundingClientRect();
+            return { height: list.getBoundingClientRect().height, two, scrolls: list.scrollHeight > list.clientHeight + 5, before,
+                     lastShown: last.bottom <= box.bottom + 1 && last.top >= box.top - 1, note: document.querySelector('[data-standings-more]')?.innerText };`;
+        for (const where of [{ width: 1280, height: 900 }, { device: DEVICES.galaxyZFold6Folded }]) {
+            const { result, errors } = await screen({ ...page(many, t, rounds), styles: true, ...where, script: look });
+            assert.deepEqual(errors, []);
+            const label = where.device ? 'phone' : 'laptop';
+            assert.ok(Math.abs(result.height - result.two) <= 1.5, `${label}: as tall as two teams (${result.height} vs ${result.two})`);
+            assert.equal(result.scrolls, true, `${label}: the rest scroll`);
+            assert.equal(result.before.shownTop, true, `${label}: the first two show whole`);
+            assert.equal(result.before.thirdHidden, true, `${label}: the third waits below`);
+            assert.equal(result.lastShown, true, `${label}: scrolling reaches the last team`);
+            assert.equal(result.note, 'Showing 2 of 6 teams. Scroll the list to see the rest.');
+        }
+    });
+
+    test('with two teams there is nothing to scroll', async () => {
+        const [a, b] = [team('t1', 'SSS team', 'sssss', 'Hari Kiran'), team('t2', 'Alpha Knights', 'neworg', 'Asha')];
+        const two = { ...DONE, id: 'r6', myTeam: null, winners: [{ place: 1, teamId: 't1', teamName: 'SSS team', collegeName: 'sssss' }, { place: 2, teamId: 't2', teamName: 'Alpha Knights', collegeName: 'neworg' }] };
+        const { result, errors } = await screen({ ...page(two, [a, b], [{ round: 0, name: 'Final', matches: [match('f', 0, 'Final', 'main', a, b, a)] }]), styles: true, script: `
+            await sleep(700);
+            const list = document.querySelector('[data-standings]');
+            return { scrolls: list.scrollHeight > list.clientHeight + 1, note: !!document.querySelector('[data-standings-more]') };` });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result, { scrolls: false, note: false });
+    });
+
+    test('on a small phone the team line keeps its width, and two columns of rounds do not widen the page', async () => {
+        const [a, b, c, d] = [team('t1', 'SSS team', 'sssss', 'Hari Kiran'), team('t2', 'Alpha Mobile', 'Sample Alpha College', 'Asha'), team('t3', 'Beta Rooks', 'beta', 'Ravi'), team('t4', 'Gamma', 'gamma', 'Gauri')];
+        const rounds = [
+            { round: 0, name: 'Semi Final', matches: [match('m1', 0, 'Semi Final', 'main', a, d, a), match('m2', 0, 'Semi Final', 'main', b, c, b)] },
+            { round: 1, name: 'Final', matches: [match('m3', 1, 'Final', 'main', a, b, a), match('m4', 1, 'Third place', 'third-place', c, d, c)] }
+        ];
+        const done = { ...DONE, id: 'r7', certificates: true, winners: [{ place: 1, teamId: 't1', teamName: 'SSS team', collegeName: 'sssss' }, { place: 2, teamId: 't2', teamName: 'Alpha Mobile', collegeName: 'Sample Alpha College' }, { place: 3, teamId: 't3', teamName: 'Beta Rooks', collegeName: 'beta' }],
+            myTeam: { ...b, place: 2 } };
+        // In the app's own frame (a padded page scrolling inside <main>), where
+        // the second column of rounds sits far enough right to show the bug.
+        const bare = page(done, [a, b, c, d], rounds);
+        const framed = { ...bare, entry: bare.entry.replace('element={<CompetitionDetail />}',
+            'element={<div className="flex h-dvh"><main className="relative flex-1 overflow-auto"><div className="mx-auto p-4 pb-[7.5rem]"><CompetitionDetail /></div></main></div>}') };
+        assert.notEqual(framed.entry, bare.entry, 'the frame was put in');
+        const { result, errors } = await screen({ ...framed, styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            const line = [...document.querySelectorAll('header p')].find((p) => /You play for/.test(p.innerText));
+            const box = line.parentElement.getBoundingClientRect(), text = line.getBoundingClientRect();
+            const cert = [...document.querySelectorAll('header button')].find((x) => /My certificate/.test(x.innerText)).getBoundingClientRect();
+            const back = [...document.querySelectorAll('a')].find((x) => /Competitions/.test(x.innerText)).getBoundingClientRect();
+            const main = document.querySelector('main');
+            return { share: text.width / box.width, certBelow: cert.top >= text.bottom - 1, wide: main.scrollWidth - main.clientWidth + Math.max(0, innerWidth - screen.width), backHeight: back.height };` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.share > 0.6, `"You play for…" has room (${Math.round(result.share * 100)}% of its box)`);
+        assert.equal(result.certBelow, true, 'My certificate goes under it');
+        assert.ok(result.wide <= 1, `the page fits the screen (${result.wide}px too wide)`);
+        assert.ok(result.backHeight >= 40, `the back link is a finger's height (${result.backHeight}px)`);
+    });
+
+    test('on a phone the podium shows each team and college name whole', async () => {
+        const [a, b, c, d] = [team('t1', 'Delta Bishops', 'Sample Delta College', 'Dhanya'), team('t2', 'Alpha Knights', 'Sample Alpha College', 'Asha'), team('t3', 'Gamma Pawns', 'Sample Gamma College', 'Gauri'), team('t4', 'Beta Rooks', 'Sample Beta College', 'Ravi')];
+        const rounds = [
+            { round: 0, name: 'Semi Final', matches: [match('m1', 0, 'Semi Final', 'main', a, d, a), match('m2', 0, 'Semi Final', 'main', b, c, b)] },
+            { round: 1, name: 'Final', matches: [match('m3', 1, 'Final', 'main', a, b, a), match('m4', 1, 'Third place', 'third-place', c, d, c)] }
+        ];
+        const done = { ...DONE, id: 'r8', myTeam: null, winners: [a, b, c].map((t, i) => ({ place: i + 1, teamId: t.id, teamName: t.teamName, collegeName: t.collegeName })) };
+        const { result, errors } = await screen({ ...page(done, [a, b, c, d], rounds), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            return [...document.querySelectorAll('[data-podium] p')].filter((p) => p.innerText.trim()).map((p) => ({ text: p.innerText.trim(), whole: p.scrollWidth <= p.clientWidth + 1 && p.scrollHeight <= p.clientHeight + 1 }));` });
+        assert.deepEqual(errors, []);
+        for (const name of ['Delta Bishops', 'Sample Delta College', 'Alpha Knights', 'Sample Alpha College', 'Gamma Pawns', 'Sample Gamma College']) {
+            const p = result.find((x) => x.text === name);
+            assert.ok(p, `${name} is on the podium`);
+            assert.equal(p.whole, true, `${name} is not cut off`);
+        }
+    });
+
+    test('before it is over the page still shows the prizes, and no standings', async () => {
+        const live = { ...COMP, id: 'r3', status: 'live', phase: 'live' };
+        const { result, errors } = await screen({ ...page(live, [], []), styles: true, script: read });
+        assert.deepEqual(errors, []);
+        assert.ok(result.headings.some((h) => /Prizes/.test(h)));
+        assert.ok(!result.headings.includes('Final standings'));
+    });
+});
+
+describe('a college\'s own competition', { skip: skipWithoutStyles }, () => {
+    // Hosted by a college for its own students only: teams, not colleges.
+    const OWN = { ...COMP, id: 'c9', name: 'Delta Chess Day', organizedBy: 'Sample Delta College', hostOrganizationId: 'o1', status: 'registration', phase: 'registration-open',
+        registrationOpen: true, teamsCount: 2, playersCount: 4, myTeam: null };
+    const TEAMS = ['Reds', 'Blues'].map((teamName, i) => ({ id: `t${i + 1}`, teamName, collegeName: 'Sample Delta College', status: 'approved', place: null, coordinator: { name: 'Delta Coordinator' },
+        players: [{ userId: `u${i}a`, name: `${teamName} One` }, { userId: `u${i}b`, name: `${teamName} Two` }] }));
+    const ownApi = apiModule({
+        '/competitions/rooms/mine': { rooms: [] },
+        '/competitions/c9': { competition: OWN, teams: TEAMS, rounds: [] },
+        '/competitions': { competitions: [OWN, COMP] }
+    });
+
+    test('its page says it is for the college\'s students, in teams the college makes', async () => {
+        const entry = `
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import CompetitionDetail from '${srcFile('competitions/CompetitionDetail.jsx')}';
+createRoot(document.getElementById('root')).render(
+  <MemoryRouter initialEntries={['/competitions/c9']}><Routes><Route path="/competitions/:id" element={<CompetitionDetail />} /></Routes></MemoryRouter>);`;
+        const { result, errors } = await screen({ entry, api: ownApi, script: `
+            await sleep(700);
+            return { page: document.body.innerText, note: document.querySelector('[data-register-note]')?.innerText || '' };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.page, /Your college/);
+        assert.doesNotMatch(result.page, /Inter-College/);
+        assert.match(result.page, /8 teams · up to 2 players each/);
+        assert.match(result.note, /for your college's students only/);
+        assert.match(result.page, /Teams\s*\(2\)/);
+        assert.doesNotMatch(result.page, /Participating colleges|coordinator Delta Coordinator/);
+    });
+
+    test('its card says Your college and counts teams', async () => {
+        const { result, errors } = await screen({ entry: home('competitions'), api: ownApi, script: `
+            await sleep(700);
+            return { own: document.querySelector('[data-competition="c9"]').innerText, other: document.querySelector('[data-competition="c1"]').innerText };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.own, /Your college/);
+        assert.match(result.own, /2 Teams/);
+        assert.doesNotMatch(result.other, /Your college/, 'an inter-college one does not say so');
+        assert.match(result.other, /Colleges/);
     });
 });
 
@@ -251,7 +580,7 @@ const chessView = (status = 'active') => ({
     drawOffer: null, canOfferDraw: true, legalMoves: [{ from: 'e2', to: 'e4' }, { from: 'e2', to: 'e3' }]
 });
 const gameRow = (over) => ({
-    id: 'g1', kind: 'friendly', game: 'chess', label: 'Chess', emoji: '♟️', status: 'active', version: 3, you: 0, host: true, code: 'K7Q2XM',
+    id: 'g1', kind: 'match', game: 'chess', label: 'Chess', emoji: '♟️', status: 'active', version: 3, you: 0,
     seats: [{ name: 'Asha', side: 0, joined: true }, { name: 'Ravi', side: 1, joined: true }], minSeats: 2, maxSeats: 2, joinDeadline: null, outcome: null,
     view: chessView(), ...over
 });
@@ -263,16 +592,19 @@ createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={['/competitions/play/g1']}><Routes><Route path="/competitions/play/:gameId" element={<GamePage />} /></Routes></MemoryRouter>);`;
 
 describe('the game page', { skip: skipWithoutStyles }, () => {
-    test('a friendly room waiting: the code, the players, and Start for the host', async () => {
-        const waiting = gameRow({ status: 'waiting', view: null, seats: [{ name: 'Asha', side: 0, joined: true }] });
-        const { result, errors } = await screen({ entry: page, api: apiModule({ '/competitions/play/g1': { game: waiting } }), styles: true, script: `
-            await sleep(700);
-            const start = $$('button').find((b) => /Start game/.test(b.innerText));
-            return { body: text(document.body), startDisabled: start?.disabled };` });
+    test('an old friendly game (playing with friends was removed): the server\'s message, and no more asking', async () => {
+        const gone = `
+window.__calls = [];
+export default {
+  get: (url) => { window.__calls.push(['GET', url]); return Promise.reject({ response: { status: 410, data: { message: 'Playing with friends is no longer available. Play in a competition instead.' } } }); },
+  post: (url) => { window.__calls.push(['POST', url]); return Promise.resolve({ data: {} }); }
+};`;
+        const { result, errors } = await screen({ entry: page, api: gone, styles: true, script: `
+            await sleep(5000);
+            return { body: text(document.body), asked: window.__calls.length };` });
         assert.deepEqual(errors, []);
-        assert.match(result.body, /K7Q2XM/);
-        assert.match(result.body, /Asha/);
-        assert.equal(result.startDisabled, true, 'not until a second player joins');
+        assert.match(result.body, /Playing with friends is no longer available/);
+        assert.equal(result.asked, 1, 'asked once, not again and again');
     });
 
     test('a game in play: the players, whose turn, and the board; a move goes to the server', async () => {
@@ -296,5 +628,137 @@ describe('the game page', { skip: skipWithoutStyles }, () => {
             return { outcome: text($('[data-outcome]')) };` });
         assert.match(result.outcome, /You won!/);
         assert.match(result.outcome, /Checkmate/);
+    });
+
+    // Found 2026-10-17: kept on one line, a long team and college name ran
+    // 45px past the result card on a phone.
+    test('on a phone, a long team and college name in the placings wraps inside the result card', async () => {
+        const long = 'QA Alpha Knights (QA Alpha College of Engineering and Technology 236615)';
+        const seats = [{ name: long, side: 0, label: 'White', color: '#f8fafc' }, { name: 'Ravi', side: 1, label: 'Black', color: '#0f172a' }];
+        const outcome = { places: [[0], [1]], reason: 'White resigned' };
+        const done = gameRow({ status: 'finished', seats: seats.map((s) => ({ name: s.name, side: s.side, joined: true })), outcome, view: { ...chessView('finished'), seats, outcome } });
+        const { result, errors } = await screen({ entry: page, api: apiModule({ '/competitions/play/g1': { game: done } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(900);
+            const card = $('[data-outcome]').closest('section') || $('[data-outcome]');
+            const c = card.getBoundingClientRect();
+            const rows = [...card.querySelectorAll('ol li')].map((li) => ({ right: Math.round(li.getBoundingClientRect().right), text: text(li) }));
+            return { cardRight: Math.round(c.right), rows, sideways: document.documentElement.scrollWidth > innerWidth + 1 };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.rows.length, 2);
+        assert.ok(result.rows.every((r) => r.right <= result.cardRight), `a row runs past the card (${result.cardRight}): ${JSON.stringify(result.rows)}`);
+        assert.ok(result.rows[0].text.includes('236615)'), 'the whole name is there, wrapped, not cut off');
+        assert.equal(result.sideways, false);
+    });
+});
+
+describe('on a small phone', { skip: skipWithoutStyles }, () => {
+    test('a finished game: the status line is whole, and the result text is not squeezed under its button', async () => {
+        const reason = 'White ran out of time';
+        const lost = gameRow({ status: 'finished', outcome: { places: [[1], [0]], reason },
+            view: { ...chessView('finished'), message: 'White ran out of time — Ravi wins the game on the clock.', outcome: { places: [[1], [0]], reason } } });
+        const { result, errors } = await screen({ entry: page, api: apiModule({ '/competitions/play/g1': { game: lost } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            const status = [...document.querySelectorAll('header p')].find((p) => /ran out of time/.test(p.innerText));
+            const card = $('[data-outcome]'), heading = [...card.querySelectorAll('p')].find((p) => /won/.test(p.innerText));
+            const words = heading.parentElement.getBoundingClientRect(), button = [...card.querySelectorAll('a')].find((a) => /Back to/.test(a.innerText)).getBoundingClientRect();
+            const back = [...document.querySelectorAll('a')].find((a) => /Games/.test(a.innerText)).getBoundingClientRect();
+            return { statusWhole: status.scrollWidth <= status.clientWidth + 1, share: words.width / card.getBoundingClientRect().width,
+                     apart: button.top >= words.bottom - 1 || button.left >= words.right - 1, backHeight: back.height };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.statusWhole, true, 'the status line wraps instead of ending in "…"');
+        assert.ok(result.share > 0.6, `the result text has room (${Math.round(result.share * 100)}% of the card)`);
+        assert.equal(result.apart, true, 'the button does not sit on the text');
+        assert.ok(result.backHeight >= 40, `the back link is a finger's height (${result.backHeight}px)`);
+    });
+
+    test('Leaderboard: College, Team and Individual on one line, every word whole', async () => {
+        for (const device of [DEVICES.galaxyZFold6Folded, DEVICES.galaxyA55]) {
+            const { result, errors } = await screen({ entry: home('leaderboard'), api: api(), styles: true, device, script: `
+                await sleep(700);
+                const tabs = [...document.querySelectorAll('[role="tablist"][aria-label="Ranking"] [role="tab"]')];
+                const tops = tabs.map((t) => Math.round(t.getBoundingClientRect().top));
+                const list = tabs[0].parentElement;
+                return { labels: tabs.map((t) => t.innerText.trim()), oneLine: new Set(tops).size === 1,
+                         whole: tabs.every((t) => t.scrollWidth <= t.clientWidth + 1), inside: list.scrollWidth <= list.clientWidth + 1 };` });
+            assert.deepEqual(errors, []);
+            assert.deepEqual(result.labels, ['College', 'Team', 'Individual']);
+            assert.equal(result.oneLine, true, `${device.width}px: the three on one line`);
+            assert.equal(result.whole, true, `${device.width}px: no label cut off`);
+            assert.equal(result.inside, true, `${device.width}px: nothing sticks out of the row`);
+        }
+    });
+
+    test('Leaderboard: the top two show, and the rest scroll inside the list', async () => {
+        const college = (i) => ({ id: `o${i}`, rank: i, collegeName: `College ${i}`, competitions: 1, played: 2, won: 1, titles: 0, points: 20 - i });
+        const many = { ...BOARD, colleges: [1, 2, 3, 4, 5, 6].map(college) };
+        const { result, errors } = await screen({ entry: home('leaderboard'), api: api({ '/competitions/leaderboard': many }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            const list = document.querySelector('[data-ranking="colleges"]'), rows = [...list.children];
+            const two = rows[0].getBoundingClientRect().height + rows[1].getBoundingClientRect().height;
+            const height = list.getBoundingClientRect().height, scrolls = list.scrollHeight > list.clientHeight + 5;
+            list.scrollTop = list.scrollHeight; await sleep(200);
+            const last = rows.at(-1).getBoundingClientRect(), box = list.getBoundingClientRect();
+            const note = document.querySelector('[data-ranking-more]')?.innerText;
+            [...document.querySelectorAll('[aria-label="Ranking"] [role="tab"]')].find((t) => /Team/.test(t.innerText)).click(); await sleep(400);
+            return { height, two, scrolls, lastShown: last.bottom <= box.bottom + 1, note,
+                     teamNote: document.querySelector('[data-ranking-more]')?.innerText || null };` });
+        assert.deepEqual(errors, []);
+        assert.ok(Math.abs(result.height - result.two) <= 1.5, `as tall as two rows (${result.height} vs ${result.two})`);
+        assert.equal(result.scrolls, true, 'the rest scroll');
+        assert.equal(result.lastShown, true, 'scrolling reaches the last college');
+        assert.equal(result.note, 'Showing 2 of 6 colleges. Scroll the list to see the rest.');
+        assert.equal(result.teamNote, null, 'one team ranked: nothing to scroll, no note');
+    });
+
+    test('History: the competition name is whole, and Certificate goes under it rather than squeezing it', async () => {
+        const long = { ...RESULT, competition: { ...RESULT.competition, name: 'Inter-College Chess Championship 2026' } };
+        const { result, errors } = await screen({ entry: home('history'), api: api({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [], completed: [], results: [long] } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            const row = $('[data-history] li'), name = row.querySelector('a'), words = name.parentElement.getBoundingClientRect();
+            const cert = [...row.querySelectorAll('button')].find((b) => /Certificate/.test(b.innerText)).getBoundingClientRect();
+            return { whole: name.scrollWidth <= name.clientWidth + 1 && /Championship 2026/.test(name.innerText), share: words.width / row.getBoundingClientRect().width, below: cert.top >= words.bottom - 1 };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.whole, true, 'the name is not cut to "…"');
+        assert.ok(result.share > 0.6, `the details have room (${Math.round(result.share * 100)}% of the row)`);
+        assert.equal(result.below, true, 'Certificate is under them');
+    });
+
+    test('the banner\'s description line is left out on a phone, and kept on a laptop', async () => {
+        const look = `
+            await sleep(900);
+            const line = [...document.querySelectorAll('p')].find((p) => /Play for your college and win exciting matches/.test(p.textContent));
+            return { there: !!line, shown: !!line && line.getClientRects().length > 0 };`;
+        const phone = await screen({ entry: home(), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: look });
+        const laptop = await screen({ entry: home(), api: api(), styles: true, width: 1366, height: 900, script: look });
+        assert.equal(phone.result.there, true);
+        assert.equal(phone.result.shown, false, 'phone: no "Chess, Ludo and Carrom in inter-college competitions…"');
+        assert.equal(laptop.result.shown, true, 'laptop: it is there');
+    });
+
+    test('Brain Boosters is not a tab here any more: its old address opens Games', async () => {
+        const { result, errors } = await screen({ entry: home('brain-boosters'), api: api(), styles: true, script: `
+            await sleep(900);
+            return { current: $('nav[data-section-tabs] [aria-current="page"]').innerText.trim(), games: $$('[data-game]').map((g) => g.dataset.game), banner: !!$('header h1') };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.current, 'Games');
+        assert.deepEqual(result.games, ['chess', 'ludo', 'carrom'], 'the three games, none of the brain games');
+        assert.equal(result.banner, true, 'with the section\'s banner');
+    });
+
+    test('Results: a card with long college names stays inside the screen', async () => {
+        const LONG = { ...DONE, winners: [{ place: 1, teamId: 't1', teamName: 'Alpha Knights', collegeName: 'Sample Delta College of Engineering and Technology' },
+            { place: 2, teamId: 't2', teamName: 'Beta Rooks', collegeName: 'Sample Alpha College of Arts, Science and Commerce' }] };
+        // In the app's own frame: the page scrolls inside <main>, which is where
+        // a card too wide shows (bare, the phone just widens its viewport).
+        const framed = home('results').replace('element={<><CompetitionsHome /><Where /></>}',
+            'element={<div className="flex h-dvh"><main className="relative flex-1 overflow-auto"><div className="mx-auto p-4 pb-[7.5rem]"><CompetitionsHome /><Where /></div></main></div>}');
+        assert.notEqual(framed, home('results'), 'the frame was put in');
+        const { result, errors } = await screen({ entry: framed, api: api({ '/competitions/history': { competitions: [{ competition: LONG, teams: [{}, {}], rounds: [] }] } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(700);
+            const card = $('[data-result="c3"]').closest('section').getBoundingClientRect(), main = $('main');
+            return { right: card.right, width: screen.width, wide: main.scrollWidth - main.clientWidth + Math.max(0, innerWidth - screen.width) };` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.right <= result.width + 0.5, `the card ends inside the screen (${Math.round(result.right)} of ${result.width}px)`);
+        assert.ok(result.wide <= 1, 'and the page does not scroll sideways');
     });
 });

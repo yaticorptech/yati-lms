@@ -9,6 +9,7 @@
  *   POST /sessions/:id/finish        evaluate → the report (+XP, badge checks)
  *   GET  /sessions                   history
  *   GET  /sessions/:id               one session with its transcript and report
+ *   …/aptitude                       aptitude practice (aptitudeRoutes.js)
  *
  * Every route reads req.user only. The interviewer never sees anyone
  * else's data, and a student can only reach their own sessions.
@@ -23,10 +24,14 @@ const ai = require('./aiInterviewer');
 const template = require('./templateInterviewer');
 const { readiness } = require('./readinessService');
 const { safeRecordActivity } = require('../rewards/services/activityService');
+const { LearningActivity } = require('../rewards/models');
+const { dayKey, weekStartKey, startOfDay } = require('../rewards/config/constants');
 const { chargeWallet } = require('../rewards/services/walletRuleService');
 const { coursesForSkills } = require('../jobboard/services/lmsCourses');
 const comms = require('./communicationService');
 const { assess } = require('./answerCheck');
+const { repairSaved } = require('./repairSaved');
+const aptitude = require('./aptitudeRoutes');
 
 const router = express.Router();
 router.use(protectUser);
@@ -35,6 +40,8 @@ router.use(rateLimit({
     keyGenerator: (req) => (req.user?._id ? String(req.user._id) : ipKeyGenerator(req.ip)),
     message: { message: 'Too many requests — slow down a moment.' }
 }));
+
+router.use('/aptitude', aptitude.router);
 
 /** The stages each interview type walks through, in order. A stage may repeat. */
 const PLANS = {
@@ -53,7 +60,11 @@ const PLANNED_MINUTES = { hr: 10, technical: 12, project: 12, behavioral: 12, fu
 // candidate cannot leave.
 const MAX_CLARIFICATIONS = 2;
 const CHALLENGE_SCORE = 75;
-const weekKey = () => { const d = new Date(); const onejan = new Date(d.getFullYear(), 0, 1); return `${d.getFullYear()}-w${Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7)}`; };
+// The challenge week is the platform's — Monday to Sunday in the rewards
+// timezone, the same week the leaderboard pays out — not the server's own
+// Sunday-to-Saturday week in whatever zone it happens to run in, which moved
+// the reset to a different hour (and day) from everything else.
+const weekKey = () => `W:${weekStartKey(dayKey())}`;
 
 const own = (userId, id) => InterviewSession.findOne({ _id: id, userId });
 
@@ -75,8 +86,12 @@ const publicSession = (s, { withContext = false } = {}) => ({
 /* ── Practice bank ────────────────────────────────────────────────────── */
 
 // Bumped when the bank itself changes shape, so every student's bank is
-// rebuilt once. v2: 30-40 questions instead of about 20.
-const BANK_VERSION = 'v2';
+// rebuilt once. v2: 30-40 questions instead of about 20. v3: pitched to the
+// student's class or level (level.js).
+const BANK_VERSION = 'v3';
+// The level is part of what a bank was written for: a student who moves from
+// Class 9 to Class 10, or sets their level in Career Path, gets a new one.
+const levelKey = (context) => (context.level ? `${context.level.key}${context.level.classNo || ''}` : 'general');
 
 // One generation per student at a time. A second request while the first is
 // still writing must not start another; it waits on, or ignores, this one.
@@ -90,6 +105,9 @@ const regenerate = (userId, context, source) => {
             const prep = (await InterviewPrep.findOne({ userId })) || new InterviewPrep({ userId });
             prep.questions = out.questions; prep.topics = out.topics; prep.generatedAt = new Date(); prep.generatedFrom = source; prep.role = context.goal || '';
             await prep.save();
+            // The AI's bank comes without sample answers; they follow (coach).
+            // The built-in bank has its own.
+            if (out.model !== 'template') { coachTried.delete(key); coach(userId, context); }
         } catch (err) {
             console.warn('[interview] practice bank generation failed:', err.message);
         } finally {
@@ -98,6 +116,58 @@ const regenerate = (userId, context, source) => {
     })();
     generating.set(key, run);
     return run;
+};
+
+/**
+ * Sample answers and tips for a bank's questions that have none yet: a new AI
+ * bank, or one saved before questions came with them (asked 2026-10-15). In
+ * the background, one run per student at a time, and keeping the questions —
+ * so nothing a student has practised moves. A tip lands only on the question
+ * it was written for: the bank may have been rewritten while it was out.
+ * After a run, the next waits half an hour, so a run the AI keeps failing is
+ * not retried on every visit; true while one is running.
+ */
+const coaching = new Map();
+const coachTried = new Map();
+const COACH_RETRY_MS = 30 * 60 * 1000;
+const coach = (userId, context) => {
+    const key = String(userId);
+    if (coaching.has(key)) return true;
+    if (Date.now() - (coachTried.get(key) || 0) < COACH_RETRY_MS) return false;
+    coachTried.set(key, Date.now());
+    const run = (async () => {
+        try {
+            const prep = await InterviewPrep.findOne({ userId }).lean();
+            const missing = (prep?.questions || []).filter((q) => !q.sample);
+            if (!missing.length) return;
+            const tips = await ai.coachQuestions({ questions: missing, context, userId });
+            if (!tips.size) return;
+            const fresh = await InterviewPrep.findOne({ userId });
+            if (!fresh) return;
+            let changed = false;
+            for (const q of fresh.questions) {
+                const t = tips.get(q.id);
+                if (t && !q.sample && t.question === q.question) { q.sample = t.sample; q.say = t.say; q.avoid = t.avoid; changed = true; }
+            }
+            if (changed) await fresh.save();
+        } catch (err) {
+            console.warn('[interview] sample answers failed:', err.message);
+        } finally {
+            coaching.delete(key);
+        }
+    })();
+    coaching.set(key, run);
+    return true;
+};
+
+// Every question goes out with something to say and something to avoid: its
+// own when written, the kind of question's until then.
+const withTips = (q) => {
+    const o = typeof q.toObject === 'function' ? q.toObject() : { ...q };
+    const t = template.tipsFor(o.category);
+    if (!o.say?.length) o.say = t.say;
+    if (!o.avoid?.length) o.avoid = t.avoid;
+    return o;
 };
 
 /**
@@ -116,12 +186,23 @@ const regenerate = (userId, context, source) => {
 const ensurePrep = async (userId, context) => {
     let prep = await InterviewPrep.findOne({ userId });
     if (!prep) prep = new InterviewPrep({ userId });
-    const source = `${context.hash}:${BANK_VERSION}`;
-    if (prep.questions.length && prep.generatedFrom === source) return { prep, generating: false };
+    const source = `${context.hash}:${levelKey(context)}:${BANK_VERSION}`;
+    if (prep.questions.length && prep.generatedFrom === source) {
+        if (prep.questions.every((q) => q.sample)) return { prep, generating: false, coaching: false };
+        if (await ai.configuredFor(userId)) return { prep, generating: false, coaching: coach(userId, context) };
+        // A built-in bank saved before it came with sample answers: the same
+        // questions, written again with them, in a moment. Once in half an
+        // hour at most, like the AI's (coach), and timed apart from it.
+        const key = `${userId}:template`;
+        if (Date.now() - (coachTried.get(key) || 0) < COACH_RETRY_MS) return { prep, generating: false, coaching: false };
+        coachTried.set(key, Date.now());
+        await regenerate(userId, context, source);
+        return { prep: await InterviewPrep.findOne({ userId }), generating: false, coaching: false };
+    }
 
     if (!(await ai.configuredFor(userId))) {
         await regenerate(userId, context, source);
-        return { prep: await InterviewPrep.findOne({ userId }), generating: false };
+        return { prep: await InterviewPrep.findOne({ userId }), generating: false, coaching: false };
     }
 
     regenerate(userId, context, source);
@@ -131,7 +212,7 @@ const ensurePrep = async (userId, context) => {
         prep.generatedAt = new Date(); prep.generatedFrom = `${source}:template`; prep.role = context.goal || '';
         await prep.save();
     }
-    return { prep, generating: true };
+    return { prep, generating: true, coaching: false };
 };
 
 router.get('/dashboard', async (req, res, next) => {
@@ -140,7 +221,10 @@ router.get('/dashboard', async (req, res, next) => {
         if (!context) return res.status(404).json({ message: 'Account not found.' });
         const [r, { prep, generating: banking }] = await Promise.all([readiness(req.user._id, context), ensurePrep(req.user._id, context)]);
         await InterviewPrep.updateOne({ userId: req.user._id }, { $set: { readiness: r.overall } });
-        const active = await InterviewSession.findOne({ userId: req.user._id, status: 'active' }).sort({ startedAt: -1 }).select('_id type startedAt turns').lean();
+        const [active, aptitudeStats] = await Promise.all([
+            InterviewSession.findOne({ userId: req.user._id, status: 'active' }).sort({ startedAt: -1 }).select('_id type startedAt turns').lean(),
+            aptitude.summary(req.user._id)
+        ]);
         res.json({
             student: { name: context.name, firstName: context.firstName, goal: context.goal, strongSkills: context.strongSkills, learningSkills: context.learningSkills, projects: context.projects.map((p) => p.name) },
             readiness: r,
@@ -148,6 +232,8 @@ router.get('/dashboard', async (req, res, next) => {
             practice: { total: prep.questions.length, practiced: prep.practiced.length, sample: prep.questions.filter((q) => !prep.practiced.includes(q.id)).slice(0, 3), generating: banking },
             activeSession: active ? { id: String(active._id), type: active.type, startedAt: active.startedAt, answered: active.turns.filter((t) => t.answer).length } : null,
             types: TYPES,
+            // The aptitude practice's card: its name for this student and their scores.
+            aptitude: { title: aptitude.titleFor(context.level), school: !!context.level?.school, sets: aptitudeStats.sets, best: aptitudeStats.best, last: aptitudeStats.last },
             ai: { configured: ai.configured(), model: ai.configured() ? ai.MODEL : 'template' }
         });
     } catch (err) { next(err); }
@@ -157,8 +243,8 @@ router.get('/questions', async (req, res, next) => {
     try {
         const context = await buildContext(req.user._id);
         if (!context) return res.status(404).json({ message: 'Account not found.' });
-        const { prep, generating: banking } = await ensurePrep(req.user._id, context);
-        res.json({ questions: prep.questions, practiced: prep.practiced, topics: prep.topics, generatedAt: prep.generatedAt, generating: banking });
+        const { prep, generating: banking, coaching: writing } = await ensurePrep(req.user._id, context);
+        res.json({ questions: prep.questions.map(withTips), practiced: prep.practiced, topics: prep.topics, generatedAt: prep.generatedAt, generating: banking, coaching: writing });
     } catch (err) { next(err); }
 });
 
@@ -314,10 +400,16 @@ router.post('/sessions/:id/finish', async (req, res, next) => {
             events = events.concat(imp.events || []);
             session.xp.improved = (imp.events || []).find((e) => e.kind === 'xp')?.amount || 0;
         }
+        // Once a week. The ledger's key is the week; the check before it also
+        // catches a challenge recorded this week under the old server-week
+        // key, so the week the key changed does not pay twice.
         if (session.type === 'full' && report.overall >= CHALLENGE_SCORE) {
-            const ch = await safeRecordActivity({ userId: req.user._id, type: 'interview_challenge', refId: `challenge:${weekKey()}`, meta: { score: report.overall } });
-            events = events.concat(ch.events || []);
-            session.xp.challenge = ch.duplicate ? 0 : (ch.events || []).find((e) => e.kind === 'xp')?.amount || 0;
+            const weekStart = startOfDay(weekStartKey(dayKey()));
+            if (!(await LearningActivity.exists({ userId: req.user._id, type: 'interview_challenge', createdAt: { $gte: weekStart } }))) {
+                const ch = await safeRecordActivity({ userId: req.user._id, type: 'interview_challenge', refId: `challenge:${weekKey()}`, meta: { score: report.overall } });
+                events = events.concat(ch.events || []);
+                session.xp.challenge = ch.duplicate ? 0 : (ch.events || []).find((e) => e.kind === 'xp')?.amount || 0;
+            }
         }
         await session.save();
 
@@ -342,6 +434,7 @@ router.get('/sessions/:id', async (req, res, next) => {
     try {
         const session = await own(req.user._id, req.params.id);
         if (!session) return res.status(404).json({ message: 'No such interview.' });
+        await repairSaved(session);
         res.json(publicSession(session));
     } catch (err) { next(err); }
 });

@@ -72,10 +72,7 @@ export default function SkillSnapshot({ skills = [], limit = 3 }) {
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-link ring-1 ring-brand-100 ring-inset">
             <BarChart3 className="h-[1.15rem] w-[1.15rem]" strokeWidth={2.2} />
           </span>
-          <div>
-            <h3 className="text-lg font-bold text-ink-900">Skill progress</h3>
-            <p className="mt-0.5 text-sm text-ink-500">Your three fastest-moving skills</p>
-          </div>
+          <h3 className="text-lg font-bold text-ink-900">Skill progress</h3>
         </div>
         <span className="rounded-full bg-journey-50 px-3 py-1 text-xs font-black text-journey-700 tabular-nums ring-1 ring-journey-100 ring-inset">
           {avg}% avg

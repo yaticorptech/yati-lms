@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, X } from 'lucide-react';
+import useBackClose from '../native/useBackClose';
 
 // The section's own accent. Written out in full: Tailwind cannot see a class
 // name assembled at runtime.
@@ -71,6 +72,7 @@ export default function Dropdown({
     const [cursor, setCursor] = useState(-1);
     const [place, setPlace] = useState(null);   // the laptop panel's fixed position
     const rootRef = useRef(null);
+    const buttonRef = useRef(null);
     const panelRef = useRef(null);
     const listRef = useRef(null);
     const id = useId();
@@ -137,6 +139,24 @@ export default function Dropdown({
         };
     }, [open]);
 
+    // The phone popup is a dialog over the whole screen, and behaves as one:
+    // the keyboard moves into it (the field that opened it is under the dim),
+    // Escape and Android's back button close it, and the focus goes back to
+    // the field when it shuts.
+    const phoneOpen = open && phone;
+    useBackClose(() => close(), phoneOpen);
+    useEffect(() => {
+        if (!phoneOpen) return undefined;
+        const field = buttonRef.current;
+        listRef.current?.focus({ preventScroll: true });
+        const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('keydown', onKey);
+            if (field?.isConnected) field.focus({ preventScroll: true });
+        };
+    }, [phoneOpen]);
+
     // Bring the highlighted row into view when the arrows walk past the fold.
     useEffect(() => {
         if (!open || cursor < 0) return;
@@ -191,6 +211,7 @@ export default function Dropdown({
     return (
         <div ref={rootRef} className="relative">
             <button
+                ref={buttonRef}
                 type="button" disabled={disabled}
                 aria-haspopup="listbox" aria-expanded={open} aria-label={label}
                 onClick={() => { if (disabled) return; if (open) close(); else openList(false); }}
@@ -213,6 +234,7 @@ export default function Dropdown({
                         <div className="fixed inset-0 z-[150] bg-slate-900/40" onClick={close} aria-hidden="true" />
                         {/* Centres the panel; a tap on it beside the panel closes. */}
                         <div className="fixed inset-0 z-[151] flex items-center justify-center p-5"
+                            role="dialog" aria-modal="true" aria-label={label || 'Choose an option'}
                             onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
                             <div ref={panelRef} className={`flex max-h-[min(70dvh,32rem)] w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl ${panelClassName}`}>
                                 {/* The popup covers the field that opened it, so

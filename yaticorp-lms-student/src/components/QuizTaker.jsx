@@ -2,7 +2,7 @@
  * @author Preethesh Kulal
  * @description Interactive quiz component for students with answer selection and submission
  */
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Check, X, AlertCircle, RotateCcw, Award, ArrowRight, ArrowLeft } from 'lucide-react';
 import api from '../utils/api';
 
@@ -10,11 +10,21 @@ import { useQuiz } from '../shared/hooks/useQuiz';
 import { useMascot } from '../mascot/useMascot';
 import { quizReaction } from '../mascot/reactions';
 
-const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
+/**
+ * `onEmpty(lessonId)` is told when the lesson has no quiz to take (none
+ * written, or one saved with no questions): the player then offers Mark
+ * Complete, since a quiz with nothing in it can never be passed.
+ *
+ * The player mounts this afresh for each lesson (keyed by the lesson), so an
+ * answer, a result or an error from one lesson never carries to the next.
+ */
+const QuizTaker = ({ lessonId, onQuizPassed, onCreditsEarned, isAlreadyCompleted, onEmpty }) => {
     const {
         quizData,
         loading,
         error,
+        empty,
+        refresh,
         currentQuestionIndex,
         answers,
         submitting,
@@ -24,17 +34,33 @@ const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
         prevQuestion,
         submitQuiz,
         retryQuiz
-    } = useQuiz(api, lessonId, { onQuizPassed, isAlreadyCompleted });
+    } = useQuiz(api, lessonId, { onQuizPassed, onCreditsEarned, isAlreadyCompleted });
     const mascot = useMascot();
+    const [submitError, setSubmitError] = useState('');
+    // The options' buttons, for moving between them with the arrow keys.
+    const optionRefs = useRef([]);
+
+    // Tell the player there is nothing to pass here, once it is known.
+    const onEmptyRef = useRef(onEmpty);
+    useEffect(() => { onEmptyRef.current = onEmpty; });
+    useEffect(() => {
+        if (!loading && empty && onEmptyRef.current) onEmptyRef.current(lessonId);
+    }, [loading, empty, lessonId]);
 
     const handleSubmit = async () => {
+        setSubmitError('');
         try {
             // The server grades every answer at once, so the verdict on the
             // whole attempt is the mascot's cue (see quizReaction).
             const graded = await submitQuiz();
             mascot.react(quizReaction(graded));
         } catch (err) {
-            alert(err.message || 'Failed to submit quiz. Please try again.');
+            // Under the buttons, the answers kept for another try. The page's
+            // own check ("Please answer all questions…") reads as it is; a
+            // lost connection or a server fault gets plain words.
+            const fromServer = err.response?.status < 500 && err.response?.data?.message;
+            const fromPage = !err.isAxiosError && !err.response && err.message;
+            setSubmitError(fromServer || fromPage || 'Your answers were not sent. Please try again.');
         }
     };
 
@@ -45,12 +71,41 @@ const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
         </div>
     );
 
-    if (error || !quizData || quizData.questions.length === 0) return (
+    // Not loaded: said plainly, with a way to try again.
+    if (error) return (
         <div className="w-full h-full flex flex-col items-center justify-center p-12 bg-white text-center text-slate-500">
             <AlertCircle size={40} className="mb-4 text-slate-300" />
-            <p className="text-sm font-medium">{error || "This quiz doesn't have any questions yet."}</p>
+            <p role="alert" className="text-sm font-medium">{error}</p>
+            <button
+                type="button"
+                onClick={refresh}
+                className="mt-5 inline-flex items-center rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+                <RotateCcw size={16} className="mr-2" /> Try again
+            </button>
         </div>
     );
+
+    // Nothing to take: the lesson is marked done from the bar below instead.
+    if (empty || !quizData || quizData.questions.length === 0) return (
+        <div className="w-full h-full flex flex-col items-center justify-center p-12 bg-white text-center text-slate-500">
+            <AlertCircle size={40} className="mb-4 text-slate-300" />
+            <p className="text-sm font-medium">This quiz doesn&apos;t have any questions yet.</p>
+            <p className="mt-1 text-sm">You can mark this lesson complete and carry on.</p>
+        </div>
+    );
+
+    // The options are a radio group: Tab reaches the chosen one (or the
+    // first), the arrow keys move between them and choose as they go, and
+    // Space or Enter chooses the one in focus — as a screen reader expects.
+    const moveChoice = (event, idx, count) => {
+        const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[event.key];
+        if (!step) return;
+        event.preventDefault();
+        const next = (idx + step + count) % count;
+        selectOption(next);
+        optionRefs.current[next]?.focus();
+    };
 
     // Results View
     if (results) {
@@ -87,6 +142,11 @@ const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
 
                         {!results.passed && (
                             <div className="mt-4">
+                                {Number.isFinite(results.correctCount) && Number.isFinite(results.totalQuestions) && (
+                                    <p className="mb-4 text-sm font-medium text-slate-600">
+                                        You answered {results.correctCount} of {results.totalQuestions} correctly. Have another go — the answers are shown once you pass.
+                                    </p>
+                                )}
                                 <button
                                     onClick={retryQuiz}
                                     data-mascot-cta
@@ -188,27 +248,36 @@ const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
             <div className="flex-1 overflow-y-auto no-scrollbar p-6 md:p-10">
                 <div className="max-w-2xl mx-auto w-full py-4 md:py-8">
 
-                    <h3 className="text-xl md:text-[22px] font-medium text-slate-800 mb-8 md:mb-12 leading-relaxed flex items-start">
+                    <h3 id={`quiz-q-${lessonId}`} className="text-xl md:text-[22px] font-medium text-slate-800 mb-8 md:mb-12 leading-relaxed flex items-start">
                         <span className="text-blue-600 font-bold mr-3 mt-0.5">{currentQuestionIndex + 1}.</span>
                         {q.questionText}
                     </h3>
 
-                    <div className="space-y-4">
+                    <div role="radiogroup" aria-labelledby={`quiz-q-${lessonId}`} className="space-y-4">
                         {q.options.map((opt, idx) => {
                             const isSelected = answers[currentQuestionIndex] === idx;
+                            const chosen = answers[currentQuestionIndex];
+                            // One stop for Tab: the chosen option, or the first.
+                            const tabbable = chosen === null || chosen === undefined ? idx === 0 : isSelected;
                             return (
-                                <div
+                                <button
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={isSelected}
+                                    tabIndex={tabbable ? 0 : -1}
                                     key={idx}
+                                    ref={(el) => { optionRefs.current[idx] = el; }}
                                     onClick={() => selectOption(idx)}
-                                    className={`flex items-center p-4 md:p-5 rounded-xl border cursor-pointer transition-all duration-200 ${isSelected ? 'border-blue-600 bg-blue-50/30 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
+                                    onKeyDown={(e) => moveChoice(e, idx, q.options.length)}
+                                    className={`flex w-full items-center p-4 md:p-5 rounded-xl border text-left cursor-pointer transition-all duration-200 focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 ${isSelected ? 'border-blue-600 bg-blue-50/30 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
                                 >
-                                    <div className={`w-5 h-5 rounded-full border flex flex-shrink-0 items-center justify-center mr-4 transition-colors ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'}`}>
-                                        {isSelected && <div className="w-2 h-2 rounded-full bg-white"></div>}
-                                    </div>
+                                    <span aria-hidden="true" className={`w-5 h-5 rounded-full border flex flex-shrink-0 items-center justify-center mr-4 transition-colors ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'}`}>
+                                        {isSelected && <span className="w-2 h-2 rounded-full bg-white"></span>}
+                                    </span>
                                     <span className={`text-[15px] md:text-[16px] leading-relaxed ${isSelected ? 'text-blue-900 font-semibold' : 'text-slate-700'}`}>
                                         {opt}
                                     </span>
-                                </div>
+                                </button>
                             );
                         })}
                     </div>
@@ -245,6 +314,7 @@ const QuizTaker = ({ lessonId, onQuizPassed, isAlreadyCompleted }) => {
                     </button>
                 )}
             </div>
+            {submitError && <p role="alert" className="px-6 pb-4 text-right text-sm font-semibold text-red-600 md:px-8">{submitError}</p>}
 
         </div>
     );

@@ -47,7 +47,10 @@ export default function WalletSection({ initialTab = 'overview' }) {
     const currency = data?.wallet?.currency || 'INR';
 
     return (
-        <section id="wallet" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        // Not id="wallet": that is the dashboard card this opens from, which
+        // the header's /#wallet link scrolls to. Two elements with one id
+        // left the link to land on whichever came first.
+        <section id="wallet-sheet" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             {/* Right padding from sm up keeps the figures clear of the popup's
                 close button, which sits in the top-right corner over this. */}
             <div className="flex flex-col gap-2.5 border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-4 pr-12 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-5 sm:pr-16">
@@ -216,15 +219,28 @@ function Transactions({ currency }) {
     );
 }
 
-/** Where each XP came from, from the XP ledger itself. */
+/**
+ * Where each XP came from, from the XP ledger itself: one label for every
+ * source the server writes (the activity types in rewards/config/constants,
+ * plus 'career', 'game', 'streak' and 'admin'). A source missing here showed
+ * as a bare "XP" with a lightning bolt — the Global Quiz, every interview row
+ * and the games all did.
+ */
 const XP_SOURCE = {
     lesson_complete: 'Lesson', quiz_complete: 'Quiz', quiz_pass: 'Quiz', assignment_complete: 'Assignment',
-    course_complete: 'Course', certificate_earned: 'Certificate', forum_post: 'Community', forum_comment: 'Community',
-    resume_upload: 'Resume', part_time_apply: 'Jobs', scholarship_search: 'Scholarships', interview_prep: 'Interview',
-    career: 'Career Path', career_task: 'Career Path', daily_activity: 'Career Path', game: 'Brain games',
-    game_reversal: 'Brain games', streak: 'Streak', admin: 'Bonus'
+    course_complete: 'Course', certificate_earned: 'Certificate', course_enroll: 'Course',
+    forum_post: 'Community', forum_comment: 'Community',
+    resume_upload: 'Resume', part_time_apply: 'Jobs', scholarship_search: 'Scholarships', opportunity_profile: 'Jobs',
+    interview_prep: 'Interview', interview_practice: 'Interview', mock_interview: 'Interview', interview_improved: 'Interview', interview_challenge: 'Interview',
+    career: 'Career Path', career_task: 'Career Path', career_task_quiz: 'Career Path', skill_quiz: 'Career Path', daily_activity: 'Career Path',
+    career_onboarding: 'Career Path', day_plan_complete: 'Career Path', skill_level_up: 'Career Path', roadmap_milestone: 'Career Path', task_video_watched: 'Career Path',
+    global_quiz_win: 'Global Quiz', global_quiz_complete: 'Global Quiz',
+    game: 'Brain Boosters', game_reversal: 'Brain Boosters',
+    competition: 'Competitions', competition_match_win: 'Competitions', friendly_game_played: 'Games', friendly_game_win: 'Games',
+    profile_picture: 'Profile', achievement_added: 'Profile', bio_strength_full: 'Profile', google_connect: 'Profile', organization_join: 'Profile',
+    streak: 'Streak', admin: 'Bonus'
 };
-const XP_ICON = { Lesson: '📘', Quiz: '📝', Course: '🎓', Certificate: '📜', Community: '💬', 'Career Path': '🧭', 'Brain games': '🧩', Streak: '🔥', Bonus: '🎁', Interview: '🎤', Jobs: '💼' };
+const XP_ICON = { Lesson: '📘', Quiz: '📝', Course: '🎓', Certificate: '📜', Assignment: '📝', Community: '💬', 'Career Path': '🧭', 'Brain Boosters': '🧩', Streak: '🔥', Bonus: '🎁', Interview: '🎤', Jobs: '💼', Resume: '📄', Scholarships: '🎓', 'Global Quiz': '🌍', Competitions: '🏆', Games: '🎲', Profile: '👤' };
 
 // "for completing a lesson" → "Completing a lesson": the ledger's own words,
 // read as a title.
@@ -254,7 +270,7 @@ function XpLedger() {
     }, [rows]);
 
     if (!rows) return <div className="skeleton h-40 rounded-2xl" />;
-    if (!rows.length) return <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">No XP yet. Lessons, quizzes, Career Path tasks and brain games all earn XP, and it shows up here.</p>;
+    if (!rows.length) return <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">No XP yet. Lessons, quizzes, Career Path tasks and Brain Boosters all earn XP, and it shows up here.</p>;
     return (
         <ul ref={listRef} className="divide-y divide-slate-100 overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 [scrollbar-width:thin]" tabIndex={0} aria-label="XP history">
             {rows.map((t) => {

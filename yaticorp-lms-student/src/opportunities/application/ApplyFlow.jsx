@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
     ShieldCheck, User, Mail, Send, Loader2, CheckCircle2, XCircle, RefreshCw,
-    ArrowRight, Eye, Pencil, PartyPopper, Ban
+    ArrowRight, Eye, Pencil, PartyPopper, Ban, MailX
 } from 'lucide-react';
 import { applicationApi } from './api';
 import { Tracker, StatusBadge, JobCard, SafetySection, ConfirmDialog } from './parts';
@@ -164,21 +164,37 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
     // A student of the guardian age or over never needed a parent: no tracker
     // of approvals that never happened, and no guardian card.
     const noGuardian = app.guardianNeeded === false || status === 'ready';
+    // Saved and waiting, but no email reached the guardian: the mail provider
+    // refused it (nothing was ever sent) or the address bounced. The heading,
+    // the badge and the first step say so. They used to read "Your guardian
+    // has received a permission request" over a note saying the email could
+    // not be sent (found testing Jobs, 2026-10-16). Read off the record, so it
+    // is still true after a reload, not only right after pressing Send.
+    const undelivered = waiting && (!!app.mailFailed || !!app.mailBouncedAt);
+    const shownSteps = undelivered
+        ? steps.map((step, i) => (i === 0 ? { ...step, label: 'Email not sent', state: 'blocked' } : step.state === 'active' ? { ...step, state: 'waiting' } : step))
+        : steps;
 
     /* ── The banner at the top changes with the state ─────────────────── */
     const HEAD = {
         'needs-guardian': { icon: ShieldCheck, ring: 'bg-amber-100 text-amber-700', title: 'Guardian approval required',
             body: `Because this student is under ${app.guardianAge}, parent or guardian approval is required before continuing.` },
-        'awaiting-guardian': { icon: CheckCircle2, ring: 'bg-emerald-100 text-emerald-700', title: 'Approval request sent',
-            body: 'Your guardian has received a permission request.' },
+        'awaiting-guardian': undelivered
+            ? (app.mailBouncedAt
+                ? { icon: MailX, ring: 'bg-amber-100 text-amber-700', title: 'Email not delivered',
+                    body: `${guardian.name || 'Your guardian'}'s email address was not found, so the request has not reached them. Correct it with Change guardian, then send it again.` }
+                : { icon: MailX, ring: 'bg-amber-100 text-amber-700', title: 'Request saved — email not sent',
+                    body: `The email to ${guardian.name || 'your guardian'} could not be sent. Show them the guardian page below, or try sending again.` })
+            : { icon: CheckCircle2, ring: 'bg-emerald-100 text-emerald-700', title: 'Approval request sent',
+                body: 'Your guardian has received a permission request.' },
         'awaiting-admin': { icon: CheckCircle2, ring: 'bg-indigo-100 text-indigo-700', title: 'Parent approved — with the admin now',
             body: `${guardian.name || 'Your guardian'} has agreed. Your school still has to approve it before you can carry on.` },
         approved: { icon: PartyPopper, ring: 'bg-emerald-100 text-emerald-700', title: 'Approved',
             body: `${guardian.name || 'Your guardian'} and your school have both approved this application. You can carry on.` },
         continued: { icon: PartyPopper, ring: 'bg-emerald-100 text-emerald-700', title: 'Application in progress',
             body: app.guardianNeeded === false
-                ? 'No permission was needed for this one. Your school will take it from here.'
-                : 'Your guardian and your school have both approved this one. Your school will take it from here.' },
+                ? 'No permission was needed for this one.'
+                : 'Your guardian and your school have both approved this one.' },
         declined: { icon: Ban, ring: 'bg-rose-100 text-rose-700', title: 'Permission declined',
             body: 'Your guardian has not approved this application.' },
         rejected: { icon: Ban, ring: 'bg-rose-100 text-rose-700', title: 'Not approved by your school',
@@ -202,12 +218,12 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
                         <h2 className="text-lg font-black leading-snug text-slate-900">{HEAD.title}</h2>
                         <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{HEAD.body}</p>
                     </div>
-                    <StatusBadge tone={toneFor(status)}>{statusLabel(status)}</StatusBadge>
+                    <StatusBadge tone={toneFor(status)}>{undelivered ? 'Email not sent' : statusLabel(status)}</StatusBadge>
                 </div>
 
                 {!noGuardian && (
                     <div className="mt-5 border-t border-slate-100 pt-5">
-                        <Tracker steps={steps} />
+                        <Tracker steps={shownSteps} />
                     </div>
                 )}
             </div>

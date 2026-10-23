@@ -143,10 +143,14 @@ const publishQuiz = async (req, res) => {
         if (count < quiz.size) {
             return res.status(400).json({ code: 'QUIZ_NOT_FULL', message: `This quiz has ${count} of its ${quiz.size} questions. Add ${quiz.size - count} more, or make it smaller, before publishing.` });
         }
-        await GlobalQuiz.updateMany({ _id: { $ne: quiz._id }, status: 'published' }, { $set: { status: 'draft', publishedAt: null } });
+        const replaced = await GlobalQuiz.find({ _id: { $ne: quiz._id }, status: 'published' }).select('_id timeLimitMinutes').lean();
+        await GlobalQuiz.updateMany({ _id: { $in: replaced.map((q) => q._id) } }, { $set: { status: 'draft', publishedAt: null } });
         quiz.status = 'published';
         quiz.publishedAt = new Date();
         await quiz.save();
+        // The quiz it replaces can no longer be finished: attempts still
+        // open at it are closed and scored as they stand (see unpublishQuiz).
+        for (const old of replaced) await GlobalQuizAttempt.closeOpenAt(old);
         res.json((await withCounts([quiz.toObject()]))[0]);
     } catch (error) { fail(res, error); }
 };
@@ -160,6 +164,10 @@ const unpublishQuiz = async (req, res) => {
         quiz.status = 'draft';
         quiz.publishedAt = null;
         await quiz.save();
+        // A student part-way through it could not finish it any more (Finish
+        // needs the published quiz), and the open attempt never reached their
+        // history: it is closed and scored now, as it stands.
+        await GlobalQuizAttempt.closeOpenAt(quiz);
         res.json((await withCounts([quiz.toObject()]))[0]);
     } catch (error) { fail(res, error); }
 };

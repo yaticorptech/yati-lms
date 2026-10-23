@@ -34,7 +34,30 @@ const DESCRIPTIONS = {
   mock_interview: 'for completing a mock interview',
   interview_improved: 'for beating your best interview score',
   interview_challenge: 'for completing the interview challenge',
-  global_quiz_win: 'for winning the Global Quiz'
+  linguistic_placement: 'for taking the English placement test',
+  linguistic_lesson: 'for completing an English lesson',
+  linguistic_perfect: 'for a perfect score on an English quiz',
+  linguistic_translation: 'for a correct translation',
+  linguistic_daily: 'for the daily vocabulary challenge',
+  linguistic_writing: 'for writing your teacher approved',
+  linguistic_level: 'for completing an English level',
+  global_quiz_win: 'for winning the Global Quiz',
+  global_quiz_complete: 'for finishing the Global Quiz',
+  roadmap_milestone: 'for completing a roadmap phase',
+  task_video_watched: 'for watching a task lesson video',
+  profile_picture: 'for adding a profile photo',
+  achievement_added: 'for adding an achievement',
+  career_onboarding: 'for building your Career Path roadmap',
+  day_plan_complete: 'for finishing today\'s plan',
+  skill_level_up: 'for levelling up a skill',
+  competition_match_win: 'for winning a competition match',
+  friendly_game_played: 'for playing a multiplayer game',
+  friendly_game_win: 'for winning a multiplayer game',
+  course_enroll: 'for enrolling in a course',
+  opportunity_profile: 'for setting up your part-time jobs profile',
+  organization_join: 'for joining your college on YATICORP',
+  bio_strength_full: 'for a complete Learning Bio',
+  google_connect: 'for connecting your Google account'
 };
 
 /**
@@ -48,16 +71,24 @@ const DESCRIPTIONS = {
  */
 const recordActivity = async ({ userId, type, refId, courseId = null, meta = {}, skipXp = false }) => {
   const config = await getConfig();
-  if (!config.enabled) return { enabled: false, duplicate: false, events: [] };
   const day = dayKey();
 
+  // The fact is recorded whether or not Rewards is switched on: it is the
+  // student's learning history ("Your Progress", the quiz average, the
+  // ledger-based badges), not a payout. Returning before this insert while
+  // Rewards was off meant every lesson and quiz done in that time was simply
+  // never counted, even after Rewards came back on.
   let activity;
   try {
     activity = await LearningActivity.create({ userId, type, refId: String(refId), courseId: courseId ? String(courseId) : null, day, meta });
   } catch (err) {
-    if (isDuplicate(err)) return { enabled: true, duplicate: true, events: [] };
+    if (isDuplicate(err)) return { enabled: config.enabled !== false, duplicate: true, events: [] };
     throw err;
   }
+
+  // Only the payouts — XP, the streak and its milestones, badges — wait on
+  // the switch.
+  if (!config.enabled) return { enabled: false, duplicate: false, events: [] };
 
   const events = [];
   const xpAmount = skipXp ? 0 : Number(config.xpRules[type] || 0);

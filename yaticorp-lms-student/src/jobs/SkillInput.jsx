@@ -83,7 +83,7 @@ export default function SkillInput({ value = [], options = [], popular = [], onC
                         <span className="tabular-nums">{value.length} {value.length === 1 ? 'skill' : 'skills'}</span>
                         <span aria-hidden="true">·</span>
                         <button type="button" onClick={() => onChange([])}
-                            className="font-bold text-slate-500 transition-colors hover:text-rose-600">
+                            className="relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] font-bold text-slate-500 transition-colors hover:text-rose-600">
                             Clear all
                         </button>
                     </span>

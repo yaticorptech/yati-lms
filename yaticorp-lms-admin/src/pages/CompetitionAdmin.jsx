@@ -2,6 +2,8 @@
  * Running one competition, for the platform admin:
  *
  *   Registrations   each college's team, coordinator and players — approve or reject
+ *                   (Teams, in a college's own competition: only its students
+ *                   see it, and the college makes the teams from them here)
  *   Matches         draw round 1, schedule each match, start it, decide it
  *                   (a forfeit, a dispute, a game nobody joined)
  *   Results         the winners, and the prizes and certificates they got
@@ -13,12 +15,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
     ArrowLeft, Trophy, Users, Swords, Medal, Pencil, Rocket, Lock, Ban, Trash2, Check, X, Play, Gavel, Loader2,
-    CalendarClock, Phone, Mail, Crown, AlertTriangle, Shuffle, Gift, RefreshCw
+    CalendarClock, Phone, Mail, Crown, AlertTriangle, Shuffle, Gift, RefreshCw, Plus
 } from 'lucide-react';
 import api from '../utils/api';
 import { CARD, BTN, BTN2, INPUT, LABEL, Segmented } from '../components/orgUi';
-import { CompetitionForm, Chip } from '../competitions/shared';
-import { ORDINAL, fmtDateTime, toLocalInput, errorOf, bannerUploader } from '../competitions/constants';
+import { CompetitionForm, Chip, GameIcon } from '../competitions/shared';
+import { TeamMaker } from '../competitions/TeamMaker';
+import { ORDINAL, fmtDateTime, toLocalInput, errorOf, bannerUploader, competitionBadge, deleteQuestion } from '../competitions/constants';
 
 const STUDENT_PORTAL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
 
@@ -44,6 +47,8 @@ const AdminMatch = ({ match, onCall }) => {
                     </li>
                 ))}
             </ul>
+            {/* The open game's code, to give its players: they type it in Games → Join with a code. */}
+            {match.gameCode && <p className="mt-2 text-xs text-slate-600" data-match-code={match.gameCode}>Match code <span className="rounded-md bg-slate-900 px-1.5 py-0.5 font-mono text-[11px] font-black tracking-[0.2em] text-white">{match.gameCode}</span></p>}
             {match.resultNote && <p className="mt-2 text-xs text-slate-600">{match.resultNote}{match.decidedBy ? ` (${match.decidedBy})` : ''}</p>}
             {match.needsDecision && <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-orange-800"><AlertTriangle size={13} /> Needs your decision.</p>}
 
@@ -55,9 +60,12 @@ const AdminMatch = ({ match, onCall }) => {
                     <button type="button" className={BTN} onClick={() => onCall('post', `/matches/${match.id}/start`)}><Play size={15} /> Start now</button>
                 </div>
             )}
-            {match.status !== 'scheduled' && <p className="mt-2 text-xs text-slate-500">{match.scheduledAt ? `Scheduled ${fmtDateTime(match.scheduledAt)}` : ''}{match.games > 1 ? ` · ${match.games} games` : ''}</p>}
-            {match.gameId && match.status === 'live' && (
-                <a href={`${STUDENT_PORTAL}/competitions/play/${match.gameId}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-bold text-indigo-700 hover:underline">Watch the game in the student portal</a>
+            {match.status === 'bye' && <p className="mt-2 text-xs text-slate-500">No opponent this round: goes straight through.</p>}
+            {!['scheduled', 'bye'].includes(match.status) && <p className="mt-2 text-xs text-slate-500">{match.scheduledAt ? `Scheduled ${fmtDateTime(match.scheduledAt)}` : ''}{match.games > 1 ? ` · ${match.games} games` : ''}</p>}
+            {/* Not while it waits for the organizer: its game is over (nobody joined, or
+                three draws), and the link only led to "did not go ahead". */}
+            {match.gameId && match.status === 'live' && !match.needsDecision && (
+                <a href={`${STUDENT_PORTAL}/competitions/play/${match.gameId}`} target="_blank" rel="noreferrer" className="-mb-2.5 mt-0.5 inline-flex min-h-10 items-center text-xs font-bold text-indigo-700 hover:underline">Watch the game in the student portal</a>
             )}
 
             {open && (deciding ? (
@@ -74,7 +82,7 @@ const AdminMatch = ({ match, onCall }) => {
                     </div>
                 </div>
             ) : (
-                <button type="button" onClick={() => setDeciding(true)} className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-indigo-700"><Gavel size={14} /> Decide this match myself</button>
+                <button type="button" onClick={() => setDeciding(true)} className="-mb-2.5 mt-1 inline-flex min-h-10 items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-indigo-700"><Gavel size={14} /> Decide this match myself</button>
             ))}
         </article>
     );
@@ -101,6 +109,8 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
     const [busy, setBusy] = useState('');
     const [draw, setDraw] = useState({ firstMatchAt: '', gapMinutes: 0 });
     const [notes, setNotes] = useState({});
+    // A college's own competition: the team being made ('new') or changed (its id).
+    const [teamForm, setTeamForm] = useState(null);
 
     const load = useCallback(() => api.get(`${apiBase}/${id}`)
         .then((r) => { setData(r.data); setError(''); })
@@ -128,18 +138,30 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
     const pending = teams.filter((t) => t.status === 'pending');
     const approved = teams.filter((t) => t.status === 'approved');
     const drawn = rounds.length > 0;
+    // A college's own competition: for its students only, and it makes the teams.
+    const own = !!c.hostOrganizationId;
+    const ownTeam = (t) => own && t.organizationId === c.hostOrganizationId;
+    const teamsChange = own && !drawn && !['completed', 'cancelled'].includes(c.status);
+    const teamSaved = (d) => { setData(d); setTeamForm(null); };
+    // The platform admin looking at a college's competition: that college by
+    // name, never "your college" (it is not theirs).
+    const byHost = apiBase.startsWith('/competitions/org/host');
+    const hostName = own && !byHost ? (c.hostName || c.organizedBy) : null;
 
     return (
         <div className="space-y-6 pb-12 animate-fade-in">
-            <Link to={backTo} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} /> All competitions</Link>
+            <Link to={backTo} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} /> All competitions</Link>
 
             <header className={`${CARD} p-5`}>
                 <div className="flex flex-wrap items-start gap-4">
-                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-3xl">{c.emoji}</span>
-                    <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2"><Chip status={c.status} /><span className="text-xs text-slate-500">{c.gameLabel} · by {c.organizedBy}</span></div>
+                    <GameIcon game={c.game} size={28} className="h-14 w-14 rounded-2xl" />
+                    {/* A base width: without one, two buttons beside it on a
+                        phone squeezed the name and dates to a word a line.
+                        Now the buttons wrap to their own row instead. */}
+                    <div className="min-w-0 flex-1 basis-48">
+                        <div className="flex flex-wrap items-center gap-2"><Chip status={competitionBadge(c)} /><span className="text-xs text-slate-500">{c.gameLabel} · by {c.organizedBy}</span></div>
                         <h1 className="mt-1 text-xl font-bold text-slate-900 sm:text-2xl">{c.name}</h1>
-                        <p className="text-sm text-slate-500">Starts {fmtDateTime(c.startsAt)} · registration until {fmtDateTime(c.registrationDeadline)} · {approved.length}/{c.maxTeams} teams · up to {c.playersPerTeam} players each · {c.teamsPerMatch} teams a match{c.playersPerSide > 1 ? ' · doubles' : ''}</p>
+                        <p className="text-sm text-slate-500">Starts {fmtDateTime(c.startsAt)} · registration until {fmtDateTime(c.registrationDeadline)} · {approved.length}/{c.maxTeams} teams · up to {c.playersPerTeam} player{c.playersPerTeam === 1 ? '' : 's'} each · {c.teamsPerMatch} teams a match{c.playersPerSide > 1 ? ' · doubles' : ''}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {!['completed', 'cancelled'].includes(c.status) && <button type="button" className={BTN2} onClick={() => setEditing(true)}><Pencil size={15} /> Edit</button>}
@@ -149,36 +171,58 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
                         {!['completed', 'cancelled'].includes(c.status) && (
                             <button type="button" className={`${BTN2} text-rose-700`} disabled={!!busy} onClick={() => { if (window.confirm('Cancel this competition? Games in progress are stopped.')) quiet(call('post', '/status', { status: 'cancelled' })); }}><Ban size={15} /> Cancel</button>
                         )}
-                        {['draft', 'cancelled'].includes(c.status) && (
-                            <button type="button" className={`${BTN2} text-rose-700`} disabled={!!busy} onClick={() => { if (window.confirm('Delete this competition for good?')) quiet(call('delete', '').then(() => navigate(backTo))); }}><Trash2 size={15} /> Delete</button>
-                        )}
+                        {/* In any state: the question says what goes with it. */}
+                        <button type="button" className={`${BTN2} text-rose-700`} disabled={!!busy}
+                            onClick={() => { if (window.confirm(deleteQuestion(c, pending.length + approved.length))) quiet(call('delete', '').then(() => navigate(backTo))); }}><Trash2 size={15} /> Delete</button>
                     </div>
                 </div>
                 {notice && <p role="alert" className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{notice}</p>}
             </header>
 
-            <Segmented options={[['teams', 'Registrations'], ['matches', 'Matches & rounds'], ['results', 'Results']]} value={tab} onChange={setTab} counts={{ teams: pending.length }} />
+            <Segmented options={[['teams', own ? 'Teams' : 'Registrations'], ['matches', 'Matches & rounds'], ['results', 'Results']]} value={tab} onChange={setTab} counts={{ teams: pending.length }} />
 
             {tab === 'teams' && (
                 <section className="space-y-3">
-                    {teams.length === 0 && <div className={`${CARD} p-8 text-center text-sm text-slate-500`}>{c.status === 'draft' ? 'Open registration so colleges can enter teams.' : 'No college has registered yet.'}</div>}
-                    {teams.map((t) => (
-                        <article key={t.id} className={`${CARD} p-4`}>
+                    {own && (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p className="min-w-0 flex-1 basis-60 text-sm text-slate-600">{hostName
+                                ? `Only ${hostName}'s students see this competition. The college makes the teams from its students; you can add or change them here too.`
+                                : `Only ${c.organizedBy}'s students see this competition. Make the teams from your students${drawn ? '.' : '; the matches are drawn from them.'}`}</p>
+                            {teamsChange && teamForm !== 'new' && <button type="button" className={BTN} onClick={() => setTeamForm('new')}><Plus size={15} /> Add a team</button>}
+                        </div>
+                    )}
+                    {teamForm === 'new' && <TeamMaker competition={c} path={`${apiBase}/${id}`} teams={teams} hostName={hostName} onSaved={teamSaved} onCancel={() => setTeamForm(null)} />}
+                    {teams.length === 0 && teamForm !== 'new' && <div className={`${CARD} p-8 text-center text-sm text-slate-500`}>{own ? (hostName ? `No teams yet. ${hostName} makes them from its students.` : 'No teams yet. Add a team of your students.') : c.status === 'draft' ? 'Open registration so colleges can enter teams.' : 'No college has registered yet.'}</div>}
+                    {teams.map((t) => (teamForm === t.id ? <TeamMaker key={t.id} competition={c} path={`${apiBase}/${id}`} team={t} teams={teams} hostName={hostName} onSaved={teamSaved} onCancel={() => setTeamForm(null)} /> : (
+                        <article key={t.id} data-team={t.id} className={`${CARD} p-4`}>
                             <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                    <p className="font-bold text-slate-900">{t.collegeName} {t.place && <span className="text-amber-600">· {ORDINAL[t.place]}</span>}</p>
-                                    <p className="text-sm text-slate-600">Team: {t.teamName} · {t.players.length} player{t.players.length === 1 ? '' : 's'}</p>
-                                    <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
-                                        <span>Coordinator: {t.coordinator?.name || '—'}</span>
-                                        {t.coordinator?.email && <span className="inline-flex items-center gap-1"><Mail size={12} /> {t.coordinator.email}</span>}
-                                        {t.coordinator?.phone && <span className="inline-flex items-center gap-1"><Phone size={12} /> {t.coordinator.phone}</span>}
-                                    </p>
-                                </div>
-                                <Chip status={t.status} />
+                                {ownTeam(t) ? (
+                                    <div className="min-w-0">
+                                        <p className="font-bold text-slate-900">{t.teamName} {t.place && <span className="text-amber-600">· {ORDINAL[t.place]}</span>}</p>
+                                        <p className="text-sm text-slate-600">{t.players.length} player{t.players.length === 1 ? '' : 's'}</p>
+                                    </div>
+                                ) : (
+                                    <div className="min-w-0">
+                                        <p className="font-bold text-slate-900">{t.collegeName} {t.place && <span className="text-amber-600">· {ORDINAL[t.place]}</span>}</p>
+                                        <p className="text-sm text-slate-600">Team: {t.teamName} · {t.players.length} player{t.players.length === 1 ? '' : 's'}</p>
+                                        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                                            <span>Coordinator: {t.coordinator?.name || '—'}</span>
+                                            {t.coordinator?.email && <span className="inline-flex items-center gap-1"><Mail size={12} /> {t.coordinator.email}</span>}
+                                            {t.coordinator?.phone && <span className="inline-flex items-center gap-1"><Phone size={12} /> {t.coordinator.phone}</span>}
+                                        </p>
+                                    </div>
+                                )}
+                                {!ownTeam(t) && <Chip status={t.status} />}
                             </div>
                             <p className="mt-2 text-sm text-slate-700"><Users size={14} className="mr-1 inline text-slate-400" />{t.players.map((p) => p.name).join(', ')}</p>
                             {t.note && <p className="mt-1 text-xs text-rose-700">Note: {t.note}</p>}
-                            {!drawn && ['pending', 'approved', 'rejected'].includes(t.status) && (
+                            {ownTeam(t) && teamsChange && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    <button type="button" className={BTN2} onClick={() => setTeamForm(t.id)}><Pencil size={15} /> Edit team</button>
+                                    <button type="button" className={`${BTN2} text-rose-700`} disabled={!!busy} onClick={() => { if (window.confirm(`Remove ${t.teamName}?`)) quiet(call('delete', `/teams/${t.id}`)); }}><Trash2 size={15} /> Remove</button>
+                                </div>
+                            )}
+                            {!ownTeam(t) && !drawn && ['pending', 'approved', 'rejected'].includes(t.status) && (
                                 <div className="mt-3 flex flex-wrap items-end gap-2">
                                     <label className="min-w-0 flex-1 basis-52"><span className={LABEL}>Note to the college (optional)</span>
                                         <input value={notes[t.id] || ''} maxLength={500} onChange={(e) => setNotes((n) => ({ ...n, [t.id]: e.target.value }))} className={INPUT} placeholder="e.g. Player list incomplete" /></label>
@@ -187,7 +231,7 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
                                 </div>
                             )}
                         </article>
-                    ))}
+                    )))}
                 </section>
             )}
 
@@ -196,7 +240,7 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
                     {!drawn && (
                         <div className={`${CARD} space-y-3 p-5`}>
                             <h2 className="flex items-center gap-2 font-bold text-slate-900"><Shuffle size={18} className="text-indigo-600" /> Draw round 1</h2>
-                            <p className="text-sm text-slate-600">{approved.length} approved team{approved.length === 1 ? '' : 's'}. Drawing closes registration, pairs the teams at random ({c.teamsPerMatch} a match) and starts the competition. Later rounds are made as matches finish.</p>
+                            <p className="text-sm text-slate-600">{approved.length} approved team{approved.length === 1 ? '' : 's'}. Drawing closes registration, pairs the teams at random ({c.teamsPerMatch} a match) and starts the competition. After that it runs by itself: each match starts at its time, and when a round is over the next one (semi-final, final, third place) starts 15 minutes later. Certificates go to the players' profiles at the end.</p>
                             <div className="flex flex-wrap items-end gap-2">
                                 <label className="basis-56"><span className={LABEL}>First matches at</span>
                                     <input type="datetime-local" value={draw.firstMatchAt || toLocalInput(c.startsAt)} onChange={(e) => setDraw((d) => ({ ...d, firstMatchAt: e.target.value }))} className={INPUT} /></label>
@@ -257,7 +301,7 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
             )}
 
             {editing && !['completed', 'cancelled'].includes(c.status) && (
-                <CompetitionForm competition={c} locked={drawn} uploadBanner={bannerUploader(apiBase)} onCancel={() => setEditing(false)}
+                <CompetitionForm competition={c} hosted={own} hostName={hostName} locked={drawn} uploadBanner={bannerUploader(apiBase)} onCancel={() => setEditing(false)}
                     onSave={(body) => api.put(`${apiBase}/${id}`, body).then((r) => { setData(r.data); setEditing(false); })} />
             )}
         </div>

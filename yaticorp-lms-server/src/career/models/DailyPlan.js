@@ -20,7 +20,7 @@ const dailyPlanSchema = new mongoose.Schema(
       ref: 'User',
       index: true
     },
-    // Local midnight for the day this plan covers.
+    // Platform midnight for the day this plan covers (dailyPlanService.startOfDay).
     date: {
       type: Date,
       required: true
@@ -42,7 +42,20 @@ const dailyPlanSchema = new mongoose.Schema(
       default: 0
     },
     // Kept so a failed day can be explained in the UI rather than looking empty.
-    error: String
+    // Always words for the student; the operator's detail goes to the log.
+    error: String,
+    // Set on a failed day whose AI allowance was spent ('student-daily-cap',
+    // 'service-daily-cap', 'provider-daily-quota'), so the planner can say
+    // when it comes back instead of offering a retry that cannot work.
+    code: String,
+    // When the spent allowance comes back, for the planner's notice.
+    resetsAt: Date,
+    // A failed day is kept, not deleted, and only an explicit "Try again"
+    // builds it again — and not before this moment. Deleting the failed day
+    // used to make every page that read today's plan (Overview, Skills, the
+    // planner) start a fresh AI call, so one bad spell spent the student's
+    // allowance on the same failure over and over.
+    retryAfter: Date
   },
   {
     timestamps: true

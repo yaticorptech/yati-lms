@@ -8,7 +8,7 @@ const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { connect, makeUser, startApp, cleanup } = require('../helpers');
 
-let app, me, other, api, otherApi;
+let app, me, other, api, otherApi, coachUser, coachApi;
 const SHORT = ['Python.', 'I like it.', 'Not much.'];
 const FULL = [
     'I am a final-year computer science student. First, I built a sales dashboard in Python and SQL for a retail client, then I automated its weekly report, and as a result the team saved a day each week. For example, the pipeline now runs unattended.',
@@ -16,8 +16,8 @@ const FULL = [
     'There was a time our team missed a deadline. First I organised daily stand-ups, then I split the remaining work into small pieces, and finally we delivered a week later with a better outcome. I learned to raise risks early.'
 ];
 
-before(async () => { await connect(); app = startApp(); me = await makeUser('Asha'); other = await makeUser('Other'); api = app.call(me.token); otherApi = app.call(other.token); });
-after(async () => { await cleanup([me.user, other.user], app.server); });
+before(async () => { await connect(); app = startApp(); me = await makeUser('Asha'); other = await makeUser('Other'); coachUser = await makeUser('Coach'); api = app.call(me.token); otherApi = app.call(other.token); coachApi = app.call(coachUser.token); });
+after(async () => { await cleanup([me.user, other.user, coachUser.user], app.server); });
 
 describe('guards', () => {
     test('rejects requests without a token', async () => { const r = await app.call(null)('GET', '/dashboard'); assert.equal(r.status, 401); });
@@ -67,6 +67,65 @@ describe('dashboard and practice bank', () => {
         const first = await api('POST', `/questions/${id}/practice`); assert.equal(first.status, 200); assert.ok(first.body.practiced.includes(id));
         const again = await api('POST', `/questions/${id}/practice`); assert.equal(again.status, 200); assert.equal(again.body.practiced.filter((x) => x === id).length, 1);
         const missing = await api('POST', '/questions/nope/practice'); assert.equal(missing.status, 404);
+    });
+});
+
+describe('sample answers and tips for practice questions', () => {
+    // Banks as they were before questions came with these: same questions, none of it.
+    const strip = async (userId) => {
+        const { InterviewPrep } = require('../../src/interview/models');
+        const prep = await InterviewPrep.findOne({ userId });
+        prep.questions = prep.questions.map((q) => ({ id: q.id, category: q.category, topic: q.topic, question: q.question, hint: q.hint, difficulty: q.difficulty }));
+        await prep.save();
+    };
+    test('every built-in question comes with a sample answer, what to say and what to avoid', async () => {
+        const q = await coachApi('GET', '/questions'); assert.equal(q.status, 200);
+        assert.ok(q.body.questions.length > 0);
+        for (const x of q.body.questions) {
+            assert.ok(x.sample && x.sample.length > 40, `${x.id} has a sample answer`);
+            assert.ok(x.say.length >= 2 && x.avoid.length >= 2, `${x.id} has things to say and to avoid`);
+        }
+        assert.equal(q.body.coaching, false);
+    });
+    test('a built-in bank saved without them is written again with them, same questions', async () => {
+        const before = await coachApi('GET', '/questions');
+        await strip(coachUser.user._id);
+        const after = await coachApi('GET', '/questions');
+        assert.deepEqual(after.body.questions.map((x) => x.question), before.body.questions.map((x) => x.question));
+        assert.ok(after.body.questions.every((x) => x.sample), 'every question has its sample answer back');
+    });
+    test("an AI bank saved without them has them written in the background, keeping its questions; a tip lands only on its own question", async () => {
+        const ai = require('../../src/interview/aiInterviewer');
+        const real = { configuredFor: ai.configuredFor, coachQuestions: ai.coachQuestions };
+        await strip(coachUser.user._id);
+        await coachApi('POST', `/questions/${(await coachApi('GET', '/questions')).body.questions[0].id}/practice`).catch(() => {});
+        await strip(coachUser.user._id);
+        let asked = 0;
+        ai.configuredFor = async () => true;
+        ai.coachQuestions = async ({ questions }) => {
+            asked = questions.length;
+            return new Map([
+                [questions[0].id, { question: questions[0].question, sample: 'WRITTEN: my sample answer.', say: ['one', 'two'], avoid: ['three', 'four'] }],
+                // Written for a question the bank no longer has.
+                [questions[1].id, { question: 'a question since rewritten', sample: 'WRONG', say: ['x', 'y'], avoid: ['z', 'w'] }]
+            ]);
+        };
+        try {
+            const first = await coachApi('GET', '/questions');
+            assert.equal(first.body.coaching, true, 'says they are being written');
+            assert.ok(first.body.questions.every((x) => x.say.length && x.avoid.length), 'with the general tips meanwhile');
+            await new Promise((r) => setTimeout(r, 400));
+            const later = await coachApi('GET', '/questions');
+            assert.equal(asked, first.body.questions.length, 'every question without one was asked about');
+            assert.equal(later.body.questions[0].sample, 'WRITTEN: my sample answer.');
+            assert.deepEqual(later.body.questions[0].say, ['one', 'two']);
+            assert.equal(later.body.questions[1].sample, undefined, 'a tip for a question that has changed is not used');
+            assert.deepEqual(later.body.questions.map((x) => x.question), first.body.questions.map((x) => x.question), 'the questions stay');
+            assert.deepEqual(later.body.practiced, first.body.practiced, 'and so does what was practised');
+            assert.equal(later.body.coaching, false, 'and it is not asked for again straight away');
+        } finally {
+            ai.configuredFor = real.configuredFor; ai.coachQuestions = real.coachQuestions;
+        }
     });
 });
 

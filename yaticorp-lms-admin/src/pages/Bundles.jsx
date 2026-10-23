@@ -250,18 +250,22 @@ const Bundles = () => {
             </div>
 
             {showModal && (
-                // MY CHANGES — items-start + pt-20 + overflow-y-auto fixes modal hidden behind header
-                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-4 pt-25 overflow-y-auto animate-fade-in text-left">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col my-auto">
-                        <div className="flex justify-between items-center gap-3 p-4 sm:p-6 border-b border-slate-200 bg-slate-50">
+                // MY CHANGES — the top gap (pt-20, lg:pt-24) keeps the modal clear of the header.
+                // A small popup, not a page: on a phone at most 60% of the
+                // screen tall (85% from sm up), centred below the header, with
+                // the form scrolling inside between its title and its
+                // Save / Cancel row.
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 pb-4 pt-20 lg:pt-24 animate-fade-in text-left">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[min(60dvh,calc(100dvh-7rem))] sm:max-h-[min(85dvh,calc(100dvh-7rem))]">
+                        <div className="flex shrink-0 justify-between items-center gap-3 p-4 sm:p-6 border-b border-slate-200 bg-slate-50">
                             <h2 className="text-lg sm:text-xl font-bold text-slate-800">
                                 {editId ? 'Edit Bundle' : 'Create New Bundle'}
                             </h2>
                             <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-                            <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1">
+                        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                            <div className="p-4 sm:p-6 overflow-y-auto overscroll-contain space-y-6 flex-1 min-h-0">
 
                                 {/* MY CHANGES — red inline error banner (shows backend errors like duplicate name) */}
                                 {formError && (
@@ -317,7 +321,8 @@ const Bundles = () => {
 
                                 <div>
                                     <h3 className="text-sm font-semibold text-slate-700 mb-3 border-b pb-2">Included Courses</h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-1">
+                                    {/* One scroll on a phone, the popup's own; its own box from sm up. */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:max-h-48 sm:overflow-y-auto p-1">
                                         {courses.map(course => {
                                             const isSelected = formData.courses.includes(course._id);
                                             return (
@@ -358,7 +363,7 @@ const Bundles = () => {
 </div>
                             </div>
 
-                            <div className="p-4 border-t border-slate-100 bg-slate-50 flex flex-wrap justify-end gap-3">
+                            <div className="p-4 border-t border-slate-100 bg-slate-50 flex shrink-0 flex-wrap justify-end gap-3">
                                 <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors">Cancel</button>
                                 <button type="submit" className="px-5 py-2.5 bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-lg shadow transition-colors">Save Bundle</button>
                             </div>

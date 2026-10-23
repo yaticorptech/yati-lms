@@ -68,6 +68,17 @@ const userSchema = new mongoose.Schema({
     },
     resetPasswordToken: { type: String },
     resetPasswordExpiry: { type: Date },
+    /**
+     * When the student last changed their own password — through the emailed
+     * reset link or update-password. A token issued before it is refused by
+     * protectUser, so a stolen or forgotten session ends the moment the
+     * student changes the password (the same rule as models/Admin.js).
+     * Additive: absent on existing accounts, whose tokens keep working until
+     * their password next changes. Stamped by those two controllers rather
+     * than a save hook: the website sync and admin edits write passwords too,
+     * and must not sign the student out on every device as a side effect.
+     */
+    passwordChangedAt: { type: Date, default: undefined },
 
     // ─── Organization membership ─────────────────────────────────────────────
     // The institution this student belongs to, or null for someone who signed
@@ -297,5 +308,16 @@ userSchema.methods.readablePassword = async function () {
 };
 
 userSchema.statics.isHashedPassword = isHashed;
+
+/**
+ * Whether a token issued at `iat` (JWT seconds) predates the last password
+ * change, as for administrators. One second of slack, because `iat` is
+ * truncated to whole seconds: a token signed in the same second as the
+ * change, just after it, reads as earlier and must not be refused.
+ */
+userSchema.methods.tokenPredatesPassword = function (iat) {
+    if (!this.passwordChangedAt || typeof iat !== 'number') return false;
+    return iat * 1000 < this.passwordChangedAt.getTime() - 1000;
+};
 
 module.exports = mongoose.model('User', userSchema);

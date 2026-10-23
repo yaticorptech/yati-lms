@@ -292,9 +292,10 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
         for (let i = 0; i < 3; i++) assert.equal(result[top[i]].x, result[bottom[i]].x, `${top[i]} and ${bottom[i]} share a column`);
     });
 
-    test('every tile has a chevron and opens what it shows, wherever on the tile it is pressed', async () => {
-        // Pressed near the chevron, away from the text: the whole tile is the
-        // control, not just its words.
+    test('no tile has an arrow; the details are plain, and Organization and Level open what they show wherever pressed', async () => {
+        // Asked 2026-10-15: "dont give arrow near name phone number ... we have
+        // edit option there". Pressed at the right, away from the text: where an
+        // arrow used to be, and still the tile's own control when it has one.
         const PRESS = (label) => `
             await sleep(1500);
             const tile = [...$('[data-personal-info]').querySelectorAll('dl > div')].find((d) => d.querySelector('dt').innerText.trim() === '${label}');
@@ -314,9 +315,9 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
             return result;
         };
         const phone = await run('Phone Number');
-        assert.equal(phone.chevrons, 6, 'all six tiles carry a chevron');
-        assert.equal(phone.form, true, 'Phone Number opens Edit Profile');
-        assert.equal((await run('Email')).form, true, 'so does Email');
+        assert.equal(phone.chevrons, 0, 'no tile carries an arrow');
+        assert.equal(phone.form, false, 'Phone Number is a plain detail: Edit Profile at the top changes it');
+        assert.equal((await run('Email')).form, false, 'so is Email');
         assert.equal((await run('Organization/College')).popup, true, 'Organization/College opens the organization popup');
         assert.equal((await run('Level')).href, '/career', 'and Level opens Career Path, where levels are earned');
     });
@@ -423,9 +424,11 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
                 await sleep(1500);
                 const card = () => $$('article').find((a) => (a.title || '').startsWith('Modern React'));
                 const del = card().querySelector('button[aria-label="Delete Modern React"]');
-                let asked = '';
-                window.confirm = (q) => { asked = q; return true; };
-                del.click(); await sleep(400);
+                del.click(); await sleep(300);
+                // Asked in the app's own dialog, not the browser's window.confirm.
+                const dialog = $('[role=alertdialog][aria-modal=true]');
+                const asked = text(dialog);
+                [...dialog.querySelectorAll('button')].find((b) => b.innerText.trim() === 'Delete').click(); await sleep(400);
                 return { hadButton: !!del, asked, gone: !card(),
                          call: window.__calls.find((c) => c[0] === 'DELETE') };` });
         assert.deepEqual(errors, []);
@@ -486,7 +489,7 @@ createRoot(document.getElementById('root')).render(
                          lit: [...$('aside').querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'My Profile').className.includes('bg-indigo-600') };` });
         assert.deepEqual(errors, []);
         assert.deepEqual(result.heads, ['LEARN', 'CAREER', 'ACTIVITIES']);
-        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Community', 'Career Path', 'Interview Prep', 'Jobs', 'Scholarships', 'Games & Competitions']);
+        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Community', 'Career Path', 'Interview Prep', 'Jobs', 'Scholarships', 'Games', 'Competitions']);
         assert.equal(result.href, '/profile');
         assert.equal(result.inNav, false, 'My Profile is not in the menu list');
         assert.equal(result.support, true, 'it sits in the footer with Contact Support');
@@ -562,5 +565,64 @@ createRoot(document.getElementById('root')).render(
         assert.equal(result.file, 'science-fair.pdf', 'and the file');
         assert.equal(result.formClosed, true, 'the form closes');
         assert.equal(result.shown, true, 'and the new certificate is in the frame');
+    });
+});
+
+describe('the banner before the profile has answered', { skip: skipWithoutStyles }, () => {
+    // /user/profile is held back until the page calls window.__release(), so
+    // the banner can be read in the moment before the server's level arrives.
+    const holding = api.split('export default {').join('const base = {') + `
+let release; const held = new Promise((r) => { release = r; }); window.__release = () => release();
+export default { ...base, get: (url, config) => (url.includes('/user/profile') ? base.get(url, config).then((r) => held.then(() => r)) : base.get(url, config)) };`;
+    // The signed-in student as the device saved them, in a provider whose
+    // setUser really sets, so what the page writes back can be read.
+    const standingPage = (saved) => `
+import { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
+import { AuthContext } from '${srcFile('context/AuthContext.jsx')}';
+import { RewardsProvider } from '${srcFile('context/RewardsContext.jsx')}';
+import Profile from '${srcFile('pages/Profile.jsx')}';
+localStorage.setItem('studentData', JSON.stringify(${JSON.stringify(saved)}));
+const App = () => {
+  const [user, setUser] = useState(${JSON.stringify(saved)});
+  window.__user = user;
+  return (
+    <AuthContext.Provider value={{ user, setUser, isCareerPathEnabled: true, isGlobalQuizEnabled: true, isRewardsEnabled: true, isJobsEnabled: true }}>
+      <RewardsProvider><MemoryRouter><Profile /></MemoryRouter></RewardsProvider>
+    </AuthContext.Provider>);
+};
+createRoot(document.getElementById('root')).render(<App />);`;
+    const READ = `(() => { const b = $('[data-welcome]'); return { text: b.innerText.replace(/\\s+/g, ' '), placeholder: !!b.querySelector('[aria-label="Loading your level"]') }; })()`;
+
+    test('a level saved on the device shows at once, not "Level 1"', async () => {
+        const { result, errors } = await screen({
+            entry: standingPage({ ...USER, xp: 315, level: 3 }), api: holding, styles: true, width: DESKTOP, budget: 20_000, script: `
+                await sleep(1500);
+                const before = ${READ};
+                window.__release(); await sleep(800);
+                return { before, after: ${READ} };` });
+        assert.deepEqual(errors, []);
+        assert.match(result.before.text, /Level 3 · 285 XP to the next level/, 'the saved level, before the server has answered');
+        assert.doesNotMatch(result.before.text, /Level 1|Lv 1/i);
+        assert.match(result.after.text, /Level 3 · 285 XP to the next level/);
+    });
+
+    test('with no saved level, a placeholder until the server answers, then the level is saved for next time', async () => {
+        // A session signed in before sign-in sent the level.
+        const { result, errors } = await screen({
+            entry: standingPage(USER), api: holding, styles: true, width: DESKTOP, budget: 20_000, script: `
+                await sleep(1500);
+                const before = ${READ};
+                window.__release(); await sleep(800);
+                const saved = JSON.parse(localStorage.getItem('studentData'));
+                return { before, after: ${READ}, saved: { xp: saved.xp, level: saved.level, name: saved.name }, user: { xp: window.__user.xp, level: window.__user.level } };` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.before.placeholder, 'a placeholder where the level goes');
+        assert.doesNotMatch(result.before.text, /Level \d|Lv \d/i, 'no made-up level');
+        assert.match(result.after.text, /Level 3 · 285 XP to the next level/);
+        assert.equal(result.after.placeholder, false);
+        assert.deepEqual(result.saved, { xp: 315, level: 3, name: USER.name }, 'saved on the device, the rest kept');
+        assert.deepEqual(result.user, { xp: 315, level: 3 }, 'and on the signed-in student');
     });
 });

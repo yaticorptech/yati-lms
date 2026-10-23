@@ -1,12 +1,13 @@
 /**
  * @description "My Certificates" on the profile — the frame the student's
- *              achievements sit in. Two sources, one wall: certificates the
- *              LMS issues when a course hits 100%, and ones the student
- *              uploads from anywhere else (school, a competition, another
- *              platform). The newest sits in the big frame at the top; the
+ *              achievements sit in. Three sources, one wall: certificates the
+ *              LMS issues when a course hits 100%, the ones Games &
+ *              Competitions gives once a competition the student played in is
+ *              over, and ones the student uploads from anywhere else (school,
+ *              another platform). The newest sits in the big frame at the top; the
  *              rest hang in the gallery beneath.
  */
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import saveToDrive from '../integrations/google/saveToDrive';
 import { Link } from 'react-router-dom';
 import {
@@ -16,25 +17,58 @@ import api from '../utils/api';
 import { Tile, Feature, Artwork } from './profileBlocks';
 import Portal from './Portal';
 import CertificatePreview from './CertificatePreview';
+import CompetitionCertificatePreview from './CompetitionCertificatePreview';
+import { competitionsApi } from '../competitions/api';
+import { saveBlob } from '../native/saveFile';
 import { AuthContext } from '../context/AuthContext';
 import { pdfPageOne } from '../utils/pdfPageOne';
 import PriceTag from './rewards/PriceTag';
+import useConfirmDialog from './useConfirmDialog';
+import useBackClose from '../native/useBackClose';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
-/** Course certificates and uploads, one shape, newest first. */
-const merge = (certificates, achievements, holder = '') => [
+/** Course, competition and uploaded certificates, one shape, the most
+    recently added first. `date` is the one printed on the certificate, for the
+    tooltip; `added` is when it reached the profile, which is what the frame
+    goes by — an upload dated last year is still the newest thing in it. */
+const merge = (certificates, achievements, competitions = [], holder = '') => [
     ...certificates.map((c) => ({
         id: `course-${c._id}`, source: 'course', raw: c, holder,
         title: c.courseId?.title || 'Course certificate', issuer: 'YATI LMS',
-        date: c.issuedAt || c.createdAt, number: c.certificateNumber, thumbnailUrl: '', fileType: 'pdf'
+        date: c.issuedAt || c.createdAt, added: c.createdAt || c.issuedAt, number: c.certificateNumber, thumbnailUrl: '', fileType: 'pdf'
+    })),
+    ...competitions.map((c) => ({
+        id: `competition-${c.competitionId}`, source: 'competition', raw: c,
+        title: `${c.title} · ${c.name}`, issuer: 'YATI LMS · Games & Competitions',
+        date: c.completedAt, added: c.completedAt, thumbnailUrl: '', fileType: 'pdf'
     })),
     ...achievements.map((a) => ({
         id: `up-${a.id}`, source: 'upload', raw: a,
         title: a.title, issuer: a.issuer || 'Uploaded by you',
-        date: a.issuedOn || a.createdAt, thumbnailUrl: a.thumbnailUrl, fileUrl: a.fileUrl, fileType: a.fileType
+        date: a.issuedOn || a.createdAt, added: a.createdAt || a.issuedOn, thumbnailUrl: a.thumbnailUrl, fileUrl: a.fileUrl, fileType: a.fileType
     }))
-].sort((a, b) => new Date(b.date) - new Date(a.date));
+].sort((a, b) => new Date(b.added || 0) - new Date(a.added || 0));
+
+/* How many the frame holds: two rows on a laptop (12, six to a row) and a
+   tablet (8, four to a row), four rows on a phone (8, two to a row — the
+   account owner's call, 2026-10-10: two rows of two was too few). The columns
+   are the gallery's own, below. Past that, a new certificate goes in at the
+   front and the oldest leaves the end of the frame. Nothing is deleted: it
+   stays in the account, and in the student's Google Drive if it was saved
+   there. */
+const COLUMNS = [['(min-width: 64rem)', 6], ['(min-width: 40rem)', 4]];
+const rowsFor = (columns) => (columns === 2 ? 4 : 2);
+const columnsNow = () => COLUMNS.find(([q]) => window.matchMedia(q).matches)?.[1] || 2;
+const watchColumns = (onChange) => {
+    const lists = COLUMNS.map(([q]) => window.matchMedia(q));
+    lists.forEach((l) => l.addEventListener('change', onChange));
+    return () => lists.forEach((l) => l.removeEventListener('change', onChange));
+};
+const useFrameSize = () => {
+    const columns = useSyncExternalStore(watchColumns, columnsNow, () => 6);
+    return rowsFor(columns) * columns;
+};
 
 /* A certificate in a frame: matted, bevelled, with a ribbon when it is one
    the LMS issued. One the LMS issued shows the certificate itself; images
@@ -45,6 +79,8 @@ const Framed = ({ item, large = false }) => (
             <div className={`flex items-center justify-center overflow-hidden rounded-lg bg-slate-100 ${large ? 'aspect-[4/3]' : 'aspect-[4/3]'}`}>
                 {item.source === 'course' ? (
                     <CertificatePreview name={item.holder} course={item.title} number={item.number} issuedAt={item.date} />
+                ) : item.source === 'competition' ? (
+                    <CompetitionCertificatePreview certificate={item.raw} />
                 ) : item.thumbnailUrl ? (
                     <img src={item.thumbnailUrl} alt={item.title} loading="lazy" className="h-full w-full object-cover" />
                 ) : (
@@ -55,7 +91,7 @@ const Framed = ({ item, large = false }) => (
                 )}
             </div>
         </div>
-        {item.source === 'course' && (
+        {(item.source === 'course' || item.source === 'competition') && (
             <span className="absolute -right-1.5 -top-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow">
                 <BadgeCheck size={11} /> Verified
             </span>
@@ -135,7 +171,7 @@ const UploadDialog = ({ onClose, onDone }) => {
                 padding, a shorter drop zone and smaller fields, so the form fits
                 without feeling like a full page. From sm up, as it was. */}
             <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:p-4" onClick={onClose}>
-                <form role="dialog" aria-modal="true" aria-labelledby="cert-upload-title" onSubmit={submit} onClick={(e) => e.stopPropagation()}
+                <form role="dialog" aria-modal="true" aria-labelledby="cert-upload-title" onSubmit={submit} onClick={(e) => e.stopPropagation()} noValidate
                     className="flex max-h-[85dvh] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-fade-in-up sm:max-h-[92vh] sm:max-w-lg sm:rounded-3xl">
                     <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 sm:p-5">
                         <h3 id="cert-upload-title" className="flex items-center gap-2 text-sm font-bold text-slate-800 sm:text-base"><Upload size={16} className="shrink-0 text-indigo-600" /> Add a certificate to your frame</h3>
@@ -211,7 +247,7 @@ const UploadDialog = ({ onClose, onDone }) => {
     );
 };
 
-export default function CertificatesFrame({ certificates, loading, certError, downloadingId, onDownload, onRemoved }) {
+export default function CertificatesFrame({ certificates, loading, loadFailed = false, onRetry, certError, downloadingId, onDownload, onRemoved }) {
     const [achievements, setAchievements] = useState([]);
     const [loadingUploads, setLoadingUploads] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -225,39 +261,78 @@ export default function CertificatesFrame({ certificates, loading, certError, do
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [showAbout]);
+    // Android's back button closes the explainer, as Escape does.
+    useBackClose(() => setShowAbout(false), showAbout);
     const [removingId, setRemovingId] = useState(null);
     const [error, setError] = useState('');
     const [justAdded, setJustAdded] = useState(null);
+    // "Delete this certificate?" asked in the app's own dialog, not the browser's.
+    const [confirm, confirmDialog] = useConfirmDialog();
 
-    useEffect(() => {
-        api.get('/user/achievements')
-            .then((r) => setAchievements(r.data.achievements || []))
-            .catch(() => {})
-            .finally(() => setLoadingUploads(false));
-    }, []);
+    // Each source says when it could not be read, so the frame never claims
+    // to be empty while a list it should hold failed to arrive.
+    const [uploadsFailed, setUploadsFailed] = useState(false);
+    const loadUploads = () => api.get('/user/achievements')
+        .then((r) => { setAchievements(r.data.achievements || []); setUploadsFailed(false); })
+        .catch(() => setUploadsFailed(true))
+        .finally(() => setLoadingUploads(false));
+    useEffect(() => { loadUploads(); }, []);
 
-    /* Delete, for both kinds. An upload is gone for good. A certificate the
-       LMS issued only leaves the profile: it is the course's completion, and
-       it stays valid under its own number — downloading it again from the
-       course puts it back (see hiddenAt on the server's Certificate). */
+    // Games & Competitions certificates: one for every finished competition
+    // the student played in, listed by the server and drawn as a PDF on
+    // request. A failure leaves the rest of the frame as it is.
+    const [competitionCerts, setCompetitionCerts] = useState([]);
+    const [loadingCompetitions, setLoadingCompetitions] = useState(true);
+    const [downloadingCompetition, setDownloadingCompetition] = useState(null);
+    const [competitionsFailed, setCompetitionsFailed] = useState(false);
+    const loadCompetitions = () => competitionsApi.myCertificates()
+        .then((rows) => { setCompetitionCerts(rows); setCompetitionsFailed(false); })
+        .catch(() => setCompetitionsFailed(true))
+        .finally(() => setLoadingCompetitions(false));
+    useEffect(() => { loadCompetitions(); }, []);
+    const downloadCompetition = (c) => {
+        setDownloadingCompetition(c.competitionId);
+        setError('');
+        competitionsApi.certificate(c.competitionId)
+            .then((blob) => saveBlob(blob, `Certificate_${c.name.replace(/\s+/g, '_')}.pdf`, { title: c.name }))
+            .catch((err) => setError(err.message || 'Could not download that certificate.'))
+            .finally(() => setDownloadingCompetition(null));
+    };
+
+    /* Delete, for every kind. An upload is gone for good. A certificate the
+       LMS issued only leaves the profile: a course's stays valid under its own
+       number, and downloading it again from the course puts it back (see
+       hiddenAt on the server's Certificate); a competition's stays in Games &
+       Competitions, and downloading it there puts it back. */
     const remove = async (item) => {
         const issued = item.source === 'course';
-        const ask = issued
-            ? `Delete "${item.title}" from My Certificates?\n\nThe certificate stays valid — download it again from the course and it comes back here.`
-            : `Delete "${item.title}" from your frame?`;
-        if (!window.confirm(ask)) return;
+        const competition = item.source === 'competition';
+        const ok = await confirm({
+            title: issued || competition ? `Delete "${item.title}" from My Certificates?` : `Delete "${item.title}" from your frame?`,
+            message: issued
+                ? 'It comes off your resume and Learning Bio too. The certificate stays valid — download it again from the course and it comes back.'
+                : competition
+                    ? 'It stays yours in Competitions (History) — download it again there and it comes back here.'
+                    : 'The file you uploaded is removed for good.',
+            confirmLabel: 'Delete',
+            destructive: true
+        });
+        if (!ok) return;
         setRemovingId(item.id);
         setError('');
         try {
             if (issued) {
                 await api.delete(`/certificates/${item.raw._id}`);
                 onRemoved?.(item.raw._id);
+            } else if (competition) {
+                await competitionsApi.hideCertificate(item.raw.competitionId);
+                setCompetitionCerts((rows) => rows.filter((c) => c.competitionId !== item.raw.competitionId));
             } else {
                 await api.delete(`/user/achievements/${item.raw.id}`);
                 setAchievements((rows) => rows.filter((a) => a.id !== item.raw.id));
             }
         } catch (err) {
-            setError(err.response?.data?.message || 'Could not delete that certificate.');
+            setError(err.response?.data?.message || err.message || 'Could not delete that certificate.');
         } finally {
             setRemovingId(null);
         }
@@ -272,13 +347,27 @@ export default function CertificatesFrame({ certificates, loading, certError, do
 
     // The holder's name is written on the certificate's picture.
     const { user } = useContext(AuthContext) || {};
-    const items = merge(certificates, achievements, user?.name || '');
-    const busy = loading || loadingUploads;
+    const items = merge(certificates, achievements, competitionCerts, user?.name || '');
+    const frameSize = useFrameSize();
+    const framed = items.slice(0, frameSize);
+    const outOfFrame = items.length - framed.length;
+    const busy = loading || loadingUploads || loadingCompetitions;
+    const someFailed = loadFailed || uploadsFailed || competitionsFailed;
+    const [retrying, setRetrying] = useState(false);
+    const retry = async () => {
+        setRetrying(true);
+        await Promise.all([
+            loadFailed && onRetry ? onRetry() : null,
+            uploadsFailed ? loadUploads() : null,
+            competitionsFailed ? loadCompetitions() : null
+        ]);
+        setRetrying(false);
+    };
 
     /* One card, five bands, separated by hairlines rather than gaps — the
        resume block below it needs the room. */
     return (
-        <section aria-labelledby="my-certificates-title" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
+        <section id="certificates" aria-labelledby="my-certificates-title" className="scroll-mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
             {/* ── Header ───────────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-3">
@@ -298,10 +387,22 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                 <div className="bg-red-50 px-5 py-2.5 text-sm font-medium text-red-600">{certError || error}</div>
             )}
 
+            {/* ── A list that could not be read ────────────────────────── */}
+            {!busy && someFailed && (
+                <div role="alert" className="flex flex-wrap items-center justify-between gap-2 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 sm:px-5">
+                    <span className="flex items-center gap-2"><Info size={15} className="shrink-0 text-amber-600" aria-hidden="true" />
+                        {items.length ? 'Some of your certificates could not be loaded just now.' : 'Your certificates could not be loaded just now.'}</span>
+                    <button type="button" onClick={retry} disabled={retrying}
+                        className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 text-xs font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-60">
+                        {retrying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Try again
+                    </button>
+                </div>
+            )}
+
             {/* ── Empty frame ──────────────────────────────────────────── */}
             {busy ? (
                 <div className="px-4 py-3 sm:px-5"><div className="skeleton h-24 rounded-2xl" /></div>
-            ) : items.length === 0 && (
+            ) : items.length === 0 && !someFailed && (
                 <div className="relative overflow-hidden px-4 py-3 sm:px-5">
                     <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet-100/60 blur-3xl" />
                     <div className="relative flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
@@ -328,8 +429,9 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 normal-case tracking-normal text-emerald-700"><ShieldCheck size={12} /> {items.length} {items.length === 1 ? 'achievement' : 'achievements'} on your profile</span>
                         {justAdded && <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 normal-case tracking-normal text-indigo-700"><Check size={12} strokeWidth={3} /> Uploaded successfully</span>}
                     </h3>
+                    {/* The columns here are the ones useFrameSize counts. */}
                     <div className="stagger grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
-                        {items.map((item) => (
+                        {framed.map((item) => (
                             <article key={item.id} title={`${item.title}${item.issuer ? ` · ${item.issuer}` : ''}${item.date ? ` · ${fmtDate(item.date)}` : ''}`}
                                 className="group flex flex-col rounded-xl border border-slate-200 bg-white p-2 transition-all hover:-translate-y-0.5 hover:shadow-md">
                                 {/* The picture is the certificate. An uploaded one is
@@ -344,6 +446,12 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                                             className="inline-flex min-h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-60">
                                             {downloadingId === item.raw._id ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF <PriceTag action="download_certificate" />
                                         </button>
+                                    ) : item.source === 'competition' ? (
+                                        // Free, as it is in Games & Competitions.
+                                        <button type="button" onClick={() => downloadCompetition(item.raw)} disabled={downloadingCompetition === item.raw.competitionId}
+                                            className="inline-flex min-h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-60">
+                                            {downloadingCompetition === item.raw.competitionId ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PDF
+                                        </button>
                                     ) : (
                                         <a href={item.fileUrl} target="_blank" rel="noopener noreferrer"
                                             className="inline-flex min-h-8 flex-1 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
@@ -355,6 +463,15 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                             </article>
                         ))}
                     </div>
+                    {outOfFrame > 0 && (
+                        <p data-out-of-frame className="mt-2.5 flex items-start gap-1.5 text-xs text-slate-500">
+                            <Info size={13} className="mt-px shrink-0 text-indigo-400" aria-hidden="true" />
+                            <span>
+                                The frame shows your newest {framed.length}. {outOfFrame === 1 ? 'Your oldest certificate is' : `Your ${outOfFrame} oldest certificates are`} not
+                                in the frame, but nothing is deleted — {outOfFrame === 1 ? 'it stays' : 'they stay'} saved, and in your Google Drive if you saved {outOfFrame === 1 ? 'it' : 'them'} there.
+                            </span>
+                        </p>
+                    )}
                 </div>
             )}
 
@@ -408,6 +525,7 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                     onDone={(a) => { setAchievements((rows) => [a, ...rows]); setJustAdded(`up-${a.id}`); setUploading(false); }}
                 />
             )}
+            {confirmDialog}
         </section>
     );
 }

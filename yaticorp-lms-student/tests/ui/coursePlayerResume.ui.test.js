@@ -81,12 +81,12 @@ describe('the lesson the course opens on', { skip: skipWithoutChrome }, () => {
         assert.equal(result.videoSrc, '/lesson.wav');
     });
 
-    test('is the first lesson when nothing is remembered', async () => {
+    test('is where the student is up to when nothing is remembered: the first lesson not done', async () => {
         const { result, errors } = await screen({ entry: entry(), api: api(['L1', 'L2']), files, script: OPENED });
         assert.deepEqual(errors, []);
-        assert.match(result.active, /Welcome/);
-        assert.equal(result.heading, 'Welcome');
-        assert.equal(result.lessonsShown.length, 2, 'the first module is expanded');
+        assert.match(result.active, /Your first route/);
+        assert.equal(result.heading, 'Your first route');
+        assert.equal(result.lessonsShown.length, 1, 'its module is expanded');
     });
 
     test('is the first lesson when the remembered one is locked again', async () => {
@@ -104,6 +104,8 @@ describe('the lesson the course opens on', { skip: skipWithoutChrome }, () => {
             entry: entry(), api: api(['L1', 'L2']), files,
             script: `
   await sleep(800);
+  click(/Getting started/, 'button');
+  await sleep(100);
   const clicked = click(/Setting up/, 'button');
   await sleep(300);
   return { clicked, heading: text($('h2')), remembered: JSON.parse(localStorage.getItem('yati:active-lesson:C1')) };`
@@ -140,6 +142,8 @@ describe('the server\'s copy', { skip: skipWithoutChrome }, () => {
             entry: entry(), api: api(['L1', 'L2']), files,
             script: `
   await sleep(800);
+  click(/Getting started/, 'button');
+  await sleep(100);
   click(/Setting up/, 'button');
   await sleep(300);
   return { puts: window.__calls.filter((c) => c[0] === 'PUT') };`

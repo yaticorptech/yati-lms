@@ -90,6 +90,9 @@ const studentView = (row, { currentGuardian = null } = {}) => ({
     // happened.
     guardianNeeded: (row.student?.age ?? 0) < GUARDIAN_AGE,
     requestedAt: row.requestedAt, mailSentAt: row.mailSentAt,
+    // The last send was refused by the mail provider (its reason stays on the
+    // record, not with the student): the screen must not say it arrived.
+    mailFailed: !!row.mailError,
     mailBouncedAt: row.mailBouncedAt || null, fallbackSentAt: row.fallbackSentAt || null,
     decidedAt: row.decidedAt, declineReason: row.declineReason || '',
     // The guardian's yes and the LMS's are separate events with separate dates,

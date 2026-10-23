@@ -84,7 +84,8 @@ export default function CareerJourneyStrip({ phases = [], completedPhases = [], 
             <span className="tabular-nums">
               {doneCount} of {phases.length}
             </span>{' '}
-            {doneCount === 1 ? 'stage' : 'stages'} complete
+            {/* "1 of 5 stages", not "1 of 5 stage": the noun counts the stages. */}
+            {phases.length === 1 ? 'stage' : 'stages'} complete
           </p>
         </div>
         <Link

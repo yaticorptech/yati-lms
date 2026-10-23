@@ -2,9 +2,11 @@
  * @author Preethesh Kulal
  * @description Password reset page accessed via email token link
  */
-import React, { useState } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
+import { forgetStudent } from '../utils/sessionExpiry';
+import teacherApi, { forgetTeacher } from '../teacher/teacherSession';
 import { GraduationCap, KeyRound, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 
@@ -19,8 +21,11 @@ const getPasswordStrengthError = (pw) => {
 
 const ResetPassword = () => {
     const [searchParams] = useSearchParams();
-    const navigate = useNavigate();
     const token = searchParams.get('token');
+    // A teacher's reset link carries as=teacher (src/teacher/auth.js).
+    const asTeacher = searchParams.get('as') === 'teacher';
+    const loginPath = asTeacher ? '/login?as=teacher' : '/login';
+    const errorRef = useRef(null);
 
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -32,23 +37,37 @@ const ResetPassword = () => {
     const [error, setError] = useState('');
     const [done, setDone] = useState(false);
 
+    // A new error is brought into view, and read out (role="alert").
+    useEffect(() => {
+        if (error) errorRef.current?.scrollIntoView?.({ block: 'nearest' });
+    }, [error]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (newPassword !== confirmPassword) {
             setError('Passwords do not match');
+            document.getElementById('reset-confirm-password')?.focus();
             return;
         }
         const pwError = getPasswordStrengthError(newPassword);
-        if (pwError) { setError(pwError); return; }
+        if (pwError) { setError(pwError); document.getElementById('reset-new-password')?.focus(); return; }
         setLoading(true);
         setError('');
         try {
-            const res = await api.post('/auth/student/reset-password', { token, newPassword });
+            const res = asTeacher
+                ? await teacherApi.post('/auth/reset-password', { token, newPassword })
+                : await api.post('/auth/student/reset-password', { token, newPassword });
+            // The reset ended every session signed in with the old password
+            // (the server refuses them now). Any such login saved on this
+            // device is forgotten too, so the sign-in page asks for the new
+            // password instead of bouncing to a dashboard that cannot load.
+            if (asTeacher) forgetTeacher(); else forgetStudent();
             setMessage(res.data.message);
             setDone(true);
-            setTimeout(() => navigate('/login'), 3000);
+            // A full load, so nothing held in memory from that session survives.
+            setTimeout(() => window.location.assign(loginPath), 3000);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to reset password. The link may have expired.');
+            setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Failed to reset password. The link may have expired.'));
         } finally {
             setLoading(false);
         }
@@ -59,7 +78,7 @@ const ResetPassword = () => {
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
                 <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 max-w-md w-full text-center">
                     <p className="text-red-600 font-semibold">Invalid reset link. Please request a new one.</p>
-                    <Link to="/login" className="mt-4 inline-block text-indigo-600 font-bold hover:underline">Back to Login</Link>
+                    <Link to={loginPath} className="mt-4 inline-block text-indigo-600 font-bold hover:underline">Back to Login</Link>
                 </div>
             </div>
         );
@@ -91,21 +110,24 @@ const ResetPassword = () => {
                             <h3 className="text-lg font-bold text-slate-800 mb-2">Password Reset!</h3>
                             <p className="text-slate-500 text-sm">{message}</p>
                             <p className="text-slate-400 text-xs mt-2">Redirecting to login...</p>
+                            <a href={loginPath} className="mt-3 inline-block text-sm font-bold text-indigo-600 hover:underline">Sign in now</a>
                         </div>
                     ) : (
                         <form className="space-y-5" onSubmit={handleSubmit}>
                             {error && (
-                                <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm text-center font-medium">
+                                <div ref={errorRef} role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm text-center font-medium">
                                     {error}
                                 </div>
                             )}
 
                             <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">New Password</label>
+                                <label htmlFor="reset-new-password" className="block text-sm font-semibold text-slate-700 mb-1">New Password</label>
                                 <div className="relative">
                                     <input
+                                        id="reset-new-password"
                                         type={showNew ? 'text' : 'password'}
                                         required
+                                        autoComplete="new-password"
                                         value={newPassword}
                                         onChange={e => setNewPassword(e.target.value)}
                                         onFocus={() => setPwFocused(true)}
@@ -116,8 +138,9 @@ const ResetPassword = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowNew(v => !v)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 p-1"
-                                        tabIndex={-1}
+                                        aria-label={showNew ? 'Hide password' : 'Show password'}
+                                        aria-pressed={showNew}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-slate-500 hover:text-slate-800 p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                                     >
                                         {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
@@ -126,11 +149,13 @@ const ResetPassword = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Confirm Password</label>
+                                <label htmlFor="reset-confirm-password" className="block text-sm font-semibold text-slate-700 mb-1">Confirm Password</label>
                                 <div className="relative">
                                     <input
+                                        id="reset-confirm-password"
                                         type={showConfirm ? 'text' : 'password'}
                                         required
+                                        autoComplete="new-password"
                                         value={confirmPassword}
                                         onChange={e => setConfirmPassword(e.target.value)}
                                         className="appearance-none block w-full px-4 py-3 pr-12 border border-slate-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-800"
@@ -139,8 +164,9 @@ const ResetPassword = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowConfirm(v => !v)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 p-1"
-                                        tabIndex={-1}
+                                        aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                                        aria-pressed={showConfirm}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-slate-500 hover:text-slate-800 p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                                     >
                                         {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
@@ -157,7 +183,7 @@ const ResetPassword = () => {
                             </button>
 
                             <div className="text-center">
-                                <Link to="/login" className="text-sm text-slate-500 hover:text-indigo-600 transition-colors">
+                                <Link to={loginPath} className="text-sm text-slate-500 hover:text-indigo-600 transition-colors">
                                     Back to Login
                                 </Link>
                             </div>

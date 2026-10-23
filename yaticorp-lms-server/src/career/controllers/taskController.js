@@ -7,21 +7,59 @@ const PlannerContext = require('../models/PlannerContext');
 const TaskStudy = require('../models/TaskStudy');
 const DailyPlan = require('../models/DailyPlan');
 const { generateTasksFromAI } = require('../services/geminiService');
-const { completeTask } = require('../services/taskCompletionService');
+const { completeTask, xpPaidForTasks } = require('../services/taskCompletionService');
 const { lessonGates } = require('./taskStudyController');
 const { getLessonIndex, matchTasksToLessons } = require('../services/lmsContext');
 const { errorBody: aiAwareBody, statusFor } = require('../services/aiErrors');
+const { AiBudgetError } = require('../services/aiQuota');
 const {
   startOfDay,
   addDays,
+  toISODate,
   parseMinutes,
   fitToBudget,
   sweepMissedTasks,
+  missedYesterday,
+  planFailure,
   ensureTodaysPlan,
   setTodaysTimeBudget,
   addAnotherTask,
   examsTomorrow
 } = require('../services/dailyPlanService');
+
+/**
+ * What every task the API hands out carries besides its own fields.
+ *
+ *   day          — the platform day it belongs to ('YYYY-MM-DD'), from
+ *                  assignedDate (createdAt for tasks older than the planner).
+ *                  The calendar and the streak strips used to bucket tasks by
+ *                  the device's own date, while the server stamps the
+ *                  platform's midnight — so on a phone set to any other
+ *                  timezone a day's task drew on the square next to it.
+ *   completedDay — the platform day it was finished, for the same reason.
+ *   xpPaid       — the XP its completion actually paid (the ledger), so
+ *                  "+N XP" and "XP earned" say what was paid rather than the
+ *                  rule as it stands today.
+ */
+const withTaskDays = async (userId, tasks) => {
+  const paid = await xpPaidForTasks(userId, tasks.map((t) => t._id));
+  return tasks.map((task) => {
+    const doc = task.toObject ? task.toObject() : task;
+    const anchor = doc.assignedDate || doc.createdAt;
+    return {
+      ...doc,
+      day: anchor ? toISODate(anchor) : null,
+      completedDay: doc.completedAt ? toISODate(doc.completedAt) : null,
+      xpPaid: paid.get(String(doc._id)) || 0
+    };
+  });
+};
+
+/** A failed generation as the student should read it. */
+const studentFailureBody = (error) =>
+  error instanceof AiBudgetError || statusFor(error) < 500
+    ? aiAwareBody(error)
+    : { message: planFailure(error).message };
 
 // @desc    Generate one extra task for today, on request
 // @route   POST /api/tasks/another
@@ -57,6 +95,7 @@ const generateTasks = async (req, res) => {
   // back exactly as it found it.
   let claim = null;
   let claimCreated = false;
+  let claimPrevious = null;
   try {
     const goal = await Goal.findOne({ userId: req.user._id });
     const roadmap = await Roadmap.findOne({ userId: req.user._id });
@@ -102,14 +141,27 @@ const generateTasks = async (req, res) => {
       claimCreated = true;
     } catch (error) {
       if (error.code !== 11000) throw error;
+      // A failed day may be taken over too — this button is the student
+      // asking — but not inside its cooldown, or while the allowance that
+      // failed it is still spent (its retryAfter is when that comes back).
+      const before = await DailyPlan.findOne({ userId: req.user._id, date: today });
+      if (before?.status === 'failed' && before.retryAfter && Date.now() < new Date(before.retryAfter).getTime()) {
+        return res.status(409).json({
+          message: before.error || "Today's plan could not be built. Try again in a little while.",
+          code: 'failed',
+          tasks: []
+        });
+      }
       claim = await DailyPlan.findOneAndUpdate(
-        { userId: req.user._id, date: today, status: 'ready' },
-        { $set: { status: 'generating' } },
-        { new: true }
+        { userId: req.user._id, date: today, status: { $in: ['ready', 'failed'] } },
+        { $set: { status: 'generating' }, $unset: { error: 1, code: 1, resetsAt: 1, retryAfter: 1 } },
+        { returnDocument: 'after' }
       );
       if (!claim) {
         return res.status(409).json({ message: "Today's task is already being prepared.", code: 'generating', tasks: [] });
       }
+      // What it was, so a failure can put the day back the same way.
+      claimPrevious = before?.status || 'ready';
     }
 
     const aiData = await generateTasksFromAI(goal, roadmap);
@@ -119,17 +171,32 @@ const generateTasks = async (req, res) => {
     // Capped like the roadmap's own seeding is. This path used to upsert every
     // skill the model returned, so an account seeded at the ceiling of eight
     // quietly grew past it — the tracker is meant to be a focus, not a list.
-    const offeredSkills = (aiData.skillsToDevelop || []).slice(0, SkillProgress.MAX_TRACKED);
-    for (const skill of offeredSkills) {
+    //
+    // The ceiling is on the TOTAL tracked, not on what this one response
+    // offers: slicing the offer to eight still let a student already
+    // tracking eight gain eight more. Skills already tracked (matched without
+    // case) are left exactly as they are; new ones are added only while there
+    // is room.
+    const tracked = new Set(
+      (await SkillProgress.find({ userId: req.user._id }).select('skillName').lean())
+        .map((row) => String(row.skillName || '').trim().toLowerCase())
+    );
+    for (const skill of aiData.skillsToDevelop || []) {
+      const skillName = String(skill?.skillName || '').trim();
+      if (!skillName || tracked.has(skillName.toLowerCase())) continue;
+      if (tracked.size >= SkillProgress.MAX_TRACKED) break;
       await SkillProgress.findOneAndUpdate(
-        { userId: req.user._id, skillName: skill.skillName },
-        // The model's level is only a starting guess for a skill the student
-        // has not tracked before. Setting it on every call overwrote a level
-        // they had earned by finishing tasks — an Advanced skill knocked back
-        // to Beginner because a prompt said so.
-        { $setOnInsert: { level: skill.level, progress: 0 } },
+        { userId: req.user._id, skillName },
+        // Every new skill starts at Beginner, 0%, like the roadmap's own
+        // seeding. The model's level used to be taken as a starting guess —
+        // and a level above Beginner counts towards opening Jobs (see
+        // services/jobsAccess), so a prompt calling a skill "Advanced" would
+        // have handed out progress nobody earned. $setOnInsert, so a level
+        // already earned is never overwritten either.
+        { $setOnInsert: { level: 'Beginner', progress: 0 } },
         { upsert: true, new: true }
       );
+      tracked.add(skillName.toLowerCase());
     }
 
     // What a task may claim to advance: the skills this student actually
@@ -195,15 +262,22 @@ const generateTasks = async (req, res) => {
 
     res.status(201).json({ message: 'Tasks and Skills generated', tasks: createdTasks });
   } catch (error) {
-    // Release the day so the student can retry: a claim this request made is
-    // removed, one it took over goes back to how it was.
+    // A day that was empty and ready goes back to ready. One this request
+    // created, or a failed day it took over, is kept as failed — not deleted:
+    // a deleted day was rebuilt by the next read of today's plan from any
+    // page, each one another AI call (see dailyPlanService.ensureTodaysPlan).
     if (claim) {
-      await (claimCreated
-        ? DailyPlan.deleteOne({ _id: claim._id })
+      const failure = planFailure(error);
+      await (claimCreated || claimPrevious === 'failed'
+        ? DailyPlan.updateOne(
+            { _id: claim._id },
+            { $set: { status: 'failed', error: failure.message, code: failure.code, resetsAt: failure.resetsAt, retryAfter: failure.retryAfter } }
+          )
         : DailyPlan.updateOne({ _id: claim._id }, { $set: { status: 'ready' } })
       ).catch(() => {});
     }
-    res.status(statusFor(error)).json(aiAwareBody(error));
+    console.error('Task generation failed:', error.message);
+    res.status(statusFor(error)).json(studentFailureBody(error));
   }
 };
 
@@ -215,8 +289,11 @@ const getTasks = async (req, res) => {
     // Order matters. Sweeping first means anything missed yesterday is already
     // marked Skipped when today's prompt reads the history, so the plan can
     // react to it on the same request.
-    const skippedCount = await sweepMissedTasks(req.user._id);
-    const plan = await ensureTodaysPlan(req.user._id);
+    await sweepMissedTasks(req.user._id);
+    // `?retry=1` is the planner's "Try again" on a failed day — the only read
+    // that may build a failed day again (see ensureTodaysPlan).
+    const retry = req.query?.retry === '1' || req.query?.retry === 'true';
+    const plan = await ensureTodaysPlan(req.user._id, undefined, { retry });
 
     const today = startOfDay();
     const tomorrow = addDays(today, 1);
@@ -278,10 +355,14 @@ const getTasks = async (req, res) => {
       });
 
     const plannerContext = await PlannerContext.findOne({ userId: req.user._id });
+    const [withDays, skippedYesterday] = await Promise.all([
+      withTaskDays(req.user._id, tasks),
+      missedYesterday(req.user._id, today)
+    ]);
 
     res.status(200).json({
-      tasks: tasks.map((t) => ({
-        ...t.toObject(),
+      tasks: withDays.map((t) => ({
+        ...t,
         hasLesson: lessonByTask.has(String(t._id)),
         lesson: lessonByTask.get(String(t._id)) || null,
         // A real lesson from one of their own courses, when this task is about
@@ -291,11 +372,18 @@ const getTasks = async (req, res) => {
       context: plannerContext || null,
       day: {
         date: today,
+        // The platform day, as the tasks' own `day` fields name it.
+        key: toISODate(today),
         status: plan.status,
         message: plan.message || null,
         // Set when today's plan could not be built because the AI allowance is
         // spent rather than because anything is broken.
         code: plan.code || null,
+        // When that allowance comes back, so the planner can say so rather
+        // than guess "at midnight".
+        resetsAt: plan.resetsAt || null,
+        // A failed day may be retried ("Try again") from this moment.
+        retryAfter: plan.retryAfter || null,
         // What tomorrow holds, when tomorrow is an exam. The planner shows the
         // day as deliberately clear rather than as a plan that failed to arrive.
         exams: plan.exams || null,
@@ -304,8 +392,9 @@ const getTasks = async (req, res) => {
         // budget being honoured rather than asking the student to trust it.
         plannedMinutes: tasks.reduce((total, t) => total + parseMinutes(t.duration), 0),
         // Surfaced so the planner can tell the student what yesterday cost them
-        // instead of silently moving on.
-        skippedYesterday: skippedCount
+        // instead of silently moving on. Read from the data rather than from
+        // the sweep above, which reports 0 whenever another request swept first.
+        skippedYesterday
       }
     });
   } catch (error) {
@@ -334,12 +423,17 @@ const setTimeBudget = async (req, res) => {
     const plannerContext = await PlannerContext.findOne({ userId: req.user._id });
 
     res.status(200).json({
-      tasks,
+      tasks: await withTaskDays(req.user._id, tasks),
       context: plannerContext || null,
       day: {
         date: today,
+        key: toISODate(today),
         status: result.status,
         message: result.message || null,
+        code: result.code || null,
+        resetsAt: result.resetsAt || null,
+        retryAfter: result.retryAfter || null,
+        exams: result.exams || null,
         timeBudgetMinutes: result.timeBudgetMinutes,
         // Tells the UI to say "you've already done enough today" rather than
         // showing an empty plan that reads like a failure.
@@ -387,7 +481,9 @@ const getTaskHistory = async (req, res) => {
     const tasks = await Task.find(filter)
       .sort({ assignedDate: -1, createdAt: -1 })
       .limit(from || to ? 2000 : 200);
-    res.status(200).json(tasks);
+    // Each with its platform `day` and the XP it really paid (withTaskDays):
+    // the calendar buckets by the first and totals the second.
+    res.status(200).json(await withTaskDays(req.user._id, tasks));
   } catch (error) {
     res.status(statusFor(error)).json(aiAwareBody(error));
   }
@@ -405,9 +501,29 @@ const updateTask = async (req, res) => {
     const nextStatus = req.body.status || task.status;
 
     if (nextStatus === 'Completed' && !wasCompleted) {
+      // A task with something to learn first is finished by its lesson —
+      // watch, read, pass — never by a bare status write. The planner only
+      // offers a tick on tasks with nothing to learn ('none'), but this route
+      // accepted `{ status: 'Completed' }` for any task, so the gates the
+      // lesson enforces could be skipped with one request. A tick-only task
+      // may still have a lesson built on request; the tick stays its own.
+      if (task.learning !== 'none') {
+        const study = await TaskStudy.findOne({ userId: req.user._id, taskId: task._id });
+        if (!study || !lessonGates(study, req.user).allMet) {
+          return res.status(400).json({
+            code: 'LESSON_NOT_FINISHED',
+            message: study
+              ? "Finish this task's lesson — watch, read and pass the quiz — and it completes itself."
+              : "Open this task's lesson and finish it to complete the task."
+          });
+        }
+      }
       // One shared path for completion, so a manual tick and the automatic
       // finish at the end of a lesson award exactly the same thing.
-      await completeTask(req.user._id, task);
+      const { task: done } = await completeTask(req.user._id, task);
+      // With its platform day and the XP it really paid, like the list.
+      const [row] = await withTaskDays(req.user._id, [done || task]);
+      return res.status(200).json(row);
     } else {
       task.status = nextStatus;
 

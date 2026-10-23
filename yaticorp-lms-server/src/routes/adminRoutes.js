@@ -72,6 +72,11 @@ router.route('/lessons/:lessonId/quiz').get(protectAdmin, quizCtrl.getQuizByLess
 
 // Admin Management Routes (Superadmin only)
 router.route('/admins').get(protectAdmin, superAdminOnly, getAdmins).post(protectAdmin, superAdminOnly, addAdmin);
+// Verify cards (super admins): only verified cards can be registered.
+const cardCtrl = require('../controllers/adminCardController');
+router.route('/cards').get(protectAdmin, superAdminOnly, cardCtrl.listCards).post(protectAdmin, superAdminOnly, cardCtrl.addCards);
+router.post('/cards/verify', protectAdmin, superAdminOnly, cardCtrl.verifyCards);
+router.post('/cards/:id/unverify', protectAdmin, superAdminOnly, cardCtrl.unverifyCard);
 router.route('/admins/:id').put(protectAdmin, superAdminOnly, updateAdmin).delete(protectAdmin, superAdminOnly, deleteAdmin);
 
 // Support Ticket Routes

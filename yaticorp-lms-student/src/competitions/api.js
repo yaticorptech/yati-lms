@@ -18,28 +18,28 @@ export const competitionsApi = {
     leaderboard: () => get('/leaderboard'),
     history: () => get('/history'),
     certificate: (id) => client.get(`/competitions/${id}/certificate`, { responseType: 'blob' }).then((r) => r.data).catch(unwrap),
+    // Every competition certificate I have earned, for My Profile's frame.
+    myCertificates: () => get('/certificates').then((d) => d.certificates || []),
+    // Takes one out of My Profile's frame; downloading it again puts it back.
+    hideCertificate: (id) => client.delete(`/competitions/certificates/${id}`).then((r) => r.data).catch(unwrap),
 
-    createRoom: (game, options) => post('/rooms', { game, options }),
-    joinRoom: (code) => post('/rooms/join', { code }),
-    myRooms: () => get('/rooms/mine'),
-
+    /** A player's 6-character match code → their match's game, to open. */
+    joinMatch: (code) => post('/matches/join', { code }),
     play: (gameId, since) => get(`/play/${gameId}`, since != null ? { params: { since } } : undefined),
     join: (gameId) => post(`/play/${gameId}/join`),
-    act: (gameId, action) => post(`/play/${gameId}/action`, { action }),
-    start: (gameId) => post(`/play/${gameId}/start`),
-    leave: (gameId) => post(`/play/${gameId}/leave`)
+    act: (gameId, action) => post(`/play/${gameId}/action`, { action })
 };
 
 /**
- * The four games, as the lobby shows them before the server answers. Each has
- * a photo and an icon under public/games/, its own Play Now colour, and the
- * width of the players pill painted into its photo, which a real one covers.
+ * The games, as the lobby shows them before the server answers: Chess, Ludo
+ * and Carrom (UNO was removed on 2026-10-23). Each has a photo and an icon
+ * under public/games/, its own button colour, and the width of the players
+ * pill painted into its photo, which a real one covers.
  */
 export const GAMES = {
     chess: { label: 'Chess', emoji: '♟️', blurb: 'Two players, a clock each. Checkmate wins.', players: '2 players', tone: 'from-slate-700 to-slate-900', button: 'bg-[#5b4ae0] hover:bg-[#4c3cc9] shadow-[#5b4ae0]/30', pillWidth: 'min-w-[36%]' },
     ludo: { label: 'Ludo', emoji: '🎲', blurb: 'Roll, race and capture. First home wins.', players: '2–4 players', tone: 'from-rose-500 to-amber-500', button: 'bg-[#2f6fed] hover:bg-[#245dd0] shadow-[#2f6fed]/30', pillWidth: 'min-w-[39%]' },
-    carrom: { label: 'Carrom', emoji: '🟤', blurb: 'Aim the striker, pocket your coins, cover the queen.', players: '2 or 4 players', tone: 'from-amber-600 to-orange-700', button: 'bg-[#e8405f] hover:bg-[#d2314f] shadow-[#e8405f]/30', pillWidth: 'min-w-[42%]' },
-    uno: { label: 'UNO', emoji: '🃏', blurb: 'Match colours and numbers. Empty your hand first.', players: '2–4 players', tone: 'from-red-500 to-yellow-400', button: 'bg-[#34c08a] hover:bg-[#2aa877] shadow-[#34c08a]/30', pillWidth: 'min-w-[39%]' }
+    carrom: { label: 'Carrom', emoji: '🟤', blurb: 'Aim the striker, pocket your coins, cover the queen.', players: '2 or 4 players', tone: 'from-amber-600 to-orange-700', button: 'bg-[#e8405f] hover:bg-[#d2314f] shadow-[#e8405f]/30', pillWidth: 'min-w-[42%]' }
 };
 export const gameImage = (id) => `/games/${id}.jpg`;
 export const gameIcon = (id) => `/games/${id}-icon.png`;

@@ -182,7 +182,8 @@ const roll = (state, ctx) => {
         startTurn(state, nextSeat(state, seat), ctx);
         return;
     }
-    if (!legalMoves(state, seat, dice).length) {
+    const legal = legalMoves(state, seat, dice);
+    if (!legal.length) {
         state.message = `${me} rolled a ${dice} and cannot move`;
         startTurn(state, nextSeat(state, seat), ctx);
         return;
@@ -190,6 +191,14 @@ const roll = (state, ctx) => {
     state.rolled = true;
     state.deadline = ctx.now + state.turnSeconds * 1000;
     state.message = `${me} rolled a ${dice}`;
+    // One choice is no choice (asked 2026-10-17: "when it has only one coin ...
+    // the coin should move"). When every legal move starts from the same square
+    // — a single token that can move, or a 6 with every token still in the yard
+    // — it is made straight away, as a phone Ludo game does, rather than waiting
+    // for a tap that could only ever pick that move.
+    // On unless a game was made with { autoMove: false } (the rule tests do, to
+    // tap each move themselves); a game saved before the option counts as on.
+    if (state.autoMove !== false && new Set(legal.map((token) => state.tokens[seat][token])).size === 1) move(state, legal[0], ctx);
 };
 
 /** Moves one token of the seat on turn by the dice already rolled. The move must be legal. */
@@ -258,6 +267,7 @@ const engine = {
             colours: [...colours],
             tokensPerPlayer,
             turnSeconds,
+            autoMove: opts.autoMove !== false,
             tokens: seats.map(() => Array(tokensPerPlayer).fill(-1)),
             resigned: seats.map(() => false),
             resignOrder: [],
@@ -296,6 +306,8 @@ const engine = {
             dice: state.dice,
             diceBy: state.diceBy,
             rollCount: state.rollCount,
+            // For the countdown ring around the player on turn.
+            turnSeconds: state.turnSeconds,
             rolled: active && state.rolled,
             sixesInRow: state.sixesInRow,
             resigned: [...state.resigned],

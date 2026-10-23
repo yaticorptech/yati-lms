@@ -178,6 +178,10 @@ describe('leaving, and being told you were removed', () => {
         await Organization().updateOne({ _id: org._id }, { $set: { status: 'suspended' } });
         const left = await asS('POST', '/student/leave');
         assert.equal(left.status, 200);
+        // Said truthfully: the organization's own courses go with the
+        // membership; only the progress in them is kept.
+        assert.match(left.body.message, /will no longer be available/);
+        assert.match(left.body.message, /progress is kept if you rejoin/);
         assert.equal((await User().findById(s.user._id).lean()).organizationId, null);
         const req = await JoinRequest().findOne({ userId: s.user._id, organizationId: org._id }).lean();
         assert.equal(req.status, 'cancelled');

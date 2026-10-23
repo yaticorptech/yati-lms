@@ -34,8 +34,25 @@ function Section({ title, children }) {
  * to be asked for rather than pushing the steps off the screen.
  */
 function Disclosure({ icon: Icon, iconClass, title, count, open, onToggle, children }) {
+  // Opened, the list is brought into view inside the phase popup: on a phone
+  // the second list sat at the popup's bottom edge and opened out of sight,
+  // so the tap seemed to do nothing (asked 2026-10-15). Only as far as it
+  // takes to show the whole list, and never past its own heading.
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    const box = open ? el?.closest('[data-phase-scroll]') : null;
+    if (!box) return;
+    const r = el.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    const by = Math.min(r.top - b.top - 8, r.bottom - b.bottom + 8);
+    if (by <= 0) return;
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    box.scrollTo({ top: box.scrollTop + by, behavior: still ? 'auto' : 'smooth' });
+  }, [open]);
+
   return (
-    <section>
+    <section ref={ref}>
       <button
         type="button"
         onClick={onToggle}
@@ -114,8 +131,14 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
     onToggleComplete();
   };
 
-  const [showSteps, setShowSteps] = useState(false);
-  const [showMilestones, setShowMilestones] = useState(false);
+  // One list open at a time (asked 2026-10-15): with both open the popup ran
+  // past the bottom of a phone, and opening one now folds the other away.
+  const [openList, setOpenList] = useState(null);
+  const toggleList = (name) => setOpenList((now) => (now === name ? null : name));
+  // A tap on "Locked" says why, right there. The reason used to live only in
+  // a hover tooltip on a disabled button — which a phone never shows and a
+  // disabled button never receives — so a student tapping it got nothing.
+  const [explainLock, setExplainLock] = useState(false);
 
   // Same words, broken into pairs — a wall of prose is skipped, short
   // paragraphs are read.
@@ -203,8 +226,8 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
         iconClass="text-link"
         title="Your actions"
         count={stage.actionItems.length}
-        open={showSteps}
-        onToggle={() => setShowSteps((isOpen) => !isOpen)}
+        open={openList === 'steps'}
+        onToggle={() => toggleList('steps')}
       >
         <ol className="space-y-3">
           {stage.actionItems.map((item, idx) => (
@@ -232,8 +255,8 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
         iconClass="text-emerald-600"
         title="Your milestones"
         count={stage.milestones.length}
-        open={showMilestones}
-        onToggle={() => setShowMilestones((isOpen) => !isOpen)}
+        open={openList === 'milestones'}
+        onToggle={() => toggleList('milestones')}
       >
         <ul className="space-y-3">
           {stage.milestones.map((item, idx) => (
@@ -257,7 +280,7 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
         card, competing with the steps for attention when the steps are
         what the student is actually meant to be doing. */}
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-100 pt-4">
-      <p className="w-full text-xs text-ink-400 sm:w-auto sm:flex-1">
+      <p className={`w-full text-xs sm:w-auto sm:flex-1 ${isUpcoming ? 'font-semibold text-ink-500' : 'text-ink-400'}`}>
         {isDone
           ? 'Completed — reopen it if you came back to this.'
           : isUpcoming
@@ -266,18 +289,21 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
       </p>
       <button
         type="button"
-        onClick={completeWithBurst}
+        /* Locked is still pressable — it explains itself instead of doing
+           nothing. Only `aria-disabled`, so assistive tech hears it is not
+           available yet, and the tap still lands. */
+        onClick={isUpcoming ? () => setExplainLock(true) : completeWithBurst}
         /* `ml-auto` because the paragraph beside it takes the whole row on a
            phone, which drops this onto a line of its own where
            `justify-between` has nothing to push it against. */
-        disabled={saving || isUpcoming}
-        aria-disabled={isUpcoming}
-        title={isUpcoming ? 'Locked until you finish the phase you are on' : undefined}
+        disabled={saving && !isUpcoming}
+        aria-disabled={isUpcoming || undefined}
+        aria-describedby={isUpcoming && explainLock ? 'phase-lock-reason' : undefined}
         className={`ml-auto inline-flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all active:scale-[0.97] disabled:opacity-60 ${
           burst ? 'fp-rm-burst ' : ''
         }${
           isUpcoming
-            ? 'cursor-not-allowed border border-line-200 bg-surface-100 text-ink-400 active:scale-100'
+            ? 'cursor-help border border-line-200 bg-surface-100 text-ink-400 active:scale-100'
             : isDone
               ? 'border border-line-200 bg-surface text-ink-600 hover:bg-surface-50'
               : 'fp-done-gradient text-white shadow-md shadow-emerald-600/25 hover:brightness-110'
@@ -317,6 +343,21 @@ export default function PhaseDetail({ stage, state, onToggleComplete, onShareBad
           <Award className="h-3.5 w-3.5" />
           {badgeBusy ? 'Preparing…' : 'Share badge'}
         </button>
+      )}
+
+      {isUpcoming && explainLock && (
+        <p
+          id="phase-lock-reason"
+          role="status"
+          className="animate-fade-in flex w-full items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 ring-1 ring-amber-100 ring-inset"
+        >
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            This phase opens once the one you are on now is marked done. Phases unlock in order,
+            because each one builds on the last — finish the current phase and this button becomes
+            &ldquo;Mark done&rdquo;.
+          </span>
+        </p>
       )}
     </div>
     </div>

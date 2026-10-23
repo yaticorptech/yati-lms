@@ -1,7 +1,9 @@
 /** Who can see the bio: only the student, their LMS profile, or anyone with a link. */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Lock, UserRound, Link2, Check, Copy } from 'lucide-react';
 import { Btn } from './ui';
+import Portal from '../components/Portal';
+import useBackClose from '../native/useBackClose';
 
 const OPTIONS = [
     { id: 'private', icon: Lock, title: 'Private', hint: 'Only you can see your Learning Bio.' },
@@ -15,9 +17,15 @@ export default function BioSettings({ settings, onSave, onClose }) {
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState('');
     const link = settings.shareCode ? `${window.location.origin}/learning-bio/shared/${settings.shareCode}` : '';
+    // Escape and Android's back button close it, as the X does.
+    useBackClose(onClose);
+    useEffect(() => { const k = (e) => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
     const save = async () => { setBusy(true); setError(''); try { await onSave({ visibility: choice }); if (choice !== 'shareable') onClose(); } catch (e) { setError(e.message); } finally { setBusy(false); } };
     const copy = async () => { try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked */ } };
+    // Out on <body>, over the bottom bar: drawn inside the page it sat in the
+    // page's fade-in layer, under the phone's top and bottom bars.
     return (
+        <Portal>
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
             <div role="dialog" aria-modal="true" aria-labelledby="bio-settings-title" onClick={(e) => e.stopPropagation()} className="rw-pop w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
                 <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
@@ -43,5 +51,6 @@ export default function BioSettings({ settings, onSave, onClose }) {
                 </div>
             </div>
         </div>
+        </Portal>
     );
 }

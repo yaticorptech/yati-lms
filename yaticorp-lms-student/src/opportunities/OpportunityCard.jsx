@@ -12,6 +12,8 @@ import {
     GraduationCap, Wallet, Users
 } from 'lucide-react';
 import { labelFor, reasonSentence, ageLabel, whereLabel, hoursLabel, dateLabel } from './helpers';
+import { StatusBadge } from './application/parts';
+import { toneFor, statusLabel } from './application/status';
 
 const Meta = ({ icon: Icon, children, title }) => (
     <li className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600" title={title}>
@@ -55,7 +57,7 @@ export default function OpportunityCard({
                         word too long for the line rather than break every one. */}
                     <h3 className="font-bold leading-snug text-slate-900 break-words">
                         <button type="button" onClick={() => onOpen?.(opp)}
-                            className="text-left transition-colors hover:text-indigo-600 focus:outline-none focus-visible:rounded focus-visible:ring-2 focus-visible:ring-indigo-500/50">
+                            className="relative text-left transition-colors after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] hover:text-indigo-600 focus:outline-none focus-visible:rounded focus-visible:ring-2 focus-visible:ring-indigo-500/50">
                             {opp.title}
                         </button>
                     </h3>
@@ -67,6 +69,14 @@ export default function OpportunityCard({
                             </span>
                         )}
                     </p>
+                    {/* Applied already: where it stands, the same words and
+                        colour as the application itself. The board used to
+                        say nothing, so a job applied for looked untouched. */}
+                    {opp.application && (
+                        <div className="mt-2" data-application-status={opp.application.status}>
+                            <StatusBadge tone={toneFor(opp.application.status)}>Applied · {statusLabel(opp.application.status)}</StatusBadge>
+                        </div>
+                    )}
                 </div>
                 {opp.matchScore != null ? (
                     <span className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-bold tabular-nums ${

@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Key, Plus, Trash2, Smartphone, Bell, ChevronRight, ArrowLeft, CheckCircle2, Eye, EyeOff, Compass, Lock, Unlock, Briefcase, Gift } from 'lucide-react';
+import { Shield, Key, Plus, Trash2, Smartphone, Bell, ChevronRight, ArrowLeft, CheckCircle2, Eye, EyeOff, Compass, Lock, Unlock, Briefcase, Gift, Languages } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 
 /**
@@ -248,6 +248,16 @@ const Settings = () => {
                                     enabled={features.isJobsEnabled !== false}
                                     saving={savingFeature === 'isJobsEnabled'}
                                     onToggle={(next) => toggleFeature('isJobsEnabled', next)}
+                                />
+                            </div>
+                            <div className="py-6">
+                                <FeatureRow
+                                    icon={Languages}
+                                    title="Linguistic Ability"
+                                    description="English learning: vocabulary, grammar, reading and writing, speaking and listening, and Kannada–English translation. Lessons are managed on the Linguistic Ability page."
+                                    enabled={features.isLinguisticEnabled !== false}
+                                    saving={savingFeature === 'isLinguisticEnabled'}
+                                    onToggle={(next) => toggleFeature('isLinguisticEnabled', next)}
                                 />
                             </div>
                             <div className="pt-6">

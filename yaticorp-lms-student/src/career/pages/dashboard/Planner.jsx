@@ -14,17 +14,24 @@ import Button from '../../components/ui/Button';
 import Card, { CardHeader } from '../../components/ui/Card';
 import useLevelProgress from '../../context/useLevelProgress';
 import EmptyState from '../../components/ui/EmptyState';
+import LoadError from '../../components/ui/LoadError';
 import TaskStudyPanel from '../../components/study/TaskStudyPanel';
 import MissionArt from '../../components/plan/MissionArt';
 import LessonProgress from '../../components/study/LessonProgress';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
 import { useMascot } from '../../mascot/useMascot';
-import { useXpRule } from '../../../context/useRewards';
+import { useXpRule, useRewards } from '../../../context/useRewards';
+import { usePointLoopAt } from '../../../components/loopGuide';
+import { useLoopHidden } from '../../../components/loopVisibility';
+import PriceTag from '../../../components/rewards/PriceTag';
 
-// What a finished task pays is the admin's 'career_task' rule (useXpRule in
-// the component): the server pays the same, so the header's figures are a
-// promise, not a guess.
+// What a task WILL pay is the admin's 'career_task' rule (useXpRule in the
+// component) — a promise, shown only while there is a rule to promise (it is
+// null while Rewards is locked, 0 when the rule pays nothing). What a finished
+// task DID pay is its own `xpPaid`, read by the server off the XP ledger: the
+// rule may have changed since, and a task re-finished after a reopen is paid
+// once.
 
 // The circumference of the progress ring, once. The ring is drawn as a full
 // circle and revealed with `stroke-dashoffset`, which is what lets it sweep
@@ -147,7 +154,10 @@ function useCountUp(value, duration = 900) {
 
 export default function Planner() {
   // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
+  // null (Rewards locked, or not loaded yet) or 0 means there is no XP to promise.
   const TASK_XP = useXpRule('career_task');
+  const promisesXp = TASK_XP > 0;
+  const { markEventsSeen } = useRewards();
   const { user, refresh } = useContext(AuthContext);
   // Up here with the other hooks: the line that reads it sits below the
   // page's early returns.
@@ -156,6 +166,11 @@ export default function Planner() {
   const [plannerContext, setPlannerContext] = useState(null);
   const [day, setDay] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Today's plan did not arrive at all (offline, a 500). Kept apart from an
+  // empty day, which offers "Generate today's task": a dropped connection
+  // must not read as a day with nothing in it.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [addingTask, setAddingTask] = useState(false);
   // Which task's tick is in flight, so only that one disables.
@@ -200,12 +215,24 @@ export default function Planner() {
   // after the page is gone.
   const pollRef = useRef({ timer: 0, alive: true });
 
-  const loadTasks = async (attempt) => {
+  /**
+   * Read today's plan. `fresh` goes past the section's read cache — every
+   * poll and every button that asks again must reach the server, or "Check
+   * again" just hands back the answer it is meant to replace. `retry` is the
+   * failed day's "Try again": the one read that may build it again (the
+   * server otherwise reports a failed day as failed, so a failure is not
+   * re-spent on every visit).
+   */
+  const loadTasks = async (attempt, { fresh = false, retry = false } = {}) => {
     clearTimeout(pollRef.current.timer);
     let building = false;
+    let failed = false;
     try {
-      const { data } = await api.get('/tasks');
-      if (!pollRef.current.alive) return;
+      const { data } = await api.get('/tasks', {
+        ...(retry ? { params: { retry: 1 } } : {}),
+        ...(fresh || retry || attempt > 0 ? { fresh: true } : {})
+      });
+      if (!pollRef.current.alive) return null;
       if (Array.isArray(data)) {
         setTasks(data);
       } else {
@@ -214,10 +241,16 @@ export default function Planner() {
         setDay(data.day || null);
         building = data.day?.status === 'generating' && !data.tasks?.length;
       }
+      setLoadFailed(false);
+      if (!building) {
+        setLoading(false);
+        return data;
+      }
     } catch (err) {
       console.error(err);
+      failed = true;
     }
-    if (!pollRef.current.alive) return;
+    if (!pollRef.current.alive) return null;
 
     // A build is one AI call, well under a minute. Past the cap the page stops
     // waiting and says the day is still being prepared, with a button to look
@@ -225,24 +258,54 @@ export default function Planner() {
     // minutes, so a later look can rebuild it.
     if (building && attempt < PLAN_POLL_LIMIT) {
       pollRef.current.timer = setTimeout(() => loadTasks(attempt + 1), PLAN_POLL_MS);
-      return;
+      return null;
     }
+    if (failed) setLoadFailed(true);
     setLoading(false);
+    return null;
   };
 
   // Every outside caller starts a fresh round of polling. Takes no arguments,
   // so it is safe to hand straight to onClick.
-  const fetchTasks = () => loadTasks(0);
+  const fetchTasks = () => loadTasks(0, { fresh: true });
+
+  /** "Retry" after the plan did not load at all. */
+  const retryLoad = async () => {
+    setRetrying(true);
+    await loadTasks(0, { fresh: true });
+    setRetrying(false);
+  };
+
+  /**
+   * "Try again" on a day whose build failed: asks the server to build it
+   * again. Inside the failed day's short cooldown the server answers with the
+   * same failure (and spends nothing), so say so rather than look broken.
+   */
+  const retryPlan = async () => {
+    setRetrying(true);
+    const data = await loadTasks(0, { retry: true });
+    setRetrying(false);
+    const until = data?.day?.status === 'failed' && data.day.retryAfter ? new Date(data.day.retryAfter) : null;
+    if (until && until > Date.now()) {
+      const seconds = Math.max(1, Math.ceil((until - Date.now()) / 1000));
+      toast.info(
+        seconds <= 90 ? `Give it ${seconds} seconds, then try again.` : 'Give it a little while, then try again.',
+        'Not yet'
+      );
+    }
+  };
 
   useEffect(() => {
     const poll = pollRef.current;
     poll.alive = true;
-    fetchTasks();
+    // The first read may come from the section's cache, so returning to the
+    // tab is instant; a day still building or failed is never cached.
+    loadTasks(0);
     return () => {
       poll.alive = false;
       clearTimeout(poll.timer);
     };
-    // Mount only: fetchTasks is a fresh function every render.
+    // Mount only: loadTasks is a fresh function every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -324,7 +387,11 @@ export default function Planner() {
       if (err.response?.status === 409) {
         setLoading(true);
         await fetchTasks();
-        toast.info(err.response.data?.message || 'Today already has its task.', 'Already planned');
+        // 'failed': today's build failed moments ago and is still cooling
+        // down — the failed card it brings back says what to do.
+        if (err.response.data?.code !== 'failed') {
+          toast.info(err.response.data?.message || 'Today already has its task.', 'Already planned');
+        }
       } else {
         toast.error(err.response?.data?.message || 'Failed to generate tasks.');
       }
@@ -359,7 +426,7 @@ export default function Planner() {
    * the new status; it must not fire another update or the task would be
    * written twice.
    */
-  const handleAutoCompleted = async (completedTask, { xp = 0, byHand = false, score } = {}) => {
+  const handleAutoCompleted = async (completedTask, { xp = 0, byHand = false, score, taskXp = 0 } = {}) => {
     // What the server actually gave, read back rather than assumed. Both the
     // lesson path and the manual tick come through here, so the reward — and
     // the level-up behind it — is worked out once and cannot drift between
@@ -374,10 +441,19 @@ export default function Planner() {
     // Applied to the latest list, not the one this handler closed over: it
     // runs after an await, and a list captured before it would write back
     // whatever was stale in it (a task added or ticked in the meantime).
+    // `xpPaid` is what the task's own completion paid: the server sends it
+    // with a ticked task, and a lesson reports it as `taskXp`. The larger of
+    // what is known, since a task finished again after a reopen pays nothing
+    // new but was paid the first time.
     const markDone = (list) =>
       list.map((t) =>
         t._id === completedTask._id
-          ? { ...t, status: 'Completed', completedAt: completedTask.completedAt }
+          ? {
+              ...t,
+              status: 'Completed',
+              completedAt: completedTask.completedAt,
+              xpPaid: Math.max(Number(t.xpPaid) || 0, Number(completedTask.xpPaid) || 0, Number(taskXp) || 0)
+            }
           : t
       );
     setTasks((prev) => markDone(prev));
@@ -395,6 +471,13 @@ export default function Planner() {
     // higher number the next time the student happened to look at it.
     if (leveledUp) {
       dayCelebratedRef.current = clearedTheDay || dayCelebratedRef.current;
+      // This page celebrates the level itself, at the moment it happens. The
+      // rewards overlay queues the same level-up from the server and used to
+      // show it again a few seconds later — so it is marked seen here, for
+      // every level this task crossed.
+      for (let reached = levelBefore + 1; reached <= newLevel; reached += 1) {
+        markEventsSeen?.({ kind: 'level_up', level: reached });
+      }
       celebrate({
         kind: 'level',
         icon: Trophy,
@@ -466,15 +549,37 @@ export default function Planner() {
     };
   }, [showLoader]);
 
-  // XP counts up to what the day is actually worth so far.
-  const earnedXp = useCountUp(
-    tasks.filter((t) => t.status === 'Completed').length * TASK_XP
+  // XP counts up to what the day's finished tasks actually paid.
+  const earnedTotal = tasks
+    .filter((t) => t.status === 'Completed')
+    .reduce((sum, t) => sum + (Number(t.xpPaid) || 0), 0);
+  const earnedXp = useCountUp(earnedTotal);
+
+  // Today's plan cleared: Loop, the site's mascot, runs over to "Generate
+  // another task" and tells the student they can have one more. Not while a
+  // lesson is open (Loop is hidden then), and not while the celebration is up
+  // (usePointLoopAt waits for a popup to close): it goes once both are out of
+  // the way. Once for each time the day is cleared, keyed on the task count,
+  // so finishing an extra task brings it back, but a second visit to the same
+  // finished day does not.
+  const loopHidden = useLoopHidden();
+  const planCleared = tasks.length > 0 && tasks.every((t) => t.status === 'Completed');
+  const offersAnother = planCleared && day?.status !== 'no-roadmap' && day?.status !== 'exam-eve';
+  usePointLoopAt(
+    !showLoader && offersAnother && !addingTask && !loopHidden && openTaskId === null
+      ? '[data-explain="another-task"]'
+      : null,
+    { oncePerDay: `another-task:${user?._id || user?.id || 'me'}:${tasks.length}`, scroll: true }
   );
   // Hooks stay above the loader return; the day's state is read from the
   // tasks directly since `dayCleared` is derived further down.
   /* Set by the day itself: cheering once it is cleared, rolling its
      sleeves up while anything is left. */
   if (showLoader) return <YatiLoader label="Building today's plan" />;
+  // Nothing arrived. Shown as a failure with a retry, never as an empty day.
+  if (loadFailed && !day && tasks.length === 0) {
+    return <LoadError title="We couldn't load today's plan" onRetry={retryLoad} retrying={retrying} />;
+  }
 
   const completed = tasks.filter((t) => t.status === 'Completed').length;
   const remaining = tasks.length - completed;
@@ -496,17 +601,25 @@ export default function Planner() {
   // would cross the next level. Everything else the hero used to carry —
   // streak, skill, a line of encouragement — is already said on the Overview.
   const level = levelInfo;
-  const canLevelToday = remaining > 0 && level.remaining <= remaining * TASK_XP;
+  const canLevelToday = promisesXp && remaining > 0 && level.remaining <= remaining * TASK_XP;
+  // Today's plan could not be built. Two kinds: the AI allowance is spent
+  // (it has a code, and a time it comes back), or generation broke.
+  const dayFailed = day?.status === 'failed';
+  const allowanceSpent = dayFailed && !!day?.code;
+  const allowanceBack = allowanceSpent && day?.resetsAt && new Date(day.resetsAt) <= new Date();
   const doneFraction = tasks.length ? completed / tasks.length : 0;
-  const donePercent = Math.round(doneFraction * 100);
   const dayCleared = tasks.length > 0 && remaining === 0;
+  // Yesterday's tasks the day ran out on: the chip in the banner (see below).
+  const skippedYesterday = Number(day?.skippedYesterday) || 0;
   // How much of the ring is left hidden. Held at the full circumference until
   // the first paint is behind us, so the sweep has somewhere to start.
   const ringOffset = RING_C * (1 - (ringReady ? doneFraction : 0));
 
   /* One honest line about where the day stands. It never claims progress that
      has not happened, and it never nags: the "not started" case offers the
-     first task rather than pointing out that nothing is done. */
+     first task rather than pointing out that nothing is done. Partway through
+     the day there is no line (asked 2026-10-15): the ring beside it already
+     says how many are done. */
   const missionLine = examEve
     ? 'Revise, rest, and go in ready.'
     : tasks.length === 0
@@ -515,7 +628,7 @@ export default function Planner() {
         ? `Every task done. That's the day cleared — ${dayCloser}.`
         : completed === 0
           ? `${tasks.length === 1 ? 'One task' : `${tasks.length} tasks`} today. Start at the top and the rest follows.`
-          : `${completed} down, ${remaining} to go — you're ${donePercent}% through today.`;
+          : null;
 
   return (
     <div className="space-y-6">
@@ -724,9 +837,9 @@ export default function Planner() {
                 aria-hidden
               />
             </h1>
-            <p className="col-span-full mt-2.5 text-sm font-semibold text-ink-600 sm:mt-1.5 sm:text-[0.95rem]">{missionLine}</p>
+            {missionLine && <p className="col-span-full mt-2.5 text-sm font-semibold text-ink-600 sm:mt-1.5 sm:text-[0.95rem]">{missionLine}</p>}
 
-            {tasks.length > 0 && (
+            {(tasks.length > 0 || skippedYesterday > 0) && (
               <div className="col-span-full mt-4 flex flex-wrap items-center gap-3 sm:mt-5">
                 {nextTask && (
                   /* Names the task to pick up now. This used to be a button that
@@ -746,23 +859,28 @@ export default function Planner() {
                     appearing at it, so ticking a task is visibly what moved
                     it. `key` on the pill restages the pop each time the total
                     changes, which is the same beat as the count. */}
-                <span
-                  key={completed}
-                  className={`animate-pop-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-black shadow-card ring-inset ${
-                    dayCleared
-                      ? 'fp-xp-flash bg-amber-100 text-amber-900 ring-1 ring-amber-300/90'
-                      : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200/80'
-                  }`}
-                >
-                  <Trophy className="fp-bob-soft h-3.5 w-3.5 text-amber-500" />
-                  {/* "From tasks" because that is all this counts — the quiz
-                      XP a lesson pays is announced when it lands, and is not
-                      part of this figure. */}
-                  <span className="tabular-nums">
-                    {earnedXp} XP from tasks
-                    {remaining > 0 && <span className="text-ink-400"> · {remaining * TASK_XP} to go</span>}
+                {/* Only while there is XP to speak of: a rule to promise, or XP
+                    already paid today. With Rewards locked it would read "0
+                    XP from tasks" over work that pays nothing. */}
+                {tasks.length > 0 && (promisesXp || earnedTotal > 0) && (
+                  <span
+                    key={completed}
+                    className={`animate-pop-in inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-black shadow-card ring-inset ${
+                      dayCleared
+                        ? 'fp-xp-flash bg-amber-100 text-amber-900 ring-1 ring-amber-300/90'
+                        : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200/80'
+                    }`}
+                  >
+                    <Trophy className="fp-bob-soft h-3.5 w-3.5 text-amber-500" />
+                    {/* "From tasks" because that is all this counts — the quiz
+                        XP a lesson pays is announced when it lands, and is not
+                        part of this figure. */}
+                    <span className="tabular-nums">
+                      {earnedXp} XP from tasks
+                      {remaining > 0 && promisesXp && <span className="text-ink-400"> · {remaining * TASK_XP} to go</span>}
+                    </span>
                   </span>
-                </span>
+                )}
 
                 {canLevelToday && (
                   <span className="animate-pop-in inline-flex items-center gap-1.5 rounded-full bg-journey-600 px-3 py-1.5 text-xs font-black text-white shadow-md shadow-journey-500/30">
@@ -770,37 +888,39 @@ export default function Planner() {
                     Level {level.nextLevel} is within reach today
                   </span>
                 )}
+
+                {/* Yesterday's unfinished tasks, as one small chip beside the
+                    day's own (asked 2026-10-15: "make this section better..
+                    like small button something, pending task something"). It
+                    was a full-width card of three lines between this banner
+                    and the list. Informational, not a reprimand: amber, a
+                    count, and a way back to them on My Progress → Still to do. */}
+                {skippedYesterday > 0 && (
+                  <Link
+                    to="/career/profile#still-to-do"
+                    data-backlog
+                    aria-label={`${skippedYesterday} pending ${skippedYesterday === 1 ? 'task' : 'tasks'} from yesterday. Nothing is lost: open ${skippedYesterday === 1 ? 'it' : 'them'} in your backlog.`}
+                    className="group animate-pop-in inline-flex items-center gap-2 rounded-full bg-white/90 py-1 pr-3 pl-1 text-xs font-black text-ink-800 shadow-card ring-1 ring-amber-200/90 ring-inset transition hover:-translate-y-0.5 hover:shadow-md hover:ring-amber-300 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
+                  >
+                    <span aria-hidden className="flex h-6 min-w-6 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 px-1.5 text-[0.7rem] text-white tabular-nums shadow-sm">
+                      {skippedYesterday}
+                    </span>
+                    <Clock3 aria-hidden className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    <span aria-hidden>
+                      Pending {skippedYesterday === 1 ? 'task' : 'tasks'}
+                      <span className="font-bold text-ink-400"> · from yesterday</span>
+                    </span>
+                    <span aria-hidden className="inline-flex items-center gap-0.5 text-amber-700">
+                      View
+                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </Link>
+                )}
               </div>
             )}
           </div>
         </div>
       </section>
-
-      {/* Informational, not a reprimand. Amber and plainly worded: the point is
-          to offer the work back, not to open the day by telling someone off. */}
-      {day?.skippedYesterday > 0 && (
-        <Card className="animate-fade-in-up border-amber-100 bg-amber-50/50">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-              <div>
-                <p className="font-semibold text-ink-900">
-                  {day.skippedYesterday} {day.skippedYesterday === 1 ? 'task' : 'tasks'} moved to your
-                  backlog
-                </p>
-                <p className="mt-0.5 text-sm text-ink-600">
-                  Yesterday ran out before you got to {day.skippedYesterday === 1 ? 'it' : 'them'}.
-                  Nothing is lost — pick {day.skippedYesterday === 1 ? 'it' : 'them'} back up whenever
-                  you want.
-                </p>
-              </div>
-            </div>
-            <Link to="/career/profile">
-              <Button variant="secondary" size="sm">See backlog</Button>
-            </Link>
-          </div>
-        </Card>
-      )}
 
       {examEve && (
         <Card className="animate-fade-in-up border-brand-100 bg-brand-50/50">
@@ -827,15 +947,25 @@ export default function Planner() {
           because generation broke is worth a "Try again" button; one that
           failed because the day's AI allowance is spent is not — retrying can
           only fail the same way, and offering the button implies otherwise. */}
-      {day?.status === 'failed' && day.code && (
-        <AiBudgetNotice code={day.code} message={day.message} className="animate-fade-in-up" />
+      {allowanceSpent && (
+        <div className="animate-fade-in-up space-y-2">
+          <AiBudgetNotice code={day.code} message={day.message} resetsAt={day.resetsAt} />
+          {/* The allowance that failed the day has come back (the provider's
+              turns over at midnight Pacific, mid-afternoon here): the day can
+              be built now. */}
+          {allowanceBack && (
+            <Button size="sm" variant="secondary" icon={Sparkles} loading={retrying} loadingText="Building…" onClick={retryPlan}>
+              Build today&apos;s plan
+            </Button>
+          )}
+        </div>
       )}
 
-      {day?.status === 'failed' && !day.code && (
+      {dayFailed && !allowanceSpent && (
         <Card className="animate-fade-in-up border-amber-100 bg-amber-50/60">
           <p className="font-semibold text-ink-900">Today&apos;s plan could not be built</p>
           <p className="mt-1 text-sm leading-relaxed text-ink-600">{day.message}</p>
-          <Button className="mt-3" size="sm" variant="secondary" icon={Sparkles} onClick={fetchTasks}>
+          <Button className="mt-3" size="sm" variant="secondary" icon={Sparkles} loading={retrying} loadingText="Trying again…" onClick={retryPlan}>
             Try again
           </Button>
         </Card>
@@ -846,51 +976,11 @@ export default function Planner() {
           took the top of the page to say what the task row says by itself. The
           cleared-day note at the foot of the list still marks the finish. */}
 
+      {/* No header strip over the list (asked 2026-10-15, "this section is not
+          needed in both views"): its "N tasks to go", the day's focus line and
+          the "x / y done" pill repeated what the banner above and the rows
+          below already say. */}
       <Card padded={false} className="animate-fade-in-up overflow-hidden ring-1 ring-journey-100/60">
-        <div
-          className="flex flex-wrap items-center gap-3 border-b border-line-100 bg-gradient-to-r from-journey-50/70 via-surface to-surface px-4 py-4 sm:px-6"
-        >
-          <span className="fp-journey-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-md shadow-journey-500/30">
-            <CalendarCheck className="h-5 w-5" strokeWidth={2.2} />
-          </span>
-          {/* `flex-1` with a zero basis, so the block asks for a share of the
-              line instead of its content's natural width. Sized from content,
-              the day's focus sentence is far wider than a phone, so the whole
-              block wrapped and left the icon sitting alone on a row of its
-              own with the heading stranded underneath it. */}
-          <div className="min-w-0 flex-1 basis-0">
-            <h2 className="bg-gradient-to-r from-journey-700 to-brand-600 bg-clip-text text-lg font-black text-transparent">
-              {examEve && tasks.length === 0
-                ? 'Today is clear'
-                : tasks.length === 0
-                ? (stillBuilding ? "Preparing today's task" : 'Nothing planned yet')
-                : remaining === 0 && tasks.length > 0
-                ? 'All done for today'
-                : remaining === 1
-                  ? 'One task to go'
-                  : `${remaining} tasks to go`}
-            </h2>
-            <p className="mt-0.5 text-xs text-ink-500">
-              {examEve && tasks.length === 0
-                ? 'Revise, rest, and go in ready.'
-                : plannerContext?.currentFocus?.[0] || 'Some need a lesson first. Others you just tick off.'}
-            </p>
-          </div>
-          {tasks.length > 0 && (
-            <span className="flex w-full shrink-0 items-center gap-3 rounded-full bg-surface px-4 py-2 text-xs font-bold text-ink-600 shadow-sm ring-1 ring-line-200 sm:ml-auto sm:w-auto sm:gap-2 sm:px-3 sm:py-1.5">
-              {/* Full width on a phone, so the bar grows with it — a fixed
-                  64px bar left most of the pill empty. Compact from sm up. */}
-              <span aria-hidden className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-100 sm:h-1.5 sm:w-16 sm:flex-none">
-                <span
-                  className={`block h-full rounded-full transition-[width] duration-700 ease-out ${dayCleared ? 'fp-done-gradient' : 'fp-journey-gradient'}`}
-                  style={{ width: `${donePercent}%` }}
-                />
-              </span>
-              <span className="tabular-nums">{completed} / {tasks.length} done</span>
-            </span>
-          )}
-        </div>
-
         {tasks.length === 0 ? (
           <div className="p-6">
             {examEve ? (
@@ -928,6 +1018,20 @@ export default function Planner() {
                   </Button>
                 }
               />
+            ) : dayFailed ? (
+              /* The day's build failed. Its own card above says why and holds
+                 the one way to ask again; "Generate today's task" here would
+                 be a second door to the same AI call — and when the allowance
+                 is spent, a door that can only fail. */
+              <EmptyState
+                icon={ListTodo}
+                title="No task yet today"
+                description={
+                  allowanceSpent
+                    ? 'Today\'s task will be built once the AI allowance is back. Your roadmap and past lessons are all still here.'
+                    : 'Today\'s task could not be built just now. Use "Try again" above in a moment.'
+                }
+              />
             ) : (
               <EmptyState
                 icon={ListTodo}
@@ -950,10 +1054,13 @@ export default function Planner() {
               const open = openTaskId === task._id;
               const isNext = task._id === nextTaskId && !open;
               const started = !done && task.lesson?.done > 0;
-              // A task the AI judged needs no lesson at all. `hasLesson` guards
-              // the case where one was somehow built anyway — the lesson wins,
-              // because a half-finished lesson must stay finishable.
-              const needsNothing = task.learning === 'none' && !task.hasLesson;
+              // A task the AI judged needs no lesson at all. It keeps its tick
+              // even when a video has been built for it on request ("Watch a
+              // video" below) — that lesson is optional help, and the server
+              // only enforces lesson gates on tasks that need one. Basing this
+              // on `hasLesson` too took the tick away the moment the video was
+              // built, contradicting the promise the button makes.
+              const needsNothing = task.learning === 'none';
               // Open while there is still work in them; collapsed once ticked,
               // unless this student has reopened this one.
               // Open only on the task that is up next. Every pending task used
@@ -965,7 +1072,7 @@ export default function Planner() {
                 <li
                   key={task._id}
                   style={{ animationDelay: `${0.1 + index * 0.07}s` }}
-                  className={`animate-fade-in-up scroll-mt-28 ${open ? 'bg-surface-50/40' : ''}`}
+                  className={`animate-fade-in-up scroll-mt-12 ${open ? 'bg-surface-50/40' : ''}`}
                 >
                   <div
                     className={`group relative flex flex-wrap items-start gap-3.5 px-4 py-4 transition-all sm:px-6 ${
@@ -1071,13 +1178,14 @@ export default function Planner() {
                         {done ? (
                           <span className="fp-done-gradient inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.68rem] font-black text-white shadow-sm shadow-emerald-500/30">
                             <Check className="h-3 w-3" strokeWidth={3} />
-                            Done · +{TASK_XP} XP
+                            {/* What this task actually paid, not the rule. */}
+                            {task.xpPaid > 0 ? `Done · +${task.xpPaid} XP` : 'Done'}
                           </span>
-                        ) : (
+                        ) : promisesXp && (
                           /* What finishing it is worth, on the row where the
-                             work is. The same TASK_XP the header totals and the
-                             server actually awards — so it is a promise rather
-                             than an incentive made up for the page. */
+                             work is. The same TASK_XP the server pays — so it
+                             is a promise rather than an incentive made up for
+                             the page — and only shown while there is one. */
                           <span
                             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.68rem] font-black ${
                               isNext
@@ -1183,7 +1291,9 @@ export default function Planner() {
                           tutorial, and the student already paid for it. */}
                       {task.courseLesson && !done && (
                         <Link
-                          to={`/learn/${task.courseLesson.courseId}`}
+                          // Straight to the lesson named here, not the
+                          // course's first or last-opened one.
+                          to={`/learn/${task.courseLesson.courseId}${task.courseLesson.lessonId ? `?lesson=${encodeURIComponent(task.courseLesson.lessonId)}` : ''}`}
                           className="mt-2.5 inline-flex max-w-full items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-left transition-colors hover:border-brand-400"
                         >
                           <GraduationCap className="h-4 w-4 shrink-0 text-link" />
@@ -1342,6 +1452,7 @@ export default function Planner() {
               onClick={handleAddAnother}
               disabled={addingTask || !allDone}
               data-mascot-locked={allDone ? undefined : "today's tasks"}
+              data-explain={allDone && !addingTask ? 'another-task' : undefined}
               data-mascot-prerequisite="start-task"
               aria-busy={addingTask || undefined}
               aria-disabled={!allDone || undefined}
@@ -1363,6 +1474,7 @@ export default function Planner() {
                 <Lock className="h-4 w-4" />
               )}
               {addingTask ? 'Finding one for you…' : 'Generate another task'}
+              {!addingTask && allDone && <PriceTag action="add_extra_task" />}
               {!addingTask && allDone && <Plus className="fp-btn-arrow h-4 w-4" strokeWidth={3} />}
             </button>
             <p className="text-xs font-semibold text-ink-600">

@@ -5,15 +5,18 @@
  *
  * `required`: the student has no picture yet (see ProfilePictureGate). The
  * popup then cannot be closed — no ×, no Cancel, no click outside — until
- * a picture is saved. Otherwise it is My Profile's "Change photo".
+ * a picture is saved. Its footer still offers a way out that is not a
+ * picture: Sign out, or Contact support for a student whose upload will not
+ * work. Otherwise it is My Profile's "Change photo".
  */
 import { useCallback, useContext, useRef, useState } from 'react';
 import Cropper from 'react-easy-crop';
-import { Check, Loader2, Sparkles, Upload, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, Loader2, LogOut, MessageCircleQuestion, Send, Sparkles, Upload, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
 import Portal from './Portal';
 import { getCroppedBlob, UNREADABLE } from '../utils/cropImage';
+import { AVATAR_COUNTS } from '../native/pictures';
 
 // Ready-made avatars for students who would rather not upload a photo,
 // grouped the way people look for them: boys, girls, kids, and elders.
@@ -22,15 +25,60 @@ import { getCroppedBlob, UNREADABLE } from '../utils/cropImage';
 // uncles and aunties rather than grandparents. The server turns the
 // relative path into an absolute URL on save so the same picture also
 // shows in the admin panel.
+// How many of each are on offer comes from native/pictures.js, which also
+// shows any saved avatar outside these as one of them.
 const AVATAR_GROUPS = [
-    { id: 'boys', label: 'Boys', count: 6 },
-    { id: 'girls', label: 'Girls', count: 6 },
-    { id: 'kids', label: 'Kids', count: 6 },
-    { id: 'elders', label: 'Elders', count: 9 },
+    { id: 'boys', label: 'Boys', count: AVATAR_COUNTS.boys },
+    { id: 'girls', label: 'Girls', count: AVATAR_COUNTS.girls },
+    { id: 'kids', label: 'Kids', count: AVATAR_COUNTS.kids },
+    { id: 'elders', label: 'Elders', count: AVATAR_COUNTS.elders },
 ].map(g => ({ ...g, tiles: Array.from({ length: g.count }, (_, i) => `/avatars/${g.id}/${i + 1}.jpg`) }));
 
+/**
+ * The required picker's way to ask for help: a short message to the support
+ * team (the same tickets the Contact Admin forms send), signed with the
+ * student's own name and email, or a phone call.
+ */
+const SupportMessage = ({ user }) => {
+    const [message, setMessage] = useState('');
+    const [state, setState] = useState('idle');     // idle | sending | sent | failed
+    const send = async (e) => {
+        e.preventDefault();
+        if (!message.trim()) return;
+        setState('sending');
+        try {
+            await api.post('/tickets', {
+                name: user?.name || 'Student', email: user?.email || '', cardNumber: user?.cardNumber || '',
+                subject: 'Help adding a profile picture', message: message.trim(), page: 'dashboard'
+            });
+            setState('sent');
+        } catch {
+            setState('failed');
+        }
+    };
+    if (state === 'sent') {
+        return <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">Sent. We will get back to you at {user?.email || 'your email'}.</p>;
+    }
+    return (
+        <form onSubmit={send} className="space-y-2 text-left">
+            <label htmlFor="picker-support-message" className="block text-xs font-semibold text-slate-600">
+                What is going wrong? Or call us on <a href="tel:9535440195" className="font-bold text-indigo-600 hover:underline">9535440195</a>.
+            </label>
+            <textarea id="picker-support-message" rows={2} value={message} onChange={(e) => setMessage(e.target.value)}
+                className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="For example: my photo will not upload" />
+            {state === 'failed' && <p role="alert" className="text-xs font-semibold text-red-600">That did not send. Please try again, or call us.</p>}
+            <button type="submit" disabled={!message.trim() || state === 'sending'}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900 disabled:opacity-50">
+                {state === 'sending' ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Send to support
+            </button>
+        </form>
+    );
+};
+
 export default function PhotoPicker({ required = false, onClose }) {
-    const { user, setUser } = useContext(AuthContext);
+    const { user, setUser, logout } = useContext(AuthContext);
+    const [helpOpen, setHelpOpen] = useState(false);
     const photoInputRef = useRef(null);
     const [avatarGroup, setAvatarGroup] = useState(AVATAR_GROUPS[0].id);
     const [selectedAvatar, setSelectedAvatar] = useState(null);
@@ -45,9 +93,20 @@ export default function PhotoPicker({ required = false, onClose }) {
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
     const [uploading, setUploading] = useState(false);
+    // What went wrong, said inside the popup. These were browser alert()
+    // boxes, which a phone shows as a bare system prompt over the app.
+    const [problem, setProblem] = useState('');
     const onCropComplete = useCallback((_, pixels) => setCroppedAreaPixels(pixels), []);
 
     const close = () => { if (!required && !savingAvatar && !uploading) onClose?.(); };
+
+    // The server's own words when it sent some. A 5xx used to be replaced
+    // wholesale, which dropped "…or pick an avatar" from a failed photo save;
+    // only a bare "Server error" is still put in plainer terms.
+    const said = (err) => {
+        const message = err.response?.data?.message;
+        return message && !/^server error$/i.test(message) ? message : '';
+    };
 
     const keep = (changes) => {
         const updated = { ...user, ...changes };
@@ -58,12 +117,13 @@ export default function PhotoPicker({ required = false, onClose }) {
     // A chosen avatar goes straight to the profile: no upload involved.
     const savePictureUrl = async (profilePicture) => {
         setSavingAvatar(true);
+        setProblem('');
         try {
             const res = await api.put('/user/profile', { profilePicture });
             keep(res.data);
             onClose?.();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to update photo. Please try again.');
+            setProblem(said(err) || (err.response ? 'Failed to update photo. Please try again.' : 'You appear to be offline. Please try again.'));
         } finally {
             setSavingAvatar(false);
         }
@@ -72,13 +132,17 @@ export default function PhotoPicker({ required = false, onClose }) {
     // Step 1: a photo is chosen → the crop step
     const handlePhotoSelect = (e) => {
         const file = e.target.files?.[0];
+        // Cleared first, so picking the same file again after a refusal still
+        // fires a change.
+        e.target.value = '';
         if (!file) return;
-        if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
-        if (file.size > 10 * 1024 * 1024) { alert('Image must be under 10MB.'); return; }
+        if (!file.type.startsWith('image/')) { setProblem('Please choose an image file (JPG, PNG or WebP).'); return; }
+        if (file.size > 10 * 1024 * 1024) { setProblem('That image is over 10 MB. Please choose a smaller one.'); return; }
+        setProblem('');
         const reader = new FileReader();
         reader.onload = () => { setCropSrc(reader.result); setCrop({ x: 0, y: 0 }); setZoom(1); };
+        reader.onerror = () => setProblem(UNREADABLE);
         reader.readAsDataURL(file);
-        e.target.value = '';
     };
 
     // Step 2: the crop is confirmed → the cropped photo goes to the server
@@ -86,6 +150,7 @@ export default function PhotoPicker({ required = false, onClose }) {
     const handleCropConfirm = async () => {
         if (!croppedAreaPixels || !cropSrc) return;
         setUploading(true);
+        setProblem('');
         try {
             const blob = await getCroppedBlob(cropSrc, croppedAreaPixels);
             const fd = new FormData();
@@ -98,7 +163,7 @@ export default function PhotoPicker({ required = false, onClose }) {
             onClose?.();
         } catch (err) {
             // The server says why; with no answer at all, the connection is the problem.
-            alert(err.response?.data?.message
+            setProblem(said(err)
                 || (err.message === UNREADABLE ? UNREADABLE
                     : err.response ? 'Failed to upload photo. Please try again.' : 'You appear to be offline. Please try again.'));
         } finally {
@@ -138,6 +203,9 @@ export default function PhotoPicker({ required = false, onClose }) {
                             >
                                 <Upload size={15} /> Upload a photo
                             </button>
+                            {problem && (
+                                <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{problem}</p>
+                            )}
 
                             <div className="my-4 flex items-center gap-3 text-[11px] font-black uppercase tracking-wider text-slate-400">
                                 <span className="h-px flex-1 bg-slate-200" />
@@ -206,6 +274,26 @@ export default function PhotoPicker({ required = false, onClose }) {
                                 {savingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Use this avatar
                             </button>
                         </div>
+
+                        {/* Required, but never a trap: the way out that is not a picture. */}
+                        {required && (
+                            <div className="space-y-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
+                                {helpOpen && <SupportMessage user={user} />}
+                                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                                    <span>Can&apos;t add one right now?</span>
+                                    <button type="button" onClick={() => setHelpOpen((v) => !v)} aria-expanded={helpOpen}
+                                        className="inline-flex items-center gap-1 font-bold text-indigo-600 hover:underline">
+                                        <MessageCircleQuestion size={13} /> Contact support
+                                    </button>
+                                    {logout && (
+                                        <button type="button" onClick={logout}
+                                            className="inline-flex items-center gap-1 font-bold text-slate-600 hover:underline">
+                                            <LogOut size={13} /> Sign out
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -216,7 +304,7 @@ export default function PhotoPicker({ required = false, onClose }) {
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" role="dialog" aria-modal="true" aria-label="Crop Photo">
                         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                             <h3 className="font-bold text-slate-800">Crop Photo</h3>
-                            <button onClick={() => setCropSrc(null)} disabled={uploading} className="text-slate-400 hover:text-slate-600" aria-label="Back"><X size={18} /></button>
+                            <button onClick={() => { setCropSrc(null); setProblem(''); }} disabled={uploading} className="text-slate-400 hover:text-slate-600" aria-label="Back"><X size={18} /></button>
                         </div>
 
                         {/* Crop area */}
@@ -246,9 +334,12 @@ export default function PhotoPicker({ required = false, onClose }) {
                             <ZoomIn size={16} className="text-slate-400 flex-shrink-0" />
                         </div>
 
+                        {problem && (
+                            <p role="alert" className="mx-5 mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{problem}</p>
+                        )}
                         <div className="flex gap-3 px-5 pb-5">
                             <button
-                                onClick={() => setCropSrc(null)}
+                                onClick={() => { setCropSrc(null); setProblem(''); }}
                                 disabled={uploading}
                                 className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-sm hover:bg-slate-50 transition-colors disabled:opacity-60"
                             >

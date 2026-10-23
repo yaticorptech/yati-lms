@@ -84,13 +84,15 @@ describe('students, a page at a time', { skip: skipWithoutChrome }, () => {
         assert.equal(result.searched.search, 'student1', 'the search goes to the server, after a pause');
     });
 
-    test('the filter, sort and page live in the address', async () => {
+    // The sort buttons were taken out on 2026-10-13: the list is always in name
+    // order, and a sort left in an old link is ignored.
+    test('the filter and page live in the address', async () => {
         const { result, errors } = await screen({ entry: studentsPage('/organization/students?filter=active30&sort=progress&page=2'), api: pagingApi, script: `
             await sleep(600);
             return { asked: window.__calls.at(-1)[1], pressed: $$('button[aria-pressed="true"]').map(text) };` });
         assert.deepEqual(errors, []);
-        assert.deepEqual(result.asked, { page: 2, limit: 25, sort: 'progress', filter: 'active30' });
-        assert.ok(result.pressed.includes('Active 30d') && result.pressed.includes('Progress'));
+        assert.deepEqual(result.asked, { page: 2, limit: 25, sort: 'name', filter: 'active30' });
+        assert.ok(result.pressed.includes('Active 30d'));
     });
 
     test('against a server that does not page, the full list is paged here, as "1–25 of 30"', async () => {

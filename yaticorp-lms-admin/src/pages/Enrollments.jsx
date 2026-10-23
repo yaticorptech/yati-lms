@@ -3,6 +3,7 @@
  * @description Admin enrollment management with search, filters and export
  */
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../utils/api';
 import { Network, Search, Trash2, CheckCircle2, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -239,7 +240,9 @@ const Enrollments = () => {
                     </>
                 )}
             </div>
-            {showDeleteModal && (
+            {/* On <body>: this page is its own layer (relative z-0), so a popup inside
+                it stayed under the app's top bar (see Users and Organizations). */}
+            {showDeleteModal && createPortal(
                 <div className="fixed inset-0 backdrop-blur-md bg-white/20 flex items-center justify-center p-4 z-50">
 
                     <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-[350px] animate-fade-in">
@@ -271,7 +274,7 @@ const Enrollments = () => {
                         </div>
                     </div>
                 </div>
-            )}
+            , document.body)}
         </div>
     );
 };

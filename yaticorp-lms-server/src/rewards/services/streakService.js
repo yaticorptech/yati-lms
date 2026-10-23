@@ -6,7 +6,7 @@ const { Streak } = require('../models');
 const { addDays, dayKey } = require('../config/constants');
 const { awardPoints } = require('./rewardPointsService');
 const { addXp } = require('./xpService');
-const { notify, celebrate } = require('./notify');
+const { notify, celebrate, LINKS } = require('./notify');
 const { pointsToMoney } = require('./eligibility');
 
 const MAX_ACTIVE_DAYS = 400;
@@ -54,7 +54,7 @@ const touch = async (userId, day, config) => {
     const paid = m.rewardPoints > 0 ? await awardPoints({ userId, points: m.rewardPoints, source: 'streak_milestone', claimKey: `streak:${claim}`, description: `${m.days}-day streak`, meta: { days: m.days, runStartDay }, quiet: true }) : null;
     const xp = m.xp > 0 ? await addXp({ userId, amount: m.xp, source: 'streak', refId: claim, description: `for a ${m.days}-day streak`, silent: true }) : null;
     const value = pointsToMoney(m.rewardPoints, config);
-    await notify(userId, `🔥 ${m.days}-day streak!`, `${m.rewardPoints ? `+${m.rewardPoints} reward points` : 'Milestone reached'}${m.xp ? ` and +${m.xp} XP` : ''}. Keep it going!`);
+    await notify(userId, `🔥 ${m.days}-day streak!`, `${m.rewardPoints ? `+${m.rewardPoints} reward points` : 'Milestone reached'}${m.xp ? ` and +${m.xp} XP` : ''}. Keep it going!`, LINKS.progress);
     await celebrate(userId, 'streak_milestone', `${m.days}-Day Streak Achieved!`, 'Congratulations!', { days: m.days, rewardPoints: m.rewardPoints, xp: m.xp, value, currency: config.conversion.currency });
     milestones.push({ days: m.days, rewardPoints: paid ? m.rewardPoints : 0, xp: xp && !xp.duplicate ? m.xp : 0, value });
   }

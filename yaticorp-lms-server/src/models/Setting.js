@@ -16,6 +16,12 @@ const settingSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    // Teachers who register a card themselves wait for an admin's approval
+    // before they can sign in (src/teacher/accounts.js). Off: they are in at once.
+    teacherApprovalRequired: {
+        type: Boolean,
+        default: false
+    },
     // The Jobs section as a whole. Locking it hides the student tab and closes
     // the /api/jobs endpoints behind it; admin ingestion and reporting keep
     // working, so an operator can still maintain the index while it is shut.
@@ -29,6 +35,21 @@ const settingSchema = new mongoose.Schema({
     isRewardsEnabled: {
         type: Boolean,
         default: true
+    },
+    // Linguistic Ability (English learning) as a whole, like the sections
+    // above: locking it hides the student tab and closes /api/linguistic for
+    // students; the admin content pages keep working.
+    isLinguisticEnabled: {
+        type: Boolean,
+        default: true
+    },
+    // Its settings (linguistic/config.js fills in the defaults): the passing
+    // score per level, the average a level's certificate needs, and the size
+    // of the daily vocabulary challenge.
+    linguistic: {
+        passingScore: { beginner: Number, intermediate: Number, advanced: Number },
+        certificateMinAverage: Number,
+        dailyChallengeSize: Number
     },
     // Which Job Access Verification steps a student must finish before the
     // job board opens. Each switch removes its step from the flow entirely;

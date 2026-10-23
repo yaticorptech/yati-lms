@@ -1,12 +1,12 @@
 /**
  * The three cards under the interview picker: what to revise, what to
- * practise, and what to fix. Each row carries its own colour so the eye can
+ * practise, and what to fix. And the aptitude practice's card above them. Each row carries its own colour so the eye can
  * sort them, and each ends somewhere useful rather than being a dead label.
  */
 import { Link } from 'react-router-dom';
 import {
     Target, ArrowRight, ChevronRight, Star, User, Code2, Users, FolderOpen, MessageSquare,
-    Compass, Cloud, Sparkles, FileText, TrendingUp, Trophy
+    Compass, Cloud, Sparkles, FileText, TrendingUp, Trophy, Brain
 } from 'lucide-react';
 import Sparkline from '../components/rewards/Sparkline';
 
@@ -70,7 +70,9 @@ const Row = ({ to, tone, tile, label, title, sub, children }) => (
             <span className="min-w-0 flex-1">
                 {label && <span className={`block text-[10px] font-black uppercase tracking-wider ${tone.ink}`}>{label}</span>}
                 <span className="block text-sm font-bold leading-snug text-slate-900">{title}</span>
-                {sub && <span className="block text-xs leading-snug text-slate-500">{sub}</span>}
+                {/* Not on a phone (asked 2026-10-15, the reasons under Recommended
+                    topics — the one card that has them): the name is enough there. */}
+                {sub && <span className="hidden text-xs leading-snug text-slate-500 sm:block">{sub}</span>}
                 {children}
             </span>
             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${tone.arrow}`}><ChevronRight size={16} /></span>
@@ -87,7 +89,7 @@ export function TopicsCard({ topics = [] }) {
     const taken = new Set();
     return (
         <CardShell icon={Target} iconClass="bg-gradient-to-br from-violet-500 to-indigo-600 shadow-violet-200"
-            title="Recommended topics" hint="Based on what you are learning and building."
+            title="Recommended topics"
             action={<HeadLink to="/interview/practice" tone="bg-indigo-50 text-indigo-700 hover:bg-indigo-100">View all</HeadLink>}>
             <ul className="stagger space-y-2">
                 {topics.map((t, i) => {
@@ -106,7 +108,7 @@ const CATEGORY_ICON = { hr: Users, technical: Code2, project: FolderOpen, behavi
 export function PracticeCard({ practice }) {
     return (
         <CardShell icon={FileText} iconClass="bg-gradient-to-br from-sky-500 to-blue-600 shadow-sky-200"
-            title="Practice questions" hint={practice.generating ? 'Personalising your questions… these will do meanwhile' : `${practice.total} question${practice.total === 1 ? '' : 's'} picked for you`}
+            title="Practice questions" hint={practice.generating ? 'Personalising your questions… these will do meanwhile' : null /* the count went (asked 2026-10-15) */}
             action={<HeadLink to="/interview/practice" tone="bg-sky-50 text-sky-700 hover:bg-sky-100">View all</HeadLink>}>
             <ul className="stagger space-y-2">
                 {practice.sample.map((q, i) => {
@@ -165,3 +167,25 @@ export function ImproveCard({ readiness, last, fmtDate }) {
         </CardShell>
     );
 }
+
+/**
+ * Aptitude practice (asked 2026-10-22): "IQ & Reasoning" for a school student,
+ * "Aptitude Practice" for everyone else, with their best score once they have one.
+ */
+export const AptitudeCard = ({ aptitude }) => (
+    <section className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm animate-fade-in-up sm:flex-row sm:items-center sm:p-5" data-aptitude-card>
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-orange-200"><Brain size={21} /></span>
+            <div className="min-w-0">
+                <h2 className="text-lg font-black leading-tight text-slate-900">{aptitude.title}</h2>
+                <p className="mt-0.5 text-xs text-slate-500">{aptitude.school ? 'Maths puzzles, patterns, logic and words, made for your class.' : 'Maths, reasoning and verbal questions, like placement and entrance tests.'}</p>
+            </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {aptitude.best !== null && aptitude.best !== undefined && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-100">Best {aptitude.best}% · {aptitude.sets} set{aptitude.sets === 1 ? '' : 's'}</span>}
+            <Link to="/interview/aptitude" className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-500/25 transition-all hover:-translate-y-0.5 hover:shadow-lg">
+                {aptitude.sets ? 'Practise again' : 'Start practising'} <ArrowRight size={15} />
+            </Link>
+        </div>
+    </section>
+);

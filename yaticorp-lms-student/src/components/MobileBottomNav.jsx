@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, GraduationCap, Mic, Trophy } from 'lucide-react';
+import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, GraduationCap, Mic, Gamepad2 } from 'lucide-react';
+import useKeyboardOpen from '../native/useKeyboardOpen';
 import './mobileBottomNav.css';
 
 /**
@@ -12,10 +13,13 @@ import './mobileBottomNav.css';
  * belong in a nav bar — support and sign-out.
  *
  * Labels are shortened to one word each so eight of them sit on one line
- * under their icons; the sidebar's full name stays on the accessible label,
- * so a screen reader still hears "Enrolled Courses". "Community" is "Forum":
+ * under their icons; the sidebar's full name goes on the accessible label
+ * too, so a screen reader still hears "My Courses". "Community" is "Forum":
  * eight cells on a 344px phone are about 43px each, and "Community" was cut
- * to "Commu…" at that width.
+ * to "Commu…" at that width. The accessible label always starts with the
+ * word on screen ("Grants (Scholarships)"): someone using voice control
+ * says what they see, and "tap Grants" found nothing when the label was
+ * "Scholarships" alone.
  *
  * Jobs and Career Path come and go with the admin switches, exactly
  * as they do in the sidebar, so the bar never offers a section the student
@@ -26,25 +30,35 @@ import './mobileBottomNav.css';
  * measured from the active link and springs into place, so switching tabs
  * is something the thumb can watch rather than a colour that changes.
  */
-// `label` is the sidebar's own name and goes on the accessible label; `short`
-// is what fits under an icon in one line when eight of them share a phone.
+// `label` is the sidebar's own name, word for word, and goes on the accessible
+// label; `short` is what fits under an icon in one line when eight of them
+// share a phone.
 // My Profile stays in the drawer rather than here; Career Path sits right
-// after Courses, and Games & Competitions is last.
+// after Courses, and Games (the brain games) is last — lit on Competitions
+// too (`also`): the two sections share one place here, as eight is all a
+// phone fits; Competitions is in the drawer.
 const ITEMS = [
   { to: '/', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
-  { to: '/enrolled-courses', label: 'Enrolled Courses', short: 'Courses', icon: BookOpen },
+  { to: '/enrolled-courses', label: 'My Courses', short: 'Courses', icon: BookOpen },
   { to: '/career', label: 'Career Path', short: 'Career', icon: Compass, flag: 'career' },
   { to: '/community', label: 'Community', short: 'Forum', icon: MessageSquare },
   { to: '/jobs', label: 'Jobs', short: 'Jobs', icon: Briefcase, flag: 'jobs' },
   { to: '/scholarships', label: 'Scholarships', short: 'Grants', icon: GraduationCap, flag: 'career' },
-  { to: '/interview', label: 'Interview Ready', short: 'Interview', icon: Mic },
-  { to: '/competitions', label: 'Games & Competitions', short: 'Games', icon: Trophy }
+  { to: '/interview', label: 'Interview Prep', short: 'Interview', icon: Mic },
+  { to: '/games', label: 'Games', short: 'Games', icon: Gamepad2, also: '/competitions' }
 ];
+
+/** The visible word first, then the sidebar's name when it says something else. */
+const nameOf = (item) =>
+  item.label.toLowerCase().startsWith(item.short.toLowerCase()) ? item.label : `${item.short} (${item.label})`;
 
 export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) {
   const { pathname } = useLocation();
   const rowRef = useRef(null);
   const [bubble, setBubble] = useState(null);
+  // In the app, the bar steps aside while the on-screen keyboard is up: it
+  // sat on top of the field being typed in.
+  const keyboardOpen = useKeyboardOpen();
 
   const visible = ITEMS.filter((item) => {
     if (item.flag === 'jobs') return isJobsEnabled;
@@ -53,7 +67,7 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
   });
 
   const isActive = (item) =>
-    item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
+    item.exact ? pathname === item.to : [item.to, item.also].filter(Boolean).some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   // Where the bubble sits: under the active icon, re-measured when the route
   // or the screen width changes. The CSS springs it there.
@@ -77,9 +91,15 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
   return (
     <nav
       aria-label="Main sections"
-      className="mbn-in fixed inset-x-1.5 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 sidebar:hidden"
+      data-loop-skip
+      data-keyboard-open={keyboardOpen || undefined}
+      className={`mbn-in fixed inset-x-1.5 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 sidebar:hidden ${keyboardOpen ? 'hidden' : ''}`}
     >
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-[0_18px_40px_-16px_rgba(15,23,42,0.8)] backdrop-blur-xl supports-[backdrop-filter]:bg-slate-900/90">
+      {/* Solid, with no backdrop blur: the bar never leaves the screen, so the
+          blur was worked out again for every frame of every scroll, and the
+          page scrolled unevenly on phones — for a blur that showed through only
+          a tenth of the bar's 90% dark. */}
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-[0_18px_40px_-16px_rgba(15,23,42,0.8)]">
         {/* A faint sheen across the top edge, so the bar reads as glass. */}
         <span aria-hidden className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
 
@@ -94,7 +114,7 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
               <Link
                 key={item.to}
                 to={item.to}
-                aria-label={item.label}
+                aria-label={nameOf(item)}
                 aria-current={active ? 'page' : undefined}
                 className={`mbn-press relative z-10 flex min-w-0 flex-1 flex-col items-center justify-start gap-0.5 px-0 pt-0.5 pb-1.5 text-[0.56rem] font-bold tracking-tight transition-colors duration-300 ${
                   active ? 'text-white' : 'text-slate-400'

@@ -478,7 +478,7 @@ describe('the optional Organization ID typed while signing up', () => {
         // The suffix has to survive the truncation to 12 digits, or every card in
         // this block would share a number and trip the unique index.
         const number = `9${STAMP}`.slice(0, 11).padEnd(11, '0') + suffix;
-        return Card.create({
+        return Card.create({ verified: true,
             CardNumber: number, CVV: `A${suffix}B2C`.slice(0, 5).toUpperCase(),
             qrCodeNumber: `QR-${STAMP}-${suffix}`, SerialNumber: `SN-${suffix}`, status: 'activated'
         });
@@ -942,9 +942,14 @@ describe('an organization changing its own password', () => {
         const mine = orgApi(adminA.token);
         assert.equal((await mine('PUT', '/me/password', { newPassword: NEW_PASSWORD })).status, 400);
 
+        // 400, not 401: the panel reads a 401 as "your session ended" and signs
+        // the person out, so they never saw this message.
         const wrong = await mine('PUT', '/me/password', { currentPassword: 'Wrongone!1', newPassword: NEW_PASSWORD });
-        assert.equal(wrong.status, 401);
+        assert.equal(wrong.status, 400);
+        assert.equal(wrong.body.code, 'WRONG_CURRENT_PASSWORD');
         assert.match(wrong.body.message, /not your current password/i);
+        // …and the session it was sent with still works.
+        assert.equal((await mine('GET', '/me/status')).status, 200);
     });
 
     test('a weak or unchanged new password is refused', async () => {

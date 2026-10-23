@@ -8,7 +8,7 @@
  *             only once the platform admin has let it host
  *   /org/*    a college's organization admin — its coordinator — registers a
  *             team and picks players (routes/org.js)
- *   /*        students: the four games, friendly rooms, live play, their
+ *   /*        students: the games (Chess, Ludo, Carrom), live match play, their
  *             competitions, matches, leaderboard, history and certificates
  *             (routes/student.js)
  *
@@ -23,6 +23,10 @@ const { protectOrgAdmin, requireActiveOrganization } = require('../organizations
 const router = express.Router();
 
 const manage = require('./routes/admin');
+
+// A college's own competition has several teams of that college: the old
+// one-team-per-college index goes (see models/Team.js).
+require('./models/Team').dropOldIndex();
 
 /** Hosting is the platform admin's to give: off for an organization until they switch it on. */
 const requireHosting = (req, res, next) => {

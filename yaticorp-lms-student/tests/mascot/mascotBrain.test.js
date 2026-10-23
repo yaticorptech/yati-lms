@@ -93,7 +93,7 @@ test('a section scrolled into view is a dimmed glide over and a pointing; Start 
     assert.equal(start[1].do, 'bounce');
     assert.deepEqual(scriptFor({ type: 'playClicked' }).map((s) => s.name || s.do), ['confetti', 'celebrate']);
     assert.deepEqual(pages['/career'].sections, ['start-quest', 'view-roadmap', 'next-step']);
-    assert.deepEqual(pages['/career/games'].sections, ['play']);
+    assert.deepEqual(pages['/games'].sections, ['play']);
 });
 
 test('a failed quiz is sad for 1.2s, then encouraged and pointing at the retry', () => {

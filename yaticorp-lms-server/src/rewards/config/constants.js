@@ -30,6 +30,14 @@ const ACTIVITY_TYPES = [
   'mock_interview',
   'interview_improved',
   'interview_challenge',
+  // Linguistic Ability (English learning), each once per thing it names:
+  'linguistic_placement',  // the placement test taken; once ever
+  'linguistic_lesson',     // a lesson passed (its quiz at the passing score); once per lesson
+  'linguistic_perfect',    // a lesson quiz at 100%; once per lesson
+  'linguistic_translation',// a translation answered right; once per item
+  'linguistic_daily',      // the daily vocabulary challenge finished; once a day
+  'linguistic_writing',    // a writing task a teacher passed; once per task
+  'linguistic_level',      // every lesson of a level done and its certificate earned; once per level
   // Optional: no rule (and so no XP) until an admin adds one under Reward rules.
   'forum_post',
   'forum_comment',
@@ -41,7 +49,19 @@ const ACTIVITY_TYPES = [
   'profile_picture',       // a profile photo added; once
   'achievement_added',     // an achievement added to the profile; once a day
   'global_quiz_complete',  // the Global Quiz finished; once a day
-  'global_quiz_win'        // the Global Quiz finished at or above the win score; once per quiz
+  'global_quiz_win',       // the Global Quiz finished at or above the win score; once per quiz
+  // Optional too (added 2026-10-10, from a survey of the site for what earned nothing):
+  'career_onboarding',     // the first Career Path roadmap built; once ever
+  'day_plan_complete',     // every task in today's plan done; once a day
+  'skill_level_up',        // a skill moving up a level through Career Path tasks; once per skill and level
+  'competition_match_win', // a competition match won at the board (not a walkover); once per match
+  'friendly_game_played',  // a multiplayer game room played through with someone else; once a day
+  'friendly_game_win',     // a multiplayer game room won outright; once a day
+  'course_enroll',         // enrolling in a course; once a day
+  'opportunity_profile',   // the part-time jobs profile filled in; once ever
+  'organization_join',     // accepted into a college organization; once ever
+  'bio_strength_full',     // Learning Bio strength at 100%; once ever
+  'google_connect'         // a Google account connected; once ever
 ];
 
 const ACCOUNT_TYPES = ['school_student', 'college_student', 'adult', 'professional', 'instructor'];
@@ -66,6 +86,14 @@ const DEFAULT_XP_RULES = {
   mock_interview: 30,
   interview_improved: 20,
   interview_challenge: 50,
+  // Linguistic Ability: changed on the admin Rewards page like any other rule.
+  linguistic_placement: 10,
+  linguistic_lesson: 20,
+  linguistic_perfect: 10,
+  linguistic_translation: 2,
+  linguistic_daily: 10,
+  linguistic_writing: 10,
+  linguistic_level: 50,
   // Paid once per quiz, for a final score at or above the win score below.
   global_quiz_win: 50
 };
@@ -141,11 +169,14 @@ const WALLET_ACTIONS = [
   'build_task_lesson',
   'generate_study_material',
   'add_extra_task',
-  'regenerate_bio'
+  'regenerate_bio',
+  // Games & Competitions. Optional too.
+  'download_competition_certificate',
+  'create_game_room'
 ];
 // The rules a fresh rulebook starts with; the rest of WALLET_ACTIONS (and of
 // ACTIVITY_TYPES, for XP) are added from the admin panel when wanted.
-const OPTIONAL_WALLET_ACTIONS = ['generate_ideas', 'download_certificate', 'ask_mentor', 'build_task_lesson', 'generate_study_material', 'add_extra_task', 'regenerate_bio'];
+const OPTIONAL_WALLET_ACTIONS = ['generate_ideas', 'download_certificate', 'ask_mentor', 'build_task_lesson', 'generate_study_material', 'add_extra_task', 'regenerate_bio', 'download_competition_certificate', 'create_game_room'];
 const DEFAULT_WALLET_RULES = Object.fromEntries(WALLET_ACTIONS.filter((a) => !OPTIONAL_WALLET_ACTIONS.includes(a)).map((a) => [a, 0]));
 // Actions with no server request of their own (opening a job listing): the
 // page asks POST /api/rewards/wallet/spend before it goes ahead.

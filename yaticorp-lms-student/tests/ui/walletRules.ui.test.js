@@ -53,6 +53,35 @@ return { label: link.innerText.trim(), defaultPrevented, posts: window.__calls.f
         assert.equal(result.posts, 0);
     });
 
+    // A short balance is told by the app's own "Not enough wallet balance"
+    // popup (utils/walletCharge, on the real client). Find Job used to put a
+    // browser alert() with the same words on top of it.
+    const failing = () => `${stubOpen}
+window.__alerts = []; window.alert = (m) => window.__alerts.push(String(m));
+await sleep(500);
+const link = $$('a').find((a) => /Find Job/.test(a.innerText));
+link.click(); await sleep(500);
+return { alerts: window.__alerts, opened: window.__opened, said: ($('[role="alert"]') || {}).innerText || '' };`;
+    const refusing = (error) => apiModule({}, `() => { throw ${JSON.stringify(error)}; }`);
+
+    test('a short balance on Find Job opens nothing, and adds no alert box of its own', async () => {
+        const { result, errors } = await screen({
+            entry: card({ find_job: 5 }),
+            api: refusing({ response: { status: 402, data: { code: 'INSUFFICIENT_FUNDS', message: 'Finding a job costs ₹5 from your wallet, and your balance is ₹0.' } } }),
+            script: failing() });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result.alerts, [], 'no browser alert()');
+        assert.deepEqual(result.opened, [], 'the listing is not opened');
+        assert.equal(result.said, '', 'the card leaves the short balance to the wallet popup');
+    });
+
+    test('any other failure is said beside the link, never in an alert box', async () => {
+        const { result } = await screen({ entry: card({ find_job: 5 }), api: refusing({ message: 'Network Error' }), script: failing() });
+        assert.deepEqual(result.alerts, []);
+        assert.deepEqual(result.opened, []);
+        assert.equal(result.said, 'This job could not be opened just now. Please try again.');
+    });
+
     test("a short balance on Start quiz is told in the server's words, and the price is on the button", async () => {
         const refusal = `(url) => { if (url.includes('/global/start')) { const e = new Error('402'); e.response = { status: 402, data: { code: 'INSUFFICIENT_FUNDS', message: 'Starting the Global Quiz costs ₹20 from your wallet, and your balance is ₹5.' } }; throw e; } return {}; }`;
         const quizPaper = { ...paper, quiz: { title: 'Weekly GK', timeLimitMinutes: 10 }, attempt: null };

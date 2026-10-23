@@ -1,5 +1,7 @@
 /**
- * One online game: a friendly room or a competition match.
+ * One online game: a competition match. (Friendly rooms, and UNO, were
+ * removed on 2026-10-23; the server turns an old friendly game away, and
+ * this page shows its message.)
  *
  * The page asks the server for the game about once a second (every few seconds
  * while waiting) and sends each move as one request; the server decides
@@ -9,14 +11,15 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Copy, Check, Loader2, Play, LogOut, Flag, Trophy, Users, Clock, Eye, Crown, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Loader2, Flag, Trophy, Users, Clock, Eye, AlertTriangle } from 'lucide-react';
 import { competitionsApi } from './api';
 import ChessTable from './games/ChessTable';
 import LudoTable from './games/LudoTable';
 import CarromTable from './games/CarromTable';
-import UnoTable from './games/UnoTable';
+import { useHideLoop } from '../components/loopVisibility';
+import GameCelebration from '../components/GameCelebration';
 
-const TABLES = { chess: ChessTable, ludo: LudoTable, carrom: CarromTable, uno: UnoTable };
+const TABLES = { chess: ChessTable, ludo: LudoTable, carrom: CarromTable };
 
 /** Seconds left until `deadline`, ticking. */
 const useCountdown = (deadline) => {
@@ -32,17 +35,27 @@ const useCountdown = (deadline) => {
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export default function GamePage() {
+    // The board needs the whole screen: Loop the mascot stays away until the student leaves.
+    useHideLoop();
     const { gameId } = useParams();
     const navigate = useNavigate();
     const [game, setGame] = useState(null);
     const [error, setError] = useState('');
     const [fatal, setFatal] = useState('');
     const [busy, setBusy] = useState('');
-    const [copied, setCopied] = useState(false);
     const [confirmResign, setConfirmResign] = useState(false);
     const versionRef = useRef(null);
     const statusRef = useRef('waiting');
     const joinedRef = useRef(false);
+
+    // A win gets the full-screen celebration, when the student was here to
+    // see the game end: not when they open a game that finished earlier.
+    const [cheer, setCheer] = useState(false);
+    const [seenStatus, setSeenStatus] = useState(null);
+    if (game && game.status !== seenStatus) {
+        setSeenStatus(game.status);
+        if (seenStatus === 'active' && game.status === 'finished') setCheer(true);
+    }
 
     const accept = useCallback((g) => { versionRef.current = g.version; statusRef.current = g.status; setGame(g); }, []);
 
@@ -61,7 +74,8 @@ export default function GamePage() {
                 })
                 .catch((e) => {
                     if (!alive) return;
-                    if (e.status === 404 || e.status === 403) { setFatal(e.message); return; }
+                    // Not there, not theirs, or gone (an old friendly game, 410): say so and stop asking.
+                    if ([403, 404, 410].includes(e.status)) { setFatal(e.message); return; }
                     timer = setTimeout(tick, 4000);      // offline for a moment: keep trying
                 });
         };
@@ -95,7 +109,7 @@ export default function GamePage() {
             <div className="mx-auto max-w-lg rounded-3xl border border-rose-200 bg-white p-6 text-center shadow-sm">
                 <AlertTriangle size={28} className="mx-auto text-rose-500" aria-hidden="true" />
                 <p className="mt-2 font-bold text-slate-900">{fatal}</p>
-                <Link to="/competitions" className="mt-4 inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white">Back to Games &amp; Competitions</Link>
+                <Link to="/competitions" className="mt-4 inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white">Back to Competitions</Link>
             </div>
         );
     }
@@ -112,22 +126,25 @@ export default function GamePage() {
     const iWon = outcome && mySide != null && outcome.places?.[0]?.length === 1 && outcome.places[0][0] === mySide;
     const tie = outcome && outcome.places?.[0]?.length > 1;
 
-    const copy = () => {
-        navigator.clipboard?.writeText(game.code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
-    };
-
     return (
         <div className="space-y-4 pb-10" data-game-page={game.game}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <Link to={back} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} aria-hidden="true" /> {game.competition ? game.competition.name : 'Games'}</Link>
+                <Link to={back} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} aria-hidden="true" /> {game.competition ? game.competition.name : 'Games'}</Link>
                 {game.you == null && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"><Eye size={13} aria-hidden="true" /> Watching</span>}
+                {game.code && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1 font-mono text-xs font-black tracking-[0.2em] text-white" data-match-code={game.code} title="Your match code">{game.code}</span>}
             </div>
 
-            <header className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-2xl" aria-hidden="true">{game.emoji}</span>
+            {/* The game's name with what kind of game it is as a small badge
+                beside it, not a phrase after it: "Ludo · friendly game" broke
+                over two lines on a phone (2026-10-17, "make the ui better"). */}
+            <header className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-2xl sm:h-12 sm:w-12" aria-hidden="true">{game.emoji}</span>
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-lg font-black text-slate-900 sm:text-xl">{game.label}{game.match ? <span className="font-semibold text-slate-500"> · {game.match.roundName}</span> : game.kind === 'friendly' ? <span className="font-semibold text-slate-500"> · friendly game</span> : null}</h1>
-                    <p className="truncate text-sm text-slate-500">{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <h1 className="text-lg font-black leading-tight text-slate-900 sm:text-xl">{game.label}</h1>
+                        {game.match && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200">{game.match.roundName}</span>}
+                    </div>
+                    <p className="break-words text-sm text-slate-500">{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
                 </div>
                 {game.status === 'active' && turnLeft != null && (
                     <span className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-black tabular-nums ${turnLeft <= 10 ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-700'}`} aria-label="Time left this turn">
@@ -150,68 +167,65 @@ export default function GamePage() {
             )}
 
             {/* ── Players ───────────────────────────────────────────── */}
-            {/* Chess draws its own two player bars, with their clocks. */}
-            {game.status !== 'waiting' && view?.seats && game.game !== 'chess' && (
-                <ul className="flex flex-wrap gap-2" aria-label="Players">
-                    {view.seats.map((s, i) => (
-                        <li key={i} data-seat-chip={i} className={`inline-flex min-w-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm ${view.turn === i ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-200 bg-white'}`}>
-                            <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-slate-300" style={{ background: s.color }} aria-hidden="true" />
-                            <span className="truncate font-bold text-slate-900">{s.name}</span>
-                            <span className="text-xs text-slate-500">{s.label}{game.sides?.[s.side]?.collegeName ? ` · ${game.sides[s.side].collegeName}` : ''}</span>
-                            {game.you === i && <span className="rounded-md bg-indigo-600 px-1.5 text-[10px] font-bold uppercase text-white">You</span>}
-                            {view.turn === i && game.status === 'active' && <span className="text-[11px] font-bold text-indigo-700">to play</span>}
-                        </li>
-                    ))}
+            {/* Chess draws its own two player bars, with their clocks, and Ludo
+                its players at their corners of the board, with the dice. */}
+            {game.status !== 'waiting' && view?.seats && game.game !== 'chess' && game.game !== 'ludo' && (
+                // Two to a row on a phone: the name on its own line, so a long
+                // one is not cut off for a badge, and under it whose it is, the
+                // colour, and "to play" for the player whose turn it is — who
+                // also glows, with a live dot.
+                <ul className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" aria-label="Players">
+                    {view.seats.map((s, i) => {
+                        const toPlay = view.turn === i && game.status === 'active';
+                        return (
+                            <li key={i} data-seat-chip={i} className={`flex min-w-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition-colors ${toPlay ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-200 bg-white'}`}>
+                                <span className="relative flex h-3 w-3 shrink-0" aria-hidden="true">
+                                    {toPlay && <span className="absolute inset-0 animate-ping rounded-full opacity-60 motion-reduce:animate-none" style={{ background: s.color }} />}
+                                    <span className="relative h-3 w-3 rounded-full ring-1 ring-slate-300" style={{ background: s.color }} />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate font-bold leading-tight text-slate-900">{s.name}</span>
+                                    <span className={`block truncate text-[11px] font-semibold leading-tight ${toPlay ? 'text-indigo-700' : 'text-slate-500'}`}>
+                                        {[game.you === i && 'You', s.label, game.sides?.[s.side]?.collegeName, toPlay && 'to play'].filter(Boolean).join(' · ')}
+                                    </span>
+                                </span>
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
 
             {/* ── Waiting room ──────────────────────────────────────── */}
             {game.status === 'waiting' && (
                 <section className="mx-auto max-w-xl space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    {game.kind === 'friendly' && game.code && (
-                        <div className="text-center">
-                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Room code</p>
-                            <button type="button" onClick={copy} className="mt-1 inline-flex items-center gap-3 rounded-2xl bg-slate-900 px-5 py-3 font-mono text-3xl font-black tracking-[0.3em] text-white" aria-label={`Room code ${game.code}, copy`}>
-                                {game.code} {copied ? <Check size={20} aria-hidden="true" /> : <Copy size={20} aria-hidden="true" />}
-                            </button>
-                            <p className="mt-2 text-sm text-slate-500">Friends join from Games &amp; Competitions → Join with a code.</p>
-                        </div>
-                    )}
                     {game.kind === 'match' && (
                         <p className="rounded-2xl bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
                             The game starts as soon as every player is here.{joinLeft != null && <> Players not here in <strong className="tabular-nums">{clock(joinLeft)}</strong> lose by walkover.</>}
                         </p>
                     )}
                     <div>
-                        <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-800"><Users size={16} aria-hidden="true" /> Players {game.kind === 'friendly' && <span className="font-semibold text-slate-400">({game.seats.length} of {game.maxSeats})</span>}</p>
+                        <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-800"><Users size={16} aria-hidden="true" /> Players</p>
                         <ul className="space-y-1.5">
                             {game.seats.map((s, i) => (
                                 <li key={i} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm">
                                     <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">{s.name}{game.you === i ? ' (you)' : ''}{game.sides?.[s.side]?.teamName ? <span className="text-xs font-normal text-slate-500"> · {game.sides[s.side].teamName}</span> : null}</span>
-                                    {i === 0 && game.kind === 'friendly' && <Crown size={14} className="text-amber-500" aria-label="Host" />}
                                     <span className={`text-xs font-bold ${s.joined ? 'text-emerald-600' : 'text-slate-400'}`}>{s.joined ? 'Here' : 'Not yet'}</span>
                                 </li>
                             ))}
                         </ul>
                     </div>
-                    {game.kind === 'friendly' && (
-                        <div className="flex flex-wrap justify-end gap-2">
-                            {game.you != null && (
-                                <button type="button" onClick={() => run('leave', () => competitionsApi.leave(gameId)).then(() => navigate('/competitions')).catch(() => {})} disabled={!!busy}
-                                    className="inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-                                    <LogOut size={15} aria-hidden="true" /> {game.host ? 'Close room' : 'Leave'}
-                                </button>
-                            )}
-                            {game.host ? (
-                                <button type="button" onClick={() => run('start', () => competitionsApi.start(gameId)).catch(() => {})} disabled={!!busy || game.seats.length < game.minSeats}
-                                    className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-md shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50">
-                                    {busy === 'start' ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Play size={15} aria-hidden="true" />} Start game
-                                </button>
-                            ) : game.you != null && <p className="self-center text-sm text-slate-500">Waiting for the host to start…</p>}
-                        </div>
-                    )}
-                    {game.kind === 'friendly' && game.host && game.seats.length < game.minSeats && <p className="text-right text-xs text-slate-500">{game.label} needs at least {game.minSeats} players.</p>}
                 </section>
+            )}
+
+            {cheer && iWon && (
+                <GameCelebration
+                    eyebrow={game.competition ? game.competition.name : 'Victory'}
+                    title="You won!"
+                    subtitle={game.label}
+                    detail={outcome?.reason}
+                    primary={{ label: game.competition ? 'Back to the competition' : 'Back to games', onClick: () => navigate(back) }}
+                    onClose={() => setCheer(false)}
+                />
             )}
 
             {/* ── The result ────────────────────────────────────────── */}
@@ -219,7 +233,9 @@ export default function GamePage() {
                 <section data-outcome className={`rounded-3xl border p-5 shadow-sm ${iWon ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
                     <div className="flex flex-wrap items-center gap-3">
                         <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${iWon ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}><Trophy size={22} aria-hidden="true" /></span>
-                        <div className="min-w-0 flex-1">
+                        {/* A base width: beside the button on a phone, the words
+                            were squeezed one a line, and ran under it. */}
+                        <div className="min-w-0 flex-1 basis-48">
                             <p className="text-lg font-black text-slate-900">
                                 {game.status === 'abandoned' ? 'This game did not go ahead' : iWon ? 'You won!' : tie ? 'A draw' : outcome?.places?.[0] ? `${sideName(outcome.places[0][0])} won` : 'Game over'}
                             </p>
@@ -227,12 +243,15 @@ export default function GamePage() {
                         </div>
                         <Link to={back} className="inline-flex min-h-10 items-center rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800">{game.competition ? 'Back to the competition' : 'Back to games'}</Link>
                     </div>
+                    {/* Each place may shrink and wrap: a long team and college
+                        name kept on one line ran 45px past the card on a phone
+                        (2026-10-17). */}
                     {outcome?.places?.length > 1 && (
-                        <ol className="mt-4 grid gap-1.5 sm:grid-cols-2">
+                        <ol className="mt-4 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                             {outcome.places.map((group, i) => (
-                                <li key={i} className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-sm ring-1 ring-slate-100">
-                                    <span className="w-6 text-center font-black text-slate-500">{i + 1}</span>
-                                    <span className="min-w-0 truncate font-semibold text-slate-800">{group.map(sideName).join(' = ')}</span>
+                                <li key={i} className="flex min-w-0 items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-sm ring-1 ring-slate-100">
+                                    <span className="w-6 shrink-0 text-center font-black text-slate-500">{i + 1}</span>
+                                    <span className="min-w-0 break-words font-semibold text-slate-800">{group.map(sideName).join(' = ')}</span>
                                 </li>
                             ))}
                         </ol>

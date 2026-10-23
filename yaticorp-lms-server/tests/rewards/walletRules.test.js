@@ -95,6 +95,32 @@ describe('wallet rules', () => {
         assert.deepEqual(rows.map((t) => [t.source, t.amount]), [['feature_charge', 7], ['feature_charge', 2], ['feature_charge', 2], ['feature_refund', 2]]);
     });
 
+    test('a once-only charge that was refunded is charged again on the retry, and still only once', async () => {
+        // The retry used to reuse the refunded charge's ledger key, which the
+        // unique index refuses — read as "already paid", so after one failure
+        // the feature was free for good.
+        const { chargeFor, refundCharge } = require('../../src/rewards/services/walletRuleService');
+        await wallet.credit({ userId: me.user._id, amount: 20, source: 'admin_adjustment', description: 'test top-up' });
+        await setPrices({ find_job: 3 });
+        const start = await balance();
+        const first = await chargeFor({ userId: me.user._id, action: 'find_job', referenceKey: 'job-retry' });
+        assert.equal(first.charged, 3);
+        await refundCharge({ userId: me.user._id, charge: first, action: 'find_job' });
+        assert.equal(await balance(), start, 'the failed attempt was given back');
+
+        // Two submits of the retry at once: one is charged, the other is the same attempt.
+        const [a, b] = await Promise.all([
+            chargeFor({ userId: me.user._id, action: 'find_job', referenceKey: 'job-retry' }),
+            chargeFor({ userId: me.user._id, action: 'find_job', referenceKey: 'job-retry' })
+        ]);
+        assert.deepEqual([a.charged, b.charged].sort(), [0, 3], 'the retry is paid for, once');
+        assert.equal(await balance(), start - 3);
+        const later = await chargeFor({ userId: me.user._id, action: 'find_job', referenceKey: 'job-retry' });
+        assert.equal(later.alreadyPaid, true, 'and once paid, reopening it is free');
+        const keys = (await WalletTransaction.find({ userId: me.user._id, source: 'feature_charge', 'meta.action': 'find_job', referenceKey: /job-retry/ }).lean()).map((t) => t.referenceKey).sort();
+        assert.deepEqual(keys, ['charge:find_job:job-retry', 'charge:find_job:job-retry:2'], 'every charge has its own ledger row');
+    });
+
     test('an admin price change reaches every student through the shared rulebook', async () => {
         await setPrices({ start_mock_interview: 25 });
         assert.equal(await config.walletCostFor('start_mock_interview'), 25);

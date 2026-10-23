@@ -1,6 +1,7 @@
 const Roadmap = require('../models/Roadmap');
 const Goal = require('../models/Goal');
 const { generateRoadmapFromAI, completedStageIndices } = require('../services/geminiService');
+const { repairSavedOrder } = require('../services/roadmapPlan');
 const { getStudentCourseContext } = require('../services/lmsContext');
 
 const Task = require('../models/Task');
@@ -71,10 +72,58 @@ const refuseExisting = (res) =>
     message: 'You already have a roadmap. Rebuild it from Settings if you want a new one.'
   });
 
+/**
+ * A roadmap is being built for this student right now.
+ *
+ * Generation takes half a minute or more and the roadmap does not exist until
+ * it is done, so a student who refreshed during onboarding's build reached a
+ * roadmap page reading "none yet", pressed "Map my journey", and started a
+ * second full build — which then lost the race to save and came back as a
+ * bare 409. The goal carries a mark while a build runs (roadmapBuildingAt);
+ * the page reads it, says the roadmap is on its way, and waits for it.
+ *
+ * A mark older than BUILD_STALE_MS belongs to a build that died (a restart
+ * mid-call) and is ignored, so it can never lock the page for good.
+ */
+const ROADMAP_BUILDING = 'ROADMAP_BUILDING';
+const BUILD_STALE_MS = 5 * 60 * 1000;
+
+const isBuilding = (goal) =>
+  !!goal?.roadmapBuildingAt && Date.now() - new Date(goal.roadmapBuildingAt).getTime() < BUILD_STALE_MS;
+
+const refuseBuilding = (res) =>
+  res.status(409).json({
+    code: ROADMAP_BUILDING,
+    message: 'Your roadmap is still being built. It will appear here in a moment.'
+  });
+
+/** Take the mark — atomically, so of two builds started together only one runs. */
+const claimBuild = (userId) =>
+  Goal.findOneAndUpdate(
+    {
+      userId,
+      $or: [
+        { roadmapBuildingAt: null },
+        { roadmapBuildingAt: { $lt: new Date(Date.now() - BUILD_STALE_MS) } }
+      ]
+    },
+    { $set: { roadmapBuildingAt: new Date() } },
+    { returnDocument: 'after' }
+  );
+
+const releaseBuild = (userId) =>
+  Goal.updateOne({ userId }, { $unset: { roadmapBuildingAt: 1 } }).catch((error) =>
+    console.error('Could not clear the roadmap build mark:', error.message)
+  );
+
 const requireRebuildConsent = async (req, res, next) => {
   try {
     if (!wantsRebuild(req) && (await Roadmap.exists({ userId: req.user._id }))) {
       return refuseExisting(res);
+    }
+    // A build already under way is answered before the wallet charge too.
+    if (isBuilding(await Goal.findOne({ userId: req.user._id }).select('roadmapBuildingAt').lean())) {
+      return refuseBuilding(res);
     }
     next();
   } catch (error) {
@@ -107,6 +156,16 @@ const clearOldJourney = async (userId) => {
 };
 
 const generateRoadmap = async (req, res) => {
+  // Set once this request holds the "being built" mark, so it is cleared on
+  // every way out — success, refusal or failure — and before the answer goes
+  // back, so a page that reads the roadmap straight after never finds a mark
+  // for a build that has already finished.
+  let claimed = false;
+  const release = async () => {
+    if (!claimed) return;
+    claimed = false;
+    await releaseBuild(req.user._id);
+  };
   try {
     const goal = await Goal.findOne({ userId: req.user._id });
     if (!goal) {
@@ -115,6 +174,9 @@ const generateRoadmap = async (req, res) => {
 
     const existing = await Roadmap.exists({ userId: req.user._id });
     if (existing && !wantsRebuild(req)) return refuseExisting(res);
+
+    if (!(await claimBuild(req.user._id))) return refuseBuilding(res);
+    claimed = true;
 
     // Call Gemini API
     // The roadmap is written knowing which YATICORP courses this student can
@@ -128,6 +190,7 @@ const generateRoadmap = async (req, res) => {
     // and a 5xx is what makes the wallet refund the charge.
     const phases = roadmapData?.educationRoadmap;
     if (!Array.isArray(phases) || !phases.length) {
+      await release();
       return res.status(502).json({
         message: 'The AI returned a roadmap with no phases. Nothing was changed — please try again.'
       });
@@ -136,6 +199,9 @@ const generateRoadmap = async (req, res) => {
     // generateRoadmapFromAI has already stripped finished stages against this
     // goal, so the read-time repair below has nothing to do for this record.
     roadmapData.stageRepair = STAGE_REPAIR_VERSION;
+    // Planned and checked in order already (roadmapPlan), so the order repair
+    // for older roadmaps has nothing to do either.
+    roadmapData.orderRepair = ORDER_REPAIR_VERSION;
 
     if (existing) await clearOldJourney(req.user._id);
 
@@ -160,10 +226,19 @@ const generateRoadmap = async (req, res) => {
     // with everything else above.
     await seedSkillTracker(req.user._id, roadmapData);
 
+    await release();
     res.status(201).json(roadmap);
   } catch (error) {
+    await release();
+    // Another build saved first (one started before the mark existed, or one
+    // whose mark had gone stale). The student has a roadmap, which is what
+    // they asked for: say so with the code the page reloads on, rather than
+    // the database's bare duplicate-key 409.
+    if (error?.code === 11000) return refuseExisting(res);
     console.error('Roadmap Generation Error:', error);
     res.status(statusFor(error)).json(aiAwareBody(error, 'Failed to generate roadmap'));
+  } finally {
+    await release();
   }
 };
 
@@ -269,6 +344,48 @@ const dropCompletedStages = async (roadmap, goal) => {
   return true;
 };
 
+/**
+ * Which version of the order repair below a roadmap has been through. Its own
+ * marker rather than a second stageRepair version: bumping that one would run
+ * the stage repair again against each student's CURRENT goal, which is the
+ * very thing STAGE_REPAIR_VERSION exists to stop.
+ */
+const ORDER_REPAIR_VERSION = 1;
+
+/**
+ * Put right the order of a roadmap saved before roadmaps were planned and
+ * checked: hiring tests after applications, internships after the final
+ * year, "Postgraduate Year 1 (2 years)". See repairSavedOrder for what moves
+ * and what never does (anything finished, anything past a badge).
+ *
+ * Once per roadmap. Written with $set on the two fields it touches: the stage
+ * repair above may have just marked this record with updateOne, and saving
+ * the whole roadmapData from memory would wipe that mark.
+ */
+const repairOrder = async (roadmap) => {
+  if (roadmap.roadmapData?.orderRepair >= ORDER_REPAIR_VERSION) return false;
+  const keep = asPrefix(roadmap.completedPhases).length;
+  const pinned = (await MilestoneBadge.find({ userId: roadmap.userId, roadmapId: roadmap._id }).select('phaseIndex').lean())
+    .map((b) => b.phaseIndex);
+  const result = repairSavedOrder(roadmap.roadmapData?.educationRoadmap, { keep, pinned });
+
+  if (!result.changed) {
+    await Roadmap.updateOne(
+      { _id: roadmap._id },
+      { $set: { 'roadmapData.orderRepair': ORDER_REPAIR_VERSION } },
+      { timestamps: false }
+    );
+    return false;
+  }
+  await Roadmap.updateOne(
+    { _id: roadmap._id },
+    { $set: { 'roadmapData.educationRoadmap': result.phases, 'roadmapData.orderRepair': ORDER_REPAIR_VERSION } }
+  );
+  roadmap.roadmapData = { ...roadmap.roadmapData, educationRoadmap: result.phases, orderRepair: ORDER_REPAIR_VERSION };
+  console.warn(`Repaired roadmap ${roadmap._id} order: ${result.notes.join('; ')}`);
+  return true;
+};
+
 // @desc    Get user's roadmap
 // @route   GET /api/roadmap
 // @access  Private
@@ -276,7 +393,14 @@ const getRoadmap = async (req, res) => {
   try {
     const roadmap = await Roadmap.findOne({ userId: req.user._id });
     if (!roadmap) {
-      return res.status(404).json({ message: 'No roadmap found.' });
+      // None yet — but one may be on its way. Still a 404 (there is nothing
+      // to show), with a code the page reads as "wait", not "build one".
+      const building = isBuilding(await Goal.findOne({ userId: req.user._id }).select('roadmapBuildingAt').lean());
+      return res.status(404).json(
+        building
+          ? { code: ROADMAP_BUILDING, message: 'Your roadmap is still being built.' }
+          : { message: 'No roadmap found.' }
+      );
     }
 
     // Repair legacy records in place: a roadmap saved with gaps (Class 12 ticked
@@ -295,6 +419,8 @@ const getRoadmap = async (req, res) => {
     // roadmap; see STAGE_REPAIR_VERSION.
     const goal = await Goal.findOne({ userId: req.user._id }).select('educationLevel currentYear').lean();
     if (goal) await dropCompletedStages(roadmap, goal);
+    // After it, since it moves phases by index too.
+    await repairOrder(roadmap);
 
     res.status(200).json(roadmap);
   } catch (error) {
@@ -349,28 +475,12 @@ const togglePhase = async (req, res) => {
   }
 };
 
-// @desc    Delete user's roadmap
-// @route   DELETE /api/roadmap
-// @access  Private
-const deleteRoadmap = async (req, res) => {
-  try {
-    const roadmap = await Roadmap.findOne({ userId: req.user._id });
-    if (!roadmap) {
-      return res.status(404).json({ message: 'No roadmap found to delete.' });
-    }
-    
-    await roadmap.deleteOne();
-    res.status(200).json({ message: 'Roadmap deleted successfully.' });
-  } catch (error) {
-    res.status(statusFor(error)).json(aiAwareBody(error));
-  }
-};
 
 module.exports = {
   requireRebuildConsent,
   ROADMAP_EXISTS,
+  ROADMAP_BUILDING,
   generateRoadmap,
   getRoadmap,
-  togglePhase,
-  deleteRoadmap
+  togglePhase
 };

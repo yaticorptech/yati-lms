@@ -56,8 +56,9 @@ describe('the list of quizzes', { skip: skipWithoutChrome }, () => {
             };` });
         assert.deepEqual(errors, []);
         assert.equal(result.cards.length, 3);
-        assert.match(result.cards[0], /Weekly GK.*Live.*5 of 5 added · full.*10 min limit/);
-        assert.match(result.cards[2], /Science.*Draft.*2 of 10 added · 8 left.*no time limit/);
+        // The time limit sits with the other facts, above how full the quiz is.
+        assert.match(result.cards[0], /Weekly GK.*Live.*10 min limit.*5 of 5 added · full/);
+        assert.match(result.cards[2], /Science.*Draft.*no time limit.*2 of 10 added · 8 left/);
         assert.match(result.banner, /Weekly GK/);
         assert.match(result.banner, /10 min limit/);
     });
@@ -270,4 +271,19 @@ describe('on a phone', { skip: skipWithoutStyles }, () => {
             assert.equal(result, false);
         });
     }
+
+    test('New quiz opens as a popup in the middle, not a sheet filling the screen', async () => {
+        const { result } = await screen({ entry: LIST, api, styles: true, width: 390, height: 900, script: `
+            await sleep(800);
+            click(/New quiz/); await sleep(300);
+            const panel = $('[role=dialog]').firstElementChild;
+            const r = panel.getBoundingClientRect(), cs = getComputedStyle(panel);
+            return { top: r.top, bottom: innerHeight - r.bottom, left: r.left, right: innerWidth - r.right,
+                     roundedBelow: parseFloat(cs.borderBottomLeftRadius) > 0 && parseFloat(cs.borderBottomRightRadius) > 0,
+                     scrolls: getComputedStyle(panel.children[1]).overflowY };` });
+        assert.ok(result.top >= 16 && result.bottom >= 16, `dimmed page above and below (${Math.round(result.top)}px, ${Math.round(result.bottom)}px)`);
+        assert.ok(result.left >= 12 && result.right >= 12, 'and either side');
+        assert.equal(result.roundedBelow, true, 'rounded on the bottom too, like a popup');
+        assert.equal(result.scrolls, 'auto', 'a long form scrolls inside it');
+    });
 });

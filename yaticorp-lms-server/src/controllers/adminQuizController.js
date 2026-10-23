@@ -36,6 +36,15 @@ const saveQuiz = async (req, res) => {
 
         let quiz = await Quiz.findOne({ lessonId });
 
+        // A quiz needs at least one question. An empty one could not be
+        // passed, and a student's course stopped at it: the lesson is done by
+        // passing its quiz. (The player now lets an empty quiz's lesson be
+        // marked done, for any saved before this check.)
+        const next = Array.isArray(questions) ? questions : quiz?.questions || [];
+        if (next.length === 0) {
+            return res.status(400).json({ code: 'QUIZ_EMPTY', message: 'Add at least one question before saving the quiz.' });
+        }
+
         if (quiz) {
             // Update existing quiz
             quiz.questions = questions || quiz.questions;
@@ -57,6 +66,9 @@ const saveQuiz = async (req, res) => {
 
         res.json({ message: 'Quiz saved successfully', quiz });
     } catch (error) {
+        // A question missing its text, options or answer is the form's
+        // mistake, not the server's: said as one (a 400 the panel can show).
+        if (error.name === 'ValidationError') return res.status(400).json({ message: Object.values(error.errors || {})[0]?.message || 'A question is incomplete.' });
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };

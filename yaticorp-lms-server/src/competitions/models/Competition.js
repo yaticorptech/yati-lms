@@ -15,6 +15,8 @@
  */
 const mongoose = require('mongoose');
 
+// Every game a competition may hold: UNO for those made before it was removed (2026-10-23).
+// New ones are checked against the games offered (games/index.js IDS).
 const GAMES = ['chess', 'ludo', 'carrom', 'uno'];
 const STATUSES = ['draft', 'registration', 'closed', 'live', 'completed', 'cancelled'];
 
@@ -49,7 +51,7 @@ const competitionSchema = new mongoose.Schema({
     // How many players one team puts at the board in a match: 1, or 2 for
     // carrom doubles. The rest of the team are substitutes.
     playersPerSide: { type: Number, default: 1, min: 1, max: 2 },
-    // How many teams share one match: 2 for chess and carrom; 2–4 for ludo and UNO.
+    // How many teams share one match: 2 for chess and carrom; 2–4 for ludo (and UNO, before it was removed).
     teamsPerMatch: { type: Number, default: 2, min: 2, max: 4 },
     gameOptions: { type: mongoose.Schema.Types.Mixed, default: {} },
 

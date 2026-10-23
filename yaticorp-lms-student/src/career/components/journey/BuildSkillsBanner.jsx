@@ -254,13 +254,20 @@ function Stat({ icon: Icon, tone, value, label }) {
   );
 }
 
-export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 }) {
+export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0, joined = false }) {
   const shownXp = useCountUp(xp, 1000);
   const shownDone = useCountUp(completed, 900);
   const shownStreak = useCountUp(streak, 800);
 
   return (
-    <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset">
+    // `joined`: on a phone this is the head of the card below it (Skills), so
+    // it gives up its own corners, ring and shadow there and keeps a hairline
+    // between it and the list.
+    <section
+      className={`relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-brand-50 shadow-card ring-1 ring-journey-100 ring-inset ${
+        joined ? 'max-sm:rounded-none max-sm:border-b max-sm:border-journey-100 max-sm:shadow-none max-sm:ring-0' : ''
+      }`}
+    >
       <div
         aria-hidden
         className="fp-float pointer-events-none absolute -top-24 -left-20 h-64 w-64 rounded-full bg-journey-200/40 blur-3xl"
@@ -276,7 +283,10 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
         <BuildSkillsArt />
       </div>
 
-      <div className="relative flex items-start gap-5 p-5 sm:p-6 md:min-h-[236px] md:max-w-[50%] md:items-center lg:pr-0">
+      {/* On a phone everything is a size down — padding and words — so the
+          heading takes one line (it was two), and the sentence and the pills
+          are left out. */}
+      <div className="relative flex items-start gap-5 p-4 sm:p-6 md:min-h-[236px] md:max-w-[50%] md:items-center lg:pr-0">
         {/* Top of the words, not the middle of them: the row as a whole is
               centred in the banner, and without this the badge centres again
               inside that and drifts down past the eyebrow it belongs to. */}
@@ -285,24 +295,28 @@ export default function BuildSkillsBanner({ xp = 0, completed = 0, streak = 0 })
         </span>
 
         <div className="min-w-0">
-          <p className="text-[0.68rem] font-black tracking-[0.2em] text-journey-600 uppercase">
+          <p className="text-[0.62rem] font-black tracking-[0.18em] text-journey-600 uppercase sm:text-[0.68rem] sm:tracking-[0.2em]">
             Build your skills
           </p>
           {/* It wraps rather than being told not to: where it fits it is one
               line anyway, and where it does not — the banner beside the
               progress card at 1024px, its text column half of that — a
               no-wrap heading was cut to "Big dre". */}
-          <h1 className="mt-1.5 text-[1.75rem] leading-tight font-black text-ink-900 sm:text-[2rem] xl:text-[2.25rem]">
+          <h1 className="mt-1 text-[1.25rem] leading-tight font-black text-ink-900 sm:mt-1.5 sm:text-[2rem] xl:text-[2.25rem]">
             Small steps.{' '}
             <span className="bg-gradient-to-r from-journey-600 to-indigo-600 bg-clip-text text-transparent">
               Big dreams.
             </span>
           </h1>
-          <p className="mt-2 max-w-md text-sm leading-relaxed text-ink-600">
+          {/* Not on a phone (asked 2026-10-15, "it looks too much"): the
+              heading and the three numbers say it already. */}
+          <p className="mt-2 hidden max-w-md text-sm leading-relaxed text-ink-600 sm:block">
             Gain skills, earn XP and unlock new opportunities in your career journey.
           </p>
 
-          <ul className="mt-4 flex flex-wrap items-center gap-2">
+          {/* Not on a phone either (asked 2026-10-15, "remove it"): there the
+              banner is the head of the skill list, which says the same. */}
+          <ul className="mt-4 hidden flex-wrap items-center gap-2 sm:flex">
             <Stat
               icon={Star}
               tone="bg-amber-50 text-amber-500 ring-amber-100"

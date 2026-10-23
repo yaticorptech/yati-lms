@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, Info, Loader2, ShieldCheck, X } from 'lucide-react';
 import api from '../career/services/api';
 import Select from './Select';
+import { useHideLoop } from './loopVisibility';
 
 /**
  * The details scholarship schemes ask for, which the career goal does not
@@ -61,6 +62,9 @@ const FALLBACK_OPTIONS = {
 };
 
 export default function ScholarshipProfileForm({ onSaved, onClose, gated = false }) {
+  // Yati, the mascot, stays out of the eligibility form while it is open: a
+  // form to fill in, not a page to be walked across or talked over.
+  useHideLoop();
   const [options, setOptions] = useState(FALLBACK_OPTIONS);
   const [form, setForm] = useState({
     category: '',

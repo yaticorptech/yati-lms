@@ -107,6 +107,14 @@ const taskSchema = new mongoose.Schema(
     completedAt: {
       type: Date
     },
+    // Stamped when a missed task is brought back onto today from the backlog
+    // ("Do it today" on the profile), which moves this record rather than
+    // copying it. Clearing today's untouched work for an exam eve or a new
+    // time budget must not delete it: it is the only record of that piece of
+    // work (see dailyPlanService.clearTodaysPendingWork).
+    redoneAt: {
+      type: Date
+    },
 
     /**
      * When this task's completion was paid out — XP, achievements, skill

@@ -2,6 +2,8 @@
  * @author Preethesh Kulal
  * @description Live password strength checklist component shown while typing
  */
+import { Check, Circle } from 'lucide-react';
+
 const RULES = [
     { label: 'At least 8 characters', test: pw => pw.length >= 8 },
     { label: 'One uppercase letter', test: pw => /[A-Z]/.test(pw) },
@@ -18,7 +20,7 @@ const PasswordStrengthChecker = ({ password, focused }) => {
                 const ok = rule.test(password);
                 return (
                     <div key={rule.label} className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${ok ? 'text-emerald-600' : 'text-slate-400'}`}>
-                        <span>{ok ? '✓' : '○'}</span>
+                        {ok ? <Check size={13} strokeWidth={3} aria-hidden className="shrink-0" /> : <Circle size={11} aria-hidden className="mx-px shrink-0" />}
                         <span>{rule.label}</span>
                     </div>
                 );

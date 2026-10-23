@@ -162,6 +162,7 @@ const Login = () => {
                                         className="appearance-none block w-full px-4 py-3 pr-12 border border-slate-600 rounded-xl bg-slate-900/50 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                                         placeholder="••••••••" />
                                     <button type="button" onClick={() => setShowPassword(v => !v)}
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1" tabIndex={-1}>
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>

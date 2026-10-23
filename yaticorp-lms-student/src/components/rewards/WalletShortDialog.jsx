@@ -9,6 +9,7 @@ import { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wallet, Compass, X, Sparkles } from 'lucide-react';
 import Portal from '../Portal';
+import useBackClose from '../../native/useBackClose';
 import { AuthContext } from '../../context/AuthContext';
 import { useRewards } from '../../context/useRewards';
 import { money, num } from './format';
@@ -33,6 +34,9 @@ export default function WalletShortDialog() {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [short]);
+    // Android's back button closes the dialog, as Escape does, rather than
+    // leaving the page the student was trying to use.
+    useBackClose(() => setShort(null), !!short);
 
     if (!short) return null;
 
@@ -59,7 +63,7 @@ export default function WalletShortDialog() {
                     <div className="mt-4 rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 p-3.5 text-left ring-1 ring-indigo-100">
                         <p className="flex items-center gap-1.5 text-sm font-black text-indigo-900"><Sparkles size={15} className="text-indigo-500" /> Earn XP to top up your wallet</p>
                         <p className="mt-1 text-xs leading-relaxed text-indigo-900/80">
-                            Complete tasks, lessons, quizzes and games on Career Path.
+                            Complete lessons, quizzes and Career Path tasks, or play Brain Boosters.
                             {conversion?.pointsPerUnit ? ` Every ${num(conversion.pointsPerUnit)} XP adds ${money(conversion.unitValue, conversion.currency || cur)} to your wallet.` : ''}
                             {xpBalance != null && conversion?.pointsPerUnit ? ` You're ${num(Math.max(0, conversion.pointsPerUnit - xpBalance))} XP away from the next one.` : ''}
                         </p>

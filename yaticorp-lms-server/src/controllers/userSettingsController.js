@@ -25,6 +25,7 @@ const getUserSettings = async (req, res) => {
             isCareerPathEnabled: all || settings.isCareerPathEnabled,
             isJobsEnabled: all || settings.isJobsEnabled,
             isRewardsEnabled: settings.isRewardsEnabled !== false,
+            isLinguisticEnabled: all || settings.isLinguisticEnabled !== false,
             isGlobalQuizEnabled: all || settings.globalQuiz?.enabled !== false
         });
     } catch (error) {

@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import './overviewCardArt.css';
-import { ArrowRight, CheckCircle2, Flame, Zap } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Zap } from 'lucide-react';
 import LevelRing from '../ui/LevelRing';
+import StreakPanel from './StreakPanel';
 import useCountUp from '../../../hooks/useCountUp';
 import { useXpRule } from '../../../context/useRewards';
 
@@ -24,129 +25,24 @@ import { useXpRule } from '../../../context/useRewards';
 export default function MomentumCard({ streak, activity = [], level, progress, weekly }) {
   // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
   const TASK_XP = useXpRule('career_task');
-  const streakCount = useCountUp(streak);
   const shownXp = useCountUp(progress.xp, 1000);
-  const shownWeekly = useCountUp(weekly?.recent || 0, 900);
-  const activeDays = activity.filter((d) => d.active).length;
-  // Backend awards 10 XP per completed task, so a task count is a target in a
-  // way that a raw XP number is not.
-  const tasksToNextLevel = Math.max(1, Math.ceil(progress.remaining / Math.max(1, TASK_XP)));
+  // A finished task pays the admin's 'career_task' rule, so a task count is a
+  // target in a way that a raw XP number is not. Only while that rule pays
+  // something: null (Rewards locked) or 0 means tasks earn no XP, and the
+  // distance is said in XP alone rather than as a count nobody can meet.
+  const promisesXp = TASK_XP > 0;
+  const tasksToNextLevel = promisesXp ? Math.max(1, Math.ceil(progress.remaining / TASK_XP)) : 0;
 
   return (
     <section className="grid overflow-hidden rounded-3xl border border-line-200 bg-surface shadow-card lg:grid-cols-[1.15fr_1fr]">
-      {/* ---------------- The habit ---------------- */}
-      <div className="isolate relative flex flex-col overflow-hidden border-b border-line-200 p-6 sm:p-7 lg:border-r lg:border-b-0">
-        {/* Decoration only — painted first so every line below stacks over
-            it, and faint enough that the numbers stay the loudest thing. */}
-        <span aria-hidden className="oc-art oc-streak" />
-        <span aria-hidden className="oc-core oc-fx-embers" />
-        <div
-          aria-hidden
-          className="fp-float pointer-events-none absolute -top-16 -left-10 h-40 w-40 rounded-full bg-amber-400/15 blur-3xl"
-        />
-
-        <div className="relative flex flex-1 flex-col">
-          <p className="animate-fade-in-up flex items-center gap-2 text-[0.68rem] font-black tracking-[0.16em] text-amber-700 uppercase">
-            <span className="fp-bob-soft text-sm" aria-hidden>🔥</span>
-            Learning streak
-          </p>
-
-          <div className="mt-auto flex items-end gap-4 pt-4">
-            {/* The number lands with a pop, then light keeps moving through
-                its gradient — the one figure on this card that must be seen. */}
-            <span
-              className={`animate-pop-in fp-effort-gradient bg-clip-text text-[4.5rem] leading-[0.8] font-black tabular-nums text-transparent sm:text-[5.5rem] ${
-                streak > 0 ? 'fp-text-shimmer' : ''
-              }`}
-              style={{ animationDelay: '0.15s' }}
-            >
-              {streakCount}
-            </span>
-            <div className="pb-2">
-              <span className="animate-fade-in-up flex items-center gap-1.5 text-base font-black text-ink-900" style={{ animationDelay: '0.3s' }}>
-                <Flame
-                  className={`h-5 w-5 fill-amber-400/50 text-amber-500 ${streak > 0 ? 'fp-flame-live' : 'futurepath-flame'}`}
-                />
-                day{streak === 1 ? '' : 's'}
-              </span>
-              <p className="animate-fade-in-up mt-0.5 text-sm font-medium text-ink-500" style={{ animationDelay: '0.4s' }}>
-                {streak > 0 ? 'Keep it alive today' : 'Finish a task to begin'}
-              </p>
-            </div>
-          </div>
-
-          {/* Filled = work done that day. The date sits inside each cell so the
-              strip doubles as a mini calendar rather than seven anonymous dots. */}
-          <div className="mt-6 mb-auto">
-            <div className="mb-2.5 flex items-baseline justify-between gap-4">
-              <span className="text-[0.68rem] font-black tracking-[0.14em] text-ink-400 uppercase">
-                Last 7 days
-              </span>
-              <span className="text-[0.68rem] font-black text-ink-500 tabular-nums">
-                {activeDays} active
-              </span>
-            </div>
-
-            <div className="flex gap-1.5 sm:gap-2">
-              {activity.map((day) => {
-                const dayNumber = day.key?.split('-')[2]?.replace(/^0/, '');
-                return (
-                  <div key={day.key} className="flex flex-1 flex-col items-center gap-1.5">
-                    <div
-                      title={`${day.key}${day.active ? ' — active' : ' — no activity'}`}
-                      style={{ animationDelay: `${0.3 + activity.indexOf(day) * 0.06}s` }}
-                      className={`animate-pop-in relative flex h-12 w-full items-center justify-center rounded-xl text-sm font-black tabular-nums transition-all hover:-translate-y-0.5 ${
-                        day.active
-                          ? 'fp-effort-gradient text-white shadow-sm shadow-orange-500/30'
-                          : 'bg-surface-50 text-ink-400 ring-1 ring-line-200 ring-inset'
-                      } ${day.isToday ? 'fp-breathe outline-2 outline-offset-2 outline-journey-400' : ''}`}
-                    >
-                      {dayNumber}
-                      {day.active && (
-                        <span
-                          aria-hidden
-                          className="animate-pop-in absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-surface text-amber-500 shadow-sm ring-1 ring-amber-200"
-                          style={{ animationDelay: `${0.5 + activity.indexOf(day) * 0.06}s` }}
-                        >
-                          <Flame className="h-2.5 w-2.5 fill-amber-400" />
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[0.68rem] font-bold text-ink-400">{day.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ---------------- The week ----------------
-              A different fact from the strip above it: that one says which
-              days were active, this says how much was done and whether the
-              student is ahead of where they were. The comparison is to their
-              own previous week — the only weekly target this data can honestly
-              support. ---- */}
-          {weekly && (weekly.recent > 0 || weekly.prior > 0) && (
-            <p className="animate-fade-in-up mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-line-100 pt-3.5 text-sm" style={{ animationDelay: '0.7s' }}>
-              <span aria-hidden>🎯</span>
-              <span className="font-black text-ink-900 tabular-nums">{shownWeekly}</span>
-              <span className="text-ink-500">
-                {weekly.recent === 1 ? 'quest' : 'quests'} this week
-              </span>
-              {weekly.ahead > 0 ? (
-                <span className="font-bold text-emerald-600">
-                  — {weekly.ahead} ahead of last week
-                </span>
-              ) : weekly.ahead === 0 ? (
-                <span className="font-bold text-ink-500">— level with last week</span>
-              ) : (
-                <span className="font-bold text-amber-700">
-                  — {Math.abs(weekly.ahead)} to match last week
-                </span>
-              )}
-            </p>
-          )}
-        </div>
-      </div>
+      {/* ---------------- The habit ----------------
+          Its own component so the LMS Dashboard can show it too. */}
+      <StreakPanel
+        streak={streak}
+        activity={activity}
+        weekly={weekly}
+        className="border-b border-line-200 lg:border-r lg:border-b-0"
+      />
 
       {/* ---------------- The ladder ---------------- */}
       <div className="isolate relative flex flex-col items-center overflow-hidden bg-gradient-to-br from-journey-50/70 to-surface p-6 text-center sm:p-7">
@@ -165,12 +61,17 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
         </p>
 
         <p className="mt-1.5 text-sm leading-relaxed text-ink-500">
-          {progress.remaining > 0 ? (
+          {progress.remaining > 0 && promisesXp ? (
             <>
               <span className="font-black text-ink-900">
                 {tasksToNextLevel} more {tasksToNextLevel === 1 ? 'task' : 'tasks'}
               </span>{' '}
               to Level {progress.nextLevel}
+            </>
+          ) : progress.remaining > 0 ? (
+            <>
+              <span className="font-black text-ink-900 tabular-nums">{progress.remaining} XP</span> to Level{' '}
+              {progress.nextLevel}
             </>
           ) : (
             'Level target hit — new ground from here.'
@@ -180,6 +81,7 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
         {/* The chain the ring is part of. The level system was always on this
             page; what it never said was why a finished task should matter. */}
         <div className="mt-auto w-full pt-6">
+          {promisesXp && (
           <div className="animate-fade-in-up flex items-center gap-2 rounded-2xl border border-line-200 bg-surface p-3" style={{ animationDelay: '0.5s' }}>
             <span className="flex min-w-0 flex-1 items-center gap-2">
               <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
@@ -191,6 +93,7 @@ export default function MomentumCard({ streak, activity = [], level, progress, w
               +{TASK_XP} XP
             </span>
           </div>
+          )}
 
           <Link
             to="/career/badges"

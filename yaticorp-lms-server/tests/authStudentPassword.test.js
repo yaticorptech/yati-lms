@@ -101,6 +101,14 @@ describe('a student with a hashed password', () => {
         assert.equal((await login(user.cardNumber, await storedPassword(user._id))).status, 401, 'the hash itself is not a password');
     });
 
+    test("signing in sends the student's XP and level, for the Dashboard's banner to open on", async () => {
+        const user = await createStudent('Hashed-Pass2!');
+        await User.updateOne({ _id: user._id }, { $set: { xp: 450, level: 3 } });
+        const r = await login(user.cardNumber, 'Hashed-Pass2!');
+        assert.equal(r.status, 200);
+        assert.deepEqual({ xp: r.body.xp, level: r.body.level }, { xp: 450, level: 3 });
+    });
+
     test('saving the account for other reasons does not hash the hash again', async () => {
         const user = await createStudent('Hashed-Pass2!');
         const first = await storedPassword(user._id);

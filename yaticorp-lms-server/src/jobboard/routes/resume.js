@@ -9,6 +9,7 @@
  */
 const express = require('express');
 const { chargeWallet } = require('../../rewards/services/walletRuleService');
+const { xpOnSuccess } = require('../../rewards/services/xpHooks');
 const multer = require('multer');
 const router = express.Router();
 
@@ -76,7 +77,9 @@ router.get('/', async (req, res, next) => {
 /** POST /api/jobs/resume — multipart field "resume". Parses and stores. */
 // Priced under Wallet rules → Upload a resume, the same rule as the profile
 // upload; refunded if the upload or the parse fails.
-router.post('/', chargeWallet('upload_resume'), (req, res, next) => {
+// XP rule "Upload a resume": the same once-ever ref as the profile's upload (/api/user/resume), so the
+// first resume pays once, from either page.
+router.post('/', chargeWallet('upload_resume'), xpOnSuccess('resume_upload', () => 'resume'), (req, res, next) => {
     upload.single('resume')(req, res, async (uploadErr) => {
         try {
             if (uploadErr) {

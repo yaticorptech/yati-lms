@@ -19,7 +19,7 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 
 const { protectUser } = require('../middleware/authMiddleware');
-const { requireJobsEnabled } = require('./middleware/featureGate');
+const { requireJobsEnabled, requireJobsAccess } = require('./middleware/featureGate');
 
 /**
  * Say at startup what this section cannot do, rather than letting it be
@@ -74,9 +74,15 @@ router.use(rateLimit({
   message: { error: 'Too many requests — slow down a moment.' }
 }));
 
+// The job alerts bell is in the app's header on every page, Jobs open or not.
+router.use('/notifications', require('./routes/notifications'));
+// Everything else is the Jobs section itself, behind the same rule as the page:
+// five Career Path skills at 25% or more, or an exempt account
+// (services/jobsAccess). It used to be checked only in the browser, so a
+// locked student's request came back with jobs all the same.
+router.use(requireJobsAccess);
 router.use('/roles', require('./routes/roles'));
 router.use('/meta', require('./routes/meta'));
-router.use('/notifications', require('./routes/notifications'));
 router.use('/saved', require('./routes/saved'));
 router.use('/resume', require('./routes/resume'));
 // Age-aware local opportunities — the part of the section a school student

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
     readPosition, readPositionEntry, writePosition, clearPosition, resumePoint,
     readActiveLesson, readActiveLessonEntry, rememberActiveLesson, newest,
-    unlockedLessonIds, chooseLessonToOpen
+    unlockedLessonIds, chooseLessonToOpen, findOpenLesson, nextLessonAfter, markWatched, hasWatched
 } from '../../src/shared/playback/resume.js';
 
 const memory = () => {
@@ -154,13 +154,20 @@ describe('sequential unlocking', () => {
         const withEmpty = [{ _id: 'M0' }, ...modules];
         assert.deepEqual([...unlockedLessonIds(withEmpty, ['L1'])], ['L1', 'L2']);
     });
+
+    test('a lesson done stays open when an earlier one is added after it', () => {
+        // L0 was inserted before L1 after the student finished L1 to L3.
+        const inserted = [{ _id: 'M1', lessons: [lesson('L0'), lesson('L1'), lesson('L2')] }, ...modules.slice(1)];
+        assert.deepEqual([...unlockedLessonIds(inserted, ['L1', 'L2', 'L3'])].sort(), ['L0', 'L1', 'L2', 'L3']);
+    });
 });
 
 describe('which lesson the course opens on', () => {
-    test('the first lesson when nothing is remembered', () => {
+    test('where the student is up to when nothing is remembered: the first lesson not done', () => {
         const { module, lesson: l } = chooseLessonToOpen(modules, ['L1', 'L2'], null);
-        assert.equal(module._id, 'M1');
-        assert.equal(l._id, 'L1');
+        assert.equal(module._id, 'M2');
+        assert.equal(l._id, 'L3');
+        assert.equal(chooseLessonToOpen(modules, [], null).lesson._id, 'L1', 'a new course opens on its first lesson');
     });
 
     test('the remembered lesson, with its module, when it is still unlocked', () => {
@@ -169,19 +176,25 @@ describe('which lesson the course opens on', () => {
         assert.equal(l._id, 'L3');
     });
 
-    test('a remembered lesson that is now locked falls back to the first', () => {
+    test('a remembered lesson that is now locked opens the first lesson not done instead', () => {
         // L3 is remembered but L2 is no longer complete (say the admin reset it).
         const { module, lesson: l } = chooseLessonToOpen(modules, ['L1'], 'L3');
         assert.equal(module._id, 'M1');
-        assert.equal(l._id, 'L1');
+        assert.equal(l._id, 'L2');
     });
 
-    test('a remembered lesson inside a drip-locked module falls back to the first', () => {
+    test('never a lesson behind a drip date: the last one done, when the next one waits', () => {
         const { lesson: l } = chooseLessonToOpen(modules, ['L1', 'L2', 'L3', 'L4'], 'L5');
-        assert.equal(l._id, 'L1');
+        assert.equal(l._id, 'L4');
+        assert.equal(chooseLessonToOpen(modules, ['L1', 'L2', 'L3', 'L4'], null).lesson._id, 'L4');
     });
 
-    test('a remembered lesson that was deleted falls back to the first', () => {
+    test('a course whose first module waits on its date opens no lesson', () => {
+        const waiting = [{ _id: 'M1', locked: true, lessons: [lesson('L1')] }];
+        assert.deepEqual(chooseLessonToOpen(waiting, [], null), { module: waiting[0], lesson: null });
+    });
+
+    test('a finished course, or a remembered lesson since deleted, opens on the first', () => {
         const { lesson: l } = chooseLessonToOpen(modules, ['L1', 'L2', 'L3', 'L4', 'L5'], 'GONE');
         assert.equal(l._id, 'L1');
     });
@@ -189,5 +202,36 @@ describe('which lesson the course opens on', () => {
     test('an empty course opens nothing', () => {
         assert.deepEqual(chooseLessonToOpen([], [], 'L1'), { module: null, lesson: null });
         assert.deepEqual(chooseLessonToOpen([{ _id: 'M1', lessons: [] }], [], null), { module: { _id: 'M1', lessons: [] }, lesson: null });
+    });
+
+    test('a lesson asked for by the address opens only when it can', () => {
+        assert.equal(findOpenLesson(modules, ['L1'], 'L2').lesson._id, 'L2');
+        assert.equal(findOpenLesson(modules, ['L1'], 'L3'), null, 'not yet unlocked');
+        assert.equal(findOpenLesson(modules, ['L1', 'L2', 'L3', 'L4'], 'L5'), null, 'behind a drip date');
+        assert.equal(findOpenLesson(modules, [], null), null);
+    });
+});
+
+describe('the next lesson', () => {
+    test('is the one after, with its module, and says whether it is open', () => {
+        const n = nextLessonAfter(modules, ['L1', 'L2'], 'L2');
+        assert.equal(n.lesson._id, 'L3'); assert.equal(n.module._id, 'M2'); assert.equal(n.open, true);
+        assert.equal(nextLessonAfter(modules, ['L1'], 'L2').open, false, 'L2 not done yet');
+        assert.equal(nextLessonAfter(modules, ['L1', 'L2', 'L3', 'L4'], 'L4').open, false, 'the next module waits on its date');
+        assert.equal(nextLessonAfter(modules, [], 'L5'), null, 'nothing after the last');
+        assert.equal(nextLessonAfter(modules, [], 'GONE'), null);
+    });
+});
+
+describe('a video watched to the end', () => {
+    test('is remembered per student and lesson, and survives a broken storage', () => {
+        const s = memory();
+        assert.equal(hasWatched('u1', 'L1', s), false);
+        markWatched('u1', 'L1', s);
+        assert.equal(hasWatched('u1', 'L1', s), true);
+        assert.equal(hasWatched('u2', 'L1', s), false, 'another student on the same device');
+        assert.equal(hasWatched('u1', 'L2', s), false);
+        assert.doesNotThrow(() => markWatched('u1', 'L1', broken));
+        assert.equal(hasWatched('u1', 'L1', broken), false);
     });
 });

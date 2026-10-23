@@ -12,23 +12,7 @@
  */
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
-
-/**
- * The details that are not derivable from the code and must be filled in
- * before these pages go in front of Google or a student.
- *
- * They are gathered here, once, rather than scattered through the prose, so
- * that filling them in is a single edit and nothing can be left stale in a
- * paragraph someone forgot to read.
- */
-export const COMPANY = {
-  legalName: 'YATICORP',                          // TODO: registered legal name, e.g. "Yaticorp Technologies Pvt. Ltd."
-  address: 'TODO: registered address',            // TODO: full postal address
-  jurisdiction: 'TODO: city, India',              // TODO: courts of which city
-  privacyEmail: 'yaticorp.tech@gmail.com',
-  grievanceOfficer: 'TODO: name of grievance officer',
-  effectiveDate: 'TODO: date these were published'
-};
+import { COMPANY, filled } from './company';
 
 export const Section = ({ id, title, children }) => (
   <section id={id} className="scroll-mt-24">
@@ -63,9 +47,11 @@ export default function LegalShell({ title, intro, updated, children }) {
 
       <main className="mx-auto max-w-3xl px-5 pb-24 pt-10">
         <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
-        <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-          Last updated {updated}
-        </p>
+        {updated && (
+          <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Last updated {updated}
+          </p>
+        )}
         <p className="mt-5 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm leading-relaxed text-slate-700">
           {intro}
         </p>
@@ -75,7 +61,7 @@ export default function LegalShell({ title, intro, updated, children }) {
         <footer data-explain="contact" className="mt-14 border-t border-slate-200 pt-6 text-sm text-slate-600">
           <p className="font-bold text-slate-900">Contact</p>
           <p className="mt-1">
-            {COMPANY.legalName}, {COMPANY.address}
+            {[COMPANY.legalName, filled(COMPANY.address)].filter(Boolean).join(', ')}
             <br />
             <a className="font-semibold text-indigo-600 hover:underline" href={`mailto:${COMPANY.privacyEmail}`}>
               {COMPANY.privacyEmail}

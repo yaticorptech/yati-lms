@@ -47,7 +47,14 @@ const loadYouTubeApi = () => {
   return apiPromise;
 };
 
-export default function LessonVideo({ video, watched, onWatched, onProgress }) {
+/**
+ * `initialSeconds` is how much of this video the server already holds as
+ * watched (progress.watchedSeconds), so a reload or a second visit carries on
+ * from it instead of starting the count at nothing. `watchRejected` changes
+ * when the server turned down a "watched" report (it checks the seconds): the
+ * gate is then reported again once enough has really played.
+ */
+export default function LessonVideo({ video, watched, onWatched, onProgress, initialSeconds = 0, watchRejected = 0 }) {
   const hostRef = useRef(null);
   const playerRef = useRef(null);
   const timerRef = useRef(null);
@@ -70,15 +77,27 @@ export default function LessonVideo({ video, watched, onWatched, onProgress }) {
     onWatchedRef.current = onWatched;
     onProgressRef.current = onProgress;
   }, [onWatched, onProgress]);
+  // Read when the player is built for a video, not on every change.
+  const initialSecondsRef = useRef(initialSeconds);
+  useEffect(() => {
+    initialSecondsRef.current = initialSeconds;
+  }, [initialSeconds]);
 
-  const [percent, setPercent] = useState(watched ? 100 : 0);
+  // Where the bar starts: watched, or as far as the saved seconds go.
+  const startPercent = () => {
+    if (watched) return 100;
+    const length = Number(video.durationSeconds) || 0;
+    const seen = Math.max(0, Number(initialSeconds) || 0);
+    return length > 0 ? Math.min(99, Math.round((seen / length) * 100)) : 0;
+  };
+  const [percent, setPercent] = useState(startPercent);
   // A new video starts from its own watch state, not the last one's — the bar
   // used to carry over, so a swapped-in video read "Watched" before it played.
   // Adjusted during render so no frame paints the old figure.
   const [shownVideoId, setShownVideoId] = useState(video.videoId);
   if (shownVideoId !== video.videoId) {
     setShownVideoId(video.videoId);
-    setPercent(watched ? 100 : 0);
+    setPercent(startPercent());
   }
   // The mascot watches along. Read through a ref: the player is built once
   // per video and must not be rebuilt for the mascot's sake.
@@ -93,11 +112,22 @@ export default function LessonVideo({ video, watched, onWatched, onProgress }) {
     reportedRef.current = !!watched;
   }, [watched]);
 
+  // The server turned a "watched" report down: count on and report again.
+  useEffect(() => {
+    if (watchRejected) reportedRef.current = false;
+  }, [watchRejected]);
+
   useEffect(() => {
     let cancelled = false;
     // Fresh counters for this video. `watched` is the gate as the server has
-    // it for this video — false straight after a swap.
-    secondsSeenRef.current = new Set();
+    // it for this video — false straight after a swap. Seeded with what the
+    // server already holds as seen, so the count survives a reload: it used
+    // to live only here, in memory, and every reload started it from zero.
+    // The server keeps a count, not which seconds, so the seed is the first
+    // that many — watching the opening again does not count twice.
+    secondsSeenRef.current = new Set(
+      Array.from({ length: Math.max(0, Math.floor(Number(initialSecondsRef.current) || 0)) }, (_, s) => s)
+    );
     lastTimeRef.current = null;
     lastWallRef.current = 0;
     reportedRef.current = !!watched;

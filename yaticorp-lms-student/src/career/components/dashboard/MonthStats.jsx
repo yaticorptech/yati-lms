@@ -1,7 +1,6 @@
 import { useId } from 'react';
 import { CalendarDays, CheckCircle2, Clock3, Trophy } from 'lucide-react';
 import useCountUp from '../../../hooks/useCountUp';
-import { useXpRule } from '../../../context/useRewards';
 
 /**
  * A month's shape, as a filled curve.
@@ -141,21 +140,21 @@ function StatTile({ card, value, series, hint }) {
 /**
  * The four numbers above the calendar.
  *
- * XP is the one derived value: a completed task pays the admin's 'career_task' rule, so
- * a month's completions are worth ten times as much. It is labelled "from
- * tasks" rather than "earned" because the daily activity pays 5 XP too and this
- * page cannot see those — claiming a total it has not counted would be worse
- * than naming what it has.
+ * XP is what the month's finished tasks actually paid, summed from each
+ * task's `xpPaid` (the server reads it off the XP ledger). It used to be the
+ * count of completions times TODAY's 'career_task' rule — so an admin editing
+ * the rule rewrote every past month, and a task finished while the rule was 0
+ * read as paid. It is labelled "from tasks" rather than "earned" because quiz,
+ * streak and daily-activity XP land elsewhere and this page cannot see them —
+ * claiming a total it has not counted would be worse than naming what it has.
  */
 
 export default function MonthStats({ summary, series, monthName }) {
-  // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
-  const XP_PER_TASK = useXpRule('career_task');
   const values = {
     completed: summary.completed,
     pending: summary.pending,
     events: summary.events,
-    xp: summary.completed * XP_PER_TASK
+    xp: Number(summary.xp) || 0
   };
 
   // Short enough to sit on one line beside the chart. The month is named
@@ -175,7 +174,7 @@ export default function MonthStats({ summary, series, monthName }) {
           key={card.key}
           card={card}
           value={values[card.key]}
-          series={series[card.key === 'xp' ? 'completed' : card.key] || []}
+          series={series[card.key] || []}
           hint={hints[card.key]}
         />
       ))}
