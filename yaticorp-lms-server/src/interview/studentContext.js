@@ -4,6 +4,9 @@
  * before a candidate walks in.
  */
 const { collect } = require('../learningbio/learningDataService');
+const { levelFor } = require('./level');
+const User = require('../models/User');
+const CareerGoal = require('../career/models/Goal');
 
 const buildContext = async (userId) => {
     const d = await collect(userId);
@@ -21,6 +24,9 @@ const buildContext = async (userId) => {
         name: d.user.name,
         firstName: d.user.name.split(' ')[0],
         audience: d.audience,
+        // Class 10, undergraduate, working professional…: what the questions
+        // are pitched to (level.js).
+        level: levelFor({ ...d.schooling, className: d.user.className, accountType: d.user.accountType }),
         education: d.education.map((e) => e.title).filter(Boolean),
         experience: d.experience.map((e) => e.title).filter(Boolean),
         goal: d.learningGoal,
@@ -38,4 +44,16 @@ const buildContext = async (userId) => {
     };
 };
 
-module.exports = { buildContext };
+/**
+ * Just the student's level, without the whole learning context: for the
+ * aptitude practice, which needs nothing else.
+ */
+const levelOf = async (userId) => {
+    const [user, goal] = await Promise.all([
+        User.findById(userId).select('className accountType').lean(),
+        CareerGoal.findOne({ userId }).select('educationLevel currentClass board').lean()
+    ]);
+    return levelFor({ ...(goal || {}), className: user?.className, accountType: user?.accountType });
+};
+
+module.exports = { buildContext, levelOf };

@@ -35,13 +35,12 @@ const RESULT = { competition: { id: 'c3', name: 'Chess Cup 2025', game: 'chess',
     teamName: 'Alpha Knights', collegeName: 'Alpha College', place: 1, score: { won: 3, played: 3 }, certificate: true };
 
 const api = (extra = {}) => apiModule({
-    '/competitions/rooms/mine': { rooms: [] },
     '/competitions/me': { competitions: [COMP], upcoming: [], live: [MATCH], completed: [], results: [RESULT] },
     '/competitions/leaderboard': BOARD,
     '/competitions/history': { competitions: [{ competition: DONE, teams: [{}, {}, {}, {}], rounds: [] }] },
     ...extra,
     '/competitions': { competitions: [COMP, LUDO, DONE] }
-}, `(url) => (url.includes('/rooms') ? { game: { id: 'room1', code: 'K7Q2XM' } } : {})`);
+});
 
 const home = (tab = '') => `
 import { createRoot } from 'react-dom/client';
@@ -53,11 +52,11 @@ createRoot(document.getElementById('root')).render(
     <Routes><Route path="/competitions" element={<><CompetitionsHome /><Where /></>} /><Route path="*" element={<Where />} /></Routes>
   </MemoryRouter>);`;
 
-describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => {
-    test('seven tabs; the games are Chess, Ludo, Carrom and UNO, with a photo each, and Play Now opens a room', async () => {
+describe('the Competitions section (Chess, Ludo and Carrom)', { skip: skipWithoutStyles }, () => {
+    test('six tabs; the games are Chess, Ludo and Carrom, with a photo each, and each opens its competitions', async () => {
         const { result, errors } = await screen({ entry: home(), api: api(), styles: true, script: `
             await sleep(600);
-            const tabs = $$('nav[aria-label="Games & Competitions"] button').map((b) => b.innerText.trim());
+            const tabs = $$('nav[data-section-tabs] button').map((b) => b.innerText.trim());
             const games = $$('[data-game]').map((g) => g.dataset.game);
             const photos = $$('[data-game] img').map((i) => i.getAttribute('src'));
             const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
@@ -65,16 +64,16 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
             const searched = $$('[data-game]').map((g) => g.dataset.game);
             setter.call(search, ''); search.dispatchEvent(new Event('input', { bubbles: true })); await sleep(150);
             // The cards came back after the search, so find the button now.
-            [...$('[data-game="ludo"]').querySelectorAll('button')].find((b) => /Play Now/.test(b.innerText)).click(); await sleep(500);
-            return { tabs, games, photos, searched, where: $('#where').innerText, posted: window.__calls.filter((c) => c[0] === 'POST').map((c) => [c[1], c[2]]) };` });
+            $('[data-see-competitions="ludo"]').click(); await sleep(500);
+            return { tabs, games, photos, searched, where: $('#where').innerText, filter: $('[data-game-filter][aria-pressed="true"]')?.dataset.gameFilter, posted: window.__calls.filter((c) => c[0] === 'POST').length };` });
         assert.deepEqual(errors, []);
-        assert.deepEqual(result.tabs, ['Games', 'Brain Boosters', 'Competitions', 'My Games', 'Leaderboard', 'Results', 'History']);
-        assert.deepEqual(result.games, ['chess', 'ludo', 'carrom', 'uno']);
-        assert.deepEqual(result.photos, ['/games/chess.jpg', '/games/chess-icon.png', '/games/ludo.jpg', '/games/ludo-icon.png', '/games/carrom.jpg', '/games/carrom-icon.png', '/games/uno.jpg', '/games/uno-icon.png']);
+        assert.deepEqual(result.tabs, ['Games', 'Competitions', 'My Games', 'Leaderboard', 'Results', 'History']);
+        assert.deepEqual(result.games, ['chess', 'ludo', 'carrom'], 'no UNO');
+        assert.deepEqual(result.photos, ['/games/chess.jpg', '/games/chess-icon.png', '/games/ludo.jpg', '/games/ludo-icon.png', '/games/carrom.jpg', '/games/carrom-icon.png']);
         assert.deepEqual(result.searched, ['carrom'], 'Search games narrows the cards');
-        assert.equal(result.posted[0][0], '/competitions/rooms');
-        assert.equal(result.posted[0][1].game, 'ludo');
-        assert.equal(result.where, '/competitions/play/room1', 'straight into the new room');
+        assert.equal(result.where, '/competitions?tab=competitions&game=ludo', 'Ludo\'s competitions');
+        assert.equal(result.filter, 'ludo', 'filtered to Ludo');
+        assert.equal(result.posted, 0, 'no room is made');
     });
 
     test('the Competitions tab: game filters, then the competitions as simple cards', async () => {
@@ -88,7 +87,7 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
             return { text: text(card), href: view?.getAttribute('href'), before, ludoOnly,
                      ludoPhase: $('[data-competition="c2"] [data-phase]')?.innerText,
                      filters: $$('[data-game-filter]').map((b) => b.innerText.trim()) };` });
-        assert.deepEqual(result.filters.map((f) => f.replace(/^\S+\s/, '')), ['All games', 'Chess', 'Ludo', 'Carrom', 'UNO']);
+        assert.deepEqual(result.filters.map((f) => f.replace(/^\S+\s/, '')), ['All games', 'Chess', 'Ludo', 'Carrom']);
         assert.match(result.text, /Inter-College Chess Cup/);
         assert.match(result.text, /4 Colleges/);
         assert.match(result.text, /8 Players/);
@@ -187,49 +186,51 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
         assert.match(result.players, /Asha/);
     });
 
-    test('Your Games: open a room, copy its code, or leave it; three rows show, the rest scroll', async () => {
-        const rooms = [
-            { id: 'r1', game: 'chess', label: 'Chess', emoji: '♟️', code: 'GZVS8K', status: 'waiting', host: false, seats: [{ name: 'Bhagyashree' }] },
-            { id: 'r2', game: 'carrom', label: 'Carrom', emoji: '🟤', code: '7C3S36', status: 'active', host: true, seats: [{ name: 'Bhagyashree' }, { name: 'Asha' }] },
-            ...['ludo', 'ludo', 'uno', 'chess'].map((game, i) => ({ id: `x${i}`, game, label: game.toUpperCase(), emoji: '', code: `CODE0${i}`, status: 'waiting', host: true, seats: [{ name: 'Bhagyashree' }] }))
-        ];
-        const { result, errors } = await screen({ entry: home(), api: api({ '/competitions/rooms/mine': { rooms } }), styles: true, script: `
+    test('playing with friends is gone (no room to start, no rooms list); Join with a code opens a competition match', async () => {
+        const post = `(url, body) => (url === '/competitions/matches/join' ? (body.code === 'K7Q2XM' ? { game: { id: 'g9' } } : Promise.reject({ response: { status: 403, data: { message: 'That code is for another match. Your own match code is in My Games.' } } })) : {})`;
+        const { result, errors } = await screen({ entry: home(), api: apiModule({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [MATCH], completed: [], results: [] }, '/competitions': { competitions: [COMP, LUDO, DONE] } }, post), styles: true, script: `
             await sleep(600);
-            const box = $('[data-your-games]');
-            const rows = $$('[data-room]').map((r) => text(r));
-            const links = $$('[data-room] a').map((a) => [a.innerText.trim(), a.getAttribute('href')]);
-            $('[data-room="r1"] button[aria-haspopup]').click(); await sleep(100);
-            const menu1 = $$('[data-room="r1"] [role=menuitem]').map((b) => b.innerText.trim());
-            $$('[data-room="r1"] [role=menuitem]').find((b) => /Leave room/.test(b.innerText)).click(); await sleep(400);
-            $('[data-room="r2"] button[aria-haspopup]').click(); await sleep(100);
-            const menu2 = $$('[data-room="r2"] [role=menuitem]').map((b) => b.innerText.trim());
-            const list = $('[data-rooms]'); const row = $('[data-room="r1"]');
-            const scroll = { rows: $$('[data-room]').length, shown: Math.round(list.clientHeight / row.getBoundingClientRect().height * 10) / 10, scrolls: list.scrollHeight > list.clientHeight + 2, scrollable: getComputedStyle(list).overflowY };
-            return { rows, links, menu1, menu2, scroll, posted: window.__calls.filter((c) => c[0] === 'POST').map((c) => c[1]), reloaded: window.__calls.filter((c) => c[1] === '/competitions/rooms/mine').length };` });
+            const buttons = $$('button').map((b) => b.innerText.trim());
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+            const box = $('[data-join-code] input');
+            setter.call(box, 'abc-999'); box.dispatchEvent(new Event('input', { bubbles: true })); await sleep(100);
+            const cleaned = box.value;
+            setter.call(box, 'ZZZZZZ'); box.dispatchEvent(new Event('input', { bubbles: true })); await sleep(100);
+            $('[data-join-code] button[type=submit]').click(); await sleep(400);
+            const refused = text($('[data-join-code] [role=alert]'));
+            setter.call(box, 'k7q2xm'); box.dispatchEvent(new Event('input', { bubbles: true })); await sleep(100);
+            $('[data-join-code] button[type=submit]').click(); await sleep(500);
+            return { playNow: buttons.some((b) => /Play Now|Join Room/i.test(b)), rooms: !!$('[data-your-games]') || !!$('[data-rooms]'),
+                friends: /with friends|Create rooms/i.test(document.body.innerText), cleaned, refused, where: $('#where').innerText,
+                sent: window.__calls.filter((c) => c[0] === 'POST').map((c) => [c[1], c[2].code]), asked: window.__calls.some((c) => c[1].includes('/rooms')) };` });
         assert.deepEqual(errors, []);
-        assert.match(result.rows[0], /Chess · GZVS8K Bhagyashree/);
-        assert.match(result.rows[1], /Carrom · 7C3S36 Bhagyashree, Asha/);
-        assert.deepEqual(result.links.slice(0, 2), [['Open room', '/competitions/play/r1'], ['Continue', '/competitions/play/r2']]);
-        assert.equal(result.scroll.rows, 6, 'every room is in the list');
-        assert.equal(result.scroll.scrollable, 'auto');
-        assert.ok(result.scroll.scrolls, 'but the list scrolls');
-        assert.ok(result.scroll.shown >= 2.9 && result.scroll.shown <= 3.3, `about three rows show at once (${result.scroll.shown})`);
-        assert.deepEqual(result.menu1, ['Copy code', 'Leave room'], 'a room not started can be left');
-        assert.deepEqual(result.posted, ['/competitions/play/r1/leave']);
-        assert.equal(result.reloaded, 2, 'the list is asked for again after leaving');
-        assert.deepEqual(result.menu2, ['Copy code'], 'a game in play cannot be left here');
+        assert.equal(result.playNow, false); assert.equal(result.rooms, false);
+        assert.equal(result.friends, false, 'no "Play with friends" or "Create rooms" anywhere');
+        assert.equal(result.cleaned, 'ABC999', 'letters and numbers only, in capitals');
+        assert.match(result.refused, /another match/);
+        assert.deepEqual(result.sent, [['/competitions/matches/join', 'ZZZZZZ'], ['/competitions/matches/join', 'K7Q2XM']]);
+        assert.equal(result.where, '/competitions/play/g9', 'straight into the match');
+        assert.equal(result.asked, false, 'rooms are never asked for');
+    });
+
+    test('My Games shows the match code on a match about to be played', async () => {
+        const { result, errors } = await screen({ entry: home('mine'), api: api({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [{ ...MATCH, gameCode: 'K7Q2XM' }], completed: [], results: [RESULT] } }), styles: true, script: `
+            await sleep(800);
+            return $('[data-match-code]')?.innerText.replace(/\\s+/g, ' ').trim();` });
+        assert.deepEqual(errors, []);
+        assert.equal(result, 'Match code K7Q2XM');
     });
 
     test('on a phone the tab bar scrolls to the chosen tab by itself, with the next one in view', async () => {
         const { result, errors } = await screen({ entry: home('results'), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
-            const bar = () => $('nav[aria-label="Games & Competitions"]');
-            const box = (label) => { const b = $$('nav[aria-label="Games & Competitions"] button').find((x) => x.innerText.trim() === label); return [b.getBoundingClientRect(), bar().getBoundingClientRect()]; };
+            const bar = () => $('nav[data-section-tabs]');
+            const box = (label) => { const b = $$('nav[data-section-tabs] button').find((x) => x.innerText.trim() === label); return [b.getBoundingClientRect(), bar().getBoundingClientRect()]; };
             const shown = (label) => { const [r, n] = box(label); return r.left >= n.left - 1 && r.right <= n.right + 1; };
             const peeks = (label) => { const [r, n] = box(label); return r.left < n.right - 8; };
             await sleep(900);
             const atResults = { scrolled: bar().scrollLeft, results: shown('Results'), history: shown('History'), games: shown('Games') };
-            $$('nav[aria-label="Games & Competitions"] button').find((x) => x.innerText.trim() === 'Games').click(); await sleep(900);
-            return { atResults, atGames: { scrolled: bar().scrollLeft, games: shown('Games'), next: peeks('Brain Boosters') } };` });
+            $$('nav[data-section-tabs] button').find((x) => x.innerText.trim() === 'Games').click(); await sleep(900);
+            return { atResults, atGames: { scrolled: bar().scrollLeft, games: shown('Games'), next: peeks('Competitions') } };` });
         assert.deepEqual(errors, []);
         assert.ok(result.atResults.scrolled > 0, 'the bar moved on its own');
         assert.equal(result.atResults.results, true, 'Results is in view');
@@ -272,14 +273,14 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
             const pick = (id) => $('[data-game-filter="' + id + '"]');
             const shown = (id) => { const r = pick(id).getBoundingClientRect(); const n = row().getBoundingClientRect(); return r.left >= n.left - 1 && r.right <= n.right + 1; };
             await sleep(700);
-            const before = { overflows: row().scrollWidth > row().clientWidth, scrolled: row().scrollLeft, uno: shown('uno') };
+            const before = { overflows: row().scrollWidth > row().clientWidth, scrolled: row().scrollLeft, carrom: shown('carrom') };
             pick('ludo').click(); await sleep(900);
             const atLudo = { scrolled: row().scrollLeft, ludo: shown('ludo'), carrom: shown('carrom'), pressed: pick('ludo').getAttribute('aria-pressed') };
             pick('all').click(); await sleep(900);
             return { before, atLudo, atAll: { scrolled: row().scrollLeft, all: shown('all') }, sideways: document.documentElement.scrollWidth > innerWidth + 1 };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.before.overflows, true, 'five games are wider than the phone, so the row scrolls');
-        assert.equal(result.before.uno, false, 'UNO starts off screen');
+        assert.equal(result.before.overflows, true, 'the filters are wider than the phone, so the row scrolls');
+        assert.equal(result.before.carrom, false, 'Carrom starts off screen');
         assert.equal(result.atLudo.pressed, 'true');
         assert.ok(result.atLudo.scrolled > 0, 'choosing Ludo moved the row on its own');
         assert.equal(result.atLudo.ludo, true, 'Ludo is in view');
@@ -579,7 +580,7 @@ const chessView = (status = 'active') => ({
     drawOffer: null, canOfferDraw: true, legalMoves: [{ from: 'e2', to: 'e4' }, { from: 'e2', to: 'e3' }]
 });
 const gameRow = (over) => ({
-    id: 'g1', kind: 'friendly', game: 'chess', label: 'Chess', emoji: '♟️', status: 'active', version: 3, you: 0, host: true, code: 'K7Q2XM',
+    id: 'g1', kind: 'match', game: 'chess', label: 'Chess', emoji: '♟️', status: 'active', version: 3, you: 0,
     seats: [{ name: 'Asha', side: 0, joined: true }, { name: 'Ravi', side: 1, joined: true }], minSeats: 2, maxSeats: 2, joinDeadline: null, outcome: null,
     view: chessView(), ...over
 });
@@ -591,16 +592,19 @@ createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={['/competitions/play/g1']}><Routes><Route path="/competitions/play/:gameId" element={<GamePage />} /></Routes></MemoryRouter>);`;
 
 describe('the game page', { skip: skipWithoutStyles }, () => {
-    test('a friendly room waiting: the code, the players, and Start for the host', async () => {
-        const waiting = gameRow({ status: 'waiting', view: null, seats: [{ name: 'Asha', side: 0, joined: true }] });
-        const { result, errors } = await screen({ entry: page, api: apiModule({ '/competitions/play/g1': { game: waiting } }), styles: true, script: `
-            await sleep(700);
-            const start = $$('button').find((b) => /Start game/.test(b.innerText));
-            return { body: text(document.body), startDisabled: start?.disabled };` });
+    test('an old friendly game (playing with friends was removed): the server\'s message, and no more asking', async () => {
+        const gone = `
+window.__calls = [];
+export default {
+  get: (url) => { window.__calls.push(['GET', url]); return Promise.reject({ response: { status: 410, data: { message: 'Playing with friends is no longer available. Play in a competition instead.' } } }); },
+  post: (url) => { window.__calls.push(['POST', url]); return Promise.resolve({ data: {} }); }
+};`;
+        const { result, errors } = await screen({ entry: page, api: gone, styles: true, script: `
+            await sleep(5000);
+            return { body: text(document.body), asked: window.__calls.length };` });
         assert.deepEqual(errors, []);
-        assert.match(result.body, /K7Q2XM/);
-        assert.match(result.body, /Asha/);
-        assert.equal(result.startDisabled, true, 'not until a second player joins');
+        assert.match(result.body, /Playing with friends is no longer available/);
+        assert.equal(result.asked, 1, 'asked once, not again and again');
     });
 
     test('a game in play: the players, whose turn, and the board; a move goes to the server', async () => {
@@ -706,19 +710,6 @@ describe('on a small phone', { skip: skipWithoutStyles }, () => {
         assert.equal(result.teamNote, null, 'one team ranked: nothing to scroll, no note');
     });
 
-    test('Your Games: Continue and Open room are a finger\'s height', async () => {
-        const rooms = [
-            { id: 'r1', game: 'chess', label: 'Chess', emoji: '♟️', code: 'GZVS8K', status: 'waiting', host: true, seats: [{ name: 'Asha' }] },
-            { id: 'r2', game: 'uno', label: 'UNO', emoji: '🃏', code: '7C3S36', status: 'active', host: true, seats: [{ name: 'Asha' }, { name: 'Ravi' }] }
-        ];
-        const { result, errors } = await screen({ entry: home(), api: api({ '/competitions/rooms/mine': { rooms } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
-            await sleep(700);
-            return $$('[data-room] a').map((a) => [a.innerText.trim(), Math.round(a.getBoundingClientRect().height)]);` });
-        assert.deepEqual(errors, []);
-        assert.deepEqual(result.map(([label]) => label).sort(), ['Continue', 'Open room']);
-        for (const [label, height] of result) assert.ok(height >= 36, `${label} is ${height}px tall`);
-    });
-
     test('History: the competition name is whole, and Certificate goes under it rather than squeezing it', async () => {
         const long = { ...RESULT, competition: { ...RESULT.competition, name: 'Inter-College Chess Championship 2026' } };
         const { result, errors } = await screen({ entry: home('history'), api: api({ '/competitions/me': { competitions: [COMP], upcoming: [], live: [], completed: [], results: [long] } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
@@ -732,49 +723,26 @@ describe('on a small phone', { skip: skipWithoutStyles }, () => {
         assert.equal(result.below, true, 'Certificate is under them');
     });
 
-    test('the banners\' description lines, the stars note and a game\'s tagline and goal are left out on a phone, and kept on a laptop', async () => {
+    test('the banner\'s description line is left out on a phone, and kept on a laptop', async () => {
         const look = `
             await sleep(900);
-            const line = (re) => [...document.querySelectorAll('p')].find((p) => re.test(p.textContent));
-            const shown = (el) => !!el && el.getClientRects().length > 0;
-            return { hero: shown(line(/Compete with your college friends/)), boosters: shown(line(/Where every challenge makes you/)), boostersThere: !!line(/Where every challenge makes you/) };`;
-        // Brain Boosters reads the signed-in student, so it gets one here.
-        const boosters = `
-import { createRoot } from 'react-dom/client';
-import { MemoryRouter } from 'react-router-dom';
-import { AuthContext } from '${srcFile('context/AuthContext.jsx')}';
-import CompetitionsHome from '${srcFile('competitions/CompetitionsHome.jsx')}';
-createRoot(document.getElementById('root')).render(
-  <AuthContext.Provider value={{ user: { name: 'Asha' } }}><MemoryRouter initialEntries={['/competitions?tab=brain-boosters']}><CompetitionsHome /></MemoryRouter></AuthContext.Provider>);`;
-        const boostersApi = api({ '/games/time': {} });
-        // The page, then a game's "Ready?" screen (Sequence Recall's).
-        const boostersLook = `
-            await sleep(2500);
-            const line = (re) => [...document.querySelectorAll('p')].find((p) => re.test(p.textContent));
-            const shown = (el) => !!el && el.getClientRects().length > 0;
-            const page = { boosters: shown(line(/Where every challenge makes you/)), boostersThere: !!line(/Where every challenge makes you/), stars: shown(line(/Your level and stars in each game/)), starsThere: !!line(/Your level and stars in each game/) };
-            const card = document.querySelector('[data-game="sequence-recall"]');
-            (card.matches('button') ? card : card.querySelector('button')).click();
-            await sleep(1500);
-            const goal = [...document.querySelectorAll('span')].find((el) => /^Repeat a run of \\d+ to clear this level\\.$/.test(el.textContent));
-            return { ...page, tagline: shown(line(/Repeating a sequence back is how every skill starts/)), taglineThere: !!line(/Repeating a sequence back is how every skill starts/), goal: shown(goal), goalThere: !!goal };`;
-        const phone = await screen({ entry: boosters, api: boostersApi, styles: true, device: DEVICES.galaxyZFold6Folded, script: boostersLook });
-        const laptop = await screen({ entry: boosters, api: boostersApi, styles: true, width: 1366, height: 900, script: boostersLook });
-        const games = await screen({ entry: home(), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: look });
-        const gamesLaptop = await screen({ entry: home(), api: api(), styles: true, width: 1366, height: 900, script: look });
-        assert.equal(games.result.hero, false, 'phone: no "Compete with your college friends…"');
-        assert.equal(gamesLaptop.result.hero, true, 'laptop: it is there');
-        assert.equal(phone.result.boostersThere && laptop.result.boostersThere, true, 'the Brain Boosters page rendered');
-        assert.equal(phone.result.boosters, false, 'phone: no "Where every challenge makes you sharper…"');
-        assert.equal(laptop.result.boosters, true, 'laptop: it is there');
-        assert.equal(phone.result.starsThere && phone.result.taglineThere, true, 'the stars note and the game\'s tagline rendered');
-        assert.equal(phone.result.stars, false, 'phone: no "Your level and stars in each game are saved…"');
-        assert.equal(laptop.result.stars, true, 'laptop: it is there');
-        assert.equal(phone.result.tagline, false, 'phone: no "Repeating a sequence back is how every skill starts."');
-        assert.equal(laptop.result.tagline, true, 'laptop: it is there');
-        assert.equal(phone.result.goalThere, true, 'the game\'s goal rendered');
-        assert.equal(phone.result.goal, false, 'phone: no "Repeat a run of 3 to clear this level."');
-        assert.equal(laptop.result.goal, true, 'laptop: it is there');
+            const line = [...document.querySelectorAll('p')].find((p) => /Play for your college and win exciting matches/.test(p.textContent));
+            return { there: !!line, shown: !!line && line.getClientRects().length > 0 };`;
+        const phone = await screen({ entry: home(), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: look });
+        const laptop = await screen({ entry: home(), api: api(), styles: true, width: 1366, height: 900, script: look });
+        assert.equal(phone.result.there, true);
+        assert.equal(phone.result.shown, false, 'phone: no "Chess, Ludo and Carrom in inter-college competitions…"');
+        assert.equal(laptop.result.shown, true, 'laptop: it is there');
+    });
+
+    test('Brain Boosters is not a tab here any more: its old address opens Games', async () => {
+        const { result, errors } = await screen({ entry: home('brain-boosters'), api: api(), styles: true, script: `
+            await sleep(900);
+            return { current: $('nav[data-section-tabs] [aria-current="page"]').innerText.trim(), games: $$('[data-game]').map((g) => g.dataset.game), banner: !!$('header h1') };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.current, 'Games');
+        assert.deepEqual(result.games, ['chess', 'ludo', 'carrom'], 'the three games, none of the brain games');
+        assert.equal(result.banner, true, 'with the section\'s banner');
     });
 
     test('Results: a card with long college names stays inside the screen', async () => {

@@ -30,7 +30,7 @@ api.interceptors.request.use(config => {
     // utils/viewOrganization.js.
     const viewed = getViewedOrganization();
     const url = String(config.url || '');
-    if (viewed && (url.startsWith('/organizations/me') || url.startsWith('/competitions/org'))) {
+    if (viewed && (url.startsWith('/organizations/me') || url.startsWith('/competitions/org') || url.startsWith('/linguistic/org'))) {
         config.headers['X-View-Organization'] = viewed.id;
     }
     return config;

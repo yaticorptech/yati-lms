@@ -489,7 +489,7 @@ createRoot(document.getElementById('root')).render(
                          lit: [...$('aside').querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'My Profile').className.includes('bg-indigo-600') };` });
         assert.deepEqual(errors, []);
         assert.deepEqual(result.heads, ['LEARN', 'CAREER', 'ACTIVITIES']);
-        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Community', 'Career Path', 'Interview Prep', 'Jobs', 'Scholarships', 'Games & Competitions']);
+        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Community', 'Career Path', 'Interview Prep', 'Jobs', 'Scholarships', 'Games', 'Competitions']);
         assert.equal(result.href, '/profile');
         assert.equal(result.inNav, false, 'My Profile is not in the menu list');
         assert.equal(result.support, true, 'it sits in the footer with Contact Support');

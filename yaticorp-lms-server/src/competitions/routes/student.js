@@ -1,7 +1,7 @@
 /**
  * Students: the Games & Competitions section of the student app.
  *
- *   GET  /games                    the four games
+ *   GET  /games                    the games: Chess, Ludo, Carrom
  *   GET  /                         competitions to look at (open, upcoming, live, finished)
  *   GET  /me                       my participation: competitions, upcoming / live / completed matches, results
  *   GET  /leaderboard              college, team and player rankings
@@ -9,14 +9,13 @@
  *   GET  /:id                      one competition: details, teams, rounds and matches
  *   GET  /:id/certificate          my certificate, as a PDF, once it is over
  *
- *   POST /rooms                    start a friendly game { game, options } → a room code
- *   POST /rooms/join               join a friendly game { code }
- *   GET  /rooms/mine               my friendly games still open or in play
- *   GET  /play/:gameId?since=N     one game (204-like { unchanged } when version N is current)
+ *   POST /matches/join             { code } — a player types their match's 6-character code → the game to open
+ *   GET  /play/:gameId?since=N     one match game (204-like { unchanged } when version N is current)
  *   POST /play/:gameId/join        I am here (a match starts when everyone is)
- *   POST /play/:gameId/action      { action } — a move, a roll, a card, a shot
- *   POST /play/:gameId/start       the host starts a friendly game
- *   POST /play/:gameId/leave       leave a friendly room before it starts
+ *   POST /play/:gameId/action      { action } — a move, a roll, a shot
+ *
+ * Playing with friends (rooms with a code) was removed on 2026-10-23, and UNO
+ * with it: a friendly game saved before then answers 410.
  */
 const express = require('express');
 const Competition = require('../models/Competition');
@@ -67,14 +66,14 @@ router.get('/me', wrap(async (req, res) => {
     const matches = await Match.find({ 'sides.teamId': { $in: myTeams.map((t) => t._id) } }).lean();
     const allTeams = await Team.find({ _id: { $in: matches.flatMap((m) => m.sides.map((s) => s.teamId)) } }).lean();
     const PlayGame = require('../models/PlayGame');
-    const gameRows = await PlayGame.find({ _id: { $in: matches.flatMap((m) => m.gameIds) } }).select('status').lean();
+    const gameRows = await games.withCodes(await PlayGame.find({ _id: { $in: matches.flatMap((m) => m.gameIds) } }).select('status code kind').lean());
     const compOf = (id) => comps.find((c) => String(c._id) === String(id));
     const myTeamIn = (m) => myTeams.find((t) => m.sides.some((s) => String(s.teamId) === String(t._id)));
     const withComp = (m) => {
         const c = compOf(m.competitionId);
         const team = myTeamIn(m);
         const side = m.sides.find((s) => String(s.teamId) === String(team?._id));
-        const v = views.matchView(m, allTeams, gameRows);
+        const v = views.matchView(m, allTeams, gameRows, { showCode: true });
         return {
             ...v,
             competition: c ? { id: String(c._id), name: c.name, game: c.game, ...views.gameInfo(c.game) } : null,
@@ -162,18 +161,12 @@ router.delete('/certificates/:competitionId', wrap(async (req, res) => {
     res.json({ ok: true });
 }));
 
-/* ── Friendly games and play ─────────────────────────────────────────── */
+/* ── Play ───────────────────────────────────────────────────────────── */
 
-// Wallet rule (optional): each room created; refunded if it could not be made.
-router.post('/rooms', chargeWallet('create_game_room'), wrap(async (req, res) => res.status(201).json(await games.createRoom(req.user, String(req.body?.game || ''), req.body?.options))));
-router.post('/rooms/join', wrap(async (req, res) => res.json(await games.joinRoom(req.user, req.body?.code))));
-router.get('/rooms/mine', wrap(async (req, res) => res.json({ rooms: await games.myRooms(req.user._id) })));
-
+router.post('/matches/join', wrap(async (req, res) => res.json(await games.joinByCode(req.user, req.body?.code))));
 router.get('/play/:gameId', wrap(async (req, res) => res.json(await games.poll(req.params.gameId, req.user._id, req.query.since))));
 router.post('/play/:gameId/join', wrap(async (req, res) => res.json(await games.join(req.params.gameId, req.user._id))));
 router.post('/play/:gameId/action', wrap(async (req, res) => res.json(await games.act(req.params.gameId, req.user._id, req.body?.action))));
-router.post('/play/:gameId/start', wrap(async (req, res) => res.json(await games.startRoom(req.params.gameId, req.user._id))));
-router.post('/play/:gameId/leave', wrap(async (req, res) => res.json(await games.leaveRoom(req.params.gameId, req.user._id))));
 
 /* ── One competition ─────────────────────────────────────────────────── */
 

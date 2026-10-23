@@ -13,9 +13,8 @@ import useCountUp from '../hooks/useCountUp';
  * the same card, under the streak number. It once had a violet card of its
  * own beside this one; two cards for one week of activity was one too many.
  *
- * Wrapped in the Career Path scope, without its page background (as
- * CareerProviders' `embedded` does), because the panel's typeface and its
- * flame's flicker live there.
+ * Wrapped in the Career Path scope, without its page background, because the
+ * panel's typeface and its flame's flicker live there.
  */
 export default function WeeklyActivityCard({ streak, activity, weekly, careerOn, completedCourses = 0, certificates = 0 }) {
     const shownCourses = useCountUp(completedCourses, 900);

@@ -47,6 +47,8 @@ const AdminMatch = ({ match, onCall }) => {
                     </li>
                 ))}
             </ul>
+            {/* The open game's code, to give its players: they type it in Games → Join with a code. */}
+            {match.gameCode && <p className="mt-2 text-xs text-slate-600" data-match-code={match.gameCode}>Match code <span className="rounded-md bg-slate-900 px-1.5 py-0.5 font-mono text-[11px] font-black tracking-[0.2em] text-white">{match.gameCode}</span></p>}
             {match.resultNote && <p className="mt-2 text-xs text-slate-600">{match.resultNote}{match.decidedBy ? ` (${match.decidedBy})` : ''}</p>}
             {match.needsDecision && <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-orange-800"><AlertTriangle size={13} /> Needs your decision.</p>}
 

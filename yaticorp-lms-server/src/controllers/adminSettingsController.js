@@ -24,7 +24,7 @@ const getSettings = async (req, res) => {
 // @access  Private/Admin
 const updateSettings = async (req, res) => {
     try {
-        const { isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isRewardsEnabled, globalQuiz } = req.body;
+        const { isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isRewardsEnabled, isLinguisticEnabled, globalQuiz } = req.body;
 
         let settings = await Setting.findOne();
         if (!settings) {
@@ -47,6 +47,10 @@ const updateSettings = async (req, res) => {
             settings.isRewardsEnabled = isRewardsEnabled;
         }
 
+        if (isLinguisticEnabled !== undefined) {
+            settings.isLinguisticEnabled = isLinguisticEnabled;
+        }
+
         if (globalQuiz && typeof globalQuiz === 'object') {
             const current = settings.globalQuiz?.toObject ? settings.globalQuiz.toObject() : (settings.globalQuiz || {});
             if (typeof globalQuiz.enabled === 'boolean') current.enabled = globalQuiz.enabled;
@@ -66,6 +70,7 @@ const updateSettings = async (req, res) => {
         require('../career/middleware/featureGate').invalidateCareerSetting();
         require('../jobboard/middleware/featureGate').invalidateJobsSetting();
         require('../rewards/middleware/featureGate').invalidateRewardsSetting();
+        require('../linguistic/config').invalidateLinguisticSetting();
         res.json(settings);
     } catch (error) {
         res.status(500).json({ message: 'Server error updating settings', error: error.message });

@@ -107,6 +107,8 @@ const OurMatches = ({ competition: c, detail, team, onChanged }) => {
                         <p className="mt-1 text-sm text-slate-600"><Swords size={14} className="mr-1 inline text-slate-400" />{m.sides.map((s) => s.teamName).join(' vs ')}</p>
                         {/* A bye is no game: nobody to play, so the team simply goes through. */}
                         {m.status === 'bye' && <p className="mt-1 text-sm font-semibold text-slate-600">No opponent this round. {mine.teamName} goes straight to the next round.</p>}
+                        {/* Your college's match: its code, to give your players. */}
+                        {m.gameCode && <p className="mt-1 text-xs text-slate-600" data-match-code={m.gameCode}>Match code <span className="rounded-md bg-slate-900 px-1.5 py-0.5 font-mono text-[11px] font-black tracking-[0.2em] text-white">{m.gameCode}</span></p>}
                         {m.winnerTeamId && m.status !== 'bye' && <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-emerald-700"><Crown size={14} /> {m.sides.find((s) => s.teamId === m.winnerTeamId)?.teamName} won{m.resultNote ? ` — ${m.resultNote}` : ''}</p>}
                         {m.status === 'scheduled' ? (
                             <div className="mt-3">
@@ -232,7 +234,7 @@ export default function OrgCompetitions() {
     const hostLocked = canHost === true ? null : "Your organization can't host competitions yet. The platform admin has to enable it.";
     return (
         <div className="space-y-6 pb-24 animate-fade-in">
-            <PageHeader icon={Trophy} title="Games & Competitions" subtitle="Inter-college Chess, Ludo, Carrom and UNO. Enter your college's team, or host a competition of your own." />
+            <PageHeader icon={Trophy} title="Games & Competitions" subtitle="Inter-college Chess, Ludo and Carrom. Enter your college's team, or host a competition of your own." />
             <div className="space-y-2">
                 <Segmented options={[['enter', 'Take part'], ['host', 'Host competitions']]} value={tab}
                     onChange={(t) => setParams(t === 'host' ? { tab: 'host' } : {}, { replace: true })}

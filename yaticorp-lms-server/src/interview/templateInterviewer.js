@@ -5,6 +5,8 @@
  * Used when Gemini is not configured, over budget, or answers badly — and
  * it is what makes the section testable without a key.
  */
+const { classWords } = require('./level');
+
 const pick = (arr, i) => arr[i % arr.length];
 const humanList = (arr) => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} and ${arr[arr.length - 1]}`);
 
@@ -50,6 +52,65 @@ const QUESTION_BANK = {
     closing: (c) => [`Thank you, ${c.firstName}. That concludes our interview. I'll share your evaluation now.`]
 };
 
+/**
+ * The question a school student is asked about what comes next, by where
+ * they are: a younger child what they want to become, Class 9–10 the stream
+ * after Class 10, Class 11–12 the course after Class 12.
+ */
+const futureQuestion = (c) => ({
+    high: 'Which stream do you want to take after Class 10 — Science, Commerce or Arts — and why?',
+    senior: 'Which course do you want to study after Class 12, and why?'
+}[c.level?.key] || (c.goal ? `You want to become a ${c.goal} one day. What made you want that?` : 'What would you like to become when you grow up, and why?'));
+
+/**
+ * The same stages for a school student (level.js): their class, subjects,
+ * school projects and life with friends and teachers — never a manager, a
+ * client or a salary.
+ */
+const SCHOOL_QUESTION_BANK = {
+    intro: (c) => [`Hi ${c.firstName}, welcome to your practice interview. Let's begin. Tell me a little about yourself.`],
+    about: (c) => [
+        c.goal ? `You want to become a ${c.goal} one day. What made you interested in that?` : 'What do you enjoy most, in school and outside it?',
+        futureQuestion(c)
+    ],
+    background: (c) => [
+        `Which subject do you enjoy most in ${classWords(c.level)}, and why?`,
+        c.completedCourses.length ? `You finished "${c.completedCourses[0]}". What was the most interesting thing you learnt?` : 'What is something new you learnt recently, in school or outside it?'
+    ],
+    skills: (c) => [
+        c.strongSkills.length ? `You are good at ${humanList(c.strongSkills.slice(0, 2))}. Tell me about a time you used it.` : 'What are you good at? Tell me about one thing you do well.',
+        c.learningSkills.length ? `You are learning ${humanList(c.learningSkills.slice(0, 2))}. What is the hardest part so far?` : 'What are you trying to get better at right now?'
+    ],
+    technical: (c) => {
+        const s = c.strongSkills[0] || c.skills[0]?.name;
+        return [
+            s ? `Explain ${s} to me in simple words, as you would to a younger classmate.` : `Pick one topic you learnt in ${classWords(c.level)} and explain it to me simply, as you would to a younger classmate.`,
+            'How do you solve a maths or science question you have never seen before?',
+            'How do you check that your answer to a question is right?'
+        ];
+    },
+    project: (c) => c.projects.length
+        ? [
+            `Tell me about "${c.projects[0].name}". What did you do yourself?`,
+            c.projects[1] ? `You also did "${c.projects[1].name}". What would you do differently next time?` : `What was the hardest part of "${c.projects[0].name}", and what did you do?`
+        ]
+        : ['Tell me about a school project, model or activity you are proud of. What did you do yourself?', 'What was the hardest part of it, and what did you do?'],
+    problem: () => [
+        'You have two tests on the same day and only one evening to prepare. How would you plan it?',
+        'Your class wants to plant trees around the school, but there is very little money. How would you help make it happen?'
+    ],
+    behavioral: () => [
+        'Tell me about a time you had to learn something quickly, like before a test.',
+        'Tell me about a time a teacher or parent gave you advice that helped you.'
+    ],
+    situational: () => [
+        'Imagine someone in your group project is not doing their part. What would you do?',
+        'If a friend asked to copy your homework, what would you say?'
+    ],
+    candidate: () => ['We are almost done. Do you have any questions for me?'],
+    closing: (c) => [`Thank you, ${c.firstName}. That's the end of our practice interview. I'll share how you did now.`]
+};
+
 /** A follow-up when the answer offers one; null when it does not. */
 const followUpFor = (stage, answer, c) => {
     const a = String(answer || '').trim();
@@ -72,7 +133,7 @@ const nextQuestion = ({ session, context, nextStage, canFollowUp, lastTurn }) =>
         const f = followUpFor(lastTurn.stage, lastTurn.answer, context);
         if (f) return { question: f, stage: lastTurn.stage, isFollowUp: true, difficulty: 'medium' };
     }
-    const options = QUESTION_BANK[nextStage](context);
+    const options = (context.level?.school ? SCHOOL_QUESTION_BANK : QUESTION_BANK)[nextStage](context);
     const already = session.turns.filter((t) => t.stage === nextStage && !t.isFollowUp).length;
     return { question: pick(options, already), stage: nextStage, isFollowUp: false, difficulty: 'medium' };
 };
@@ -197,6 +258,7 @@ const evaluate = ({ session, context }) => {
  * bank (aiInterviewer.coachQuestions); these are the built-in bank's.
  */
 const generateQuestions = (context) => {
+    if (context.level?.school) return schoolQuestions(context);
     const out = [];
     const add = (category, topic, question, hint, difficulty = 'medium', coach = {}) =>
         out.push({ id: `${category}-${out.length + 1}`, category, topic, question, hint, difficulty, ...coach });
@@ -330,6 +392,129 @@ const generateQuestions = (context) => {
 };
 
 /**
+ * The practice bank for a school student (level.js): about themselves, their
+ * subjects and plans, what they learn in class, school projects, and
+ * situations with friends, teachers and exams — written in simple English,
+ * each with a sample answer, what to say and what to leave out.
+ */
+const schoolQuestions = (context) => {
+    const out = [];
+    const add = (category, topic, question, hint, difficulty, sample, say, avoid) =>
+        out.push({ id: `${category}-${out.length + 1}`, category, topic, question, hint, difficulty, sample, say, avoid });
+    const cls = classWords(context.level);
+    const inClass = context.level?.classNo ? `in Class ${context.level.classNo}` : 'in [your class]';
+    const course = context.completedCourses[0] || context.ongoingCourses[0];
+
+    add('hr', 'Introduction', 'Tell me about yourself.', 'Say your name and class, what you enjoy, and one thing you are proud of. Keep it under a minute.', 'easy',
+        `I'm ${context.firstName}, and I study ${inClass}. I enjoy [your favourite subject or hobby], and I'm proud that I [something you did well]. ${context.goal ? `One day I want to become a ${context.goal}.` : 'I like learning new things and trying them out.'}`,
+        ['Your name and class', 'What you enjoy', 'One thing you are proud of'], ['Your address or phone number', 'Saying your name and stopping']);
+    add('hr', 'Subjects', 'Which subject do you enjoy most, and why?', 'Name it, say what you like about it, and give one topic you found interesting.', 'easy',
+        'I enjoy [the subject] the most because [the reason]. This year I liked learning about [a topic], and I [something you did with it: made a model, solved harder questions, read more].',
+        ['The subject and the reason', 'One topic you liked', 'Something you did with it'], ['"All subjects", with no reason', 'Complaining about a teacher']);
+    add('hr', 'Your future', futureQuestion(context), 'Say what you want, why it suits you, and one thing you are already doing about it.', 'medium',
+        `I want to [the stream, course or career you choose] because [the reason: a subject you love, something you saw or did]. ${course ? `Learning "${course}" showed me I enjoy it.` : 'I am already [one thing you do towards it].'} I know it needs hard work, and I am ready for it.`,
+        ['What you want', 'Why it suits you', 'What you are already doing'], ['"My parents told me to", with no reason of your own', '"I don\'t know yet"']);
+    add('hr', 'Strengths', 'What are you good at?', 'Pick one or two things and give an example of each from school or home.', 'easy',
+        "I'm good at [a strength, e.g. explaining things to my friends]. For example, [a time you used it]. I'm also [another strength], which helps me [how it helps].",
+        ['One or two strengths', 'An example for each', 'How it helps you'], ['A long list with no examples', 'Boasting']);
+    add('hr', 'Getting better', 'What is one thing you want to get better at?', 'Choose something real, and say what you are doing about it.', 'medium',
+        "I want to get better at [e.g. managing my time before exams]. Now I [what you are doing: make a timetable, practise every day], and it is slowly getting better.",
+        ['Something real', 'What you are doing about it', 'Any progress so far'], ['"Nothing"', 'Something that is really a boast']);
+    add('hr', 'Free time', 'What do you like to do in your free time?', 'Talk about a hobby, why you enjoy it, and what it teaches you.', 'easy',
+        "In my free time I like [your hobby]. It helps me [relax, be creative, stay fit], and it has taught me [something, e.g. patience].",
+        ['A real hobby', 'Why you enjoy it', 'What it teaches you'], ['Only "I watch my phone"', 'A one-word answer']);
+    add('hr', 'Inspiration', 'Who inspires you, and why?', 'A person you look up to, and what you learn from them.', 'easy',
+        'I look up to [a person] because [what they did]. From them I learnt to [the lesson], and I try to [how you follow it].',
+        ['Who, and why', 'What you learn from them', 'How you follow it'], ['A name with no reason', 'Someone you know nothing about']);
+
+    for (const s of context.skills.slice(0, 3)) {
+        add('technical', s.name, `Explain ${s.name} in your own words, as you would to a younger classmate.`, 'Say what it is in one line, then give one example from school or daily life.', 'easy',
+            `${s.name} is [what it is, in simple words]. For example, [an everyday example]. I learnt it [where: in class, in a course, in a project].`,
+            ['One simple line', 'An everyday example', 'Where you learnt it'], ['Copying a textbook definition', 'Pretending to know what you do not']);
+        add('technical', s.name, `Where have you used ${s.name}, in school or at home?`, 'A real time you used it, and what came of it.', 'medium',
+            `I used ${s.name} when [a real time: a class activity, homework, a project], and it helped me [the result]. Next I want to [what you want to try with it].`,
+            ['A real time you used it', 'What came of it', 'What you want to try next'], ['A made-up example', 'Only saying "many times"']);
+    }
+    add('technical', 'What you learn', `Pick one topic you learnt ${context.level?.classNo ? `in Class ${context.level.classNo}` : 'this year'} and explain it simply.`, 'Choose a topic you understand well, explain it in three or four sentences, and give an example.', 'medium',
+        `One topic I learnt ${inClass} is [the topic]. It means [a simple explanation]. For example, [an example]. I like it because [the reason].`,
+        ['A topic you really understand', 'A simple explanation', 'One example'], ['A topic you only half know', 'Reading out your notes']);
+    add('technical', 'Solving problems', 'How do you solve a maths or science question you have never seen before?', 'Read it carefully, write what you know, try one step at a time, and check your answer.', 'medium',
+        'First I read the question twice and write down what is given and what is asked. Then I think of an idea or formula from class that fits, try it step by step, and check whether the answer makes sense.',
+        ['Read and understand it first', 'One step at a time', 'Check the answer'], ['"I skip it"', 'Guessing without trying']);
+    add('technical', 'Exams', 'How do you prepare for your exams?', 'Your plan: a timetable, revision, practice papers, and rest.', 'easy',
+        'A few weeks before, I make a timetable and revise one subject at a time. I practise old question papers, mark my mistakes and go over them again. The night before, I read my short notes and sleep on time.',
+        ['A plan you really follow', 'Practice and revision', 'Rest before the exam'], ['"I study the night before"', 'A plan you do not follow']);
+    add('technical', 'Learning', 'What is something you learnt recently outside your textbook?', 'A fact, a skill or an idea, and where you learnt it.', 'medium',
+        `Recently I learnt [something] from [a book, a video, ${course ? `the course "${course}"` : 'a course'} or a person]. I found it interesting because [the reason], and I [what you did with it].`,
+        ['What you learnt', 'Where you learnt it', 'What you did with it'], ['"Nothing"', 'Something you cannot explain']);
+
+    if (context.projects.length) {
+        for (const p of context.projects.slice(0, 2)) {
+            add('project', p.name, `Tell me about "${p.name}". What did you do yourself?`, 'What it was, your own part, and what you learnt.', 'medium',
+                `"${p.name}" was about [what it was]. My part was [what you did yourself], and in the end [the result]. I learnt [the lesson].`,
+                ['What it was', 'Your own part', 'What you learnt'], ['"We did it", with nothing about you', 'Making it sound bigger than it was']);
+        }
+    } else {
+        add('project', 'School project', 'Tell me about a school project, model or activity you are proud of.', 'What it was, what you did yourself, and what you learnt.', 'medium',
+            'For [a school project or event], I [what you did yourself], and our [model or project] [what it did]. I learnt [the lesson], and I was proud because [the reason].',
+            ['What it was', 'Your own part', 'What you learnt'], ['"We did it", with nothing about you', '"I have never done one"']);
+    }
+    add('project', 'The hard part', 'What was the hardest part of a project you did, and what did you do?', 'One real problem and how you solved it.', 'medium',
+        'The hardest part was [the problem]. First I tried [your idea]; when that did not work, I [asked a teacher, tried another way]. It taught me [the lesson].',
+        ['One real problem', 'What you tried', 'What it taught you'], ['"Nothing was hard"', 'Blaming your group']);
+    add('project', 'Your idea', 'If you could make any project for your school science fair, what would it be?', 'An idea, why it matters, and how you would start.', 'hard',
+        'I would make [your idea] because [the problem it solves or why it is interesting]. I would start by [the first step], and I would need [the materials or help].',
+        ['Your idea', 'Why it matters', 'How you would start'], ['An idea you cannot explain', '"I don\'t know"']);
+
+    add('behavioral', 'Learning quickly', 'Tell me about a time you had to learn something quickly, like before a test.', 'Say what happened, what you did, and how it ended.', 'medium',
+        'Before my [subject] test I had only [a short time] to learn [a topic]. I made short notes, practised a few questions every day and asked my teacher my doubts. I [the result], and now I start earlier.',
+        ['What happened', 'What you did, step by step', 'How it ended'], ['A story with no ending', 'Saying it was easy']);
+    add('behavioral', 'Teamwork', 'Tell me about a time you worked in a group at school.', 'Your part in the group, a problem you faced together, and how it ended.', 'medium',
+        'In a group [project or event] we had to [the task]. I [your part], and when [a problem came up] we [how you fixed it together]. In the end we [the result].',
+        ['Your own part', 'A problem and how you fixed it', 'How it ended'], ['Blaming your group', 'A story where you did nothing']);
+    add('behavioral', 'Advice', 'Tell me about advice from a teacher or parent that helped you.', 'The advice, what you changed, and the difference it made.', 'easy',
+        'My [teacher or parent] told me [the advice]. I started [what you changed], and [the difference it made].',
+        ['The advice', 'What you changed', 'The difference it made'], ['Advice you ignored', 'Getting upset about it']);
+    add('behavioral', 'Mistakes', 'Tell me about a mistake you made and what you learnt from it.', 'Own it, say how you fixed it, and what you do differently now.', 'medium',
+        'Once I [the mistake, e.g. did not check my answers] and [what happened]. I owned up, fixed it, and now I always [the habit you built].',
+        ['Own it plainly', 'How you fixed it', 'What you do now'], ['Blaming someone else', 'A made-up mistake']);
+    add('behavioral', 'Nerves', 'Tell me about a time you felt nervous — before an exam, a speech or a match. What did you do?', 'What made you nervous, what you did about it, and how it went.', 'medium',
+        'Before [the event] I felt nervous. I [what you did: practised, took deep breaths, talked to someone], and it went [how it went]. Now I know [what you learnt].',
+        ['What made you nervous', 'What you did about it', 'What you learnt'], ['"I never get nervous"', 'Giving up']);
+
+    add('situational', 'Honesty', 'A friend asks to copy your homework. What do you do?', 'Say no kindly, and offer to help them understand it instead.', 'easy',
+        "I'd tell my friend kindly that copying won't help in the exam, and offer to explain the parts they find hard. That way we both learn.",
+        ['Say no kindly', 'Offer to help them learn', 'Why honesty matters'], ['Letting them copy', 'Telling everyone about it']);
+    add('situational', 'Group work', 'Someone in your group project is not doing their part. What would you do?', 'Talk to them first, offer help, and tell the teacher only if nothing changes.', 'medium',
+        "I'd talk to them first and ask if something is wrong, then offer to help or share the work differently. If nothing changes, I'd tell our teacher politely.",
+        ['Talk to them first', 'Offer help', 'Tell the teacher only if needed'], ['Complaining behind their back', 'Doing all their work quietly']);
+    add('situational', 'A busy week', 'You have an exam and a big school event in the same week. How do you plan?', 'Write down both, plan day by day, and ask for help early if you need it.', 'medium',
+        "I'd write down both dates, make a day-by-day plan and study a little every day while practising for the event. If it got too much, I'd tell my teacher early.",
+        ['A day-by-day plan', 'A little every day', 'Ask for help early'], ['Dropping one of them', 'Leaving everything to the last day']);
+    add('situational', 'Doubts', 'You did not understand what the teacher taught today. What do you do?', 'Try it again at home, note your doubts, and ask the next day.', 'easy',
+        "I'd read the topic again at home, try a few questions and write down my doubts. The next day I'd ask the teacher or a friend, because asking early stops a doubt from growing.",
+        ['Try it yourself first', 'Write down your doubts', 'Ask early'], ['Hoping it will not come in the exam', 'Feeling too shy to ask']);
+    add('situational', 'Kindness', 'You see a classmate being teased by others. What would you do?', 'Do not join in, support your classmate, and tell a teacher if it goes on.', 'medium',
+        "I wouldn't join in. I'd stand with my classmate, ask the others to stop, and if it goes on, I'd tell a teacher. Everyone should feel safe at school.",
+        ['Do not join in', 'Support your classmate', 'Tell a teacher if it goes on'], ['Laughing along', 'Fighting the others']);
+    return out;
+};
+
+/** The topics a school student should be ready for. */
+const schoolTopics = (context) => {
+    const topics = [
+        { topic: 'Tell me about yourself', reason: 'The first question in almost every interview.' },
+        { topic: 'Your favourite subject', reason: 'Know why you like it, with one topic.' },
+        { topic: { high: 'Your stream after Class 10', senior: 'Your course after Class 12' }[context.level?.key] || 'What you want to become', reason: 'Be ready to say what you want, and why.' }
+    ];
+    for (const s of context.strongSkills.slice(0, 1)) topics.push({ topic: s, reason: 'Your strength — be ready to explain it simply.' });
+    if (context.projects.length) topics.push({ topic: `Your project: ${context.projects[0].name}`, reason: 'Practise telling it in one minute.' });
+    else topics.push({ topic: 'A school project or activity', reason: 'Have one story ready about something you did.' });
+    topics.push({ topic: 'Telling a story', reason: 'What happened, what you did, how it ended.' });
+    return topics.slice(0, 6);
+};
+
+/**
  * What a strong answer says, and what to leave out, by kind of question: for
  * a question whose own tips have not been written (an AI bank saved before
  * questions came with them, or a batch the AI could not write).
@@ -344,6 +529,7 @@ const TIPS = {
 const tipsFor = (category) => TIPS[category] || TIPS.hr;
 
 const recommendTopics = (context) => {
+    if (context.level?.school) return schoolTopics(context);
     const topics = [];
     for (const s of context.learningSkills.slice(0, 3)) topics.push({ topic: s, reason: 'Still developing — interviewers will probe it.' });
     for (const s of context.strongSkills.slice(0, 2)) topics.push({ topic: s, reason: 'Your strength — be ready to go deep.' });
@@ -353,4 +539,4 @@ const recommendTopics = (context) => {
     return topics.slice(0, 6);
 };
 
-module.exports = { nextQuestion, evaluate, generateQuestions, recommendTopics, tipsFor, QUESTION_BANK };
+module.exports = { nextQuestion, evaluate, generateQuestions, recommendTopics, tipsFor, QUESTION_BANK, SCHOOL_QUESTION_BANK };

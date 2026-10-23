@@ -10,10 +10,13 @@
  * utils/saveSignal: the server pays XP for a forum post, a profile picture, a
  * job application… without the page saying so — those climbs were only found
  * when the dashboard next opened), and when the app comes back to the front
- * (at most once a minute). The place last seen is kept per student and per
- * week (`rw:rank:<user>:<weekKey>`). When the new place is higher, the climb
- * plays (LeaderboardRankUp): the student's card rising from the old place
- * past the students it has overtaken.
+ * (at most once a minute). The place last seen, and the best place
+ * celebrated, are kept per student and per week (`rw:rank:<user>:<weekKey>`,
+ * rankPlaces.js). The climb plays (LeaderboardRankUp) only for a place better
+ * than any already celebrated this week: the student's card rising from the
+ * old place past the students it has overtaken. Two students trading places
+ * (#2, #1, #2, #1…) see it once, not at every swap (asked 2026-10-23: "why is
+ * this coming again and again").
  *
  * It shows on the page the student is on (asked again 2026-10-16: "display in
  * same page where user is there in current ... dont give popup msg only in
@@ -31,6 +34,7 @@ import { useRewards } from '../../context/useRewards';
 import { useLoopHidden } from '../loopVisibility';
 import { busyOnScreen } from '../busyScreen';
 import LeaderboardRankUp from './LeaderboardRankUp';
+import { rankUpSince, climbedSince } from './rankPlaces';
 
 const PERIOD = 'weekly';
 // Pages that are themselves the thing being done, to the end: the climb waits
@@ -49,37 +53,6 @@ const QUIET_MS = 2500;
 const FREE_MS = 1200;
 // Saves that never pay XP, made over and over while a page is open.
 const NOT_XP = /\/playback\b|\/rewards\/|notifications|\/read$|\/announcements\/clear|generate-otp/;
-
-/**
- * The place last seen this week, swapped for `now`: { from, to } when it has
- * gone up, else null. Places from earlier weeks (and the old per-browser
- * 'rw:rank:weekly' keys) are cleared as a new one is stored.
- */
-const rankUpSince = (userId, periodKey, now) => {
-    if (!userId || !periodKey) return null;
-    const prefix = `rw:rank:${userId}:${periodKey.split(':')[0]}:`;
-    const key = `rw:rank:${userId}:${periodKey}`;
-    try {
-        const prev = Number(localStorage.getItem(key));
-        if (now) {
-            for (let i = localStorage.length - 1; i >= 0; i--) {
-                const k = localStorage.key(i);
-                if (k && k !== key && (k.startsWith(prefix) || /^rw:rank:(daily|weekly|monthly|all)$/.test(k))) localStorage.removeItem(k);
-            }
-            localStorage.setItem(key, String(now));
-        }
-        return now && prev && now < prev ? { from: prev, to: now } : null;
-    } catch { return null; /* private mode */ }
-};
-
-/** Whether the place stored for this week is lower than `now`, without storing it. */
-const climbedSince = (userId, periodKey, now) => {
-    if (!userId || !periodKey || !now) return false;
-    try {
-        const prev = Number(localStorage.getItem(`rw:rank:${userId}:${periodKey}`));
-        return !!prev && now < prev;
-    } catch { return false; }
-};
 
 const videoPlaying = () => Array.from(document.querySelectorAll('video')).some((v) => !v.paused && !v.ended);
 

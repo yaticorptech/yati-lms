@@ -9,6 +9,7 @@
  *   POST /sessions/:id/finish        evaluate → the report (+XP, badge checks)
  *   GET  /sessions                   history
  *   GET  /sessions/:id               one session with its transcript and report
+ *   …/aptitude                       aptitude practice (aptitudeRoutes.js)
  *
  * Every route reads req.user only. The interviewer never sees anyone
  * else's data, and a student can only reach their own sessions.
@@ -30,6 +31,7 @@ const { coursesForSkills } = require('../jobboard/services/lmsCourses');
 const comms = require('./communicationService');
 const { assess } = require('./answerCheck');
 const { repairSaved } = require('./repairSaved');
+const aptitude = require('./aptitudeRoutes');
 
 const router = express.Router();
 router.use(protectUser);
@@ -38,6 +40,8 @@ router.use(rateLimit({
     keyGenerator: (req) => (req.user?._id ? String(req.user._id) : ipKeyGenerator(req.ip)),
     message: { message: 'Too many requests — slow down a moment.' }
 }));
+
+router.use('/aptitude', aptitude.router);
 
 /** The stages each interview type walks through, in order. A stage may repeat. */
 const PLANS = {
@@ -82,8 +86,12 @@ const publicSession = (s, { withContext = false } = {}) => ({
 /* ── Practice bank ────────────────────────────────────────────────────── */
 
 // Bumped when the bank itself changes shape, so every student's bank is
-// rebuilt once. v2: 30-40 questions instead of about 20.
-const BANK_VERSION = 'v2';
+// rebuilt once. v2: 30-40 questions instead of about 20. v3: pitched to the
+// student's class or level (level.js).
+const BANK_VERSION = 'v3';
+// The level is part of what a bank was written for: a student who moves from
+// Class 9 to Class 10, or sets their level in Career Path, gets a new one.
+const levelKey = (context) => (context.level ? `${context.level.key}${context.level.classNo || ''}` : 'general');
 
 // One generation per student at a time. A second request while the first is
 // still writing must not start another; it waits on, or ignores, this one.
@@ -178,7 +186,7 @@ const withTips = (q) => {
 const ensurePrep = async (userId, context) => {
     let prep = await InterviewPrep.findOne({ userId });
     if (!prep) prep = new InterviewPrep({ userId });
-    const source = `${context.hash}:${BANK_VERSION}`;
+    const source = `${context.hash}:${levelKey(context)}:${BANK_VERSION}`;
     if (prep.questions.length && prep.generatedFrom === source) {
         if (prep.questions.every((q) => q.sample)) return { prep, generating: false, coaching: false };
         if (await ai.configuredFor(userId)) return { prep, generating: false, coaching: coach(userId, context) };
@@ -213,7 +221,10 @@ router.get('/dashboard', async (req, res, next) => {
         if (!context) return res.status(404).json({ message: 'Account not found.' });
         const [r, { prep, generating: banking }] = await Promise.all([readiness(req.user._id, context), ensurePrep(req.user._id, context)]);
         await InterviewPrep.updateOne({ userId: req.user._id }, { $set: { readiness: r.overall } });
-        const active = await InterviewSession.findOne({ userId: req.user._id, status: 'active' }).sort({ startedAt: -1 }).select('_id type startedAt turns').lean();
+        const [active, aptitudeStats] = await Promise.all([
+            InterviewSession.findOne({ userId: req.user._id, status: 'active' }).sort({ startedAt: -1 }).select('_id type startedAt turns').lean(),
+            aptitude.summary(req.user._id)
+        ]);
         res.json({
             student: { name: context.name, firstName: context.firstName, goal: context.goal, strongSkills: context.strongSkills, learningSkills: context.learningSkills, projects: context.projects.map((p) => p.name) },
             readiness: r,
@@ -221,6 +232,8 @@ router.get('/dashboard', async (req, res, next) => {
             practice: { total: prep.questions.length, practiced: prep.practiced.length, sample: prep.questions.filter((q) => !prep.practiced.includes(q.id)).slice(0, 3), generating: banking },
             activeSession: active ? { id: String(active._id), type: active.type, startedAt: active.startedAt, answered: active.turns.filter((t) => t.answer).length } : null,
             types: TYPES,
+            // The aptitude practice's card: its name for this student and their scores.
+            aptitude: { title: aptitude.titleFor(context.level), school: !!context.level?.school, sets: aptitudeStats.sets, best: aptitudeStats.best, last: aptitudeStats.last },
             ai: { configured: ai.configured(), model: ai.configured() ? ai.MODEL : 'template' }
         });
     } catch (err) { next(err); }

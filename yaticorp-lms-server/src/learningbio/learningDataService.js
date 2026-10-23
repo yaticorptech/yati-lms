@@ -190,6 +190,10 @@ const collect = async (userId) => {
         // public share shape (index.js publicShape) never copies them.
         user: { id: String(user._id), name: user.name, email: user.email || '', phone: user.phone || '', avatar: user.profilePicture || '', accountType: user.accountType, institution: user.institution || '', className: user.className || '', xp: user.xp || 0, level: user.level || 1, joinedAt: user.createdAt },
         audience: audienceFor(goal, user),
+        // Where Career Path says they are in school or after it. Interview Prep
+        // pitches its questions to it (interview/level.js). Not part of the
+        // fingerprint: the bio does not use it.
+        schooling: { educationLevel: goal?.educationLevel || '', currentClass: goal?.currentClass || '', board: goal?.board || '' },
         education: resume?.education || [],
         experience: resume?.experience || [],
         learningGoal: goal?.careerGoal || '',
