@@ -35,6 +35,7 @@
  *     GET    /me/requests                students asking to join
  *     GET    /me/requests/count          { pending } for the navigation badge
  *     PUT    /me/requests/:requestId     approve or reject
+ *     *      /me/teachers/…              its teachers and their join requests (src/teacher/orgAdmin.js)
  *
  *   Organization admin, before approval (protectOrgAdmin only)
  *     GET    /me/status                  where my application stands
@@ -136,6 +137,9 @@ router.route('/me/students/:studentId').get(orgCtrl.getStudent).delete(orgCtrl.r
 router.get('/me/requests', orgCtrl.getRequests);
 router.get('/me/requests/count', orgCtrl.getRequestCount);
 router.put('/me/requests/:requestId', orgCtrl.decideRequest);
+// Its teachers: added with a card, or asking to join from the teacher
+// dashboard — see src/teacher/orgAdmin.js.
+router.use('/me/teachers', require('../teacher/orgAdmin'));
 
 // ── Organization admin: its own courses ─────────────────────────────────────
 // The platform's course-building code, fenced: courses must be switched on by

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { ShieldCheck, FolderOpen, UserRound, X, ExternalLink } from 'lucide-react';
 import { beginConnect } from './api';
-import { consentRequest, getSnapshot, settleConsent, subscribe } from './googleStore';
+import { consentRequest, getSnapshot, rememberDeclined, settleConsent, subscribe } from './googleStore';
 
 /**
  * The permission screen, shown before anything is ever sent to a student's
@@ -23,7 +23,8 @@ export default function GoogleConsentDialog() {
 
   if (!request) return null;
 
-  const close = () => settleConsent(false);
+  // Not now, ×, Escape or a tap outside: the student said no, for this visit.
+  const close = () => { rememberDeclined(); settleConsent(false); };
 
   const connect = async () => {
     try {

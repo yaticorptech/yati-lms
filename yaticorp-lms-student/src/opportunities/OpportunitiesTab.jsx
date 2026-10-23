@@ -67,14 +67,17 @@ const Hero = ({ band, hasProfile, total, loading, window: w }) => {
     );
 };
 
+// With no title, only the action shows, on the right where it sits beside one.
 const SectionTitle = ({ icon: Icon, title, hint, action }) => (
-    <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-        <div>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-                <Icon size={18} className="text-indigo-500" aria-hidden="true" /> {title}
-            </h2>
-            {hint && <p className="mt-0.5 text-sm text-slate-500">{hint}</p>}
-        </div>
+    <div className={`mb-3 flex flex-wrap items-end gap-2 ${title ? 'justify-between' : 'justify-end'}`}>
+        {title && (
+            <div>
+                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+                    <Icon size={18} className="text-indigo-500" aria-hidden="true" /> {title}
+                </h2>
+                {hint && <p className="mt-0.5 text-sm text-slate-500">{hint}</p>}
+            </div>
+        )}
         {action}
     </div>
 );
@@ -288,7 +291,9 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
 
     const mainTitle = filtersActive
         ? `${results.length} result${results.length === 1 ? '' : 's'}${debouncedQ ? ` for “${debouncedQ}”` : ''}`
-        : anyDate ? 'All upcoming part-time jobs' : 'Your dates first, then the rest of this month';
+        // The usual list has no heading of its own (asked 2026-10-16 to remove
+        // "Your dates first, then the rest of this month").
+        : anyDate ? 'All upcoming part-time jobs' : null;
 
     return (
         <div className="space-y-6">
@@ -457,10 +462,9 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                             skills these jobs ask for, and Career Path can map out where you want to go.
                         </Empty>
                     ) : (
-                        <section aria-labelledby="opp-main-title">
-                            <SectionTitle icon={filtersActive ? Search : Sparkles} title={<span id="opp-main-title">{mainTitle}</span>}
-                                hint={filtersActive ? (countActive(filters) ? `${countActive(filters)} filter${countActive(filters) === 1 ? '' : 's'} applied` : undefined)
-                                    : 'In date order — your free time first, then the rest of the month. Local jobs and open vacancies near you, together.'}
+                        <section {...(mainTitle ? { 'aria-labelledby': 'opp-main-title' } : { 'aria-label': 'Part-time jobs' })}>
+                            <SectionTitle icon={filtersActive ? Search : Sparkles} title={mainTitle && <span id="opp-main-title">{mainTitle}</span>}
+                                hint={filtersActive && countActive(filters) ? `${countActive(filters)} filter${countActive(filters) === 1 ? '' : 's'} applied` : undefined}
                                 action={(
                                     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                                         {/* The category filter, as a dropdown beside the results
@@ -539,8 +543,12 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
             {reporting && <ReportDialog opp={reporting} onClose={closeReport} />}
 
             {/* Applying, over the board. Everything the age check and the
-                guardian request need is inside ApplyFlow. */}
-            {applyingTo && (
+                guardian request need is inside ApplyFlow. On <body>, like the
+                details form: the Jobs page fades each tab in, and that
+                animation is a stacking context, so in the page z-140 only
+                counted inside the tab — the app's header and bottom bar
+                painted over the popup on a phone (2026-10-16). */}
+            {applyingTo && createPortal(
                 <div className="fixed inset-0 z-[140] overflow-y-auto bg-slate-900/50 backdrop-blur-sm animate-fade-in"
                     role="dialog" aria-modal="true" aria-label="Job application">
                     {/* items-start with my-auto, the same as the details form
@@ -548,7 +556,7 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                         overflows equally top and bottom, and the top half can
                         never be scrolled back to. This centres when it fits and
                         pins to the top when it does not. */}
-                    <div className="flex min-h-full items-stretch justify-center p-3 pb-[7.5rem] pt-[4.5rem] sm:items-start sm:p-6 sm:pt-6">
+                    <div className="flex min-h-full items-start justify-center p-3 pb-[7.5rem] pt-[4.5rem] sm:p-6">
                         {/* One scroll container on a phone, two from sm up.
                             Capping the panel here as well as the overlay gave a
                             phone two nested scrollers, and the flow's own
@@ -556,12 +564,21 @@ export default function OpportunitiesTab({ data, onData, careerPathEnabled = tru
                             itself scrolling — so it slid away instead of
                             staying put. On a phone the overlay does the
                             scrolling and the heading pins to the screen. */}
-                        <div className="opp-scroll w-full max-w-2xl sm:my-auto sm:max-h-[88vh] sm:overflow-y-auto"
+                        {/* A solid sheet under the flow: its cards (the job's
+                            tinted details, "Back to jobs") are see-through, and
+                            on the dimmed board alone the jobs behind showed
+                            through them and between them (2026-10-16). The
+                            padding is inside, so the heading still pins to the
+                            sheet's very top edge where the sheet scrolls. */}
+                        <div className="opp-scroll my-auto w-full max-w-2xl rounded-3xl bg-slate-50 shadow-2xl ring-1 ring-slate-900/5 sm:max-h-[88vh] sm:overflow-y-auto"
                             onClick={(e) => e.stopPropagation()}>
-                            <ApplyFlow opportunityId={applyingTo} onClose={() => { setApplyingTo(null); load(true); }} onContinue={() => load(true)} />
+                            <div className="p-3 sm:p-4">
+                                <ApplyFlow opportunityId={applyingTo} onClose={() => { setApplyingTo(null); load(true); }} onContinue={() => load(true)} />
+                            </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* On <body>, and above the phone's bottom bar. Inside the page it

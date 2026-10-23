@@ -100,6 +100,14 @@ export default function PhotoPicker({ required = false, onClose }) {
 
     const close = () => { if (!required && !savingAvatar && !uploading) onClose?.(); };
 
+    // The server's own words when it sent some. A 5xx used to be replaced
+    // wholesale, which dropped "…or pick an avatar" from a failed photo save;
+    // only a bare "Server error" is still put in plainer terms.
+    const said = (err) => {
+        const message = err.response?.data?.message;
+        return message && !/^server error$/i.test(message) ? message : '';
+    };
+
     const keep = (changes) => {
         const updated = { ...user, ...changes };
         setUser(updated);
@@ -115,7 +123,7 @@ export default function PhotoPicker({ required = false, onClose }) {
             keep(res.data);
             onClose?.();
         } catch (err) {
-            setProblem((err.response?.status < 500 && err.response?.data?.message) || (err.response ? 'Failed to update photo. Please try again.' : 'You appear to be offline. Please try again.'));
+            setProblem(said(err) || (err.response ? 'Failed to update photo. Please try again.' : 'You appear to be offline. Please try again.'));
         } finally {
             setSavingAvatar(false);
         }
@@ -155,7 +163,7 @@ export default function PhotoPicker({ required = false, onClose }) {
             onClose?.();
         } catch (err) {
             // The server says why; with no answer at all, the connection is the problem.
-            setProblem((err.response?.status < 500 && err.response?.data?.message)
+            setProblem(said(err)
                 || (err.message === UNREADABLE ? UNREADABLE
                     : err.response ? 'Failed to upload photo. Please try again.' : 'You appear to be offline. Please try again.'));
         } finally {

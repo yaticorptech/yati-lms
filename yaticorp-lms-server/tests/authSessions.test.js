@@ -190,7 +190,7 @@ describe('view as student', () => {
 describe('signing up', () => {
     const makeCard = async (status, extra = {}) => {
         const n = cardNo();
-        const card = await Card.create({ CardNumber: n, CVV: 'S1G2N', qrCodeNumber: `QRSESS${n}`, status, ...extra });
+        const card = await Card.create({ verified: true, CardNumber: n, CVV: 'S1G2N', qrCodeNumber: `QRSESS${n}`, status, ...extra });
         cards.push(card);
         return card;
     };

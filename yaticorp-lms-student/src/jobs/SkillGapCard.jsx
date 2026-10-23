@@ -125,10 +125,10 @@ export default function SkillGapCard({ gap, unrecognizedRole, careerGoal, career
         <div className={SHELL}>
             <Backdrop />
             <div className="relative">
-                <h3 className="mb-1 flex items-center gap-2.5 text-xl font-bold sm:text-2xl">
+                {/* No line describing the role under it (asked 2026-10-16). */}
+                <h3 className="mb-5 flex items-center gap-2.5 text-xl font-bold sm:text-2xl">
                     <Target size={20} className="shrink-0 text-sky-300" /> Becoming a {gap.role}
                 </h3>
-                <p className="mb-5 text-sm text-white/70 sm:text-base">{gap.blurb}</p>
 
                 <div className="mb-6 flex items-center gap-4">
                     <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/15">

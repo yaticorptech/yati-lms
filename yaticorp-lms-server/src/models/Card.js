@@ -33,7 +33,21 @@ const cardSchema = new mongoose.Schema({
         type: String,
         enum: ['unactivated', 'activated', 'used', 'inactive'],
         default: 'unactivated'
-    }
+    },
+    /**
+     * A super admin's say-so that the card may be registered (Admin → Verify
+     * cards). A free card that is not verified cannot open an account, except
+     * when a platform admin adds the student or teacher, which verifies it.
+     * Every card not yet registered waits for this — including cards that
+     * were in the system before verification began (the user's rule,
+     * 2026-10-23). Registered ('used') cards are never touched.
+     */
+    verified: { type: Boolean, default: false },
+    verifiedAt: { type: Date, default: null },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null },
+    // 'admin' (Verify cards, or added there), 'account' (verified by an admin
+    // adding its holder).
+    verifiedVia: { type: String, enum: ['admin', 'account', null], default: null }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Card', cardSchema);

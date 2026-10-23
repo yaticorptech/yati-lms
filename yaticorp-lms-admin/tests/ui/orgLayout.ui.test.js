@@ -29,6 +29,7 @@ const reply = (data) => Promise.resolve({ data });
 export default {
   get: (url) => {
     if (url.endsWith('/me/status')) return reply({ organization: ORG });
+    if (url.endsWith('/me/teachers/requests/count')) return reply({ pending: 2 });
     if (url.endsWith('/me/requests')) return reply({ requests: [], pendingCount: 3 });
     if (url.endsWith('/me/students')) return reply({ students: STUDENTS });
     if (url.endsWith('/me/dashboard')) return reply({
@@ -77,6 +78,8 @@ const MEASURE = `
         bottomShown: shown(bottom),
         sidebarShown: shown(aside),
         tabs: bottom ? Array.from(bottom.querySelectorAll('a')).map((a) => a.innerText.replace(/\\s+/g, ' ').trim()) : [],
+        // Every label fits its cell: seven sections share the bar since Teachers.
+        tabsFit: bottom ? Array.from(bottom.querySelectorAll('a > span.truncate')).every((s) => s.scrollWidth <= s.clientWidth + 1) : null,
         current: bottom ? text(bottom.querySelector('[aria-current="page"]')) : null,
         navTop: bottom ? Math.round(bottom.getBoundingClientRect().top) : null,
         contentBottom: Math.round(last.bottom),
@@ -92,9 +95,12 @@ describe('the organization shell', { skip: skipWithoutStyles }, () => {
         assert.deepEqual(errors, []);
         assert.ok(result.bottomShown, 'the bottom bar is on screen');
         assert.ok(!result.sidebarShown, 'the sidebar is not');
-        assert.equal(result.tabs.length, 6);
-        assert.match(result.tabs[3], /Courses/, 'the organization\'s own courses');
-        assert.match(result.tabs[4], /Compete/, 'inter-college competitions');
+        assert.equal(result.tabs.length, 7);
+        assert.match(result.tabs[3], /Teachers/, 'the organization\'s teachers');
+        assert.match(result.tabs[3], /2/, 'with the teachers waiting to join');
+        assert.match(result.tabs[4], /Courses/, 'the organization\'s own courses');
+        assert.match(result.tabs[5], /Compete/, 'inter-college competitions');
+        assert.ok(result.tabsFit, 'every label fits its cell');
         assert.match(result.tabs[0], /Home/);
         assert.match(result.tabs[2], /Requests/);
         assert.match(result.tabs[2], /3/, 'the waiting count rides on the Requests tab');

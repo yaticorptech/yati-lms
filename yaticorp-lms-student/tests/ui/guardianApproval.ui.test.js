@@ -152,23 +152,53 @@ describe('the student applying', { skip: skipWithoutStyles }, () => {
             styles: true, script: `
                 await sleep(700);
                 click(/Send approval request/); await sleep(600);
-                return { body: text(document.body) };` });
+                ${TRACKER}
+                return { body: text(document.body), heading: text($('h2')), tracker };` });
         assert.match(result.body, /Email sent to de••••@example\.com/);
         assert.equal(/could not be sent/.test(result.body), false);
+        assert.equal(result.heading, 'Approval request sent');
+        assert.deepEqual(result.tracker, ['done', 'active', 'waiting', 'waiting']);
     });
 
     test('a refused email is admitted, with a way to carry on', async () => {
         const { result } = await screen({
             entry,
-            api: api(application('needs-guardian'), { request: application('awaiting-guardian') },
+            api: api(application('needs-guardian'), { request: application('awaiting-guardian', { mailSentAt: null, mailFailed: true }) },
                 { sent: false, to: 'de••••@example.com', link: '/jobs/guardian/tok' }),
             styles: true, script: `
                 await sleep(700);
                 click(/Send approval request/); await sleep(600);
-                return { body: text(document.body),
+                ${TRACKER}
+                return { body: text(document.body), heading: text($('h2')), tracker,
                          hasGuardianPage: $$('a').some((a) => /Open the guardian's page/.test(a.innerText)) };` });
         assert.match(result.body, /The email could not be sent/);
         assert.ok(result.hasGuardianPage, 'and the guardian page is offered so the flow can still be tried');
+        // Found 2026-10-16: the heading said the guardian had received it.
+        assert.equal(result.heading, 'Request saved — email not sent');
+        assert.equal(/has received a permission request/.test(result.body), false, 'never claims it arrived');
+        assert.match(result.body, /Email not sent/, 'the badge and the first step say so');
+        assert.deepEqual(result.tracker, ['blocked', 'waiting', 'waiting', 'waiting'], 'and the parent review has not started');
+    });
+
+    test('a refused email is still admitted when the student comes back to it later', async () => {
+        const { result } = await screen({
+            entry, api: api(application('awaiting-guardian', { mailSentAt: null, mailFailed: true })), styles: true, script: `
+                await sleep(700);
+                ${TRACKER}
+                return { heading: text($('h2')), body: text(document.body), tracker };` });
+        assert.equal(result.heading, 'Request saved — email not sent');
+        assert.match(result.body, /Try sending again/);
+        assert.deepEqual(result.tracker, ['blocked', 'waiting', 'waiting', 'waiting']);
+    });
+
+    test('a bounced address says the request has not reached the guardian', async () => {
+        const { result } = await screen({
+            entry, api: api(application('awaiting-guardian', { mailSentAt: null, mailFailed: true, mailBouncedAt: '2026-10-16T05:00:00.000Z' })), styles: true, script: `
+                await sleep(700);
+                return { heading: text($('h2')), body: text(document.body) };` });
+        assert.equal(result.heading, 'Email not delivered');
+        assert.match(result.body, /email address was not found/);
+        assert.equal(/has received a permission request/.test(result.body), false);
     });
 
     test('a parent\'s yes hands it to the LMS; the student still waits', async () => {

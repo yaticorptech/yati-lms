@@ -501,7 +501,11 @@ export default function Recommendations() {
             <EmptyState
               icon={Lightbulb}
               title="Nothing to show yet"
-              description="Build your roadmap first, then let your AI mentor put together internships, courses, books and scholarships that fit your goal."
+              description={roadmap
+                // A roadmap with no resource lists of its own still has a goal to
+                // curate for: it is not asked to build one it has (QA, 2026-10-16).
+                ? 'Let your AI mentor put together internships, courses, books and scholarships that fit your goal.'
+                : 'Build your roadmap first, then let your AI mentor put together internships, courses, books and scholarships that fit your goal.'}
               action={
                 <Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
                   Get recommendations <PriceTag action="generate_ideas" />

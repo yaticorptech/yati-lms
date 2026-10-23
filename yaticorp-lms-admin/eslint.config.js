@@ -26,4 +26,9 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  // The UI tests run in Node (they drive a headless browser), not the page.
+  {
+    files: ['tests/**/*.js'],
+    languageOptions: { globals: { ...globals.node } },
+  },
 ])

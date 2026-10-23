@@ -2,17 +2,18 @@
  * @author Preethesh Kulal
  * @description Main admin panel layout with sidebar navigation and header
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    LayoutDashboard, Users, BookOpen, Layers, LogOut,
+    LayoutDashboard, Users, BookOpen, Layers, LogOut, BookOpenCheck,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, Languages } from 'lucide-react';
+    MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, Languages, CreditCard } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 import useCenterTabs from '../hooks/useCenterTabs';
 import ErrorBoundary from '../components/ErrorBoundary';
+import PageLoading from '../components/PageLoading';
 import PullToRefresh from '../components/PullToRefresh';
 
 const AdminLayout = () => {
@@ -20,6 +21,7 @@ const AdminLayout = () => {
     useCenterTabs();
     const { showSessionModal, confirmLogout } = useAutoLogout(); 
     const { admin, logout } = useAuth();
+    const superAdmin = admin?.role === 'superadmin';
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [openTickets, setOpenTickets] = useState(0);
@@ -145,7 +147,7 @@ const AdminLayout = () => {
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                     {/* The dark-lettered logo: the original is white artwork for a dark ground. */}
                     <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 object-contain" />
-                    <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-slate-700 p-1">
+                    <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-slate-700 p-1" aria-label="Close menu">
                         <X size={24} />
                     </button>
                 </div>
@@ -154,8 +156,17 @@ const AdminLayout = () => {
                     <Link to="/" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <LayoutDashboard size={20} /> <span className="font-medium">Dashboard</span>
                     </Link>
+                    {/* Super admins only: a card can be registered once it is verified here. */}
+                    {superAdmin && (
+                        <Link to="/verify-cards" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/verify-cards') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
+                            <CreditCard size={20} /> <span className="font-medium">Verify cards</span>
+                        </Link>
+                    )}
                     <Link to="/users" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/users') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Users size={20} /> <span className="font-medium">Users</span>
+                    </Link>
+                    <Link to="/teachers" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/teachers') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
+                        <BookOpenCheck size={20} /> <span className="font-medium">Teachers</span>
                     </Link>
                     <Link to="/courses" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/courses') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <BookOpen size={20} /> <span className="font-medium">Courses</span>
@@ -169,9 +180,14 @@ const AdminLayout = () => {
                     <Link to="/enrollments" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/enrollments') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Network size={20} /> <span className="font-medium">Enrollments</span>
                     </Link>
+                    {/* Organizations and Competitions are a super admin's alone: the
+                        server refuses anyone else, so they are not offered (see
+                        SuperAdminRoute in App.jsx). */}
+                    {superAdmin && (
                     <Link to="/organizations" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/organizations') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Building2 size={20} /> <span className="font-medium">Organizations</span>
                     </Link>
+                    )}
                     <Link to="/tickets" className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${isActive('/tickets') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <div className="flex items-center space-x-3">
                             <MessageCircleQuestion size={20} /> <span className="font-medium">Support</span>
@@ -200,9 +216,11 @@ const AdminLayout = () => {
                         <Megaphone size={20} /> <span className="font-medium">Announcements</span>
                     </Link>
                     {/* Inter-college competitions (Chess, Ludo, Carrom). The super admin runs them. */}
-                    <Link to="/competitions" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/competitions') || location.pathname.startsWith('/competitions/') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                    {superAdmin && (
+                    <Link to="/competitions" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/competitions') || location.pathname.startsWith('/competitions/') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Trophy size={20} /> <span className="font-medium">Competitions</span>
                     </Link>
+                    )}
                 </nav>
 
                 {/* No "Student Portal" link: a super admin is not signed in on the student
@@ -297,7 +315,7 @@ const AdminLayout = () => {
                 {/* Page Content Area */}
                 <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 sm:p-6 lg:p-8 custom-scrollbar">
                     <div className="max-w-7xl mx-auto w-full">
-                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Outlet key={pageKey} /></ErrorBoundary>
+                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} /></Suspense></ErrorBoundary>
                     </div>
                 </div>
                 <PullToRefresh scrollerRef={scrollerRef} onRefresh={refreshPage} />

@@ -4,6 +4,7 @@
  */
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useEffect } from 'react';
+import { forgetTeacher } from '../teacher/teacherSession';
 import api from '../utils/api';
 import { getAuthServices } from '../shared/api/authService';
 import { forgetStudent, safeNextPath } from '../utils/sessionExpiry';
@@ -121,6 +122,8 @@ export const AuthProvider = ({ children }) => {
         // whatever this tab remembered about the previous student. Sign-up's
         // organization notice is for this one, so it stays.
         forgetStudent({ keep: ['yati.signupOrg'] });
+        // One person per browser: a student signing in ends a teacher's session here.
+        forgetTeacher();
         localStorage.setItem('studentToken', data.token);
         localStorage.setItem('studentData', JSON.stringify(data));
         window.location.assign(safeNextPath(next));
@@ -134,6 +137,8 @@ export const AuthProvider = ({ children }) => {
         } catch (err) {
             return {
                 success: false,
+                // TEACHER_CARD: the sign-in page offers the teacher sign-in instead.
+                code: err.response?.data?.code,
                 error: err.response?.data?.message
                     || (!err.response ? 'Check your connection and try again.' : 'Login failed')
             };

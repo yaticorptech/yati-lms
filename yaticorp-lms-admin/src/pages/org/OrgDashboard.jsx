@@ -125,6 +125,16 @@ const OrgDashboard = () => {
                         <span className="inline-flex shrink-0 items-center text-xs font-bold uppercase tracking-wider">Review<ChevronRight size={14} /></span>
                     </Link>
                 )}
+                {stats?.pendingTeacherRequests > 0 && (
+                    <Link to="/organization/teachers?tab=requests"
+                        className="flex items-center gap-2 border-t border-amber-100 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100 lg:px-7">
+                        <Presentation size={16} className="shrink-0" />
+                        <span className="min-w-0 flex-1">
+                            {stats.pendingTeacherRequests} teacher{stats.pendingTeacherRequests === 1 ? '' : 's'} waiting to join
+                        </span>
+                        <span className="inline-flex shrink-0 items-center text-xs font-bold uppercase tracking-wider">Review<ChevronRight size={14} /></span>
+                    </Link>
+                )}
             </div>
 
             {/* A failed refresh keeps the last numbers and says so; a failed
@@ -154,6 +164,13 @@ const OrgDashboard = () => {
                     sub="Across all enrolled courses" />
                 <Stat icon={Activity} label="Total XP earned" value={stats?.totalXp} loading={loading} tone="amber"
                     sub="By all your students" />
+                {/* Teachers across the whole row: their own section, not one more student number. */}
+                <Link to="/organization/teachers" aria-label={`Teachers: ${stats?.teachers ?? '…'} — see them`} className={`${STAT_LINK} col-span-2 lg:col-span-3`}>
+                    <Stat icon={Presentation} label="Teachers" value={stats?.teachers} loading={loading} tone="slate"
+                        sub={stats?.pendingTeacherRequests > 0
+                            ? `${stats.pendingTeacherRequests} waiting to join · their research progress, theses and publications`
+                            : 'Their research progress, theses and publications — add more with their card'} />
+                </Link>
             </div>
 
             {/* ── Recent activity ──────────────────────────────────────────── */}

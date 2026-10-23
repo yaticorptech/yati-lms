@@ -1,17 +1,28 @@
 /*! Loop Walker — an embeddable 3D mascot that follows the cursor, feels things and explains your page.
  *  Usage:  LoopWalker.mount({ model: '/assets/mascot.glb' })   — see README.md for every option.
- *  Needs three.js r156 (window.THREE); loaded from cdnjs automatically when it is not already on the page. */
+ *  Needs three.js r156 (window.THREE); loaded automatically when it is not already on the page — YATICORP change:
+ *  from three.min.js beside this file first, cdnjs only if that fails (see ensureThree). */
 (function (global) {
   'use strict';
   var THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.156.1/three.min.js';
   var threeLoading = null;
-  function ensureThree(url) {
-    if (global.THREE) return Promise.resolve();
-    if (!threeLoading) threeLoading = new Promise(function (res, rej) {
-      var s = document.createElement('script'); s.src = url || THREE_URL; s.async = true;
-      s.onload = function () { res(); }; s.onerror = function () { rej(new Error('three.js failed to load from ' + s.src)); };
+  // YATICORP change (2026-10-17): three.js is served with the app, from beside this file (three.min.js: r156.1, the
+  // same bytes as the CDN's), and the CDN is only the fallback. With cdnjs out of reach — a school network that blocks
+  // it, the phone app offline, or cdnjs itself down, as it was during testing — Yati never appeared at all.
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      var s = document.createElement('script'); s.src = src; s.async = true;
+      s.onload = function () { res(); };
+      s.onerror = function () { if (s.parentNode) s.parentNode.removeChild(s); rej(new Error('three.js failed to load from ' + src)); };
       document.head.appendChild(s);
     });
+  }
+  function ensureThree(url) {
+    if (global.THREE) return Promise.resolve();
+    if (!threeLoading) {
+      var own = url || (BASE ? BASE + 'three.min.js' : null);
+      threeLoading = own ? loadScript(own).catch(function () { return loadScript(THREE_URL); }) : loadScript(THREE_URL);
+    }
     return threeLoading;
   }
   function ensureCss(href) {
@@ -176,7 +187,7 @@
   var roam = { target: null, pause: 0 };
   var lastSprintMsg = -99, gaitNow = 'Standing';
   var lastStep = [-1, -1];
-  var pokes = 0, lastPokeAt = -99, fleeUntil = -1, calmPending = false;
+  var pokes = 0, lastPokeAt = -99;
   var fleeTo = null, pokedAt = null, fleeDone = false;                            // YATICORP change: see runFrom
   var gestureOverride = null;
 
@@ -1084,6 +1095,19 @@
     var left = clamp(headScreen.x - bw / 2, 12, W - bw - 12);
     var topMin = navInset.top + 12;                                                // YATICORP change: never over a nav bar (see band)
     var top = clamp(headScreen.y - bh - 16, topMin, Math.max(topMin, H - navInset.bottom - bh - 12));
+    // YATICORP change (2026-10-16): the words keep off a page's own tab strip and search bar too (keepRects), not
+    // only Yati's feet. Standing in the corner on a laptop, the bubble over its head covered the Jobs tabs for the
+    // seconds it spoke. It lifts above whatever it would cover, its tail still pointing down at Yati; it never moves
+    // lower, where it would cover Yati's face, and stays put when there is no room above.
+    for (var pass = 0; pass < 3; pass++) {
+      var under = null;
+      for (var ki = 0; ki < keepRects.length; ki++) {
+        var kr = keepRects[ki];
+        if (left < kr.x1 && left + bw > kr.x0 && top < kr.y1 && top + bh > kr.y0) { under = kr; break; }
+      }
+      if (!under || under.y0 - bh - 8 < topMin) break;
+      top = under.y0 - bh - 8;
+    }
     // YATICORP change: whole pixels (the package used tenths), so the bubble's text is never drawn between pixels and blurred.
     bubble.style.transform = 'translate3d(' + Math.round(left) + 'px,' + Math.round(top) + 'px,0)';
     bubbleBox.x0 = left; bubbleBox.y0 = top; bubbleBox.x1 = left + bw; bubbleBox.y1 = top + bh;
@@ -1288,17 +1312,30 @@
     if (!best) return;
     fleeTo = { x: best.x, y: best.y }; pokedAt = { x: x, y: y }; fleeDone = false; goingHome = false;
   }
+  // YATICORP change, not in the shipped package (2026-10-16, "the loop walker should not have to get angry while
+  // touching it ..it should do any other actions"): a poke never makes Yati cross. The shipped Loop got angry from
+  // the third poke on; here each poke plays the next of these friendly reactions, round and round, so poking again
+  // and again keeps showing something new. [feeling, how long it lasts, label, line, a feeling that follows it]
+  var POKES = [
+    ['laughing', 1.1, 'Hehe', 'Hehe — that tickles!'],
+    ['surprised', 0.6, 'Oh!', 'Oh! Hello there!', 'amused'],
+    ['shy', 2, 'Aww', "Aww, you're making me blush."],
+    ['joy', 2, 'Hi', "Hi again! I'm right here."],
+    ['excited', 2, 'Woo', "Woo! You've got this!"],
+    ['love', 2.2, 'Aww', 'Thanks for keeping me company.'],
+    ['proud', 2, 'Ta-da', 'Ta-da! Still standing, still smiling.'],
+    ['curious', 2, 'Hmm', 'What shall we learn today?']
+  ];
   function poke(byMouse) {
-    if (t - lastPokeAt > 3.5) pokes = 0;
+    var r = POKES[pokes % POKES.length];
     pokes++; lastPokeAt = t;
     if (guide) endGuide(false);
     idleT = 0;
     if (P.mode !== 'stand' && byMouse) runFrom(pointer.x, pointer.y);
-    if (pokes === 1) { impulse('laughing', 1, 1.1); micro.flash = 0.5; say('Poke', 'Hehe — that tickles!', 1.8, 'laughing'); }
-    else if (pokes === 2) { impulse('surprised', 1, 0.6); impulse('amused', 0.5, 1.6, 0.4); say('Poke', 'Oh! Again?', 1.6, 'surprised'); }
-    else if (pokes === 3) { impulse('angry', 0.65, 1.9); say('Hey', 'Okay — I felt that one.', 1.9, 'angry'); }
-    else if (P.mode === 'stand' || !byMouse) { impulse('angry', 1, 2.8); calmPending = true; say('Hmph', "Okay, okay. I'll just stand here.", 2.4, 'angry'); }   // YATICORP change: stays put (stand mode, or a touch)
-    else { impulse('angry', 1, 2.8); fleeUntil = t + 2.6; calmPending = true; say('Hmph', "I'll be over here if you need me.", 2.4, 'angry'); }
+    impulse(r[0], 1, r[1]);
+    if (r[4]) impulse(r[4], 0.5, 1.6, 0.4);
+    if (r[0] === 'laughing') micro.flash = 0.5;
+    say(r[2], r[3], 1.8, r[0]);
   }
   on(window, 'pointerdown', function (e) {
     var interactive = e.target.closest && e.target.closest('input, button, label, a, select, textarea, summary');
@@ -1456,7 +1493,7 @@
       else if (inTheWay(here.x, here.y)) {
         var out = clearOfAvoid(here.x, here.y);
         if (!out) nowhere = true;
-        else if (!have || (fleeUntil <= t && !guide)) { toFloor(out.x, out.y, target3); have = true; arriveR = h * 0.12; stepAside = true; }
+        else if (!have || !guide) { toFloor(out.x, out.y, target3); have = true; arriveR = h * 0.12; stepAside = true; }
       }
       // Nor across one on the way: a walk that would cross one goes round it, a corner at a time.
       if (have && !stepAside) {
@@ -1570,11 +1607,6 @@
     if (idleT > 12 && idleT - dt <= 12) say('Idle', coarse ? '…zzz. Tap me to wake me up.' : '…zzz. Move the cursor to wake me.', 3.4, 'sleepy');
     if (awayT > 2.2) drive('sad', clamp((awayT - 2.2) / 1.5, 0, 1) * 0.72);
     if (guide) drive(guide.shown ? guide.ex.emo : 'curious', guide.shown ? 1 : 0.45);
-    if (fleeUntil > t) drive('angry', 0.8);
-    if (calmPending && t > fleeUntil + 3 && t - lastPokeAt > 5) {
-      calmPending = false; impulse('relieved', 0.85, 1.8);
-      if (!guide) say('Okay', "Okay. We're good.", 1.8, 'relieved');
-    }
     for (var i = impulses.length - 1; i >= 0; i--) {
       var im = impulses[i], age = t - im.t0;
       if (age < 0) continue;
@@ -2262,7 +2294,9 @@
         handle._queue = [];
         return api;
       });
-      if (opts.onError) handle.promise.catch(opts.onError);
+      // YATICORP change: a failure is always handled. With no onError it used to surface as an uncaught error on every
+      // page; now it is a warning, and the page goes on without Yati.
+      handle.promise.catch(opts.onError || function (e) { if (global.console) console.warn('[Yati] ' + (e && e.message ? e.message : e)); });
       return handle;
     }
   };
