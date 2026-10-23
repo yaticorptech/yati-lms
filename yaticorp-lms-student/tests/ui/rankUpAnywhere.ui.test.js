@@ -77,7 +77,7 @@ window.dispatchEvent(new CustomEvent('yati:saved', { detail: { url: '/community'
 await sleep(4500);
 return { first, gets: gets(), climb: climb(), path: location.pathname };` });
         assert.deepEqual(errors, []);
-        assert.deepEqual(result.first, { gets: [3], stored: '5', climb: null }, 'the first look is a quick one, and stores the place');
+        assert.deepEqual(result.first, { gets: [3], stored: '{"last":5,"best":5}', climb: null }, 'the first look is a quick one, and stores the place (last and best, rankPlaces.js)');
         assert.deepEqual(result.gets, [3, 3, 500], 'a quick look after the save, then the whole board for the climb');
         assert.match(result.climb || '', /climb/i, 'the climb is on screen');
         assert.equal(result.path, '/community', 'on the page the student was on');
@@ -140,7 +140,7 @@ return { behindParty, tooSoon, climb: climb(), stored: localStorage.getItem('rw:
         assert.equal(result.behindParty, null, 'not over another popup');
         assert.equal(result.tooSoon, null, 'and not the instant it closes');
         assert.match(result.climb || '', /was #5/, `one climb from the place before both: ${result.climb}`);
-        assert.equal(result.stored, '2');
+        assert.equal(result.stored, '{"last":2,"best":2}');
     });
 
     test('a celebration arriving just after the save holds it back until all is quiet', async () => {

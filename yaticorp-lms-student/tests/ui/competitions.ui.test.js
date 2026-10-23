@@ -247,10 +247,10 @@ describe('the Competitions section (Chess, Ludo and Carrom)', { skip: skipWithou
     test('the tab highlight glides to the chosen tab and lands on it; the ends fade where tabs are hidden', async () => {
         const { result, errors } = await screen({ entry: home(), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
             await sleep(1200);
-            const bar = $('nav[aria-label="Games & Competitions"]');
+            const bar = $('nav[data-section-tabs]');
             const pill = bar.querySelector('span[aria-hidden="true"]');
             const fades = () => [...bar.parentElement.children].filter((c) => c !== bar).map((f) => getComputedStyle(f).opacity);
-            const btn = (label) => $$('nav[aria-label="Games & Competitions"] button').find((b) => b.innerText.trim() === label);
+            const btn = (label) => $$('nav[data-section-tabs] button').find((b) => b.innerText.trim() === label);
             const onIt = (b) => { const p = pill.getBoundingClientRect(), r = b.getBoundingClientRect(); return Math.abs(p.left - r.left) < 1.5 && Math.abs(p.width - r.width) < 1.5; };
             const atStart = { onGames: onIt(btn('Games')), fades: fades() };
             const t0 = performance.now(); btn('Leaderboard').click();
