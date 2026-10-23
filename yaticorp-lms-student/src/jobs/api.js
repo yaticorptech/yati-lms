@@ -148,7 +148,8 @@ export function interleaveSkills(lists, cap = 30) {
 
 export async function careerPrefill() {
     const [goalRes, skillsRes] = await Promise.allSettled([
-        client.get('/career/goals'),
+        // Optional: no goal yet is an empty answer here, not a 404 in the console.
+        client.get('/career/goals', { params: { optional: 1 } }),
         client.get('/career/skills')
     ]);
 

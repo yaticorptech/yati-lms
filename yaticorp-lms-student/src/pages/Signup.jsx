@@ -9,7 +9,8 @@ import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import useBackClose from '../native/useBackClose';
 import { safeNextPath } from '../utils/sessionExpiry';
-import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2 } from 'lucide-react';
+import teacherApi, { enterTeacher, hasTeacherSession } from '../teacher/teacherSession';
+import { MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, Lock, Keyboard, ScanLine, CameraOff, ArrowRight, ArrowLeft, ChevronRight, UserPlus, User, Mail, Phone, CreditCard, Building2, Landmark, BookOpenCheck, Clock } from 'lucide-react';
 
 // Password strength validator
 const getPasswordStrengthError = (pw) => {
@@ -107,7 +108,7 @@ const backBtn = 'inline-flex shrink-0 items-center justify-center gap-1.5 rounde
  * starting the student over at the card. The server names it (`field`); an
  * older one only said it in words.
  */
-const FIELD_STEP = { card: 1, name: 2, email: 2, phone: 2, orgCode: 2, password: 3 };
+const FIELD_STEP = { card: 1, name: 2, email: 2, phone: 2, orgCode: 2, institution: 2, department: 2, password: 3 };
 const fieldOf = (data) => data?.field
     || (/password/i.test(data?.message || '') ? 'password'
         : /email/i.test(data?.message || '') ? 'email'
@@ -134,12 +135,20 @@ const Signup = () => {
     // on from the sign-in page (?next=). Only a path in this app is taken.
     const [searchParams] = useSearchParams();
     const next = safeNextPath(searchParams.get('next') || '/');
+    /* A teacher registering their card (?as=teacher, from the teacher sign-in).
+       The same three steps and the same card check; the details ask for an
+       institution instead of an Organization ID, take any email address, and
+       the account opened is a teacher's (src/teacher on the server). */
+    const asTeacher = searchParams.get('as') === 'teacher';
+    const loginLink = asTeacher ? '/login?as=teacher' : next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`;
 
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     // The card belongs to an account already: the error then offers signing in.
     const [cardUsed, setCardUsed] = useState(false);
+    // A teacher registered while the admin approves new teachers: their name, for the waiting screen.
+    const [pendingApproval, setPendingApproval] = useState('');
     // The details step's problems, each said under its own field.
     const [fieldErrors, setFieldErrors] = useState({});
     const errorRef = useRef(null);
@@ -184,7 +193,10 @@ const Signup = () => {
         confirmPassword: '',
         // Optional. A student with no school, college or company leaves it blank
         // and nothing about their account is different.
-        orgCode: ''
+        orgCode: '',
+        // A teacher's, both optional.
+        institution: '',
+        department: ''
     });
 
     const stopScanner = () => {
@@ -299,7 +311,8 @@ const Signup = () => {
         const problems = {};
         if (formData.name.trim().length < 2) problems.name = 'Please enter your full name.';
         if (!formData.email.trim()) problems.email = 'Please enter your email address.';
-        else if (!/^[^\s@]+@gmail\.com$/i.test(formData.email.trim())) problems.email = 'Only @gmail.com email addresses are allowed.';
+        // Teachers often use their institution's address, so any valid one does.
+        else if (asTeacher ? !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim()) : !/^[^\s@]+@gmail\.com$/i.test(formData.email.trim())) problems.email = asTeacher ? 'Enter a valid email address.' : 'Only @gmail.com email addresses are allowed.';
         if (!formData.phone) problems.phone = 'Please enter your phone number.';
         else if (!phoneOk) problems.phone = (formData.phoneCode || '+91') === '+91' ? 'Please enter a 10-digit phone number.' : 'Please enter a valid phone number.';
 
@@ -310,11 +323,11 @@ const Signup = () => {
         // generated one (ABC-2026-0001). Whether it exists is the server's call.
         // An old ID copied out of a document often has its hyphens turned into
         // en or em dashes; the server reads those as hyphens, so this does too.
-        const typedOrgCode = formData.orgCode.trim().replace(/^@+/, '');
+        const typedOrgCode = asTeacher ? '' : formData.orgCode.trim().replace(/^@+/, '');
         const chosen = /^[a-z0-9._]{3,30}$/i.test(typedOrgCode) && /[a-z]/i.test(typedOrgCode);
         const older = /^[A-Za-z]+-\d{4}-\d{3,}$/.test(typedOrgCode.replace(/[\u2010-\u2015]/g, '-').replace(/\s+/g, ''));
         if (typedOrgCode && !chosen && !older) {
-            problems.orgCode = 'That Organization ID does not look right. Ask your organization for it (like st_agnes_college), or leave it blank.';
+            problems.orgCode = 'That Organization ID does not look right. Ask your organization for it (like xxx_college), or leave it blank.';
         }
         return problems;
     };
@@ -344,6 +357,23 @@ const Signup = () => {
 
         setLoading(true);
         try {
+            if (asTeacher) {
+                const res = await teacherApi.post('/auth/register', {
+                    name: formData.name,
+                    email: formData.email,
+                    phone: `${formData.phoneCode || '+91'} ${formData.phone}`,
+                    CardNumber: cardDetails.CardNumber,
+                    CVV: cardDetails.CVV,
+                    qrCodeNumber: qrCodeNumber.trim(),
+                    password: formData.password,
+                    institution: formData.institution.trim(),
+                    department: formData.department.trim()
+                });
+                // 202: registered, but waiting for the admin's approval — no session yet.
+                if (res.data?.pending) { setPendingApproval(res.data.name || formData.name); setLoading(false); return; }
+                enterTeacher(res.data);
+                return;
+            }
             const res = await api.post('/auth/register', {
                 name: formData.name,
                 email: formData.email,
@@ -406,6 +436,22 @@ const Signup = () => {
 
     // Signed in already (a second tab, the back button): nothing to sign up for.
     if (user) return <Navigate to={next} replace />;
+    if (hasTeacherSession()) return <Navigate to="/teacher" replace />;
+    if (pendingApproval) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-4">
+                <div role="status" className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl shadow-emerald-100">
+                    <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-amber-600 ring-1 ring-amber-100"><Clock size={26} aria-hidden="true" /></span>
+                    <h1 className="mt-4 text-xl font-black text-slate-900">Your account is waiting for approval</h1>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                        Thank you, {pendingApproval}. Your teacher card is registered. The administrator approves new teacher accounts before they can be used — you will get an email when yours is approved.
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">Then choose <strong>Teacher</strong> on the sign-in page and sign in with your card number and password.</p>
+                    <Link to="/login?as=teacher" className="mt-5 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">Back to sign in</Link>
+                </div>
+            </div>
+        );
+    }
 
     const [stepTitle, stepHint] = STEPS[step - 1];
 
@@ -414,7 +460,7 @@ const Signup = () => {
         <div ref={errorRef} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">
             {error}
             {cardUsed && (
-                <> <Link to={next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-600 underline">Sign in</Link></>
+                <> <Link to={loginLink} className="font-bold text-indigo-600 underline">Sign in</Link></>
             )}
         </div>
     );
@@ -478,9 +524,9 @@ const Signup = () => {
                             {/* The compact header a phone gets, with the welcome panel below the form. */}
                             <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-indigo-500 lg:hidden">Welcome to LearnHub</p>
                             <span className="lg-float flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 ring-1 ring-indigo-100">
-                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300"><UserPlus size={18} /></span>
+                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300">{asTeacher ? <BookOpenCheck size={18} /> : <UserPlus size={18} />}</span>
                             </span>
-                            <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">Create your account</h2>
+                            <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">{asTeacher ? 'Register your teacher card' : 'Create your account'}</h2>
                             <p className="mt-1.5 text-sm text-slate-500">{stepHint}</p>
 
                             {/* Stepper: which of the three steps we are on. */}
@@ -589,9 +635,9 @@ const Signup = () => {
                                     <label htmlFor="signup-email" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Mail size={15} className="text-slate-500" /> Email</label>
                                     <input id="signup-email" type="email" name="email" required autoComplete="email" value={formData.email} onChange={handleInputChange}
                                         aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'signup-email-error signup-email-hint' : 'signup-email-hint'}
-                                        className={inputClass + invalidRing(fieldErrors.email)} placeholder="you@gmail.com" />
+                                        className={inputClass + invalidRing(fieldErrors.email)} placeholder={asTeacher ? 'you@college.edu.in' : 'you@gmail.com'} />
                                     <FieldError id="signup-email-error">{fieldErrors.email}</FieldError>
-                                    <p id="signup-email-hint" className="mt-1.5 text-xs text-slate-500">Only @gmail.com addresses are accepted.</p>
+                                    <p id="signup-email-hint" className="mt-1.5 text-xs text-slate-500">{asTeacher ? 'Your work or personal email. Password-reset links go here.' : 'Only @gmail.com addresses are accepted.'}</p>
                                 </div>
                                 <div>
                                     <label htmlFor="signup-phone" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Phone size={15} className="text-slate-500" /> Phone Number</label>
@@ -631,6 +677,25 @@ const Signup = () => {
                                     <FieldError id="signup-phone-error">{fieldErrors.phone}</FieldError>
                                 </div>
 
+                                {asTeacher ? (
+                                    <div className="grid gap-4 sm:grid-cols-2">
+                                        <div>
+                                            <label htmlFor="signup-institution" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                                                <Landmark size={15} className="text-slate-500" /> Institution <span className="font-normal text-slate-400">(optional)</span>
+                                            </label>
+                                            <input id="signup-institution" type="text" name="institution" maxLength={200} autoComplete="organization" value={formData.institution} onChange={handleInputChange}
+                                                className={inputClass} placeholder="College or university" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="signup-department" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                                                <Building2 size={15} className="text-slate-500" /> Department <span className="font-normal text-slate-400">(optional)</span>
+                                            </label>
+                                            <input id="signup-department" type="text" name="department" maxLength={200} value={formData.department} onChange={handleInputChange}
+                                                className={inputClass} placeholder="e.g. Physics" />
+                                        </div>
+                                    </div>
+                                ) : (
+                                <>
                                 {/* Optional, and said so twice: in the label and
                                     under the box. A student with no institution
                                     should not feel they are missing a step. */}
@@ -658,6 +723,8 @@ const Signup = () => {
                                         you, and can then follow your progress. You can add it later instead.
                                     </p>
                                 </div>
+                                </>
+                                )}
 
                                 <div className="flex gap-3">
                                     <button type="button" onClick={() => { setError(null); setFieldErrors({}); setStep(1); setQrValidated(false); }} className={backBtn}><ArrowLeft size={15} /> Back</button>
@@ -758,7 +825,12 @@ const Signup = () => {
                         </button>
 
                         <p className="mt-5 text-center text-xs text-slate-500">
-                            Already have an account? <Link to={next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-600 hover:underline">Sign in here</Link>
+                            Already have an account? <Link to={loginLink} className="font-bold text-indigo-600 hover:underline">Sign in here</Link>
+                        </p>
+                        <p className="mt-2 text-center text-xs text-slate-500">
+                            {asTeacher
+                                ? <>A student? <Link to="/signup" className="font-bold text-indigo-600 hover:underline">Create a student account</Link></>
+                                : <>A teacher? <Link to="/signup?as=teacher" className="font-bold text-emerald-700 hover:underline">Register a teacher card</Link></>}
                         </p>
                             </>
                         )}

@@ -4,7 +4,8 @@
  *              the organization admin panel and public organization registration
  */
 import React from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { ShieldAlert } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { getViewedOrganization } from './utils/viewOrganization';
 import AdminLayout from './layouts/AdminLayout';
@@ -40,6 +41,26 @@ const PlatformRoute = ({ children }) => {
 };
 
 /**
+ * A page only a super admin can use: the server refuses everyone else on
+ * Organizations and Competitions. Any other platform admin is told so plainly
+ * (found in QA, 2026-10-16) instead of the page loading and then failing —
+ * "Not authorized as superadmin", or "Unable to load… Please try again" with a
+ * Retry that could never work. The menu leaves these pages out for them too.
+ */
+const SuperAdminRoute = ({ what, children }) => {
+  const { admin } = useAuth();
+  if (admin?.role === 'superadmin') return children;
+  return (
+    <div className="mx-auto mt-6 max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600"><ShieldAlert size={24} /></span>
+      <h1 className="mt-4 text-xl font-bold text-slate-800">Only a super admin can manage {what}</h1>
+      <p className="mt-2 text-sm text-slate-500">Your account can use the rest of the admin panel. If something here needs changing, ask a super admin.</p>
+      <Link to="/" className="mt-5 inline-flex rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">Back to the dashboard</Link>
+    </div>
+  );
+};
+
+/**
  * The organization panel: an organization administrator's own, or a superadmin
  * managing one organization they opened from Organizations.
  */
@@ -52,35 +73,41 @@ const OrgRoute = ({ children }) => {
   return children;
 };
 
-import Users from './pages/Users';
-import Courses from './pages/Courses';
-import CourseEditor from './pages/CourseEditor';
-import LessonEditor from './pages/LessonEditor';
-import Bundles from './pages/Bundles';
-import Enrollments from './pages/Enrollments';
-import Settings from './pages/Settings';
-import Tickets from './pages/Tickets';
-import Community from './pages/Community';
+// Every page but sign-in and the dashboard loads when it is first opened (found
+// in QA, 2026-10-16): the panel shipped as one 1.8 MB script, every page in it,
+// before the sign-in screen could show. The layouts hold the loading state.
+const Users = React.lazy(() => import('./pages/Users'));
+const Teachers = React.lazy(() => import('./pages/Teachers'));
+const VerifyCards = React.lazy(() => import('./pages/VerifyCards'));
+const Courses = React.lazy(() => import('./pages/Courses'));
+const CourseEditor = React.lazy(() => import('./pages/CourseEditor'));
+const LessonEditor = React.lazy(() => import('./pages/LessonEditor'));
+const Bundles = React.lazy(() => import('./pages/Bundles'));
+const Enrollments = React.lazy(() => import('./pages/Enrollments'));
+const Settings = React.lazy(() => import('./pages/Settings'));
+const Tickets = React.lazy(() => import('./pages/Tickets'));
+const Community = React.lazy(() => import('./pages/Community'));
 import NotFound from './pages/NotFound';
-import Analytics from './pages/Analytics';
-import GlobalQuiz from './pages/GlobalQuiz';
-import Announcements from './pages/Announcements';
-import CareerPath from './pages/CareerPath';
-import Jobs from './pages/Jobs';
-import Rewards from './pages/Rewards';
-import Organizations from './pages/Organizations';
-import RegisterOrganization from './pages/RegisterOrganization';
+const Analytics = React.lazy(() => import('./pages/Analytics'));
+const GlobalQuiz = React.lazy(() => import('./pages/GlobalQuiz'));
+const Announcements = React.lazy(() => import('./pages/Announcements'));
+const CareerPath = React.lazy(() => import('./pages/CareerPath'));
+const Jobs = React.lazy(() => import('./pages/Jobs'));
+const Rewards = React.lazy(() => import('./pages/Rewards'));
+const Organizations = React.lazy(() => import('./pages/Organizations'));
+const RegisterOrganization = React.lazy(() => import('./pages/RegisterOrganization'));
 import OrgAdminLayout from './layouts/OrgAdminLayout';
-import OrgDashboard from './pages/org/OrgDashboard';
-import OrgStudents from './pages/org/OrgStudents';
-import OrgStudentDetail from './pages/org/OrgStudentDetail';
-import OrgRequests from './pages/org/OrgRequests';
-import OrgSettings from './pages/org/OrgSettings';
+const OrgDashboard = React.lazy(() => import('./pages/org/OrgDashboard'));
+const OrgStudents = React.lazy(() => import('./pages/org/OrgStudents'));
+const OrgStudentDetail = React.lazy(() => import('./pages/org/OrgStudentDetail'));
+const OrgRequests = React.lazy(() => import('./pages/org/OrgRequests'));
+const OrgTeachers = React.lazy(() => import('./pages/org/OrgTeachers'));
+const OrgSettings = React.lazy(() => import('./pages/org/OrgSettings'));
 import OrgNotFound from './pages/org/OrgNotFound';
 // Games & Competitions: the platform runs inter-college competitions; colleges enter teams.
-import Competitions from './pages/Competitions';
-import CompetitionAdmin from './pages/CompetitionAdmin';
-import OrgCompetitions from './pages/org/OrgCompetitions';
+const Competitions = React.lazy(() => import('./pages/Competitions'));
+const CompetitionAdmin = React.lazy(() => import('./pages/CompetitionAdmin'));
+const OrgCompetitions = React.lazy(() => import('./pages/org/OrgCompetitions'));
 import { CourseScope, ORGANIZATION_SCOPE } from './utils/courseScope';
 
 /** The platform's course pages, working on this organization's own courses. */
@@ -88,6 +115,7 @@ const OrgCourses = ({ children }) => <CourseScope.Provider value={ORGANIZATION_S
 
 function App() {
   return (
+    <React.Suspense fallback={null}>
     <Routes>
       <Route path="/login" element={<Login />} />
       {/* Public: opened from the emailed link by someone who cannot sign in. */}
@@ -103,6 +131,7 @@ function App() {
         <Route path="students" element={<OrgStudents />} />
         <Route path="students/:studentId" element={<OrgStudentDetail />} />
         <Route path="requests" element={<OrgRequests />} />
+        <Route path="teachers" element={<OrgTeachers />} />
         <Route path="courses" element={<OrgCourses><Courses /></OrgCourses>} />
         <Route path="courses/:id" element={<OrgCourses><CourseEditor /></OrgCourses>} />
         <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
@@ -115,13 +144,15 @@ function App() {
 
       <Route path="/" element={<PlatformRoute><AdminLayout /></PlatformRoute>}>
         <Route index element={<Dashboard />} />
+        <Route path="verify-cards" element={<SuperAdminRoute what="card verification"><VerifyCards /></SuperAdminRoute>} />
         <Route path="users" element={<Users />} />
+        <Route path="teachers" element={<Teachers />} />
         <Route path="courses" element={<Courses />} />
         <Route path="courses/:id" element={<CourseEditor />} />
         <Route path="courses/:courseId/lessons/:lessonId" element={<LessonEditor />} />
         <Route path="bundles" element={<Bundles />} />
         <Route path="enrollments" element={<Enrollments />} />
-        <Route path="organizations" element={<Organizations />} />
+        <Route path="organizations" element={<SuperAdminRoute what="organizations"><Organizations /></SuperAdminRoute>} />
         <Route path="settings" element={<Settings />} />
         <Route path="tickets" element={<Tickets />} />
         <Route path="community" element={<Community />} />
@@ -131,11 +162,12 @@ function App() {
         <Route path="rewards" element={<Rewards />} />
         <Route path="global-quiz" element={<GlobalQuiz />} />
         <Route path="announcements" element={<Announcements />} />
-        <Route path="competitions" element={<Competitions />} />
-        <Route path="competitions/:id" element={<CompetitionAdmin />} />
+        <Route path="competitions" element={<SuperAdminRoute what="competitions"><Competitions /></SuperAdminRoute>} />
+        <Route path="competitions/:id" element={<SuperAdminRoute what="competitions"><CompetitionAdmin /></SuperAdminRoute>} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </React.Suspense>
   );
 }
 

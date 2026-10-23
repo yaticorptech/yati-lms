@@ -171,7 +171,7 @@ const UploadDialog = ({ onClose, onDone }) => {
                 padding, a shorter drop zone and smaller fields, so the form fits
                 without feeling like a full page. From sm up, as it was. */}
             <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:p-4" onClick={onClose}>
-                <form role="dialog" aria-modal="true" aria-labelledby="cert-upload-title" onSubmit={submit} onClick={(e) => e.stopPropagation()}
+                <form role="dialog" aria-modal="true" aria-labelledby="cert-upload-title" onSubmit={submit} onClick={(e) => e.stopPropagation()} noValidate
                     className="flex max-h-[85dvh] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-fade-in-up sm:max-h-[92vh] sm:max-w-lg sm:rounded-3xl">
                     <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 sm:p-5">
                         <h3 id="cert-upload-title" className="flex items-center gap-2 text-sm font-bold text-slate-800 sm:text-base"><Upload size={16} className="shrink-0 text-indigo-600" /> Add a certificate to your frame</h3>
@@ -247,7 +247,7 @@ const UploadDialog = ({ onClose, onDone }) => {
     );
 };
 
-export default function CertificatesFrame({ certificates, loading, certError, downloadingId, onDownload, onRemoved }) {
+export default function CertificatesFrame({ certificates, loading, loadFailed = false, onRetry, certError, downloadingId, onDownload, onRemoved }) {
     const [achievements, setAchievements] = useState([]);
     const [loadingUploads, setLoadingUploads] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -269,12 +269,14 @@ export default function CertificatesFrame({ certificates, loading, certError, do
     // "Delete this certificate?" asked in the app's own dialog, not the browser's.
     const [confirm, confirmDialog] = useConfirmDialog();
 
-    useEffect(() => {
-        api.get('/user/achievements')
-            .then((r) => setAchievements(r.data.achievements || []))
-            .catch(() => {})
-            .finally(() => setLoadingUploads(false));
-    }, []);
+    // Each source says when it could not be read, so the frame never claims
+    // to be empty while a list it should hold failed to arrive.
+    const [uploadsFailed, setUploadsFailed] = useState(false);
+    const loadUploads = () => api.get('/user/achievements')
+        .then((r) => { setAchievements(r.data.achievements || []); setUploadsFailed(false); })
+        .catch(() => setUploadsFailed(true))
+        .finally(() => setLoadingUploads(false));
+    useEffect(() => { loadUploads(); }, []);
 
     // Games & Competitions certificates: one for every finished competition
     // the student played in, listed by the server and drawn as a PDF on
@@ -282,12 +284,12 @@ export default function CertificatesFrame({ certificates, loading, certError, do
     const [competitionCerts, setCompetitionCerts] = useState([]);
     const [loadingCompetitions, setLoadingCompetitions] = useState(true);
     const [downloadingCompetition, setDownloadingCompetition] = useState(null);
-    useEffect(() => {
-        competitionsApi.myCertificates()
-            .then(setCompetitionCerts)
-            .catch(() => {})
-            .finally(() => setLoadingCompetitions(false));
-    }, []);
+    const [competitionsFailed, setCompetitionsFailed] = useState(false);
+    const loadCompetitions = () => competitionsApi.myCertificates()
+        .then((rows) => { setCompetitionCerts(rows); setCompetitionsFailed(false); })
+        .catch(() => setCompetitionsFailed(true))
+        .finally(() => setLoadingCompetitions(false));
+    useEffect(() => { loadCompetitions(); }, []);
     const downloadCompetition = (c) => {
         setDownloadingCompetition(c.competitionId);
         setError('');
@@ -308,7 +310,7 @@ export default function CertificatesFrame({ certificates, loading, certError, do
         const ok = await confirm({
             title: issued || competition ? `Delete "${item.title}" from My Certificates?` : `Delete "${item.title}" from your frame?`,
             message: issued
-                ? 'The certificate stays valid — download it again from the course and it comes back here.'
+                ? 'It comes off your resume and Learning Bio too. The certificate stays valid — download it again from the course and it comes back.'
                 : competition
                     ? 'It stays yours in Games & Competitions — download it again there and it comes back here.'
                     : 'The file you uploaded is removed for good.',
@@ -350,6 +352,17 @@ export default function CertificatesFrame({ certificates, loading, certError, do
     const framed = items.slice(0, frameSize);
     const outOfFrame = items.length - framed.length;
     const busy = loading || loadingUploads || loadingCompetitions;
+    const someFailed = loadFailed || uploadsFailed || competitionsFailed;
+    const [retrying, setRetrying] = useState(false);
+    const retry = async () => {
+        setRetrying(true);
+        await Promise.all([
+            loadFailed && onRetry ? onRetry() : null,
+            uploadsFailed ? loadUploads() : null,
+            competitionsFailed ? loadCompetitions() : null
+        ]);
+        setRetrying(false);
+    };
 
     /* One card, five bands, separated by hairlines rather than gaps — the
        resume block below it needs the room. */
@@ -374,10 +387,22 @@ export default function CertificatesFrame({ certificates, loading, certError, do
                 <div className="bg-red-50 px-5 py-2.5 text-sm font-medium text-red-600">{certError || error}</div>
             )}
 
+            {/* ── A list that could not be read ────────────────────────── */}
+            {!busy && someFailed && (
+                <div role="alert" className="flex flex-wrap items-center justify-between gap-2 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 sm:px-5">
+                    <span className="flex items-center gap-2"><Info size={15} className="shrink-0 text-amber-600" aria-hidden="true" />
+                        {items.length ? 'Some of your certificates could not be loaded just now.' : 'Your certificates could not be loaded just now.'}</span>
+                    <button type="button" onClick={retry} disabled={retrying}
+                        className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 text-xs font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-60">
+                        {retrying ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Try again
+                    </button>
+                </div>
+            )}
+
             {/* ── Empty frame ──────────────────────────────────────────── */}
             {busy ? (
                 <div className="px-4 py-3 sm:px-5"><div className="skeleton h-24 rounded-2xl" /></div>
-            ) : items.length === 0 && (
+            ) : items.length === 0 && !someFailed && (
                 <div className="relative overflow-hidden px-4 py-3 sm:px-5">
                     <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet-100/60 blur-3xl" />
                     <div className="relative flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">

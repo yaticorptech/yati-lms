@@ -144,6 +144,10 @@ const getGoal = async (req, res) => {
   try {
     const goal = await Goal.findOne({ userId: req.user._id });
     if (!goal) {
+      // ?optional=1 is a caller for whom "no goal yet" is an ordinary answer
+      // (the Jobs search prefill): null, not an error in the browser's
+      // console. Career Path's own screens still get the 404 they expect.
+      if (req.query.optional === '1') return res.status(200).json(null);
       return res.status(404).json({ message: 'No career goal found.' });
     }
     res.status(200).json(goal);

@@ -269,6 +269,11 @@ const getDashboard = async (req, res) => {
             : 0;
 
         const pendingRequests = await countPendingRequests(organizationId);
+        const { Teacher } = require('../../teacher/models');
+        const [teachers, pendingTeacherRequests] = await Promise.all([
+            Teacher.countDocuments({ organizationId }),
+            require('../../teacher/orgAdmin').countPending(organizationId)
+        ]);
 
         const recentActivity = rows
             .filter((r) => r.lastActive)
@@ -292,7 +297,9 @@ const getDashboard = async (req, res) => {
                 coursesCompleted: rows.reduce((sum, r) => sum + r.coursesCompleted, 0),
                 certificates: rows.reduce((sum, r) => sum + r.certificates, 0),
                 totalXp: rows.reduce((sum, r) => sum + r.xp, 0),
-                pendingRequests
+                pendingRequests,
+                teachers,
+                pendingTeacherRequests
             },
             recentActivity
         });

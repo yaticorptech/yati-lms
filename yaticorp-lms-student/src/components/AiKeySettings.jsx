@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { KeyRound, ExternalLink, Trash2, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import api from '../utils/api';
 import useJobsAccess from '../hooks/useJobsAccess';
+import useConfirmDialog from './useConfirmDialog';
 
 const AiKeyForm = () => {
     const [status, setStatus] = useState(null);      // { hasKey, masked, addedAt, platformKeyAvailable }
@@ -16,6 +17,9 @@ const AiKeyForm = () => {
     const [saving, setSaving] = useState(false);
     const [removing, setRemoving] = useState(false);
     const [notice, setNotice] = useState(null);      // { type: 'ok' | 'error', text }
+    // Asked first, in the app's own dialog, as removing a resume or a
+    // certificate is: the key is gone the moment the server hears.
+    const [confirm, confirmDialog] = useConfirmDialog();
 
     const load = async () => {
         try {
@@ -46,6 +50,15 @@ const AiKeyForm = () => {
     };
 
     const remove = async () => {
+        const ok = await confirm({
+            title: 'Remove your AI key?',
+            message: status?.platformKeyAvailable === false
+                ? 'AI features turn off until you add a key again.'
+                : 'Career Path, mock interviews and your Learning Bio go back to the platform key and its daily allowance. You can add a key again any time.',
+            confirmLabel: 'Remove key',
+            destructive: true
+        });
+        if (!ok) return;
         setRemoving(true); setNotice(null);
         try {
             const res = await api.delete('/user/ai-key');
@@ -137,6 +150,7 @@ const AiKeyForm = () => {
                     <span>{notice.text}</span>
                 </p>
             )}
+            {confirmDialog}
         </section>
     );
 };

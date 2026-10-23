@@ -62,6 +62,20 @@ export const requestConsent = (reason) =>
     emit();
   });
 
+/*
+ * "Not now" holds for the rest of the visit. The question used to come back
+ * with every file — five times in one sitting on My Profile — after the
+ * student had already said no. A new visit asks again, and the Google card
+ * on My Profile and the Calendar connects whenever they like.
+ */
+const DECLINED_KEY = 'yati:driveDeclined';
+export const declinedThisVisit = () => {
+  try { return sessionStorage.getItem(DECLINED_KEY) === '1'; } catch { return false; }
+};
+export const rememberDeclined = () => {
+  try { sessionStorage.setItem(DECLINED_KEY, '1'); } catch { /* asked again next file */ }
+};
+
 export const settleConsent = (granted) => {
   const req = askState;
   askState = null;

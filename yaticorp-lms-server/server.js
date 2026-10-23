@@ -72,8 +72,17 @@ app.use(cors({
     },
     credentials: true,
     // Read by the student app to refresh the wallet balance after a priced feature.
-    exposedHeaders: ['X-Wallet-Charged']
+    exposedHeaders: ['X-Wallet-Charged'],
+    // Every API call carries a token, so the browser asks first (an OPTIONS
+    // request) — and without this it asked again before every single call,
+    // doubling the requests a page makes (found in QA, 2026-10-16). Two hours is
+    // the longest Chrome will remember an answer.
+    maxAge: 7200
 }));
+// The teacher side saves whole thesis chapters, which run past the default
+// 100 KB. Parsed here first, with room for them; the parser below then
+// leaves these requests alone.
+app.use('/api/teacher', express.json({ limit: '3mb' }));
 app.use(express.json());
 
 // const { globalLimiter } = require('./src/middleware/rateLimiter');
@@ -90,6 +99,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Import Routes
 app.use('/api/auth', require('./src/routes/authRoutes'));       // All credential/auth routes
+app.use('/api/admin/teachers', require('./src/teacher/admin'));   // before /api/admin's own routes
 app.use('/api/admin', require('./src/routes/adminRoutes'));
 app.use('/api/user', require('./src/routes/userRoutes'));
 app.use('/api/sync', require('./src/routes/syncRoutes'));
@@ -125,6 +135,10 @@ app.use('/api/interview', require('./src/interview'));
 // Games & Competitions: online Chess, Ludo, Carrom and UNO, friendly rooms and
 // inter-college competitions run by the platform admin (src/competitions).
 app.use('/api/competitions', require('./src/competitions'));
+
+// The teacher dashboard: research methodologies, research path, publications,
+// thesis writing, plagiarism and independent writing (src/teacher).
+app.use('/api/teacher', require('./src/teacher'));
 // Public share links for Career Path milestone badges: /b/<code> renders the
 // page a student's followers open, /b/<code>/image.png is what LinkedIn, X and
 // WhatsApp embed. Deliberately outside /api and deliberately unauthenticated —

@@ -18,7 +18,7 @@
  *
  * The tab lives in the address (?tab=) so a link can open the right one.
  */
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Gamepad2, Brain, Trophy, UserCheck, BarChart3, History, Users, UsersRound, Crown, CalendarClock, Building2, Loader2,
@@ -574,19 +574,76 @@ export default function CompetitionsHome() {
         bar.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
     }, [tab]);
 
+    // The highlight under the chosen tab glides from one tab to the next, and
+    // the bar's ends fade where more tabs are hidden past them (asked
+    // 2026-10-16: "make the scroll smooth...make those nav animation").
+    // Written straight to the elements: these follow every scroll and resize.
+    const pillRef = useRef(null);
+    const fadeLeft = useRef(null);
+    const fadeRight = useRef(null);
+    const placed = useRef(false);
+    const placePill = useCallback((glide) => {
+        const bar = barRef.current;
+        const pill = pillRef.current;
+        const current = bar?.querySelector('[aria-current="page"]');
+        if (!pill || !current) return;
+        if (!glide) pill.style.transition = 'none';
+        pill.style.width = `${current.offsetWidth}px`;
+        pill.style.height = `${current.offsetHeight}px`;
+        pill.style.transform = `translate(${current.offsetLeft}px, ${current.offsetTop}px)`;
+        pill.style.opacity = '1';
+        if (!glide) { void pill.offsetWidth; pill.style.transition = ''; }
+    }, []);
+    const showEdges = useCallback(() => {
+        const bar = barRef.current;
+        if (!bar) return;
+        const end = bar.scrollWidth - bar.clientWidth;
+        if (fadeLeft.current) fadeLeft.current.style.opacity = bar.scrollLeft > 2 ? '1' : '0';
+        if (fadeRight.current) fadeRight.current.style.opacity = bar.scrollLeft < end - 2 ? '1' : '0';
+    }, []);
+    // A new tab: the highlight glides there (the very first time it is simply there).
+    useLayoutEffect(() => {
+        placePill(placed.current);
+        placed.current = true;
+        showEdges();
+    }, [tab, placePill, showEdges]);
+    // Set up once: a watcher made again on every tab change reports at once,
+    // and that report snapped the highlight over before it could glide.
+    useEffect(() => {
+        const bar = barRef.current;
+        if (!bar) return undefined;
+        const resized = () => { placePill(false); showEdges(); };
+        const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(resized) : null;
+        ro?.observe(bar);
+        document.fonts?.ready?.then(resized);
+        bar.addEventListener('scroll', showEdges, { passive: true });
+        return () => { ro?.disconnect(); bar.removeEventListener('scroll', showEdges); };
+    }, [placePill, showEdges]);
+
     return (
         <div className={`flex flex-col gap-3 ${fill ? 'lg:h-[calc(100vh-8rem)] lg:min-h-[36rem]' : ''}`}>
-            {/* The section's own bar: the gamepad tile, then the seven tabs in a
-                row. On a phone the row scrolls sideways. */}
-            <nav ref={barRef} aria-label="Games & Competitions" className="relative flex shrink-0 items-center gap-1.5 overflow-x-auto rounded-[22px] bg-white p-1.5 shadow-sm ring-1 ring-slate-100 no-scrollbar">
-                <span aria-hidden="true" className="mr-1 flex h-10 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30"><Gamepad2 size={26} /></span>
-                {TABS.map((t) => (
-                    <button key={t.id} type="button" onClick={() => select(t.id)} aria-current={tab === t.id ? 'page' : undefined}
-                        className={`inline-flex min-h-10 shrink-0 items-center gap-2.5 rounded-2xl px-4 text-sm font-semibold transition-colors ${tab === t.id ? 'bg-indigo-100 text-indigo-700 shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-700'}`}>
-                        <t.icon size={20} aria-hidden="true" className="shrink-0" /> {t.label}
-                    </button>
-                ))}
-            </nav>
+            {/* The section's own bar: the seven tabs in a row, with no gamepad
+                tile before them (removed 2026-10-16). On a phone the row
+                scrolls sideways, smoothly, its ends fading where more tabs
+                are hidden; the highlight slides to the chosen tab. */}
+            <div className="relative shrink-0 rounded-[22px] bg-white shadow-sm ring-1 ring-slate-100">
+                <nav ref={barRef} aria-label="Games & Competitions" className="relative flex items-center gap-1.5 overflow-x-auto overscroll-x-contain scroll-smooth rounded-[22px] p-1.5 no-scrollbar">
+                    <span ref={pillRef} aria-hidden="true"
+                        className="pointer-events-none absolute left-0 top-0 rounded-2xl bg-indigo-100 opacity-0 shadow-sm transition-[transform,width,height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none" />
+                    {TABS.map((t) => {
+                        const on = tab === t.id;
+                        return (
+                            <button key={t.id} type="button" onClick={() => select(t.id)} aria-current={on ? 'page' : undefined}
+                                className={`relative inline-flex min-h-10 shrink-0 items-center gap-2.5 rounded-2xl px-4 text-sm font-semibold transition-[color,background-color,transform] duration-200 active:scale-95 motion-reduce:active:scale-100 ${on ? 'text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-700'}`}>
+                                {/* Re-mounted when chosen, so its little hop plays each time. */}
+                                <t.icon key={on ? 'on' : 'off'} size={20} aria-hidden="true" className={`shrink-0 ${on ? 'tab-icon-pop' : ''}`} /> {t.label}
+                            </button>
+                        );
+                    })}
+                </nav>
+                <span ref={fadeLeft} aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-10 rounded-l-[22px] bg-gradient-to-r from-white via-white/80 to-transparent opacity-0 transition-opacity duration-200" />
+                <span ref={fadeRight} aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-10 rounded-r-[22px] bg-gradient-to-l from-white via-white/80 to-transparent opacity-0 transition-opacity duration-200" />
+            </div>
 
             {/* On a wide screen the Games tab is exactly the window's height: the
                 banner and the two boxes take any spare room, and the game photos
@@ -603,7 +660,11 @@ export default function CompetitionsHome() {
                             <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/90"><Gamepad2 size={16} aria-hidden="true" /> Play · Compete · Win</p>
                             <h1 className="mt-1.5 text-[1.6rem] font-black leading-tight sm:text-3xl">Games <span className="text-violet-300">&amp;</span> Competitions</h1>
                             <p className="mt-1.5 hidden max-w-lg text-sm text-white/90 sm:block">Compete with your college friends. Play your favourite games and win exciting matches.</p>
-                            <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+                            {/* On a phone the pills and the picture are the Games tab's
+                                alone: on the other tabs they filled over half the
+                                screen and pushed the tab itself (a live match's
+                                Join game) below the fold (2026-10-17). */}
+                            <ul className={`mt-3 flex flex-wrap gap-x-5 gap-y-2 ${tab === 'games' ? '' : 'max-sm:hidden'}`}>
                                 {HERO_PILLS.map(([Icon, label, tone]) => (
                                     <li key={label} className="flex items-center gap-2 text-xs font-semibold">
                                         <span className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/15 ${tone}`}><Icon size={14} aria-hidden="true" /></span> {label}
@@ -618,8 +679,8 @@ export default function CompetitionsHome() {
                                 kept from the bottom): they hold the picture's own
                                 light edge line and rounded corners, which showed
                                 as a hairline even under the fade. */}
-                            <img src={HERO_ART} alt="" data-hero-art
-                                className="-mx-5 -mb-5 mt-1 block aspect-[866/356] w-[calc(100%+2.5rem)] max-w-none object-cover object-bottom [mask-composite:intersect] [mask-image:linear-gradient(to_bottom,transparent,transparent_8%,black_42%),linear-gradient(to_right,transparent,black_7%,black_93%,transparent)] sm:-mx-7 sm:-mb-3 sm:w-[calc(100%+3.5rem)] lg:hidden" />
+                            {tab === 'games' && <img src={HERO_ART} alt="" data-hero-art
+                                className="-mx-5 -mb-5 mt-1 block aspect-[866/356] w-[calc(100%+2.5rem)] max-w-none object-cover object-bottom [mask-composite:intersect] [mask-image:linear-gradient(to_bottom,transparent,transparent_8%,black_42%),linear-gradient(to_right,transparent,black_7%,black_93%,transparent)] sm:-mx-7 sm:-mb-3 sm:w-[calc(100%+3.5rem)] lg:hidden" />}
                         </div>
                     </header>
                 )}

@@ -78,6 +78,18 @@ const spot = (id, b) => {
   return { x: (r.left + r.width / 2 - board.left) / board.width, y: (r.top + r.height / 2 - board.top) / board.height };
 };`;
 
+/** One table, drawn with a view and then — window.__next() — with the next one, as a poll would bring it. */
+const nextEntry = (first, second) => `
+import { createRoot } from 'react-dom/client';
+import LudoTable from '${srcFile('competitions/games/LudoTable.jsx')}';
+const el = document.createElement('div');
+el.style.width = '520px';
+document.getElementById('root').appendChild(el);
+const root = createRoot(el);
+const draw = (v) => root.render(<LudoTable view={v} busy={false} onAction={() => Promise.resolve()} />);
+draw(${JSON.stringify(first)});
+window.__next = () => draw(${JSON.stringify(second)});`;
+
 describe('the Ludo table', { skip: skipWithoutChrome }, () => {
     test('roll only on your turn, tap only the tokens that may move, every token drawn', async () => {
         const { result, errors } = await screen({
@@ -189,5 +201,38 @@ return { width: board.width, height: board.height, left: board.left, sideways: d
         assert.equal(result.sideways, false, 'no sideways scrolling');
         assert.ok(result.tap >= 24, `a movable token's tap target is ${result.tap}px`);
         assert.deepEqual(result.actions, [{ table: 'move', action: { type: 'move', token: 1 } }]);
+    });
+
+    // Asked 2026-10-17: "make this ludo as real game mobile game ... smooth". Read
+    // off data-steps, which follows the token as it goes, not its position on the
+    // screen (CSS transitions do not run in the test browser).
+    test('a move walks square by square once the dice has landed, and a token it captures waits for it', async () => {
+        const first = view({ tokens: [
+            [yard(0, 0), yard(0, 1), on(0, [13, 6]), yard(0, 3)],
+            [on(43, [9, 6]), yard(1, 1), yard(1, 2), yard(1, 3)],
+            [yard(2, 0), yard(2, 1), yard(2, 2), yard(2, 3)],
+            [yard(3, 0), yard(3, 1), yard(3, 2), yard(3, 3)]
+        ], dice: 2, diceBy: 3, rollCount: 7 });
+        const second = view({ tokens: [
+            [yard(0, 0), yard(0, 1), on(4, [9, 6]), yard(0, 3)],
+            [yard(1, 0), yard(1, 1), yard(1, 2), yard(1, 3)],
+            [yard(2, 0), yard(2, 1), yard(2, 2), yard(2, 3)],
+            [yard(3, 0), yard(3, 1), yard(3, 2), yard(3, 3)]
+        ], dice: 4, diceBy: 0, rollCount: 8, lastMove: { seat: 0, token: 2, from: 0, to: 4, captured: [{ seat: 1, token: 0 }] } });
+        const { result, errors } = await screen({ entry: nextEntry(first, second), api: 'export default {};', width: 1200, height: 1000, budget: 8000, script: `
+await sleep(400);
+const steps = (seat, token) => Number(document.querySelector('[data-ludo-token][data-seat="' + seat + '"][data-token="' + token + '"]').dataset.steps);
+window.__next();
+const t0 = performance.now(); const seen = [];
+while (performance.now() - t0 < 2400) { seen.push([Math.round(performance.now() - t0), steps(0, 2), steps(1, 0)]); await sleep(30); }
+return { seen };` });
+        assert.deepEqual(errors, []);
+        const red = []; let firstMove = null;
+        for (const [t, r] of result.seen) { if (red[red.length - 1] !== r) red.push(r); if (firstMove === null && r !== 0) firstMove = t; }
+        assert.deepEqual(red, [0, 1, 2, 3, 4], 'one square at a time');
+        assert.ok(firstMove >= 500, `after the dice has landed (started at ${firstMove}ms)`);
+        const greenWhileWalking = result.seen.filter(([, r]) => r < 4).map(([, , g]) => g);
+        assert.ok(greenWhileWalking.every((g) => g === 43), 'the captured token stays on its square while the mover walks');
+        assert.equal(result.seen[result.seen.length - 1][2], -1, 'and is back in its yard after');
     });
 });

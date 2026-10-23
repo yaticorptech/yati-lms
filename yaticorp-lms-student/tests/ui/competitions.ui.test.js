@@ -236,10 +236,34 @@ describe('the Games & Competitions section', { skip: skipWithoutStyles }, () => 
         assert.equal(result.atResults.history, true, 'and so is the next tab');
         assert.equal(result.atResults.games, false, 'the far end is off screen');
         assert.equal(result.atGames.scrolled, 0, 'back to Games: the bar scrolls back');
-        // At the start of the bar the gamepad tile comes first, so on the
-        // narrowest phone the next tab is only partly in view, enough to show the row goes on.
+        // On the narrowest phone the next tab is only partly in view, enough to
+        // show the row goes on.
         assert.ok(result.atGames.games, 'Games is in view');
         assert.ok(result.atGames.next, 'and the next tab shows at the edge');
+    });
+
+    // Asked 2026-10-16: "make the scroll smooth...make those nav animation".
+    test('the tab highlight glides to the chosen tab and lands on it; the ends fade where tabs are hidden', async () => {
+        const { result, errors } = await screen({ entry: home(), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(1200);
+            const bar = $('nav[aria-label="Games & Competitions"]');
+            const pill = bar.querySelector('span[aria-hidden="true"]');
+            const fades = () => [...bar.parentElement.children].filter((c) => c !== bar).map((f) => getComputedStyle(f).opacity);
+            const btn = (label) => $$('nav[aria-label="Games & Competitions"] button').find((b) => b.innerText.trim() === label);
+            const onIt = (b) => { const p = pill.getBoundingClientRect(), r = b.getBoundingClientRect(); return Math.abs(p.left - r.left) < 1.5 && Math.abs(p.width - r.width) < 1.5; };
+            const atStart = { onGames: onIt(btn('Games')), fades: fades() };
+            const t0 = performance.now(); btn('Leaderboard').click();
+            const xs = [];
+            while (performance.now() - t0 < 600) { xs.push(Math.round(pill.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft)); await sleep(40); }
+            await sleep(900);
+            return { atStart, steps: new Set(xs).size, onLeaderboard: onIt(btn('Leaderboard')), fades: fades(), hop: btn('Leaderboard').querySelector('svg').classList.contains('tab-icon-pop') };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.atStart.onGames, true, 'the highlight starts on the chosen tab');
+        assert.deepEqual(result.atStart.fades, ['0', '1'], 'at the start only the far end fades');
+        assert.ok(result.steps > 3, `it glides there, not jumps (${result.steps} positions on the way)`);
+        assert.equal(result.onLeaderboard, true, 'and lands exactly on the new tab');
+        assert.deepEqual(result.fades, ['1', '1'], 'scrolled along, both ends fade');
+        assert.equal(result.hop, true, 'its icon hops');
     });
 
     test('on a phone the game filters scroll to the chosen game by itself, with the next one in view', async () => {
@@ -600,6 +624,26 @@ describe('the game page', { skip: skipWithoutStyles }, () => {
             return { outcome: text($('[data-outcome]')) };` });
         assert.match(result.outcome, /You won!/);
         assert.match(result.outcome, /Checkmate/);
+    });
+
+    // Found 2026-10-17: kept on one line, a long team and college name ran
+    // 45px past the result card on a phone.
+    test('on a phone, a long team and college name in the placings wraps inside the result card', async () => {
+        const long = 'QA Alpha Knights (QA Alpha College of Engineering and Technology 236615)';
+        const seats = [{ name: long, side: 0, label: 'White', color: '#f8fafc' }, { name: 'Ravi', side: 1, label: 'Black', color: '#0f172a' }];
+        const outcome = { places: [[0], [1]], reason: 'White resigned' };
+        const done = gameRow({ status: 'finished', seats: seats.map((s) => ({ name: s.name, side: s.side, joined: true })), outcome, view: { ...chessView('finished'), seats, outcome } });
+        const { result, errors } = await screen({ entry: page, api: apiModule({ '/competitions/play/g1': { game: done } }), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
+            await sleep(900);
+            const card = $('[data-outcome]').closest('section') || $('[data-outcome]');
+            const c = card.getBoundingClientRect();
+            const rows = [...card.querySelectorAll('ol li')].map((li) => ({ right: Math.round(li.getBoundingClientRect().right), text: text(li) }));
+            return { cardRight: Math.round(c.right), rows, sideways: document.documentElement.scrollWidth > innerWidth + 1 };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.rows.length, 2);
+        assert.ok(result.rows.every((r) => r.right <= result.cardRight), `a row runs past the card (${result.cardRight}): ${JSON.stringify(result.rows)}`);
+        assert.ok(result.rows[0].text.includes('236615)'), 'the whole name is there, wrapped, not cut off');
+        assert.equal(result.sideways, false);
     });
 });
 

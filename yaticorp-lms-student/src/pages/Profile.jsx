@@ -112,17 +112,25 @@ const Profile = ({ view = 'dashboard' }) => {
         return () => window.removeEventListener('keydown', onKey);
     }, [photoOpen]);
 
-    // The student's XP and level, kept with the rest of what the device saves
-    // about them (sign-in sends them too), so the banner opens on their own
-    // level next time. A session signed in before sign-in sent them picks
-    // them up here, on its first profile load.
-    const rememberStanding = (fresh) => {
-        if (!fresh || fresh.level == null) return;
-        const standing = { xp: Number(fresh.xp) || 0, level: Number(fresh.level) || 1 };
-        setUser((prev) => (prev && (prev.xp !== standing.xp || prev.level !== standing.level) ? { ...prev, ...standing } : prev));
+    // What the server says about the student, kept with the rest of what the
+    // device saves about them, so the banner opens on their own level next
+    // time and My Profile shows their details as they are now. The details
+    // used to come only from sign-in: a name an administrator corrected, or a
+    // phone changed on another device, stayed old here until the student
+    // signed out — and Edit Profile, filled in from them, wrote the old values
+    // back. Only fields the server sent are taken.
+    const rememberStudent = (fresh) => {
+        if (!fresh) return;
+        const latest = {};
+        for (const k of ['name', 'email', 'phone', 'cardNumber', 'profilePicture', 'credits']) {
+            if (fresh[k] != null) latest[k] = fresh[k];
+        }
+        if (fresh.level != null) Object.assign(latest, { xp: Number(fresh.xp) || 0, level: Number(fresh.level) || 1 });
+        const stale = (held) => !!held && Object.keys(latest).some((k) => held[k] !== latest[k]);
+        setUser((prev) => (stale(prev) ? { ...prev, ...latest } : prev));
         try {
             const saved = JSON.parse(localStorage.getItem('studentData') || 'null');
-            if (saved && (saved.xp !== standing.xp || saved.level !== standing.level)) localStorage.setItem('studentData', JSON.stringify({ ...saved, ...standing }));
+            if (stale(saved)) localStorage.setItem('studentData', JSON.stringify({ ...saved, ...latest }));
         } catch { /* no storage: the banner waits for the profile next time */ }
     };
 
@@ -132,7 +140,7 @@ const Profile = ({ view = 'dashboard' }) => {
     // figure the page opened with until the next reload. A failed re-read
     // keeps what is shown; only the first one falls back to the saved session.
     const loadStanding = useCallback((first = false) => api.get('/user/profile')
-        .then(r => { const u = r.data?.user || null; setCareer(u); rememberStanding(u); })
+        .then(r => { const u = r.data?.user || null; setCareer(u); rememberStudent(u); })
         // eslint-disable-next-line react-hooks/exhaustive-deps
         .catch(() => { if (first) setCareer(null); }), []);
     useEffect(() => {
@@ -145,29 +153,34 @@ const Profile = ({ view = 'dashboard' }) => {
         };
     }, [loadStanding]);
 
+    // The course certificates. A failed read is said as such in the frame,
+    // with a way to try again: read as an empty list, it told the student
+    // their frame was empty.
+    const [certsFailed, setCertsFailed] = useState(false);
+    const loadCertificates = useCallback(() => api.get('/certificates')
+        .then((res) => { setCertificates(res.data); setCertsFailed(false); })
+        .catch((err) => { console.error(err); setCertsFailed(true); })
+        .finally(() => setLoading(false)), []);
+
     useEffect(() => {
-        const fetchCertificates = async () => {
-            try {
-                loadStanding(true);
-                if (isCareerPathEnabled) {
-                    api.get('/career/tasks/history')
-                        .then(r => setHistory(Array.isArray(r.data) ? r.data : []))
-                        .catch(() => setHistory([]));
-                }
-                const res = await api.get('/certificates');
-                setCertificates(res.data);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchCertificates();
+        loadStanding(true);
+        if (isCareerPathEnabled) {
+            api.get('/career/tasks/history')
+                .then(r => setHistory(Array.isArray(r.data) ? r.data : []))
+                .catch(() => setHistory([]));
+        }
+        loadCertificates();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // The details as the form opened with them: Save sends only what the
+    // student changed, so a value that changed elsewhere meanwhile is not
+    // written over with the one this page was showing.
+    const [opened, setOpened] = useState(null);
     const openEdit = () => {
-        setForm({ name: user?.name || '', email: user?.email || '', phone: user?.phone || '' });
+        const start = { name: user?.name || '', email: user?.email || '', phone: user?.phone || '' };
+        setForm(start);
+        setOpened(start);
         setFormErrors({});
         setSaveSuccess(false);
         setEditing(true);
@@ -184,9 +197,10 @@ const Profile = ({ view = 'dashboard' }) => {
 
         if (!form.phone.trim()) errors.phone = 'Phone number is required';
         else {
-            // Strip all non-digit characters to count digits
+            // Strip all non-digit characters to count digits. Digits, spaces,
+            // brackets, dots, dashes and a leading + only — the server's rule.
             const digits = form.phone.replace(/\D/g, '');
-            if (digits.length < 7 || digits.length > 15) errors.phone = 'Phone must be 7–15 digits (international format supported, e.g. +91 98765 43210)';
+            if (!/^\+?[\d\s().-]+$/.test(form.phone.trim()) || digits.length < 7 || digits.length > 15) errors.phone = 'Phone must be 7–15 digits (international format supported, e.g. +91 98765 43210)';
         }
 
         return errors;
@@ -195,13 +209,15 @@ const Profile = ({ view = 'dashboard' }) => {
     const handleSave = async () => {
         const errors = validate();
         if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
+        const changed = {};
+        for (const k of ['name', 'email', 'phone']) {
+            if (form[k].trim() !== (opened?.[k] || '').trim()) changed[k] = form[k].trim();
+        }
+        // Nothing to send: the form simply closes.
+        if (!Object.keys(changed).length) { setEditing(false); return; }
         setSaving(true);
         try {
-            const res = await api.put('/user/profile', {
-                name: form.name.trim(),
-                email: form.email.trim(),
-                phone: form.phone.trim(),
-            });
+            const res = await api.put('/user/profile', changed);
             const updated = { ...user, ...res.data };
             setUser(updated);
             localStorage.setItem('studentData', JSON.stringify(updated));
@@ -209,7 +225,11 @@ const Profile = ({ view = 'dashboard' }) => {
             setTimeout(() => setSaveSuccess(false), 3000);
             setEditing(false);
         } catch (err) {
-            setFormErrors({ api: err.response?.data?.message || 'Failed to save. Please try again.' });
+            // A refusal about one field ("An account already uses this email
+            // address") goes under that field; anything else above the form.
+            const { field, message } = err.response?.data || {};
+            if (message && ['name', 'email', 'phone'].includes(field)) setFormErrors({ [field]: message });
+            else setFormErrors({ api: message || 'Failed to save. Please try again.' });
         } finally {
             setSaving(false);
         }
@@ -446,6 +466,8 @@ const Profile = ({ view = 'dashboard' }) => {
                 <CertificatesFrame
                     certificates={certificates}
                     loading={loading}
+                    loadFailed={certsFailed}
+                    onRetry={loadCertificates}
                     certError={certError}
                     downloadingId={downloadingId}
                     onDownload={handleDownloadCertificate}

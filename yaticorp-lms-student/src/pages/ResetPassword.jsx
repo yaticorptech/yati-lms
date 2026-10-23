@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
 import { forgetStudent } from '../utils/sessionExpiry';
+import teacherApi, { forgetTeacher } from '../teacher/teacherSession';
 import { GraduationCap, KeyRound, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 
@@ -21,6 +22,9 @@ const getPasswordStrengthError = (pw) => {
 const ResetPassword = () => {
     const [searchParams] = useSearchParams();
     const token = searchParams.get('token');
+    // A teacher's reset link carries as=teacher (src/teacher/auth.js).
+    const asTeacher = searchParams.get('as') === 'teacher';
+    const loginPath = asTeacher ? '/login?as=teacher' : '/login';
     const errorRef = useRef(null);
 
     const [newPassword, setNewPassword] = useState('');
@@ -50,16 +54,18 @@ const ResetPassword = () => {
         setLoading(true);
         setError('');
         try {
-            const res = await api.post('/auth/student/reset-password', { token, newPassword });
+            const res = asTeacher
+                ? await teacherApi.post('/auth/reset-password', { token, newPassword })
+                : await api.post('/auth/student/reset-password', { token, newPassword });
             // The reset ended every session signed in with the old password
             // (the server refuses them now). Any such login saved on this
             // device is forgotten too, so the sign-in page asks for the new
             // password instead of bouncing to a dashboard that cannot load.
-            forgetStudent();
+            if (asTeacher) forgetTeacher(); else forgetStudent();
             setMessage(res.data.message);
             setDone(true);
             // A full load, so nothing held in memory from that session survives.
-            setTimeout(() => window.location.assign('/login'), 3000);
+            setTimeout(() => window.location.assign(loginPath), 3000);
         } catch (err) {
             setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Failed to reset password. The link may have expired.'));
         } finally {
@@ -72,7 +78,7 @@ const ResetPassword = () => {
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
                 <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 max-w-md w-full text-center">
                     <p className="text-red-600 font-semibold">Invalid reset link. Please request a new one.</p>
-                    <Link to="/login" className="mt-4 inline-block text-indigo-600 font-bold hover:underline">Back to Login</Link>
+                    <Link to={loginPath} className="mt-4 inline-block text-indigo-600 font-bold hover:underline">Back to Login</Link>
                 </div>
             </div>
         );
@@ -104,7 +110,7 @@ const ResetPassword = () => {
                             <h3 className="text-lg font-bold text-slate-800 mb-2">Password Reset!</h3>
                             <p className="text-slate-500 text-sm">{message}</p>
                             <p className="text-slate-400 text-xs mt-2">Redirecting to login...</p>
-                            <a href="/login" className="mt-3 inline-block text-sm font-bold text-indigo-600 hover:underline">Sign in now</a>
+                            <a href={loginPath} className="mt-3 inline-block text-sm font-bold text-indigo-600 hover:underline">Sign in now</a>
                         </div>
                     ) : (
                         <form className="space-y-5" onSubmit={handleSubmit}>
@@ -177,7 +183,7 @@ const ResetPassword = () => {
                             </button>
 
                             <div className="text-center">
-                                <Link to="/login" className="text-sm text-slate-500 hover:text-indigo-600 transition-colors">
+                                <Link to={loginPath} className="text-sm text-slate-500 hover:text-indigo-600 transition-colors">
                                     Back to Login
                                 </Link>
                             </div>

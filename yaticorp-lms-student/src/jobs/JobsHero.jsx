@@ -91,7 +91,8 @@ export default function JobsHero({ total, loading, hasData, topMatch }) {
                         Jobs that match{' '}
                         <span className="bg-gradient-to-r from-indigo-600 to-violet-500 bg-clip-text text-transparent">where you&apos;re going.</span>
                     </h1>
-                    <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-base">
+                    {/* Not in the mobile view (asked 2026-10-16). */}
+                    <p className="mt-3 hidden max-w-xl text-sm leading-relaxed text-slate-600 sm:text-base sidebar:block">
                         Listings from global job boards, ranked against your skills, your experience and the
                         role you are aiming for — with the gaps named.
                     </p>

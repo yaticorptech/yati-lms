@@ -11,18 +11,19 @@
  * refuse it anyway — this turns a wall of 403s into one clear explanation.
  * The check is a read, not the security boundary: the server enforces it.
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, UserPlus, BookOpen, Settings, LogOut, RefreshCw, Trophy,
-    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft, Hourglass
+    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft, Hourglass, Presentation
 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from '../utils/useAutoLogout';
 import initials from '../utils/initials';
 import OrgBottomNav from '../components/OrgBottomNav';
 import PullToRefresh from '../components/PullToRefresh';
+import PageLoading from '../components/PageLoading';
 import { getViewedOrganization, stopViewingOrganization } from '../utils/viewOrganization';
 import useCenterTabs from '../hooks/useCenterTabs';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -33,6 +34,8 @@ const NAV = [
     { to: '/organization', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
     { to: '/organization/students', label: 'Students', short: 'Students', icon: Users },
     { to: '/organization/requests', label: 'Student requests', short: 'Requests', icon: UserPlus, badge: 'pendingRequests' },
+    // Its teachers, and teachers asking to join (src/pages/org/OrgTeachers.jsx).
+    { to: '/organization/teachers', label: 'Teachers', short: 'Teachers', icon: Presentation, badge: 'pendingTeacherRequests' },
     { to: '/organization/courses', label: 'Courses', short: 'Courses', icon: BookOpen },
     // Inter-college competitions: register the college's team, pick players.
     { to: '/organization/competitions', label: 'Competitions', short: 'Compete', icon: Trophy },
@@ -163,7 +166,7 @@ const OrgAdminLayout = () => {
     const [organization, setOrganization] = useState(null);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState('');
-    const [counts, setCounts] = useState({ pendingRequests: 0 });
+    const [counts, setCounts] = useState({ pendingRequests: 0, pendingTeacherRequests: 0 });
 
     const isActive = (path, exact) => (exact ? location.pathname === path : location.pathname === path || location.pathname.startsWith(path + '/'));
 
@@ -226,11 +229,35 @@ const OrgAdminLayout = () => {
                 } catch { return; }
             }
             // An older answer arriving after a newer one does not win.
-            if (seq === countSeq.current) setCounts({ pendingRequests: pending });
+            if (seq === countSeq.current) setCounts((c) => ({ ...c, pendingRequests: pending }));
         };
         loadCount();
         window.addEventListener('organization-requests-changed', loadCount);
         return () => window.removeEventListener('organization-requests-changed', loadCount);
+    }, [location.pathname, active]);
+
+    /**
+     * The same badge for teachers asking to join, beside "Teachers": asked on
+     * navigation and when the Teachers page decides a request. Silent on
+     * failure, and a server without the endpoint simply shows no number.
+     */
+    const teacherSeq = useRef(0);
+    useEffect(() => {
+        if (!active) return undefined;
+        const loadTeacherCount = async () => {
+            const seq = ++teacherSeq.current;
+            try {
+                const r = await api.get('/organizations/me/teachers/requests/count');
+                if (seq === teacherSeq.current && typeof r.data?.pending === 'number') setCounts((c) => ({ ...c, pendingTeacherRequests: r.data.pending }));
+            } catch { /* no number rather than an error */ }
+        };
+        loadTeacherCount();
+        window.addEventListener('organization-teacher-requests-changed', loadTeacherCount);
+        window.addEventListener('organization-requests-changed', loadTeacherCount);
+        return () => {
+            window.removeEventListener('organization-teacher-requests-changed', loadTeacherCount);
+            window.removeEventListener('organization-requests-changed', loadTeacherCount);
+        };
     }, [location.pathname, active]);
 
     /**
@@ -464,7 +491,7 @@ const OrgAdminLayout = () => {
                 {/* Bottom padding on phones keeps the last card clear of the floating nav bar. */}
                 <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 pb-28 custom-scrollbar lg:p-8">
                     <div className="mx-auto w-full max-w-7xl">
-                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Outlet key={pageKey} /></ErrorBoundary>
+                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} /></Suspense></ErrorBoundary>
                     </div>
                 </div>
                 <PullToRefresh scrollerRef={scrollerRef} onRefresh={refreshPage} className={viewing ? 'top-28 lg:top-32' : 'top-16 lg:top-20'} />

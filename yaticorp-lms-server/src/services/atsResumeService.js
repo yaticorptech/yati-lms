@@ -149,8 +149,11 @@ const buildResumeData = async (userId) => {
     (resume?.pastRoles || []).forEach((r) => { if (!experience.some((e) => e.title === r)) experience.push({ title: r, detail: '' }); });
 
     // ── Certifications ──
+    // Not one the student deleted from My Certificates (hiddenAt): it stays
+    // valid, but they took it off their profile, so it is off the resume too.
+    // Downloading it again from the course puts it back in both.
     const certifications = [
-        ...courses.filter((c) => c.certificate).map((c) => ({
+        ...courses.filter((c) => c.certificate && !c.certificate.hiddenAt).map((c) => ({
             title: c.title, issuer: 'YATI LMS', date: c.certificate.issuedAt, number: c.certificate.certificateNumber || ''
         })),
         ...(achievements || []).map((a) => ({ title: a.title, issuer: a.issuer || '', date: a.issuedOn || a.createdAt, number: '' }))
@@ -392,7 +395,7 @@ const renderAtsPdf = (data, res) => {
             const bullets = [];
             if (c.skills.length) bullets.push(`Skills applied: ${c.skills.join(', ')}.`);
             if (c.topics.length) bullets.push(`Topics covered: ${c.topics.join('; ')}.`);
-            if (c.certificate?.certificateNumber) bullets.push(`Certificate ${c.certificate.certificateNumber}, issued ${fmtDay(c.certificate.issuedAt)}.`);
+            if (c.certificate?.certificateNumber && !c.certificate.hiddenAt) bullets.push(`Certificate ${c.certificate.certificateNumber}, issued ${fmtDay(c.certificate.issuedAt)}.`);
             entry({
                 lines: [
                     { text: 'YATI LMS', color: MUTED },

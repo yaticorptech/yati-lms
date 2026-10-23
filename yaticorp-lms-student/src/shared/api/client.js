@@ -5,6 +5,7 @@
 import axios from 'axios';
 import { onWalletResponse, onWalletError } from '../../utils/walletCharge';
 import { expireSessionOn401 } from '../../utils/sessionExpiry';
+import { onSaved } from '../../utils/saveSignal';
 
 /**
  * Creates a shared axios client that can be used by both Web and Mobile.
@@ -31,6 +32,8 @@ export const createClient = ({ baseURL, getToken }) => {
     // Wallet rules: a priced request refreshes the balance; a refusal is readable.
     // A 401 ends the session the same way as the main client (utils/sessionExpiry).
     client.interceptors.response.use(onWalletResponse, (error) => { expireSessionOn401(error); return onWalletError(error); });
+    // Every save is announced, for whatever follows XP (utils/saveSignal).
+    client.interceptors.response.use(onSaved);
 
     return client;
 };

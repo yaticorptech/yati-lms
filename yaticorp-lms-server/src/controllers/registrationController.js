@@ -5,6 +5,7 @@
  */
 const User = require('../models/User');
 const Card = require('../models/Card');
+const { NOT_VERIFIED, isVerified, fromPlatformAdmin } = require('../services/cardVerification');
 const { normaliseCardNumber } = require('../utils/cardNumber');
 const Course = require('../models/Course');
 const Bundle = require('../models/Bundle');
@@ -39,7 +40,7 @@ const requestOrganizationAtSignup = async (userId, rawCode) => {
     if (!orgCode) return null;
 
     if (!isValidOrgCodeFormat(orgCode)) {
-        return { requested: false, reason: 'invalid', orgCode, message: `"${rawCode}" does not look like an Organization ID (like st_agnes_college). You can add yours later in My Profile → Personal Information, under "Organization/College".` };
+        return { requested: false, reason: 'invalid', orgCode, message: `"${rawCode}" does not look like an Organization ID (like xxx_college). You can add yours later in My Profile → Personal Information, under "Organization/College".` };
     }
 
     try {
@@ -131,9 +132,15 @@ const validateQR = async (req, res) => {
         if (card.status === 'inactive') {
             return res.status(400).json({ code: 'CARD_INACTIVE', message: `This ${what} is inactive and cannot be used.` });
         }
+        // Not verified by a super admin yet: only a platform admin adding its
+        // holder may go on (adding them verifies it). Everyone else is told.
+        if (!isVerified(card) && !(await fromPlatformAdmin(req))) {
+            return res.status(400).json(NOT_VERIFIED);
+        }
 
         res.json({
             valid: true,
+            verified: isVerified(card),
             message: 'Card is valid.',
             cardNumber: card.CardNumber,
             cvv: card.CVV,
@@ -175,6 +182,10 @@ const scanCard = async (req, res) => {
         const user = (await findUserByCardNumber(card.CardNumber))
             || (card.qrCodeNumber ? await User.findOne({ qrNumber: card.qrCodeNumber }).select('_id status cardNumber') : null);
         if (!user) {
+            // A teacher's card, at the student sign-in: say where it belongs.
+            if (await require('../teacher/auth').findTeacherByCard(card.CardNumber)) {
+                return res.status(404).json({ code: 'TEACHER_CARD', message: 'This card is registered to a teacher account. Choose Teacher to sign in.' });
+            }
             return res.status(404).json({
                 code: 'NOT_REGISTERED',
                 message: 'This card has no account yet. Sign up first, then come back and scan to sign in.'
@@ -215,6 +226,7 @@ const verifyCard = async (req, res) => {
         if (card.status === 'inactive') {
             return res.status(400).json({ message: 'This Card is marked as inactive and restricted from use' });
         }
+        if (!isVerified(card)) return res.status(400).json(NOT_VERIFIED);
 
         if (card.status === 'unactivated') {
             card.status = 'activated';
@@ -288,6 +300,7 @@ const registerStudent = async (req, res) => {
         if (!AVAILABLE_CARD.includes(card.status)) {
             return res.status(400).json({ field: 'card', code: 'CARD_INACTIVE', message: 'This card is inactive and cannot be used.' });
         }
+        if (!isVerified(card)) return res.status(400).json({ field: 'card', ...NOT_VERIFIED });
 
         // Check if user already exists. The email is compared case-insensitively
         // (a few older accounts were stored with capitals) and stored trimmed and
@@ -372,6 +385,9 @@ const registerStudent = async (req, res) => {
 };
 
 module.exports = {
+    // Shared with the teacher sign-in's card scan (src/teacher/auth.js).
+    scanCandidates,
+    findScannedCard,
     scanCard,
     validateQR,
     verifyCard,
