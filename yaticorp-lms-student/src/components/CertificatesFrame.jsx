@@ -312,7 +312,7 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
             message: issued
                 ? 'It comes off your resume and Learning Bio too. The certificate stays valid — download it again from the course and it comes back.'
                 : competition
-                    ? 'It stays yours in Games & Competitions — download it again there and it comes back here.'
+                    ? 'It stays yours in Competitions (History) — download it again there and it comes back here.'
                     : 'The file you uploaded is removed for good.',
             confirmLabel: 'Delete',
             destructive: true

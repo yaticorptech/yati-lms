@@ -33,7 +33,7 @@ after(async () => {
 
 /** Every switch off, for the length of `fn`, without writing to the database. */
 const allSwitchedOff = async (fn) => {
-    const off = { isCreditSystemEnabled: false, isCareerPathEnabled: false, isJobsEnabled: false, isRewardsEnabled: false, globalQuiz: { enabled: false } };
+    const off = { isCreditSystemEnabled: false, isCareerPathEnabled: false, isJobsEnabled: false, isRewardsEnabled: false, isLinguisticEnabled: false, globalQuiz: { enabled: false } };
     const real = Setting.findOne;
     const chain = { select: () => chain, lean: async () => off, then: (ok, ko) => Promise.resolve(off).then(ok, ko) };
     Setting.findOne = () => chain;
@@ -66,10 +66,10 @@ test('Jobs opens for a demo card with no skills yet; not for anyone else', async
 test('with every section switched off, a demo card still sees them all', async () => {
     await allSwitchedOff(async () => {
         const mine = (await app.call(demo.token)('GET', '/settings')).body;
-        assert.deepEqual(mine, { isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true, isRewardsEnabled: false, isGlobalQuizEnabled: true },
+        assert.deepEqual(mine, { isCreditSystemEnabled: true, isCareerPathEnabled: true, isJobsEnabled: true, isRewardsEnabled: false, isLinguisticEnabled: true, isGlobalQuizEnabled: true },
             'all sections on; rewards follows the site-wide switch');
         const theirs = (await app.call(plain.token)('GET', '/settings')).body;
-        assert.deepEqual(theirs, { isCreditSystemEnabled: false, isCareerPathEnabled: false, isJobsEnabled: false, isRewardsEnabled: false, isGlobalQuizEnabled: false });
+        assert.deepEqual(theirs, { isCreditSystemEnabled: false, isCareerPathEnabled: false, isJobsEnabled: false, isRewardsEnabled: false, isLinguisticEnabled: false, isGlobalQuizEnabled: false });
     });
 });
 

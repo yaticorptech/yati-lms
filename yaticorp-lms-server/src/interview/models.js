@@ -1,9 +1,10 @@
 /**
- * Interview Ready — the two records it keeps.
+ * Interview Ready — the records it keeps.
  *
  * InterviewSession: one mock interview, its transcript and, once finished,
  * its report. InterviewPrep: the student's personalised question bank and
- * which of them they have practised. Everything else the section shows —
+ * which of them they have practised. AptitudeSet: one set of aptitude
+ * questions and the student's answers. Everything else the section shows —
  * skills, projects, courses — is read live from the LMS.
  */
 const mongoose = require('mongoose');
@@ -94,7 +95,31 @@ const prepSchema = new mongoose.Schema({
     readiness: { type: Number, default: 0 }
 }, { timestamps: true });
 
+/**
+ * One aptitude practice set (aptitude.js): its questions with their answers,
+ * and what the student chose. A question's answer and explanation leave the
+ * server only once the student has chosen (index.js, aptitude routes).
+ */
+const aptitudeQuestionSchema = new mongoose.Schema({
+    id: String, section: String, kind: String, topic: String, question: String,
+    options: [String], answer: Number, explanation: String, difficulty: String,
+    faq: { type: Boolean, default: false },                // one of the questions most asked in interviews
+    chosen: { type: Number, default: null },
+    answeredAt: { type: Date, default: null }
+}, { _id: false });
+const aptitudeSetSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    level: { type: String, default: 'general' },           // level.js key the set was made for
+    section: { type: String, default: 'mixed' },
+    questions: { type: [aptitudeQuestionSchema], default: [] },
+    correct: { type: Number, default: 0 },
+    // An open set left for a new one is 'abandoned': kept, but not counted.
+    status: { type: String, enum: ['open', 'completed', 'abandoned'], default: 'open' },
+    completedAt: { type: Date, default: null }
+}, { timestamps: true });
+
 module.exports = {
+    AptitudeSet: mongoose.model('AptitudeSet', aptitudeSetSchema, 'interview_aptitude_sets'),
     InterviewSession: mongoose.model('InterviewSession', sessionSchema, 'interview_sessions'),
     InterviewPrep: mongoose.model('InterviewPrep', prepSchema, 'interview_prep'),
     TYPES, STAGES

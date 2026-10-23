@@ -267,7 +267,7 @@ export const pages = {
         ],
         cta: ['rewards-task']
     },
-    '/career/games': { enter: [], sections: ['play'] },
+    '/games': { enter: [], sections: ['play'] },
     '/career/settings': { enter: [] },
     '/career/onboarding': { enter: [{ do: 'enter', wave: true }] }
 };

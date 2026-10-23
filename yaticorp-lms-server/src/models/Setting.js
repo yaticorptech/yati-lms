@@ -36,6 +36,21 @@ const settingSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    // Linguistic Ability (English learning) as a whole, like the sections
+    // above: locking it hides the student tab and closes /api/linguistic for
+    // students; the admin content pages keep working.
+    isLinguisticEnabled: {
+        type: Boolean,
+        default: true
+    },
+    // Its settings (linguistic/config.js fills in the defaults): the passing
+    // score per level, the average a level's certificate needs, and the size
+    // of the daily vocabulary challenge.
+    linguistic: {
+        passingScore: { beginner: Number, intermediate: Number, advanced: Number },
+        certificateMinAverage: Number,
+        dailyChallengeSize: Number
+    },
     // Which Job Access Verification steps a student must finish before the
     // job board opens. Each switch removes its step from the flow entirely;
     // the server reads these, so the frontend never decides what is required.

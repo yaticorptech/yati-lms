@@ -51,7 +51,7 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
                     <button type="button" onClick={() => setCreating(true)} className={BTN}><Plus size={16} /> Create Competition</button>
                 </div>
             ) : (
-                <PageHeader icon={Trophy} title="Games & Competitions" subtitle="Inter-college Chess, Ludo, Carrom and UNO competitions. Colleges register teams; you approve them, draw the matches and decide disputes.">
+                <PageHeader icon={Trophy} title="Games & Competitions" subtitle="Inter-college Chess, Ludo and Carrom competitions. Colleges register teams; you approve them, draw the matches and decide disputes.">
                     <button type="button" onClick={() => setCreating(true)} className={BTN}><Plus size={16} /> Create Competition</button>
                 </PageHeader>
             )}

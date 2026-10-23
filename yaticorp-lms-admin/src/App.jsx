@@ -90,6 +90,8 @@ const Community = React.lazy(() => import('./pages/Community'));
 import NotFound from './pages/NotFound';
 const Analytics = React.lazy(() => import('./pages/Analytics'));
 const GlobalQuiz = React.lazy(() => import('./pages/GlobalQuiz'));
+const LinguisticAdmin = React.lazy(() => import('./pages/linguistic/LinguisticAdmin'));
+const OrgLinguistic = React.lazy(() => import('./pages/linguistic/OrgLinguistic'));
 const Announcements = React.lazy(() => import('./pages/Announcements'));
 const CareerPath = React.lazy(() => import('./pages/CareerPath'));
 const Jobs = React.lazy(() => import('./pages/Jobs'));
@@ -137,6 +139,7 @@ function App() {
         <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
         <Route path="competitions" element={<OrgCompetitions />} />
         <Route path="competitions/host/:id" element={<CompetitionAdmin apiBase="/competitions/org/host" backTo="/organization/competitions?tab=host" />} />
+        <Route path="linguistic" element={<OrgLinguistic />} />
         <Route path="settings" element={<OrgSettings />} />
         {/* Any other address in here: said inside the shell, menu and all. */}
         <Route path="*" element={<OrgNotFound />} />
@@ -161,6 +164,7 @@ function App() {
         <Route path="jobs" element={<Jobs />} />
         <Route path="rewards" element={<Rewards />} />
         <Route path="global-quiz" element={<GlobalQuiz />} />
+        <Route path="linguistic" element={<LinguisticAdmin />} />
         <Route path="announcements" element={<Announcements />} />
         <Route path="competitions" element={<SuperAdminRoute what="competitions"><Competitions /></SuperAdminRoute>} />
         <Route path="competitions/:id" element={<SuperAdminRoute what="competitions"><CompetitionAdmin /></SuperAdminRoute>} />

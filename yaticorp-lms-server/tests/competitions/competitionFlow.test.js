@@ -9,7 +9,7 @@
  *   decision → the competition completes → prizes, certificates, leaderboard,
  *   history and each student's participation all reflect it.
  *
- * Plus a friendly room, and a four-team-a-match game (ludo-style groups).
+ * Plus a four-team-a-match game (ludo-style groups), and that UNO and friendly rooms are gone.
  * The real games' rules are tested on their own in tests/competitions/*.engine.test.js.
  */
 const { test, describe, before, after } = require('node:test');
@@ -607,26 +607,11 @@ describe('certificates when participation certificates are off', () => {
     });
 });
 
-describe('a friendly game', () => {
-    test('make a room, join with the code, start, play to the end', async () => {
-        const host = colleges[0].students[0];
-        const guest = colleges[1].students[0];
-        const made = await host.call('POST', '/rooms', { game: 'chess' });
-        assert.equal(made.status, 201, JSON.stringify(made.body));
-        const { id, code } = made.body.game;
-        assert.match(code, /^[A-Z0-9]{6}$/);
-        assert.equal((await host.call('POST', `/play/${id}/start`)).status, 400, 'not alone');
-        assert.equal((await guest.call('POST', '/rooms/join', { code: 'ZZZZZZ' })).status, 404);
-        const joined = await guest.call('POST', '/rooms/join', { code: code.toLowerCase() });
-        assert.equal(joined.status, 200, JSON.stringify(joined.body));
-        assert.equal((await guest.call('POST', `/play/${id}/start`)).status, 403, 'only the host starts');
-        const started = await host.call('POST', `/play/${id}/start`);
-        assert.equal(started.body.game.status, 'active');
-        const mine = (await guest.call('GET', '/rooms/mine')).body.rooms;
-        assert.ok(mine.some((r) => r.id === id));
-        const won = await guest.call('POST', `/play/${id}/action`, { action: { type: 'win' } });
-        assert.equal(won.body.game.status, 'finished');
-        assert.equal((await guest.call('POST', `/play/${id}/action`, { action: { type: 'win' } })).status, 409, 'nothing more once it is over');
+describe('UNO and playing with friends are gone (2026-10-23)', () => {
+    test('a competition of UNO cannot be made; friendly rooms cannot be made', async () => {
+        const r = await boss('POST', '/admin', { name: `UNO ${STAMP}`, game: 'uno', startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
+        assert.equal(r.status, 400); assert.match(r.body.message, /Chess, Ludo or Carrom/);
+        assert.equal((await colleges[0].students[0].call('POST', '/rooms', { game: 'chess' })).status, 404);
     });
 });
 

@@ -118,7 +118,7 @@ describe('certificate pictures', { skip: skipWithoutStyles }, () => {
         assert.deepEqual(result.order, ['competition', 'course'], 'newest first');
         assert.equal(result.asked, true, 'PDF asks the server for this competition\'s certificate');
         assert.equal(result.saved, 'Certificate_Inter-College_Chess_Championship.pdf');
-        assert.match(result.confirm, /stays yours in Games & Competitions/, 'Delete asks first, and says where it still is');
+        assert.match(result.confirm, /stays yours in Competitions/, 'Delete asks first, and says where it still is');
         assert.equal(result.named, true, 'the question is a named dialog');
         assert.equal(result.deleted, true, 'the server is told');
         assert.equal(result.left, false, 'and it leaves the frame');

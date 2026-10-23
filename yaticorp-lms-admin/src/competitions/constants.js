@@ -1,12 +1,12 @@
 /** The admin panel's competition constants and helpers (shared by the pages). */
 import api from '../utils/api';
 
+// The games a competition can be made for (UNO was removed on 2026-10-23).
 // Each game's icon is GameIcon (competitions/shared.jsx).
 export const GAMES = {
     chess: { label: 'Chess', note: 'Two teams a match, one player each.' },
     ludo: { label: 'Ludo', note: 'Two to four teams a match, one player each.' },
-    carrom: { label: 'Carrom', note: 'Two teams a match: singles, or doubles with two players each.' },
-    uno: { label: 'UNO', note: 'Two to four teams a match, one player each.' }
+    carrom: { label: 'Carrom', note: 'Two teams a match: singles, or doubles with two players each.' }
 };
 
 export const STATUS = {

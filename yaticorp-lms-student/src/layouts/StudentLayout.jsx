@@ -11,7 +11,7 @@ import { WalletSheet } from '../components/rewards/WalletCard';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, ChevronRight, Wallet, Mic, Trophy } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Languages } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
@@ -196,7 +196,7 @@ const ContactModal = ({ onClose, user, page }) => {
 };
 
 const StudentLayout = () => {
-    const { user, logout, isCareerPathEnabled, isJobsEnabled } = useContext(AuthContext);
+    const { user, logout, isCareerPathEnabled, isJobsEnabled, isLinguisticEnabled } = useContext(AuthContext);
     const [adminView] = useState(readAdminView);
     // Signs out of the student and closes the tab the admin panel opened; if
     // the browser will not close it, the sign-in page is left showing.
@@ -596,7 +596,7 @@ const StudentLayout = () => {
     }, [showLogoutConfirm]);
 
     const isActive = (path) => location.pathname === path;
-    // Games & Competitions is laid out to fill the window, edge to edge,
+    // Competitions is laid out to fill the window, edge to edge,
     // rather than sit in the centred column the other pages use.
     const wide = location.pathname === '/competitions' || location.pathname.startsWith('/competitions/');
     // Career Path is the one nav entry with screens beneath it, so it stays lit
@@ -618,15 +618,18 @@ const StudentLayout = () => {
         { items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true }] },
         { title: 'Learn', items: [
             { to: '/enrolled-courses', label: 'My Courses', icon: BookOpen, exact: true },
-            { to: '/community', label: 'Community', icon: MessageSquare }
-        ] },
+            { to: '/community', label: 'Community', icon: MessageSquare },
+            // English learning; withdrawn like the others when an admin locks it.
+            isLinguisticEnabled && { to: '/linguistic', label: 'Linguistic Ability', icon: Languages }
+        ].filter(Boolean) },
         { title: 'Career', items: [
             isCareerPathEnabled && { to: '/career', label: 'Career Path', icon: Compass },
             { to: '/interview', label: 'Interview Prep', icon: Mic },
             isJobsEnabled && { to: '/jobs', label: 'Jobs', icon: Briefcase },
             isCareerPathEnabled && { to: '/scholarships', label: 'Scholarships', icon: GraduationCap }
         ].filter(Boolean) },
-        { title: 'Activities', items: [{ to: '/competitions', label: 'Games & Competitions', icon: Trophy }] }
+        // Games (the brain games) and Competitions (Chess, Ludo, Carrom): two sections since 2026-10-23.
+        { title: 'Activities', items: [{ to: '/games', label: 'Games', icon: Gamepad2 }, { to: '/competitions', label: 'Competitions', icon: Trophy }] }
     ];
     const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.to));
 

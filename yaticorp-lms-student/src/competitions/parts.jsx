@@ -4,7 +4,7 @@
  */
 import { useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Trophy, CalendarClock, Play, Eye, Swords, Crown, Medal, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Trophy, CalendarClock, Play, Eye, Swords, Crown, Medal, CheckCircle2, AlertTriangle, Ticket } from 'lucide-react';
 import { STATUS, PHASE, ORDINAL, fmtDateTime } from './api';
 import useRowsShown from './useRowsShown';
 
@@ -85,6 +85,12 @@ export const MatchCard = ({ match, playing = false, showCompetition = false, myT
                     : <span className="inline-flex items-center gap-1.5"><CalendarClock size={14} aria-hidden="true" /> {fmtDateTime(match.scheduledAt)}</span>}
                 {match.games > 1 && <span>{match.games} games (replayed after a draw)</span>}
             </div>
+            {/* The match's code: a player can also type it in Games → Join with a code. */}
+            {match.gameCode && (
+                <p className="flex items-center gap-1.5 text-xs text-slate-600" data-match-code={match.gameCode}>
+                    <Ticket size={13} aria-hidden="true" /> Match code <span className="rounded-md bg-slate-900 px-1.5 py-0.5 font-mono text-[11px] font-black tracking-[0.2em] text-white">{match.gameCode}</span>
+                </p>
+            )}
             {match.resultNote && <p className="text-xs text-slate-600">{match.resultNote}</p>}
             {match.needsDecision && (
                 <p className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800"><AlertTriangle size={13} aria-hidden="true" /> Waiting for the organizer to decide this match.</p>
@@ -191,7 +197,7 @@ const standingsOf = (teams, rounds, winners) => {
         else if (place === 3) { order = 2; result = third ? 'Won the third-place match' : 'Third in the final'; }
         else if (third?.sides.some((s) => s.teamId === t.id)) { order = 3; result = 'Lost the third-place match'; }
         else if (last?.roundName === 'Final') {
-            // A final of three or four teams (Ludo, UNO): its own order past third.
+            // A final of three or four teams (Ludo): its own order past third.
             const at = (last.places || []).findIndex((g) => g.includes(t.id));
             order = 3 + Math.max(at, 3);
             result = at >= 0 ? `${at + 1}th in the final` : 'Played the final';

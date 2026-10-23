@@ -19,7 +19,12 @@ export const interviewApi = {
     answer: (id, answer, inputMode, voice) => post(`/sessions/${id}/answer`, { answer, inputMode, voice }),
     finish: (id) => post(`/sessions/${id}/finish`),
     history: () => get('/sessions'),
-    session: (id) => get(`/sessions/${id}`)
+    session: (id) => get(`/sessions/${id}`),
+    // Aptitude practice ("IQ & Reasoning" for a school student).
+    aptitude: () => get('/aptitude'),
+    aptitudeStart: (section) => post('/aptitude/sets', { section }),
+    aptitudeSet: (id) => get(`/aptitude/sets/${id}`),
+    aptitudeAnswer: (id, question, choice) => post(`/aptitude/sets/${id}/answer`, { id: question, choice })
 };
 
 export const TYPE_META = {

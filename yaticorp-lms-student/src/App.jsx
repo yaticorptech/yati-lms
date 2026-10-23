@@ -29,15 +29,27 @@ const LearningBioPage = React.lazy(() => import('./learningbio/LearningBioPage')
 const SharedBioPage = React.lazy(() => import('./learningbio/SharedBioPage'));
 // Interview Ready — preparation, AI mock interviews, reports and history.
 const InterviewDashboard = React.lazy(() => import('./interview/InterviewDashboard'));
-// Games & Competitions: online Chess, Ludo, Carrom and UNO, and inter-college competitions.
+// Competitions: online Chess, Ludo and Carrom in inter-college competitions.
 const CompetitionsHome = React.lazy(() => import('./competitions/CompetitionsHome'));
 const CompetitionDetail = React.lazy(() => import('./competitions/CompetitionDetail'));
 const GamePage = React.lazy(() => import('./competitions/GamePage'));
 const PracticePage = React.lazy(() => import('./interview/PracticePage'));
+const AptitudePage = React.lazy(() => import('./interview/AptitudePage'));
 const MockInterview = React.lazy(() => import('./interview/MockInterview'));
 const InterviewReport = React.lazy(() => import('./interview/InterviewReport'));
 const QuestionReview = React.lazy(() => import('./interview/QuestionReview'));
 const InterviewHistory = React.lazy(() => import('./interview/InterviewHistory'));
+// Linguistic Ability: English learning, Beginner to Advanced.
+const LinguisticShell = React.lazy(() => import('./linguistic/LingoShell'));
+const LinguisticHome = React.lazy(() => import('./linguistic/LinguisticHome'));
+const LinguisticPractice = React.lazy(() => import('./linguistic/PracticeHub'));
+const LinguisticBadges = React.lazy(() => import('./linguistic/Badges'));
+const LinguisticPlacement = React.lazy(() => import('./linguistic/Placement'));
+const LinguisticModule = React.lazy(() => import('./linguistic/ModulePage'));
+const LinguisticLesson = React.lazy(() => import('./linguistic/LessonPage'));
+const LinguisticReview = React.lazy(() => import('./linguistic/Review'));
+const LinguisticDaily = React.lazy(() => import('./linguistic/Daily'));
+const LinguisticWriting = React.lazy(() => import('./linguistic/MyWriting'));
 
 /**
  * Signed in, or off to the sign-in page — which is told where the student was
@@ -103,6 +115,7 @@ const CareerSkills = React.lazy(() => import('./career/pages/dashboard/Skills'))
 const CareerRecommendations = React.lazy(() => import('./career/pages/dashboard/Recommendations'));
 const CareerProfile = React.lazy(() => import('./career/pages/Profile'));
 const CareerBadges = React.lazy(() => import('./career/pages/dashboard/Badges'));
+const CareerGames = React.lazy(() => import('./career/pages/dashboard/Games'));
 const CareerSettings = React.lazy(() => import('./career/pages/dashboard/SettingsPage'));
 const CareerOnboarding = React.lazy(() => import('./career/pages/Onboarding'));
 
@@ -152,6 +165,13 @@ const CareerGate = () => {
   const { settingsLoading, isCareerPathEnabled } = useContext(AuthContext);
   if (settingsLoading) return <CareerFallback />;
   return isCareerPathEnabled ? <Outlet /> : <Navigate to="/" replace />;
+};
+
+/** Linguistic Ability, locked by an admin: its pages go back to the dashboard (the server refuses it too). */
+const LinguisticGate = () => {
+  const { settingsLoading, isLinguisticEnabled } = useContext(AuthContext);
+  if (settingsLoading) return <CareerFallback />;
+  return isLinguisticEnabled ? <Outlet /> : <Navigate to="/" replace />;
 };
 
 // Every lazily-loaded route waits behind this, so it is the thing a student
@@ -251,7 +271,9 @@ const LOOP_PAGES = {
   '/interview': { label: 'Interview Prep', text: 'Get interview-ready: practise common questions, then take an AI mock interview by voice and get feedback to improve.' },
   '/jobs': { label: 'Jobs', text: 'Jobs that match your skills and goal. Filter by type and location, apply, and save the ones you like.' },
   '/scholarships': { label: 'Scholarships', text: 'Scholarships you qualify for. Fill in the eligibility form once, then see each match with its amount and deadline.' },
-  '/competitions': { label: 'Games & Competitions', text: 'Play Chess, Ludo, Carrom and UNO with friends, train with Brain Boosters, and compete for your college.' }
+  '/games': { label: 'Games', text: "Quick memory, logic, word and number games. Each level's stars earn you XP, within today's play time." },
+  '/competitions': { label: 'Competitions', text: 'Play Chess, Ludo and Carrom in competitions, for your college.' },
+  '/linguistic': { label: 'Linguistic Ability', text: 'Learn English step by step: vocabulary, grammar, reading and writing, speaking and listening, and Kannada–English translation.' }
 };
 
 // What each tab of a page is for, said every time a student opens
@@ -277,8 +299,7 @@ const LOOP_TABS = {
   },
   '/competitions': {
     default: 'games',
-    games: { label: 'Games', text: "Play Chess, Ludo, Carrom or UNO with friends. Play Now makes a room with a code to share, or join a friend's room with theirs." },
-    'brain-boosters': { label: 'Brain Boosters', text: "Quick memory, logic, word and number games. Each level's stars earn you XP, within today's play time." },
+    games: { label: 'Games', text: 'Chess, Ludo and Carrom. See competitions shows the ones for each game; your college enters you in a team.' },
     competitions: { label: 'Competitions', text: "Inter-college competitions: live, open and coming up. Your college's coordinator picks the team, so ask them to put you in." },
     mine: { label: 'My Games', text: 'The competitions your coordinator put you in: your team, and your upcoming, live and finished matches.' },
     leaderboard: { label: 'Leaderboard', text: 'Overall rankings by college, team or player, from the points earned across every competition.' },
@@ -335,19 +356,35 @@ function App() {
         <Route index element={<Profile key="dashboard" />} />
         <Route path="enrolled-courses" element={<EnrolledCourses />} />
         <Route path="learning-bio" element={<React.Suspense fallback={<CareerFallback />}><LearningBioPage /></React.Suspense>} />
+        {/* Games: the brain games (Brain Boosters), a section of their own since
+            2026-10-23 (no longer a Career Path tab); their server routes stay
+            open when Career Path is locked. Competitions: Chess, Ludo and Carrom. */}
+        <Route path="games" element={<React.Suspense fallback={<CareerFallback />}><CareerProviders><CareerGames /></CareerProviders></React.Suspense>} />
         <Route path="competitions" element={<React.Suspense fallback={<CareerFallback />}><CompetitionsHome /></React.Suspense>} />
-        {/* The brain games moved out of Career Path to Brain Boosters, a tab
-            of Games & Competitions. The old address still opens them, outside
-            the Career Path gate because they no longer depend on it. */}
-        <Route path="career/games" element={<Navigate to="/competitions?tab=brain-boosters" replace />} />
         <Route path="competitions/play/:gameId" element={<React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense>} />
         <Route path="competitions/:id" element={<React.Suspense fallback={<CareerFallback />}><CompetitionDetail /></React.Suspense>} />
         <Route path="interview" element={<React.Suspense fallback={<CareerFallback />}><InterviewDashboard /></React.Suspense>} />
         <Route path="interview/practice" element={<React.Suspense fallback={<CareerFallback />}><PracticePage /></React.Suspense>} />
+        <Route path="interview/aptitude" element={<React.Suspense fallback={<CareerFallback />}><AptitudePage /></React.Suspense>} />
+        <Route path="interview/aptitude/:id" element={<React.Suspense fallback={<CareerFallback />}><AptitudePage /></React.Suspense>} />
         <Route path="interview/mock/:id" element={<React.Suspense fallback={<CareerFallback />}><MockInterview /></React.Suspense>} />
         <Route path="interview/report/:id" element={<React.Suspense fallback={<CareerFallback />}><InterviewReport /></React.Suspense>} />
         <Route path="interview/report/:id/questions" element={<React.Suspense fallback={<CareerFallback />}><QuestionReview /></React.Suspense>} />
         <Route path="interview/history" element={<React.Suspense fallback={<CareerFallback />}><InterviewHistory /></React.Suspense>} />
+        <Route element={<LinguisticGate />}>
+          {/* The tabs share the shell (stats, quests); the sessions below cover the whole screen. */}
+          <Route path="linguistic" element={<React.Suspense fallback={<CareerFallback />}><LinguisticShell /></React.Suspense>}>
+            <Route index element={<React.Suspense fallback={<CareerFallback />}><LinguisticHome /></React.Suspense>} />
+            <Route path="practice" element={<React.Suspense fallback={<CareerFallback />}><LinguisticPractice /></React.Suspense>} />
+            <Route path="badges" element={<React.Suspense fallback={<CareerFallback />}><LinguisticBadges /></React.Suspense>} />
+            <Route path="writing" element={<React.Suspense fallback={<CareerFallback />}><LinguisticWriting /></React.Suspense>} />
+          </Route>
+          <Route path="linguistic/placement" element={<React.Suspense fallback={<CareerFallback />}><LinguisticPlacement /></React.Suspense>} />
+          <Route path="linguistic/review" element={<React.Suspense fallback={<CareerFallback />}><LinguisticReview /></React.Suspense>} />
+          <Route path="linguistic/daily" element={<React.Suspense fallback={<CareerFallback />}><LinguisticDaily /></React.Suspense>} />
+          <Route path="linguistic/:module" element={<React.Suspense fallback={<CareerFallback />}><LinguisticModule /></React.Suspense>} />
+          <Route path="linguistic/:module/:lessonId" element={<React.Suspense fallback={<CareerFallback />}><LinguisticLesson /></React.Suspense>} />
+        </Route>
         <Route path="profile" element={<Profile key="profile" view="profile" />} />
         <Route path="learn/:courseId" element={<React.Suspense fallback={<CareerFallback />}><CoursePlayer /></React.Suspense>} />
         <Route path="community" element={<React.Suspense fallback={<CareerFallback />}><Community /></React.Suspense>} />
@@ -398,6 +435,8 @@ function App() {
           <Route path="recommendations" element={<React.Suspense fallback={<CareerFallback />}><CareerRecommendations /></React.Suspense>} />
           <Route path="profile" element={<React.Suspense fallback={<CareerFallback />}><CareerProfile /></React.Suspense>} />
           <Route path="badges" element={<React.Suspense fallback={<CareerFallback />}><CareerBadges /></React.Suspense>} />
+          {/* The brain games (Brain Boosters) are the Games section since 2026-10-23; an old link goes there. */}
+          <Route path="games" element={<Navigate to="/games" replace />} />
           <Route path="settings" element={<React.Suspense fallback={<CareerFallback />}><CareerSettings /></React.Suspense>} />
         </Route>
         </Route>

@@ -1,12 +1,12 @@
 /**
  * The three cards under the interview picker: what to revise, what to
- * practise, and what to fix. Each row carries its own colour so the eye can
+ * practise, and what to fix. And the aptitude practice's card above them. Each row carries its own colour so the eye can
  * sort them, and each ends somewhere useful rather than being a dead label.
  */
 import { Link } from 'react-router-dom';
 import {
     Target, ArrowRight, ChevronRight, Star, User, Code2, Users, FolderOpen, MessageSquare,
-    Compass, Cloud, Sparkles, FileText, TrendingUp, Trophy
+    Compass, Cloud, Sparkles, FileText, TrendingUp, Trophy, Brain
 } from 'lucide-react';
 import Sparkline from '../components/rewards/Sparkline';
 
@@ -167,3 +167,25 @@ export function ImproveCard({ readiness, last, fmtDate }) {
         </CardShell>
     );
 }
+
+/**
+ * Aptitude practice (asked 2026-10-22): "IQ & Reasoning" for a school student,
+ * "Aptitude Practice" for everyone else, with their best score once they have one.
+ */
+export const AptitudeCard = ({ aptitude }) => (
+    <section className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm animate-fade-in-up sm:flex-row sm:items-center sm:p-5" data-aptitude-card>
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md shadow-orange-200"><Brain size={21} /></span>
+            <div className="min-w-0">
+                <h2 className="text-lg font-black leading-tight text-slate-900">{aptitude.title}</h2>
+                <p className="mt-0.5 text-xs text-slate-500">{aptitude.school ? 'Maths puzzles, patterns, logic and words, made for your class.' : 'Maths, reasoning and verbal questions, like placement and entrance tests.'}</p>
+            </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {aptitude.best !== null && aptitude.best !== undefined && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 ring-1 ring-amber-100">Best {aptitude.best}% · {aptitude.sets} set{aptitude.sets === 1 ? '' : 's'}</span>}
+            <Link to="/interview/aptitude" className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-500/25 transition-all hover:-translate-y-0.5 hover:shadow-lg">
+                {aptitude.sets ? 'Practise again' : 'Start practising'} <ArrowRight size={15} />
+            </Link>
+        </div>
+    </section>
+);

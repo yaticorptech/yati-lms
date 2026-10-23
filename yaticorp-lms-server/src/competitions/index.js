@@ -8,7 +8,7 @@
  *             only once the platform admin has let it host
  *   /org/*    a college's organization admin — its coordinator — registers a
  *             team and picks players (routes/org.js)
- *   /*        students: the four games, friendly rooms, live play, their
+ *   /*        students: the games (Chess, Ludo, Carrom), live match play, their
  *             competitions, matches, leaderboard, history and certificates
  *             (routes/student.js)
  *
