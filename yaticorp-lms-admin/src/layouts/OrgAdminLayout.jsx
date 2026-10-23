@@ -16,7 +16,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, UserPlus, BookOpen, Settings, LogOut, RefreshCw, Trophy,
-    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft, Hourglass
+    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft, Hourglass, Languages
 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from '../utils/useAutoLogout';
@@ -36,6 +36,9 @@ const NAV = [
     { to: '/organization/courses', label: 'Courses', short: 'Courses', icon: BookOpen },
     // Inter-college competitions: register the college's team, pick players.
     { to: '/organization/competitions', label: 'Competitions', short: 'Compete', icon: Trophy },
+    // Students' English: writing to review and progress. In the sidebar only:
+    // a seventh item would not fit the phone's bottom bar.
+    { to: '/organization/linguistic', label: 'English', short: 'English', icon: Languages, sidebarOnly: true },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
 
@@ -471,7 +474,7 @@ const OrgAdminLayout = () => {
             </main>
 
             {/* ── Phones and tablets: the floating bar along the bottom ────── */}
-            <OrgBottomNav items={NAV} counts={counts} />
+            <OrgBottomNav items={NAV.filter((n) => !n.sidebarOnly)} counts={counts} />
         </div>
     );
 };

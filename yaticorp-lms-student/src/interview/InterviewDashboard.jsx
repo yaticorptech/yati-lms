@@ -16,7 +16,7 @@ import Dropdown from '../components/Dropdown';
 import { AuthContext } from '../context/AuthContext';
 import { interviewApi, TYPE_META, fmtDate, ROLES, ROLE_OTHER as OTHER } from './api';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
-import { TopicsCard, PracticeCard, ImproveCard } from './DashboardCards';
+import { TopicsCard, PracticeCard, ImproveCard, AptitudeCard } from './DashboardCards';
 import { ScoreRing, CountUp } from './ui';
 import { TIPS } from './tips';
 import { useReturnScroll } from './scrollMemory';
@@ -298,6 +298,10 @@ export default function InterviewDashboard() {
                     <p className="mt-2 text-center text-[11px] text-slate-400">{data.ai.configured ? 'A voice interview: the AI interviewer speaks, you answer out loud.' : 'AI is not configured; the built-in interviewer will run the voice interview.'}</p>
                 </section>
             </div>
+
+            {/* ── Aptitude practice ───────────────────────────────── */}
+            {/* A dashboard cached before it had one shows none until the fresh one arrives. */}
+            {data.aptitude && <AptitudeCard aptitude={data.aptitude} />}
 
             {/* ── What you get ────────────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3 rounded-3xl bg-gradient-to-r from-violet-50 via-indigo-50 to-sky-50 px-5 py-3.5 ring-1 ring-indigo-100">

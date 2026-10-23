@@ -207,11 +207,6 @@ const WALLET_GROUPS = [
         ]
     },
     {
-        title: 'Games and competitions', rules: [
-            ['create_game_room', 'Create a game room', 'Each new Chess, Ludo, Carrom or UNO room. Joining one stays free.']
-        ]
-    },
-    {
         // Not listed: "Ask the AI mentor" (ask_mentor) and "Build a skill study
         // pack" (generate_study_material). The server can charge both, but the
         // student website has no mentor chat and no page shows the study-pack
@@ -266,6 +261,17 @@ const XP_GROUPS = [
         ]
     },
     {
+        title: 'Linguistic Ability', rules: [
+            ['linguistic_placement', 'Take the English placement test', 'Once ever.'],
+            ['linguistic_lesson', 'Complete an English lesson', 'Each lesson, the first time its quiz is passed.'],
+            ['linguistic_perfect', 'Score 100% on an English quiz', 'On top of completing it; once per lesson.'],
+            ['linguistic_translation', 'Translate an item correctly', 'Each practice translation, the first time it is right.'],
+            ['linguistic_daily', 'Finish the daily vocabulary challenge', 'Once a day.'],
+            ['linguistic_writing', 'Writing passed by a teacher', 'A paragraph, email, letter or passage translation scored at the passing score; once per task.'],
+            ['linguistic_level', 'Complete an English level', 'Every lesson of a level done and its certificate earned; once per level.']
+        ]
+    },
+    {
         title: 'Community and opportunities', rules: [
             ['forum_post', 'Post in the community forum', 'Once a day, however many posts.'],
             ['forum_comment', 'Reply in the community forum', 'Once a day, however many replies.'],
@@ -278,9 +284,7 @@ const XP_GROUPS = [
     },
     {
         title: 'Games and competitions', rules: [
-            ['competition_match_win', 'Win a competition match', 'Once per match won at the board. Not a walkover or an organizer decision.'],
-            ['friendly_game_played', 'Play a multiplayer game', 'A Chess, Ludo, Carrom or UNO room played through with another student for 3 minutes or more; once a day.'],
-            ['friendly_game_win', 'Win a multiplayer game', 'A room won outright, after 3 minutes or more; once a day.']
+            ['competition_match_win', 'Win a competition match', 'Once per match won at the board. Not a walkover or an organizer decision.']
         ]
     },
     {

@@ -6,8 +6,8 @@
  * Every new rule is optional: it pays (or costs) nothing until an admin adds
  * it under Rewards → Reward rules, and then each pays once per its reference.
  * The hooks tested here run for real: Career Path onboarding and tasks, a
- * friendly game room and a competition match, enrolling, joining a college,
- * the lesson progress endpoint, and the two new priced features.
+ * competition match, enrolling, joining a college, the lesson progress
+ * endpoint, and the new priced feature.
  *
  * The rulebook is one shared document: what a test changes is put back.
  */
@@ -35,9 +35,10 @@ const { LABELS } = require('../../src/rewards/services/walletRuleService');
 const { recordIfRuled } = require('../../src/rewards/services/xpHooks');
 const { LearningActivity, WalletTransaction, Wallet } = require('../../src/rewards/models');
 
-const NEW_XP = ['career_onboarding', 'day_plan_complete', 'skill_level_up', 'competition_match_win', 'friendly_game_played', 'friendly_game_win',
+const NEW_XP = ['career_onboarding', 'day_plan_complete', 'skill_level_up', 'competition_match_win',
     'course_enroll', 'opportunity_profile', 'organization_join', 'bio_strength_full', 'google_connect'];
-const NEW_WALLET = ['download_competition_certificate', 'create_game_room'];
+// create_game_room and the friendly-game XP went with playing with friends (removed 2026-10-23).
+const NEW_WALLET = ['download_competition_certificate'];
 // Existing XP rules a test sets an amount on, put back afterwards with the new ones.
 const TOUCHED_XP = [...NEW_XP, 'assignment_complete', 'lesson_complete', 'resume_upload'];
 const STAMP = `${Date.now()}${Math.floor(Math.random() * 1e4)}`;
@@ -151,38 +152,7 @@ describe('Career Path', () => {
 });
 
 describe('Games and competitions', () => {
-    const games = require('../../src/competitions/services/gameService');
     const PlayGame = require('../../src/competitions/models/PlayGame');
-    // A friendly chess room between two students, started `minutesAgo` ago, which `loser` then resigns.
-    const playRoom = async (host, guest, minutesAgo) => {
-        const room = await games.createRoom(host.user, 'chess', {});
-        const id = String(room._id || room.game?.id || room.id);
-        made.games.push(id);
-        await games.joinRoom(guest.user, room.code || room.game?.code);
-        await games.startRoom(id, host.user._id);
-        await PlayGame.updateOne({ _id: id }, { $set: { startedAt: new Date(Date.now() - minutesAgo * 60e3) } });
-        await games.act(id, guest.user._id, { type: 'resign' });
-        return id;
-    };
-
-    test('a friendly game played through pays both players once a day, and the winner once a day', async () => {
-        const a = await student('RoomA'); const b = await student('RoomB');
-        await playRoom(a, b, 5);
-        assert.equal(await paid(a.user, 'friendly_game_played'), 1);
-        assert.equal(await paid(b.user, 'friendly_game_played'), 1);
-        assert.equal(await paid(a.user, 'friendly_game_win'), 1);
-        assert.equal(await paid(b.user, 'friendly_game_win'), 0);
-        await playRoom(a, b, 5);
-        assert.equal(await paid(a.user, 'friendly_game_win'), 1, 'still once today');
-    });
-
-    test('a game resigned in its first minutes pays nothing', async () => {
-        const c = await student('QuickC'); const d = await student('QuickD');
-        await playRoom(c, d, 1);
-        assert.equal(await paid(c.user, 'friendly_game_played'), 0);
-        assert.equal(await paid(c.user, 'friendly_game_win'), 0);
-    });
-
     test('a competition match won at the board pays its winning player once; a walkover pays nothing', async () => {
         const Competition = require('../../src/competitions/models/Competition');
         const Match = require('../../src/competitions/models/Match');
@@ -341,23 +311,6 @@ describe('Jobs, Learning Bio and Google', () => {
 });
 
 describe('the new wallet rules', () => {
-    test('creating a game room is charged when priced, and refunded when the room could not be made', async () => {
-        const me = await student('RoomPay');
-        await config.updateConfig({ walletRules: { create_game_room: 7 } }); config.invalidate();
-        const call = compApp.call(me.token);
-        const bad = await call('POST', '/rooms', { game: 'tiddlywinks' });
-        assert.ok(bad.status >= 400);
-        const good = await call('POST', '/rooms', { game: 'chess' });
-        assert.equal(good.status, 201, JSON.stringify(good.body));
-        made.games.push(good.body.game?.id || good.body._id || good.body.id);
-        await new Promise((r) => setTimeout(r, 300));   // the refund is written when the failed answer finishes
-        const rows = await WalletTransaction.find({ userId: me.user._id, source: { $in: ['feature_charge', 'feature_refund'] } }).lean();
-        assert.equal(rows.filter((t) => t.source === 'feature_charge').length, 2, 'both attempts were charged');
-        assert.equal(rows.filter((t) => t.source === 'feature_refund').length, 1, 'the failed one was given back');
-        const wallet = await Wallet.findOne({ userId: me.user._id }).lean();
-        assert.equal(wallet.totalSpent, 7, 'one room paid for');
-    });
-
     test('a competition certificate is charged when priced, and refunded when there is none to give', async () => {
         const me = await student('CertPay');
         await config.updateConfig({ walletRules: { download_competition_certificate: 4 } }); config.invalidate();

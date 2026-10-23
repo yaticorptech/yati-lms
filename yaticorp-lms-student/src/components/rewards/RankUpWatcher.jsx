@@ -7,10 +7,13 @@
  * It looks at the student's place on this week's board when the app opens,
  * whenever XP changes anywhere ('yati:progress-changed': a lesson, a quiz, a
  * Career Path task, a game), and when the app comes back to the front (at
- * most once a minute). The place last seen is kept per student and per week
- * (`rw:rank:<user>:<weekKey>`). When the new place is higher, the climb plays
- * (LeaderboardRankUp): the student's card rising from the old place past the
- * students it has overtaken.
+ * most once a minute). The place last seen, and the best place celebrated,
+ * are kept per student and per week (`rw:rank:<user>:<weekKey>`). The climb
+ * plays (LeaderboardRankUp) only for a place better than any already
+ * celebrated this week: the student's card rising from the old place past the
+ * students it has overtaken. Two students trading places (#2, #1, #2, #1…)
+ * see it once, not at every swap (asked 2026-10-23: "why is this coming
+ * again and again").
  *
  * It never interrupts: it waits while the student is learning (a lesson, a
  * quiz, a game, the mock interview — every screen that hides Yati), while
@@ -23,32 +26,11 @@ import { AuthContext } from '../../context/AuthContext';
 import { useRewards } from '../../context/useRewards';
 import { useLoopHidden } from '../loopVisibility';
 import LeaderboardRankUp from './LeaderboardRankUp';
+import { rankUpSince } from './rankPlaces';
 
 const PERIOD = 'weekly';
 const BUSY_ROUTES = /^\/(learn\/|interview\/mock\/|competitions\/play\/|career\/onboarding)/;
 const RESUME_GAP = 60000;
-
-/**
- * The place last seen this week, swapped for `now`: { from, to } when it has
- * gone up, else null. Places from earlier weeks (and the old per-browser
- * 'rw:rank:weekly' keys) are cleared as a new one is stored.
- */
-const rankUpSince = (userId, periodKey, now) => {
-    if (!userId || !periodKey) return null;
-    const prefix = `rw:rank:${userId}:${periodKey.split(':')[0]}:`;
-    const key = `rw:rank:${userId}:${periodKey}`;
-    try {
-        const prev = Number(localStorage.getItem(key));
-        if (now) {
-            for (let i = localStorage.length - 1; i >= 0; i--) {
-                const k = localStorage.key(i);
-                if (k && k !== key && (k.startsWith(prefix) || /^rw:rank:(daily|weekly|monthly|all)$/.test(k))) localStorage.removeItem(k);
-            }
-            localStorage.setItem(key, String(now));
-        }
-        return now && prev && now < prev ? { from: prev, to: now } : null;
-    } catch { return null; /* private mode */ }
-};
 
 const busyNow = (learning) => learning
     || document.visibilityState !== 'visible'

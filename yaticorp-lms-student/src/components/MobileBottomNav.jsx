@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, GraduationCap, Mic, Trophy } from 'lucide-react';
+import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, GraduationCap, Mic, Gamepad2 } from 'lucide-react';
 import useKeyboardOpen from '../native/useKeyboardOpen';
 import './mobileBottomNav.css';
 
@@ -34,7 +34,9 @@ import './mobileBottomNav.css';
 // label; `short` is what fits under an icon in one line when eight of them
 // share a phone.
 // My Profile stays in the drawer rather than here; Career Path sits right
-// after Courses, and Games & Competitions is last.
+// after Courses, and Games (the brain games) is last — lit on Competitions
+// too (`also`): the two sections share one place here, as eight is all a
+// phone fits; Competitions is in the drawer.
 const ITEMS = [
   { to: '/', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
   { to: '/enrolled-courses', label: 'My Courses', short: 'Courses', icon: BookOpen },
@@ -43,7 +45,7 @@ const ITEMS = [
   { to: '/jobs', label: 'Jobs', short: 'Jobs', icon: Briefcase, flag: 'jobs' },
   { to: '/scholarships', label: 'Scholarships', short: 'Grants', icon: GraduationCap, flag: 'career' },
   { to: '/interview', label: 'Interview Prep', short: 'Interview', icon: Mic },
-  { to: '/competitions', label: 'Games & Competitions', short: 'Games', icon: Trophy }
+  { to: '/games', label: 'Games', short: 'Games', icon: Gamepad2, also: '/competitions' }
 ];
 
 /** The visible word first, then the sidebar's name when it says something else. */
@@ -65,7 +67,7 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
   });
 
   const isActive = (item) =>
-    item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
+    item.exact ? pathname === item.to : [item.to, item.also].filter(Boolean).some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   // Where the bubble sits: under the active icon, re-measured when the route
   // or the screen width changes. The CSS springs it there.

@@ -1,6 +1,6 @@
 /**
  * The phone's bottom bar: all eight sections fit, Career Path right after
- * Courses, Games & Competitions last, and My Profile is not in it.
+ * Courses, Games last (lit on Competitions too), and My Profile is not in it.
  *
  * Eight cells share a floating bar that is 344px wide on the narrowest phone
  * we support, so each cell is about 43px. The short labels are written to fit
@@ -48,7 +48,7 @@ describe('phone bottom bar', { skip: skipWithoutStyles }, () => {
 
             assert.deepEqual(result.items.map((i) => i.label),
                 ['Home', 'Courses', 'Career', 'Forum', 'Jobs', 'Grants', 'Interview', 'Games']);
-            assert.equal(result.items.at(-1).href, '/competitions');
+            assert.equal(result.items.at(-1).href, '/games');
             assert.ok(!result.items.some((i) => i.href === '/profile'), 'My Profile is not in the bar');
             assert.equal(result.items[2].href, '/career');
             assert.equal(result.items[2].current, 'page', 'Career Path is marked as the page you are on');
@@ -56,7 +56,7 @@ describe('phone bottom bar', { skip: skipWithoutStyles }, () => {
             // with the word under the icon ("Grants (Scholarships)", not "Scholarships").
             for (const item of result.items) assert.ok(item.name.startsWith(item.label), `"${item.name}" starts with "${item.label}"`);
             assert.deepEqual(result.items.map((i) => i.name),
-                ['Home (Dashboard)', 'Courses (My Courses)', 'Career Path', 'Forum (Community)', 'Jobs', 'Grants (Scholarships)', 'Interview Prep', 'Games & Competitions']);
+                ['Home (Dashboard)', 'Courses (My Courses)', 'Career Path', 'Forum (Community)', 'Jobs', 'Grants (Scholarships)', 'Interview Prep', 'Games']);
 
             // A gap at or below zero means two words touch or overlap.
             assert.ok(Math.min(...result.gaps) > 2, `closest labels are ${Math.min(...result.gaps).toFixed(1)}px apart`);

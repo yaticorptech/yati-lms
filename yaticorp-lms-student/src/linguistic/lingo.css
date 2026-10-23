@@ -1,0 +1,53 @@
+/*
+ * Linguistic Ability's look: rounded, bold type, bright flat colours, chunky
+ * buttons that press down, and small bursts of motion. Everything is scoped to
+ * `.lingo`, so nothing reaches the rest of the student panel.
+ */
+.lingo { font-family: 'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, sans-serif; color: #4b4b4b; }
+.lingo [lang="kn"], .lingo .kn { font-family: 'Noto Sans Kannada', 'Kannada Sangam MN', 'Nirmala UI', 'Tunga', 'Nunito', sans-serif; }
+.lingo [lang="hi"] { font-family: 'Noto Sans Devanagari', 'Kohinoor Devanagari', 'Devanagari Sangam MN', 'Nirmala UI', 'Mangal', 'Nunito', sans-serif; }
+.lingo [lang="ja"] { font-family: 'Hiragino Maru Gothic ProN', 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic', 'Meiryo', sans-serif; }
+.lingo [lang="ko"] { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
+
+/* A chunky button: a face with a darker edge below it, which it sinks into when pressed. */
+.lingo-btn { position: relative; border-radius: 1rem; border-width: 2px; border-bottom-width: 4px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; transition: filter 0.1s, transform 0.08s; }
+.lingo-btn:not(:disabled):active { transform: translateY(2px); border-bottom-width: 2px; margin-top: 2px; }
+.lingo-btn:not(:disabled):hover { filter: brightness(1.05); }
+.lingo-btn:disabled { cursor: not-allowed; }
+
+/* A lesson on the path: a round button standing on its own edge. */
+.lingo-node { transition: transform 0.08s; }
+.lingo-node:not(:disabled):active { transform: translateY(6px); box-shadow: none !important; }
+
+/* A tile in a word bank or a choice card. */
+.lingo-tile { border: 2px solid #e5e5e5; border-bottom-width: 4px; border-radius: 0.9rem; background: #fff; font-weight: 700; transition: transform 0.08s, background 0.15s, border-color 0.15s; }
+.lingo-tile:not(:disabled):active { transform: translateY(2px); border-bottom-width: 2px; margin-top: 2px; }
+.lingo-tile:not(:disabled):hover { background: #f7f7f7; }
+
+@keyframes lingo-float { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -6px); } }
+.lingo-float { animation: lingo-float 1.6s ease-in-out infinite; }
+@keyframes lingo-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.lingo-sheet { animation: lingo-up 0.22s ease-out; }
+@keyframes lingo-pop { 0% { transform: scale(0.6); opacity: 0; } 70% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+.lingo-pop { animation: lingo-pop 0.35s ease-out both; }
+@keyframes lingo-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.lingo-shake { animation: lingo-shake 0.35s ease-in-out; }
+@keyframes lingo-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+.lingo-in { animation: lingo-in 0.25s ease-out; }
+
+/* A speech bubble pointing at the character beside it. */
+.lingo-bubble { position: relative; border: 2px solid #e5e5e5; border-radius: 1rem; background: #fff; }
+.lingo-bubble::before { content: ''; position: absolute; left: -10px; top: 50%; margin-top: -9px; border-width: 9px 10px 9px 0; border-style: solid; border-color: transparent #e5e5e5 transparent transparent; }
+.lingo-bubble::after { content: ''; position: absolute; left: -7px; top: 50%; margin-top: -7px; border-width: 7px 8px 7px 0; border-style: solid; border-color: transparent #fff transparent transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+    .lingo-float, .lingo-sheet, .lingo-pop, .lingo-shake, .lingo-in { animation: none; }
+}
+
+/* While a lesson covers the screen, the app's reward pop-ups ("+20 XP") show at
+   the top instead of over the lesson's CHECK / CONTINUE button. Only then: the
+   rest of the app keeps them where they are. */
+body:has([data-lingo-session]) [data-loop-avoid].mascot-clear[role="status"] {
+    top: calc(5.5rem + env(safe-area-inset-top)) !important;
+    bottom: auto !important;
+}

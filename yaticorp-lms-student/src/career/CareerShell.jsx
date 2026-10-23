@@ -4,7 +4,7 @@
  * Replaces the standalone app's DashboardLayout. That one owned the page: its
  * own left sidebar, its own top bar, its own identity card. Inside the LMS all
  * of that already exists one level up in StudentLayout, so this is deliberately
- * thinner — a tab strip for the section's nine screens, the level/XP chip and the
+ * thinner — a tab strip for the section's ten screens, the level/XP chip and the
  * Career Path notification bell, and then the page.
  *
  * It also carries the three things the ported pages assume are above them:
@@ -26,7 +26,7 @@ import CareerProviders from './CareerProviders';
 import WhatsNew from './components/WhatsNew';
 
 /**
- * The section's nine screens, in the order the standalone app grouped them:
+ * The section's ten screens, in the order the standalone app grouped them:
  * today's work first, the long view next, then progress and support. The group
  * labels survive as separators in the tab strip — nine peers competing as
  * equals was the problem the grouping originally solved.
@@ -52,8 +52,7 @@ const NAV_GROUPS = [
     label: 'Progress',
     items: [
       { name: 'My Progress', path: '/career/profile', icon: UserCircle, tone: 'from-indigo-400 to-violet-600 shadow-indigo-500/40' },
-      // The brain games were here. They are Brain Boosters now, a tab of
-      // Games & Competitions, and /career/games forwards there (App.jsx).
+      // The brain games (Brain Boosters) left this strip on 2026-10-23: they are the Games section (/games).
       { name: 'Rewards', path: '/career/badges', icon: Award, tone: 'from-orange-400 to-red-500 shadow-orange-500/40' }
     ]
   },
@@ -201,7 +200,7 @@ function CareerFrame() {
           on it at all. One condition, one display. */}
       {/* Folder tabs, the way a delivery app does it: every screen is its own
           tab on a dark band, an icon on top and its name beneath, and the one
-          that is open turns white and joins the page below. All nine are on
+          that is open turns white and joins the page below. All ten are on
           the band — nothing is folded away behind a group. */}
       <div className="mb-6">
         <div className="fp-band-sheen relative overflow-hidden rounded-t-3xl bg-gradient-to-b from-journey-200/70 via-journey-100 to-journey-100 px-2 pt-1 sm:px-3">
@@ -214,7 +213,7 @@ function CareerFrame() {
             className="fp-float-slow pointer-events-none absolute -top-10 left-10 h-32 w-32 rounded-full bg-journey-200/50 blur-3xl"
           />
 
-          {/* Scrolls sideways below the width all nine fit in, with the active
+          {/* Scrolls sideways below the width all ten fit in, with the active
               tab brought into view on every route change. */}
           {/* The row scrolls sideways, and a scrolling box clips whatever
               pokes out of it — so the headroom the icons rise into is inside

@@ -36,7 +36,7 @@ const Match = require('../models/Match');
 const User = require('../../models/User');
 const views = require('../services/views');
 const bracket = require('../services/bracketService');
-const { friendlyOptions } = require('../services/gameService');
+const { gameOptions } = require('../services/gameService');
 const { upload: imageUpload } = require('../../middleware/uploadMiddleware');
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((err) => {
@@ -51,7 +51,8 @@ const num = (v, lo, hi, dflt) => (v == null || v === '' || Number.isNaN(Number(v
 const fromBody = (body, current = null) => {
     const b = body || {};
     const game = String(b.game ?? current?.game ?? '');
-    if (!Competition.GAMES.includes(game)) throw fail(400, 'Choose the game: Chess, Ludo, Carrom or UNO.');
+    // UNO is no longer offered (2026-10-23); one made before then can still be edited.
+    if (!require('../games').IDS.includes(game) && !(current && game === current.game)) throw fail(400, 'Choose the game: Chess, Ludo or Carrom.');
     const name = String(b.name ?? current?.name ?? '').trim();
     if (!name) throw fail(400, 'Give the competition a name.');
     const startsAt = new Date(b.startsAt ?? current?.startsAt);
@@ -67,7 +68,7 @@ const fromBody = (body, current = null) => {
     if (bannerUrl && !/^https?:\/\//.test(bannerUrl)) throw fail(400, 'The banner must be an uploaded image.');
 
     // What each game allows: two teams a match for chess and carrom, up to
-    // four for ludo and UNO; doubles only in carrom.
+    // four for ludo; doubles only in carrom.
     const teamsPerMatch = ['chess', 'carrom'].includes(game) ? 2 : num(b.teamsPerMatch ?? current?.teamsPerMatch, 2, 4, 4);
     const playersPerSide = game === 'carrom' ? num(b.playersPerSide ?? current?.playersPerSide, 1, 2, 1) : 1;
     const playersPerTeam = Math.max(playersPerSide, num(b.playersPerTeam ?? current?.playersPerTeam, 1, 10, playersPerSide));
@@ -87,7 +88,7 @@ const fromBody = (body, current = null) => {
         playersPerTeam,
         playersPerSide,
         teamsPerMatch,
-        gameOptions: friendlyOptions(game, b.gameOptions ?? current?.gameOptions ?? {}),
+        gameOptions: gameOptions(game, b.gameOptions ?? current?.gameOptions ?? {}),
         rules: String(b.rules ?? current?.rules ?? '').slice(0, 5000),
         prizes: [...new Map(prizes.map((p) => [p.place, p])).values()].sort((x, y) => x.place - y.place),
         prizeDetails: String(b.prizeDetails ?? current?.prizeDetails ?? '').trim().slice(0, 600),

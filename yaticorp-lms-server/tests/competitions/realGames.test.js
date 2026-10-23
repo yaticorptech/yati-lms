@@ -1,37 +1,41 @@
 /**
- * The real games, through the real service: a friendly room for each of
- * Chess, Ludo, UNO and Carrom — made, joined, started — and a first move made
- * from what the view offers. What one player may not see (an UNO hand) is
- * checked from the other player's side of the API.
+ * The real games, through the real service: a competition match's game for
+ * each of Chess, Ludo and Carrom — opened, joined by both players — and a
+ * first move made from what the view offers. (Friendly rooms, and UNO, were
+ * removed on 2026-10-23; the last test checks they are gone.)
  */
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const mongoose = require('mongoose');
 const { connect, makeUser, startApp, cleanup } = require('../helpers');
 const PlayGame = require('../../src/competitions/models/PlayGame');
+const { openMatchGame } = require('../../src/competitions/services/gameService');
 
-let app, a, b;
+let app, a, b, outsider;
 
 before(async () => {
     await connect();
     app = startApp({ mount: '/api/competitions', router: require('../../src/competitions') });
     a = await makeUser('Player A'); a.call = app.call(a.token);
     b = await makeUser('Player B'); b.call = app.call(b.token);
+    outsider = await makeUser('Not In It'); outsider.call = app.call(outsider.token);
 });
 after(async () => {
     await PlayGame.deleteMany({ 'seats.userId': { $in: [a.user._id, b.user._id] } });
-    await cleanup([a.user, b.user], app.server);
+    await cleanup([a.user, b.user, outsider.user], app.server);
 });
 
-/** A started two-player friendly game of `game`, as both players see it. */
+/** A started two-player match game of `game`, as the bracket opens one, both players joined. */
 const start = async (game) => {
-    const made = await a.call('POST', '/rooms', { game });
-    assert.equal(made.status, 201, JSON.stringify(made.body));
-    const joined = await b.call('POST', '/rooms/join', { code: made.body.game.code });
+    const id = () => new mongoose.Types.ObjectId();
+    const teams = [a, b].map((p) => ({ _id: id(), players: [{ userId: p.user._id, name: p.user.name }] }));
+    const row = await openMatchGame({ competition: { _id: id(), game, playersPerSide: 1, gameOptions: {} }, match: { _id: id(), sides: teams.map((t) => ({ teamId: t._id, lineup: [] })) }, teams });
+    const gameId = String(row._id);
+    assert.equal((await a.call('POST', `/play/${gameId}/join`)).status, 200);
+    const joined = await b.call('POST', `/play/${gameId}/join`);
     assert.equal(joined.status, 200, JSON.stringify(joined.body));
-    const started = await a.call('POST', `/play/${made.body.game.id}/start`);
-    assert.equal(started.status, 200, JSON.stringify(started.body));
-    assert.equal(started.body.game.status, 'active');
-    return made.body.game.id;
+    assert.equal(joined.body.game.status, 'active', 'it starts once both are there');
+    return gameId;
 };
 const as = async (who, id) => (await who.call('GET', `/play/${id}`)).body.game;
 const common = (g) => {
@@ -40,7 +44,7 @@ const common = (g) => {
 };
 const mover = (g) => (g.view.turn === g.you ? 'me' : 'other');
 
-describe('the real games, in friendly rooms', () => {
+describe('the real games, in competition matches', () => {
     test('chess: White moves from the legal moves the view offers', async () => {
         const id = await start('chess');
         const white = await as(a, id);
@@ -67,20 +71,6 @@ describe('the real games, in friendly rooms', () => {
         assert.ok(r.body.game.view.dice >= 1 && r.body.game.view.dice <= 6);
     });
 
-    test('uno: a player sees their own hand and never the other\'s', async () => {
-        const id = await start('uno');
-        const mine = await as(a, id);
-        const theirs = await as(b, id);
-        common(mine);
-        assert.equal(mine.view.hand.length, 7);
-        assert.equal(theirs.view.hand.length, 7);
-        const bView = JSON.stringify(theirs);
-        for (const card of mine.view.hand) assert.ok(!bView.includes(`"${card.id}"`), `B's view must not contain A's ${card.id}`);
-        const who = mover(mine) === 'me' ? a : b;
-        const r = await who.call('POST', `/play/${id}/action`, { action: { type: 'draw' } });
-        assert.equal(r.status, 200, JSON.stringify(r.body));
-    });
-
     test('carrom: the player to shoot takes a shot and everyone sees it replayed', async () => {
         const id = await start('carrom');
         const g = await as(a, id);
@@ -100,5 +90,46 @@ describe('the real games, in friendly rooms', () => {
         await PlayGame.updateOne({ _id: id }, { $set: { nextDeadline: new Date(past), 'state.deadline': past } });
         const after = await as(b, id);
         assert.ok(after.version > before.version, 'the timeout moved the game on');
+    });
+});
+
+describe('a match code (asked 2026-10-23)', () => {
+    test('each match game has a 6-character code; its players open it by typing it, nobody else can', async () => {
+        const id = () => new mongoose.Types.ObjectId();
+        const teams = [a, b].map((p) => ({ _id: id(), players: [{ userId: p.user._id, name: p.user.name }] }));
+        const row = await openMatchGame({ competition: { _id: id(), game: 'chess', playersPerSide: 1, gameOptions: {} }, match: { _id: id(), sides: teams.map((t) => ({ teamId: t._id, lineup: [] })) }, teams });
+        assert.match(row.code, /^[A-Z2-9]{6}$/);
+        const mine = await a.call('POST', '/matches/join', { code: row.code.toLowerCase() });
+        assert.equal(mine.status, 200); assert.equal(mine.body.game.id, String(row._id));
+        assert.equal((await a.call('GET', `/play/${row._id}`)).body.game.code, row.code, 'the players see it on the game');
+        const other = await outsider.call('POST', '/matches/join', { code: row.code });
+        assert.equal(other.status, 403); assert.match(other.body.message, /another match/);
+        assert.equal((await outsider.call('GET', `/play/${row._id}`)).body.game.code, null, 'a spectator does not see it');
+        assert.equal((await a.call('POST', '/matches/join', { code: 'ZZZZZ9' })).status, 404);
+        assert.equal((await a.call('POST', '/matches/join', { code: 'abc' })).status, 400);
+        await PlayGame.updateOne({ _id: row._id }, { $set: { status: 'finished' } });
+        assert.equal((await a.call('POST', '/matches/join', { code: row.code })).status, 409, 'a match that is over');
+    });
+
+    test('a match game opened before codes existed is given one when it is listed', async () => {
+        const { withCodes } = require('../../src/competitions/services/gameService');
+        const old = await PlayGame.create({ kind: 'match', game: 'ludo', seats: [{ userId: a.user._id, name: 'A', side: 0 }] });
+        const [row] = await withCodes([await PlayGame.findById(old._id).select('status code kind').lean()]);
+        assert.match(row.code, /^[A-Z2-9]{6}$/);
+        assert.equal((await PlayGame.findById(old._id).lean()).code, row.code, 'saved');
+    });
+});
+
+describe('playing with friends, and UNO, are gone', () => {
+    test('no rooms to make, join or list; UNO is not offered; a friendly game saved before answers 410', async () => {
+        assert.equal((await a.call('POST', '/rooms', { game: 'chess' })).status, 404);
+        assert.equal((await a.call('POST', '/rooms/join', { code: 'ABCDEF' })).status, 404);
+        assert.equal((await a.call('GET', '/rooms/mine')).status, 404);
+        const games = (await a.call('GET', '/games')).body.games.map((g) => g.id);
+        assert.deepEqual(games, ['chess', 'ludo', 'carrom']);
+        const old = await PlayGame.create({ kind: 'friendly', game: 'uno', code: 'OLD123', hostId: a.user._id, seats: [{ userId: a.user._id, name: 'A', side: 0, joinedAt: new Date() }] });
+        const r = await a.call('GET', `/play/${old._id}`);
+        assert.equal(r.status, 410); assert.match(r.body.message, /no longer available/);
+        assert.equal((await a.call('POST', `/play/${old._id}/action`, { action: { type: 'draw' } })).status, 410);
     });
 });

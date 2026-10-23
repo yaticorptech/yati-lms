@@ -30,6 +30,14 @@ const ACTIVITY_TYPES = [
   'mock_interview',
   'interview_improved',
   'interview_challenge',
+  // Linguistic Ability (English learning), each once per thing it names:
+  'linguistic_placement',  // the placement test taken; once ever
+  'linguistic_lesson',     // a lesson passed (its quiz at the passing score); once per lesson
+  'linguistic_perfect',    // a lesson quiz at 100%; once per lesson
+  'linguistic_translation',// a translation answered right; once per item
+  'linguistic_daily',      // the daily vocabulary challenge finished; once a day
+  'linguistic_writing',    // a writing task a teacher passed; once per task
+  'linguistic_level',      // every lesson of a level done and its certificate earned; once per level
   // Optional: no rule (and so no XP) until an admin adds one under Reward rules.
   'forum_post',
   'forum_comment',
@@ -78,6 +86,14 @@ const DEFAULT_XP_RULES = {
   mock_interview: 30,
   interview_improved: 20,
   interview_challenge: 50,
+  // Linguistic Ability: changed on the admin Rewards page like any other rule.
+  linguistic_placement: 10,
+  linguistic_lesson: 20,
+  linguistic_perfect: 10,
+  linguistic_translation: 2,
+  linguistic_daily: 10,
+  linguistic_writing: 10,
+  linguistic_level: 50,
   // Paid once per quiz, for a final score at or above the win score below.
   global_quiz_win: 50
 };

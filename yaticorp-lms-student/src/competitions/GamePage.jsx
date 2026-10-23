@@ -1,5 +1,7 @@
 /**
- * One online game: a friendly room or a competition match.
+ * One online game: a competition match. (Friendly rooms, and UNO, were
+ * removed on 2026-10-23; the server turns an old friendly game away, and
+ * this page shows its message.)
  *
  * The page asks the server for the game about once a second (every few seconds
  * while waiting) and sends each move as one request; the server decides
@@ -9,16 +11,15 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Copy, Check, Loader2, Play, LogOut, Flag, Trophy, Users, Clock, Eye, Crown, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Loader2, Flag, Trophy, Users, Clock, Eye, AlertTriangle } from 'lucide-react';
 import { competitionsApi } from './api';
 import ChessTable from './games/ChessTable';
 import LudoTable from './games/LudoTable';
 import CarromTable from './games/CarromTable';
-import UnoTable from './games/UnoTable';
 import { useHideLoop } from '../components/loopVisibility';
 import GameCelebration from '../components/GameCelebration';
 
-const TABLES = { chess: ChessTable, ludo: LudoTable, carrom: CarromTable, uno: UnoTable };
+const TABLES = { chess: ChessTable, ludo: LudoTable, carrom: CarromTable };
 
 /** Seconds left until `deadline`, ticking. */
 const useCountdown = (deadline) => {
@@ -42,7 +43,6 @@ export default function GamePage() {
     const [error, setError] = useState('');
     const [fatal, setFatal] = useState('');
     const [busy, setBusy] = useState('');
-    const [copied, setCopied] = useState(false);
     const [confirmResign, setConfirmResign] = useState(false);
     const versionRef = useRef(null);
     const statusRef = useRef('waiting');
@@ -74,7 +74,8 @@ export default function GamePage() {
                 })
                 .catch((e) => {
                     if (!alive) return;
-                    if (e.status === 404 || e.status === 403) { setFatal(e.message); return; }
+                    // Not there, not theirs, or gone (an old friendly game, 410): say so and stop asking.
+                    if ([403, 404, 410].includes(e.status)) { setFatal(e.message); return; }
                     timer = setTimeout(tick, 4000);      // offline for a moment: keep trying
                 });
         };
@@ -108,7 +109,7 @@ export default function GamePage() {
             <div className="mx-auto max-w-lg rounded-3xl border border-rose-200 bg-white p-6 text-center shadow-sm">
                 <AlertTriangle size={28} className="mx-auto text-rose-500" aria-hidden="true" />
                 <p className="mt-2 font-bold text-slate-900">{fatal}</p>
-                <Link to="/competitions" className="mt-4 inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white">Back to Games &amp; Competitions</Link>
+                <Link to="/competitions" className="mt-4 inline-flex rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white">Back to Competitions</Link>
             </div>
         );
     }
@@ -125,21 +126,18 @@ export default function GamePage() {
     const iWon = outcome && mySide != null && outcome.places?.[0]?.length === 1 && outcome.places[0][0] === mySide;
     const tie = outcome && outcome.places?.[0]?.length > 1;
 
-    const copy = () => {
-        navigator.clipboard?.writeText(game.code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
-    };
-
     return (
         <div className="space-y-4 pb-10" data-game-page={game.game}>
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <Link to={back} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} aria-hidden="true" /> {game.competition ? game.competition.name : 'Games'}</Link>
                 {game.you == null && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"><Eye size={13} aria-hidden="true" /> Watching</span>}
+                {game.code && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1 font-mono text-xs font-black tracking-[0.2em] text-white" data-match-code={game.code} title="Your match code">{game.code}</span>}
             </div>
 
             <header className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-2xl" aria-hidden="true">{game.emoji}</span>
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-lg font-black text-slate-900 sm:text-xl">{game.label}{game.match ? <span className="font-semibold text-slate-500"> · {game.match.roundName}</span> : game.kind === 'friendly' ? <span className="font-semibold text-slate-500"> · friendly game</span> : null}</h1>
+                    <h1 className="text-lg font-black text-slate-900 sm:text-xl">{game.label}{game.match ? <span className="font-semibold text-slate-500"> · {game.match.roundName}</span> : null}</h1>
                     <p className="break-words text-sm text-slate-500">{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
                 </div>
                 {game.status === 'active' && turnLeft != null && (
@@ -181,49 +179,22 @@ export default function GamePage() {
             {/* ── Waiting room ──────────────────────────────────────── */}
             {game.status === 'waiting' && (
                 <section className="mx-auto max-w-xl space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    {game.kind === 'friendly' && game.code && (
-                        <div className="text-center">
-                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Room code</p>
-                            <button type="button" onClick={copy} className="mt-1 inline-flex items-center gap-3 rounded-2xl bg-slate-900 px-5 py-3 font-mono text-3xl font-black tracking-[0.3em] text-white" aria-label={`Room code ${game.code}, copy`}>
-                                {game.code} {copied ? <Check size={20} aria-hidden="true" /> : <Copy size={20} aria-hidden="true" />}
-                            </button>
-                            <p className="mt-2 text-sm text-slate-500">Friends join from Games &amp; Competitions → Join with a code.</p>
-                        </div>
-                    )}
                     {game.kind === 'match' && (
                         <p className="rounded-2xl bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
                             The game starts as soon as every player is here.{joinLeft != null && <> Players not here in <strong className="tabular-nums">{clock(joinLeft)}</strong> lose by walkover.</>}
                         </p>
                     )}
                     <div>
-                        <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-800"><Users size={16} aria-hidden="true" /> Players {game.kind === 'friendly' && <span className="font-semibold text-slate-400">({game.seats.length} of {game.maxSeats})</span>}</p>
+                        <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-slate-800"><Users size={16} aria-hidden="true" /> Players</p>
                         <ul className="space-y-1.5">
                             {game.seats.map((s, i) => (
                                 <li key={i} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm">
                                     <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">{s.name}{game.you === i ? ' (you)' : ''}{game.sides?.[s.side]?.teamName ? <span className="text-xs font-normal text-slate-500"> · {game.sides[s.side].teamName}</span> : null}</span>
-                                    {i === 0 && game.kind === 'friendly' && <Crown size={14} className="text-amber-500" aria-label="Host" />}
                                     <span className={`text-xs font-bold ${s.joined ? 'text-emerald-600' : 'text-slate-400'}`}>{s.joined ? 'Here' : 'Not yet'}</span>
                                 </li>
                             ))}
                         </ul>
                     </div>
-                    {game.kind === 'friendly' && (
-                        <div className="flex flex-wrap justify-end gap-2">
-                            {game.you != null && (
-                                <button type="button" onClick={() => run('leave', () => competitionsApi.leave(gameId)).then(() => navigate('/competitions')).catch(() => {})} disabled={!!busy}
-                                    className="inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-                                    <LogOut size={15} aria-hidden="true" /> {game.host ? 'Close room' : 'Leave'}
-                                </button>
-                            )}
-                            {game.host ? (
-                                <button type="button" onClick={() => run('start', () => competitionsApi.start(gameId)).catch(() => {})} disabled={!!busy || game.seats.length < game.minSeats}
-                                    className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-md shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50">
-                                    {busy === 'start' ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Play size={15} aria-hidden="true" />} Start game
-                                </button>
-                            ) : game.you != null && <p className="self-center text-sm text-slate-500">Waiting for the host to start…</p>}
-                        </div>
-                    )}
-                    {game.kind === 'friendly' && game.host && game.seats.length < game.minSeats && <p className="text-right text-xs text-slate-500">{game.label} needs at least {game.minSeats} players.</p>}
                 </section>
             )}
 

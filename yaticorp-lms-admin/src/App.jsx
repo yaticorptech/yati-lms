@@ -64,6 +64,8 @@ import Community from './pages/Community';
 import NotFound from './pages/NotFound';
 import Analytics from './pages/Analytics';
 import GlobalQuiz from './pages/GlobalQuiz';
+import LinguisticAdmin from './pages/linguistic/LinguisticAdmin';
+import OrgLinguistic from './pages/linguistic/OrgLinguistic';
 import Announcements from './pages/Announcements';
 import CareerPath from './pages/CareerPath';
 import Jobs from './pages/Jobs';
@@ -108,6 +110,7 @@ function App() {
         <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
         <Route path="competitions" element={<OrgCompetitions />} />
         <Route path="competitions/host/:id" element={<CompetitionAdmin apiBase="/competitions/org/host" backTo="/organization/competitions?tab=host" />} />
+        <Route path="linguistic" element={<OrgLinguistic />} />
         <Route path="settings" element={<OrgSettings />} />
         {/* Any other address in here: said inside the shell, menu and all. */}
         <Route path="*" element={<OrgNotFound />} />
@@ -130,6 +133,7 @@ function App() {
         <Route path="jobs" element={<Jobs />} />
         <Route path="rewards" element={<Rewards />} />
         <Route path="global-quiz" element={<GlobalQuiz />} />
+        <Route path="linguistic" element={<LinguisticAdmin />} />
         <Route path="announcements" element={<Announcements />} />
         <Route path="competitions" element={<Competitions />} />
         <Route path="competitions/:id" element={<CompetitionAdmin />} />

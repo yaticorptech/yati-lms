@@ -9,7 +9,8 @@ import { GAMES, STATUS, ORDINAL, toLocalInput, errorOf } from './constants';
 
 /**
  * A game's icon, on its own colour: a knight for chess, dice for Ludo, the
- * board's centre ring for carrom, a card for UNO. Drawn from the icon library
+ * board's centre ring for carrom (and a card for UNO, for a competition made
+ * before it was removed on 2026-10-23). Drawn from the icon library
  * rather than the emoji the server sends, which every phone and computer drew
  * differently (and some as an empty box).
  */
@@ -40,7 +41,7 @@ const blank = (organizer) => {
         name: '', organizedBy: organizer, description: '', game: 'chess',
         startDate, startTime, registrationOpensAt: '', registrationDeadline: toLocalInput(deadline),
         maxTeams: 16, playersPerTeam: 2, playersPerSide: 1, teamsPerMatch: 4,
-        gameOptions: { clockMinutes: 10, turnSeconds: 30, tokensPerPlayer: 4, handSize: 7 },
+        gameOptions: { clockMinutes: 10, turnSeconds: 30, tokensPerPlayer: 4 },
         rules: '', prizeDetails: '', bannerUrl: '', participationXp: 20, certificates: true, participationCertificates: true,
         prizes: [{ place: 1, title: 'Winner', xp: 300, rewardPoints: 100 }, { place: 2, title: 'Runner-up', xp: 200, rewardPoints: 50 }, { place: 3, title: 'Third place', xp: 100, rewardPoints: 25 }]
     };
@@ -53,7 +54,7 @@ const fromCompetition = (c) => ({
     registrationOpensAt: toLocalInput(c.registrationOpensAt),
     registrationDeadline: toLocalInput(c.registrationDeadline),
     participationCertificates: c.participationCertificates !== false,
-    gameOptions: { clockMinutes: 10, turnSeconds: 30, tokensPerPlayer: 4, handSize: 7, ...(c.gameOptions || {}) },
+    gameOptions: { clockMinutes: 10, turnSeconds: 30, tokensPerPlayer: 4, ...(c.gameOptions || {}) },
     prizes: [1, 2, 3].map((place) => c.prizes.find((p) => p.place === place) || { place, title: '', xp: 0, rewardPoints: 0 })
 });
 
@@ -91,7 +92,7 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
         };
         onSave(body).catch((err) => setError(errorOf(err))).finally(() => setBusy(''));
     };
-    const multi = f.game === 'ludo' || f.game === 'uno';
+    const multi = f.game === 'ludo';
 
     // One popup that fits the screen: the title and the Save / Publish buttons
     // stay put and the form scrolls between them. It used to be as tall as the
@@ -111,16 +112,16 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
                         <label><span className={LABEL}>Organized by</span>
                             <input maxLength={140} value={f.organizedBy} onChange={(e) => set({ organizedBy: e.target.value })} className={INPUT} /></label>
                         <div><span className={LABEL}>Game</span>
-                            <div role="radiogroup" aria-label="Game" className="grid grid-cols-4 gap-2">
+                            <div role="radiogroup" aria-label="Game" className="grid grid-cols-3 gap-2">
                                 {Object.entries(GAMES).map(([id, g]) => (
                                     <button key={id} type="button" role="radio" aria-checked={f.game === id} disabled={locked}
-                                        onClick={() => set({ game: id, teamsPerMatch: ['ludo', 'uno'].includes(id) ? 4 : 2, playersPerSide: 1 })}
+                                        onClick={() => set({ game: id, teamsPerMatch: id === 'ludo' ? 4 : 2, playersPerSide: 1 })}
                                         className={`flex flex-col items-center gap-1.5 rounded-xl border px-1 py-2.5 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${f.game === id ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
                                         <GameIcon game={id} size={18} className="h-9 w-9 rounded-lg" />{g.label}
                                     </button>
                                 ))}
                             </div>
-                            <span className="mt-1 block text-xs text-slate-500">{GAMES[f.game].note}</span></div>
+                            <span className="mt-1 block text-xs text-slate-500">{GAMES[f.game]?.note}</span></div>
                         <div><span className={LABEL}>Competition type</span>
                             <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700">{!hosted ? 'Inter-College' : hostName ? `${hostName} only` : 'Your college only'}</p>
                             {hosted && <span className="mt-1 block text-xs text-slate-500">{hostName ? `Only ${hostName}'s students see it. The college makes the teams from them.` : 'Only your students see it. You make the teams from them.'}</span>}</div>
@@ -183,10 +184,6 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
                                 <select value={f.gameOptions.tokensPerPlayer} onChange={(e) => setOpt('tokensPerPlayer', Number(e.target.value))} className={INPUT}>
                                     <option value={2}>2 (quick)</option><option value={3}>3</option><option value={4}>4 (classic)</option>
                                 </select></label>
-                        )}
-                        {f.game === 'uno' && (
-                            <label><span className={LABEL}>Cards dealt</span>
-                                <input type="number" min={5} max={7} value={f.gameOptions.handSize} onChange={(e) => setOpt('handSize', e.target.value)} className={INPUT} /></label>
                         )}
                     </fieldset>
 

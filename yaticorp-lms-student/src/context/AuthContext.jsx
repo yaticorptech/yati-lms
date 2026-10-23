@@ -51,6 +51,7 @@ export const AuthProvider = ({ children }) => {
     const [isJobsEnabled, setIsJobsEnabled] = useState(true);
     const [isGlobalQuizEnabled, setIsGlobalQuizEnabled] = useState(true);
     const [isRewardsEnabled, setIsRewardsEnabled] = useState(true);
+    const [isLinguisticEnabled, setIsLinguisticEnabled] = useState(true);
 
     const authService = getAuthServices(api);
 
@@ -91,6 +92,7 @@ export const AuthProvider = ({ children }) => {
                 setIsJobsEnabled(res.data?.isJobsEnabled ?? true);
                 setIsGlobalQuizEnabled(res.data?.isGlobalQuizEnabled ?? true);
                 setIsRewardsEnabled(res.data?.isRewardsEnabled ?? true);
+                setIsLinguisticEnabled(res.data?.isLinguisticEnabled ?? true);
             })
             .catch((err) => {
                 if (!alive) return;
@@ -148,7 +150,7 @@ export const AuthProvider = ({ children }) => {
     return (
         // `loading` is kept for anything that still reads it; it now means
         // the settings, which only the section gates wait for.
-        <AuthContext.Provider value={{ user, setUser, loading: settingsLoading, settingsLoading, login, logout, enterApp, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isGlobalQuizEnabled, isRewardsEnabled }}>
+        <AuthContext.Provider value={{ user, setUser, loading: settingsLoading, settingsLoading, login, logout, enterApp, isCreditSystemEnabled, isCareerPathEnabled, isJobsEnabled, isGlobalQuizEnabled, isRewardsEnabled, isLinguisticEnabled }}>
             {children}
         </AuthContext.Provider>
     );

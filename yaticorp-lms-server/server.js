@@ -122,6 +122,8 @@ app.use('/api/organizations', require('./src/organizations'));
 app.use('/api/integrations/google', require('./src/integrations/google/routes'));
 // Interview Ready — preparation, AI mock interviews and evaluation.
 app.use('/api/interview', require('./src/interview'));
+// Linguistic Ability: English learning, its admin content and teacher reviews.
+app.use('/api/linguistic', require('./src/linguistic'));
 // Games & Competitions: online Chess, Ludo, Carrom and UNO, friendly rooms and
 // inter-college competitions run by the platform admin (src/competitions).
 app.use('/api/competitions', require('./src/competitions'));

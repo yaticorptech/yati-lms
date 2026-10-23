@@ -87,8 +87,12 @@ const teamView = (t, { admin = false } = {}) => ({
     createdAt: t.createdAt
 });
 
-/** A match, with team names and the players at the board. */
-const matchView = (m, teams, games = []) => {
+/**
+ * A match, with team names and the players at the board. `showCode`: the
+ * open game's 6-character code, for those who may see it (its players, the
+ * organizer, their college's coordinator).
+ */
+const matchView = (m, teams, games = [], { showCode = false } = {}) => {
     const team = (id) => teams.find((t) => String(t._id) === String(id));
     const latest = m.gameIds?.length ? games.find((g) => String(g._id) === String(m.gameIds.at(-1))) : null;
     return {
@@ -116,17 +120,18 @@ const matchView = (m, teams, games = []) => {
         needsDecision: !!m.needsDecision,
         gameId: m.gameIds?.length ? String(m.gameIds.at(-1)) : null,
         gameStatus: latest?.status || null,
+        gameCode: showCode && ['waiting', 'active'].includes(latest?.status) ? latest?.code || null : null,
         games: m.gameIds?.length || 0,
         completedAt: m.completedAt
     };
 };
 
-/** Rounds in order, each with its matches (the third-place play-off last). */
-const roundsView = (matches, teams, games) => {
+/** Rounds in order, each with its matches (the third-place play-off last). `codeFor(match)`: whether its code shows. */
+const roundsView = (matches, teams, games, codeFor = () => false) => {
     const byRound = new Map();
     for (const m of [...matches].sort((a, b) => a.round - b.round || (a.kind === 'third-place') - (b.kind === 'third-place') || a.slot - b.slot)) {
         if (!byRound.has(m.round)) byRound.set(m.round, []);
-        byRound.get(m.round).push(matchView(m, teams, games));
+        byRound.get(m.round).push(matchView(m, teams, games, { showCode: codeFor(m) }));
     }
     return [...byRound.entries()].map(([round, ms]) => ({ round, name: ms.find((x) => x.kind === 'main')?.roundName || ms[0].roundName, matches: ms }));
 };
@@ -139,7 +144,7 @@ const detail = async (competitionId, { userId = null, organizationId = null, adm
         Team.find({ competitionId: c._id }).lean(),
         Match.find({ competitionId: c._id }).lean()
     ]);
-    const games = await PlayGame.find({ _id: { $in: matches.flatMap((m) => m.gameIds || []) } }).select('status').lean();
+    const games = await require('./gameService').withCodes(await PlayGame.find({ _id: { $in: matches.flatMap((m) => m.gameIds || []) } }).select('status code kind').lean());
     const myTeam = userId
         ? teams.find((t) => t.status !== 'withdrawn' && t.players.some((p) => String(p.userId) === String(userId)))
         : organizationId ? teams.find((t) => String(t.organizationId) === String(organizationId)) : null;
@@ -154,7 +159,8 @@ const detail = async (competitionId, { userId = null, organizationId = null, adm
     return {
         competition,
         teams: shownTeams.map((t) => teamView(t, { admin })),
-        rounds: roundsView(matches, teams, games)
+        // Match codes: every one for the organizer; a college's for its own teams' matches.
+        rounds: roundsView(matches, teams, games, (m) => admin || (!!myTeam && m.sides.some((s) => String(s.teamId) === String(myTeam._id))))
     };
 };
 

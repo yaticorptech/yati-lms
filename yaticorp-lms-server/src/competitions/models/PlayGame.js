@@ -1,6 +1,7 @@
 /**
  * One online game in progress or played: a competition match's game, or a
- * friendly one between students who share a room code.
+ * friendly one between students who share a room code (no longer made: playing
+ * with friends was removed on 2026-10-23; older ones are kept as they were).
  *
  * waiting   — seats being filled (a friendly room) or players joining (a match,
  *             until joinDeadline)
