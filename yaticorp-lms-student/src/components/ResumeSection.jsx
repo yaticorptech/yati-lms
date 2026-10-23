@@ -53,9 +53,12 @@ export default function ResumeSection() {
 
     // Android's back button closes the explainer, as Escape does.
     useBackClose(() => setShowAbout(false), showAbout);
+    // A failed read is said as such, with a way to try again. Read as "no
+    // resume", it told a student who had uploaded one to upload it again.
+    const [loadFailed, setLoadFailed] = useState(false);
     const load = useCallback(() => api.get('/user/resume')
-        .then((r) => { setResume(r.data.resume); setAts(r.data.ats); })
-        .catch((err) => console.warn('[resume] load failed:', err.response?.data?.message || err.message))
+        .then((r) => { setResume(r.data.resume); setAts(r.data.ats); setLoadFailed(false); })
+        .catch((err) => { console.warn('[resume] load failed:', err.response?.data?.message || err.message); setLoadFailed(true); })
         .finally(() => setLoading(false)), []);
     useEffect(() => { load(); }, [load]);
 
@@ -107,6 +110,7 @@ export default function ResumeSection() {
 
             setResume(r.data.resume);
             setAts(r.data.ats);
+            setLoadFailed(false);
             if (r.data.parsed) {
                 setNotice(`Uploaded — ${r.data.resume.skills?.length || 0} skills read from it and added to your ATS resume.`);
             } else if (r.data.parsing) {
@@ -139,6 +143,7 @@ export default function ResumeSection() {
             const r = await api.delete('/user/resume');
             setResume(null);
             setAts(r.data.ats);
+            setLoadFailed(false);
             setNotice('Resume removed.');
         } catch (err) {
             setError(err.response?.data?.message || 'Could not remove your resume.');
@@ -206,6 +211,18 @@ export default function ResumeSection() {
                 <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet-100/60 blur-3xl" />
                 {loading ? (
                     <div className="skeleton h-24 rounded-2xl" />
+                ) : loadFailed && !resume ? (
+                    <div role="alert" className="relative flex flex-wrap items-center gap-3">
+                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600"><AlertCircle size={22} /></span>
+                        <div className="min-w-0 flex-1 basis-56">
+                            <h3 className="text-base font-bold text-slate-900">Your resume could not be loaded just now</h3>
+                            <p className="mt-0.5 text-sm text-slate-500">Nothing is lost. Try again in a moment — your ATS resume can still be downloaded.</p>
+                        </div>
+                        <button type="button" onClick={() => { setLoading(true); load(); }}
+                            className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-600">
+                            <RefreshCw size={14} /> Try again
+                        </button>
+                    </div>
                 ) : (
                     <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
                         <div className="relative shrink-0 self-center sm:self-auto">

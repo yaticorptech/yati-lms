@@ -15,6 +15,7 @@ import { useLoopHidden } from './components/loopVisibility';
 import { useSayPageOnNav } from './components/loopGuide';
 import Login from './pages/Login';
 import { loginPathFor } from './utils/sessionExpiry';
+import { hasTeacherSession } from './teacher/teacherSession';
 import EnrolledCourses from './pages/EnrolledCourses';
 // A guardian answering a part-time job permission request. Outside the auth
 // guard on purpose: a parent has no account and arrives from a link.
@@ -48,9 +49,27 @@ const InterviewHistory = React.lazy(() => import('./interview/InterviewHistory')
 const ProtectedRoute = ({ children }) => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
+  // A teacher signed in on this device belongs on the teacher dashboard.
+  if (!user && hasTeacherSession()) return <Navigate to="/teacher" replace />;
   if (!user) return <Navigate to={loginPathFor(`${location.pathname}${location.search}${location.hash}`)} replace />;
   return children;
 };
+
+/* The teacher dashboard (src/teacher): its own sign-in, layout and pages. */
+const TeacherRoute = ({ children }) => (hasTeacherSession() ? children : <Navigate to="/login?as=teacher" replace />);
+const TeacherProvider = React.lazy(() => import('./teacher/TeacherContext').then((m) => ({ default: m.TeacherProvider })));
+const TeacherLayout = React.lazy(() => import('./teacher/TeacherLayout'));
+const TeacherDashboard = React.lazy(() => import('./teacher/pages/TeacherDashboard'));
+const TeacherMethodologies = React.lazy(() => import('./teacher/pages/Methodologies'));
+const TeacherResearchPath = React.lazy(() => import('./teacher/pages/ResearchPath'));
+const TeacherPublications = React.lazy(() => import('./teacher/pages/Publications'));
+const TeacherThesisList = React.lazy(() => import('./teacher/pages/ThesisList'));
+const TeacherThesisEditor = React.lazy(() => import('./teacher/pages/ThesisEditor'));
+const TeacherWriting = React.lazy(() => import('./teacher/pages/Writing'));
+const TeacherWritingEditor = React.lazy(() => import('./teacher/pages/WritingEditor'));
+const TeacherPlagiarism = React.lazy(() => import('./teacher/pages/Plagiarism'));
+const TeacherProfile = React.lazy(() => import('./teacher/pages/TeacherProfile'));
+const teacherPage = (Page) => <React.Suspense fallback={<YatiLoader label="Loading this page" />}><Page /></React.Suspense>;
 
 import Profile from './pages/Profile';
 import Signup from './pages/Signup';
@@ -280,7 +299,8 @@ function App() {
   const { pathname, search } = useLocation();
   const here = pathname.replace(/\/+$/, '') || '/';
   useSayPageOnNav(here, new URLSearchParams(search).get('tab'), LOOP_PAGES, LOOP_TABS);
-  const showLoop = !LOOP_HIDDEN_ON.includes(here);
+  // Yati is the students' companion: not on the teacher dashboard either.
+  const showLoop = !LOOP_HIDDEN_ON.includes(here) && !here.startsWith('/teacher');
   // A game in play hides Loop without unmounting it (components/loopVisibility).
   const loopHidden = useLoopHidden() || LOOP_QUIET_ON.includes(here);
   return (
@@ -381,6 +401,20 @@ function App() {
           <Route path="settings" element={<React.Suspense fallback={<CareerFallback />}><CareerSettings /></React.Suspense>} />
         </Route>
         </Route>
+      </Route>
+      <Route path="/teacher" element={<TeacherRoute><React.Suspense fallback={<YatiLoader fullScreen label="Opening your dashboard" />}><TeacherProvider><TeacherLayout /></TeacherProvider></React.Suspense></TeacherRoute>}>
+        <Route index element={teacherPage(TeacherDashboard)} />
+        <Route path="methods" element={teacherPage(TeacherMethodologies)} />
+        <Route path="methods/:key" element={teacherPage(TeacherMethodologies)} />
+        <Route path="research-path" element={teacherPage(TeacherResearchPath)} />
+        <Route path="publications" element={teacherPage(TeacherPublications)} />
+        <Route path="thesis" element={teacherPage(TeacherThesisList)} />
+        <Route path="thesis/:id" element={teacherPage(TeacherThesisEditor)} />
+        <Route path="writing" element={teacherPage(TeacherWriting)} />
+        <Route path="writing/:id" element={teacherPage(TeacherWritingEditor)} />
+        <Route path="plagiarism" element={teacherPage(TeacherPlagiarism)} />
+        <Route path="profile" element={teacherPage(TeacherProfile)} />
+        <Route path="*" element={<Navigate to="/teacher" replace />} />
       </Route>
       {MascotDemo && <Route path="/dev/mascot" element={<React.Suspense fallback={<CareerFallback />}><MascotDemo /></React.Suspense>} />}
       <Route path="*" element={<NotFound />} />

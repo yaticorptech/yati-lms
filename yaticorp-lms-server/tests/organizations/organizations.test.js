@@ -478,7 +478,7 @@ describe('the optional Organization ID typed while signing up', () => {
         // The suffix has to survive the truncation to 12 digits, or every card in
         // this block would share a number and trip the unique index.
         const number = `9${STAMP}`.slice(0, 11).padEnd(11, '0') + suffix;
-        return Card.create({
+        return Card.create({ verified: true,
             CardNumber: number, CVV: `A${suffix}B2C`.slice(0, 5).toUpperCase(),
             qrCodeNumber: `QR-${STAMP}-${suffix}`, SerialNumber: `SN-${suffix}`, status: 'activated'
         });

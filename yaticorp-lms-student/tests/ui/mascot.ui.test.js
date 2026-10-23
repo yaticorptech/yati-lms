@@ -173,8 +173,12 @@ return { mascot, reserved, completed: window.__completed || null };` });
 });
 
 // The dock is no longer mounted anywhere in the app, so the production build
-// leaves its stylesheet out; the dock's own CSS is put on the page here.
-const DOCK_CSS = JSON.stringify(readFileSync(path.join(ROOT, 'src', 'mascot', 'mascot.css'), 'utf8'));
+// leaves its stylesheet out; the dock's own CSS is put on the page here. Its
+// duck glide is switched off: since Chrome 155.0.8059.80 a CSS transition
+// never starts under headless Chrome's virtual clock, so the mascot would
+// stay put however far the dock asked it to slide.
+const DOCK_CSS = JSON.stringify(readFileSync(path.join(ROOT, 'src', 'mascot', 'mascot.css'), 'utf8')
+    + '\n.mascot-dock-body { transition: none; }\n');
 
 describe('the mascot\'s corner', { skip: skipWithoutStyles }, () => {
     test('it ducks below a primary button in its corner, and only for an enabled one', async () => {

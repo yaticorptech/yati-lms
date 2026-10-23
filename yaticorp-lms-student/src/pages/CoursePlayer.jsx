@@ -227,6 +227,9 @@ const CoursePlayer = () => {
     );
 
     const { course, modules, progress } = courseData;
+    // A course published before its lessons were added (found in QA,
+    // 2026-10-16): it says so, instead of asking for a lesson that is not there.
+    const hasLessons = modules.some((m) => (m.lessons || []).length > 0);
     const isCompleted = completedLessons.includes(activeLesson?._id);
     const courseFullyCompleted = progress?.percentage === 100;
     const saving = Boolean(activeLesson) && savingLessonId === activeLesson._id;
@@ -362,8 +365,13 @@ const CoursePlayer = () => {
                             )}
                         </>
                     ) : (
-                        <div className="w-full h-full bg-slate-900 flex items-center justify-center absolute inset-0 text-slate-500">
-                            Select a lesson from the curriculum to begin learning.
+                        <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center gap-1 absolute inset-0 px-6 text-center text-slate-400">
+                            {hasLessons ? 'Select a lesson from the curriculum to begin learning.' : (
+                                <>
+                                    <span className="font-semibold text-slate-200">No lessons yet</span>
+                                    <span className="text-sm">This course's lessons are on their way. They will appear here as soon as they are added.</span>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
@@ -524,6 +532,9 @@ const CoursePlayer = () => {
                 </div>
 
                 <div className="mascot-clear-scroll mascot-clear-below lg:flex-1 lg:overflow-y-auto">
+                    {modules.length === 0 && (
+                        <p className="p-6 text-sm text-slate-500">No lessons have been added to this course yet.</p>
+                    )}
                     {modules.map((module, mIdx) => (
                         <div key={module._id} className="border-b border-slate-100">
                             {/* Module Header */}

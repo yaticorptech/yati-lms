@@ -16,6 +16,12 @@ const settingSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    // Teachers who register a card themselves wait for an admin's approval
+    // before they can sign in (src/teacher/accounts.js). Off: they are in at once.
+    teacherApprovalRequired: {
+        type: Boolean,
+        default: false
+    },
     // The Jobs section as a whole. Locking it hides the student tab and closes
     // the /api/jobs endpoints behind it; admin ingestion and reporting keep
     // working, so an operator can still maintain the index while it is shut.

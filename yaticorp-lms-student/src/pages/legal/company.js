@@ -7,6 +7,11 @@
  * paragraph someone forgot to read. A module of its own, not legalShell.jsx:
  * a file that exports components and a constant breaks Vite's fast refresh.
  */
+// A detail is "filled" once its TODO is replaced. Until then the pages leave it
+// out rather than print "TODO: …" to a student (found in QA, 2026-10-16) — the
+// TODOs below still have to be filled in before launch.
+export const filled = (value) => (value && !/^TODO\b/.test(value) ? value : null);
+
 export const COMPANY = {
   legalName: 'YATICORP',                          // TODO: registered legal name, e.g. "Yaticorp Technologies Pvt. Ltd."
   address: 'TODO: registered address',            // TODO: full postal address

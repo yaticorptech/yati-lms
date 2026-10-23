@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-    ArrowLeft, CalendarClock, Building2, Users, ScrollText, Trophy, Award, Clock, Swords, Gift, Download, Loader2, UserCheck, ListOrdered
+    ArrowLeft, CalendarClock, Building2, Users, ScrollText, Trophy, Award, Clock, Swords, Gift, Download, Loader2, UserCheck, ListOrdered, Crown
 } from 'lucide-react';
 import { competitionsApi, ORDINAL, fmtDateTime } from './api';
 import { StatusChip, GameChip, Rounds, Podium, Standings } from './parts';
@@ -139,7 +139,7 @@ export default function CompetitionDetail() {
                 <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><Gift size={19} className="text-indigo-600" aria-hidden="true" /> Prizes &amp; rewards</h2>
                     {c.prizeDetails && <p className="mb-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">🏆 {c.prizeDetails}</p>}
-                    {c.prizes.length === 0 && !c.participationXp ? (!c.prizeDetails && <p className="text-sm text-slate-500">No prizes announced.</p>) : (
+                    {c.prizes.length === 0 ? (!c.prizeDetails && <p className="text-sm text-slate-500">No prizes announced.</p>) : (
                         <ul className="space-y-2">
                             {c.prizes.map((p) => (
                                 <li key={p.place} className="flex items-start gap-3 rounded-2xl bg-slate-50 p-3">
@@ -150,14 +150,28 @@ export default function CompetitionDetail() {
                                     </div>
                                 </li>
                             ))}
-                            {c.participationXp > 0 && <li className="text-xs text-slate-600">Every player of every team: {c.participationXp} XP for taking part.</li>}
                         </ul>
                     )}
-                    <p className="mt-3 flex items-center gap-2 text-xs text-slate-600"><Award size={14} className="text-indigo-500" aria-hidden="true" />
-                        {c.certificates && c.participationCertificates ? 'Certificates for every player: Winner, Runner-up and Third Place certificates, and a participation certificate for everyone else.'
-                            : c.certificates ? 'Certificates for the winner, runner-up and third place.'
-                                : c.participationCertificates ? 'A participation certificate for every player.' : 'This competition does not give certificates.'}
-                    </p>
+                    {/* Under the places, one highlighted line about certificates
+                        and nothing else (asked 2026-10-16: the taking-part XP and
+                        the long certificate sentence are gone), in royal gold with
+                        a shine that crosses it now and then ("it should look rich
+                        and attractive"). The shine rests for reduced motion. */}
+                    {(c.certificates || c.participationCertificates) && (
+                        <p className="shine-loop mt-3 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-300 p-3 shadow-[0_10px_24px_-12px_rgba(180,83,9,0.6)] ring-1 ring-amber-400/70">
+                            <span className="relative z-[2] flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-yellow-200 via-amber-400 to-amber-700 text-white shadow-md shadow-amber-700/40 ring-2 ring-amber-50">
+                                <Award size={19} strokeWidth={2.4} aria-hidden="true" className="drop-shadow-[0_1px_1px_rgba(120,53,15,0.65)]" />
+                            </span>
+                            {/* The words themselves stand out (asked again: "highlight
+                                it"): solid deep gold, a size up, pressed into the gold
+                                with a light edge, and above the shine, which passes
+                                behind them rather than washing them out. */}
+                            <span className="relative z-[2] min-w-0 flex-1 text-[15px] font-black leading-snug text-amber-950 [text-shadow:0_1px_0_rgb(255_255_255_/_0.7),0_0_14px_rgb(251_191_36_/_0.55)] sm:text-lg sm:tracking-wide">
+                                {c.participationCertificates ? 'Certificates for Every Player' : 'Certificates for the Top 3'}
+                            </span>
+                            <Crown size={20} aria-hidden="true" className="relative z-[2] hidden shrink-0 fill-amber-300 text-amber-600 sm:block" />
+                        </p>
+                    )}
                 </section>
                 )}
 

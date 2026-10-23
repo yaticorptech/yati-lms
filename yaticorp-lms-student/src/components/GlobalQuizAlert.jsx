@@ -93,10 +93,16 @@ export default function GlobalQuizAlert() {
     const close = () => { markSeen(userId, markOf(quiz)); setQuiz(null); };
     const take = () => { close(); navigate('/?tab=quiz'); };
     const { daysLeft } = quiz;
+    // On My Profile the top corner is Edit Profile's: the notice sat right
+    // over it (found 2026-10-22). There it comes up at the bottom instead —
+    // above the phone's bottom bar, in the corner Yati leaves free on that page.
+    const place = pathname === '/profile'
+        ? 'bottom-[calc(6rem+env(safe-area-inset-bottom))] sidebar:bottom-6'
+        : 'top-[4.75rem] sidebar:top-20';
 
     return (
         <div data-loop-avoid role="status" aria-live="polite"
-            className="animate-fade-in-up fixed inset-x-3 top-[4.75rem] z-[120] mx-auto max-w-sm sidebar:inset-x-auto sidebar:right-6 sidebar:top-20 sidebar:mx-0 sidebar:w-[22rem]">
+            className={`animate-fade-in-up fixed inset-x-3 z-[120] mx-auto max-w-sm sidebar:inset-x-auto sidebar:right-6 sidebar:mx-0 sidebar:w-[22rem] ${place}`}>
             <div className="relative overflow-hidden rounded-2xl border border-violet-100 bg-white p-4 shadow-2xl shadow-violet-900/15">
                 <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-violet-100/70 blur-2xl" />
                 <button type="button" onClick={close} aria-label="Dismiss"

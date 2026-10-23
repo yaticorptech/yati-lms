@@ -31,7 +31,9 @@ function mulberry32(seed) {
 }
 
 const players = (n) => Array.from({ length: n }, (_, i) => ({ userId: `user-${i}-secret`, name: `Player ${i + 1}`, side: i }));
-const fresh = (n = 2, options = {}) => ludo.create(players(n), options, ctx());
+// These tests tap every move themselves; the one-choice moves the engine makes
+// on its own (autoMove, on by default) have tests of their own below.
+const fresh = (n = 2, options = {}) => ludo.create(players(n), { autoMove: false, ...options }, ctx());
 /** A game with tokens placed by hand: tokens[seat] = steps per token. */
 const placed = (n, tokens, extra = {}) => Object.assign(fresh(n), { tokens }, extra);
 /** act(), checking on the way that the input was left alone. */
@@ -301,7 +303,7 @@ describe('ludo: the end', () => {
     test('the game ends when the first player gets every token home; the rest are placed by progress, resigned last', () => {
         const seats = [{ userId: 'a', name: 'Asha', side: 10 }, { userId: 'b', name: 'Bhagya', side: 11 },
             { userId: 'c', name: 'Chinmay', side: 12 }, { userId: 'd', name: 'Divya', side: 13 }];
-        let s = ludo.create(seats, {}, ctx());
+        let s = ludo.create(seats, { autoMove: false }, ctx());
         s = play(s, 3, { type: 'resign' }, ctx());
         // Green 10 + 20 = 30, Yellow 30 + 0 = 30: a tie, placed together.
         s.tokens = [[56, 56, 56, 55], [10, 20, -1, -1], [30, 0, -1, -1], [-1, -1, -1, -1]];
@@ -385,11 +387,53 @@ describe('ludo: what each player sees', () => {
     });
 });
 
+describe('ludo: one choice is made for you (autoMove, the default)', () => {
+    const auto = (n = 2) => ludo.create(players(n), {}, ctx());
+    test('a 6 with every token in the yard brings one out at once, and the roll again is yours', () => {
+        let s = auto();
+        assert.equal(s.autoMove, true, 'on unless asked otherwise');
+        s = ludo.act(s, 0, { type: 'roll' }, ctx(6));
+        assert.equal(s.tokens[0][0], 0, 'out on the start square, with no tap');
+        assert.equal(s.rolled, false);
+        assert.equal(s.turn, 0, 'a 6 rolls again');
+        assert.deepEqual(s.lastMove, { seat: 0, token: 0, from: -1, to: 0, captured: [] });
+        assert.match(s.message, /brought a token out/);
+    });
+    test('one token out and a roll it can use: it moves by itself, and the turn passes', () => {
+        let s = Object.assign(auto(), { tokens: [[5, -1, -1, -1], [-1, -1, -1, -1]] });
+        s = ludo.act(s, 0, { type: 'roll' }, ctx(3));
+        assert.equal(s.tokens[0][0], 8);
+        assert.equal(s.turn, 1, 'not a 6: the turn passes');
+        assert.equal(s.lastMove.from, 5);
+        assert.equal(s.lastMove.to, 8);
+    });
+    test('two tokens on one square are one choice too', () => {
+        let s = Object.assign(auto(), { tokens: [[5, 5, -1, -1], [-1, -1, -1, -1]] });
+        s = ludo.act(s, 0, { type: 'roll' }, ctx(2));
+        assert.deepEqual(s.tokens[0].slice(0, 2).sort((a, b) => a - b), [5, 7]);
+    });
+    test('a real choice waits for the player to tap', () => {
+        let s = Object.assign(auto(), { tokens: [[5, 20, -1, -1], [-1, -1, -1, -1]] });
+        s = ludo.act(s, 0, { type: 'roll' }, ctx(3));
+        assert.equal(s.rolled, true);
+        assert.deepEqual(ludo.view(s, 0).movable.sort(), [0, 1]);
+        assert.deepEqual(s.tokens[0].slice(0, 2), [5, 20], 'nothing moved yet');
+        // A 6 with one token out and three in the yard is a choice as well: move it, or bring another out.
+        let t = Object.assign(auto(), { tokens: [[5, -1, -1, -1], [-1, -1, -1, -1]] });
+        t = ludo.act(t, 0, { type: 'roll' }, ctx(6));
+        assert.equal(t.rolled, true);
+    });
+    test('the view tells the table how long a turn is', () => {
+        assert.equal(ludo.view(auto(), 0).turnSeconds, 30);
+        assert.equal(ludo.view(ludo.create(players(2), { turnSeconds: 45 }, ctx()), 0).turnSeconds, 45);
+    });
+});
+
 describe('ludo: whole games at random', () => {
-    for (const [n, seed] of [[2, 1], [3, 7], [4, 42], [4, 2026]]) {
-        test(`${n} players, seed ${seed}: plays to a finish without breaking a rule`, () => {
+    for (const autoMove of [false, true]) for (const [n, seed] of [[2, 1], [3, 7], [4, 42], [4, 2026]]) {
+        test(`${n} players, seed ${seed}${autoMove ? ', one-choice moves made for you' : ''}: plays to a finish without breaking a rule`, () => {
             const rng = mulberry32(seed);
-            let s = ludo.create(players(n), { tokensPerPlayer: n === 4 ? 4 : 3 }, { now: 0, rng });
+            let s = ludo.create(players(n), { tokensPerPlayer: n === 4 ? 4 : 3, autoMove }, { now: 0, rng });
             let now = 0;
             let actions = 0;
             while (s.status === 'active') {
@@ -405,6 +449,7 @@ describe('ludo: whole games at random', () => {
                 } else {
                     const movable = ludo.view(s, seat).movable;
                     assert.ok(movable.length > 0, 'a roll that cannot be used passes the turn instead');
+                    if (autoMove) assert.ok(new Set(movable.map((t) => s.tokens[seat][t])).size > 1, 'a player is only left to choose when there is a choice');
                     s = ludo.act(s, seat, { type: 'move', token: movable[Math.floor(rng() * movable.length)] }, c);
                 }
                 assert.notEqual(JSON.stringify(s), before, 'every action changes something');

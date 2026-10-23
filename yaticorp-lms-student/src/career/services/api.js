@@ -12,6 +12,7 @@
 import axios from 'axios';
 import { onWalletResponse, onWalletError } from '../../utils/walletCharge';
 import { expireSessionOn401 } from '../../utils/sessionExpiry';
+import { onSaved } from '../../utils/saveSignal';
 
 // VITE_API_URL already carries the /api suffix (see .env.example).
 const lmsBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -20,6 +21,7 @@ const api = axios.create({ baseURL: `${lmsBaseURL}/career` });
 
 // Wallet rules: a priced Career Path feature (rebuilding the roadmap) refreshes the balance.
 api.interceptors.response.use(onWalletResponse, onWalletError);
+api.interceptors.response.use(onSaved);
 
 /*
  * The section was switched off while the student had it open. The gate in

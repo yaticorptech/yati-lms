@@ -13,7 +13,7 @@
  * Card faces are coloured with inline styles rather than classes, because the
  * colours come from the data and must look right wherever the table is drawn.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { RotateCw, RotateCcw, X } from 'lucide-react';
 
@@ -126,6 +126,31 @@ export default function UnoTable({ view, onAction, busy }) {
     // without an effect having to reset them.
     const [picker, setPicker] = useState(null); // { card, turn } while choosing a wild's colour
     const [unoAt, setUnoAt] = useState(null);   // the turn the UNO! toggle was pressed in
+
+    // On a phone the hand sits low on the page, under the bottom bar when the game
+    // begins: 0 of 7 cards could be seen without scrolling, while the turn clock
+    // ran (found 2026-10-17). It is brought into view as the game starts and each
+    // time the turn comes round to you — only when it is out of sight, so a
+    // student who has scrolled up to watch is not pulled back on every turn.
+    // (Above the early return: hooks run on every render.)
+    const handRef = useRef(null);
+    const handShown = useRef(false);
+    const playing = view?.status === 'active';
+    const seat = Number.isInteger(view?.you) ? view.you : null;
+    const yourTurn = playing && seat !== null && view.turn === seat;
+    useEffect(() => {
+        if (!playing || seat === null) return;
+        const first = !handShown.current;
+        handShown.current = true;
+        if (!first && !yourTurn) return;
+        const el = handRef.current;
+        if (!el) return;
+        const phone = !window.matchMedia('(min-width: 64rem) and (min-height: 30rem)').matches;
+        const r = el.getBoundingClientRect();
+        if (r.top >= 0 && r.bottom <= window.innerHeight - (phone ? 96 : 0)) return;
+        const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({ block: 'end', behavior: still ? 'auto' : 'smooth' });
+    }, [playing, yourTurn, seat]);
 
     if (!view) return null;
     const you = Number.isInteger(view.you) ? view.you : null;
@@ -267,8 +292,9 @@ export default function UnoTable({ view, onAction, busy }) {
             {/* Your hand */}
             {you !== null && (
                 <div
+                    ref={handRef}
                     data-hand
-                    className="-mx-3 mt-2 sm:-mx-5"
+                    className="-mx-3 mt-2 scroll-mb-28 sm:-mx-5 sidebar:scroll-mb-6"
                     style={{ overflowX: 'auto', overflowY: 'hidden', maxWidth: 'none', overscrollBehaviorX: 'contain', WebkitOverflowScrolling: 'touch' }}
                 >
                     {n === 0 ? (

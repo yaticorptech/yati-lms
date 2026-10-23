@@ -10,7 +10,8 @@ import api from '../utils/api';
 import { isNative } from '../native/platform';
 import useBackClose from '../native/useBackClose';
 import { SESSION_ENDED_KEY, safeNextPath } from '../utils/sessionExpiry';
-import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info } from 'lucide-react';
+import teacherApi, { enterTeacher, hasTeacherSession, readSigninAs, rememberSigninAs, TEACHER_SESSION_ENDED } from '../teacher/teacherSession';
+import { Mail, KeyRound, MessageCircleQuestion, X, CheckCircle2, Send, Eye, EyeOff, ScanLine, Keyboard, Loader2, CameraOff, QrCode, Lock, ArrowRight, ChevronRight, PlayCircle, CreditCard, Info, GraduationCap, BookOpenCheck } from 'lucide-react';
 
 // --- Contact Admin Modal ---
 const ContactAdminModal = ({ onClose, page = 'login' }) => {
@@ -102,7 +103,7 @@ const ContactAdminModal = ({ onClose, page = 'login' }) => {
 };
 
 // --- Forgot Password Modal ---
-const ForgotPasswordModal = ({ onClose }) => {
+const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
     const [cardNumber, setCardNumber] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
@@ -115,7 +116,9 @@ const ForgotPasswordModal = ({ onClose }) => {
         setLoading(true);
         setError('');
         try {
-            const res = await api.post('/auth/student/forgot-password', { cardNumber });
+            const res = role === 'teacher'
+                ? await teacherApi.post('/auth/forgot-password', { cardNumber })
+                : await api.post('/auth/student/forgot-password', { cardNumber });
             setMessage(res.data.message);
         } catch (err) {
             setError(err.response?.data?.message || 'Something went wrong. Please try again.');
@@ -167,6 +170,39 @@ const ForgotPasswordModal = ({ onClose }) => {
     );
 };
 
+/**
+ * "Who's signing in?" — asked the first time this device opens the sign-in
+ * page. Students and teachers use the same cards, so the card cannot tell;
+ * the person says. The answer is remembered, and the switch at the top of
+ * the form changes it any time.
+ */
+const RoleChooser = ({ onChoose }) => (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-labelledby="role-chooser-title" className="lg-rise w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="border-b border-slate-100 bg-gradient-to-br from-indigo-50 to-violet-50 px-6 py-5 text-center">
+                <h2 id="role-chooser-title" className="text-xl font-black tracking-tight text-slate-900">Who&apos;s signing in?</h2>
+                <p className="mt-1 text-sm text-slate-500">Choose once — you can switch any time at the top of the form.</p>
+            </div>
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+                {[
+                    ['student', 'Student', 'Courses, Career Path, jobs, interviews and games.', GraduationCap, 'from-indigo-500 to-violet-600'],
+                    ['teacher', 'Teacher', 'Research path, publications, thesis writing and plagiarism checks.', BookOpenCheck, 'from-emerald-500 to-teal-600']
+                ].map(([id, label, hint, Icon, tone]) => (
+                    <button key={id} type="button" onClick={() => onChoose(id)}
+                        className="group flex flex-col items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                        <span className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${tone} text-white shadow-md`}><Icon size={24} aria-hidden="true" /></span>
+                        <span>
+                            <span className="block text-base font-black text-slate-900">I&apos;m a {label.toLowerCase()}</span>
+                            <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>
+                        </span>
+                        <span className="mt-auto inline-flex items-center gap-1 text-xs font-bold text-indigo-600">Continue <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" /></span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
 // A twinkling star. Module-level so the page's re-renders (every keystroke
 // in the password box) do not remount it and restart its animation.
 const Sparkle = ({ className, delay = 0, size = 'text-base' }) => (
@@ -193,8 +229,27 @@ const Login = () => {
     // Sent here because the server no longer accepted the saved login
     // (utils/sessionExpiry): said once, so it is not a mystery why they are
     // signing in again. Read on the first render; cleared below.
-    const [sessionEnded] = useState(() => { try { return sessionStorage.getItem(SESSION_ENDED_KEY) === '1'; } catch { return false; } });
-    useEffect(() => { try { sessionStorage.removeItem(SESSION_ENDED_KEY); } catch { /* storage off */ } }, []);
+    const [sessionEnded] = useState(() => { try { return sessionStorage.getItem(SESSION_ENDED_KEY) === '1' || sessionStorage.getItem(TEACHER_SESSION_ENDED) === '1'; } catch { return false; } });
+    useEffect(() => { try { sessionStorage.removeItem(SESSION_ENDED_KEY); sessionStorage.removeItem(TEACHER_SESSION_ENDED); } catch { /* storage off */ } }, []);
+
+    /* Student or teacher. ?as= decides when a link carries it (a teacher's
+       reset email, "Choose Teacher"); otherwise the choice this device made
+       last; otherwise nobody has said yet, and the chooser asks. */
+    const [role, setRole] = useState(() => {
+        const asked = searchParams.get('as');
+        return asked === 'teacher' || asked === 'student' ? asked : readSigninAs();
+    });
+    const isTeacher = role === 'teacher';
+    // A card of the other kind: the error offers the right sign-in.
+    const [otherKind, setOtherKind] = useState(null);
+    const chooseRole = (r) => {
+        rememberSigninAs(r);
+        setRole(r);
+        setError('');
+        setOtherKind(null);
+        setScannedCard(false);
+        setCardNumber('');
+    };
 
     /* Signing in by card.
        The number is printed on the card and twelve digits long, which is a
@@ -229,12 +284,16 @@ const Login = () => {
         setScanError('');
         setLoading(true);
         try {
-            const res = await api.post('/auth/card-scan', { code: decodedText });
+            const res = isTeacher
+                ? await teacherApi.post('/auth/card-scan', { code: decodedText })
+                : await api.post('/auth/card-scan', { code: decodedText });
             setCardNumber(res.data.cardNumber);
             setScannedCard(true);
             setError('');
             setTimeout(() => passwordRef.current?.focus(), 60);
         } catch (err) {
+            const code = err.response?.data?.code;
+            if (code === 'TEACHER_CARD' || code === 'STUDENT_CARD') setOtherKind(code === 'TEACHER_CARD' ? 'teacher' : 'student');
             setScanError(
                 err.response?.data?.message
                     || (!err.response
@@ -283,6 +342,8 @@ const Login = () => {
     }, [error]);
 
     if (user) return <Navigate to={next} replace />;
+    // A teacher is signed in on this device: their dashboard.
+    if (hasTeacherSession()) return <Navigate to="/teacher" replace />;
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -296,10 +357,24 @@ const Login = () => {
             return;
         }
         setLoading(true);
+        setOtherKind(null);
+        if (isTeacher) {
+            try {
+                const res = await teacherApi.post('/auth/login', { cardNumber, password });
+                enterTeacher(res.data);
+            } catch (err) {
+                if (err.response?.data?.code === 'STUDENT_CARD') setOtherKind('student');
+                setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Sign-in failed'));
+                setLoading(false);
+                passwordRef.current?.focus();
+            }
+            return;
+        }
         const res = await login(cardNumber, password, next);
         // On success the page is already on its way to the dashboard: the
         // button keeps saying so until it gets there.
         if (!res.success) {
+            if (res.code === 'TEACHER_CARD') setOtherKind('teacher');
             setError(res.error);
             setLoading(false);
             passwordRef.current?.focus();
@@ -308,7 +383,8 @@ const Login = () => {
 
     return (
         <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-3 sm:p-6">
-            {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
+            {!role && <RoleChooser onChoose={chooseRole} />}
+            {showForgot && <ForgotPasswordModal role={isTeacher ? 'teacher' : 'student'} onClose={() => setShowForgot(false)} />}
             {showContact && <ContactAdminModal onClose={() => setShowContact(false)} page="login" />}
             {showHow && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onClick={() => setShowHow(false)}>
@@ -390,11 +466,20 @@ const Login = () => {
                         <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
                             {/* The compact header a phone gets, with the welcome panel below the form. */}
                             <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-indigo-500 lg:hidden">Welcome back to LearnHub</p>
+                            {/* Student or teacher, as one switch: the chooser's answer, changeable. */}
+                            <div role="radiogroup" aria-label="Signing in as" className="mb-5 grid w-full max-w-xs grid-cols-2 overflow-hidden rounded-full border border-slate-200 bg-slate-50 p-1">
+                                {[['student', 'Student', GraduationCap], ['teacher', 'Teacher', BookOpenCheck]].map(([id, label, Icon]) => (
+                                    <button key={id} type="button" role="radio" aria-checked={role === id} onClick={() => chooseRole(id)}
+                                        className={`inline-flex items-center justify-center gap-1.5 rounded-full py-2 text-sm font-bold transition-all ${role === id ? (id === 'teacher' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-indigo-600 text-white shadow-sm') : 'text-slate-500 hover:text-slate-800'}`}>
+                                        <Icon size={15} aria-hidden="true" /> {label}
+                                    </button>
+                                ))}
+                            </div>
                             <span className="lg-float flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 ring-1 ring-indigo-100">
                                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300"><Lock size={18} /></span>
                             </span>
-                            <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">Let&apos;s get you signed in</h2>
-                            <p className="mt-1.5 text-sm text-slate-500">Scan your card or use your password to access your account.</p>
+                            <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">{isTeacher ? 'Teacher sign in' : <>Let&apos;s get you signed in</>}</h2>
+                            <p className="mt-1.5 text-sm text-slate-500">{isTeacher ? 'Scan your card or type its number, then your password, to open your teacher dashboard.' : 'Scan your card or use your password to access your account.'}</p>
                         </div>
 
                         <form className="lg-rise mt-6 space-y-5" onSubmit={handleLogin} style={{ animationDelay: '0.2s' }}>
@@ -403,7 +488,14 @@ const Login = () => {
                                     <Info size={16} className="mt-0.5 shrink-0" /> Your session has ended — please sign in again.
                                 </p>
                             )}
-                            {error && <div ref={errorRef} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">{error}</div>}
+                            {error && (
+                                <div ref={errorRef} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">
+                                    {error}
+                                    {otherKind && (
+                                        <> <button type="button" onClick={() => chooseRole(otherKind)} className="font-bold text-indigo-600 underline">Switch to {otherKind === 'teacher' ? 'Teacher' : 'Student'}</button></>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Scan / type, as one bordered switch */}
                             <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
@@ -461,7 +553,8 @@ const Login = () => {
 
                             {scanError && (
                                 <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                                    <CameraOff size={14} className="mt-0.5 shrink-0" /> {scanError}
+                                    <CameraOff size={14} className="mt-0.5 shrink-0" />
+                                    <span>{scanError}{otherKind && !error && <> <button type="button" onClick={() => chooseRole(otherKind)} className="font-bold text-indigo-700 underline">Switch to {otherKind === 'teacher' ? 'Teacher' : 'Student'}</button></>}</span>
                                 </p>
                             )}
 
@@ -494,7 +587,7 @@ const Login = () => {
 
                             <button type="submit" disabled={loading}
                                 className="group relative flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:hover:translate-y-0">
-                                {loading ? 'Authenticating…' : 'Access Platform'}
+                                {loading ? 'Authenticating…' : isTeacher ? 'Open Teacher Dashboard' : 'Access Platform'}
                                 {!loading && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
                             </button>
                         </form>
@@ -507,7 +600,9 @@ const Login = () => {
                         </button>
 
                         <p className="mt-5 text-center text-xs text-slate-500">
-                            Don&apos;t have an account? <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-600 hover:underline">Sign up here</Link>
+                            {isTeacher
+                                ? <>New teacher? <Link to="/signup?as=teacher" className="font-bold text-emerald-700 hover:underline">Register your card</Link></>
+                                : <>Don&apos;t have an account? <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-600 hover:underline">Sign up here</Link></>}
                         </p>
                         {/* Inside the app the admin console travels in the same bundle, under
                             /admin/. On the website it is its own site, so no link here. */}

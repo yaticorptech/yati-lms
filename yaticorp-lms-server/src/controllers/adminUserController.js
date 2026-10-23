@@ -9,6 +9,7 @@ const Progress = require('../models/Progress');
 const { sendEmail } = require('../utils/emailService');
 const XLSX = require('xlsx');
 const Card = require('../models/Card');
+const { isVerified, verifiedFields } = require('../services/cardVerification');
 const Course = require('../models/Course');
 /**
  * Required for its side effect: registering the Organization model.
@@ -274,8 +275,10 @@ const addUser = async (req, res) => {
             return res.status(400).json({ message: 'This Card is marked as inactive and restricted from use' });
         }
 
-        // Card is valid (either unactivated or activated), mark it as used
+        // Card is valid (either unactivated or activated), mark it as used.
+        // An admin adding its holder verifies it, if a super admin had not yet.
         card.status = 'used';
+        if (!isVerified(card)) Object.assign(card, verifiedFields(req.admin?._id, 'account'));
         await card.save();
 
        const user = await User.create({
@@ -592,8 +595,9 @@ const bulkAddUsers = async (req, res) => {
                     throw new Error(`Card ${CardNumber} is inactive at row ${rowIndex}`);
                 }
 
-                // Create User
+                // Create User. Adding its holder verifies the card, as above.
                 card.status = 'used';
+                if (!isVerified(card)) Object.assign(card, verifiedFields(req.admin?._id, 'account'));
                 await card.save();
                                         const user = await User.create({
                             name: Name,

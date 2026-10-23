@@ -31,11 +31,14 @@ const TYPE = `
 
 /* ── Login ──────────────────────────────────────────────────────────────── */
 
+// A device that has signed in before: "Student" was chosen, so the
+// Student / Teacher chooser does not cover the form (teacherAuth tests it).
 const loginEntry = ({ user = null, pre = '', at = '/login' } = {}) => `
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AuthContext } from '${srcFile('context/AuthContext.jsx')}';
 import Login from '${srcFile('pages/Login.jsx')}';
+localStorage.setItem('yati:signinAs', 'student');
 ${pre}
 const value = { user: ${JSON.stringify(user)}, login: (card, password, next) => { window.__login = { card, password, next };
   return Promise.resolve({ success: false, error: 'Invalid card number or password' }); } };

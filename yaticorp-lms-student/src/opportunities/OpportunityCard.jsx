@@ -57,7 +57,7 @@ export default function OpportunityCard({
                         word too long for the line rather than break every one. */}
                     <h3 className="font-bold leading-snug text-slate-900 break-words">
                         <button type="button" onClick={() => onOpen?.(opp)}
-                            className="text-left transition-colors hover:text-indigo-600 focus:outline-none focus-visible:rounded focus-visible:ring-2 focus-visible:ring-indigo-500/50">
+                            className="relative text-left transition-colors after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] hover:text-indigo-600 focus:outline-none focus-visible:rounded focus-visible:ring-2 focus-visible:ring-indigo-500/50">
                             {opp.title}
                         </button>
                     </h3>

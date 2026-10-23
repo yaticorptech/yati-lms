@@ -56,8 +56,9 @@ describe('the list of quizzes', { skip: skipWithoutChrome }, () => {
             };` });
         assert.deepEqual(errors, []);
         assert.equal(result.cards.length, 3);
-        assert.match(result.cards[0], /Weekly GK.*Live.*5 of 5 added · full.*10 min limit/);
-        assert.match(result.cards[2], /Science.*Draft.*2 of 10 added · 8 left.*no time limit/);
+        // The time limit sits with the other facts, above how full the quiz is.
+        assert.match(result.cards[0], /Weekly GK.*Live.*10 min limit.*5 of 5 added · full/);
+        assert.match(result.cards[2], /Science.*Draft.*no time limit.*2 of 10 added · 8 left/);
         assert.match(result.banner, /Weekly GK/);
         assert.match(result.banner, /10 min limit/);
     });

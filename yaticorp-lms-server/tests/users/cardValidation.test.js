@@ -16,8 +16,8 @@ before(async () => {
     await connect();
     app = startApp({ mount: '/api/auth', router: require('../../src/routes/authRoutes') });
     call = app.call(null);
-    card = await Card.create({ CardNumber: NUMBER, CVV: 'T1E2S', qrCodeNumber: `QRTEST${STAMP}`, status: 'activated' });
-    used = await Card.create({ CardNumber: `9901${STAMP}00`, CVV: 'T1E2S', qrCodeNumber: `QRUSED${STAMP}`, status: 'used' });
+    card = await Card.create({ verified: true, CardNumber: NUMBER, CVV: 'T1E2S', qrCodeNumber: `QRTEST${STAMP}`, status: 'activated' });
+    used = await Card.create({ verified: true, CardNumber: `9901${STAMP}00`, CVV: 'T1E2S', qrCodeNumber: `QRUSED${STAMP}`, status: 'used' });
 });
 
 after(async () => {

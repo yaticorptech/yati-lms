@@ -136,10 +136,18 @@ export default function GamePage() {
                 {game.you == null && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"><Eye size={13} aria-hidden="true" /> Watching</span>}
             </div>
 
-            <header className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-2xl" aria-hidden="true">{game.emoji}</span>
+            {/* The game's name with what kind of game it is as a small badge
+                beside it, not a phrase after it: "Ludo · friendly game" broke
+                over two lines on a phone (2026-10-17, "make the ui better"). */}
+            <header className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-2xl sm:h-12 sm:w-12" aria-hidden="true">{game.emoji}</span>
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-lg font-black text-slate-900 sm:text-xl">{game.label}{game.match ? <span className="font-semibold text-slate-500"> · {game.match.roundName}</span> : game.kind === 'friendly' ? <span className="font-semibold text-slate-500"> · friendly game</span> : null}</h1>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <h1 className="text-lg font-black leading-tight text-slate-900 sm:text-xl">{game.label}</h1>
+                        {game.match
+                            ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200">{game.match.roundName}</span>
+                            : game.kind === 'friendly' && <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-indigo-700 ring-1 ring-inset ring-indigo-100">Friendly</span>}
+                    </div>
                     <p className="break-words text-sm text-slate-500">{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
                 </div>
                 {game.status === 'active' && turnLeft != null && (
@@ -163,18 +171,31 @@ export default function GamePage() {
             )}
 
             {/* ── Players ───────────────────────────────────────────── */}
-            {/* Chess draws its own two player bars, with their clocks. */}
-            {game.status !== 'waiting' && view?.seats && game.game !== 'chess' && (
-                <ul className="flex flex-wrap gap-2" aria-label="Players">
-                    {view.seats.map((s, i) => (
-                        <li key={i} data-seat-chip={i} className={`inline-flex min-w-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm ${view.turn === i ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-200 bg-white'}`}>
-                            <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-slate-300" style={{ background: s.color }} aria-hidden="true" />
-                            <span className="truncate font-bold text-slate-900">{s.name}</span>
-                            <span className="text-xs text-slate-500">{s.label}{game.sides?.[s.side]?.collegeName ? ` · ${game.sides[s.side].collegeName}` : ''}</span>
-                            {game.you === i && <span className="rounded-md bg-indigo-600 px-1.5 text-[10px] font-bold uppercase text-white">You</span>}
-                            {view.turn === i && game.status === 'active' && <span className="text-[11px] font-bold text-indigo-700">to play</span>}
-                        </li>
-                    ))}
+            {/* Chess draws its own two player bars, with their clocks, and Ludo
+                its players at their corners of the board, with the dice. */}
+            {game.status !== 'waiting' && view?.seats && game.game !== 'chess' && game.game !== 'ludo' && (
+                // Two to a row on a phone: the name on its own line, so a long
+                // one is not cut off for a badge, and under it whose it is, the
+                // colour, and "to play" for the player whose turn it is — who
+                // also glows, with a live dot.
+                <ul className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" aria-label="Players">
+                    {view.seats.map((s, i) => {
+                        const toPlay = view.turn === i && game.status === 'active';
+                        return (
+                            <li key={i} data-seat-chip={i} className={`flex min-w-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition-colors ${toPlay ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-200 bg-white'}`}>
+                                <span className="relative flex h-3 w-3 shrink-0" aria-hidden="true">
+                                    {toPlay && <span className="absolute inset-0 animate-ping rounded-full opacity-60 motion-reduce:animate-none" style={{ background: s.color }} />}
+                                    <span className="relative h-3 w-3 rounded-full ring-1 ring-slate-300" style={{ background: s.color }} />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate font-bold leading-tight text-slate-900">{s.name}</span>
+                                    <span className={`block truncate text-[11px] font-semibold leading-tight ${toPlay ? 'text-indigo-700' : 'text-slate-500'}`}>
+                                        {[game.you === i && 'You', s.label, game.sides?.[s.side]?.collegeName, toPlay && 'to play'].filter(Boolean).join(' · ')}
+                                    </span>
+                                </span>
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
 
@@ -253,12 +274,15 @@ export default function GamePage() {
                         </div>
                         <Link to={back} className="inline-flex min-h-10 items-center rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800">{game.competition ? 'Back to the competition' : 'Back to games'}</Link>
                     </div>
+                    {/* Each place may shrink and wrap: a long team and college
+                        name kept on one line ran 45px past the card on a phone
+                        (2026-10-17). */}
                     {outcome?.places?.length > 1 && (
-                        <ol className="mt-4 grid gap-1.5 sm:grid-cols-2">
+                        <ol className="mt-4 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                             {outcome.places.map((group, i) => (
-                                <li key={i} className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-sm ring-1 ring-slate-100">
-                                    <span className="w-6 text-center font-black text-slate-500">{i + 1}</span>
-                                    <span className="min-w-0 truncate font-semibold text-slate-800">{group.map(sideName).join(' = ')}</span>
+                                <li key={i} className="flex min-w-0 items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-sm ring-1 ring-slate-100">
+                                    <span className="w-6 shrink-0 text-center font-black text-slate-500">{i + 1}</span>
+                                    <span className="min-w-0 break-words font-semibold text-slate-800">{group.map(sideName).join(' = ')}</span>
                                 </li>
                             ))}
                         </ol>

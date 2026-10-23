@@ -8,13 +8,13 @@
  * being swept under a generic "as is".
  */
 import LegalShell, { Bullets, Section } from './legalShell';
-import { COMPANY } from './company';
+import { COMPANY, filled } from './company';
 
 export default function Terms() {
   return (
     <LegalShell
       title="Terms of Service"
-      updated={COMPANY.effectiveDate}
+      updated={filled(COMPANY.effectiveDate)}
       intro={`These terms are the agreement between you and ${COMPANY.legalName} for using YATICORP Learning. By signing in with an activation card, you accept them. If you are under 18, a parent, guardian or your school must accept them on your behalf.`}
     >
       <Section id="who" title="Who can use YATICORP">
@@ -122,8 +122,8 @@ export default function Terms() {
 
       <Section id="law" title="Governing law">
         <p>
-          These terms are governed by the laws of India, and the courts at {COMPANY.jurisdiction} have
-          exclusive jurisdiction over any dispute.
+          These terms are governed by the laws of India
+          {filled(COMPANY.jurisdiction) ? <>, and the courts at {COMPANY.jurisdiction} have exclusive jurisdiction over any dispute.</> : '.'}
         </p>
       </Section>
 

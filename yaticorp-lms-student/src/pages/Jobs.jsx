@@ -26,7 +26,6 @@ import {
 
 import { AuthContext } from '../context/AuthContext';
 import { jobsApi, detectLocation, autoDetectLocation, careerPrefill, learnerSkills, interleaveSkills, isDemoCard, demoJobsProfile } from '../jobs/api';
-import { comparePay } from '../jobs/pay';
 import { FIELD_LABEL, FIELD_INPUT, FIELD_OK, FIELD_BAD } from '../jobs/ui';
 import SkillInput from '../jobs/SkillInput';
 import ResumeCard from '../jobs/ResumeCard';
@@ -43,15 +42,8 @@ import { opportunitiesApi } from '../opportunities/api';
 
 const JOB_TYPES = ['Any', 'Full-time', 'Part-time', 'Internship', 'Contract'];
 
-const CURRENCIES = [
-    { code: 'INR', example: '6,00,000' }, { code: 'USD', example: '90,000' },
-    { code: 'EUR', example: '70,000' }, { code: 'GBP', example: '60,000' },
-    { code: 'AED', example: '250,000' }, { code: 'SGD', example: '110,000' },
-    { code: 'AUD', example: '120,000' }, { code: 'CAD', example: '100,000' }
-];
-
 const EMPTY_FORM = {
-    skills: [], role: '', jobType: 'Any', salary: '', currency: 'INR',
+    skills: [], role: '', jobType: 'Any',
     location: '', coords: null, remoteOnly: false, strictType: true, sortBy: 'relevance'
 };
 
@@ -130,8 +122,6 @@ const formFromParams = (params) => {
         skills: skills ? skills.split(',').map((s) => s.trim()).filter(Boolean) : [],
         role: params.get('role') || '',
         jobType: params.get('type') || 'Any',
-        salary: params.get('salary') || '',
-        currency: params.get('cur') || 'INR',
         location: params.get('loc') || '',
         remoteOnly: params.get('remote') === '1',
         // A sort the dropdown no longer offers (an old link's `sort=skills`)
@@ -148,7 +138,6 @@ const formFromParams = (params) => {
 const validate = (f) => {
     const problems = {};
     if (!f.skills.length && !f.role.trim()) problems.skills = 'Add at least one skill — results are ranked on your skills.';
-    if (f.salary.trim() && !/\d/.test(f.salary)) problems.salary = 'Expected salary should be an amount, like 600000.';
     return problems;
 };
 
@@ -258,15 +247,9 @@ export default function Jobs() {
     const [detecting, setDetecting] = useState(false);
     const [status, setStatus] = useState({ message: '', error: false });
     const [errors, setErrors] = useState({});
-    /* What the student asked to earn, captured when the search ran rather than
-       read live off the form — otherwise editing the field would relabel a list
-       of results that was never ranked against the new figure. */
-    const [expectation, setExpectation] = useState({ amount: '', currency: 'INR' });
-    /* The salary field's second job: a real filter, not just a label. Off by
-       default and honest when on — only listings that DISCLOSE pay below the
-       expectation are hidden. "Not disclosed" always stays: most employers
-       publish no figure, and hiding them would silently empty the list. */
-    const [payGate, setPayGate] = useState(false);
+    /* No expected-salary box or pay filter (removed 2026-10-16): only about 5%
+       of listings publish pay, mostly senior roles abroad, so the filter almost
+       never did anything for a student. A job card still shows its pay. */
     /* The student's Career Path goal, held for the whole visit — it tells the
        gap card whether the role being searched is the one their roadmap is
        already building towards. null = fetched, none exists; undefined = not
@@ -407,7 +390,6 @@ export default function Jobs() {
             return;
         }
         setErrors({});
-        setExpectation({ amount: base.salary, currency: base.currency });
 
         // The tab's constraints sit on top of the form and never in it — the
         // form still reads what the student said when they come back to Jobs.
@@ -426,7 +408,6 @@ export default function Jobs() {
         if (base.skills.length) next.set('skills', base.skills.join(','));
         if (base.role.trim()) next.set('role', base.role.trim());
         if (base.jobType !== 'Any') next.set('type', base.jobType);
-        if (base.salary.trim()) { next.set('salary', base.salary.trim()); next.set('cur', base.currency); }
         if (base.location.trim()) next.set('loc', base.location.trim());
         if (base.remoteOnly) next.set('remote', '1');
         if (base.sortBy !== 'relevance') next.set('sort', base.sortBy);
@@ -685,8 +666,6 @@ export default function Jobs() {
         setData(null);
         setFetchedFor(null);
         setErrors({});
-        setPayGate(false);
-        setExpectation({ amount: '', currency: 'INR' });
         setStatus({ message: '', error: false });
         setParams((prev) => {
             const next = new URLSearchParams();
@@ -713,16 +692,6 @@ export default function Jobs() {
         search(patch);
     };
 
-    const clearSalary = () => {
-        update({ salary: '' });
-        setExpectation({ amount: '', currency: form.currency });
-        setPayGate(false);
-    };
-
-    /* Applied at render, not at search: the verdict per card is already
-       computed against the captured expectation, so the gate reuses exactly
-       the comparison the pay flags show — the list and its labels can never
-       disagree about who is below the bar. */
     /* Skills the LMS knows the student has earned that are not in the box —
        offered as one tap rather than added behind their back. */
     const missingLearned = useMemo(
@@ -731,19 +700,12 @@ export default function Jobs() {
     );
 
     const allResults = data?.results ?? [];
-    const gatedResults = payGate && expectation.amount
-        ? allResults.filter((j) => {
-            const v = comparePay(j.salary, expectation.amount, expectation.currency);
-            return !(v && !v.meets);
-        })
-        : allResults;
-    const hiddenByPay = allResults.length - gatedResults.length;
-    const strong = tab === 'match' ? gatedResults.filter((j) => (j.match?.total ?? 0) >= STRONG_MATCH) : gatedResults;
+    const strong = tab === 'match' ? allResults.filter((j) => (j.match?.total ?? 0) >= STRONG_MATCH) : allResults;
     // Matches exist, none strong: show the closest ten rather than nothing —
     // a student who just uploaded a resume should see the board move.
-    const weakOnly = tab === 'match' && gatedResults.length > 0 && strong.length === 0;
+    const weakOnly = tab === 'match' && allResults.length > 0 && strong.length === 0;
     const shown = weakOnly
-        ? [...gatedResults].sort((a, b) => (b.match?.total ?? 0) - (a.match?.total ?? 0)).slice(0, 10)
+        ? [...allResults].sort((a, b) => (b.match?.total ?? 0) - (a.match?.total ?? 0)).slice(0, 10)
         : strong;
 
     const q = data?.query;
@@ -759,8 +721,6 @@ export default function Jobs() {
                 : count ? `${count} ${noun}`
                     : tab === 'match' ? 'No strong matches yet' : 'No matches';
     const showCount = tab === 'saved' || (data && !loading && count > 0);
-
-    const money = CURRENCIES.find((c) => c.code === form.currency) ?? CURRENCIES[0];
 
     /* Until the band is known the board waits: a minor must never see it,
        even for the half-second before their profile answers. */
@@ -901,50 +861,6 @@ export default function Jobs() {
                         </div>
                     </div>
 
-                    <div>
-                        <label htmlFor="job-salary" className={FIELD_LABEL}>
-                            Expected salary <span className="font-medium normal-case tracking-normal text-slate-400">(optional)</span>
-                        </label>
-                        <div className="flex gap-2">
-                            <input
-                                id="job-salary"
-                                value={form.salary}
-                                onChange={(e) => update({ salary: e.target.value })}
-                                placeholder={`e.g. ${money.example}`}
-                                className={`${FIELD_INPUT} flex-1 min-w-0 ${errors.salary ? FIELD_BAD : FIELD_OK}`}
-                            />
-                            <Dropdown
-                                label="Currency" accent="indigo" placement="panel"
-                                value={form.currency}
-                                options={CURRENCIES.map((c) => ({ value: c.code, label: c.code }))}
-                                onChange={(currency) => update({ currency })}
-                                className="relative shrink-0 rounded-xl border border-slate-300 bg-white py-2.5 pl-3 pr-8 text-left text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                                panelClassName="left-auto right-0 w-32"
-                            />
-                        </div>
-                        {errors.salary
-                            ? <p className="mt-1.5 text-xs text-rose-600">{errors.salary}</p>
-                            : <p className="mt-1.5 text-xs text-slate-400">Labels each listing&apos;s pay against this figure.</p>}
-                        <label
-                            className={`mt-2 flex items-center gap-2.5 ${expectation.amount ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
-                            title={expectation.amount ? undefined : 'Run a search with an expected salary first.'}
-                        >
-                            <input
-                                type="checkbox"
-                                checked={payGate}
-                                disabled={!expectation.amount}
-                                onChange={(e) => setPayGate(e.target.checked)}
-                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <span className="text-sm text-slate-700">Hide pay below my expectation</span>
-                        </label>
-                        {payGate && expectation.amount && (
-                            <p className="mt-1 text-xs text-slate-400">
-                                Listings that don&apos;t disclose pay are kept — most employers publish no figure.
-                            </p>
-                        )}
-                    </div>
-
                     <div className="space-y-2.5 pt-1">
                         <label className={`flex items-center gap-2.5 ${remoteLocked ? 'cursor-default' : 'cursor-pointer'}`}>
                             <input type="checkbox" checked={remoteLocked || form.remoteOnly} disabled={remoteLocked}
@@ -1074,9 +990,6 @@ export default function Jobs() {
                             {q.jobType && q.jobType !== 'Any' && (
                                 <Chip label="Type" value={q.jobType} onRemove={() => removeFilter({ jobType: 'Any' })} />
                             )}
-                            {expectation.amount && (
-                                <Chip label="Pay" value={`${expectation.currency} ${expectation.amount}+`} onRemove={clearSalary} />
-                            )}
                             <button type="button" onClick={onReset}
                                 className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-800">
                                 <RotateCcw size={13} /> Reset filters
@@ -1115,18 +1028,6 @@ export default function Jobs() {
                                 careerPathEnabled={isCareerPathEnabled}
                             />
 
-                            {hiddenByPay > 0 && (
-                                <div className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 mb-4 text-sm text-slate-600">
-                                    <span>
-                                        {hiddenByPay} listing{hiddenByPay === 1 ? '' : 's'} hidden for disclosing pay below your expectation.
-                                    </span>
-                                    <button type="button" onClick={() => setPayGate(false)}
-                                        className="shrink-0 font-semibold text-indigo-600 hover:text-indigo-700">
-                                        Show them
-                                    </button>
-                                </div>
-                            )}
-
                             {shown.length ? (
                                 <>
                                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1139,7 +1040,6 @@ export default function Jobs() {
                                             <JobCard
                                                 key={job.id}
                                                 job={job}
-                                                expected={expectation}
                                                 saved={savedIds.has(job.id)}
                                                 onToggleSave={toggleSave}
                                             />
@@ -1159,17 +1059,9 @@ export default function Jobs() {
                                 </>
                             ) : weakOnly ? (
                                 <Empty title="No strong matches yet">
-                                    {gatedResults.length} listing{gatedResults.length === 1 ? '' : 's'} matched you in part,
+                                    {allResults.length} listing{allResults.length === 1 ? '' : 's'} matched you in part,
                                     none at {STRONG_MATCH}% or better. The core skills above are what tip a listing over —
                                     closing one or two usually moves several at once. The Jobs tab shows every match.
-                                </Empty>
-                            ) : hiddenByPay > 0 ? (
-                                /* Everything matched — the pay gate hid it all.
-                                   Saying "no matches" would send the student
-                                   off to edit skills that are fine. */
-                                <Empty title="Every match discloses pay below your expectation">
-                                    {allResults.length} job{allResults.length === 1 ? '' : 's'} matched your profile
-                                    but paid under your figure. Untick the pay filter to see them, or lower the expectation.
                                 </Empty>
                             ) : data.excludedByLocation > 0 ? (
                                 <Empty title={`No ${data.query.role || data.query.roleText || 'matching'} listings in ${data.query.locationResolved || data.query.location}`}>
