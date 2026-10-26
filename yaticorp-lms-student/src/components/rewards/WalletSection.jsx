@@ -6,15 +6,15 @@
  * decides an amount — every number is recomputed on the server when it
  * matters.
  */
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Wallet, ReceiptText, Loader2, Info, Lock, Check, X, Sparkles } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Wallet, ReceiptText, Loader2, Info, Lock, Check, X } from 'lucide-react';
 import api from '../../utils/api';
-import { money, num, balance, when, SOURCE_LABEL, STATUS_CLS, txTitle } from './format';
+import { money, balance, when, SOURCE_LABEL, STATUS_CLS, txTitle } from './format';
 
+// No XP tab: XP is learning progress, not wallet money (2026-10-26).
 const TABS = [
     { id: 'overview', label: 'Overview', icon: Wallet },
-    { id: 'transactions', label: 'Transactions', icon: ReceiptText },
-    { id: 'xp', label: 'XP', icon: Sparkles }
+    { id: 'transactions', label: 'Transactions', icon: ReceiptText }
 ];
 
 const Pill = ({ status }) => <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${STATUS_CLS[status] || 'bg-slate-100 text-slate-600'}`}>{status}</span>;
@@ -59,20 +59,10 @@ export default function WalletSection({ initialTab = 'overview' }) {
                     <p className="text-[13px] leading-snug text-slate-500 sm:text-sm">Everything you have earned inside the LMS, tracked to its source.</p>
                 </div>
                 {data && (
-                    // On a phone the two figures are a pair of equal cells that
-                    // fill the width, so the labels and the numbers each line
-                    // up with one another. Right-aligning them in a loose row —
-                    // which is what a wide header wants — left them ragged,
-                    // with nothing sharing an edge.
-                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-4">
-                        <div className="min-w-0 rounded-xl bg-white/70 px-2.5 py-1.5 sm:bg-transparent sm:px-0 sm:py-0 sm:text-right">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 sm:text-[11px]">Balance</p>
-                            <p className="truncate text-base font-black tabular-nums text-slate-900 sm:text-2xl">{money(balance(data.wallet.available), currency)}</p>
-                        </div>
-                        <div className="min-w-0 rounded-xl bg-white/70 px-2.5 py-1.5 sm:bg-transparent sm:px-0 sm:py-0 sm:text-right">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 sm:text-[11px]">XP</p>
-                            <p className="truncate text-base font-black tabular-nums text-amber-600 sm:text-2xl">{num(data.xp)}</p>
-                        </div>
+                    // The balance only: XP is not wallet money (2026-10-26).
+                    <div className="min-w-0 rounded-xl bg-white/70 px-2.5 py-1.5 sm:bg-transparent sm:px-0 sm:py-0 sm:text-right">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 sm:text-[11px]">Balance</p>
+                        <p className="truncate text-base font-black tabular-nums text-slate-900 sm:text-2xl">{money(balance(data.wallet.available), currency)}</p>
                     </div>
                 )}
             </div>
@@ -82,7 +72,7 @@ export default function WalletSection({ initialTab = 'overview' }) {
                 grid of three fits them instead: each cell takes a third and the
                 name sits under its icon where the cell is too narrow to hold
                 both side by side. */}
-            <div className="grid grid-cols-3 border-b border-slate-100 px-2 pt-2 sm:flex sm:gap-1 sm:px-3">
+            <div className="grid grid-cols-2 border-b border-slate-100 px-2 pt-2 sm:flex sm:gap-1 sm:px-3">
                 {TABS.map((t) => (
                     <button key={t.id} onClick={() => setTab(t.id)} className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-t-xl border-b-2 px-1.5 py-2 text-[12px] font-bold leading-tight transition-colors sm:flex-row sm:gap-1.5 sm:px-3 sm:py-2.5 sm:text-[13px] ${tab === t.id ? 'border-indigo-600 bg-indigo-50/60 text-indigo-700' : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}>
                         <t.icon size={14} className="shrink-0" /> <span className="min-w-0 truncate">{t.label}</span>
@@ -95,27 +85,25 @@ export default function WalletSection({ initialTab = 'overview' }) {
                 {!data && !error && <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-16 rounded-2xl" />)}</div>}
                 {data && tab === 'overview' && <Overview data={data} currency={currency} />}
                 {data && tab === 'transactions' && <Transactions currency={currency} />}
-                {data && tab === 'xp' && <XpLedger />}
             </div>
         </section>
     );
 }
 
 function Overview({ data, currency }) {
-    const { wallet, conversion } = data;
-    const unit = conversion.pointsPerUnit;
+    const { wallet } = data;
     const sources = Object.entries(wallet.earnedBySource || {}).filter(([, v]) => v > 0);
 
     return (
         <div className="space-y-4 sm:space-y-5">
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
                 {[
                     { label: 'Balance', value: money(balance(wallet.available), currency), cls: 'from-emerald-50 to-teal-50 border-emerald-200', tone: 'text-emerald-700', sub: 'For courses and features' },
                     { label: 'Total earned', value: money(wallet.totalEarned, currency), cls: 'from-sky-50 to-indigo-50 border-sky-200', tone: 'text-sky-700' },
-                    { label: 'Total spent', value: money(wallet.totalSpent, currency), cls: 'from-slate-50 to-slate-100 border-slate-200', tone: 'text-slate-700', sub: 'On courses and rewards' },
-                    { label: 'From XP', value: money(data.fromXp, currency), cls: 'from-amber-50 to-orange-50 border-amber-200', tone: 'text-amber-700', sub: `${num(data.xpConverted)} XP converted` }
+                    { label: 'Total spent', value: money(wallet.totalSpent, currency), cls: 'from-slate-50 to-slate-100 border-slate-200', tone: 'text-slate-700', sub: 'On courses and rewards', wide: true }
                 ].map((c) => (
-                    <div key={c.label} className={`rounded-2xl border bg-gradient-to-br p-3 sm:p-4 ${c.cls}`}>
+                    // Three tiles: on a phone the third takes the row (two by two left it alone).
+                    <div key={c.label} className={`rounded-2xl border bg-gradient-to-br p-3 sm:p-4 ${c.cls} ${c.wide ? 'col-span-2 lg:col-span-1' : ''}`}>
                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 sm:text-[11px]">{c.label}</p>
                         <p className={`mt-0.5 truncate text-lg font-black tabular-nums sm:mt-1 sm:text-2xl ${c.tone}`}>{c.value}</p>
                         {c.sub && <p className="truncate text-[10px] text-slate-500 sm:text-[11px]">{c.sub}</p>}
@@ -123,33 +111,21 @@ function Overview({ data, currency }) {
                 ))}
             </div>
 
-            <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 p-3 sm:p-4">
-                    <p className="text-[13px] font-bold text-slate-800 sm:text-sm">Where it came from</p>
-                    {sources.length === 0 ? (
-                        <p className="mt-1.5 text-[13px] leading-snug text-slate-500 sm:mt-2 sm:text-sm">Nothing yet. XP you earn, and any earnings an administrator adds, show up here by source.</p>
-                    ) : (
-                        <ul className="mt-3 space-y-2">
-                            {sources.map(([k, v]) => (
-                                <li key={k} className="flex items-center gap-3 text-sm">
-                                    <span className="w-40 shrink-0 font-semibold text-slate-600">{SOURCE_LABEL[k] || k}</span>
-                                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500" style={{ width: `${Math.min(100, (v / Math.max(1, wallet.totalEarned)) * 100)}%` }} /></div>
-                                    <span className="w-20 text-right font-bold tabular-nums text-slate-800">{money(v, currency)}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-
-                {/* Only XP becomes money, automatically as it is earned. */}
-                <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3 sm:p-4">
-                    <p className="flex items-center gap-1.5 text-[13px] font-bold text-slate-800 sm:text-sm"><Sparkles size={14} className="text-amber-500" /> XP converts to money</p>
-                    <p className="text-xl font-black tabular-nums text-amber-700 sm:text-3xl">{num(unit)} XP = {money(conversion.unitValue, currency)}</p>
-                    <p className="text-[11px] text-slate-500 sm:text-xs">
-                        Each time your XP balance reaches {num(unit)}, {num(unit)} XP is taken off it and {money(conversion.unitValue, currency)} goes into your wallet — automatically. Your level never drops.
-                        Balance now: <strong className="text-slate-700">{num(data.xpBalance)} XP</strong> · {money(data.fromXp, currency)} earned from XP so far.
-                    </p>
-                </div>
+            <div className="rounded-2xl border border-slate-200 p-3 sm:p-4">
+                <p className="text-[13px] font-bold text-slate-800 sm:text-sm">Where it came from</p>
+                {sources.length === 0 ? (
+                    <p className="mt-1.5 text-[13px] leading-snug text-slate-500 sm:mt-2 sm:text-sm">Nothing yet. Your starting credit and anything an administrator adds show up here by source.</p>
+                ) : (
+                    <ul className="mt-3 space-y-2">
+                        {sources.map(([k, v]) => (
+                            <li key={k} className="flex items-center gap-3 text-sm">
+                                <span className="w-40 shrink-0 font-semibold text-slate-600">{SOURCE_LABEL[k] || k}</span>
+                                <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500" style={{ width: `${Math.min(100, (v / Math.max(1, wallet.totalEarned)) * 100)}%` }} /></div>
+                                <span className="w-20 text-right font-bold tabular-nums text-slate-800">{money(v, currency)}</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </div>
 
             {data.recent?.length > 0 && (
@@ -216,77 +192,5 @@ function Transactions({ currency }) {
                 </div>
             )}
         </div>
-    );
-}
-
-/**
- * Where each XP came from, from the XP ledger itself: one label for every
- * source the server writes (the activity types in rewards/config/constants,
- * plus 'career', 'game', 'streak' and 'admin'). A source missing here showed
- * as a bare "XP" with a lightning bolt — the Global Quiz, every interview row
- * and the games all did.
- */
-const XP_SOURCE = {
-    lesson_complete: 'Lesson', quiz_complete: 'Quiz', quiz_pass: 'Quiz', assignment_complete: 'Assignment',
-    course_complete: 'Course', certificate_earned: 'Certificate', course_enroll: 'Course',
-    forum_post: 'Community', forum_comment: 'Community',
-    resume_upload: 'Resume', part_time_apply: 'Jobs', scholarship_search: 'Scholarships', opportunity_profile: 'Jobs',
-    interview_prep: 'Interview', interview_practice: 'Interview', mock_interview: 'Interview', interview_improved: 'Interview', interview_challenge: 'Interview',
-    career: 'Career Path', career_task: 'Career Path', career_task_quiz: 'Career Path', skill_quiz: 'Career Path', daily_activity: 'Career Path',
-    career_onboarding: 'Career Path', day_plan_complete: 'Career Path', skill_level_up: 'Career Path', roadmap_milestone: 'Career Path', task_video_watched: 'Career Path',
-    global_quiz_win: 'Global Quiz', global_quiz_complete: 'Global Quiz',
-    game: 'Brain Boosters', game_reversal: 'Brain Boosters',
-    competition: 'Competitions', competition_match_win: 'Competitions', friendly_game_played: 'Games', friendly_game_win: 'Games',
-    profile_picture: 'Profile', achievement_added: 'Profile', bio_strength_full: 'Profile', google_connect: 'Profile', organization_join: 'Profile',
-    streak: 'Streak', admin: 'Bonus'
-};
-const XP_ICON = { Lesson: '📘', Quiz: '📝', Course: '🎓', Certificate: '📜', Assignment: '📝', Community: '💬', 'Career Path': '🧭', 'Brain Boosters': '🧩', Streak: '🔥', Bonus: '🎁', Interview: '🎤', Jobs: '💼', Resume: '📄', Scholarships: '🎓', 'Global Quiz': '🌍', Competitions: '🏆', Games: '🎲', Profile: '👤' };
-
-// "for completing a lesson" → "Completing a lesson": the ledger's own words,
-// read as a title.
-const xpTitle = (t, label) => {
-    const text = (t.description || '').replace(/^for\s+/i, '').trim();
-    return text ? text.charAt(0).toUpperCase() + text.slice(1) : label;
-};
-
-/** How many XP rows show before the list scrolls. */
-const XP_ROWS_SHOWN = 4;
-
-function XpLedger() {
-    const [rows, setRows] = useState(null);
-    const listRef = useRef(null);
-    useEffect(() => { api.get('/rewards/xp/history', { params: { limit: 50 } }).then((r) => setRows(Array.isArray(r.data) ? r.data : r.data?.rows || [])).catch(() => setRows([])); }, []);
-
-    // Four rows on show, the rest a scroll away inside the list. Measured
-    // rather than written down as pixels: a row's height follows the font
-    // size and the divider, and a guessed figure left the fourth row cut off.
-    useLayoutEffect(() => {
-        const list = listRef.current;
-        if (!list || !rows || rows.length <= XP_ROWS_SHOWN) return;
-        const items = [...list.children].slice(0, XP_ROWS_SHOWN);
-        const borders = list.offsetHeight - list.clientHeight;
-        const height = items.reduce((sum, li) => sum + li.getBoundingClientRect().height, 0);
-        list.style.maxHeight = `${Math.ceil(height + borders)}px`;
-    }, [rows]);
-
-    if (!rows) return <div className="skeleton h-40 rounded-2xl" />;
-    if (!rows.length) return <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">No XP yet. Lessons, quizzes, Career Path tasks and Brain Boosters all earn XP, and it shows up here.</p>;
-    return (
-        <ul ref={listRef} className="divide-y divide-slate-100 overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 [scrollbar-width:thin]" tabIndex={0} aria-label="XP history">
-            {rows.map((t) => {
-                const label = XP_SOURCE[t.source] || SOURCE_LABEL[t.source] || 'XP';
-                const gain = t.amount > 0;
-                return (
-                    <li key={t._id} className="flex items-center gap-3 bg-white px-3 py-3 sm:px-4">
-                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg ${gain ? 'bg-amber-100' : 'bg-slate-100'}`} aria-hidden="true">{XP_ICON[label] || '⚡'}</span>
-                        <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-bold text-slate-800">{xpTitle(t, label)}</p>
-                            <p className="truncate text-[11px] text-slate-500">{label} · {when(t.createdAt)}</p>
-                        </div>
-                        <p className={`shrink-0 text-sm font-black tabular-nums ${gain ? 'text-amber-600' : 'text-slate-700'}`}>{gain ? '+' : ''}{num(t.amount)} XP</p>
-                    </li>
-                );
-            })}
-        </ul>
     );
 }

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Target } from 'lucide-react';
 import { linguisticApi, announceRewards } from './api';
+import { tr, line } from './say';
 import { Loading, Problem, Chunky } from './ui';
 import Session, { SessionFrame } from './session/Session';
 import { Finish } from './session/Finish';
@@ -22,9 +23,10 @@ export default function Daily() {
     useEffect(() => { load(); }, [load]);
 
     const steps = useMemo(() => (data?.questions?.length ? [
-        { key: 'intro', part: 'intro', kind: 'intro', mascot: 'flex-content', title: 'Daily challenge', text: `${data.questions.length} quick word questions at your level. New ones every day!` },
+        { key: 'intro', part: 'intro', kind: 'intro', mascot: 'flex-content', title: tr(data.language)('Daily challenge'), text: line(data.language, 'dailyIntro', data.questions.length) },
         ...data.questions.map((q) => ({ key: q.id, part: 'quiz', kind: 'question', q, collect: q.id }))
-    ] : []), [data]);
+        // Each screen in the student's language (say.js).
+    ].map((st) => ({ language: data.language, ...st })) : []), [data]);
 
     const back = () => navigate('/linguistic/practice');
     if (data === undefined) return <SessionFrame label="Daily challenge"><Loading label="Picking today’s words…" /></SessionFrame>;

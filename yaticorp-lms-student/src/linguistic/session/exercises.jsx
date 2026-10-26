@@ -9,8 +9,10 @@ import { Check, ChevronLeft, ChevronRight, Keyboard, LayoutGrid, Lightbulb, Book
 import { COLORS, directionLabel, langOf, langFor, isRtl, play, chime, soundOn, canSpeak } from '../meta';
 import { Mascot, Speaker } from '../ui';
 import { tilesOf, usesTiles } from './logic';
+import { tr, line } from '../say';
 import Dialogue from '../parts/Dialogue';
 import VoiceRecorder from '../parts/VoiceRecorder';
+import TalkRecorder from '../parts/TalkRecorder';
 import LetterKeys from '../parts/LetterKeys';
 import { hasLetters } from '../parts/letters';
 
@@ -65,9 +67,10 @@ export function IntroStep({ step }) {
 
 export function NotesStep({ step }) {
     const l = step.learn;
+    const T = tr(step.language);
     return (
         <div className="lingo-in space-y-4">
-            <p className="text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">Learn</p>
+            <p className="text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('Learn')}</p>
             <Title>{step.title}</Title>
             {l.intro && <p className="text-[17px] font-semibold leading-relaxed text-[#4b4b4b]">{l.intro}</p>}
             {l.points?.length > 0 && (
@@ -82,7 +85,7 @@ export function NotesStep({ step }) {
             )}
             {l.examples?.length > 0 && (
                 <div>
-                    <p className="mb-2 text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">Examples</p>
+                    <p className="mb-2 text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('Examples')}</p>
                     <ul className="space-y-2">
                         {l.examples.map((e) => (
                             <li key={e} className="flex items-center gap-3 rounded-2xl bg-[#F7F7F7] px-3 py-2.5">
@@ -106,14 +109,15 @@ export function NotesStep({ step }) {
 export function WordsStep({ step }) {
     const words = step.words;
     const target = step.target || 'en';
+    const T = tr(step.language);
     const [i, setI] = useState(0);
     const [flipped, setFlipped] = useState(false);
     const w = words[i];
     const go = (d) => { setFlipped(false); setI((n) => (n + d + words.length) % words.length); };
     return (
         <div className="lingo-in space-y-4">
-            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.green.ink }}>New words · {i + 1} of {words.length}</p>
-            <Title>Tap the card to see what it means</Title>
+            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.green.ink }}>{T('New words')} · {step.language === 'kn' ? `${i + 1}/${words.length}` : `${i + 1} of ${words.length}`}</p>
+            <Title>{T('Tap the card to see what it means')}</Title>
             <div className="flex items-center gap-2">
                 <button type="button" onClick={() => go(-1)} aria-label="Previous word" className="lingo-tile flex h-12 w-12 shrink-0 items-center justify-center text-[#AFAFAF]"><ChevronLeft size={24} /></button>
                 <button type="button" onClick={() => setFlipped((f) => !f)} data-flashcard={flipped ? 'back' : 'front'}
@@ -123,7 +127,7 @@ export function WordsStep({ step }) {
                         <>
                             <span className="text-xs font-extrabold uppercase tracking-widest text-[#AFAFAF]">{w.pos || 'word'}</span>
                             <span className="break-words text-4xl font-black text-[#3c3c3c]" lang={target === 'en' ? undefined : target} dir="auto">{w.word}</span>
-                            <span className="mt-1 text-sm font-bold text-[#AFAFAF]">Tap to flip</span>
+                            <span className="mt-1 text-sm font-bold text-[#AFAFAF]">{T('Tap to flip')}</span>
                         </>
                     ) : (
                         <>
@@ -150,6 +154,7 @@ export function WordsStep({ step }) {
 
 /** The reading passage; the browser can read it aloud. */
 export function PassageStep({ step }) {
+    const T = tr(step.language);
     const [reading, setReading] = useState(false);
     const p = step.passage;
     useEffect(() => () => { if (window.speechSynthesis) window.speechSynthesis.cancel(); }, []);
@@ -162,12 +167,12 @@ export function PassageStep({ step }) {
     };
     return (
         <div className="lingo-in space-y-4">
-            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.blue.ink }}>Read</p>
+            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.blue.ink }}>{T('Read')}</p>
             <div className="flex items-start justify-between gap-3">
                 <Title>{p.title}</Title>
                 {typeof window !== 'undefined' && window.speechSynthesis && (
                     <button type="button" onClick={toggle} aria-pressed={reading} className="lingo-btn inline-flex h-11 shrink-0 items-center gap-2 px-3 text-sm" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.blue.ink }}>
-                        {reading ? <><Square size={15} /> Stop</> : <><Headphones size={17} /> Read aloud</>}
+                        {reading ? <><Square size={15} /> {T('Stop')}</> : <><Headphones size={17} /> {T('Read aloud')}</>}
                     </button>
                 )}
             </div>
@@ -179,14 +184,15 @@ export function PassageStep({ step }) {
 }
 
 export function DialogueStep({ step }) {
+    const T = tr(step.language);
     return (
         <div className="lingo-in space-y-4">
-            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.orange.ink }}>Listen</p>
-            <Title>Listen to the conversation</Title>
+            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.orange.ink }}>{T('Listen')}</p>
+            <Title>{T('Listen to the conversation')}</Title>
             <Dialogue dialogue={step.dialogue} audio={step.audio} />
             {step.phrases?.length > 0 && (
                 <div>
-                    <p className="mb-2 text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">Useful phrases</p>
+                    <p className="mb-2 text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('Useful phrases')}</p>
                     <ul className="flex flex-wrap gap-2">{step.phrases.map((p) => <li key={p}><button type="button" onClick={() => play(null, p)} className="lingo-tile px-3 py-2 text-[15px] text-[#4b4b4b]">{p}</button></li>)}</ul>
                 </div>
             )}
@@ -266,14 +272,14 @@ function Tiles({ words, value, onChange, locked, tone, language }) {
 }
 
 /** A reading or listening question can show its passage or conversation again. */
-function ContextPeek({ context }) {
+function ContextPeek({ context, T = (x) => x }) {
     const [open, setOpen] = useState(false);
     if (!context) return null;
     return (
         <div className="rounded-2xl border-2 border-[#E5E5E5]">
             <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex min-h-12 w-full items-center gap-2 px-4 text-left text-[15px] font-extrabold" style={{ color: COLORS.blue.ink }}>
                 {context.passage ? <BookOpen size={18} /> : <Headphones size={18} />}
-                <span className="flex-1">{context.passage ? `Read “${context.passage.title}” again` : 'Hear the conversation again'}</span>
+                <span className="flex-1">{context.passage ? `Read “${context.passage.title}” again` : T('Hear the conversation again')}</span>
                 <ChevronDown size={18} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
             </button>
             {open && (
@@ -315,10 +321,11 @@ function ListenPrompt({ q }) {
                     <Volume2 size={44} strokeWidth={2.5} />
                 </button>
             )}
+            {/* Can't hear it: the meaning — or, when the meaning is the answer (hear it, pick its meaning), the word written. */}
             {shown
-                ? <p className="rounded-2xl bg-[#F7F7F7] px-4 py-2 text-center text-lg font-extrabold text-[#4b4b4b]" dir="auto" data-listen-meaning>{q.meaning}</p>
+                ? <p className="rounded-2xl bg-[#F7F7F7] px-4 py-2 text-center text-lg font-extrabold text-[#4b4b4b]" dir="auto" data-listen-meaning>{q.written || q.meaning}</p>
                 : <button type="button" onClick={() => setShown(true)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2 text-sm font-extrabold uppercase tracking-wide" style={{ color: COLORS.blue.ink }} data-listen-show>
-                    <Eye size={16} /> Can’t hear it? Show the meaning
+                    <Eye size={16} /> {q.written ? 'Can’t hear it? Show the word' : 'Can’t hear it? Show the meaning'}
                 </button>}
         </div>
     );
@@ -326,6 +333,7 @@ function ListenPrompt({ q }) {
 
 export function QuestionStep({ step, value, onChange, locked, result }) {
     const q = step.q;
+    const T = tr(step.language);
     const tone = result ? (result.correct ? 'right' : 'wrong') : null;
     let body;
     if (q.type === 'mcq') {
@@ -343,17 +351,17 @@ export function QuestionStep({ step, value, onChange, locked, result }) {
     } else if (q.type === 'fill') {
         body = (
             <>
-                <Title>Fill in the blank</Title>
+                <Title>{T('Fill in the blank')}</Title>
                 <Bubble pose="thinking"><Blanks text={q.prompt} fill={value} /></Bubble>
-                <AnswerBox value={value} onChange={onChange} locked={locked} rows={1} placeholder="Type the missing word" />
+                <AnswerBox value={value} onChange={onChange} locked={locked} rows={1} placeholder={T('Type the missing word')} />
             </>
         );
     } else if (q.type === 'correction') {
         body = (
             <>
-                <Title>Correct this sentence</Title>
+                <Title>{T('Correct this sentence')}</Title>
                 <Bubble pose="curious-question">{q.prompt}</Bubble>
-                <AnswerBox value={value} onChange={onChange} locked={locked} rows={2} placeholder="Write the correct sentence" label="Your corrected sentence" />
+                <AnswerBox value={value} onChange={onChange} locked={locked} rows={2} placeholder={T('Write the correct sentence')} label="Your corrected sentence" />
             </>
         );
     } else {
@@ -361,17 +369,17 @@ export function QuestionStep({ step, value, onChange, locked, result }) {
         body = (
             <>
                 <Title>{q.prompt}</Title>
-                {q.kannada && <Bubble pose="point-right" lang={step.language || 'kn'} speaker={<Speaker src={q.audio} text={step.word?.word} size="sm" label="Hear it in English" />}><span className="text-2xl">{q.kannada}</span></Bubble>}
+                {q.kannada && <Bubble pose="point-right" lang={step.language || 'kn'} speaker={<Speaker src={q.audio} text={step.word?.word} size="sm" label={T('Hear it in English')} />}><span className="text-2xl">{q.kannada}</span></Bubble>}
                 {q.hint && <p className="text-center font-mono text-lg font-bold tracking-[0.3em] text-[#AFAFAF]" aria-label={`Hint: ${q.hint}`}>{q.hint}</p>}
-                <AnswerBox value={value} onChange={onChange} locked={locked} rows={1} placeholder="Type in English" center />
+                <AnswerBox value={value} onChange={onChange} locked={locked} rows={1} placeholder={T('Type in English')} center />
             </>
         );
     }
     return (
         <div className="lingo-in space-y-5" data-question={q.id}>
-            {q.hint && q.type !== 'spelling' && <p className="text-sm font-bold text-[#AFAFAF]">Hint: {q.hint}</p>}
+            {q.hint && q.type !== 'spelling' && <p className="text-sm font-bold text-[#AFAFAF]">{T('Hint: ')}{q.hint}</p>}
             {body}
-            <ContextPeek context={step.context} />
+            <ContextPeek context={step.context} T={T} />
         </div>
     );
 }
@@ -385,6 +393,7 @@ export function TranslateStep({ step, value, onChange, locked, result }) {
     const target = step.target || 'en';
     const T = langOf(target);
     const writeIn = toHelper ? code : target;
+    const Tr = tr(code);
     const bank = usesTiles(step);
     const ref = useRef(null);
     const [keys, setKeys] = useState(false);
@@ -397,30 +406,31 @@ export function TranslateStep({ step, value, onChange, locked, result }) {
                 <span className="rounded-full px-3 py-1 text-xs font-extrabold" style={{ background: COLORS.red.light, color: COLORS.red.ink }}>{directionLabel(step.direction, code, target)}</span>
                 {it.topic && <span className="rounded-full bg-[#F7F7F7] px-3 py-1 text-xs font-extrabold capitalize text-[#777]">{it.topic}</span>}
             </div>
-            <Title>{it.open ? 'Translate this passage' : `Write this in ${(toHelper ? L : T).name}`}</Title>
+            <Title>{it.open ? Tr('Translate this passage') : line(code, 'writeIn', (toHelper ? L : T).name)}</Title>
             <Bubble pose="point-right" lang={toHelper ? target : code} speaker={toHelper ? <Speaker text={it.source} lang={step.targetLocale || 'en-IN'} size="sm" /> : null}>
                 <span data-source>{it.source}</span>
             </Bubble>
             {!typing
                 ? <Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={tone} language={writeIn} />
                 : <AnswerBox inputRef={ref} value={value} onChange={onChange} locked={locked} rows={it.open ? 7 : 3} multiline={!!it.open} lang={writeIn}
-                    placeholder={writeIn === 'en' ? 'Type in English' : langOf(writeIn).placeholder} label={`Your translation of: ${it.source}`} />}
+                    placeholder={writeIn === 'en' ? Tr('Type in English') : langOf(writeIn).placeholder} label={`Your translation of: ${it.source}`} />}
             {!locked && (
                 <div className="flex flex-wrap gap-2">
                     {bank && (
-                        <button type="button" onClick={swap} className="lingo-btn inline-flex h-10 items-center gap-2 px-3 text-xs" style={{ background: '#fff', borderColor: '#E5E5E5', color: '#777' }}>
-                            {typing ? <><LayoutGrid size={15} /> Use word bank</> : <><Keyboard size={15} /> Use keyboard</>}
+                        <button type="button" onClick={swap} className="lingo-btn inline-flex h-10 items-center gap-2 px-3 text-xs" style={{ background: '#fff', borderColor: '#E5E5E5', color: '#777' }} data-swap-input>
+                            {typing ? <><LayoutGrid size={15} /> {Tr('Use word bank')}</> : <><Keyboard size={15} /> {Tr('Use keyboard')}</>}
                         </button>
                     )}
                     {typing && writeIn !== 'en' && hasLetters(writeIn) && (
-                        <button type="button" onClick={() => setKeys((k) => !k)} aria-expanded={keys} className="lingo-btn inline-flex h-10 items-center gap-2 px-3 text-xs" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.red.ink }}>
-                            <Keyboard size={15} /> {keys ? `Hide ${langOf(writeIn).name} letters` : `${langOf(writeIn).name} letters`}
+                        <button type="button" onClick={() => setKeys((k) => !k)} aria-expanded={keys} className="lingo-btn inline-flex h-10 items-center gap-2 px-3 text-xs" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.red.ink }} data-letters-toggle>
+                            <Keyboard size={15} /> {line(code, 'letters', langOf(writeIn).name, keys)}
                         </button>
                     )}
                 </div>
             )}
             {typing && keys && !locked && writeIn !== 'en' && <LetterKeys code={writeIn} inputRef={ref} value={value} onChange={onChange} />}
-            {it.open && !locked && <p className="text-sm font-bold text-[#AFAFAF]">A passage is not marked by the computer: you will see the model, and your teacher reviews it.</p>}
+            {it.open && !locked && <p className="text-sm font-bold text-[#AFAFAF]">A passage is not marked by the computer: you will see the model{writeIn === 'en' ? ', and your English is checked sentence by sentence' : ''}.</p>}
+            {result?.sentences?.length > 0 && <Corrections r={result} T={Tr} />}
         </div>
     );
 }
@@ -430,10 +440,11 @@ const wordCount = (t) => (String(t).trim().match(/[\p{L}\p{N}'’-]+/gu) || []).
 
 export function WriteStep({ step, value, onChange, locked, result }) {
     const t = step.task;
+    const T = tr(step.language);
     if (t.type === 'jumbled') {
         return (
             <div className="lingo-in space-y-5" data-writing={t.id}>
-                <Title>{WRITE_LABEL.jumbled}</Title>
+                <Title>{T(WRITE_LABEL.jumbled)}</Title>
                 <Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={result ? (result.correct ? 'right' : 'wrong') : null} />
             </div>
         );
@@ -442,7 +453,7 @@ export function WriteStep({ step, value, onChange, locked, result }) {
     const n = wordCount(value);
     return (
         <div className="lingo-in space-y-4" data-writing={t.id}>
-            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.blue.ink }}>{WRITE_LABEL[t.type] || 'Write'}</p>
+            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.blue.ink }}>{T(WRITE_LABEL[t.type] || 'Write')}</p>
             <Title>{t.prompt}</Title>
             {t.mustInclude?.length > 0 && <p className="flex flex-wrap items-center gap-1.5 text-sm font-bold text-[#777]">Use: {t.mustInclude.map((w) => <span key={w} className="rounded-lg px-2 py-0.5 font-extrabold" style={{ background: COLORS.green.light, color: COLORS.green.ink }}>{w}</span>)}</p>}
             <AnswerBox value={value} onChange={onChange} locked={locked} rows={open ? (t.type === 'paragraph' ? 7 : 10) : 3} multiline={open}
@@ -452,27 +463,30 @@ export function WriteStep({ step, value, onChange, locked, result }) {
                 {t.checklist?.length > 0 ? <ul className="space-y-0.5 text-sm font-semibold text-[#777]">{t.checklist.map((c) => <li key={c}>☐ {c}</li>)}</ul> : <span />}
                 <span className="text-sm font-extrabold tabular-nums" style={{ color: t.minWords && n < t.minWords ? '#AFAFAF' : COLORS.green.ink }}>{n} word{n === 1 ? '' : 's'}{t.minWords ? ` · at least ${t.minWords}` : ''}</span>
             </div>
+            {/* Checked here (2026-10-26), not sent to a teacher: each sentence, its grammar corrected. */}
+            {result?.sentences?.length > 0 && <Corrections r={result} T={T} said="You wrote" />}
         </div>
     );
 }
 
 export function SpeakStep({ step, value, onChange, locked }) {
     const s = step.speaking;
+    const T = tr(step.language);
     const [sample, setSample] = useState(false);
     return (
         <div className="lingo-in space-y-4">
-            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.orange.ink }}>Speak</p>
-            <Title>Your turn to speak</Title>
+            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.orange.ink }}>{T('Speak')}</p>
+            <Title>{T('Your turn to speak')}</Title>
             <Bubble pose="presenting">{s.prompt}</Bubble>
             <VoiceRecorder onRecorded={() => onChange({ ...value, recorded: true })} disabled={locked} />
             {s.sample && (
                 <div>
                     <button type="button" onClick={() => setSample((v) => !v)} aria-expanded={sample} className="inline-flex min-h-10 items-center gap-1.5 text-[15px] font-extrabold" style={{ color: COLORS.blue.ink }}>
-                        <ChevronDown size={17} className={`transition-transform ${sample ? 'rotate-180' : ''}`} /> {sample ? 'Hide the sample answer' : 'Show a sample answer'}
+                        <ChevronDown size={17} className={`transition-transform ${sample ? 'rotate-180' : ''}`} /> {T(sample ? 'Hide the sample answer' : 'Show a sample answer')}
                     </button>
                     {sample && (
                         <div className="mt-2 flex items-start gap-3 rounded-2xl p-3" style={{ background: COLORS.blue.light }}>
-                            <Speaker text={s.sample} size="sm" label="Hear the sample" />
+                            <Speaker text={s.sample} size="sm" label={T('Hear the sample')} />
                             <p className="text-[15px] font-semibold leading-relaxed text-[#4b4b4b]">{s.sample}</p>
                         </div>
                     )}
@@ -480,7 +494,7 @@ export function SpeakStep({ step, value, onChange, locked }) {
             )}
             {s.checklist?.length > 0 && (
                 <fieldset>
-                    <legend className="mb-2 text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">After you listen back, tick what you did</legend>
+                    <legend className="mb-2 text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('After you listen back, tick what you did')}</legend>
                     <div className="grid gap-2">
                         {s.checklist.map((c, i) => {
                             const on = value.ticks[i];
@@ -496,6 +510,96 @@ export function SpeakStep({ step, value, onChange, locked }) {
                 </fieldset>
             )}
             <p className="text-sm font-semibold text-[#AFAFAF]">Nothing marks your pronunciation automatically: listen to yourself and be honest.</p>
+        </div>
+    );
+}
+
+/* ── Speak on a topic (Advanced) ──────────────────────────────────────── */
+
+const wordsIn = (text) => (String(text).trim().match(/[\p{L}\p{N}'’-]+/gu) || []).length;
+
+/** `text` with `parts` (each found once, in order) marked. */
+function Marked({ text, parts, color, strike = false }) {
+    const out = [];
+    let rest = text, k = 0;
+    for (const p of parts) {
+        const at = p ? rest.indexOf(p) : -1;
+        if (at < 0) continue;
+        if (at) out.push(<span key={k++}>{rest.slice(0, at)}</span>);
+        out.push(<mark key={k++} className={`rounded px-0.5 font-extrabold ${strike ? 'line-through' : ''}`} style={{ background: 'transparent', color }}>{p}</mark>);
+        rest = rest.slice(at + p.length);
+    }
+    out.push(<span key={k}>{rest}</span>);
+    return out;
+}
+
+/** What was said (or written), sentence by sentence: each one with a mistake put right, and why. */
+export function Corrections({ r, T, said = 'You said' }) {
+    return (
+        <section className="space-y-2" data-talk-corrections>
+            <p className="text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('Your sentences, corrected')}</p>
+            <ol className="space-y-2">
+                {r.sentences.map((s, i) => (s.mistakes.length ? (
+                    <li key={i} className="space-y-1 rounded-2xl border-2 p-3 text-[15px] font-semibold leading-relaxed" style={{ borderColor: COLORS.red.light }} data-talk-sentence="fixed">
+                        <p className="text-[#777]"><span className="text-xs font-extrabold uppercase tracking-wider">{T(said)}: </span><Marked text={s.text} parts={s.mistakes.map((m) => m.wrong)} color={COLORS.red.ink} strike /></p>
+                        <p className="text-[#4b4b4b]"><span className="text-xs font-extrabold uppercase tracking-wider" style={{ color: COLORS.green.ink }}>{T('Better')}: </span><Marked text={s.corrected} parts={s.mistakes.map((m) => m.right)} color={COLORS.green.ink} /></p>
+                        <ul className="space-y-0.5 pt-0.5">{[...new Set(s.mistakes.map((m) => m.why))].map((w) => <li key={w} className="text-sm text-[#777]">• {w}</li>)}</ul>
+                    </li>
+                ) : (
+                    <li key={i} className="flex items-start gap-2 px-1 text-[15px] font-semibold text-[#4b4b4b]" data-talk-sentence="ok">
+                        <Check size={18} strokeWidth={3.5} className="mt-0.5 shrink-0" style={{ color: COLORS.green.face }} aria-label={T('No mistakes found')} /> <span className="min-w-0 break-words">{s.text}</span>
+                    </li>
+                )))}
+            </ol>
+        </section>
+    );
+}
+
+/**
+ * Speak on a topic (asked 2026-10-24): the topic and what to cover, the
+ * microphone (TalkRecorder writes down what is said), the talk as text to
+ * fix, and once checked, each sentence corrected with the reason.
+ */
+export function TalkStep({ step, value, onChange, locked, result }) {
+    const t = step.talk;
+    const T = tr(step.language);
+    const [listening, setListening] = useState(false);
+    const n = wordsIn(value);
+    return (
+        <div className="lingo-in space-y-4" data-talk>
+            <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.orange.ink }}>{T('Speak on a topic')}</p>
+            <Bubble pose="presenting">{t.prompt}</Bubble>
+            {!result && (
+                <>
+                    <details className="rounded-2xl border-2 border-[#E5E5E5] px-4 py-3" open>
+                        <summary className="cursor-pointer text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('What to talk about')}</summary>
+                        <ul className="mt-2 space-y-1.5">{t.points.map((p) => <li key={p} className="text-[15px] font-semibold leading-relaxed text-[#4b4b4b]">• {p}</li>)}</ul>
+                        {t.words?.length > 0 && (
+                            <div className="mt-3">
+                                <p className="mb-1.5 text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('Try to use')}</p>
+                                <div className="flex flex-wrap gap-1.5">{t.words.map((w) => <span key={w} className="rounded-xl px-2.5 py-1 text-sm font-extrabold" style={{ background: COLORS.blue.light, color: COLORS.blue.ink }}>{w}</span>)}</div>
+                            </div>
+                        )}
+                        {t.phrases?.length > 0 && (
+                            <div className="mt-3">
+                                <p className="mb-1 text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">{T('Useful ways to start')}</p>
+                                <ul className="space-y-0.5">{t.phrases.map((p) => <li key={p} className="text-[15px] font-semibold text-[#4b4b4b]">{p}</li>)}</ul>
+                            </div>
+                        )}
+                    </details>
+                    <TalkRecorder value={value} onChange={onChange} disabled={locked} onListening={setListening} T={T} />
+                </>
+            )}
+            <label className="block">
+                <span className="mb-1.5 flex items-center justify-between gap-2 text-sm font-extrabold uppercase tracking-wider text-[#AFAFAF]">
+                    {T('Your talk')}
+                    <span className="tabular-nums" style={{ color: n >= t.minWords ? COLORS.green.ink : '#AFAFAF' }} data-talk-words={n}>{n} / {t.minWords} {T('words')}</span>
+                </span>
+                <textarea value={value} onChange={(e) => onChange(e.target.value)} readOnly={listening} disabled={locked} rows={6} data-multiline lang="en" autoCapitalize="sentences" spellCheck={false}
+                    placeholder={T('Fix any words the microphone heard wrong, or type here.')} aria-label={T('Your talk')}
+                    className="w-full resize-y rounded-2xl border-2 border-[#E5E5E5] bg-[#F7F7F7] px-4 py-3 text-[17px] font-semibold leading-relaxed text-[#4b4b4b] placeholder:text-[#AFAFAF] focus:border-[#84D8FF] focus:bg-white focus:outline-none disabled:opacity-80" data-talk-text />
+            </label>
+            {result?.sentences && <Corrections r={result} T={T} />}
         </div>
     );
 }
@@ -521,7 +625,8 @@ export function PairsStep({ step, done, onDone }) {
 
     const tap = (side, i) => {
         if (done || matched.includes(i)) return;
-        if (side === 'en' && words[i].audio) play(words[i].audio);
+        // The word heard as it is tapped: its recording, or the browser's voice (sound on).
+        if (side === 'en' && (words[i].audio || soundOn())) play(words[i].audio, words[i].word, words[i].locale || step.targetLocale || 'en-IN');
         if (!pick || pick.side === side) { setPick({ side, i }); return; }
         const en = side === 'en' ? i : pick.i;
         const kn = side === 'kn' ? i : pick.i;
@@ -566,7 +671,8 @@ export function PairsStep({ step, done, onDone }) {
     };
     return (
         <div className="lingo-in space-y-5" data-pairs>
-            <Title>Tap the matching pairs</Title>
+            {step.warmup && <p className="text-sm font-extrabold uppercase tracking-wider" style={{ color: COLORS.green.ink }} data-warmup>{tr(step.language)('Warm up: this unit’s words')}</p>}
+            <Title>{tr(step.language)('Tap the matching pairs')}</Title>
             <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2.5">{words.map((w, i) => cell('en', i, w.word, i + 1))}</div>
                 <div className="space-y-2.5">{right.map((i, k) => cell('kn', i, words[i].kannada, words.length + k + 1))}</div>

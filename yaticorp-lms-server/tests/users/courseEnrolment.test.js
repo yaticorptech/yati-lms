@@ -132,9 +132,9 @@ describe('bundles', () => {
     });
 
     test("each course in a bundle carries the student's own progress on it", async () => {
-        // The buyer is not enrolled in the bundled course, so it is not in
-        // `courses`; the bundle's popup reads the progress from the course
-        // inside the bundle instead.
+        // The buyer is not enrolled in the bundled course; it is listed in
+        // `courses` all the same (bundles are hidden from students), and the
+        // bundle still carries the progress for the admin side.
         const Progress = require('../../src/models/Progress');
         // Opening the course above already gave the buyer a Progress record.
         // Its one lesson done: the figure is worked out from the lessons.
@@ -142,7 +142,11 @@ describe('bundles', () => {
         try {
             const res = await asBuyer('GET', '/courses');
             assert.equal(res.status, 200);
-            assert.ok(!res.body.courses.some((c) => c._id === ids.inBundle), 'not enrolled in it');
+            // Bundles are not shown to students any more: a course open through
+            // one is listed with their courses, with their progress on it.
+            const listed = res.body.courses.find((c) => c._id === ids.inBundle);
+            assert.ok(listed, 'a course open through a bundle is among their courses');
+            assert.equal(listed.progress, 100);
             const bundle = res.body.bundles.find((b) => b._id === ids.bundle);
             assert.equal(bundle.courses.find((c) => c._id === ids.inBundle).progress, 100);
             assert.equal(bundle.progress, 100);

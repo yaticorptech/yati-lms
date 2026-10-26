@@ -68,6 +68,9 @@ const superAdminOnly = (req, res, next) => {
     }
 };
 
+// What the closed screen itself needs, so it stays reachable outside access hours.
+const OPEN_WHEN_CLOSED = ['/api/user/profile', '/api/user/settings', '/api/user/update-password', '/api/organizations/student/'];
+
 const protectUser = async (req, res, next) => {
     let token;
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -88,6 +91,19 @@ const protectUser = async (req, res, next) => {
             // the superadmin behind it. Kept on the request so the few things
             // only the student may do (changing their password) can refuse it.
             req.impersonatedBy = decoded.impersonatedBy || null;
+            // The student's organization may open the platform only at set
+            // hours (organizations/services/accessSchedule.js). Outside them
+            // everything but the closed screen's own needs answers 423. An
+            // administrator viewing as the student is let through.
+            if (!req.impersonatedBy && req.user.organizationId) {
+                const path = req.originalUrl.split('?')[0];
+                if (!OPEN_WHEN_CLOSED.some((p) => path.startsWith(p))) {
+                    const access = await require('../organizations/services/accessSchedule').studentAccess(req.user);
+                    if (!access.open) {
+                        return res.status(423).json({ code: 'PLATFORM_CLOSED', message: `${access.organization} opens YATICORP for its students ${access.hours}.`, opensAt: access.opensAt, hours: access.hours, organization: access.organization });
+                    }
+                }
+            }
             next();
         } catch (error) {
     console.error(error);

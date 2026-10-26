@@ -2,7 +2,7 @@
  * Teachers added by the admin and by organizations, teachers joining an
  * organization from their dashboard, and the dashboard's newer tools: the
  * Word thesis, the reference list and spreadsheet, version history, guide
- * steps read, research types, and plagiarism checks
+ * research types, and plagiarism checks
  * against the teacher's own uploaded papers.
  */
 const sent = [];
@@ -372,15 +372,9 @@ describe('the teacher dashboard’s tools', () => {
         assert.ok(rows.find((r) => r.Status === 'Published' && r.Volume === '12' && /Rao, A\./.test(r['APA reference'])));
     });
 
-    test('guide steps marked as read are remembered', async () => {
-        assert.deepEqual((await me('PUT', '/api/teacher/guides/publishing/journal', { read: true })).body.read, ['journal']);
-        await me('PUT', '/api/teacher/guides/stages/topic', {});
-        const all = await me('GET', '/api/teacher/guides');
-        assert.deepEqual(all.body.read.publishing, ['journal']);
-        assert.deepEqual(all.body.read.stages, ['topic']);
-        assert.deepEqual((await me('PUT', '/api/teacher/guides/publishing/journal', { read: false })).body.read, []);
-        assert.equal((await me('PUT', '/api/teacher/guides/nonsense/x', {})).status, 404);
-        assert.equal((await me('GET', '/api/teacher/overview')).body.guides.stages, 1);
+    test('there is no "mark as read" for guides any more', async () => {
+        assert.equal((await me('PUT', '/api/teacher/guides/publishing/journal', { read: true })).status, 404);
+        assert.equal((await me('GET', '/api/teacher/overview')).body.guides, undefined);
     });
 
     test('there is no writing calendar any more', async () => {

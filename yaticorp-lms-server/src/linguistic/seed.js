@@ -28,8 +28,9 @@ const seed = async () => {
         const r = await LinguisticLesson.updateOne({ seedKey: lesson.seedKey }, { $setOnInsert: { ...value, seedKey: lesson.seedKey, updatedBy: 'Seed content' } }, { upsert: true });
         if (r.upsertedCount) added++;
     }
-    // The other languages' courses (courses.js) and every level's review lessons (reviews.js): their stubs, once each, by seedKey.
-    const courseStubs = [...require('./courses').stubs(), ...require('./reviews').stubs()];
+    // The other languages' courses (courses.js), every level's review lessons (reviews.js), the topics' second units (parts.js)
+    // and the Advanced talks (talks.js): their stubs, once each, by seedKey.
+    const courseStubs = [...require('./courses').stubs(), ...require('./reviews').stubs(), ...require('./parts').stubs(), ...require('./talks').stubs()];
     const haveStub = new Set((await LinguisticLesson.find({ seedKey: { $in: courseStubs.map((x) => x.seedKey) } }).select('seedKey').lean()).map((l) => l.seedKey));
     for (const stub of courseStubs) {
         if (haveStub.has(stub.seedKey)) continue;

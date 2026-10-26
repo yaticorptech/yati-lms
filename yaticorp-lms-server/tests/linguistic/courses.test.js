@@ -11,6 +11,9 @@ const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers'
 const { LinguisticLesson } = require('../../src/linguistic/models');
 const svc = require('../../src/linguistic/service');
 const courses = require('../../src/linguistic/courses');
+const { unlockIds } = require('./unlock');
+/** A level's lessons along the path (topic units, 2026-10-24). */
+const lessonsOf = (level) => level.units.flatMap((u) => u.lessons.filter((x) => !x.stop));
 
 let app, hindi, kannada, admin, api, knApi, adminApi;
 before(async () => {
@@ -55,43 +58,51 @@ describe('courses', () => {
     test('the course path: Vocabulary and Translation only, Beginner open', async () => {
         const path = (await api('GET', '/path')).body;
         assert.equal(path.course.code, 'kn');
-        const modules = new Set(path.levels.flatMap((l) => l.units.map((u) => u.module)));
+        const modules = new Set(path.levels.flatMap((l) => lessonsOf(l).map((x) => x.module)));
         assert.deepEqual([...modules].sort(), ['translation', 'vocabulary']);
         assert.equal(path.levels.find((l) => l.level === 'beginner').open, true);
         assert.equal(path.levels.find((l) => l.level === 'advanced').open, false);
-        assert.ok(path.levels[0].units.find((u) => u.module === 'translation').lessons.some((x) => /write in Kannada/.test(x.title)));
+        assert.deepEqual(path.levels[0].units.map((u) => u.title), ['Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Level review'], 'the same units as English');
+        assert.deepEqual(path.levels[0].units[0].lessons.map((x) => x.stop || x.review || x.module), ['vocabulary', 'translation', 'chest', 'hear', 'practice', 'unit']);
+        assert.ok(lessonsOf(path.levels[0]).some((x) => /write in Kannada/.test(x.title)));
     });
 
     test('a vocabulary lesson: Kannada words, their meanings in Hindi, questions both ways', async () => {
         const path = (await api('GET', '/path')).body;
-        const first = path.levels[0].units.find((u) => u.module === 'vocabulary').lessons[0];
+        const first = path.levels[0].units[0].lessons[0];
         const l = (await api('GET', `/lessons/${first.id}`)).body;
         assert.deepEqual([l.target, l.targetName, l.language], ['kn', 'Kannada', 'hi']);
-        assert.ok(l.words.length >= 6);
+        assert.equal(l.words.length, 4, 'the first unit\'s half of the topic\'s words');
         for (const w of l.words) { assert.match(w.word, KANNADA); assert.match(w.kannada, DEVANAGARI); }
+        // Asked in the language they know (Hindi), answered in the one they learn (Kannada) — 2026-10-24.
         const prompts = l.quiz.map((q) => q.prompt).join('\n');
-        assert.match(prompts, /What does ".+" mean in Hindi\?/);
-        assert.match(prompts, /Which Kannada word means ".+"\?/);
+        assert.match(prompts, /"[ಀ-೿, ]+" का अर्थ क्या है\?/, 'what a Kannada word means, asked in Hindi');
+        assert.match(prompts, /किस शब्द का अर्थ "[ऀ-ॿ, ]+" है\?/, 'which word means a Hindi meaning, asked in Hindi');
+        const which = l.quiz.find((q) => /किस शब्द/.test(q.prompt));
+        assert.ok(which.options.every((o) => KANNADA.test(o)), 'its choices are Kannada words');
+        assert.ok(!/[A-Za-z]{3}/.test(prompts), 'no English in the questions');
         assert.ok(!l.quiz.some((q) => 'answer' in q), 'no answers sent ahead');
     });
 
     test('each level has four reviews, locked until the unit’s lessons are done; Listen and pick asks by sound', async () => {
         const path = (await api('GET', '/path')).body;
-        const units = Object.fromEntries(path.levels[0].units.map((u) => [u.module, u.lessons]));
-        assert.deepEqual(units.vocabulary.slice(2).map((l) => [l.title, l.open]), [['Word review', false], ['Listen and pick', false]]);
-        assert.deepEqual(units.translation.slice(2).map((l) => [l.title, l.open]), [['Sentence review', false], ['Level checkpoint', false]]);
-        const listen = svc.serve(await LinguisticLesson.findById(units.vocabulary[3].id).lean(), { language: 'hi' });
+        const unitEnd = path.levels[0].units[0].lessons.at(-1);
+        assert.deepEqual([unitEnd.title, unitEnd.open], ['Unit review', false], 'each unit ends with its review');
+        const levelReview = path.levels[0].units.at(-1);
+        assert.deepEqual(levelReview.lessons.map((l) => [l.title, l.open]), [['Word review', false], ['Listen and pick', false], ['Sentence review', false], ['Level checkpoint', false]]);
+        const listen = svc.serve(await LinguisticLesson.findById(levelReview.lessons[1].id).lean(), { language: 'hi' });
         const q = svc.quizOf(listen)[0];
         assert.match(q.say, KANNADA); assert.equal(q.sayLang, 'kn-IN'); assert.ok(q.options.includes(q.answer));
-        assert.deepEqual(Object.keys(svc.publicQuestion(q, 's')).sort(), ['audio', 'id', 'meaning', 'options', 'prompt', 'say', 'sayLang', 'type']);
-        const check = svc.serve(await LinguisticLesson.findById(units.translation[3].id).lean(), { language: 'hi' });
+        assert.deepEqual(Object.keys(svc.publicQuestion(q, 's')).sort(), ['audio', 'id', 'meaning', 'options', 'prompt', 'promptEn', 'say', 'sayLang', 'type']);
+        assert.equal(q.prompt, 'सुनिए, और जो शब्द सुनाई दे उसे चुनिए', 'asked in Hindi');
+        const check = svc.serve(await LinguisticLesson.findById(levelReview.lessons[3].id).lean(), { language: 'hi' });
         assert.deepEqual([...new Set(check.quiz.map((x) => x.direction))].sort(), ['en-kn', 'kn-en'], 'both directions');
     });
 
     test('finishing Beginner: a Kannada certificate, and the English course untouched', async () => {
         for (let guard = 0; guard < 40; guard++) {
             const path = (await api('GET', '/path')).body;
-            const next = path.levels[0].units.flatMap((u) => u.lessons).find((x) => x.open && x.status !== 'completed');
+            const next = lessonsOf(path.levels[0]).find((x) => x.open && x.status !== 'completed');
             if (!next) break;
             const r = await api('POST', `/lessons/${next.id}/quiz`, { answers: await answersFor(next.id, 'hi') });
             assert.equal(r.body.passed, true, `${next.title} passed`);
@@ -112,26 +123,44 @@ describe('courses', () => {
         const back = await api('POST', '/course', { course: 'en' });
         assert.deepEqual([back.body.course.code, back.body.started], ['en', false]);
         const en = (await api('GET', '/path')).body;
-        assert.ok(en.levels[0].units.some((u) => u.module === 'grammar'));
+        assert.ok(lessonsOf(en.levels[0]).some((x) => x.module === 'grammar'));
         assert.equal(en.levels.find((l) => l.level === 'beginner').complete, false);
         // And to Kannada again: still where they were.
         await api('POST', '/course', { course: 'kn' });
         assert.equal((await api('GET', '/path')).body.levels.find((l) => l.level === 'beginner').complete, true);
     });
 
+    test('a unit\'s treasure chest: opened once for bonus XP, once the lesson before it is done', async () => {
+        const before = (await api('GET', '/path')).body.levels[0].units[0].lessons.find((n) => n.stop === 'chest');
+        assert.deepEqual([before.open, before.status], [true, 'new']);
+        const r = await api('POST', '/chest/beginner-1');
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(r.body.opened, true); assert.ok(r.body.xp > 0, 'bonus XP');
+        assert.equal((await api('POST', '/chest/beginner-1')).status, 409, 'once');
+        assert.equal((await api('POST', '/chest/intermediate-1')).status, 409, 'not before the lesson before it');
+        assert.equal((await api('POST', '/chest/nowhere-9')).status, 404);
+        const after = (await api('GET', '/path')).body.levels[0].units[0].lessons.find((n) => n.stop === 'chest');
+        assert.equal(after.status, 'completed');
+    });
+
     test('the daily challenge is about the course’s words', async () => {
         const d = (await api('GET', '/daily')).body;
         assert.ok(d.questions.length > 0);
-        for (const q of d.questions) assert.match(q.prompt, /Kannada|mean in Hindi/, q.prompt);
+        for (const q of d.questions) {
+            assert.ok(/[ऀ-ॿ]/.test(q.prompt) && !/[A-Za-z]{3}/.test(q.prompt), `asked in Hindi: ${q.prompt}`);
+            assert.ok(KANNADA.test(q.prompt) || q.options.every((o) => KANNADA.test(o)), `about Kannada words: ${q.prompt}`);
+        }
     });
 
     test('a Kannada speaker learning Japanese: write Japanese from Kannada, read it back', async () => {
         assert.equal((await knApi('POST', '/language', { language: 'kn' })).status, 200);
         assert.equal((await knApi('POST', '/course', { course: 'ja' })).body.started, true, 'from scratch: Beginner');
         const path = (await knApi('GET', '/path')).body;
-        const lessons = path.levels[0].units.find((u) => u.module === 'translation').lessons;
-        const write = lessons.find((x) => x.direction === 'kn-en' && x.open), read = lessons.find((x) => x.direction === 'en-kn' && x.open);
-        assert.ok(write && read, 'both directions open at the start');
+        const lessons = lessonsOf(path.levels[0]).filter((x) => x.module === 'translation');
+        assert.ok(lessons.every((x) => !x.open), 'along the path: the unit\'s Words come first');
+        await unlockIds(kannada.user, lessons.map((x) => x.id));
+        const write = lessons.find((x) => x.direction === 'kn-en'), read = lessons.find((x) => x.direction === 'en-kn');
+        assert.ok(write && read, 'both directions');
 
         const w = (await knApi('GET', `/lessons/${write.id}`)).body;
         assert.deepEqual([w.target, w.language], ['ja', 'kn']);

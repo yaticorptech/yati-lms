@@ -1,27 +1,18 @@
 /**
- * Enrolled Courses when things go wrong, and its bundle popup.
+ * Enrolled Courses when things go wrong, and without bundles.
  *
  *   - A first load that fails says so, with Try again. It used to fall
  *     through to "Nothing enrolled yet", telling a student on a dropped
  *     connection that they had no courses.
- *   - The bundle popup is a real dialog (named, modal, out at the end of the
- *     page), closes with Escape and its labelled ×, and reads each course's
- *     progress from the bundle itself: a course taken only through the bundle
- *     is not in My courses, and read 0% and "Start Course" however far along.
+ *   - No Bundles tab (bundles were taken off every dashboard, 2026-10-26):
+ *     an old ?tab=bundles link opens My courses, where the server lists a
+ *     course open through a bundle with the student's own.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { screen, wrap, skipWithoutChrome } from './harness.js';
 import { apiModule } from './fixtures.js';
 
-const BUNDLE = {
-    _id: 'b1', title: 'Full Stack Bundle', progress: 70,
-    courses: [
-        { _id: 'bc1', title: 'Finished through the bundle', progress: 100 },
-        { _id: 'bc2', title: 'Half way through the bundle', progress: 40 },
-        { _id: 'bc3', title: 'Not started yet', progress: 0 }
-    ]
-};
 const page = () => wrap('pages/EnrolledCourses.jsx', 'EnrolledCourses', {
     route: '/enrolled-courses?tab=bundles', path: '/enrolled-courses', extraRoutes: '<Route path="/learn/:id" element={<p id="player">player</p>} />'
 });
@@ -56,51 +47,17 @@ describe('Enrolled Courses: a failed load', { skip: skipWithoutChrome }, () => {
     });
 });
 
-describe('Enrolled Courses: the bundle popup', { skip: skipWithoutChrome }, () => {
-    const api = apiModule({
-        '/user/courses/organization': { organization: null, courses: [] },
-        // Not enrolled in any of the bundle's courses: My courses is empty.
-        '/user/courses': { courses: [], bundles: [BUNDLE] }
-    });
-
-    test('is a named, modal dialog at the end of the page, with each course\'s own progress', async () => {
+describe('Enrolled Courses: no bundles', { skip: skipWithoutChrome }, () => {
+    test('an old ?tab=bundles link opens My courses, with no Bundles tab', async () => {
+        const api = apiModule({
+            '/user/courses/organization': { organization: null, courses: [] },
+            '/user/courses': { courses: [{ _id: 'bc1', title: 'Course from a bundle', progress: 40 }], bundles: [] }
+        });
         const { result, errors } = await screen({ entry: page(), api, script: `
             await sleep(700);
-            click(/View Courses Inside/);
-            await sleep(300);
-            const dialog = $('[role="dialog"]');
-            const name = dialog && document.getElementById(dialog.getAttribute('aria-labelledby'));
-            const cards = $$('[role="dialog"] h3').map(text);
-            const links = $$('[role="dialog"] a').map(text);
-            return {
-              modal: dialog && dialog.getAttribute('aria-modal'),
-              name: text(name),
-              outsideThePage: !!dialog && !document.getElementById('root').contains(dialog),
-              close: ($$('[role="dialog"] button').find((b) => b.getAttribute('aria-label')) || {}).getAttribute?.('aria-label'),
-              cards, links, body: text(dialog)
-            };` });
+            return { body: text(document.body), tabs: $$('button').map(text).filter((t) => /My courses|Bundles|Organization/.test(t)) };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.modal, 'true');
-        assert.equal(result.name, 'Full Stack Bundle');
-        assert.equal(result.outsideThePage, true, 'rendered through the Portal, outside #root');
-        assert.equal(result.close, 'Close');
-        assert.deepEqual(result.links, ['Review Course', 'Resume Course', 'Start Course']);
-        assert.match(result.body, /100%/); assert.match(result.body, /40%/);
-    });
-
-    test('closes with Escape, and with its ×', async () => {
-        const { result, errors } = await screen({ entry: page(), api, script: `
-            await sleep(700);
-            click(/View Courses Inside/); await sleep(200);
-            const opened = !!$('[role="dialog"]');
-            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await sleep(200);
-            const afterEscape = !!$('[role="dialog"]');
-            click(/View Courses Inside/); await sleep(200);
-            $('[role="dialog"] button[aria-label="Close"]').click(); await sleep(200);
-            return { opened, afterEscape, afterClose: !!$('[role="dialog"]') };` });
-        assert.deepEqual(errors, []);
-        assert.equal(result.opened, true);
-        assert.equal(result.afterEscape, false);
-        assert.equal(result.afterClose, false);
+        assert.match(result.body, /Course from a bundle/);
+        assert.ok(!result.tabs.some((t) => /Bundles/.test(t)), `tabs: ${result.tabs.join(', ')}`);
     });
 });

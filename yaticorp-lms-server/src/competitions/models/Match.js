@@ -38,6 +38,10 @@ const matchSchema = new mongoose.Schema({
     resultNote: { type: String, default: '', trim: true, maxlength: 300 },
     // Three drawn games in a row: the admin decides rather than a fourth replay.
     needsDecision: { type: Boolean, default: false },
+    // After a drawn game: the rematch opens at this time (5 minutes on),
+    // between these sides; then the players join with their code again.
+    replayAt: { type: Date, default: null },
+    replaySides: { type: [mongoose.Schema.Types.Mixed], default: undefined },
     completedAt: { type: Date, default: null }
 }, { timestamps: true });
 

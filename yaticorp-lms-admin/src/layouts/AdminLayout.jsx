@@ -6,9 +6,9 @@ import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    LayoutDashboard, Users, BookOpen, Layers, LogOut, BookOpenCheck,
+    LayoutDashboard, Users, BookOpen, LogOut, BookOpenCheck,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, Languages, CreditCard } from 'lucide-react';
+    Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, CreditCard } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 import useCenterTabs from '../hooks/useCenterTabs';
@@ -171,9 +171,6 @@ const AdminLayout = () => {
                     <Link to="/courses" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/courses') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <BookOpen size={20} /> <span className="font-medium">Courses</span>
                     </Link>
-                    <Link to="/bundles" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/bundles') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <Layers size={20} /> <span className="font-medium">Bundles</span>
-                    </Link>
                     <Link to="/enrollments" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/enrollments') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Network size={20} /> <span className="font-medium">Enrollments</span>
                     </Link>
@@ -194,9 +191,6 @@ const AdminLayout = () => {
                     <Link to="/global-quiz" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/global-quiz') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Globe size={20} /> <span className="font-medium">Global Quiz</span>
                     </Link>
-                    <Link to="/linguistic" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/linguistic') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <Languages size={20} /> <span className="font-medium">Linguistic Ability</span>
-                    </Link>
                     <Link to="/analytics" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/analytics') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <BarChart2 size={20} /> <span className="font-medium">Analytics</span>
                     </Link>
@@ -212,7 +206,7 @@ const AdminLayout = () => {
                     <Link to="/announcements" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/announcements') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Megaphone size={20} /> <span className="font-medium">Announcements</span>
                     </Link>
-                    {/* Inter-college competitions (Chess, Ludo, Carrom). The super admin runs them. */}
+                    {/* Inter-college competitions (Chess, the brain games, Quiz and Hackathon). The super admin runs them. */}
                     {superAdmin && (
                     <Link to="/competitions" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/competitions') || location.pathname.startsWith('/competitions/') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Trophy size={20} /> <span className="font-medium">Competitions</span>
@@ -311,7 +305,8 @@ const AdminLayout = () => {
 
                 {/* Page Content Area */}
                 <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 sm:p-6 lg:p-8 custom-scrollbar">
-                    <div className="max-w-7xl mx-auto w-full">
+                    {/* The question bank uses the full width. */}
+                    <div className={`mx-auto w-full ${location.pathname.endsWith('/competitions/question-bank') ? 'max-w-none' : 'max-w-7xl'}`}>
                         <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} /></Suspense></ErrorBoundary>
                     </div>
                 </div>

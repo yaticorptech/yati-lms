@@ -1,3 +1,4 @@
+import { uiLocale } from '../i18n/translator';
 import React, { useCallback, useContext, useState, useEffect, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
@@ -286,7 +287,7 @@ const Profile = ({ view = 'dashboard' }) => {
         if (!streakDays?.length) return recentActivity(history, 7);
         return streakDays.slice(-7).map((d, i, days) => ({
             key: d.day,
-            label: new Date(`${d.day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'narrow' }),
+            label: new Date(`${d.day}T12:00:00`).toLocaleDateString(uiLocale(), { weekday: 'narrow' }),
             active: !!d.active,
             isToday: i === days.length - 1
         }));
@@ -453,10 +454,9 @@ const Profile = ({ view = 'dashboard' }) => {
                 their posts and what is coming up (nothing until they join one). ── */}
             {!onProfile && <MyClubsCard />}
 
-            {/* ── Dashboard: My Learning — the tabs, bundles and enrol flow ── */}
+            {/* ── Dashboard: My Learning — the tabs and enrol flow ── */}
             {!onProfile && <DashboardCourses
                 courses={dashboard.courses}
-                bundles={dashboard.bundles}
                 availableCourses={dashboard.availableCourses}
                 loading={dashboard.loading}
                 error={dashboard.error}

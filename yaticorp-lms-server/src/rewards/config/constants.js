@@ -38,6 +38,7 @@ const ACTIVITY_TYPES = [
   'linguistic_daily',      // the daily vocabulary challenge finished; once a day
   'linguistic_writing',    // a writing task a teacher passed; once per task
   'linguistic_level',      // every lesson of a level done and its certificate earned; once per level
+  'linguistic_chest',      // a unit's treasure chest opened on the path (asked 2026-10-24); once per unit
   // Optional: no rule (and so no XP) until an admin adds one under Reward rules.
   'forum_post',
   'forum_comment',
@@ -94,6 +95,7 @@ const DEFAULT_XP_RULES = {
   linguistic_daily: 10,
   linguistic_writing: 10,
   linguistic_level: 50,
+  linguistic_chest: 10,
   // Paid once per quiz, for a final score at or above the win score below.
   global_quiz_win: 50
 };

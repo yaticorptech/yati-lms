@@ -37,13 +37,13 @@ export default function FocusWriter({ title, value, onChange, onBlur, onClose, s
             <div role="dialog" aria-modal="true" aria-label={`Focus mode: ${title}`}
                 className="fixed inset-0 z-[160] flex h-[100dvh] flex-col bg-[#fbfaf6]">
                 <div className="flex flex-wrap items-center gap-2 border-b border-slate-200/70 bg-[#fbfaf6]/95 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-6">
-                    <p className="order-1 min-w-0 flex-1 truncate text-sm font-bold text-slate-700">{title}</p>
+                    <p className="order-1 min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">{title}</p>
                     <div className="order-3 flex w-full items-center gap-2 sm:order-2 sm:w-auto">
                         <FocusTimer timer={timer} dark={false} />
-                        <span className="shrink-0 text-xs font-bold text-slate-600">{fmtNum(words)}{goal > 0 ? ` / ${fmtNum(goal)}` : ''} words</span>
+                        <span className="shrink-0 text-xs font-semibold text-slate-600">{fmtNum(words)}{goal > 0 ? ` / ${fmtNum(goal)}` : ''} words</span>
                         <span className="hidden sm:inline"><SaveStatus status={status} /></span>
                     </div>
-                    <button type="button" onClick={onClose} className="order-2 inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700 sm:order-3">
+                    <button type="button" onClick={onClose} className="order-2 inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700 sm:order-3">
                         <Minimize2 size={14} aria-hidden="true" /> Exit focus
                     </button>
                 </div>

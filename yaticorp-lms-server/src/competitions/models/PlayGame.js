@@ -19,12 +19,15 @@ const seatSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name: { type: String, default: '' },
     side: { type: Number, required: true, min: 0 },
+    // This player's own joining code (asked 2026-10-24): the game lets them
+    // take their seat only with it. Null on games opened before then.
+    code: { type: String, default: null },
     joinedAt: { type: Date, default: null }
 }, { _id: false });
 
 const playGameSchema = new mongoose.Schema({
     kind: { type: String, enum: ['match', 'friendly'], required: true },
-    game: { type: String, enum: ['chess', 'ludo', 'carrom', 'uno'], required: true },
+    game: { type: String, enum: ['chess', 'rapidfire', 'codeclash', 'brainsprint', 'ludo', 'carrom', 'uno'], required: true },
     competitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Competition', default: null, index: true },
     matchId: { type: mongoose.Schema.Types.ObjectId, ref: 'CompetitionMatch', default: null, index: true },
     // Friendly rooms: the code other students type to join, and who made it.
@@ -50,5 +53,6 @@ const playGameSchema = new mongoose.Schema({
 
 playGameSchema.index({ code: 1 }, { unique: true, partialFilterExpression: { code: { $type: 'string' } } });
 playGameSchema.index({ 'seats.userId': 1, status: 1 });
+playGameSchema.index({ 'seats.code': 1 }, { unique: true, partialFilterExpression: { 'seats.code': { $type: 'string' } } });
 
 module.exports = mongoose.model('PlayGame', playGameSchema, 'competition_games');

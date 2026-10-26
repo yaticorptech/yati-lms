@@ -7,7 +7,6 @@
  *   - the thesis as a Word file
  *   - the APA reference list, the Excel and Word downloads, and the new
  *     volume / issue / pages fields
- *   - guide steps marked as read
  *   - the six-question methodology advisor
  *   - a research project's type of study
  *   - uploading a paper for the plagiarism check
@@ -21,12 +20,11 @@ import { apiModule } from './fixtures.js';
 const ME = { _id: 't1', name: 'Dr. Meera Iyer', email: 'meera@college.edu', phone: '+91 98450 12345', cardNumber: '980000000001', institution: 'Govt. First Grade College', role: 'teacher', dailyWordGoal: 500 };
 const ROUTES = {
     '/me': ME,
-    '/guides': { read: { publishing: [], plagiarism: [], writing: [], stages: [] } },
     '/organization': { member: false, organization: null, request: null },
     '/overview': {
-        teacher: { name: 'Dr. Meera Iyer' }, organization: null, guides: { publishing: 0, plagiarism: 0, writing: 0, stages: 0 }, research: null,
+        teacher: { name: 'Dr. Meera Iyer' }, organization: null, research: null,
         publications: { total: 0, published: 0, inReview: 0, byStatus: {} }, thesis: null,
-        writing: { today: 0, goal: 500, last14: [] }, plagiarism: null, methods: { studied: 0, total: 12 }
+        writing: { today: 0, goal: 500, last14: [] }, plagiarism: null
     },
     '/writing/w1/versions': { versions: [{ _id: 'v1', createdAt: '2026-10-22T09:00:00Z', words: 5, reason: 'auto', label: '' }, { _id: 'v2', createdAt: '2026-10-21T09:00:00Z', words: 3, reason: 'manual', label: 'Sent to supervisor' }], currentWords: 9 },
     '/writing/w1/versions/v1': { _id: 'v1', createdAt: '2026-10-22T09:00:00Z', words: 5, content: 'The first draft, kept safely.' },
@@ -46,8 +44,7 @@ const ROUTES = {
     ], stats: { total: 1, byStatus: { idea: 0, drafting: 0, submitted: 0, under_review: 0, revision: 0, accepted: 0, published: 1, rejected: 0 }, byType: {}, byYear: { 2023: 1 }, byIndexing: { Scopus: 1 }, citations: 4, hIndex: 1, upcomingDeadlines: [] } },
     '/plagiarism/sources': { sources: [], max: 50 },
     '/plagiarism/reports': { reports: [] },
-    '/theses': { theses: [] },
-    '/methods': { studied: [] }
+    '/theses': { theses: [] }
 };
 
 const teacherSessionStub = `
@@ -169,7 +166,8 @@ describe('focus mode and version history', { skip: skipWithoutStyles }, () => {
         const { result, errors } = await screen({ entry: page('/teacher/writing/w1'), api: apiModule({}), modules, styles: true, width: 500, height: 900, budget: 20000, script: `
             ${SET}
             await sleep(400);
-            button(/^Focus$/).click(); await sleep(200);
+            // Icon only on a phone: its name is its label, "Focus mode".
+            button(/^Focus( mode)?$/).click(); await sleep(200);
             const dialog = $('[role=dialog][aria-label^="Focus mode"]');
             const box = dialog.getBoundingClientRect();
             const timer = !!button(/Start focus timer/, dialog);
@@ -177,7 +175,7 @@ describe('focus mode and version history', { skip: skipWithoutStyles }, () => {
             await sleep(2000);
             const saved = calls('PUT', /^\\/writing\\/w1$/).pop();
             button(/Exit focus/, dialog).click(); await sleep(200);
-            return { box: [box.width, box.height], viewport: [innerWidth, innerHeight], timer, saved: saved && saved[2], gone: !$('[aria-label^="Focus mode"]'), editor: $('#piece-text').value, overflow: OVERFLOW() };` });
+            return { box: [box.width, box.height], viewport: [innerWidth, innerHeight], timer, saved: saved && saved[2], gone: !$('[role=dialog][aria-label^="Focus mode"]'), editor: $('#piece-text').value, overflow: OVERFLOW() };` });
         assert.deepEqual(errors, []);
         assert.deepEqual(result.box, result.viewport, 'the whole screen');
         assert.equal(result.timer, true);
@@ -243,7 +241,7 @@ describe('downloads', { skip: skipWithoutStyles }, () => {
         const { result, errors } = await screen({ entry: page('/teacher/publications'), api: apiModule({}), modules, styles: true, width: 1280, script: `
             ${SET}
             await sleep(500);
-            button(/Reference list \\(APA\\)/).click(); await sleep(300);
+            button(/Reference list\\s+\\(APA\\)/).click(); await sleep(300);
             const italic = $$('#references-title ~ * i, [role=dialog] ol i').map((i) => i.innerText);
             const entry = text($('[role=dialog] ol li'));
             button(/Download Word/).click(); await sleep(200);
@@ -276,19 +274,15 @@ describe('downloads', { skip: skipWithoutStyles }, () => {
 });
 
 describe('learning: guides read, the advisor, study types', { skip: skipWithoutStyles }, () => {
-    test('a guide step marked as read is saved and counted', async () => {
-        const extra = `window.__treply = (m, u) => (m === 'PUT' && u === '/guides/publishing/ready' ? { guide: 'publishing', read: ['ready'] } : null);`;
-        const { result, errors } = await screen({ entry: page('/teacher/publications?guide=ready', extra), api: apiModule({}), modules, styles: true, width: 1280, script: `
+    test('the guides have no "Mark as read" or read counter', async () => {
+        const { result, errors } = await screen({ entry: page('/teacher/publications?guide=ready'), api: apiModule({}), modules, styles: true, width: 1280, script: `
             ${SET}
             await sleep(500);
-            const before = text($('#publishing-guide > button'));
-            button(/Mark as read/).click(); await sleep(300);
-            return { before, after: text($('#publishing-guide > button')), put: calls('PUT', /^\\/guides\\//)[0], pressed: button(/^Read$/)?.getAttribute('aria-pressed') };` });
+            return { header: text($('#publishing-guide > button')), mark: !!button(/Mark as read/), asked: calls('GET', /guides/).length };` });
         assert.deepEqual(errors, []);
-        assert.match(result.before, /0 of 12 read/);
-        assert.match(result.after, /1 of 12 read/);
-        assert.deepEqual(result.put.slice(1), ['/guides/publishing/ready', { read: true }]);
-        assert.equal(result.pressed, 'true');
+        assert.doesNotMatch(result.header, /read/i);
+        assert.equal(result.mark, false);
+        assert.equal(result.asked, 0);
     });
 
     test('six answers suggest the experimental design for "does it cause a change, with a comparison group"', async () => {

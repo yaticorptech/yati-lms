@@ -51,8 +51,8 @@ export default function PlagiarismSources({ onCount }) {
 
     return (
         <Card>
-            <CardTitle icon={Library} right={list && <span className="text-xs font-bold text-slate-500">{list.length} of {max}</span>}>Your sources</CardTitle>
-            <p className="text-sm text-slate-600">Upload the papers and chapters you read for your research (PDF, Word or text). Every check compares your writing with them as well as with YATICORP — so text copied from a paper you read is found. They stay private to you.</p>
+            <CardTitle icon={Library} color="indigo" right={list && <span className="text-xs font-semibold text-slate-500">{list.length} of {max}</span>}>Your sources</CardTitle>
+            <p className="text-sm text-slate-600">Upload the papers and chapters you read for your research (PDF, Word or text). Every check compares your writing with them as well as with YATICORP, so text copied from a paper you read is found. They stay private to you.</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
                 <input ref={input} id="source-files" type="file" multiple accept={SOURCE_ACCEPT} className="sr-only" onChange={(e) => add(e.target.files)} disabled={Boolean(uploading)} />
                 <label htmlFor="source-files" className={`${btn.secondary} cursor-pointer ${uploading ? 'pointer-events-none opacity-60' : ''}`}>
@@ -70,7 +70,7 @@ export default function PlagiarismSources({ onCount }) {
                         <li key={s._id} className="flex items-center gap-2 px-3 py-2">
                             <FileText size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
                             <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-bold text-slate-800">{s.title}</span>
+                                <span className="block truncate text-sm font-semibold text-slate-800">{s.title}</span>
                                 <span className="block text-xs text-slate-500">{fmtNum(s.words)} words · added {fmtDate(s.createdAt)}</span>
                             </span>
                             <button type="button" onClick={() => remove(s)} aria-label={`Remove source ${s.title}`} className="rounded-lg p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>

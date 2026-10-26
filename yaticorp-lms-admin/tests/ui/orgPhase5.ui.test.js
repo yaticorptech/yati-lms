@@ -201,15 +201,16 @@ createRoot(document.getElementById('root')).render(
     test('reads the count endpoint, and drops by one as soon as a request is approved', async () => {
         const { result, errors } = await screen({ entry, api, script: `
             await sleep(700);
-            const badge = () => text($('aside a[href="/organization/requests"]'));
+            // Requests are a tab of Students: the waiting badge sits on Students.
+            const badge = () => text($('aside a[href="/organization/students"]'));
             const before = badge();
             click(/^Approve$/, 'li button'); await sleep(200);
             click(/^Approve$/, '[role="dialog"] button'); await sleep(600);
             return { before, after: badge(), usedCount: window.__calls.includes('/organizations/me/requests/count') };` });
         assert.deepEqual(errors, []);
         assert.ok(result.usedCount, 'the small count endpoint');
-        assert.match(result.before, /Student requests\s*3/);
-        assert.match(result.after, /Student requests\s*2/, 'not one behind after the decision');
+        assert.match(result.before, /Students\s*3/);
+        assert.match(result.after, /Students\s*2/, 'not one behind after the decision');
     });
 
     test('an unknown address inside the panel says so, in the shell', async () => {
