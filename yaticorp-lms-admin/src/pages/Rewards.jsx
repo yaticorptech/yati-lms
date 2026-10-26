@@ -1,6 +1,6 @@
 /**
  * Rewards administration: the rulebook (XP, levels, streak milestones,
- * leaderboard rewards, XP conversion, starting credit, games), the badge
+ * leaderboard rewards, wallet currency, starting credit, games), the badge
  * catalogue, wallets, the money ledger, per-student
  * history and adjustments, and the integrity checks.
  */
@@ -448,7 +448,7 @@ function Rules() {
             {msg && <Banner kind={msg.kind === 'error' ? 'error' : 'ok'} onClose={() => setMsg(null)}>{msg.text}</Banner>}
             {saveBar}
             <div className="grid gap-5 xl:grid-cols-2">
-                <Card icon={Coins} title="XP rules" sub="XP is learning progress: it drives levels, the leaderboard and badges, and every full block converts into wallet money (XP → money, below).">
+                <Card icon={Coins} title="XP rules" sub="XP is learning progress: it drives levels, the leaderboard and badges. It is never wallet money.">
                     <RuleList groups={XP_GROUPS} values={cfg.xpRules} onSet={(k, v) => setRule('xpRules', k, v)} onRemove={(k) => removeRule('xpRules', k)} addLabel="Add XP rule" />
                     <p className="mt-4 text-[11px] leading-snug text-slate-500">Streak milestones and Brain Boosters pay their own XP (below). A removed rule pays nothing to anyone; a rule under "Add XP rule" pays nothing until it is added.</p>
                 </Card>
@@ -519,13 +519,12 @@ function Rules() {
                         </div>
                     ))}
                 </Card>
-                <Card icon={Gift} title="XP → money" sub="Each time a student's XP balance reaches the XP amount, it is deducted and the value added to their wallet — automatically, for every account type. Their level and rank use lifetime XP and never drop. Reward points never become money." tone="rose">
-                    <div className="grid sm:grid-cols-2 gap-3">
-                        <div><label className={LABEL}>XP per unit</label><input type="number" min="1" value={cfg.conversion.pointsPerUnit} onChange={(e) => set('conversion.pointsPerUnit', Number(e.target.value))} className={INPUT} /></div>
-                        <div><label className={LABEL}>Unit value ({cur})</label><input type="number" min="0" step="0.01" value={cfg.conversion.unitValue} onChange={(e) => set('conversion.unitValue', Number(e.target.value))} className={INPUT} /></div>
-                        <div><label className={LABEL}>Currency</label><input value={cfg.conversion.currency} maxLength={3} onChange={(e) => set('conversion.currency', e.target.value.toUpperCase())} className={INPUT} /></div>
+                {/* XP does not turn into wallet money (2026-10-26): only the wallet's currency is set here. */}
+                <Card icon={Gift} title="Wallet currency" sub="The currency wallet balances, prices and charges are shown in." tone="rose">
+                    <div className="max-w-xs">
+                        <label className={LABEL}>Currency</label>
+                        <input value={cfg.conversion.currency} maxLength={3} onChange={(e) => set('conversion.currency', e.target.value.toUpperCase())} className={INPUT} />
                     </div>
-                    <p className="text-sm text-slate-600 mt-3 font-medium">Every {num(cfg.conversion.pointsPerUnit)} XP → −{num(cfg.conversion.pointsPerUnit)} XP from the balance, +{money(cfg.conversion.unitValue, cur)} to the wallet. A student with {num(cfg.conversion.pointsPerUnit * 2.5)} XP converts twice and keeps {num(cfg.conversion.pointsPerUnit / 2)} XP on the balance. Set the value to 0 to stop converting.</p>
                 </Card>
                 <Card icon={Wallet} title="Starting wallet credit" sub="Given once to each student who registers from now on — accounts that existed before are not credited. It pays for courses and wallet-rule features." tone="emerald">
                     <div className="max-w-xs">
@@ -640,38 +639,20 @@ function Badges() {
 }
 
 // ── Wallets ─────────────────────────────────────────────────────────────────
-// What each student's wallet holds and where it came from: the balance (and
-// how much of it is the spend-only starting credit), their XP — lifetime and
-// still waiting to convert — what has been converted and what that paid, and
-// what has been spent in the LMS.
+// What each student's wallet holds: the balance (and how much of it is the
+// spend-only starting credit), and what has been spent in the LMS. No XP:
+// XP does not turn into wallet money (2026-10-26).
 function Wallets({ onOpenUser }) {
     const [q, setQ] = useState('');
     const [data, setData] = useState(null);
-    const [rate, setRate] = useState(null);
     useEffect(() => { const t = setTimeout(() => api.get('/rewards/admin/wallets', { params: { q: q || undefined, limit: 100 } }).then((r) => setData(r.data)).catch(() => setData({ rows: [], total: 0 })), 250); return () => clearTimeout(t); }, [q]);
-    // The admin's XP → money rate, for "how far to the next conversion".
-    useEffect(() => { api.get('/rewards/admin/config').then((r) => setRate(r.data?.conversion || null)).catch(() => {}); }, []);
-    const unit = Number(rate?.pointsPerUnit) || 0;
     const t = data?.totals;
-    const XpCell = ({ w }) => (
-        <div className="min-w-0">
-            <p className="font-bold tabular-nums text-slate-800">{num(w.xp)} <span className="text-xs font-semibold text-slate-400">lifetime</span></p>
-            <p className="text-xs tabular-nums text-amber-700">{num(w.xpBalance)} waiting to convert</p>
-            {unit > 0 && (
-                <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-amber-100" title={`${num(Math.max(0, unit - w.xpBalance))} XP to the next ${money(rate.unitValue, rate.currency)}`}>
-                    <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, (w.xpBalance / unit) * 100)}%` }} />
-                </div>
-            )}
-        </div>
-    );
     return (
         <div className="space-y-4">
             {/* Across every wallet that matches the search. */}
             {t && (
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3">
                     <Stat icon={Wallet} label="Wallet balances" value={money(t.available)} sub={`${money(t.startingCredit)} of it starting credit`} tone="emerald" />
-                    <Stat icon={Coins} label="XP converted" value={num(t.xpConverted)} sub={unit ? `${num(unit)} XP = ${money(rate.unitValue, rate.currency)}` : 'XP turned into money'} tone="amber" />
-                    <Stat icon={Gift} label="Paid from XP" value={money(t.fromXp)} sub="Added to wallets by conversion" tone="indigo" />
                     <Stat icon={ReceiptText} label="Spent in the LMS" value={money(t.spent)} sub="Courses and wallet-rule features" tone="rose" />
                 </div>
             )}
@@ -679,16 +660,14 @@ function Wallets({ onOpenUser }) {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 {!data ? <div className="p-8 text-center text-slate-500">Loading…</div> : (
                     <>
-                    <div className="hidden md:block overflow-x-auto"><table className="w-full text-left border-collapse min-w-[860px]">
-                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className={TH}>Student</th><th className={TH}>Wallet balance</th><th className={TH}>XP</th><th className={TH}>XP converted</th><th className={TH}>Spent</th><th className={`${TH} text-right`}></th></tr></thead>
+                    <div className="hidden md:block overflow-x-auto"><table className="w-full text-left border-collapse min-w-[560px]">
+                        <thead><tr className="bg-slate-50 border-b border-slate-200 text-sm tracking-wide text-slate-500 uppercase"><th className={TH}>Student</th><th className={TH}>Wallet balance</th><th className={TH}>Spent</th><th className={`${TH} text-right`}></th></tr></thead>
                         <tbody className="divide-y divide-slate-100">
-                            {data.rows.length === 0 && <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400 italic">No wallets yet.</td></tr>}
+                            {data.rows.length === 0 && <tr><td colSpan="4" className="px-6 py-12 text-center text-slate-400 italic">No wallets yet.</td></tr>}
                             {data.rows.map((w) => (
                                 <tr key={w._id} onClick={() => w.userId && onOpenUser(w.userId._id)} className="hover:bg-slate-50/50 cursor-pointer">
                                     <td className={TD}><div className="font-medium text-slate-800">{w.userId?.name || 'Deleted user'}</div><div className="text-sm text-slate-500 break-all">{w.userId?.email}</div><div className="text-xs text-slate-400">{TYPE_LABEL[w.userId?.accountType] || 'School student'} · Level {w.userId?.level || 1}</div></td>
                                     <td className={TD}><div className="font-bold tabular-nums text-emerald-700 whitespace-nowrap">{money(w.available, w.currency)}</div>{w.startingCredit > 0 && <div className="text-xs text-slate-500 whitespace-nowrap">{money(w.startingCredit, w.currency)} starting credit</div>}</td>
-                                    <td className={TD}><XpCell w={w} /></td>
-                                    <td className={TD}><div className="font-bold tabular-nums text-slate-800">{num(w.xpConverted)} XP</div><div className="text-xs font-semibold text-indigo-600 whitespace-nowrap">→ {money(w.fromXp, w.currency)}</div></td>
                                     <td className={`${TD} tabular-nums text-slate-600 whitespace-nowrap`}>{money(w.totalSpent, w.currency)}</td>
                                     <td className={`${TD} text-right`}><ChevronRight size={16} className="inline text-slate-400" /></td>
                                 </tr>
@@ -710,8 +689,6 @@ function Wallets({ onOpenUser }) {
                                 <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-slate-50 p-3 text-sm ring-1 ring-slate-100">
                                     <div className="min-w-0"><dt className={LABEL}>Balance</dt><dd className="font-bold tabular-nums text-emerald-700 break-words">{money(w.available, w.currency)}</dd></div>
                                     <div className="min-w-0"><dt className={LABEL}>Spent</dt><dd className="tabular-nums text-slate-600 break-words">{money(w.totalSpent, w.currency)}</dd></div>
-                                    <div className="min-w-0"><dt className={LABEL}>XP (to convert)</dt><dd className="tabular-nums font-bold text-slate-800">{num(w.xp)} <span className="font-semibold text-amber-700">({num(w.xpBalance)})</span></dd></div>
-                                    <div className="min-w-0"><dt className={LABEL}>Converted</dt><dd className="tabular-nums text-indigo-600 font-semibold">{num(w.xpConverted)} XP → {money(w.fromXp, w.currency)}</dd></div>
                                 </dl>
                             </li>
                         ))}

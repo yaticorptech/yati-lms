@@ -65,7 +65,7 @@ export default function VersionHistory({ base, title, current, beforeSave, onRes
     const diff = open ? countWords(open.content) - countWords(current) : 0;
 
     return (
-        <Modal title={open ? `Version of ${fmtDateTime(open.createdAt)}` : `History — ${title}`} onClose={onClose} wide labelId="version-history-title"
+        <Modal title={open ? `Version of ${fmtDateTime(open.createdAt)}` : `History: ${title}`} onClose={onClose} wide labelId="version-history-title"
             footer={open ? (
                 <>
                     <button type="button" onClick={() => { setOpen(null); setConfirming(false); }} className={`${btn.secondary} mr-auto`}><ArrowLeft size={15} /> All versions</button>
@@ -95,7 +95,7 @@ export default function VersionHistory({ base, title, current, beforeSave, onRes
                     <>
                         <form onSubmit={saveNow} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-end">
                             <div className="min-w-0 flex-1">
-                                <label htmlFor="version-label" className="mb-1 block text-xs font-bold text-slate-600">Keep the text as it is now <span className="font-normal text-slate-400">(optional name)</span></label>
+                                <label htmlFor="version-label" className="mb-1 block text-xs font-semibold text-slate-600">Keep the text as it is now <span className="font-normal text-slate-400">(optional name)</span></label>
                                 <input id="version-label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={120} placeholder="e.g. Sent to supervisor" className={inputClass} />
                             </div>
                             <button type="submit" disabled={saving} className={btn.primary}>{saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save a version</button>
@@ -112,7 +112,7 @@ export default function VersionHistory({ base, title, current, beforeSave, onRes
                                         <button type="button" onClick={() => show(v)} disabled={Boolean(opening)}
                                             className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-50 disabled:opacity-60">
                                             <span className="min-w-0 flex-1">
-                                                <span className="block text-sm font-bold text-slate-800">{fmtDateTime(v.createdAt)}</span>
+                                                <span className="block text-sm font-semibold text-slate-800">{fmtDateTime(v.createdAt)}</span>
                                                 <span className="block truncate text-xs text-slate-500">{reasonOf(v)}</span>
                                             </span>
                                             {v.reason === 'manual' && <Badge tone="bg-emerald-50 text-emerald-700">Saved</Badge>}

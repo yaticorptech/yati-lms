@@ -18,8 +18,8 @@ export const CHAPTER_GUIDES = [
             ['Conclusion', ['What the results mean and why they matter']],
             ['Keywords', ['4–6 terms people would search for']]
         ],
-        include: ['Every part of the thesis, briefly.', 'Your key results — not "results are discussed".', 'Words a reader would search for.'],
-        mistakes: ['Writing it first — write it last.', 'Citations, abbreviations or new information not in the thesis.', 'Background that takes half the abstract.'],
+        include: ['Every part of the thesis, briefly.', 'Your key results, not "results are discussed".', 'Words a reader would search for.'],
+        mistakes: ['Writing it first. Write it last.', 'Citations, abbreviations or new information not in the thesis.', 'Background that takes half the abstract.'],
         phrases: ['This study examined…', 'Data were collected from… and analysed using…', 'The results showed that…', 'These findings suggest that…']
     },
     {
@@ -42,7 +42,7 @@ export const CHAPTER_GUIDES = [
     },
     {
         key: 'literature', match: /literature|review|related work|theoretical/i, name: 'Literature Review',
-        purpose: 'Shows what is already known, how it was studied, the debates, and the gap your study fills — leading to your conceptual framework.',
+        purpose: 'Shows what is already known, how it was studied, the debates, and the gap your study fills, leading to your conceptual framework.',
         length: 'Often 20–30% of the thesis.',
         structure: [
             ['Introduction', ['How the literature was searched', 'How the chapter is organised']],
@@ -52,8 +52,8 @@ export const CHAPTER_GUIDES = [
             ['Research gap', ['What is missing, drawn from the themes']],
             ['Conceptual framework', ['Your variables or concepts and how they relate (a diagram helps)']]
         ],
-        include: ['Comparison and critique — where studies agree, disagree and why.', 'Recent work (the last 5 years) as well as key older studies.', 'A clear gap that leads to your questions.'],
-        mistakes: ['One paragraph per paper, listing summaries.', 'No critique — only "X found…, Y found…".', 'A gap that does not follow from the review.'],
+        include: ['Comparison and critique: where studies agree, disagree and why.', 'Recent work (the last 5 years) as well as key older studies.', 'A clear gap that leads to your questions.'],
+        mistakes: ['One paragraph per paper, listing summaries.', 'No critique, only "X found…, Y found…".', 'A gap that does not follow from the review.'],
         phrases: ['Several studies have reported…; however, …', 'In contrast to…, … found that…', 'These studies share a limitation:…', 'Taken together, the literature suggests…']
     },
     {
@@ -84,7 +84,7 @@ export const CHAPTER_GUIDES = [
             ['Summary of findings', ['The main results in brief']]
         ],
         include: ['Tables and figures numbered and referred to in the text.', 'Test statistics, p-values and effect sizes.', 'Themes with participant quotations (qualitative).'],
-        mistakes: ['Interpreting results here — save it for the discussion.', 'Repeating every number from a table in the text.', 'Tables without clear titles or units.'],
+        mistakes: ['Interpreting results here. Save it for the discussion.', 'Repeating every number from a table in the text.', 'Tables without clear titles or units.'],
         phrases: ['As shown in Table 4.2,…', 'A significant difference was found between… (t = …, p < .05, d = …).', 'Three themes emerged from the interviews:…', 'Hypothesis H₁ was supported.']
     },
     {
@@ -120,7 +120,7 @@ export const CHAPTER_GUIDES = [
     {
         key: 'references', match: /reference|bibliograph|works cited/i, name: 'References',
         purpose: 'Lists every source cited in the thesis, in one citation style.',
-        length: 'As long as needed — every in-text citation, nothing more.',
+        length: 'As long as needed: every in-text citation, nothing more.',
         structure: [['References', ['Every source cited in the text', 'In the style your university requires (APA, MLA, Chicago, IEEE…)', 'In the order the style requires (alphabetical or numbered)']]],
         include: ['DOIs or URLs where the style asks for them.', 'Exactly the sources cited in the text.'],
         mistakes: ['Sources in the list that are never cited, or the other way round.', 'Mixed styles.', 'Missing page numbers, volumes or DOIs.'],

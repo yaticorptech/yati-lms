@@ -118,8 +118,6 @@ const listWallets = async (req, res) => {
         _id: null,
         available: { $sum: '$available' },
         startingCredit: { $sum: { $ifNull: ['$spendOnly', 0] } },
-        xpConverted: { $sum: { $ifNull: ['$xpConverted', 0] } },
-        fromXp: { $sum: { $ifNull: ['$earnedBySource.xp_reward', 0] } },
         spent: { $sum: '$totalSpent' }
       } }])
     ]);
@@ -129,15 +127,12 @@ const listWallets = async (req, res) => {
         return {
           ...w,
           earnedBySource: w.earnedBySource || {},
-          // XP: lifetime, what is still waiting to convert, and what has been.
+          // Lifetime XP, for levels and rank: XP is never wallet money.
           xp,
-          xpConverted: w.xpConverted || 0,
-          xpBalance: Math.max(0, xp - (w.xpConverted || 0)),
-          fromXp: (w.earnedBySource && w.earnedBySource.xp_reward) || 0,
           startingCredit: w.spendOnly || 0
         };
       }),
-      totals: sums[0] || { available: 0, startingCredit: 0, xpConverted: 0, fromXp: 0, spent: 0 },
+      totals: sums[0] || { available: 0, startingCredit: 0, spent: 0 },
       total, limit, skip
     });
   } catch (error) { err(res, error); }

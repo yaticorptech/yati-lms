@@ -17,14 +17,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 
-// html5-qrcode's stop() throws, rather than rejects, when the camera never
-// started or has already stopped — and that throw, from an effect's cleanup,
-// took the whole page down ("Cannot stop, scanner is not running or paused").
-const stopReader = (reader) => {
-    try { reader.stop().catch(() => {}); } catch { /* not running: nothing to stop */ }
-};
 import { Camera, Keyboard, Lock, Loader2, UserPlus, X, Building2, GraduationCap } from 'lucide-react';
 import api from '../../utils/api';
+import { stopReader } from '../../utils/qrReader';
 import { Dialog, DialogTitle, Banner, BTN, BTN2, INPUT, LABEL } from '../orgUi';
 import PasswordStrengthChecker from '../PasswordStrengthChecker';
 import Select from '../Select';
@@ -62,14 +57,16 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
         let stopped = false;
         const reader = new Html5Qrcode(SCANNER_ID);
         scanner.current = reader;
-        reader.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, (decoded) => {
+        const started = reader.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, (decoded) => {
             if (stopped) return;
             stopped = true;
             stopReader(reader);
             setCode(decoded.trim());
             setMode('manual');
         }, () => {}).catch(() => { setScanError('The camera could not be opened. Type the QR code or card number instead.'); setMode('manual'); });
-        return () => { stopped = true; stopReader(reader); scanner.current = null; };
+        // utils/qrReader: its stop() throws when the camera is not running, so
+        // it is stopped safely, once it has finished starting.
+        return () => { stopped = true; stopReader(reader, started); scanner.current = null; };
     }, [mode, card, orgOnly, chosen]);
 
     const check = async () => {

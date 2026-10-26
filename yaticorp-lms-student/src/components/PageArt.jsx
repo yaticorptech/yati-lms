@@ -132,18 +132,3 @@ export function NoCoursesArt({ className = '' }) {
   );
 }
 
-/** No bundles: a tied parcel, which is what a bundle is. */
-export function NoBundlesArt({ className = '' }) {
-  return (
-    <svg className={className} viewBox="0 0 200 200" aria-hidden focusable="false">
-      <circle cx="100" cy="100" r="58" fill="#f5f3ff" />
-      <rect x="52" y="88" width="96" height="60" rx="10" fill="#ffffff" stroke="#ddd6fe" strokeWidth="4" />
-      <rect x="46" y="72" width="108" height="24" rx="8" fill="#ede9ff" stroke="#ddd6fe" strokeWidth="4" />
-      {/* The ribbon that makes a pile of things a bundle. */}
-      <rect x="92" y="72" width="16" height="76" fill="#a78bfa" />
-      <path d="M100 72 c-16 -6 -26 -22 -10 -26 c10 -3 12 14 10 26 Z" fill="#7c3aed" />
-      <path d="M100 72 c16 -6 26 -22 10 -26 c-10 -3 -12 14 -10 26 Z" fill="#7c3aed" />
-      <circle cx="100" cy="60" r="7" fill="#fbbf24" />
-    </svg>
-  );
-}

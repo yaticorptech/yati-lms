@@ -12,8 +12,8 @@ const monetaryEnabledFor = (user, config) => {
   return allowed.includes(user.accountType || 'school_student');
 };
 
-// What reward points are worth in money: nothing. Only XP pays into the
-// wallet (walletService.convertXp); points are a score. Kept as a function so
+// What reward points are worth in money: nothing. Neither points nor XP pay
+// into the wallet (XP stopped converting 2026-10-26). Kept as a function so
 // the celebrations that report a "value" all say the same thing.
 // eslint-disable-next-line no-unused-vars
 const pointsToMoney = (points, config) => 0;

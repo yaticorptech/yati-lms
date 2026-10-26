@@ -22,12 +22,12 @@ export const ADVISOR_QUESTIONS = [
         ]
     },
     {
-        key: 'change', question: 'Will you change anything — try out an intervention?',
+        key: 'change', question: 'Will you change anything, such as trying out an intervention?',
         options: [
             { key: 'groups', label: 'Yes, and compare with a group that does not get it', weights: { experimental: 3 } },
             { key: 'own', label: 'Yes, in my own classes, improving it in cycles', weights: { 'action-research': 3, 'design-based': 1 } },
-            { key: 'no', label: 'No — I will only observe, ask or measure', weights: { survey: 1, correlational: 1, 'case-study': 1, phenomenology: 1, ethnography: 1, 'grounded-theory': 1, narrative: 1 } },
-            { key: 'published', label: 'No — I will only use published studies', weights: { 'systematic-review': 4 } }
+            { key: 'no', label: 'No, I will only observe, ask or measure', weights: { survey: 1, correlational: 1, 'case-study': 1, phenomenology: 1, ethnography: 1, 'grounded-theory': 1, narrative: 1 } },
+            { key: 'published', label: 'No, I will only use published studies', weights: { 'systematic-review': 4 } }
         ]
     },
     {
@@ -45,7 +45,7 @@ export const ADVISOR_QUESTIONS = [
             { key: 'many', label: 'Many people (100 or more), to generalise', weights: { survey: 2, correlational: 2, experimental: 1 } },
             { key: 'few', label: 'A few people (5–30), in depth', weights: { phenomenology: 2, narrative: 2, 'grounded-theory': 1 } },
             { key: 'one', label: 'One setting, group or programme', weights: { 'case-study': 3, ethnography: 2, 'action-research': 1 } },
-            { key: 'none', label: 'None — documents or published papers only', weights: { 'systematic-review': 2, 'case-study': 1 } }
+            { key: 'none', label: 'None: documents or published papers only', weights: { 'systematic-review': 2, 'case-study': 1 } }
         ]
     },
     {
@@ -54,7 +54,7 @@ export const ADVISOR_QUESTIONS = [
             { key: 'weeks', label: 'A few weeks', weights: { survey: 1, correlational: 1 } },
             { key: 'term', label: 'A term or semester', weights: { experimental: 1, 'action-research': 1, 'case-study': 1 } },
             { key: 'year', label: 'Months to a year, spending time with the group', weights: { ethnography: 3, 'action-research': 1, 'design-based': 1 } },
-            { key: 'desk', label: 'No field work — desk research only', weights: { 'systematic-review': 1 } }
+            { key: 'desk', label: 'No field work: desk research only', weights: { 'systematic-review': 1 } }
         ]
     },
     {

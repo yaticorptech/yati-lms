@@ -27,10 +27,8 @@ const getSummary = async (req, res) => {
   try {
     const config = await S.config.getConfig();
     const userId = req.user._id;
-    // The opening balance and any full block of XP are in the wallet before
-    // the first figure is shown.
+    // The opening balance is in the wallet before the first figure is shown.
     await S.wallet.grantStartingCredit(userId);
-    await S.wallet.convertXp(userId).catch(() => null);
     const week = periodWindow('weekly');
     // No weekly rank here any more: ranking every student on each refresh of
     // this summary cost a full leaderboard per call, and no screen read it
@@ -82,7 +80,7 @@ const getSummary = async (req, res) => {
       badges: { unlocked: badgeCount, total: badges.length, recent: badges.filter((b) => b.unlocked).sort((a, b) => new Date(b.unlockedAt) - new Date(a.unlockedAt)).slice(0, 4) },
       stats,
       series: { days, ...daily },
-      wallet: { available: wallet.available, spendOnly: wallet.spendOnly || 0, xpBalance: Math.max(0, (user.xp || 0) - (wallet.xpConverted || 0)), xpConverted: wallet.xpConverted || 0, withdrawable: Math.max(0, wallet.available - (wallet.spendOnly || 0)), pending: wallet.pending, totalEarned: wallet.totalEarned, totalSpent: wallet.totalSpent, totalWithdrawn: wallet.totalWithdrawn, currency: wallet.currency, rewardPoints: wallet.rewardPoints, rewardPointsValue: 0, monetaryEnabled: monetary },
+      wallet: { available: wallet.available, spendOnly: wallet.spendOnly || 0, withdrawable: Math.max(0, wallet.available - (wallet.spendOnly || 0)), pending: wallet.pending, totalEarned: wallet.totalEarned, totalSpent: wallet.totalSpent, totalWithdrawn: wallet.totalWithdrawn, currency: wallet.currency, rewardPoints: wallet.rewardPoints, rewardPointsValue: 0, monetaryEnabled: monetary },
       config: publicConfig(config)
     });
   } catch (error) { err(res, error); }
@@ -128,7 +126,6 @@ const getWallet = async (req, res) => {
     const config = await S.config.getConfig();
     const userId = req.user._id;
     await S.wallet.grantStartingCredit(userId);
-    await S.wallet.convertXp(userId).catch(() => null);
     const [wallet, user, recent, open, usedThisMonth] = await Promise.all([
       S.points.getOrCreateWallet(userId),
       User.findById(userId).select('accountType walletAccess xp').lean(),
@@ -146,13 +143,9 @@ const getWallet = async (req, res) => {
         spendOnly: wallet.spendOnly || 0,
         withdrawable: Math.max(0, Math.round((wallet.available - (wallet.spendOnly || 0)) * 100) / 100)
       },
-      // XP turns into money in blocks at the conversion rate. `xpBalance` is
-      // what has not been converted yet; `xp` is lifetime (level, rank).
+      // XP is learning progress (level, rank), never wallet money.
       xp: user.xp || 0,
-      xpBalance: Math.max(0, (user.xp || 0) - (wallet.xpConverted || 0)),
-      xpConverted: wallet.xpConverted || 0,
-      fromXp: (wallet.earnedBySource && (wallet.earnedBySource.get ? wallet.earnedBySource.get('xp_reward') : wallet.earnedBySource.xp_reward)) || 0,
-      // Reward points are a score, not money: only XP pays into the wallet.
+      // Reward points are a score, not money either.
       rewardPointsValue: 0,
       monetaryEnabled,
       accountType: user.accountType || 'school_student',

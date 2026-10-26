@@ -82,14 +82,14 @@ const VerifyCards = React.lazy(() => import('./pages/VerifyCards'));
 const Courses = React.lazy(() => import('./pages/Courses'));
 const CourseEditor = React.lazy(() => import('./pages/CourseEditor'));
 const LessonEditor = React.lazy(() => import('./pages/LessonEditor'));
-const Bundles = React.lazy(() => import('./pages/Bundles'));
 const Enrollments = React.lazy(() => import('./pages/Enrollments'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const Tickets = React.lazy(() => import('./pages/Tickets'));
 import NotFound from './pages/NotFound';
 const Analytics = React.lazy(() => import('./pages/Analytics'));
 const GlobalQuiz = React.lazy(() => import('./pages/GlobalQuiz'));
-const LinguisticAdmin = React.lazy(() => import('./pages/linguistic/LinguisticAdmin'));
+// No Linguistic Ability pages: the platform admin's was removed (Presilla_test) and the
+// organization's English section too (test); its old address redirects below.
 const Announcements = React.lazy(() => import('./pages/Announcements'));
 const CareerPath = React.lazy(() => import('./pages/CareerPath'));
 const Jobs = React.lazy(() => import('./pages/Jobs'));
@@ -135,7 +135,7 @@ function App() {
         <Route index element={<OrgDashboard />} />
         <Route path="students" element={<OrgStudents />} />
         <Route path="students/:studentId" element={<OrgStudentDetail />} />
-        {/* Student requests are a tab of Students now. */}
+        {/* Requests are the Students page's tab now; the old address still lands there. */}
         <Route path="requests" element={<Navigate to="/organization/students?view=requests" replace />} />
         <Route path="teachers" element={<OrgTeachers />} />
         <Route path="ncc-nss" element={<OrgNccNss />} />
@@ -164,7 +164,6 @@ function App() {
         <Route path="courses" element={<Courses />} />
         <Route path="courses/:id" element={<CourseEditor />} />
         <Route path="courses/:courseId/lessons/:lessonId" element={<LessonEditor />} />
-        <Route path="bundles" element={<Bundles />} />
         <Route path="enrollments" element={<Enrollments />} />
         <Route path="organizations" element={<SuperAdminRoute what="organizations"><Organizations /></SuperAdminRoute>} />
         <Route path="settings" element={<Settings />} />
@@ -174,7 +173,6 @@ function App() {
         <Route path="jobs" element={<Jobs />} />
         <Route path="rewards" element={<Rewards />} />
         <Route path="global-quiz" element={<GlobalQuiz />} />
-        <Route path="linguistic" element={<LinguisticAdmin />} />
         <Route path="announcements" element={<Announcements />} />
         <Route path="competitions" element={<SuperAdminRoute what="competitions"><Competitions /></SuperAdminRoute>} />
         <Route path="competitions/:id" element={<SuperAdminRoute what="competitions"><CompetitionAdmin /></SuperAdminRoute>} />

@@ -8,7 +8,7 @@ export const WRITING_STEPS = [
         key: 'habit', title: 'Build a writing habit',
         summary: 'Researchers who write a little every day finish more than those who wait for long free days. Small, regular sessions beat rare marathons.',
         todo: [
-            'Set a daily goal you can keep on a busy day — 250 to 500 words, or 30 minutes.',
+            'Set a daily goal you can keep on a busy day: 250 to 500 words, or 30 minutes.',
             'Write at the same time each day, before email and messages.',
             'Use a timer: 25 minutes of writing, a 5-minute break (the focus timer here does this).',
             'Look back at the last 14 days on the Independent Writing page: gaps show where the habit slipped.'
@@ -22,7 +22,7 @@ export const WRITING_STEPS = [
             'Write the main point of the piece in one or two sentences.',
             'List the three to five points that support it, in order.',
             'Under each point, note the evidence: data, sources, examples.',
-            'Decide who will read it — examiners, reviewers, students, the public — and what they already know.'
+            'Decide who will read it (examiners, reviewers, students, the public) and what they already know.'
         ]
     },
     {
@@ -43,7 +43,7 @@ export const WRITING_STEPS = [
         key: 'style', title: 'Write in a clear academic style',
         summary: 'Academic writing is precise, not complicated. Short sentences and plain words are easier to read and harder to misunderstand.',
         todo: [
-            'Prefer short sentences — around 15 to 25 words.',
+            'Prefer short sentences, around 15 to 25 words.',
             'Use the active voice where it is clearer: "We surveyed 300 students" rather than "300 students were surveyed by us".',
             'Use plain words: "use" not "utilise", "show" not "demonstrate the fact that".',
             'Define each technical term once, then use it the same way throughout.',
@@ -56,7 +56,7 @@ export const WRITING_STEPS = [
     },
     {
         key: 'claims', title: 'Make claims at the right strength',
-        summary: 'Say exactly as much as your evidence supports — no more, no less. This is called hedging.',
+        summary: 'Say exactly as much as your evidence supports: no more, no less. This is called hedging.',
         todo: [
             'Strong evidence: "shows", "demonstrates", "confirms".',
             'Moderate evidence: "suggests", "indicates", "is associated with".',
@@ -83,20 +83,20 @@ export const WRITING_STEPS = [
             'Keep a personal phrase bank of useful sentences from good papers in your field (the structure, not the content).',
             'Watch the common slips: articles (a / the), subject–verb agreement, tense consistency.',
             'Methods and results are usually in the past tense; established facts in the present.',
-            'Read your text aloud — awkward sentences sound awkward.',
+            'Read your text aloud; awkward sentences sound awkward.',
             'Ask a colleague who writes well in English to read one chapter; you will learn your own patterns.'
         ],
         links: [['Manchester Academic Phrasebank', 'https://www.phrasebank.manchester.ac.uk/']]
     },
     {
         key: 'edit', title: 'Edit and proofread',
-        summary: 'Edit in rounds, each for one thing — structure first, sentences next, spelling last.',
+        summary: 'Edit in rounds, each for one thing: structure first, sentences next, spelling last.',
         todo: [
-            'Round 1 — structure: does every section and paragraph earn its place, in the right order?',
-            'Round 2 — paragraphs: one idea each, a clear topic sentence, links between them.',
-            'Round 3 — sentences: cut extra words, fix long sentences, check hedging.',
-            'Round 4 — accuracy: numbers, tables and citations match the text and the reference list.',
-            'Round 5 — proofread: spelling, punctuation, formatting; reading aloud or on paper helps.'
+            'Round 1 (structure): does every section and paragraph earn its place, in the right order?',
+            'Round 2 (paragraphs): one idea each, a clear topic sentence, links between them.',
+            'Round 3 (sentences): cut extra words, fix long sentences, check hedging.',
+            'Round 4 (accuracy): numbers, tables and citations match the text and the reference list.',
+            'Round 5 (proofread): spelling, punctuation, formatting; reading aloud or on paper helps.'
         ],
         tips: ['Leave a draft for a day before editing it. You will see it as a reader does.']
     },
@@ -107,7 +107,7 @@ export const WRITING_STEPS = [
             'Ask a precise question: "Is the argument in section 2 convincing?" works better than "Any comments?".',
             'Share chapters with your supervisor in good time, with a short note on what changed.',
             'Form a writing group with colleagues: read one another\'s drafts each month.',
-            'Thank readers, consider every comment, and keep a list of comments you hear often — they show what to fix next time.'
+            'Thank readers, consider every comment, and keep a list of comments you hear often; they show what to fix next time.'
         ]
     }
 ];

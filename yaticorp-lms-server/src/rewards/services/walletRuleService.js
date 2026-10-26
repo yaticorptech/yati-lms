@@ -71,7 +71,7 @@ const onceOnlyKey = async (userId, action, referenceKey) => {
 };
 
 const shortOf = (amount, available, currency, action) => {
-  const e = new Error(`${LABELS[action] || 'This'} costs ${fmt(amount, currency)} from your wallet, and your balance is ${fmt(available, currency)}. Earn XP on Career Path to add to your wallet balance.`);
+  const e = new Error(`${LABELS[action] || 'This'} costs ${fmt(amount, currency)} from your wallet, and your balance is ${fmt(available, currency)}.`);
   e.status = 402;
   e.code = 'INSUFFICIENT_FUNDS';
   e.details = { action, needed: amount, balance: money(available), currency };

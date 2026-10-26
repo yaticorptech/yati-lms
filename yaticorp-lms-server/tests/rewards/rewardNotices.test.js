@@ -38,14 +38,13 @@ after(async () => { await cleanup([me.user]); });
 describe('reward notices', () => {
     test('every reward notice is written with a link to where it is about', async () => {
         await notify(me.user._id, 'Withdrawal paid', 'INR 10 has been sent.', LINKS.wallet);
-        await notify(me.user._id, 'XP converted', '1,000 XP became INR 10 in your wallet.');
+        // (No 'XP converted' notice any more: XP stopped turning into wallet money, 2026-10-26.)
         await notify(me.user._id, '🏆 Rank #2 last week!', '+750 reward points.');
         await notify(me.user._id, '🏆 1st place!', 'You won the competition.');
         const rows = await Notification.find({ userId: me.user._id }).lean();
         const by = Object.fromEntries(rows.map((n) => [n.title, n]));
         assert.ok(rows.every((n) => n.type === 'reward'));
         assert.equal(by['Withdrawal paid'].link, '/#wallet');
-        assert.equal(by['XP converted'].link, '/#wallet');
         assert.equal(by['🏆 Rank #2 last week!'].link, '/#leaderboard');
         assert.equal(by['🏆 1st place!'].link, '/competitions');
     });

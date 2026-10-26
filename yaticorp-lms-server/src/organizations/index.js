@@ -158,7 +158,29 @@ router.put('/me/password', orgCtrl.changeMyPassword);
 router.use('/me', requireActiveOrganization);
 router.route('/me').get(orgCtrl.getMyOrganization).put(orgCtrl.updateMyOrganization);
 router.get('/me/dashboard', orgCtrl.getDashboard);
-router.get('/me/students', orgCtrl.getStudents);
+router.route('/me/students').get(orgCtrl.getStudents).post(orgCtrl.addStudent);
+// Scan cards: check each, then add the lot (controllers/orgCardController.js).
+const orgCards = require('./controllers/orgCardController');
+router.route('/me/cards').get(orgCards.listCards).post(orgCards.linkCards);
+// Access hours: when the organization's students may use the platform.
+const accessSchedule = require('./services/accessSchedule');
+const scheduleAnswer = (schedule) => ({ schedule, hours: accessSchedule.describe(schedule), ...accessSchedule.statusAt(schedule) });
+router.get('/me/schedule', (req, res) => res.json(scheduleAnswer(req.organization.accessSchedule || { enabled: false, days: [1, 2, 3, 4, 5], start: '09:00', end: '17:00' })));
+router.put('/me/schedule', async (req, res) => {
+    try {
+        const { schedule, error } = accessSchedule.cleanSchedule(req.body || {});
+        if (error) return res.status(400).json({ message: error });
+        await Organization.updateOne({ _id: req.organization._id }, { $set: { accessSchedule: schedule } });
+        accessSchedule.forget(req.organization._id);
+        await require('./models/OrgAuditLog').record({ orgId: req.organization._id, admin: req.admin, action: 'access-hours', req, details: schedule });
+        res.json({ ...scheduleAnswer(schedule), message: schedule.enabled ? `Saved. Students can use YATICORP ${accessSchedule.describe(schedule)}.` : 'Saved. Students can use YATICORP at any time.' });
+    } catch (error) {
+        console.error('[org] access hours failed:', error.message);
+        res.status(500).json({ message: 'The access hours could not be saved just now.' });
+    }
+});
+router.post('/me/cards/check', orgCards.checkCard);
+router.delete('/me/cards/:id', orgCards.unlinkCard);
 router.route('/me/students/:studentId').get(orgCtrl.getStudent).delete(orgCtrl.removeStudent);
 router.get('/me/requests', orgCtrl.getRequests);
 router.get('/me/requests/count', orgCtrl.getRequestCount);
@@ -244,6 +266,13 @@ router.use('/student/nccnss', require('../nccnss/student'));
 // longer exists); an active one answers 409. See the note at the top of
 // controllers/studentController.js.
 router.get('/student/me', studentCtrl.getMyMembership);
+// Whether the student's organization has the platform open now, and when it opens.
+router.get('/student/schedule', async (req, res) => {
+    try { res.json(await require('./services/accessSchedule').studentAccess(req.user)); } catch (error) {
+        console.error('[org] schedule failed:', error.message);
+        res.json({ applies: false, open: true });
+    }
+});
 router.get('/student/lookup/:code', lookupLimiter, studentCtrl.lookupOrganization);
 router.post('/student/leave', studentCtrl.leaveOrganization);
 router.post('/student/requests', studentCtrl.createRequest);

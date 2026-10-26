@@ -25,10 +25,8 @@ const ROUTES = {
         publications: { total: 5, published: 2, inReview: 2, byStatus: { idea: 0, drafting: 1, submitted: 1, under_review: 1, revision: 0, accepted: 0, published: 2, rejected: 0 } },
         thesis: { _id: 'th1', title: 'Peer tutoring and mathematics anxiety', words: 18250, targetWords: 80000, chapters: 9, chaptersDone: 2, dueDate: '2027-06-30' },
         writing: { today: 320, goal: 500, last14: Array.from({ length: 14 }, (_, i) => ({ day: `2026-10-${String(9 + i).padStart(2, '0')}`, words: (i * 97) % 700 })) },
-        plagiarism: { _id: 'r1', title: 'Introduction', score: 6.2, at: '2026-10-20' },
-        methods: { studied: 3, total: 12 }
+        plagiarism: { _id: 'r1', title: 'Introduction', score: 6.2, at: '2026-10-20' }
     },
-    '/methods': { studied: ['experimental'] },
     '/theses/th1': { _id: 'th1', title: 'Peer tutoring and mathematics anxiety', degree: 'PhD', targetWords: 80000, words: 0, chapters: [
         { _id: 'c1', title: 'Introduction', content: '', words: 0, targetWords: 6000, status: 'not_started' },
         { _id: 'c2', title: 'Review of Literature', content: '', words: 0, targetWords: 15000, status: 'not_started' }
@@ -270,21 +268,19 @@ createRoot(document.getElementById('root')).render(
         }
     });
 
-    test('a methodology guide opens with its steps, and "studied" saves', async () => {
+    test('a methodology guide opens with its steps, with no "studied" mark anywhere', async () => {
         const { result, errors } = await screen({ entry: page('/teacher/methods/phenomenology'), api: apiModule({}), modules, styles: true, width: 1280, script: `
-            window.__treply = (m, u, b) => (m === 'PUT' && u === '/methods/phenomenology/studied' ? { studied: ['experimental', 'phenomenology'] } : null);
             await sleep(700);
             const title = text($('#method-guide-title'));
             const steps = $$('[role=dialog] ol li').length;
             const advised = window.__tcalls.some((c) => /advise/.test(c[1]));
-            $$('[role=dialog] button').find((b) => /Mark as studied/.test(b.innerText)).click(); await sleep(300);
-            return { title, steps, advised, put: window.__tcalls.find((c) => c[0] === 'PUT'), now: $$('[role=dialog] button').some((b) => /^Studied$/.test(b.innerText.trim())) };` });
+            return { title, steps, advised, calls: window.__tcalls.filter((c) => c[1].startsWith('/methods')).length, studied: $$('button').some((b) => /studied/i.test(b.innerText)) || /\\d+ of \\d+ studied/.test(document.body.innerText) };` });
         assert.deepEqual(errors, []);
         assert.equal(result.title, 'Phenomenology');
         assert.ok(result.steps >= 5, 'the full guide, from the app');
         assert.equal(result.advised, false);
-        assert.deepEqual(result.put, ['PUT', '/methods/phenomenology/studied', { studied: true }]);
-        assert.equal(result.now, true);
+        assert.equal(result.calls, 0, 'nothing asked of the server');
+        assert.equal(result.studied, false, 'no Studied button or counter');
     });
 });
 
@@ -301,17 +297,19 @@ createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={['${route}']}><Routes><Route path="/teacher" element={<TeacherProvider><TeacherLayout /></TeacherProvider>}><Route path="publications" element={<Publications />} /></Route></Routes></MemoryRouter>);`;
     const empty = `window.__treply = (m, u) => (u === '/publications' ? { publications: [], stats: { total: 0, byStatus: { idea: 0, drafting: 0, submitted: 0, under_review: 0, revision: 0, accepted: 0, published: 0, rejected: 0 }, byType: {}, byYear: {}, byIndexing: {}, citations: 0, hIndex: 0, upcomingDeadlines: [] } } : null);`;
 
-    test('before the first paper the guide is open; Next walks the twelve steps', async () => {
+    test('the guide starts closed and opens on a tap; Next walks the twelve steps', async () => {
         const { result, errors } = await screen({ entry: page('/teacher/publications', empty), api: apiModule({}), modules, styles: true, width: 1280, script: `
             await sleep(700);
-            const first = { open: !!$('#publishing-guide-body'), steps: $$('#publishing-guide ol[aria-label=Steps] li').length, title: text($('#publishing-guide article h3')) };
+            const closed = !$('#publishing-guide-body');
+            $('[aria-controls=publishing-guide-body]').click(); await sleep(200);
+            const first = { closed, open: !!$('#publishing-guide-body'), steps: $$('#publishing-guide ol[aria-label=Steps] li').length, title: text($('#publishing-guide article h3')) };
             click(/^\\s*Next\\s*$/); await sleep(200);
             const second = text($('#publishing-guide article h3'));
             const links = $$('#publishing-guide article a[target=_blank]').map((a) => a.href);
             $$('#publishing-guide ol button').find((b) => /Revise and respond/.test(b.innerText)).click(); await sleep(200);
             return { first, second, links, revise: text($('#publishing-guide article h3')), todo: $$('#publishing-guide article ul li').length };` });
         assert.deepEqual(errors, []);
-        assert.deepEqual(result.first, { open: true, steps: 12, title: 'Check the work is ready to publish' });
+        assert.deepEqual(result.first, { closed: true, open: true, steps: 12, title: 'Check the work is ready to publish' });
         assert.equal(result.second, 'Choose the right journal');
         assert.ok(result.links.some((h) => h.includes('scopus.com/sources')), 'links to check indexing');
         assert.equal(result.revise, 'Revise and respond to reviewers');
@@ -325,7 +323,8 @@ createRoot(document.getElementById('root')).render(
             const next = $$('button').find((b) => /Next: Wait through peer review/.test(b.innerText));
             next.click(); await sleep(300);
             const opened = text($('#publishing-guide article h3'));
-            $$('section[aria-label="Under review"] button')[0].click(); await sleep(300);
+            // The paper's card (the board's columns became one list of cards).
+            $$('li > button').find((b) => /Mentoring circles/.test(b.innerText)).click(); await sleep(300);
             // textContent: the label is shown in capitals by CSS, which innerText reports.
             const tips = ($$('[role=dialog] p').find((p) => /At this stage/.test(p.textContent)) || {}).textContent || '';
             return { closed, hasNext: !!next, opened, tips };` });
@@ -339,10 +338,11 @@ createRoot(document.getElementById('root')).render(
     test('on a phone: a step picker, and nothing off the screen', async () => {
         const { result, errors } = await screen({ entry: page('/teacher/publications?guide=journal'), api: apiModule({}), modules, styles: true, width: 500, height: 900, script: `
             await sleep(700);
-            return { picker: (() => { const s = $('#publishing-guide-step'); return !!s && getComputedStyle(s.parentElement).display !== 'none' ? s.value : null; })(),
+            // The step picker is the app's own dropdown: its button shows the chosen step.
+            return { picker: (() => { const s = $('#publishing-guide-step'); return !!s && getComputedStyle(s.parentElement).display !== 'none' ? s.innerText.trim() : null; })(),
                      list: getComputedStyle($('#publishing-guide ol[aria-label=Steps]')).display, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.picker, 'journal', 'opened from the link at its step');
+        assert.match(result.picker || '', /Choose the right journal/, 'opened from the link at its step');
         assert.equal(result.list, 'none', 'the side list is for wider screens');
         assert.ok(result.overflow <= 0, `no sideways scroll (${result.overflow}px)`);
     });
@@ -375,15 +375,22 @@ createRoot(document.getElementById('root')).render(
         assert.equal(result.guides, 12, 'all twelve guides, from the app');
     });
 
-    test('a Research Path stage teaches itself: why, how, an example, what to avoid', async () => {
+    test('a Research Path stage teaches itself: why, how, an example, what to avoid, opened when tapped', async () => {
         const { result, errors } = await screen({ entry: routed('/teacher/research-path', 'ResearchPath', 'ResearchPath'), api: apiModule({}), modules, styles: true, width: 1280, script: `
             await sleep(700);
+            // Stages and their lessons start closed (the user's ask, 2026-10-24).
+            const closed = !/Learn this stage/.test(document.body.innerText);
+            $$('button').find((b) => /Topic & problem/.test(b.innerText)).click(); await sleep(200);
+            const lessonClosed = !/FINER/.test(document.body.innerText);
             const panel = $$('button').find((b) => /Learn this stage/.test(b.innerText));
+            panel.click(); await sleep(200);
             const body = document.body.innerText;
             const learn = { finer: /FINER/.test(body), example: /Example:/.test(body), avoid: /Avoid/i.test(body), tasks: /Your tasks/i.test(body) };
             panel.click(); await sleep(200);
-            return { learn, folded: !/FINER/.test(document.body.innerText) };` });
+            return { closed, lessonClosed, learn, folded: !/FINER/.test(document.body.innerText) };` });
         assert.deepEqual(errors, []);
+        assert.equal(result.closed, true, 'the stages start closed');
+        assert.equal(result.lessonClosed, true, 'the lesson starts closed');
         assert.deepEqual(result.learn, { finer: true, example: true, avoid: true, tasks: true });
         assert.equal(result.folded, true, 'it can be folded away');
     });
@@ -399,8 +406,7 @@ createRoot(document.getElementById('root')).render(
             const inserted = $('#chapter-text').value;
             await sleep(1900);
             const put = window.__tcalls.find((c) => c[0] === 'PUT' && /chapters\\/c1$/.test(c[1]));
-            $('#chapter-pick').value = 'c2';
-            $('#chapter-pick').dispatchEvent(new Event('change', { bubbles: true }));
+            $$('nav[aria-label=Chapters] button').find((b) => /Review of Literature/.test(b.innerText)).click();
             await sleep(400);
             return { title, intro, inserted: inserted.slice(0, 40), saved: !!put, second: text($('#chapter-guide-title')), assist: window.__tcalls.some((c) => /assist/.test(c[1])) };` });
         assert.deepEqual(errors, []);
@@ -412,14 +418,15 @@ createRoot(document.getElementById('root')).render(
         assert.equal(result.assist, false, 'no assistant request');
     });
 
-    test('the plagiarism and writing guides are open until there is work, with examples', async () => {
+    test('the plagiarism and writing guides start closed and open on a tap, with examples', async () => {
         const plag = await screen({ entry: routed('/teacher/plagiarism', 'Plagiarism', 'Plagiarism'), api: apiModule({}), modules, styles: true, width: 1280, script: `
             await sleep(700);
+            $('[aria-controls=plagiarism-guide-body]').click(); await sleep(200);
             const steps = $$('#plagiarism-guide ol[aria-label=Steps] li').length;
             $$('#plagiarism-guide ol button').find((b) => /Paraphrasing/.test(b.innerText)).click(); await sleep(200);
-            const examples = $$('#plagiarism-guide article p').map((p) => p.textContent.trim()).filter((t) => t === 'Patchwriting — not acceptable' || t === 'A real paraphrase').length;
+            const examples = $$('#plagiarism-guide article p').map((p) => p.textContent.trim()).filter((t) => t === 'Patchwriting (not acceptable)' || t === 'A real paraphrase').length;
             $$('#plagiarism-guide ol button').find((b) => /UGC/.test(b.innerText)).click(); await sleep(200);
-            return { steps, examples, ugc: /Level 0 — up to 10%/.test(document.querySelector('#plagiarism-guide').textContent) };` });
+            return { steps, examples, ugc: /Level 0 \\(up to 10%\\)/.test(document.querySelector('#plagiarism-guide').textContent) };` });
         assert.deepEqual(plag.errors, []);
         assert.equal(plag.result.steps, 9);
         assert.equal(plag.result.examples, 2, 'a bad and a good paraphrase');
@@ -427,9 +434,14 @@ createRoot(document.getElementById('root')).render(
 
         const writing = await screen({ entry: routed('/teacher/writing', 'Writing', 'Writing'), api: apiModule({}), modules, styles: true, width: 500, height: 900, script: `
             await sleep(700);
-            return { open: !!$('#writing-guide-body'), picker: !!$('#writing-guide-step'), steps: $('#writing-guide-step').options.length, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };` });
+            const closed = !$('#writing-guide-body');
+            $('[aria-controls=writing-guide-body]').click(); await sleep(200);
+            const picker = !!$('#writing-guide-step');
+            $('#writing-guide-step').click(); await sleep(300);
+            return { closed, open: !!$('#writing-guide-body'), picker, steps: $$('[role=option]').length, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };` });
         assert.deepEqual(writing.errors, []);
-        assert.equal(writing.result.open, true, 'open before the first piece');
+        assert.equal(writing.result.closed, true, 'closed at first');
+        assert.equal(writing.result.open, true, 'opens on a tap');
         assert.equal(writing.result.steps, 9);
         assert.ok(writing.result.overflow <= 0, `no sideways scroll on a phone (${writing.result.overflow}px)`);
     });

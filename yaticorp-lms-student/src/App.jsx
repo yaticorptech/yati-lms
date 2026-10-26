@@ -297,22 +297,20 @@ const LOOP_PAGES = {
 // What each tab of a page is for, said every time a student opens
 // that tab (asked 2026-10-15). Keyed by the page's ?tab= id; `default` is the
 // tab the page shows with no ?tab. Written from what each panel shows (and the
-// server's rules: bundles cost nothing, the Global Quiz pays XP for a win, a
+// server's rules: the Global Quiz pays XP for a win, a
 // competition takes teams from a college's coordinator).
 const CAP_CLICK = `${LOOP_CLICK[0].toUpperCase()}${LOOP_CLICK.slice(1)}`;
 const LOOP_TABS = {
   '/': {
     default: 'available',
-    available: { label: 'Available Courses', text: `Courses you can join: free ones say Free, paid ones show the price from your wallet. ${CAP_CLICK} Enroll Now to join, or the play button to preview.` },
+    available: { label: 'Available Courses', text: `Courses you can join. ${CAP_CLICK} Enroll Now to see the price and join, or the play button to preview.` },
     completed: { label: 'Completed', text: 'Every course you have finished. Review Course takes you back through one whenever you like.' },
-    bundles: { label: 'Bundles', text: 'Groups of courses that go together. View Courses Inside shows them, and the bar shows your progress across the bundle.' },
     quiz: { label: 'Global Quiz', text: 'A general-knowledge quiz your institution sets from time to time. One attempt each; score high enough and you win XP.' },
     activity: { label: 'Weekly activity', text: 'Your learning streak, the days you were active this week, and how this week compares with the last.' }
   },
   '/enrolled-courses': {
     default: 'courses',
     courses: { label: 'My courses', text: "The courses you're enrolled in, with how far you've got in each. Start, resume or review any of them." },
-    bundles: { label: 'Bundles', text: 'Groups of courses that go together. Open one to see its courses and your progress across them.' },
     organization: { label: 'Organization', text: 'Courses your organization made just for its students, all free. Start one and it opens straight away.' }
   },
   '/competitions': {

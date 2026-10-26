@@ -38,7 +38,7 @@ const linkFor = async (kind) => {
  * (Games & Competitions). Judged from the title, which is all they carry.
  */
 const kindOf = (title = '') => {
-  if (/wallet|withdrawal|XP converted/i.test(title)) return 'wallet';
+  if (/wallet|withdrawal/i.test(title)) return 'wallet';
   if (/rank #\d+ last/i.test(title)) return 'leaderboard';
   if (/place!|competition|team|starts in/i.test(title)) return 'competitions';
   if (/badge|level up/i.test(title)) return 'badges';

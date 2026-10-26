@@ -1,21 +1,20 @@
 /**
  * One teacher, in full: their details and how their research is going —
- * research paths with the stage they are on, publications, theses, writing
- * and the guides they have studied. Titles and numbers only: the server never
+ * research paths with the stage they are on, publications, theses and
+ * writing. Titles and numbers only: the server never
  * sends the words of a thesis, a writing piece or a plagiarism report.
  *
  * `url` is where the teacher is read from: /admin/teachers/:id on the
  * platform, /organizations/me/teachers/:id for an organization.
  */
 import React, { useEffect, useState } from 'react';
-import { X, Route, BookMarked, FileText, PenLine, FlaskConical, ShieldCheck, Mail, Phone, CreditCard, Building2 } from 'lucide-react';
+import { X, Route, BookMarked, FileText, PenLine, ShieldCheck, Mail, Phone, CreditCard, Building2 } from 'lucide-react';
 import api from '../../utils/api';
 import { Dialog, DialogTitle, Banner, Bar, Rows, BTN2 } from '../orgUi';
 import { TeacherStatus } from './TeacherBits';
 import { fmtDay, fmtNum } from './teacherUtils';
 
 const PUB_STATUS = { idea: 'Idea', drafting: 'Drafting', submitted: 'Submitted', under_review: 'Under review', revision: 'Revision', accepted: 'Accepted', published: 'Published', rejected: 'Rejected' };
-const GUIDE_NAMES = { publishing: 'Publishing', plagiarism: 'Plagiarism', writing: 'Writing', stages: 'Research stages' };
 
 const Section = ({ icon: Icon, title, children }) => (
     <section className="rounded-xl border border-slate-200 p-4">
@@ -118,12 +117,6 @@ export default function TeacherDetailModal({ url, onClose }) {
                             <Section icon={PenLine} title="Writing">
                                 <p className="text-sm text-slate-700"><strong>{fmtNum(p.writing.words30)}</strong> words in the last 30 days</p>
                                 <p className="mt-1 text-xs text-slate-500">Wrote on {p.writing.days30} of 30 days · {p.writing.pieces} writing piece{p.writing.pieces === 1 ? '' : 's'}</p>
-                            </Section>
-                            <Section icon={FlaskConical} title="Learning">
-                                <p className="text-sm text-slate-700">{p.learning.methodsStudied} of {p.learning.methodsTotal} research methods studied</p>
-                                <p className="mt-1 text-xs text-slate-500">
-                                    {Object.entries(p.learning.guidesRead || {}).filter(([, n]) => n > 0).map(([g, n]) => `${GUIDE_NAMES[g] || g}: ${n} step${n === 1 ? '' : 's'} read`).join(' · ') || 'No guide steps marked as read yet.'}
-                                </p>
                             </Section>
                             <Section icon={ShieldCheck} title="Plagiarism checks">
                                 <p className="text-sm text-slate-700">{p.plagiarismChecks} check{p.plagiarismChecks === 1 ? '' : 's'} run</p>

@@ -11,8 +11,7 @@ import useAutoRefresh from '../hooks/useAutoRefresh';
 
 const FILTERS = [
     { label: 'All', value: 'ALL' },
-    { label: 'Courses', value: 'COURSE' },
-    { label: 'Bundles', value: 'BUNDLE' }
+    { label: 'Courses', value: 'COURSE' }
 ];
 
 const contentTitle = (enr) => (enr.type === 'Course' ? enr.courseId?.title : enr.bundleId?.title);
@@ -94,8 +93,7 @@ const Enrollments = () => {
 
         const matchesType =
             filterType === 'ALL' ||
-            (filterType === 'COURSE' && e.type === 'Course') ||
-            (filterType === 'BUNDLE' && e.type === 'Bundle');
+            (filterType === 'COURSE' && e.type === 'Course');
 
         return matchesSearch && matchesType;
     });

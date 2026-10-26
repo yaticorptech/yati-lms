@@ -76,6 +76,9 @@ router.route('/admins').get(protectAdmin, superAdminOnly, getAdmins).post(protec
 const cardCtrl = require('../controllers/adminCardController');
 router.route('/cards').get(protectAdmin, superAdminOnly, cardCtrl.listCards).post(protectAdmin, superAdminOnly, cardCtrl.addCards);
 router.post('/cards/verify', protectAdmin, superAdminOnly, cardCtrl.verifyCards);
+router.post('/cards/scan', protectAdmin, superAdminOnly, cardCtrl.scanAndVerify);
+router.post('/cards/verify-all', protectAdmin, superAdminOnly, cardCtrl.verifyAll);
+router.post('/cards/unverify-all', protectAdmin, superAdminOnly, cardCtrl.unverifyAll);
 router.post('/cards/:id/unverify', protectAdmin, superAdminOnly, cardCtrl.unverifyCard);
 router.route('/admins/:id').put(protectAdmin, superAdminOnly, updateAdmin).delete(protectAdmin, superAdminOnly, deleteAdmin);
 
