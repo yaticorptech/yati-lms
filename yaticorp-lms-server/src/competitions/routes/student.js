@@ -21,6 +21,7 @@ const express = require('express');
 const Competition = require('../models/Competition');
 const Team = require('../models/Team');
 const Match = require('../models/Match');
+const fees = require('../services/entryFee');
 const views = require('../services/views');
 const games = require('../services/gameService');
 const { openDue } = require('../services/bracketService');
@@ -47,10 +48,12 @@ const seenBy = (user, c, teams) => !c.hostOrganizationId
 router.get('/games', wrap(async (req, res) => res.json({ games: catalogue() })));
 
 router.get('/', wrap(async (req, res) => {
-    const all = await Competition.find({ status: { $in: VISIBLE } }).sort({ startsAt: -1 }).lean();
+    // Cancelled ones too (shown as Closed), once colleges had entered them:
+    // a draft cancelled before anyone saw it stays hidden.
+    const all = await Competition.find({ status: { $in: [...VISIBLE, 'cancelled'] } }).sort({ startsAt: -1 }).lean();
     const teams = await Team.find({ competitionId: { $in: all.map((c) => c._id) } }).lean();
-    const comps = all.filter((c) => seenBy(req.user, c, teams));
-    const order = { live: 0, registration: 1, closed: 2, completed: 3 };
+    const comps = all.filter((c) => seenBy(req.user, c, teams) && (c.status !== 'cancelled' || teams.some((t) => String(t.competitionId) === String(c._id))));
+    const order = { live: 0, registration: 1, closed: 2, completed: 3, cancelled: 4 };
     const rows = comps.map((c) => {
         const mine = teams.filter((t) => String(t.competitionId) === String(c._id));
         const myTeam = mine.find((t) => t.status !== 'withdrawn' && t.players.some((p) => String(p.userId) === String(req.user._id)));
@@ -66,7 +69,7 @@ router.get('/me', wrap(async (req, res) => {
     const matches = await Match.find({ 'sides.teamId': { $in: myTeams.map((t) => t._id) } }).lean();
     const allTeams = await Team.find({ _id: { $in: matches.flatMap((m) => m.sides.map((s) => s.teamId)) } }).lean();
     const PlayGame = require('../models/PlayGame');
-    const gameRows = await games.withCodes(await PlayGame.find({ _id: { $in: matches.flatMap((m) => m.gameIds) } }).select('status code kind').lean());
+    const gameRows = await games.withCodes(await PlayGame.find({ _id: { $in: matches.flatMap((m) => m.gameIds) } }).select('status code kind seats.userId seats.code seats.joinedAt').lean());
     const compOf = (id) => comps.find((c) => String(c._id) === String(id));
     const myTeamIn = (m) => myTeams.find((t) => m.sides.some((s) => String(s.teamId) === String(t._id)));
     const withComp = (m) => {
@@ -74,8 +77,16 @@ router.get('/me', wrap(async (req, res) => {
         const team = myTeamIn(m);
         const side = m.sides.find((s) => String(s.teamId) === String(team?._id));
         const v = views.matchView(m, allTeams, gameRows, { showCode: true });
+        // My own joining code for the open game, not the match's.
+        const latest = gameRows.find((g) => String(g._id) === String(m.gameIds?.at(-1)));
+        const seat = latest?.seats?.find((s) => String(s.userId) === String(req.user._id));
+        // No code while the entry fee is owed.
+        const owes = fees.due(c) && !team?.players.find((p) => String(p.userId) === String(req.user._id))?.paidAt;
+        if (seat?.code) v.gameCode = ['waiting', 'active'].includes(latest.status) && !owes ? seat.code : null;
+        else if (latest?.seats?.some((s) => s.code)) v.gameCode = null;
         return {
             ...v,
+            joined: !!seat?.joinedAt,
             competition: c ? { id: String(c._id), name: c.name, game: c.game, ...views.gameInfo(c.game) } : null,
             myTeamId: team ? String(team._id) : null,
             // Whether I am one of the players at the board for this match.
@@ -163,9 +174,78 @@ router.delete('/certificates/:competitionId', wrap(async (req, res) => {
 
 /* ── Play ───────────────────────────────────────────────────────────── */
 
-router.post('/matches/join', wrap(async (req, res) => res.json(await games.joinByCode(req.user, req.body?.code))));
-router.get('/play/:gameId', wrap(async (req, res) => res.json(await games.poll(req.params.gameId, req.user._id, req.query.since))));
-router.post('/play/:gameId/join', wrap(async (req, res) => res.json(await games.join(req.params.gameId, req.user._id))));
+// A joining code: a player's own for their match, or for a Quiz Arena.
+router.post('/matches/join', wrap(async (req, res) => {
+    const match = await games.joinByCode(req.user, req.body?.code);
+    if (match) return res.json(match);
+    const arena = await require('../arena/student').joinByCode(req.user, req.body?.code);
+    if (arena) return res.json(arena);
+    res.status(404).json({ message: 'No match or Quiz Arena has that code. Check the code sent to you.' });
+}));
+
+/**
+ * What has just opened for me and is waiting for my code: a match game I have
+ * not joined, a Quiz Arena on now that I have not joined. The student app asks
+ * every few seconds and shows a pop-up with my code.
+ */
+router.get('/alerts', wrap(async (req, res) => {
+    const PlayGame = require('../models/PlayGame');
+    await require('../services/bracketService').openDueReplays();
+    // Scheduled matches whose time has come open here too.
+    const myTeams = await Team.find({ 'players.userId': req.user._id, status: 'approved' }).select('competitionId').lean();
+    const live = await Competition.find({ _id: { $in: myTeams.map((t) => t.competitionId) }, status: 'live' }).select('_id').lean();
+    for (const c of live) await openDue(c._id);
+    const open = await PlayGame.find({ kind: 'match', status: 'waiting', seats: { $elemMatch: { userId: req.user._id, joinedAt: null } } })
+        .select('competitionId matchId seats joinDeadline game').lean();
+    const comps = await Competition.find({ _id: { $in: open.map((g) => g.competitionId) } }).select('name').lean();
+    const matches = await Match.find({ _id: { $in: open.map((g) => g.matchId) } }).select('roundName kind').lean();
+    const alerts = open.map((g) => {
+        const seat = g.seats.find((s) => String(s.userId) === String(req.user._id));
+        const m = matches.find((x) => String(x._id) === String(g.matchId));
+        return {
+            id: `match:${g._id}`, kind: 'match', gameId: String(g._id), code: seat.code || null,
+            title: comps.find((c) => String(c._id) === String(g.competitionId))?.name || 'Your match',
+            subtitle: `${m?.kind === 'third-place' ? 'Third-place match' : m?.roundName || 'Your match'} · ${views.gameInfo(g.game).label}`,
+            deadline: g.joinDeadline
+        };
+    });
+    // Owing the entry fee: a pop-up to pay instead of the code.
+    const shown = [];
+    for (const a of alerts) {
+        const g = open.find((x) => String(x._id) === a.gameId);
+        if (!(await fees.owedBy(g.competitionId, req.user._id))) shown.push(a);
+    }
+    const owing = await Team.find({ 'players.userId': req.user._id, status: 'approved' }).select('competitionId players').lean();
+    const feeComps = await Competition.find({ _id: { $in: owing.map((t) => t.competitionId) }, status: { $in: ['registration', 'closed', 'live'] }, 'entryFee.enabled': true }).select('name entryFee').lean();
+    for (const c of feeComps) {
+        const me = owing.find((t) => String(t.competitionId) === String(c._id))?.players.find((p) => String(p.userId) === String(req.user._id));
+        if (me && !me.paidAt) shown.push({ id: `pay:${c._id}`, kind: 'payment', competitionId: String(c._id), title: c.name, subtitle: `Pay ₹${c.entryFee.amount} to enroll`, amount: c.entryFee.amount });
+    }
+    shown.push(...await require('../arena/student').alertsFor(req.user));
+    res.json({ alerts: shown });
+}));
+router.get('/play/:gameId', wrap(async (req, res) => {
+    const out = await games.poll(req.params.gameId, req.user._id, req.query.since);
+    // A drawn match game: when its rematch opens, and then where it is.
+    if (out?.game?.status === 'finished') {
+        const g0 = await require('../models/PlayGame').findById(req.params.gameId).select('matchId').lean();
+        const m = g0?.matchId ? await Match.findById(g0.matchId).select('replayAt gameIds status').lean() : null;
+        if (m?.status === 'live') {
+            await require('../services/bracketService').openDueReplays();
+            const fresh = await Match.findById(g0.matchId).select('replayAt gameIds').lean();
+            out.game.rematchAt = fresh.replayAt || null;
+            const last = fresh.gameIds?.at(-1);
+            if (last && String(last) !== String(req.params.gameId)) out.game.nextGameId = String(last);
+        }
+    }
+    // No code for a player who still owes the entry fee.
+    if (out?.game?.code) {
+        const g = await require('../models/PlayGame').findById(req.params.gameId).select('competitionId').lean();
+        if (g?.competitionId && await fees.owedBy(g.competitionId, req.user._id)) out.game.code = null;
+    }
+    res.json(out);
+}));
+router.post('/play/:gameId/join', wrap(async (req, res) => res.json(await games.join(req.params.gameId, req.user._id, req.body?.code))));
 router.post('/play/:gameId/action', wrap(async (req, res) => res.json(await games.act(req.params.gameId, req.user._id, req.body?.action))));
 
 /* ── One competition ─────────────────────────────────────────────────── */
@@ -181,8 +261,64 @@ const visible = async (id, user) => {
 router.get('/:id', wrap(async (req, res) => {
     const c = await visible(req.params.id, req.user);
     if (!c) return res.status(404).json({ message: 'Competition not found.' });
-    if (c.status === 'live') await openDue(c._id);
-    res.json(await views.detail(c._id, { userId: req.user._id }));
+    if (c.status === 'live') await require('../services/bracketService').openDueReplays();
+    const d = await views.detail(c._id, { userId: req.user._id });
+    // My team's current match: whether it has been started, and only then my own code.
+    const team = d.competition.myTeam?.status === 'approved' ? d.competition.myTeam : null;
+    if (team) {
+        const m = (await Match.find({ competitionId: c._id, 'sides.teamId': team.id, status: { $in: ['live', 'scheduled'] } }).sort({ round: 1 }).lean())
+            .sort((x, y) => (x.status === 'live' ? -1 : 0) - (y.status === 'live' ? -1 : 0))[0];
+        if (m) {
+            const PlayGame = require('../models/PlayGame');
+            const g = m.gameIds?.length ? await PlayGame.findById(m.gameIds.at(-1)).select('status seats.userId seats.code seats.joinedAt').lean() : null;
+            const seat = g?.seats?.find((x) => String(x.userId) === String(req.user._id));
+            const open = m.status === 'live' && ['waiting', 'active'].includes(g?.status);
+            d.myMatch = {
+                id: String(m._id), roundName: m.kind === 'third-place' ? 'Third place' : m.roundName, status: m.status, scheduledAt: m.scheduledAt,
+                gameId: open ? String(g._id) : null, started: open, playing: !!seat,
+                // A drawn game: the rematch opens at this time.
+                rematchAt: m.replayAt || null,
+                code: open && seat ? seat.code || null : null, joined: !!seat?.joinedAt
+            };
+        }
+        // The entry fee: owed until paid, and no code until then.
+        const amount = fees.due(d.competition);
+        if (amount) {
+            const me = team.players.find((p) => p.userId === String(req.user._id));
+            d.myPayment = { amount, paid: !!me?.paid };
+            if (!me?.paid && d.myMatch) d.myMatch.code = null;
+        }
+    }
+    res.json(d);
+}));
+
+/**
+ * Pay the entry fee online (Razorpay), once my team is approved:
+ *   POST /:id/pay          → the order for Razorpay Checkout (or { paid: true })
+ *   POST /:id/pay/verify   { razorpay_order_id, razorpay_payment_id, razorpay_signature }
+ */
+const feeFor = async (req) => {
+    const c = await visible(req.params.id, req.user);
+    if (!c) throw Object.assign(new Error('Competition not found.'), { status: 404 });
+    const comp = await Competition.findById(c._id).lean();
+    const amount = fees.due(comp);
+    if (!amount) throw Object.assign(new Error('This competition has no entry fee.'), { status: 409 });
+    if (['completed', 'cancelled'].includes(comp.status)) throw Object.assign(new Error('This competition is over.'), { status: 409 });
+    const team = await Team.findOne({ competitionId: c._id, status: 'approved', 'players.userId': req.user._id }).lean();
+    if (!team) throw Object.assign(new Error('You can pay once your team is approved by the organizer.'), { status: 403 });
+    const me = team.players.find((p) => String(p.userId) === String(req.user._id));
+    const onPaid = (p) => Team.updateOne({ _id: team._id, 'players.userId': req.user._id }, { $set: { 'players.$.paidAt': p.paidAt, 'players.$.paidAmount': p.amount } });
+    return { comp, amount, paid: !!me.paidAt, onPaid };
+};
+router.post('/:id/pay', wrap(async (req, res) => {
+    const f = await feeFor(req);
+    if (f.paid) return res.json({ paid: true });
+    res.json(await fees.startPayment({ user: req.user, kind: 'competition', competitionId: f.comp._id, amount: f.amount, title: f.comp.name, onPaid: f.onPaid }));
+}));
+router.post('/:id/pay/verify', wrap(async (req, res) => {
+    const f = await feeFor(req);
+    if (f.paid) return res.json({ paid: true });
+    res.json(await fees.confirmPayment({ user: req.user, kind: 'competition', competitionId: f.comp._id, body: req.body, onPaid: f.onPaid }));
 }));
 
 // Wallet rule (optional): each certificate PDF, like a course's; refunded when there is none to give.

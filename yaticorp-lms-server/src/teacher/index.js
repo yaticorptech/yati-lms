@@ -10,6 +10,7 @@
  *   writing             Independent Writing: pieces, daily goal, the last 14 days
  *   plagiarism          the similarity check, its reports, and the teacher's uploaded sources
  *   organization        joining a college or school (organization.js)
+ *   clubs               the organization's clubs this teacher is in charge of: their events (../nccnss/teacher.js)
  *
  * Every route past auth/ reads req.teacher only: a teacher can never reach
  * another's records (the plagiarism check compares against other documents,
@@ -162,6 +163,10 @@ router.get('/overview', async (req, res) => {
 /* ── Organization ──────────────────────────────────────────────────────── */
 
 router.use('/organization', require('./organization'));
+
+/* ── Clubs in my charge (src/nccnss/teacher.js) ───────────────────────── */
+
+router.use('/clubs', require('../nccnss/teacher'));
 
 /* ── Research Path ─────────────────────────────────────────────────────── */
 

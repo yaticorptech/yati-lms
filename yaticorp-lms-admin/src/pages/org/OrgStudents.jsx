@@ -19,7 +19,7 @@
  * the one that is showing is built.
  */
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useOutletContext } from 'react-router-dom';
 import OrgCertificateProgress from './OrgCertificateProgress';
 import OrgRequests from './OrgRequests';
 import { Users, ChevronRight, Award, Download, UserMinus, Loader2, UserPlus } from 'lucide-react';
@@ -396,6 +396,7 @@ const StudentList = ({ tabs }) => {
 
 const VIEWS = [
     ['students', 'All students'],
+    // Students asking to join: once a menu item of its own ("Student requests").
     ['requests', 'Requests'],
     ['certificates', 'Certificate progress']
 ];
@@ -409,18 +410,14 @@ const VIEWS = [
  */
 const OrgStudents = () => {
     const [params, setParams] = useSearchParams();
-    const view = ['certificates', 'requests'].includes(params.get('view')) ? params.get('view') : 'students';
-    // How many are waiting, on the Requests tab: read here, and again when one is decided.
-    const [waiting, setWaiting] = useState(0);
-    useEffect(() => {
-        const load = () => api.get('/organizations/me/requests/count').then((r) => setWaiting(r.data?.pending || 0)).catch(() => {});
-        load();
-        window.addEventListener('organization-requests-changed', load);
-        return () => window.removeEventListener('organization-requests-changed', load);
-    }, []);
+    const { staff, pendingRequests } = useOutletContext() || {};
+    // A teacher signed in to the panel cannot decide requests, so they see no Requests tab.
+    const views = staff ? VIEWS.filter(([v]) => v !== 'requests') : VIEWS;
+    const asked = params.get('view');
+    const view = views.some(([v]) => v === asked) ? asked : 'students';
     // Under the page's title, not above it: the title says where you are, the
     // tabs which view of it.
-    const tabs = <Segmented options={VIEWS} value={view} counts={{ requests: waiting }} onChange={(v) => setParams(v === 'students' ? {} : { view: v })} />;
+    const tabs = <Segmented options={views} value={view} onChange={(v) => setParams(v === 'students' ? {} : { view: v })} counts={{ requests: pendingRequests }} />;
     if (view === 'students') return <StudentList tabs={tabs} />;
     if (view === 'requests') return <OrgRequests tabs={tabs} />;
     return (

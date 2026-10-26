@@ -177,7 +177,9 @@ const present = (game, userId, extras = {}) => {
         status: game.status,
         version: game.version,
         you: seat >= 0 ? seat : null,
-        code: game.kind === 'match' && seat >= 0 ? game.code || null : null,
+        // My own joining code, and whether I have taken my seat.
+        code: game.kind === 'match' && seat >= 0 ? (game.seats[seat].code && !game.seats[seat].code.startsWith('~') ? game.seats[seat].code : null) || game.code || null : null,
+        joined: seat >= 0 ? !!game.seats[seat].joinedAt : null,
         seats: game.seats.map((s) => ({ name: s.name, side: s.side, joined: !!s.joinedAt })),
         minSeats: e.minSeats,
         maxSeats: e.maxSeats,
@@ -240,13 +242,25 @@ const act = async (gameId, userId, action) => {
     throw new PlayError('The game moved on while you were acting. Try again.', 409);
 };
 
-/** A seated player says they are here. A match starts once everyone is. */
-const join = async (gameId, userId) => {
+const normal = (code) => String(code || '').trim().toUpperCase();
+
+/**
+ * A seated player says they are here, with their own joining code (a game
+ * opened before codes per player existed asks for none). A match starts once
+ * everyone is.
+ */
+const join = async (gameId, userId, code) => {
     let game = await catchUp(playable(await load(gameId)));
     for (let tries = 0; tries < 4; tries += 1) {
         const seat = seatOf(game, userId);
         if (seat < 0) throw new PlayError('You are not playing in this game.', 403);
         if (game.status !== 'waiting' || game.seats[seat].joinedAt) return { game: present(game, userId, await context(game)) };
+        const own = game.seats[seat].code;
+        // An entry fee not paid yet: no seat until it is.
+        const owed = game.kind === 'match' ? await require('./entryFee').owedBy(game.competitionId, userId) : 0;
+        if (owed) throw new PlayError(`Pay the ₹${owed} entry fee to join this competition.`, 402);
+        if (own && !normal(code)) throw new PlayError('Enter your joining code to join.', 400);
+        if (own && normal(code) !== own) throw new PlayError('That is not your joining code. Use the code sent to you.', 403);
         const seats = game.seats.map((s, i) => (i === seat ? { ...s.toObject(), joinedAt: new Date() } : s.toObject()));
         const everyone = game.kind === 'match' && seats.every((s) => s.joinedAt);
         const saved = everyone ? await begin(game, seats) : await commit(game, { seats });
@@ -281,25 +295,42 @@ const withCodes = async (rows) => {
     return rows;
 };
 
-/** A player types their match's code: the game to open, if it is theirs. */
+/**
+ * A player types a joining code. Their own personal code takes their seat and
+ * opens the game; another player's is refused. (A Quiz Arena code is the
+ * arena's: see arena/student.js.) A match game opened before personal codes
+ * still opens with its match code.
+ */
 const joinByCode = async (user, rawCode) => {
-    const code = String(rawCode || '').trim().toUpperCase();
-    if (!/^[A-Z0-9]{6}$/.test(code)) throw new PlayError('Enter the 6-character match code.');
+    const code = normal(rawCode);
+    if (!/^[A-Z0-9]{6}$/.test(code)) throw new PlayError('Enter your 6-character joining code.');
+    const mine = await PlayGame.findOne({ 'seats.code': code, kind: 'match' }).select('status seats').lean();
+    if (mine) {
+        const seat = mine.seats.find((s) => s.code === code);
+        if (String(seat.userId) !== String(user._id)) throw new PlayError('This joining code belongs to another player. Use the code sent to you.', 403);
+        if (!['waiting', 'active'].includes(mine.status)) throw new PlayError('That match is over. See the result in My Games.', 409);
+        await join(mine._id, user._id, code);
+        return { game: { id: String(mine._id) } };
+    }
     const game = await PlayGame.findOne({ code, kind: 'match' }).select('status seats').lean();
-    if (!game) throw new PlayError('No match has that code. Check it in My Games.', 404);
-    if (seatOf(game, user._id) < 0) throw new PlayError('That code is for another match. Your own match code is in My Games.', 403);
+    if (!game) return null;
+    if (seatOf(game, user._id) < 0) throw new PlayError('That code is for another match. Your own joining code is in My Games.', 403);
+    if (game.seats.some((s) => s.code)) throw new PlayError('Use your own joining code: it is in your notification and in My Games.', 403);
     if (!['waiting', 'active'].includes(game.status)) throw new PlayError('That match is over. See the result in My Games.', 409);
     return { game: { id: String(game._id) } };
 };
 
-/** A competition's game options, each clamped to what its engine allows (UNO's for one made before it was removed). */
+/** A competition's game options, each clamped to what its engine allows (UNO's, Ludo's and Carrom's for one made before they were removed). */
 const gameOptions = (game, raw = {}) => {
     const pick = (k, lo, hi) => (raw[k] == null || raw[k] === '' ? undefined : Math.max(lo, Math.min(hi, Number(raw[k]) || lo)));
     const o = {
         chess: { clockMinutes: pick('clockMinutes', 1, 60) },
         ludo: { tokensPerPlayer: pick('tokensPerPlayer', 2, 4), turnSeconds: pick('turnSeconds', 10, 120) },
         uno: { handSize: pick('handSize', 5, 7), turnSeconds: pick('turnSeconds', 10, 120) },
-        carrom: { turnSeconds: pick('turnSeconds', 15, 120) }
+        carrom: { turnSeconds: pick('turnSeconds', 15, 120) },
+        rapidfire: { questionCount: pick('questionCount', 10, 30), questionSeconds: pick('questionSeconds', 5, 20) },
+        codeclash: { questionCount: pick('questionCount', 5, 15), questionSeconds: pick('questionSeconds', 20, 120) },
+        brainsprint: { questionCount: pick('questionCount', 5, 20), questionSeconds: pick('questionSeconds', 10, 60) }
     }[game] || {};
     return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 };
@@ -322,7 +353,31 @@ const openMatchGame = async ({ competition, match, teams }) => {
     } else {
         seats = sides.flatMap((players, side) => players.map((p) => ({ ...p, side })));
     }
+    // One joining code per player per competition: a player who had one in an
+    // earlier game of this competition (a replay after a draw, the next round)
+    // keeps it; it moves from the finished game to this one.
+    const kept = {};
+    for (const s of seats) {
+        const earlier = await PlayGame.findOne({ competitionId: competition._id, seats: { $elemMatch: { userId: s.userId, code: { $type: 'string', $not: /^~/ } } } }).sort({ createdAt: -1 }).select('seats').lean();
+        const code = earlier?.seats.find((x) => String(x.userId) === String(s.userId))?.code;
+        if (code) kept[String(s.userId)] = code;
+    }
+    // The finished game keeps a retired form of the code ("~CODE:game"), unique
+    // and never shown, so the code itself is free for the new game.
+    for (const code of Object.values(kept)) {
+        const old = await PlayGame.find({ 'seats.code': code }).select('_id').lean();
+        for (const g of old) await PlayGame.updateOne({ _id: g._id }, { $set: { 'seats.$[s].code': `~${code}:${g._id}` } }, { arrayFilters: [{ 's.code': code }] });
+    }
     for (let tries = 0; ; tries += 1) {
+        // Every other player their own new joining code, none the same.
+        const codes = new Set(Object.values(kept));
+        const fresh = [];
+        while (fresh.length < seats.filter((s) => !kept[String(s.userId)]).length) {
+            const c = newCode();
+            if (!codes.has(c)) { codes.add(c); fresh.push(c); }
+        }
+        let k = 0;
+        seats = seats.map((s) => ({ ...s, code: kept[String(s.userId)] || fresh[k++] }));
         try {
             return await PlayGame.create({
                 kind: 'match', game: competition.game, code: newCode(),

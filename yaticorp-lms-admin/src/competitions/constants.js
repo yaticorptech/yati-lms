@@ -1,13 +1,23 @@
 /** The admin panel's competition constants and helpers (shared by the pages). */
 import api from '../utils/api';
 
-// The games a competition can be made for (UNO was removed on 2026-10-23).
-// Each game's icon is GameIcon (competitions/shared.jsx).
+// The games a competition can be made for (UNO was removed on 2026-10-23;
+// Ludo and Carrom gave way to the brain games on 2026-10-24). Each game's
+// icon is GameIcon (competitions/shared.jsx). A brain game is a quiz:
+// `questions` and `seconds` are what the server allows and its default
+// (yaticorp-lms-server/src/competitions/games/<id>.js).
 export const GAMES = {
     chess: { label: 'Chess', note: 'Two teams a match, one player each.' },
-    ludo: { label: 'Ludo', note: 'Two to four teams a match, one player each.' },
-    carrom: { label: 'Carrom', note: 'Two teams a match: singles, or doubles with two players each.' }
+    rapidfire: { label: 'Rapid Fire', brain: true, note: 'General knowledge: each player answers every question (right +10, wrong −5); answers and scores are shown only at the end. Two to four teams a match.', questions: [10, 30, 15], seconds: [5, 20, 8] },
+    codeclash: { label: 'Code Clash', brain: true, note: 'Hackathon-style coding round: predict the output, spot the bug. Two to four teams a match.', questions: [5, 15, 8], seconds: [20, 120, 45] },
+    brainsprint: { label: 'Brain Sprint', brain: true, note: 'IQ puzzles made fresh for every match: series, logic, numbers. Two to four teams a match.', questions: [5, 20, 12], seconds: [10, 60, 25] }
 };
+
+/** Quiz Arena's line under the game cards (it is not one of GAMES: it has models of its own). */
+export const ARENA_NOTE = 'A three-round live quiz, students entered by their college.';
+
+/** A game's note as points, one per sentence, for the box under the game cards. */
+export const notePoints = (note = '') => note.split(/(?<=\.)\s+/).map((x) => x.trim()).filter(Boolean);
 
 export const STATUS = {
     draft: ['Draft', 'bg-slate-100 text-slate-600'],
@@ -29,6 +39,8 @@ export const STATUS = {
     // ('registration-soon' and 'closing-soon' are above).
     // The student app's words (yaticorp-lms-student/src/competitions/api.js).
     'registration-open': ['Registration open', 'bg-emerald-50 text-emerald-700'],
+    // Its start date passed and its matches were never drawn.
+    expired: ['Closed — start date passed', 'bg-slate-100 text-slate-600'],
     upcoming: ['Upcoming', 'bg-sky-50 text-sky-700']
 };
 export const ORDINAL = { 1: '1st', 2: '2nd', 3: '3rd' };
@@ -42,6 +54,7 @@ export const ORDINAL = { 1: '1st', 2: '2nd', 3: '3rd' };
  * card said "Registration is closed".
  */
 export const competitionBadge = (c) => {
+    if (c?.phase === 'expired') return 'expired';
     if (c?.status !== 'registration') return c?.status;
     if (c.phase === 'upcoming') return 'closed';
     if (c.phase === 'registration-soon' || c.phase === 'closing-soon') return c.phase;

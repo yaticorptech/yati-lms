@@ -24,12 +24,10 @@ const sweepOnce = async () => {
     for (const g of due) {
         try { await catchUp(g); } catch (err) { console.warn('[games] sweep failed for', String(g._id), err.message); }
     }
-    const { openMatch } = require('./bracketService');
-    const starting = await Match.find({ status: 'scheduled', scheduledAt: { $ne: null, $lte: now } }).limit(50);
-    for (const m of starting) {
-        try { await openMatch(m); } catch (err) { console.warn('[games] opening a match failed:', err.message); }
-    }
-    return due.length + starting.length;
+    // A scheduled match waits for the admin's Start: it never opens by itself.
+    // A rematch after a draw does, 5 minutes on.
+    await require('./bracketService').openDueReplays();
+    return due.length;
 };
 
 const start = (seconds = 5) => {

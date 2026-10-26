@@ -29,6 +29,7 @@ import { pictureUrl } from '../native/pictures';
 import { isShortOfFunds, serverMessage } from '../utils/walletCharge';
 import PhotoPicker from '../components/PhotoPicker';
 import WeeklyActivityCard from '../components/WeeklyActivityCard';
+import { MyClubsCard } from '../nccnss/ActivityCalendar';
 
 /**
  * The line under "Your account is ready" when the Organization ID given at
@@ -447,6 +448,10 @@ const Profile = ({ view = 'dashboard' }) => {
                     <WalletCard />
                 </div>
             )}
+
+            {/* ── Dashboard: the clubs, NCC/NSS and Scouts the student is in, with
+                their posts and what is coming up (nothing until they join one). ── */}
+            {!onProfile && <MyClubsCard />}
 
             {/* ── Dashboard: My Learning — the tabs and enrol flow ── */}
             {!onProfile && <DashboardCourses

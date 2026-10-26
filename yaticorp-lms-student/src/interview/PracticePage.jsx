@@ -46,8 +46,8 @@ export default function PracticePage() {
         return () => clearTimeout(t);
     }, [shownLink]);
 
-    if (data === undefined) return <div className="mx-auto max-w-4xl pb-12"><Analyzing label="Preparing your questions…" /></div>;
-    if (!data) return <div className="mx-auto max-w-4xl pb-12"><ErrorBox error={error} onRetry={load} /></div>;
+    if (data === undefined) return <div className="w-full pb-12"><Analyzing label="Preparing your questions…" /></div>;
+    if (!data) return <div className="w-full pb-12"><ErrorBox error={error} onRetry={load} /></div>;
     const rows = data.questions.filter((q) => cat === 'all' || q.category === cat);
     const done = new Set(data.practiced);
     // Every question in each category. These used to leave out the practised
@@ -55,7 +55,7 @@ export default function PracticePage() {
     const counts = Object.fromEntries(CATS.map(([id]) => [id, data.questions.filter((q) => id === 'all' || q.category === id).length]));
 
     return (
-        <div className="mx-auto max-w-4xl space-y-5 pb-12 animate-fade-in">
+        <div className="w-full space-y-5 pb-12 animate-fade-in">
             <Link to="/interview" onClick={markReturn} className="inline-flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-indigo-600"><ArrowLeft size={15} /> Interview</Link>
             {/* What the bank holds. It used to be a "1 of 20 practised" tally
                 with a progress bar and a "Practise the next one" button, but

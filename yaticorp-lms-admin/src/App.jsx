@@ -85,11 +85,11 @@ const LessonEditor = React.lazy(() => import('./pages/LessonEditor'));
 const Enrollments = React.lazy(() => import('./pages/Enrollments'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const Tickets = React.lazy(() => import('./pages/Tickets'));
-const Community = React.lazy(() => import('./pages/Community'));
 import NotFound from './pages/NotFound';
 const Analytics = React.lazy(() => import('./pages/Analytics'));
 const GlobalQuiz = React.lazy(() => import('./pages/GlobalQuiz'));
-const OrgLinguistic = React.lazy(() => import('./pages/linguistic/OrgLinguistic'));
+// No Linguistic Ability pages: the platform admin's was removed (Presilla_test) and the
+// organization's English section too (test); its old address redirects below.
 const Announcements = React.lazy(() => import('./pages/Announcements'));
 const CareerPath = React.lazy(() => import('./pages/CareerPath'));
 const Jobs = React.lazy(() => import('./pages/Jobs'));
@@ -101,12 +101,18 @@ const OrgDashboard = React.lazy(() => import('./pages/org/OrgDashboard'));
 const OrgStudents = React.lazy(() => import('./pages/org/OrgStudents'));
 const OrgStudentDetail = React.lazy(() => import('./pages/org/OrgStudentDetail'));
 const OrgTeachers = React.lazy(() => import('./pages/org/OrgTeachers'));
+const OrgNccNss = React.lazy(() => import('./pages/org/OrgNccNss'));
+// Research: a teacher's own teacher dashboard, inside the organization panel.
+const OrgResearch = React.lazy(() => import('./pages/org/OrgResearch'));
 const OrgSettings = React.lazy(() => import('./pages/org/OrgSettings'));
 import OrgNotFound from './pages/org/OrgNotFound';
 // Games & Competitions: the platform runs inter-college competitions; colleges enter teams.
 const Competitions = React.lazy(() => import('./pages/Competitions'));
 const CompetitionAdmin = React.lazy(() => import('./pages/CompetitionAdmin'));
 const OrgCompetitions = React.lazy(() => import('./pages/org/OrgCompetitions'));
+// Quiz Arena: three-round live quiz contests, and their question bank.
+const QuizArena = React.lazy(() => import('./pages/QuizArena'));
+const QuizArenaCompetition = React.lazy(() => import('./pages/QuizArenaCompetition'));
 import { CourseScope, ORGANIZATION_SCOPE } from './utils/courseScope';
 
 /** The platform's course pages, working on this organization's own courses. */
@@ -132,12 +138,19 @@ function App() {
         {/* Requests are the Students page's tab now; the old address still lands there. */}
         <Route path="requests" element={<Navigate to="/organization/students?view=requests" replace />} />
         <Route path="teachers" element={<OrgTeachers />} />
+        <Route path="ncc-nss" element={<OrgNccNss />} />
+        <Route path="research" element={<OrgResearch />} />
+        <Route path="research/:tool" element={<OrgResearch />} />
         <Route path="courses" element={<OrgCourses><Courses /></OrgCourses>} />
         <Route path="courses/:id" element={<OrgCourses><CourseEditor /></OrgCourses>} />
         <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
         <Route path="competitions" element={<OrgCompetitions />} />
         <Route path="competitions/host/:id" element={<CompetitionAdmin apiBase="/competitions/org/host" backTo="/organization/competitions?tab=host" />} />
-        <Route path="linguistic" element={<OrgLinguistic />} />
+        {/* A hosting college's own Quiz Arena: its question bank and contests. */}
+        <Route path="competitions/question-bank" element={<QuizArena />} />
+        <Route path="competitions/arena/:id" element={<QuizArenaCompetition />} />
+        {/* English (Linguistic Ability) is no longer in the organization panel; an old link goes to the dashboard. */}
+        <Route path="linguistic" element={<Navigate to="/organization" replace />} />
         <Route path="settings" element={<OrgSettings />} />
         {/* Any other address in here: said inside the shell, menu and all. */}
         <Route path="*" element={<OrgNotFound />} />
@@ -155,7 +168,6 @@ function App() {
         <Route path="organizations" element={<SuperAdminRoute what="organizations"><Organizations /></SuperAdminRoute>} />
         <Route path="settings" element={<Settings />} />
         <Route path="tickets" element={<Tickets />} />
-        <Route path="community" element={<Community />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="career-path" element={<CareerPath />} />
         <Route path="jobs" element={<Jobs />} />
@@ -164,6 +176,10 @@ function App() {
         <Route path="announcements" element={<Announcements />} />
         <Route path="competitions" element={<SuperAdminRoute what="competitions"><Competitions /></SuperAdminRoute>} />
         <Route path="competitions/:id" element={<SuperAdminRoute what="competitions"><CompetitionAdmin /></SuperAdminRoute>} />
+        {/* Quiz Arena lives in Games & Competitions: its contests in the list, its question bank a page of it. */}
+        <Route path="competitions/question-bank" element={<SuperAdminRoute what="competitions"><QuizArena /></SuperAdminRoute>} />
+        <Route path="competitions/arena/:id" element={<SuperAdminRoute what="competitions"><QuizArenaCompetition /></SuperAdminRoute>} />
+        <Route path="quiz-arena/*" element={<Navigate to="/competitions" replace />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -25,7 +25,8 @@ const TABS = [
     ['rejected', 'Rejected']
 ];
 
-const OrgRequests = ({ tabs = null }) => {
+/** `tabs` (from the Students page, where this now lives) take the place of its own title. */
+const OrgRequests = ({ tabs }) => {
     const [tab, setTab] = useState('pending');
     const [requests, setRequests] = useState([]);
     const [pendingCount, setPendingCount] = useState(0);
@@ -92,9 +93,16 @@ const OrgRequests = ({ tabs = null }) => {
 
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
-            <PageHeader icon={UserPlus} title="Students"
-                subtitle="Students who entered your Organization ID and asked to join. Approving one makes them a member." />
-            {tabs}
+            {tabs ? (
+                <>
+                    <PageHeader icon={UserPlus} title="Students"
+                        subtitle="Students who entered your Organization ID and asked to join. Approving one makes them a member." />
+                    {tabs}
+                </>
+            ) : (
+                <PageHeader icon={UserPlus} title="Student requests"
+                    subtitle="Students who entered your Organization ID and asked to join. Approving one makes them a member." />
+            )}
 
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             {error && !loadFailed && <Banner onClose={() => setError('')}>{error}</Banner>}

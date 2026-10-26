@@ -10,6 +10,8 @@ import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 import { isNative } from '../native/platform';
 import api from '../utils/api';
 
+// The Terms and Privacy Policy pages are the student site's (/terms, /privacy).
+const STUDENT_URL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
 const Login = () => {
     const { admin, login, verify2FA } = useAuth();
 
@@ -192,6 +194,9 @@ const Login = () => {
                                     Register Your Organization
                                 </Link>
                             </div>
+                            <p className="text-center text-[11px] text-slate-500">
+                                <a href={`${STUDENT_URL}/terms`} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-300 hover:underline">Terms and Conditions</a> · <a href={`${STUDENT_URL}/privacy`} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-300 hover:underline">Privacy Policy</a>
+                            </p>
                         </form>
                     )}
 

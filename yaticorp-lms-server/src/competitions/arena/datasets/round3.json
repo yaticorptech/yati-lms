@@ -1,0 +1,977 @@
+{
+  "round": 3,
+  "name": "Current Affairs Clash",
+  "about": "Current affairs from the last year, each confirmed against the source it names (sourceUrl) on the date given (verifiedOn), with the date of the event (eventDate). Questions whose event is older than maxAgeDays are skipped as outdated, so this file needs fresh questions over time; add them in the format of `example`. Every current-affairs question is marked Needs Review: an admin confirms the answer against the source before approving.",
+  "maxAgeDays": 365,
+  "example": {
+    "key": "r3-example-unique-key",
+    "category": "Sports",
+    "difficulty": "medium",
+    "prompt": "Which country won <the event> held in <month year>?",
+    "options": [
+      "Country A",
+      "Country B",
+      "Country C",
+      "Country D"
+    ],
+    "answer": "Country A",
+    "explanation": "One line on what happened.",
+    "sourceUrl": "https://<the news report or official page>",
+    "eventDate": "2026-09-30",
+    "verifiedOn": "2026-10-20"
+  },
+  "questions": [
+    {
+      "key": "r3-sport-fifa-2026",
+      "category": "Sports",
+      "difficulty": "easy",
+      "prompt": "Which country won the 2026 FIFA World Cup?",
+      "options": [
+        "Spain",
+        "Argentina",
+        "France",
+        "Brazil"
+      ],
+      "answer": "Spain",
+      "explanation": "Spain beat Argentina 1–0 after extra time in the final at MetLife Stadium, New Jersey, on 19 July 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_FIFA_World_Cup_final",
+      "eventDate": "2026-07-19",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sport-t20wc-2026",
+      "category": "Sports",
+      "difficulty": "easy",
+      "prompt": "Which team did India beat in the final of the 2026 ICC Men's T20 World Cup?",
+      "options": [
+        "New Zealand",
+        "Australia",
+        "South Africa",
+        "England"
+      ],
+      "answer": "New Zealand",
+      "explanation": "India won by 96 runs at the Narendra Modi Stadium, Ahmedabad, on 8 March 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Men%27s_T20_World_Cup_final",
+      "eventDate": "2026-03-08",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sport-t20wc-pom",
+      "category": "Sports",
+      "difficulty": "medium",
+      "prompt": "Who was Player of the Match in the 2026 ICC Men's T20 World Cup final?",
+      "options": [
+        "Jasprit Bumrah",
+        "Sanju Samson",
+        "Suryakumar Yadav",
+        "Hardik Pandya"
+      ],
+      "answer": "Jasprit Bumrah",
+      "explanation": "Bumrah took 4 wickets as India beat New Zealand by 96 runs.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Men%27s_T20_World_Cup_final",
+      "eventDate": "2026-03-08",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sport-ipl-2026",
+      "category": "Sports",
+      "difficulty": "easy",
+      "prompt": "Which team won the 2026 Indian Premier League (IPL) final?",
+      "options": [
+        "Royal Challengers Bengaluru",
+        "Gujarat Titans",
+        "Mumbai Indians",
+        "Chennai Super Kings"
+      ],
+      "answer": "Royal Challengers Bengaluru",
+      "explanation": "RCB beat Gujarat Titans by 5 wickets in Ahmedabad on 31 May 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Indian_Premier_League_final",
+      "eventDate": "2026-05-31",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sport-wimbledon-men",
+      "category": "Sports",
+      "difficulty": "easy",
+      "prompt": "Who won the men's singles title at Wimbledon 2026?",
+      "options": [
+        "Jannik Sinner",
+        "Alexander Zverev",
+        "Carlos Alcaraz",
+        "Novak Djokovic"
+      ],
+      "answer": "Jannik Sinner",
+      "explanation": "Sinner beat Alexander Zverev in the final.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Wimbledon_Championships",
+      "eventDate": "2026-07-12",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sport-wimbledon-women",
+      "category": "Sports",
+      "difficulty": "medium",
+      "prompt": "Who won the women's singles title at Wimbledon 2026?",
+      "options": [
+        "Linda Nosková",
+        "Karolína Muchová",
+        "Aryna Sabalenka",
+        "Iga Świątek"
+      ],
+      "answer": "Linda Nosková",
+      "explanation": "Nosková beat fellow Czech Karolína Muchová in the final.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Wimbledon_Championships",
+      "eventDate": "2026-07-12",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sport-cwg-2026",
+      "category": "Sports",
+      "difficulty": "medium",
+      "prompt": "Which country topped the medal table at the 2026 Commonwealth Games in Glasgow?",
+      "options": [
+        "Australia",
+        "England",
+        "Canada",
+        "India"
+      ],
+      "answer": "Australia",
+      "explanation": "Australia topped the table for the third Games in a row; the Games ran from 23 July to 2 August 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Commonwealth_Games",
+      "eventDate": "2026-08-02",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-award-nobel-lit",
+      "category": "Awards",
+      "difficulty": "medium",
+      "prompt": "Who won the 2026 Nobel Prize in Literature?",
+      "options": [
+        "Anne Carson",
+        "Margaret Atwood",
+        "Haruki Murakami",
+        "Salman Rushdie"
+      ],
+      "answer": "Anne Carson",
+      "explanation": "The Canadian poet Anne Carson; announced by the Swedish Academy on 8 October 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Nobel_Prize_in_Literature",
+      "eventDate": "2026-10-08",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-award-nobel-peace",
+      "category": "Awards",
+      "difficulty": "medium",
+      "prompt": "Who was awarded the 2026 Nobel Peace Prize?",
+      "options": [
+        "Navi Pillay",
+        "Michelle Bachelet",
+        "Volker Türk",
+        "Mary Robinson"
+      ],
+      "answer": "Navi Pillay",
+      "explanation": "The South African jurist and former UN High Commissioner for Human Rights; announced on 9 October 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Nobel_Peace_Prize",
+      "eventDate": "2026-10-09",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-award-nobel-physics",
+      "category": "Awards",
+      "difficulty": "hard",
+      "prompt": "The 2026 Nobel Prize in Physics went to Francis Halzen for his work with which observatory?",
+      "options": [
+        "IceCube Neutrino Observatory",
+        "Hubble Space Telescope",
+        "LIGO",
+        "Large Hadron Collider"
+      ],
+      "answer": "IceCube Neutrino Observatory",
+      "explanation": "For decisive contributions to IceCube, at the South Pole, and the discovery of high-energy neutrinos.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Francis_Halzen",
+      "eventDate": "2026-10-06",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-award-nobel-medicine",
+      "category": "Awards",
+      "difficulty": "hard",
+      "prompt": "The 2026 Nobel Prize in Physiology or Medicine was awarded for discoveries in which field?",
+      "options": [
+        "Optogenetics",
+        "CRISPR gene editing",
+        "mRNA vaccines",
+        "Stem-cell therapy"
+      ],
+      "answer": "Optogenetics",
+      "explanation": "Karl Deisseroth, Peter Hegemann and Georg Nagel, for light-gated ion channels and optogenetics.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Karl_Deisseroth",
+      "eventDate": "2026-10-05",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-award-nobel-chemistry",
+      "category": "Awards",
+      "difficulty": "hard",
+      "prompt": "Who shared the 2026 Nobel Prize in Chemistry with Kensō Soai?",
+      "options": [
+        "Henri B. Kagan",
+        "Benjamin List",
+        "David MacMillan",
+        "Ryōji Noyori"
+      ],
+      "answer": "Henri B. Kagan",
+      "explanation": "For the discovery of non-linear effects and autocatalysis in asymmetric organic synthesis.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Henri_B._Kagan",
+      "eventDate": "2026-10-07",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-award-nobel-economics",
+      "category": "Awards",
+      "difficulty": "hard",
+      "prompt": "Who shared the 2026 Nobel Memorial Prize in Economic Sciences with Robert E. Hall?",
+      "options": [
+        "Michael Woodford",
+        "Ben Bernanke",
+        "Paul Krugman",
+        "Olivier Blanchard"
+      ],
+      "answer": "Michael Woodford",
+      "explanation": "Hall and Woodford, for microeconomic foundations of macroeconomic stabilisation.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Michael_Woodford_(economist)",
+      "eventDate": "2026-10-12",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sci-artemis-record",
+      "category": "Science",
+      "difficulty": "medium",
+      "prompt": "In April 2026, NASA's Artemis II crew broke which earlier mission's record for the greatest distance humans have travelled from Earth?",
+      "options": [
+        "Apollo 13",
+        "Apollo 11",
+        "Apollo 8",
+        "Apollo 17"
+      ],
+      "answer": "Apollo 13",
+      "explanation": "Artemis II flew around the Moon (closest approach 6 April 2026) and passed Apollo 13's 1970 record.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Artemis_II",
+      "eventDate": "2026-04-06",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sci-artemis-hansen",
+      "category": "Science",
+      "difficulty": "medium",
+      "prompt": "Jeremy Hansen, the first non-American to travel around the Moon on Artemis II, is an astronaut of which space agency?",
+      "options": [
+        "Canadian Space Agency",
+        "European Space Agency",
+        "JAXA",
+        "ISRO"
+      ],
+      "answer": "Canadian Space Agency",
+      "explanation": "Artemis II's crew: Reid Wiseman, Victor Glover, Christina Koch (NASA) and Jeremy Hansen (CSA).",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Artemis_II",
+      "eventDate": "2026-04-06",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sci-artemis-commander",
+      "category": "Science",
+      "difficulty": "medium",
+      "prompt": "Who was the commander of NASA's Artemis II mission?",
+      "options": [
+        "Reid Wiseman",
+        "Victor Glover",
+        "Christina Koch",
+        "Jeremy Hansen"
+      ],
+      "answer": "Reid Wiseman",
+      "explanation": "Wiseman commanded; Glover was the pilot; Koch and Hansen were mission specialists.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Artemis_II",
+      "eventDate": "2026-04-06",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sci-gslv-f17",
+      "category": "Science",
+      "difficulty": "medium",
+      "prompt": "Which satellite did ISRO's GSLV-F17 successfully launch in September 2026?",
+      "options": [
+        "EOS-05",
+        "NVS-03",
+        "Chandrayaan-4",
+        "Aditya-L1"
+      ],
+      "answer": "EOS-05",
+      "explanation": "GSLV-F17 launched EOS-05 (GISAT-1A) on 3 September 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/List_of_GSLV_launches",
+      "eventDate": "2026-09-03",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-india-samarthak",
+      "category": "India",
+      "difficulty": "medium",
+      "prompt": "INS Samarthak, commissioned into the Indian Navy in October 2026, was built by which company?",
+      "options": [
+        "Larsen & Toubro",
+        "Cochin Shipyard",
+        "Mazagon Dock Shipbuilders",
+        "Garden Reach Shipbuilders"
+      ],
+      "answer": "Larsen & Toubro",
+      "explanation": "Vice-President C. P. Radhakrishnan commissioned the multi-purpose vessel at Karwar on 16 October 2026; L&T built it at Kattupalli.",
+      "sourceUrl": "https://newsonair.gov.in/vice-president-commissions-indigenously-built-ins-samarthak-into-indian-navy-in-karnataka/",
+      "eventDate": "2026-10-16",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-india-samarthak-where",
+      "category": "India",
+      "difficulty": "medium",
+      "prompt": "At which naval base was INS Samarthak commissioned in October 2026?",
+      "options": [
+        "INS Kadamba, Karwar",
+        "INS Hamla, Mumbai",
+        "INS Valsura, Jamnagar",
+        "INS Shivaji, Lonavala"
+      ],
+      "answer": "INS Kadamba, Karwar",
+      "explanation": "Commissioned on 16 October 2026 at INS Kadamba, the naval base at Karwar, Karnataka.",
+      "sourceUrl": "https://newsonair.gov.in/vice-president-commissions-indigenously-built-ins-samarthak-into-indian-navy-in-karnataka/",
+      "eventDate": "2026-10-16",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-india-bimstec-home",
+      "category": "India",
+      "difficulty": "medium",
+      "prompt": "India hosted the first-ever meeting of which grouping's Home Ministers in New Delhi in October 2026?",
+      "options": [
+        "BIMSTEC",
+        "SAARC",
+        "ASEAN",
+        "SCO"
+      ],
+      "answer": "BIMSTEC",
+      "explanation": "The first BIMSTEC Home Ministers' Meeting was held in New Delhi in October 2026; Home Minister Amit Shah spoke at it.",
+      "sourceUrl": "https://newsonair.gov.in/india-to-host-first-bimstec-home-ministers-meeting-in-new-delhi/",
+      "eventDate": "2026-10-13",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-intl-brics-2026",
+      "category": "International",
+      "difficulty": "easy",
+      "prompt": "Which country hosted the 18th BRICS summit in September 2026?",
+      "options": [
+        "India",
+        "Brazil",
+        "South Africa",
+        "Russia"
+      ],
+      "answer": "India",
+      "explanation": "Held at Bharat Mandapam, New Delhi, on 12–13 September 2026; members adopted the New Delhi Declaration.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/18th_BRICS_summit",
+      "eventDate": "2026-09-12",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-intl-brics-declaration",
+      "category": "International",
+      "difficulty": "medium",
+      "prompt": "What was the declaration adopted at the 18th BRICS summit in 2026 called?",
+      "options": [
+        "New Delhi Declaration",
+        "Kazan Declaration",
+        "Johannesburg Declaration",
+        "Rio Declaration"
+      ],
+      "answer": "New Delhi Declaration",
+      "explanation": "BRICS members unanimously adopted the New Delhi Declaration on 12 September 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/18th_BRICS_summit",
+      "eventDate": "2026-09-12",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-scheme-karmayogi-openai",
+      "category": "Government Schemes",
+      "difficulty": "medium",
+      "prompt": "Karmayogi Bharat signed an MoU with which company in October 2026 to bring AI courses to civil servants on iGOT Karmayogi?",
+      "options": [
+        "OpenAI",
+        "Google",
+        "Microsoft",
+        "Anthropic"
+      ],
+      "answer": "OpenAI",
+      "explanation": "The MoU brings OpenAI Academy courses to eligible government personnel on the iGOT Karmayogi platform.",
+      "sourceUrl": "https://t2online.in/tech/tech-news/openai-academy-courses-come-to-igot-karmayogi-platform/2008773",
+      "eventDate": "2026-10-21",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-scheme-khet-bachao",
+      "category": "Government Schemes",
+      "difficulty": "medium",
+      "prompt": "Which Union ministry runs the nationwide 'Khet Bachao Abhiyan – Rabi 2026' campaign, launched from Karnal?",
+      "options": [
+        "Ministry of Agriculture and Farmers Welfare",
+        "Ministry of Rural Development",
+        "Ministry of Environment, Forest and Climate Change",
+        "Ministry of Jal Shakti"
+      ],
+      "answer": "Ministry of Agriculture and Farmers Welfare",
+      "explanation": "Agriculture Minister Shivraj Singh Chouhan launched it from Karnal, Haryana; it runs to 30 November 2026.",
+      "sourceUrl": "https://newsonair.gov.in/agriculture-minister-shivraj-singh-chouhan-to-launch-nationwide-khet-bachao-abhiyan-rabi-2026-tomorrow/",
+      "eventDate": "2026-10-22",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-scheme-pmrc",
+      "category": "Government Schemes",
+      "difficulty": "medium",
+      "prompt": "The Prime Minister Research Chair (PMRC) Scheme 2026 aims to attract which researchers to Indian institutions?",
+      "options": [
+        "Indian-origin researchers working abroad",
+        "Foreign students for undergraduate study",
+        "School teachers for rural schools",
+        "Retired judges for tribunals"
+      ],
+      "answer": "Indian-origin researchers working abroad",
+      "explanation": "Launched by the Ministry of Education's Department of Higher Education; applications opened on 1 June 2026.",
+      "sourceUrl": "https://www.kgs.live/upsc-state-psc/current-affairs/daily-current-affairs/2026-04-06/prime-minister-research-chair-pmrc-scheme-2026",
+      "eventDate": "2026-06-01",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-scheme-pmssy",
+      "category": "Government Schemes",
+      "difficulty": "medium",
+      "prompt": "In October 2026, the Union Cabinet extended the National Social Assistance Programme and renamed it as what?",
+      "options": [
+        "Pradhan Mantri Samajik Sahayata Yojana",
+        "Pradhan Mantri Garib Kalyan Yojana",
+        "Pradhan Mantri Jan Dhan Yojana",
+        "Atal Pension Yojana"
+      ],
+      "answer": "Pradhan Mantri Samajik Sahayata Yojana",
+      "explanation": "Extended for 2026-27 to 2030-31 with an outlay of ₹53,428 crore.",
+      "sourceUrl": "https://businessupturn.com/nation/cabinet-approves-rs53-428-crore-social-assistance-scheme-until-2031/",
+      "eventDate": "2026-10-14",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sport-asiangames-india",
+      "category": "Sports",
+      "difficulty": "medium",
+      "prompt": "Where did India finish in the medal table at the 2026 Asian Games in Aichi-Nagoya, Japan?",
+      "options": [
+        "Fourth",
+        "Third",
+        "Fifth",
+        "Sixth"
+      ],
+      "answer": "Fourth",
+      "explanation": "India won 85 medals: 21 gold, 27 silver and 37 bronze.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/India_at_the_2026_Asian_Games",
+      "eventDate": "2026-10-04",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-award-padma-dharmendra",
+      "category": "Awards",
+      "difficulty": "easy",
+      "prompt": "Which veteran film actor was awarded the Padma Vibhushan posthumously in 2026?",
+      "options": [
+        "Dharmendra",
+        "Amitabh Bachchan",
+        "Jeetendra",
+        "Rajesh Khanna"
+      ],
+      "answer": "Dharmendra",
+      "explanation": "Part of the Republic Day 2026 honours; V. S. Achuthanandan was also honoured posthumously.",
+      "sourceUrl": "https://gulfnews.com/world/asia/india/padma-awards-2026-dharmendra-vs-achuthanandan-get-padma-vibhushan-posthumously-1.500420249",
+      "eventDate": "2026-01-25",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-award-padma-rajam",
+      "category": "Awards",
+      "difficulty": "medium",
+      "prompt": "Classical musician N. Rajam, awarded the Padma Vibhushan in 2026, is known for playing which instrument?",
+      "options": [
+        "Violin",
+        "Sitar",
+        "Veena",
+        "Flute"
+      ],
+      "answer": "Violin",
+      "explanation": "N. Rajam, violinist, was one of five Padma Vibhushan recipients in 2026.",
+      "sourceUrl": "https://gulfnews.com/world/asia/india/padma-awards-2026-dharmendra-vs-achuthanandan-get-padma-vibhushan-posthumously-1.500420249",
+      "eventDate": "2026-01-25",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sci-pslv-c62-satellite",
+      "category": "Science",
+      "difficulty": "medium",
+      "prompt": "Which main satellite was lost when ISRO's PSLV-C62 failed in January 2026?",
+      "options": [
+        "EOS-N1",
+        "EOS-05",
+        "NVS-03",
+        "Aditya-L1"
+      ],
+      "answer": "EOS-N1",
+      "explanation": "PSLV-C62 failed on 12 January 2026; EOS-N1 and 15 co-passenger payloads were lost.",
+      "sourceUrl": "https://spaceflightnow.com/2026/01/12/indias-pslv-suffers-second-consecutive-launch-failure-16-satellites-lost/",
+      "eventDate": "2026-01-12",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sci-pslv-c62-stage",
+      "category": "Science",
+      "difficulty": "hard",
+      "prompt": "ISRO's PSLV-C62 failure in January 2026 — its second in a row — was traced to which stage of the rocket?",
+      "options": [
+        "Third stage",
+        "First stage",
+        "Second stage",
+        "Fourth stage"
+      ],
+      "answer": "Third stage",
+      "explanation": "Both PSLV-C61 (May 2025) and PSLV-C62 had anomalies in the third stage.",
+      "sourceUrl": "https://spaceflightnow.com/2026/01/12/indias-pslv-suffers-second-consecutive-launch-failure-16-satellites-lost/",
+      "eventDate": "2026-01-12",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sci-gaganyaan-vyommitra",
+      "category": "Science",
+      "difficulty": "easy",
+      "prompt": "Which half-humanoid robot is set to fly on ISRO's first uncrewed Gaganyaan test flight, Gaganyaan-1?",
+      "options": [
+        "Vyommitra",
+        "Pragyan",
+        "Vikram",
+        "Chandra"
+      ],
+      "answer": "Vyommitra",
+      "explanation": "Gaganyaan-1 is planned for Q4 2026; tests during 2026 included an air-drop test on 10 April.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Gaganyaan-1",
+      "eventDate": "2026-04-10",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-sci-gaganyaan-rocket",
+      "category": "Science",
+      "difficulty": "medium",
+      "prompt": "Which rocket is to launch ISRO's Gaganyaan-1 uncrewed test flight?",
+      "options": [
+        "Human-rated LVM3 (HLVM3)",
+        "PSLV",
+        "SSLV",
+        "GSLV Mk II"
+      ],
+      "answer": "Human-rated LVM3 (HLVM3)",
+      "explanation": "The human-rated version of LVM3 will fly Gaganyaan-1 from Sriharikota.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Gaganyaan-1",
+      "eventDate": "2026-04-10",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-scheme-udan-purpose",
+      "category": "Government Schemes",
+      "difficulty": "easy",
+      "prompt": "The 'Regional Connectivity Scheme – Modified UDAN' approved by the Cabinet in March 2026 is meant to improve what?",
+      "options": [
+        "Regional air connectivity",
+        "Rural road connectivity",
+        "Inland waterways",
+        "Broadband in villages"
+      ],
+      "answer": "Regional air connectivity",
+      "explanation": "Outlay ₹28,840 crore over 2026-27 to 2035-36.",
+      "sourceUrl": "https://newsonair.gov.in/cabinet-approves-modified-udan-with-%E2%82%B928840-crore-outlay/",
+      "eventDate": "2026-03-25",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-scheme-udan-airports",
+      "category": "Government Schemes",
+      "difficulty": "medium",
+      "prompt": "About how many airports does the Modified UDAN scheme (2026) plan to develop from unserved airstrips?",
+      "options": [
+        "100",
+        "25",
+        "50",
+        "500"
+      ],
+      "answer": "100",
+      "explanation": "Around 100 airports, with a total scheme outlay of ₹28,840 crore.",
+      "sourceUrl": "https://newsonair.gov.in/cabinet-approves-modified-udan-with-%E2%82%B928840-crore-outlay/",
+      "eventDate": "2026-03-25",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-scheme-samudra-manthan",
+      "category": "Government Schemes",
+      "difficulty": "medium",
+      "prompt": "'Samudra Manthan', approved by the Union Cabinet in July 2026, is a national scheme for what?",
+      "options": [
+        "Offshore oil and gas exploration",
+        "Cleaning coastal beaches",
+        "Deep-sea fishing licences",
+        "Building new ports"
+      ],
+      "answer": "Offshore oil and gas exploration",
+      "explanation": "The National Offshore Exploration Scheme, with an outlay of ₹84,084 crore up to 2030-31.",
+      "sourceUrl": "https://www.tribuneindia.com/news/india/cabinet-approves-rs-84084-crore-samudra-manthan-scheme-to-unlock-offshore-oil-gas-exploration/",
+      "eventDate": "2026-07-31",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-scheme-gec3",
+      "category": "Government Schemes",
+      "difficulty": "medium",
+      "prompt": "Green Energy Corridor Phase-III, approved by the Union Cabinet in 2026, aims to evacuate up to how much renewable energy?",
+      "options": [
+        "135 GW",
+        "50 GW",
+        "90 GW",
+        "500 GW"
+      ],
+      "answer": "135 GW",
+      "explanation": "It strengthens intra-state transmission, adds 50 GWh of battery storage, and targets completion by 2032-33.",
+      "sourceUrl": "https://renewablewatch.in/2026/10/01/cabinet-approves-green-energy-corridor-phase-iii-scheme/",
+      "eventDate": "2026-09-30",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-india-budget-ninth",
+      "category": "India",
+      "difficulty": "easy",
+      "prompt": "The Union Budget 2026-27, presented on 1 February 2026, was Nirmala Sitharaman's which consecutive budget?",
+      "options": [
+        "Ninth",
+        "Seventh",
+        "Eighth",
+        "Tenth"
+      ],
+      "answer": "Ninth",
+      "explanation": "Her ninth consecutive Union Budget.",
+      "sourceUrl": "https://www.etvbharat.com/en/bharat/cabinet-gives-nod-to-union-budget-2026-sitharaman-present-9th-consecutive-budget-enn26020101603",
+      "eventDate": "2026-02-01",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-india-budget-sunday",
+      "category": "India",
+      "difficulty": "medium",
+      "prompt": "On which day of the week was the Union Budget 2026-27 presented, on 1 February 2026?",
+      "options": [
+        "Sunday",
+        "Saturday",
+        "Monday",
+        "Friday"
+      ],
+      "answer": "Sunday",
+      "explanation": "1 February 2026 fell on a Sunday.",
+      "sourceUrl": "https://www.etvbharat.com/en/bharat/cabinet-gives-nod-to-union-budget-2026-sitharaman-present-9th-consecutive-budget-enn26020101603",
+      "eventDate": "2026-02-01",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-india-itact-replaces",
+      "category": "India",
+      "difficulty": "medium",
+      "prompt": "The Income-tax Act, 2025, which came into force on 1 April 2026, replaced which law?",
+      "options": [
+        "Income-tax Act, 1961",
+        "Companies Act, 2013",
+        "GST Act, 2017",
+        "Finance Act, 1994"
+      ],
+      "answer": "Income-tax Act, 1961",
+      "explanation": "It replaced the six-decade-old Income-tax Act, 1961.",
+      "sourceUrl": "https://www.drishtiias.com/daily-updates/daily-news-analysis/income-tax-act-2025/print_manually",
+      "eventDate": "2026-04-01",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-india-itact-date",
+      "category": "India",
+      "difficulty": "medium",
+      "prompt": "From which date did India's new Income-tax Act, 2025 come into force?",
+      "options": [
+        "1 April 2026",
+        "1 January 2026",
+        "1 July 2026",
+        "1 October 2025"
+      ],
+      "answer": "1 April 2026",
+      "explanation": "It took effect on 1 April 2026, replacing the Income-tax Act, 1961.",
+      "sourceUrl": "https://www.drishtiias.com/daily-updates/daily-news-analysis/income-tax-act-2025/print_manually",
+      "eventDate": "2026-04-01",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-india-cji-suryakant",
+      "category": "India",
+      "difficulty": "medium",
+      "prompt": "Who took oath as the 53rd Chief Justice of India?",
+      "options": [
+        "Surya Kant",
+        "B. R. Gavai",
+        "Sanjiv Khanna",
+        "D. Y. Chandrachud"
+      ],
+      "answer": "Surya Kant",
+      "explanation": "He took oath at Rashtrapati Bhavan on 24 November 2025.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Surya_Kant_(judge)",
+      "eventDate": "2025-11-24",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-intl-ai-summit",
+      "category": "International",
+      "difficulty": "medium",
+      "prompt": "What was the declaration adopted at the India AI Impact Summit 2026 called?",
+      "options": [
+        "New Delhi Declaration on AI Impact",
+        "Bletchley Declaration",
+        "Paris AI Charter",
+        "Seoul AI Accord"
+      ],
+      "answer": "New Delhi Declaration on AI Impact",
+      "explanation": "The summit concluded in February 2026 with the New Delhi Declaration on AI Impact.",
+      "sourceUrl": "https://www.newsonair.gov.in/india-ai-impact-summit-2026-adopts-new-delhi-declaration",
+      "eventDate": "2026-02-20",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-intl-eu-fta",
+      "category": "International",
+      "difficulty": "easy",
+      "prompt": "In January 2026, India concluded negotiations on a free trade agreement with which partner, after nearly two decades of talks?",
+      "options": [
+        "European Union",
+        "United Kingdom",
+        "United States",
+        "ASEAN"
+      ],
+      "answer": "European Union",
+      "explanation": "Announced at an India–EU summit at Hyderabad House, New Delhi; subject to legal vetting before signing.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/India%E2%80%93European_Union_Free_Trade_Agreement",
+      "eventDate": "2026-01-27",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-intl-nz-fta",
+      "category": "International",
+      "difficulty": "medium",
+      "prompt": "India signed a free trade agreement with which country in April 2026?",
+      "options": [
+        "New Zealand",
+        "Australia",
+        "Canada",
+        "Japan"
+      ],
+      "answer": "New Zealand",
+      "explanation": "Signed by Piyush Goyal and Todd McClay; set to come into force in October 2026.",
+      "sourceUrl": "https://www.newcastleherald.com.au/story/9343520/india-nz-free-trade-deal-to-come-into-force-in-october/",
+      "eventDate": "2026-04-27",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-intl-nz-fta-signatory",
+      "category": "International",
+      "difficulty": "medium",
+      "prompt": "Which Indian minister signed the India–New Zealand free trade agreement in April 2026?",
+      "options": [
+        "Piyush Goyal",
+        "S. Jaishankar",
+        "Nirmala Sitharaman",
+        "Rajnath Singh"
+      ],
+      "answer": "Piyush Goyal",
+      "explanation": "India's Commerce and Industry Minister signed it with New Zealand's Todd McClay.",
+      "sourceUrl": "https://www.newcastleherald.com.au/story/9343520/india-nz-free-trade-deal-to-come-into-force-in-october/",
+      "eventDate": "2026-04-27",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-intl-quad-fm",
+      "category": "International",
+      "difficulty": "medium",
+      "prompt": "Which grouping's foreign ministers met in New Delhi on 26 May 2026?",
+      "options": [
+        "Quad",
+        "SCO",
+        "G7",
+        "ASEAN"
+      ],
+      "answer": "Quad",
+      "explanation": "India hosted the Quad foreign ministers of Australia, Japan and the United States.",
+      "sourceUrl": "https://newsable.asianetnews.com/world/india-to-host-quad-foreign-ministers-meet-in-new-delhi-next-week-articleshow-ui403zc",
+      "eventDate": "2026-05-26",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-intl-brics-theme",
+      "category": "International",
+      "difficulty": "hard",
+      "prompt": "The BRICS New Delhi Declaration (2026) was titled 'Building for Resilience, Innovation, Cooperation and …' what?",
+      "options": [
+        "Sustainability",
+        "Security",
+        "Solidarity",
+        "Sovereignty"
+      ],
+      "answer": "Sustainability",
+      "explanation": "Adopted unanimously at the 18th BRICS summit, 12 September 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/18th_BRICS_summit",
+      "eventDate": "2026-09-12",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-recent-kerala-cm",
+      "category": "Recent Events",
+      "difficulty": "medium",
+      "prompt": "Who became Chief Minister of Kerala after the 2026 assembly election?",
+      "options": [
+        "V. D. Satheesan",
+        "Pinarayi Vijayan",
+        "Ramesh Chennithala",
+        "Shashi Tharoor"
+      ],
+      "answer": "V. D. Satheesan",
+      "explanation": "The Congress-led UDF won; results were declared on 4 May 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Kerala_Legislative_Assembly_election",
+      "eventDate": "2026-05-04",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-recent-kerala-alliance",
+      "category": "Recent Events",
+      "difficulty": "easy",
+      "prompt": "Which alliance won the 2026 Kerala assembly election?",
+      "options": [
+        "United Democratic Front (UDF)",
+        "Left Democratic Front (LDF)",
+        "National Democratic Alliance (NDA)",
+        "Twenty20 Party"
+      ],
+      "answer": "United Democratic Front (UDF)",
+      "explanation": "The Congress-led UDF won; results were declared on 4 May 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Kerala_Legislative_Assembly_election",
+      "eventDate": "2026-05-04",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-recent-wb-cm",
+      "category": "Recent Events",
+      "difficulty": "medium",
+      "prompt": "Who became Chief Minister of West Bengal after the 2026 assembly election?",
+      "options": [
+        "Suvendu Adhikari",
+        "Mamata Banerjee",
+        "Dilip Ghosh",
+        "Sukanta Majumdar"
+      ],
+      "answer": "Suvendu Adhikari",
+      "explanation": "The BJP won 208 of 294 seats; results were declared on 4 May 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_West_Bengal_Legislative_Assembly_election",
+      "eventDate": "2026-05-04",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-recent-wb-first",
+      "category": "Recent Events",
+      "difficulty": "easy",
+      "prompt": "In May 2026, which party formed the government in West Bengal for the first time?",
+      "options": [
+        "BJP",
+        "Trinamool Congress",
+        "CPI(M)",
+        "Indian National Congress"
+      ],
+      "answer": "BJP",
+      "explanation": "The BJP won a landslide, 208 of 294 seats.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_West_Bengal_Legislative_Assembly_election",
+      "eventDate": "2026-05-04",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-recent-tn-cm",
+      "category": "Recent Events",
+      "difficulty": "easy",
+      "prompt": "Who was sworn in as Chief Minister of Tamil Nadu on 10 May 2026?",
+      "options": [
+        "C. Joseph Vijay",
+        "M. K. Stalin",
+        "Edappadi K. Palaniswami",
+        "Udhayanidhi Stalin"
+      ],
+      "answer": "C. Joseph Vijay",
+      "explanation": "His party TVK emerged as the single largest party with 108 of 234 seats.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Tamil_Nadu_Legislative_Assembly_election",
+      "eventDate": "2026-05-10",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-recent-tn-party",
+      "category": "Recent Events",
+      "difficulty": "medium",
+      "prompt": "Which party emerged as the single largest party in the 2026 Tamil Nadu assembly election?",
+      "options": [
+        "Tamilaga Vettri Kazhagam (TVK)",
+        "DMK",
+        "AIADMK",
+        "BJP"
+      ],
+      "answer": "Tamilaga Vettri Kazhagam (TVK)",
+      "explanation": "TVK won 108 of 234 seats; results were declared on 4 May 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Tamil_Nadu_Legislative_Assembly_election",
+      "eventDate": "2026-05-04",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-recent-assam",
+      "category": "Recent Events",
+      "difficulty": "easy",
+      "prompt": "Which alliance won the 2026 Assam assembly election, with Himanta Biswa Sarma as Chief Minister?",
+      "options": [
+        "NDA",
+        "INDIA bloc",
+        "AIUDF-led front",
+        "Asom Gana Parishad alone"
+      ],
+      "answer": "NDA",
+      "explanation": "The NDA won 102 of 126 seats; results were declared on 4 May 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Assam_Legislative_Assembly_election",
+      "eventDate": "2026-05-04",
+      "verifiedOn": "2026-10-24"
+    },
+    {
+      "key": "r3-recent-puducherry",
+      "category": "Recent Events",
+      "difficulty": "medium",
+      "prompt": "Who was sworn in as Chief Minister of Puducherry for the fifth time after the 2026 election?",
+      "options": [
+        "N. Rangaswamy",
+        "V. Narayanasamy",
+        "A. Namassivayam",
+        "R. Siva"
+      ],
+      "answer": "N. Rangaswamy",
+      "explanation": "The AINRC-led NDA won a majority; results were declared on 4 May 2026.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/2026_Puducherry_Legislative_Assembly_election",
+      "eventDate": "2026-05-04",
+      "verifiedOn": "2026-10-24"
+    }
+  ]
+}
