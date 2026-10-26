@@ -55,6 +55,23 @@
         50% { opacity: 1; }
       }
     </style>
+    <!--
+      The language chosen (the menu beside the bell): when it is not English,
+      the page is kept hidden for a moment until it is translated, so it never
+      shows in English first.
+    -->
+    <style>html.yati-tx-hide #root { opacity: 0 !important; } #root { transition: opacity .15s ease; }</style>
+    <script>
+      (function () {
+        var lang = 'en';
+        try { lang = localStorage.getItem('yati-language') || 'en'; } catch (e) {}
+        if (lang === 'hi' || lang === 'kn') {
+          document.documentElement.classList.add('yati-tx-hide');
+          // Shown anyway after 2.5 s, should the translations be slow to load.
+          setTimeout(function () { document.documentElement.classList.remove('yati-tx-hide'); }, 2500);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="splash-screen">

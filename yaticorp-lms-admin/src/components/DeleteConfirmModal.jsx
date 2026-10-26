@@ -5,7 +5,7 @@
 import React from 'react';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 
-const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, title, message, itemName }) => {
+const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, title, message, itemName, confirmLabel }) => {
     if (!isOpen) return null;
 
     return (
@@ -40,8 +40,8 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, title, message, itemNa
                         }}
                         className="flex-1 px-5 py-2.5 bg-red-600 text-white font-medium hover:bg-red-700 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                     >
-                        <Trash2 size={18} />
-                        Delete Permanently
+                        {!confirmLabel && <Trash2 size={18} />}
+                        {confirmLabel || 'Delete Permanently'}
                     </button>
                 </div>
             </div>

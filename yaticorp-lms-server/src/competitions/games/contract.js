@@ -1,8 +1,9 @@
 /**
  * The contract every online game in Games & Competitions follows.
  *
- * One file per game sits beside this one — chess.js, ludo.js, uno.js,
- * carrom.js — and exports an ENGINE: pure rules, no database, no clock of its
+ * One file per game sits beside this one — chess.js, and the brain games
+ * rapidfire.js, codeclash.js and brainsprint.js (all three made by
+ * quizCore.js); ludo.js, carrom.js and uno.js are retired — and exports an ENGINE: pure rules, no database, no clock of its
  * own, no randomness of its own. The game service (../services/gameService.js)
  * keeps the state in Mongo, decides who is sitting in which seat, polls the
  * engine for timeouts and sends each player only what engine.view() lets them

@@ -29,10 +29,13 @@ const LearningBioPage = React.lazy(() => import('./learningbio/LearningBioPage')
 const SharedBioPage = React.lazy(() => import('./learningbio/SharedBioPage'));
 // Interview Ready — preparation, AI mock interviews, reports and history.
 const InterviewDashboard = React.lazy(() => import('./interview/InterviewDashboard'));
-// Competitions: online Chess, Ludo and Carrom in inter-college competitions.
+// Competitions: online Chess, Rapid Fire, Code Clash and Brain Sprint in inter-college competitions.
 const CompetitionsHome = React.lazy(() => import('./competitions/CompetitionsHome'));
 const CompetitionDetail = React.lazy(() => import('./competitions/CompetitionDetail'));
 const GamePage = React.lazy(() => import('./competitions/GamePage'));
+// Quiz Arena: three-round live quiz contests (competitions/arena/).
+const ArenaDetail = React.lazy(() => import('./competitions/arena/ArenaDetail'));
+const ArenaPlay = React.lazy(() => import('./competitions/arena/ArenaPlay'));
 const PracticePage = React.lazy(() => import('./interview/PracticePage'));
 const AptitudePage = React.lazy(() => import('./interview/AptitudePage'));
 const MockInterview = React.lazy(() => import('./interview/MockInterview'));
@@ -272,7 +275,7 @@ const LOOP_PAGES = {
   '/jobs': { label: 'Jobs', text: 'Jobs that match your skills and goal. Filter by type and location, apply, and save the ones you like.' },
   '/scholarships': { label: 'Scholarships', text: 'Scholarships you qualify for. Fill in the eligibility form once, then see each match with its amount and deadline.' },
   '/games': { label: 'Games', text: "Quick memory, logic, word and number games. Each level's stars earn you XP, within today's play time." },
-  '/competitions': { label: 'Competitions', text: 'Play Chess, Ludo and Carrom in competitions, for your college.' },
+  '/competitions': { label: 'Competitions', text: 'Play Chess, rapid-fire rounds, coding clashes and IQ puzzles in competitions, for your college.' },
   '/linguistic': { label: 'Linguistic Ability', text: 'Learn English step by step: vocabulary, grammar, reading and writing, speaking and listening, and Kannada–English translation.' }
 };
 
@@ -299,7 +302,7 @@ const LOOP_TABS = {
   },
   '/competitions': {
     default: 'games',
-    games: { label: 'Games', text: 'Chess, Ludo and Carrom. See competitions shows the ones for each game; your college enters you in a team.' },
+    games: { label: 'Games', text: 'Chess, Rapid Fire, Code Clash and Brain Sprint. See competitions shows the ones for each game; your college enters you in a team.' },
     competitions: { label: 'Competitions', text: "Inter-college competitions: live, open and coming up. Your college's coordinator picks the team, so ask them to put you in." },
     mine: { label: 'My Games', text: 'The competitions your coordinator put you in: your team, and your upcoming, live and finished matches.' },
     leaderboard: { label: 'Leaderboard', text: 'Overall rankings by college, team or player, from the points earned across every competition.' },
@@ -358,10 +361,13 @@ function App() {
         <Route path="learning-bio" element={<React.Suspense fallback={<CareerFallback />}><LearningBioPage /></React.Suspense>} />
         {/* Games: the brain games (Brain Boosters), a section of their own since
             2026-10-23 (no longer a Career Path tab); their server routes stay
-            open when Career Path is locked. Competitions: Chess, Ludo and Carrom. */}
+            open when Career Path is locked. Competitions: Chess and the brain games. */}
         <Route path="games" element={<React.Suspense fallback={<CareerFallback />}><CareerProviders><CareerGames /></CareerProviders></React.Suspense>} />
         <Route path="competitions" element={<React.Suspense fallback={<CareerFallback />}><CompetitionsHome /></React.Suspense>} />
         <Route path="competitions/play/:gameId" element={<React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense>} />
+        <Route path="competitions/arena" element={<Navigate to="/competitions?tab=competitions&game=quizarena" replace />} />
+        <Route path="competitions/arena/:id" element={<React.Suspense fallback={<CareerFallback />}><ArenaDetail /></React.Suspense>} />
+        <Route path="competitions/arena/:id/play" element={<React.Suspense fallback={<CareerFallback />}><ArenaPlay /></React.Suspense>} />
         <Route path="competitions/:id" element={<React.Suspense fallback={<CareerFallback />}><CompetitionDetail /></React.Suspense>} />
         <Route path="interview" element={<React.Suspense fallback={<CareerFallback />}><InterviewDashboard /></React.Suspense>} />
         <Route path="interview/practice" element={<React.Suspense fallback={<CareerFallback />}><PracticePage /></React.Suspense>} />

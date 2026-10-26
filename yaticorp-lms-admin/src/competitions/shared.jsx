@@ -2,20 +2,30 @@
  * What the admin panel's competition pages share: the games, status labels,
  * dates, and the create / edit form.
  */
-import { useState } from 'react';
-import { X, Save, Loader2, Rocket, ImagePlus, Trash2, ChessKnight, Dices, Target, Spade, Gamepad2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { X, Save, Loader2, Rocket, ImagePlus, Trash2, ChessKnight, Dices, Target, Spade, Gamepad2, Zap, CodeXml, Puzzle, Brain, Pencil, CheckCircle2, AlertCircle, Library } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { INPUT, LABEL, BTN, BTN2 } from '../components/orgUi';
-import { GAMES, STATUS, ORDINAL, toLocalInput, errorOf } from './constants';
+import { GAMES, STATUS, ORDINAL, ARENA_NOTE, notePoints, toLocalInput, errorOf } from './constants';
+import api from '../utils/api';
+import { arenaApi, arenaPath, ROUND_NAMES } from '../arena/shared';
+import QuestionBankDialog from '../arena/QuestionBankDialog';
+import { DateTimeInput, TimeInput } from '../components/DateTimeInput';
 
 /**
- * A game's icon, on its own colour: a knight for chess, dice for Ludo, the
- * board's centre ring for carrom (and a card for UNO, for a competition made
- * before it was removed on 2026-10-23). Drawn from the icon library
+ * A game's icon, on its own colour: a knight for chess, a bolt, code brackets
+ * and a puzzle piece for the brain games (and dice for Ludo, the
+ * board's centre ring for carrom and a card for UNO, for a competition made
+ * before they were removed). Drawn from the icon library
  * rather than the emoji the server sends, which every phone and computer drew
  * differently (and some as an empty box).
  */
 const GAME_ICONS = {
     chess: [ChessKnight, 'bg-indigo-50 text-indigo-600'],
+    rapidfire: [Zap, 'bg-rose-50 text-rose-600'],
+    codeclash: [CodeXml, 'bg-emerald-50 text-emerald-600'],
+    brainsprint: [Puzzle, 'bg-sky-50 text-sky-600'],
+    quizarena: [Brain, 'bg-violet-50 text-violet-600'],
     ludo: [Dices, 'bg-amber-50 text-amber-600'],
     carrom: [Target, 'bg-orange-50 text-orange-600'],
     uno: [Spade, 'bg-rose-50 text-rose-600']
@@ -30,6 +40,70 @@ export const Chip = ({ status }) => {
     return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${cls}`}>{label}</span>;
 };
 
+/**
+ * The prizes (XP and reward points for 1st, 2nd and 3rd), XP for taking part,
+ * and which certificates go out — the same for every game and Quiz Arena.
+ * `value`: { prizes, participationXp, winnersCert, participantsCert }.
+ */
+/**
+ * The entry fee: off, or an amount in ₹ each approved student pays
+ * online (Razorpay) before they can join. The same for every game and Quiz Arena.
+ */
+export const EntryFeeField = ({ value = { enabled: false, amount: 100 }, onChange }) => (
+    <fieldset className="space-y-3 rounded-2xl border border-slate-200 p-4" data-entry-fee>
+        <legend className="px-1 text-sm font-bold text-slate-700">Entry fee</legend>
+        <label className="flex items-center justify-between gap-3">
+            <span>
+                <span className="block text-sm font-semibold text-slate-800">Take an entry fee</span>
+                <span className="block text-xs text-slate-500">Each approved student pays it online (Razorpay: UPI, card or net banking) before they can join. Until then they get no joining code.</span>
+            </span>
+            <button type="button" role="switch" aria-checked={!!value.enabled} onClick={() => onChange({ ...value, enabled: !value.enabled, amount: value.amount || 100 })}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${value.enabled ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${value.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+        </label>
+        {value.enabled && (
+            <label className="block sm:w-1/2"><span className={LABEL}>Amount (₹ per student)</span>
+                <input type="number" min={1} max={100000} required value={value.amount} onChange={(e) => onChange({ ...value, amount: e.target.value })} className={INPUT} /></label>
+        )}
+    </fieldset>
+);
+
+export const RewardsFields = ({ value, onChange, team = true }) => {
+    const setPrize = (place, patch) => onChange({ prizes: value.prizes.map((p) => (p.place === place ? { ...p, ...patch } : p)) });
+    return (
+        <>
+                        <fieldset className="rounded-2xl border border-slate-200 p-4">
+                            <legend className="px-1 text-sm font-bold text-slate-700">Reward points {team ? '(for every player of the team)' : '(for each student)'}</legend>
+                            <div className="space-y-3">
+                                {value.prizes.map((p) => (
+                                    <div key={p.place} className="grid items-end gap-2 sm:grid-cols-[3rem_1fr_7rem_8rem]">
+                                        <span className="pb-2.5 text-sm font-black text-slate-700">{ORDINAL[p.place]}</span>
+                                        <label><span className={LABEL}>Title</span><input value={p.title} maxLength={120} onChange={(e) => setPrize(p.place, { title: e.target.value })} className={INPUT} /></label>
+                                        <label><span className={LABEL}>XP</span><input type="number" min={0} value={p.xp} onChange={(e) => setPrize(p.place, { xp: e.target.value })} className={INPUT} /></label>
+                                        <label><span className={LABEL}>Reward points</span><input type="number" min={0} value={p.rewardPoints} onChange={(e) => setPrize(p.place, { rewardPoints: e.target.value })} className={INPUT} /></label>
+                                    </div>
+                                ))}
+                            </div>
+                            <label className="mt-4 block sm:w-1/2"><span className={LABEL}>XP for taking part {team ? '(every player)' : '(every student who answers)'}</span>
+                                <input type="number" min={0} max={10000} value={value.participationXp} onChange={(e) => onChange({ participationXp: e.target.value })} className={INPUT} /></label>
+                        </fieldset>
+
+                        <fieldset className="space-y-2 rounded-2xl border border-slate-200 p-4">
+                            <legend className="px-1 text-sm font-bold text-slate-700">Certificates</legend>
+                            <label className="flex items-center gap-2.5 text-sm font-semibold text-slate-700">
+                                <input type="checkbox" checked={value.winnersCert} onChange={(e) => onChange({ winnersCert: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
+                                Winner, Runner-up and Third Place certificates
+                            </label>
+                            <label className="flex items-center gap-2.5 text-sm font-semibold text-slate-700">
+                                <input type="checkbox" checked={value.participantsCert} onChange={(e) => onChange({ participantsCert: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
+                                Participation certificates for everyone else
+                            </label>
+                        </fieldset>
+        </>
+    );
+};
+
 /** "2026-10-25T10:00" → ["2026-10-25", "10:00"], for a date and a time field. */
 const split = (local) => (local ? [local.slice(0, 10), local.slice(11, 16)] : ['', '']);
 
@@ -42,9 +116,20 @@ const blank = (organizer) => {
         startDate, startTime, registrationOpensAt: '', registrationDeadline: toLocalInput(deadline),
         maxTeams: 16, playersPerTeam: 2, playersPerSide: 1, teamsPerMatch: 4,
         gameOptions: { clockMinutes: 10, turnSeconds: 30, tokensPerPlayer: 4 },
-        rules: '', prizeDetails: '', bannerUrl: '', participationXp: 20, certificates: true, participationCertificates: true,
-        prizes: [{ place: 1, title: 'Winner', xp: 300, rewardPoints: 100 }, { place: 2, title: 'Runner-up', xp: 200, rewardPoints: 50 }, { place: 3, title: 'Third place', xp: 100, rewardPoints: 25 }]
+        rules: '', prizeDetails: '', bannerUrl: '', participationXp: 20, certificates: true, participationCertificates: true, entryFee: { enabled: false, amount: 100 },
+        prizes: [{ place: 1, title: 'Winner', xp: 300, rewardPoints: 100 }, { place: 2, title: 'Runner-up', xp: 200, rewardPoints: 50 }, { place: 3, title: 'Third place', xp: 100, rewardPoints: 25 }],
+        // Quiz Arena's own settings, used when it is the game chosen.
+        arena: { maxParticipants: 500, playersPerCollege: 10, counts: { 1: 10, 2: 5, 3: 10 }, secondsPerQuestion: 20, pointsPerQuestion: 100, useBank: false }
     };
+};
+
+/** How many approved questions each round of the bank has: { 1: n, 2: n, 3: n }. */
+const useBankCounts = (on) => {
+    const [counts, setCounts] = useState(null);
+    const load = useCallback(() => api.get(`${arenaApi()}/questions`, { params: { status: 'approved', round: 1 } })
+        .then((res) => setCounts(Object.fromEntries([1, 2, 3].map((k) => [k, res.data.counts?.[k]?.approved || 0])))).catch(() => setCounts(null)), []);
+    useEffect(() => { if (on) load(); }, [on, load]);
+    return [counts, load];
 };
 
 const fromCompetition = (c) => ({
@@ -54,6 +139,7 @@ const fromCompetition = (c) => ({
     registrationOpensAt: toLocalInput(c.registrationOpensAt),
     registrationDeadline: toLocalInput(c.registrationDeadline),
     participationCertificates: c.participationCertificates !== false,
+    entryFee: c.entryFee?.enabled ? { enabled: true, amount: c.entryFee.amount } : { enabled: false, amount: 100 },
     gameOptions: { clockMinutes: 10, turnSeconds: 30, tokensPerPlayer: 4, ...(c.gameOptions || {}) },
     prizes: [1, 2, 3].map((place) => c.prizes.find((p) => p.place === place) || { place, title: '', xp: 0, rewardPoints: 0 })
 });
@@ -65,8 +151,11 @@ const fromCompetition = (c) => ({
  * `hosted`: a college's own competition — for its students only, with teams
  * the college makes, so it counts teams, not colleges. `hostName`: that
  * college, when someone else (the platform admin) has the form open.
+ * `arena`: Quiz Arena is offered among the games (the platform's new
+ * competitions). Chosen, the form asks for its own settings in place and
+ * saves through `onSaveArena(body, publish)`.
  */
-export const CompetitionForm = ({ competition = null, locked = false, hosted = false, hostName = null, organizer = 'YATICORP', uploadBanner, onCancel, onSave }) => {
+export const CompetitionForm = ({ competition = null, locked = false, hosted = false, hostName = null, organizer = 'YATICORP', uploadBanner, onCancel, onSave, arena = false, onSaveArena = null }) => {
     const [f, setF] = useState(() => (competition ? fromCompetition(competition) : blank(organizer)));
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');
@@ -77,9 +166,31 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
     };
     const set = (patch) => setF((x) => ({ ...x, ...patch }));
     const setOpt = (k, v) => setF((x) => ({ ...x, gameOptions: { ...x.gameOptions, [k]: v } }));
-    const setPrize = (place, patch) => setF((x) => ({ ...x, prizes: x.prizes.map((p) => (p.place === place ? { ...p, ...patch } : p)) }));
 
+    const isArena = f.game === 'quizarena';
+    const A = f.arena || blank(organizer).arena;
+    const setA = (patch) => setF((x) => ({ ...x, arena: { ...(x.arena || blank(organizer).arena), ...patch } }));
+    const [bankCounts, reloadBank] = useBankCounts(isArena);
+    const [bankOpen, setBankOpen] = useState(false);
+    const [bankUpdated, setBankUpdated] = useState(false);
     const submit = (open) => {
+        if (isArena) {
+            if (!A.useBank) { setError('Choose the question bank for the Quiz Arena questions.'); return; }
+            setBusy(open ? 'open' : 'save'); setError('');
+            const { startDate, startTime } = f;
+            onSaveArena({
+                title: f.name, organizedBy: f.organizedBy, description: f.description, instructions: f.rules, bannerUrl: f.bannerUrl,
+                startsAt: startDate ? new Date(`${startDate}T${startTime || '10:00'}`).toISOString() : '',
+                registrationDeadline: f.registrationDeadline ? new Date(f.registrationDeadline).toISOString() : '',
+                registrationOpensAt: f.registrationOpensAt ? new Date(f.registrationOpensAt).toISOString() : '',
+                maxParticipants: A.maxParticipants, playersPerCollege: A.playersPerCollege, counts: A.counts,
+                secondsPerQuestion: A.secondsPerQuestion, pointsPerQuestion: A.pointsPerQuestion,
+                prizes: f.prizes, participationXp: f.participationXp,
+                certificates: { winners: f.certificates, participants: f.participationCertificates },
+                entryFee: f.entryFee
+            }, open).catch((err) => setError(errorOf(err))).finally(() => setBusy(''));
+            return;
+        }
         setBusy(open ? 'open' : 'save'); setError('');
         const { startDate, startTime, ...rest } = f;
         const body = {
@@ -92,7 +203,8 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
         };
         onSave(body).catch((err) => setError(errorOf(err))).finally(() => setBusy(''));
     };
-    const multi = f.game === 'ludo';
+    const brain = GAMES[f.game]?.brain ? GAMES[f.game] : null;
+    const multi = f.game === 'ludo' || !!brain;
 
     // One popup that fits the screen: the title and the Save / Publish buttons
     // stay put and the form scrolls between them. It used to be as tall as the
@@ -111,31 +223,42 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
                             <input required maxLength={140} value={f.name} onChange={(e) => set({ name: e.target.value })} className={INPUT} placeholder="e.g. Inter-College Chess Championship 2026" /></label>
                         <label><span className={LABEL}>Organized by</span>
                             <input maxLength={140} value={f.organizedBy} onChange={(e) => set({ organizedBy: e.target.value })} className={INPUT} /></label>
-                        <div><span className={LABEL}>Game</span>
-                            <div role="radiogroup" aria-label="Game" className="grid grid-cols-3 gap-2">
-                                {Object.entries(GAMES).map(([id, g]) => (
-                                    <button key={id} type="button" role="radio" aria-checked={f.game === id} disabled={locked}
-                                        onClick={() => set({ game: id, teamsPerMatch: id === 'ludo' ? 4 : 2, playersPerSide: 1 })}
-                                        className={`flex flex-col items-center gap-1.5 rounded-xl border px-1 py-2.5 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${f.game === id ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
-                                        <GameIcon game={id} size={18} className="h-9 w-9 rounded-lg" />{g.label}
-                                    </button>
-                                ))}
-                            </div>
-                            <span className="mt-1 block text-xs text-slate-500">{GAMES[f.game]?.note}</span></div>
                         <div><span className={LABEL}>Competition type</span>
                             <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700">{!hosted ? 'Inter-College' : hostName ? `${hostName} only` : 'Your college only'}</p>
                             {hosted && <span className="mt-1 block text-xs text-slate-500">{hostName ? `Only ${hostName}'s students see it. The college makes the teams from them.` : 'Only your students see it. You make the teams from them.'}</span>}</div>
+                        {/* The games as small cards in a row; the chosen one opens a few
+                            lines about it right under the cards. */}
+                        <div className="sm:col-span-2"><span className={LABEL}>Game</span>
+                            <div role="radiogroup" aria-label="Game" className={`grid grid-cols-3 gap-2 ${arena && !competition ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
+                                {[...Object.entries(GAMES), ...(arena && !competition ? [['quizarena', { label: 'Quiz Arena' }]] : [])].map(([id, g]) => (
+                                    <button key={id} type="button" role="radio" aria-checked={f.game === id} disabled={locked} data-game-card={id}
+                                        onClick={() => setF((x) => ({
+                                            ...x, game: id, teamsPerMatch: id === 'ludo' ? 4 : 2, playersPerSide: 1,
+                                            // Each brain game starts from its own question count and time.
+                                            gameOptions: g.brain ? { ...x.gameOptions, questionCount: g.questions[2], questionSeconds: g.seconds[2] } : x.gameOptions
+                                        }))}
+                                        className={`relative flex flex-col items-center gap-1 rounded-xl border px-1 py-2 text-[11px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${f.game === id ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+                                        <GameIcon game={id} size={16} className="h-8 w-8 rounded-lg" />{g.label}
+                                        {f.game === id && <span aria-hidden className="absolute -bottom-[7px] left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-indigo-500 bg-indigo-50" />}
+                                    </button>
+                                ))}
+                            </div>
+                            {/* The chosen game's note, as points. */}
+                            <ul key={f.game} className="mt-2 space-y-1 rounded-xl border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-xs text-slate-500 animate-fade-in" data-game-about={f.game}>
+                                {notePoints(f.game === 'quizarena' ? ARENA_NOTE : GAMES[f.game]?.note).map((line) => <li key={line} className="flex gap-2"><span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />{line}</li>)}
+                            </ul>
+                        </div>
                         <label className="sm:col-span-2"><span className={LABEL}>Competition description <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>
                             <textarea rows={2} maxLength={2000} value={f.description} onChange={(e) => set({ description: e.target.value })} className={INPUT} /></label>
                         <label><span className={LABEL}>Registration start <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>
-                            <input type="datetime-local" value={f.registrationOpensAt} onChange={(e) => set({ registrationOpensAt: e.target.value })} className={INPUT} />
+                            <DateTimeInput value={f.registrationOpensAt} onChange={(v) => set({ registrationOpensAt: v })} label="Registration start" />
                             <span className="mt-1 block text-xs text-slate-500">Empty: registration opens when you publish.</span></label>
                         <label><span className={LABEL}>Registration end</span>
-                            <input type="datetime-local" required value={f.registrationDeadline} onChange={(e) => set({ registrationDeadline: e.target.value })} className={INPUT} /></label>
+                            <DateTimeInput required value={f.registrationDeadline} onChange={(v) => set({ registrationDeadline: v })} label="Registration end" /></label>
                         <label><span className={LABEL}>Competition date</span>
                             <input type="date" required value={f.startDate} onChange={(e) => set({ startDate: e.target.value })} className={INPUT} /></label>
                         <label><span className={LABEL}>Start time</span>
-                            <input type="time" required value={f.startTime} onChange={(e) => set({ startTime: e.target.value })} className={INPUT} /></label>
+                            <TimeInput required value={f.startTime} onChange={(v) => set({ startTime: v })} label="Start time" /></label>
                     </div>
 
                     <div>
@@ -153,8 +276,64 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
                         )}
                     </div>
 
-                    <fieldset className="grid gap-4 rounded-2xl border border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {isArena && (
+                        <>
+                            <fieldset className="grid gap-4 rounded-2xl border border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                                <legend className="px-1 text-sm font-bold text-slate-700">Students, rounds, timer and marks</legend>
+                                {/* Eight equal boxes, four to a row, each label one line high so the boxes line up. */}
+                                {[
+                                    ['Seats (all colleges)', 'maxParticipants', 1, 100000],
+                                    ['Students per college', 'playersPerCollege', 1, 500],
+                                    ['Seconds per question', 'secondsPerQuestion', 5, 120],
+                                    ['Points per correct', 'pointsPerQuestion', 1, 1000]
+                                ].map(([label, key, min, max]) => (
+                                    <label key={key} className="min-w-0"><span className={`${LABEL} truncate`} title={label}>{label}</span>
+                                        <input type="number" min={min} max={max} value={A[key]} onChange={(e) => setA({ [key]: e.target.value })} className={INPUT} /></label>
+                                ))}
+                                {[1, 2, 3].map((r) => (
+                                    <label key={r} className="min-w-0"><span className={`${LABEL} truncate`} title={`Round ${r} · ${ROUND_NAMES[r]} questions`}>R{r} · {ROUND_NAMES[r]}</span>
+                                        <input type="number" min={0} max={50} value={A.counts[r]} onChange={(e) => setA({ counts: { ...A.counts, [r]: e.target.value } })} className={INPUT} /></label>
+                                ))}
+                                <div className="min-w-0"><span className={`${LABEL} truncate`}>Total</span>
+                                    <p className={`${INPUT} truncate bg-slate-50 text-slate-600`} data-arena-total>{[1, 2, 3].reduce((n, r) => n + (Number(A.counts[r]) || 0), 0)} questions · {[1, 2, 3].reduce((n, r) => n + (Number(A.counts[r]) || 0), 0) * (Number(A.pointsPerQuestion) || 0)} pts</p></div>
+                            </fieldset>
+
+                            <fieldset className="space-y-3 rounded-2xl border border-slate-200 p-4" data-question-bank>
+                                <legend className="px-1 text-sm font-bold text-slate-700">Questions</legend>
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold text-slate-800">
+                                        <input type="radio" name="arena-questions" checked={!!A.useBank} onChange={() => setA({ useBank: true })} className="h-4 w-4 text-indigo-600" />
+                                        Question bank (the questions already prepared and approved)
+                                    </label>
+                                    <span className="flex items-center gap-2">
+                                    <button type="button" onClick={() => setBankOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-700"><Pencil size={13} /> Edit</button>
+                                    <Link to={arenaPath(`/competitions/question-bank?counts=${[1, 2, 3].map((r) => Number(A.counts[r]) || 0).join(',')}`)} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-700"><Library size={13} /> Question bank</Link>
+                                    </span>
+                                </div>
+                                {A.useBank && bankCounts && (
+                                    <ul className="grid gap-2 sm:grid-cols-3">
+                                        {[1, 2, 3].map((r) => {
+                                            const need = Number(A.counts[r]) || 0;
+                                            const ok = bankCounts[r] >= need;
+                                            return (
+                                                <li key={r} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs ${ok ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+                                                    {ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                                                    <span><b>R{r}</b> {bankCounts[r]} approved · needs {need}</span>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                )}
+                                {bankUpdated && <p className="text-xs font-bold text-emerald-600" role="status">Question bank updated</p>}
+                                <p className="text-xs text-slate-500">On publishing, each round takes its questions from the approved ones. A round short of approved questions cannot be published: add and approve more with Edit.</p>
+                            </fieldset>
+                        </>
+                    )}
+
+                    {!isArena && (
+                    <fieldset className="grid gap-4 rounded-2xl border border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-4 [&>label]:flex [&>label]:flex-col [&>label]:justify-end [&_input]:h-11 [&_select]:h-11">
                         <legend className="px-1 text-sm font-bold text-slate-700">Player / team limit</legend>
+                        {/* Every box the same height, lined up along the bottom however long its label. */}
                         <label><span className={LABEL}>{hosted ? 'Number of teams allowed' : 'Number of colleges allowed'}</span>
                             <input type="number" min={2} max={256} value={f.maxTeams} onChange={(e) => set({ maxTeams: e.target.value })} className={INPUT} /></label>
                         <label><span className={LABEL}>Players per team</span>
@@ -175,7 +354,15 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
                             <label><span className={LABEL}>Clock</span>
                                 <input type="number" min={1} max={60} value={f.gameOptions.clockMinutes} onChange={(e) => setOpt('clockMinutes', e.target.value)} className={INPUT} /></label>
                         )}
-                        {f.game !== 'chess' && (
+                        {brain && (
+                            <>
+                                <label><span className={LABEL}>{f.game === 'codeclash' ? 'Challenges' : f.game === 'brainsprint' ? 'Puzzles' : 'Questions'}</span>
+                                    <input type="number" min={brain.questions[0]} max={brain.questions[1]} value={f.gameOptions.questionCount ?? brain.questions[2]} onChange={(e) => setOpt('questionCount', e.target.value)} className={INPUT} /></label>
+                                <label><span className={LABEL}>Seconds each</span>
+                                    <input type="number" min={brain.seconds[0]} max={brain.seconds[1]} value={f.gameOptions.questionSeconds ?? brain.seconds[2]} onChange={(e) => setOpt('questionSeconds', e.target.value)} className={INPUT} /></label>
+                            </>
+                        )}
+                        {f.game !== 'chess' && !brain && (
                             <label><span className={LABEL}>Seconds per turn</span>
                                 <input type="number" min={10} max={120} value={f.gameOptions.turnSeconds} onChange={(e) => setOpt('turnSeconds', e.target.value)} className={INPUT} /></label>
                         )}
@@ -186,43 +373,25 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
                                 </select></label>
                         )}
                     </fieldset>
+                    )}
 
-                    <label className="block"><span className={LABEL}>Competition rules</span>
-                        <textarea rows={4} maxLength={5000} value={f.rules} onChange={(e) => set({ rules: e.target.value })} className={INPUT} placeholder="Fair play, timing, what happens if a player does not join…" /></label>
+                    <label className="block"><span className={LABEL}>{isArena ? 'Instructions for students' : 'Competition rules'}</span>
+                        <textarea rows={4} maxLength={isArena ? 3000 : 5000} value={f.rules} onChange={(e) => set({ rules: e.target.value })} className={INPUT} placeholder={isArena ? 'Anything students should know, on top of the standard Quiz Arena rules…' : 'Fair play, timing, what happens if a player does not join…'} /></label>
 
+                    {!isArena && (<>
                     <label className="block"><span className={LABEL}>Prize details</span>
                         <textarea rows={2} maxLength={600} value={f.prizeDetails} onChange={(e) => set({ prizeDetails: e.target.value })} className={INPUT} placeholder="e.g. Winner: trophy and ₹5,000 · Runner-up: medals" /></label>
 
-                    <fieldset className="rounded-2xl border border-slate-200 p-4">
-                        <legend className="px-1 text-sm font-bold text-slate-700">Reward points (for every player of the team)</legend>
-                        <div className="space-y-3">
-                            {f.prizes.map((p) => (
-                                <div key={p.place} className="grid items-end gap-2 sm:grid-cols-[3rem_1fr_7rem_8rem]">
-                                    <span className="pb-2.5 text-sm font-black text-slate-700">{ORDINAL[p.place]}</span>
-                                    <label><span className={LABEL}>Title</span><input value={p.title} maxLength={120} onChange={(e) => setPrize(p.place, { title: e.target.value })} className={INPUT} /></label>
-                                    <label><span className={LABEL}>XP</span><input type="number" min={0} value={p.xp} onChange={(e) => setPrize(p.place, { xp: e.target.value })} className={INPUT} /></label>
-                                    <label><span className={LABEL}>Reward points</span><input type="number" min={0} value={p.rewardPoints} onChange={(e) => setPrize(p.place, { rewardPoints: e.target.value })} className={INPUT} /></label>
-                                </div>
-                            ))}
-                        </div>
-                        <label className="mt-4 block sm:w-1/2"><span className={LABEL}>XP for taking part (every player)</span>
-                            <input type="number" min={0} max={10000} value={f.participationXp} onChange={(e) => set({ participationXp: e.target.value })} className={INPUT} /></label>
-                    </fieldset>
+                    </>)}
 
-                    <fieldset className="space-y-2 rounded-2xl border border-slate-200 p-4">
-                        <legend className="px-1 text-sm font-bold text-slate-700">Certificates</legend>
-                        <label className="flex items-center gap-2.5 text-sm font-semibold text-slate-700">
-                            <input type="checkbox" checked={f.certificates} onChange={(e) => set({ certificates: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
-                            Winner, Runner-up and Third Place certificates
-                        </label>
-                        <label className="flex items-center gap-2.5 text-sm font-semibold text-slate-700">
-                            <input type="checkbox" checked={f.participationCertificates} onChange={(e) => set({ participationCertificates: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
-                            Participation certificates for everyone else
-                        </label>
-                    </fieldset>
+                    <EntryFeeField value={f.entryFee} onChange={(entryFee) => set({ entryFee })} />
+
+                    <RewardsFields team={!isArena} value={{ prizes: f.prizes, participationXp: f.participationXp, winnersCert: f.certificates, participantsCert: f.participationCertificates }}
+                        onChange={(p) => set({ ...('prizes' in p && { prizes: p.prizes }), ...('participationXp' in p && { participationXp: p.participationXp }), ...('winnersCert' in p && { certificates: p.winnersCert }), ...('participantsCert' in p && { participationCertificates: p.participantsCert }) })} />
 
                     {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
                 </div>
+                {bankOpen && <QuestionBankDialog counts={A.counts} onClose={(changed) => { setBankOpen(false); if (changed) { setBankUpdated(true); reloadBank(); } }} />}
                 <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-4">
                     <button type="button" onClick={onCancel} className={BTN2}>Cancel</button>
                     <button type="submit" disabled={!!busy} className={BTN2}>{busy === 'save' ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} {competition ? 'Save changes' : 'Save Draft'}</button>
