@@ -35,6 +35,24 @@ const VIEW_HEADER = 'x-view-organization';
  * superadmin's own account, so /me/password would change theirs, not the
  * organization's — that one route is refused.
  */
+/**
+ * What a teacher with the organization dashboard (Admin.staff) may reach: the
+ * clubs and extra-curricular in full, their own password and the Research
+ * hand-off, and otherwise only reading — the dashboard, students, courses.
+ * Never the teachers, join requests, settings, or any other change.
+ */
+const STAFF_ANY = [/^\/api\/organizations\/me\/(nccnss|research-session|password|status)(\/|$)/];
+const STAFF_READ = [
+    /^\/api\/organizations\/me\/?$/,
+    /^\/api\/organizations\/me\/(dashboard|students|courses|modules|lessons|course-access|certificate-progress|requests\/count)(\/|$)/,
+    /^\/api\/linguistic\//, /^\/api\/competitions\/org(\/|$)/
+];
+const staffMay = (req) => {
+    const path = String(req.originalUrl || '').split('?')[0].replace(/\/+$/, '').toLowerCase() || '/';
+    if (STAFF_ANY.some((r) => r.test(path))) return true;
+    return ['GET', 'HEAD', 'OPTIONS'].includes(req.method) && STAFF_READ.some((r) => r.test(path));
+};
+
 const protectOrgAdmin = async (req, res, next) => {
     const header = req.headers.authorization;
 
@@ -101,6 +119,10 @@ const protectOrgAdmin = async (req, res, next) => {
         const organization = await Organization.findById(admin.organizationId);
         if (!organization) {
             return res.status(404).json({ message: 'The linked organization no longer exists' });
+        }
+
+        if (admin.staff && !staffMay(req)) {
+            return res.status(403).json({ code: 'STAFF_LIMITED', message: 'Your organization account cannot do this. Ask your organization\'s administrator.' });
         }
 
         req.admin = admin;

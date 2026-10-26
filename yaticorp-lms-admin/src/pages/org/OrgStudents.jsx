@@ -19,8 +19,9 @@
  * the one that is showing is built.
  */
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useOutletContext } from 'react-router-dom';
 import OrgCertificateProgress from './OrgCertificateProgress';
+import OrgRequests from './OrgRequests';
 import { Users, ChevronRight, Award, Download, UserMinus, Loader2 } from 'lucide-react';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
@@ -371,6 +372,8 @@ const StudentList = ({ tabs }) => {
 
 const VIEWS = [
     ['students', 'All students'],
+    // Students asking to join: once a menu item of its own ("Student requests").
+    ['requests', 'Requests'],
     ['certificates', 'Certificate progress']
 ];
 
@@ -381,11 +384,16 @@ const VIEWS = [
  */
 const OrgStudents = () => {
     const [params, setParams] = useSearchParams();
-    const view = params.get('view') === 'certificates' ? 'certificates' : 'students';
+    const { staff, pendingRequests } = useOutletContext() || {};
+    // A teacher signed in to the panel cannot decide requests, so they see no Requests tab.
+    const views = staff ? VIEWS.filter(([v]) => v !== 'requests') : VIEWS;
+    const asked = params.get('view');
+    const view = views.some(([v]) => v === asked) ? asked : 'students';
     // Under the page's title, not above it: the title says where you are, the
     // tabs which view of it.
-    const tabs = <Segmented options={VIEWS} value={view} onChange={(v) => setParams(v === 'students' ? {} : { view: v })} />;
+    const tabs = <Segmented options={views} value={view} onChange={(v) => setParams(v === 'students' ? {} : { view: v })} counts={{ requests: pendingRequests }} />;
     if (view === 'students') return <StudentList tabs={tabs} />;
+    if (view === 'requests') return <OrgRequests tabs={tabs} />;
     return (
         // Certificate progress is a narrower view, centred — tabs and all.
         <div className="mx-auto max-w-5xl space-y-4 lg:space-y-6 animate-fade-in pb-10">

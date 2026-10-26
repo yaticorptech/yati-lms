@@ -12,7 +12,7 @@ import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
 import LanguageToggle from '../components/LanguageToggle';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Languages } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Languages, Shield } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
@@ -600,7 +600,8 @@ const StudentLayout = () => {
     const isActive = (path) => location.pathname === path;
     // Competitions is laid out to fill the window, edge to edge,
     // rather than sit in the centred column the other pages use.
-    const wide = location.pathname === '/competitions' || location.pathname.startsWith('/competitions/');
+    // So are Job Preparation (/interview, /jobs), Extra Curricular and Career Path.
+    const wide = ['/competitions', '/interview', '/jobs', '/extracurricular', '/career'].some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
     // Career Path is the one nav entry with screens beneath it, so it stays lit
     // on /career/planner, /career/roadmap and the rest — not just on /career.
     const isSectionActive = (path) =>
@@ -620,20 +621,19 @@ const StudentLayout = () => {
         { items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true }] },
         { title: 'Learn', items: [
             { to: '/enrolled-courses', label: 'My Courses', icon: BookOpen, exact: true },
-            { to: '/community', label: 'Community', icon: MessageSquare },
             // English learning; withdrawn like the others when an admin locks it.
             isLinguisticEnabled && { to: '/linguistic', label: 'Linguistic Ability', icon: Languages }
         ].filter(Boolean) },
         { title: 'Career', items: [
             isCareerPathEnabled && { to: '/career', label: 'Career Path', icon: Compass },
-            { to: '/interview', label: 'Interview Prep', icon: Mic },
-            isJobsEnabled && { to: '/jobs', label: 'Jobs', icon: Briefcase },
+            // Job Preparation holds the mock interviews, aptitude tests and Jobs (/jobs) as tabs.
+            { to: '/interview', label: 'Job Preparation', icon: Mic, also: '/jobs' },
             isCareerPathEnabled && { to: '/scholarships', label: 'Scholarships', icon: GraduationCap }
         ].filter(Boolean) },
         // Games (the brain games) and Competitions (Chess, Rapid Fire, Code Clash, Brain Sprint): two sections since 2026-10-23.
-        { title: 'Activities', items: [{ to: '/games', label: 'Games', icon: Gamepad2 }, { to: '/competitions', label: 'Competitions', icon: Trophy }] }
+        { title: 'Activities', items: [{ to: '/games', label: 'Games', icon: Gamepad2 }, { to: '/competitions', label: 'Competitions', icon: Trophy }, { to: '/extracurricular', label: 'Extra Curricular', icon: Shield }] }
     ];
-    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.to));
+    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.to) || (item.also && isSectionActive(item.also)));
 
     // Render helpers, not components: inlining them keeps the subtree from
     // remounting on every parent render.

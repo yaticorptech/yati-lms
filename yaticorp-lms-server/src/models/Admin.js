@@ -77,7 +77,17 @@ const adminSchema = new mongoose.Schema({
      * owner changes it. Additive: absent on existing accounts, whose tokens
      * keep working until their password next changes.
      */
-    passwordChangedAt: { type: Date, default: undefined }
+    passwordChangedAt: { type: Date, default: undefined },
+    /**
+     * A teacher given the organization dashboard (Teachers → Add teacher →
+     * "Organisation dashboard"). An orgadmin with limited rights: see
+     * staffMay in organizations/middleware/authMiddleware.js. Absent on
+     * the organization's own sign-in, which keeps every right.
+     */
+    staff: { type: Boolean, default: false },
+    // The teacher account behind it, when they have the teacher dashboard too:
+    // its research tools open inside the organization panel ("Research").
+    staffTeacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', default: null }
 }, { timestamps: true });
 
 // Email is unique across the single organization

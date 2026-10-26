@@ -116,7 +116,7 @@ const OrgDashboard = () => {
                 </div>
 
                 {stats?.pendingRequests > 0 && (
-                    <Link to="/organization/requests"
+                    <Link to="/organization/students?view=requests"
                         className="flex items-center gap-2 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-100 lg:px-7">
                         <UserPlus size={16} className="shrink-0" />
                         <span className="min-w-0 flex-1">

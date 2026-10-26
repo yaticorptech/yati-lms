@@ -20,13 +20,13 @@ export default function InterviewHistory() {
     const [error, setError] = useState(null);
     const load = useCallback(() => interviewApi.history().then((d) => { setData(d); setError(null); }).catch((e) => { setError(e); setData(null); }), []);
     useEffect(() => { load(); }, [load]);
-    if (data === undefined) return <div className="mx-auto max-w-4xl pb-12"><Analyzing label="Loading your interviews…" /></div>;
-    if (!data) return <div className="mx-auto max-w-4xl pb-12"><ErrorBox error={error} onRetry={load} /></div>;
+    if (data === undefined) return <div className="w-full pb-12"><Analyzing label="Loading your interviews…" /></div>;
+    if (!data) return <div className="w-full pb-12"><ErrorBox error={error} onRetry={load} /></div>;
     const rows = data.sessions; const series = [...rows].reverse().map((s) => s.score || 0);
     const best = rows.reduce((m, s) => Math.max(m, s.score || 0), 0);
     const first = series[0]; const last = series[series.length - 1];
     return (
-        <div className="mx-auto max-w-4xl space-y-5 pb-12 animate-fade-in">
+        <div className="w-full space-y-5 pb-12 animate-fade-in">
             <Link to="/interview" onClick={markReturn} className="inline-flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-indigo-600"><ArrowLeft size={15} /> Interview</Link>
             {rows.length > 1 && (
                 <Section icon={TrendingUp} title="Your progress" hint={last > first ? `Up ${last - first} points since your first interview.` : 'Keep practising — the next one can be your best.'}>

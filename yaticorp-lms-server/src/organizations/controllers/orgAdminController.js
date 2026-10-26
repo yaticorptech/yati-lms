@@ -666,5 +666,6 @@ module.exports = {
     getRequestCount,
     decideRequest,
     countPendingRequests,
-    isRasterImage
+    isRasterImage,
+    rasterExtension
 };

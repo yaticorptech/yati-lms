@@ -7,10 +7,23 @@
  * `endpoint` is where the form goes: /admin/teachers for the platform, or
  * /organizations/me/teachers, which makes the teacher the organization's
  * member at once. `organizations` (a super admin only) offers the choice of one.
+ *
+ * An organization first chooses what the teacher can open (`access`):
+ *   Organisation dashboard only  name, email and password — a limited sign-in to its panel
+ *   Teacher dashboard only       the card, then the details, as before
+ *   Both                         the card and details; the same email and password
+ *                                sign in to the panel, where Research opens their teacher dashboard
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, Keyboard, Lock, Loader2, UserPlus, X } from 'lucide-react';
+
+// html5-qrcode's stop() throws, rather than rejects, when the camera never
+// started or has already stopped — and that throw, from an effect's cleanup,
+// took the whole page down ("Cannot stop, scanner is not running or paused").
+const stopReader = (reader) => {
+    try { reader.stop().catch(() => {}); } catch { /* not running: nothing to stop */ }
+};
+import { Camera, Keyboard, Lock, Loader2, UserPlus, X, Building2, GraduationCap } from 'lucide-react';
 import api from '../../utils/api';
 import { Dialog, DialogTitle, Banner, BTN, BTN2, INPUT, LABEL } from '../orgUi';
 import PasswordStrengthChecker from '../PasswordStrengthChecker';
@@ -33,24 +46,31 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
     const [busy, setBusy] = useState(false);
     const scanner = useRef(null);
     const choices = organizations ? assignable(organizations) : null;
+    // Only an organization chooses access; the platform adds teacher-dashboard teachers as before.
+    const choosing = endpoint === '/organizations/me/teachers';
+    const [access, setAccess] = useState(() => (choosing ? { organization: false, teacher: false } : { organization: false, teacher: true }));
+    const orgOnly = access.organization && !access.teacher;
+    const chosen = access.organization || access.teacher;
+    const toggle = (k) => { setAccess((a) => ({ ...a, [k]: !a[k] })); setError(''); };
 
     const set = (key) => (e) => { setForm((f) => ({ ...f, [key]: e.target.value })); setErrors((x) => ({ ...x, [key]: '' })); };
 
     // The camera runs only while "Scan" is chosen and no card is checked yet.
     useEffect(() => {
-        if (mode !== 'camera' || card) return undefined;
+        // …and only while the card step is on screen (not for an organisation-dashboard-only teacher).
+        if (mode !== 'camera' || card || orgOnly || !chosen) return undefined;
         let stopped = false;
         const reader = new Html5Qrcode(SCANNER_ID);
         scanner.current = reader;
         reader.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, (decoded) => {
             if (stopped) return;
             stopped = true;
-            reader.stop().catch(() => {});
+            stopReader(reader);
             setCode(decoded.trim());
             setMode('manual');
         }, () => {}).catch(() => { setScanError('The camera could not be opened. Type the QR code or card number instead.'); setMode('manual'); });
-        return () => { stopped = true; reader.stop().catch(() => {}); scanner.current = null; };
-    }, [mode, card]);
+        return () => { stopped = true; stopReader(reader); scanner.current = null; };
+    }, [mode, card, orgOnly, chosen]);
 
     const check = async () => {
         const raw = code.trim();
@@ -70,19 +90,21 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
 
     const submit = async (e) => {
         e.preventDefault();
-        if (!card || busy) return;
+        if (busy || !chosen || (!orgOnly && !card)) return;
         setBusy(true);
         setError('');
         setErrors({});
         try {
-            const body = { ...form, ...card };
+            const body = orgOnly ? { name: form.name, email: form.email, password: form.password } : { ...form, ...card };
             if (!choices) delete body.organizationId;
+            if (choosing) body.access = access;
             const r = await api.post(endpoint, body);
             onAdded(r.data.message || `${form.name} was added.`);
         } catch (err) {
             const { field, message } = refusal(err, 'The teacher could not be added. Please try again.');
             if (field === 'card') { setCard(null); setError(message); }
             else if (field && field in EMPTY) setErrors({ [field]: message });
+            else if (field === 'access') setError(message);
             else setError(message);
         } finally { setBusy(false); }
     };
@@ -95,8 +117,45 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
             </div>
             <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-5">
+                    {/* Step 0, for an organization: what the teacher can open */}
+                    {choosing && (
+                        <div className="space-y-2">
+                            <p className={LABEL}>What can this teacher open?</p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {[
+                                    ['organization', Building2, 'Organisation dashboard', 'Sign in to this panel with email and password. Limited: no settings, teachers or removing students.'],
+                                    ['teacher', GraduationCap, 'Teacher dashboard', 'Their own research and writing tools, signed in with their YATICORP card.']
+                                ].map(([k, Icon, title, hint]) => (
+                                    <label key={k} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${access[k] ? 'border-indigo-300 bg-indigo-50 ring-1 ring-indigo-300' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                        <input type="checkbox" checked={access[k]} onChange={() => toggle(k)} className="mt-1 h-4 w-4 shrink-0 accent-indigo-600" />
+                                        <span className="min-w-0">
+                                            <span className="flex items-center gap-1.5 text-sm font-bold text-slate-800"><Icon size={15} className="text-indigo-600" /> {title}</span>
+                                            <span className="mt-0.5 block text-xs text-slate-500">{hint}</span>
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                            {access.organization && access.teacher && <p className="text-xs text-slate-500">Both: one email and password for this panel, where <strong>Research</strong> opens their teacher dashboard.</p>}
+                        </div>
+                    )}
+
+                    {/* Organisation dashboard only: just the sign-in */}
+                    {orgOnly && (
+                        <div className="space-y-3">
+                            <p className={LABEL}>Their sign-in to this panel</p>
+                            <Field id="s-name" label="Full name *" value={form.name} onChange={set('name')} error={errors.name} autoComplete="off" placeholder="Dr. Asha Rao" />
+                            <Field id="s-email" label="Email *" type="email" value={form.email} onChange={set('email')} error={errors.email} autoComplete="off" placeholder="name@college.edu" />
+                            <Field id="s-password" label="Password *" error={errors.password}>
+                                <input id="s-password" type="text" value={form.password} onChange={set('password')} autoComplete="new-password" placeholder="Set a first password" className={INPUT} />
+                                <PasswordStrengthChecker password={form.password} focused={!!form.password} />
+                            </Field>
+                            <p className="text-xs text-slate-500">They sign in on the organization sign-in page with this email and password.</p>
+                        </div>
+                    )}
+                    {orgOnly && error && <Banner>{error}</Banner>}
+
                     {/* Step 1: the card */}
-                    <div className="space-y-3">
+                    {chosen && !orgOnly && <div className="space-y-3">
                         <p className={LABEL}>1 · The teacher’s card</p>
                         {card ? (
                             <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
@@ -133,12 +192,12 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
                                 {scanError && <p className="text-xs text-red-600">{scanError}</p>}
                             </>
                         )}
-                    </div>
+                    </div>}
 
-                    {error && <Banner>{error}</Banner>}
+                    {!orgOnly && error && <Banner>{error}</Banner>}
 
                     {/* Step 2: the teacher */}
-                    {card && (
+                    {card && !orgOnly && chosen && (
                         <div className="space-y-3">
                             <p className={LABEL}>2 · The teacher</p>
                             <Field id="t-name" label="Full name *" value={form.name} onChange={set('name')} error={errors.name} autoComplete="off" placeholder="Dr. Asha Rao" />
@@ -164,13 +223,13 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
                                     </Select>
                                 </Field>
                             )}
-                            <p className="text-xs text-slate-500">The teacher is emailed their card number and this password, and signs in by choosing <strong>Teacher</strong> on the sign-in page.</p>
+                            <p className="text-xs text-slate-500">The teacher is emailed their card number and this password, and signs in by choosing <strong>Teacher</strong> on the sign-in page.{access.organization ? ' The same email and password sign in to this panel.' : ''}</p>
                         </div>
                     )}
                 </div>
                 <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 px-5 py-4">
                     <button type="button" onClick={onClose} className={BTN2} disabled={busy}>Cancel</button>
-                    <button type="submit" disabled={!card || busy} className={BTN}>
+                    <button type="submit" disabled={busy || !chosen || (!orgOnly && !card)} className={BTN}>
                         {busy && <Loader2 size={15} className="animate-spin" />} Add teacher
                     </button>
                 </div>
