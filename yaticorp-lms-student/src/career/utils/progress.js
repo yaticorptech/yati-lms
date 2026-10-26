@@ -13,6 +13,7 @@
  * last ladder any screen loaded, and before one has loaded it says so
  * (`known: false`) rather than guessing.
  */
+import { uiLocale } from '../../i18n/translator';
 
 const isLadder = (t) => Array.isArray(t) && t.length >= 2 && t.every((n) => Number.isFinite(Number(n)));
 
@@ -209,7 +210,7 @@ export function recentActivity(tasks = [], count = 7) {
     const key = shiftKey(today, -(count - 1 - i));
     return {
       key,
-      label: keyAsDate(key).toLocaleDateString(undefined, { weekday: 'narrow', timeZone: 'UTC' }),
+      label: keyAsDate(key).toLocaleDateString(uiLocale(), { weekday: 'narrow', timeZone: 'UTC' }),
       active: days.has(key),
       isToday: i === count - 1
     };
