@@ -9,6 +9,8 @@ const unwrap = (err) => {
 };
 const get = (p, config) => client.get(`/competitions${p}`, config).then((r) => r.data).catch(unwrap);
 const post = (p, b) => client.post(`/competitions${p}`, b).then((r) => r.data).catch(unwrap);
+const put = (p, b) => client.put(`/competitions${p}`, b).then((r) => r.data).catch(unwrap);
+const del = (p) => client.delete(`/competitions${p}`).then((r) => r.data).catch(unwrap);
 
 export const competitionsApi = {
     games: () => get('/games'),
@@ -23,6 +25,17 @@ export const competitionsApi = {
     // Takes one out of My Profile's frame; downloading it again puts it back.
     hideCertificate: (id) => client.delete(`/competitions/certificates/${id}`).then((r) => r.data).catch(unwrap),
 
+    /* A quiz or a hackathon (asked 2026-10-23). */
+    /** Sign up on my own (a competition students enter themselves), or withdraw. */
+    signUp: (id) => post(`/${id}/signup`),
+    withdraw: (id) => del(`/${id}/signup`),
+    quiz: (id) => get(`/${id}/quiz`),
+    startQuiz: (id) => post(`/${id}/quiz/start`),
+    /** Answers as they are picked ({ questionId: choice }); `submit` hands the quiz in. */
+    saveQuiz: (id, answers, submit = false) => put(`/${id}/quiz`, { answers, submit }),
+    project: (id) => get(`/${id}/project`),
+    saveProject: (id, body) => put(`/${id}/project`, body),
+
     /** A player's 6-character match code → their match's game, to open. */
     joinMatch: (code) => post('/matches/join', { code }),
     play: (gameId, since) => get(`/play/${gameId}`, since != null ? { params: { since } } : undefined),
@@ -31,15 +44,17 @@ export const competitionsApi = {
 };
 
 /**
- * The games, as the lobby shows them before the server answers: Chess, Ludo
- * and Carrom (UNO was removed on 2026-10-23). Each has a photo and an icon
+ * The games, as the lobby shows them before the server answers: Chess (UNO,
+ * then Ludo and Carrom, were removed on 2026-10-23; a match of theirs made
+ * before then still plays, GamePage.jsx). Each has a photo and an icon
  * under public/games/, its own button colour, and the width of the players
  * pill painted into its photo, which a real one covers.
  */
 export const GAMES = {
     chess: { label: 'Chess', emoji: '♟️', blurb: 'Two players, a clock each. Checkmate wins.', players: '2 players', tone: 'from-slate-700 to-slate-900', button: 'bg-[#5b4ae0] hover:bg-[#4c3cc9] shadow-[#5b4ae0]/30', pillWidth: 'min-w-[36%]' },
-    ludo: { label: 'Ludo', emoji: '🎲', blurb: 'Roll, race and capture. First home wins.', players: '2–4 players', tone: 'from-rose-500 to-amber-500', button: 'bg-[#2f6fed] hover:bg-[#245dd0] shadow-[#2f6fed]/30', pillWidth: 'min-w-[39%]' },
-    carrom: { label: 'Carrom', emoji: '🟤', blurb: 'Aim the striker, pocket your coins, cover the queen.', players: '2 or 4 players', tone: 'from-amber-600 to-orange-700', button: 'bg-[#e8405f] hover:bg-[#d2314f] shadow-[#e8405f]/30', pillWidth: 'min-w-[42%]' }
+    // A quiz and a hackathon (asked 2026-10-23): no photo, drawn instead (`art`).
+    quiz: { label: 'Quiz', emoji: '🧠', blurb: 'Timed questions, one go each. The highest score wins.', players: 'Teams or solo', tone: 'from-violet-600 to-fuchsia-500', button: 'bg-[#7c3aed] hover:bg-[#6d28d9] shadow-[#7c3aed]/30', pillWidth: 'min-w-[40%]', art: 'quiz' },
+    hackathon: { label: 'Hackathon', emoji: '💻', blurb: 'Build a project for the problem. The best marks win.', players: 'Teams or solo', tone: 'from-emerald-600 to-teal-500', button: 'bg-[#059669] hover:bg-[#047857] shadow-[#059669]/30', pillWidth: 'min-w-[40%]', art: 'hackathon' }
 };
 export const gameImage = (id) => `/games/${id}.jpg`;
 export const gameIcon = (id) => `/games/${id}-icon.png`;

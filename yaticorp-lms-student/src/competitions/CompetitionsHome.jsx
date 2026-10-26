@@ -3,9 +3,10 @@
  * 2026-10-23, when the menu got a section of its own for Games, the brain
  * games), in six tabs:
  *
- *   Games          Chess, Ludo and Carrom, each leading to its competitions, and
- *                  Join with a code: a competition match's code opens that match
- *                  (playing with friends, and UNO, were removed on 2026-10-23)
+ *   Games          Chess, a Quiz and a Hackathon (added 2026-10-23), each leading
+ *                  to its competitions, and Join with a code: a
+ *                  competition match's code opens that match (playing with
+ *                  friends, UNO, and then Ludo and Carrom, were removed on 2026-10-23)
  *   Competitions   inter-college competitions, filtered by game: open,
  *                  closing soon, upcoming, live
  *   My Games       the competitions my college entered me in, and my matches:
@@ -21,7 +22,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Gamepad2, Trophy, UserCheck, BarChart3, History, Users, UsersRound, Crown, CalendarClock, Building2, Loader2,
-    ArrowRight, Award, Download, Medal, Clock, Gift, Search, ChevronRight, Link2, Ticket
+    ArrowRight, Award, Download, Medal, Clock, Gift, Search, ChevronRight, Link2, Ticket, Brain, Code2
 } from 'lucide-react';
 import useRowsShown from './useRowsShown';
 import { competitionsApi, GAMES, ORDINAL, fmtDateTime, fmtDate, gameImage, gameIcon } from './api';
@@ -84,23 +85,25 @@ const GamesTab = () => {
     const competitionsOf = (game) => navigate(game ? `?tab=competitions&game=${game}` : '?tab=competitions');
     const games = Object.entries(GAMES).filter(([, g]) => g.label.toLowerCase().includes(q.trim().toLowerCase()));
     const names = Object.values(GAMES).map((g) => g.label);
+    // One game (Chess, since Ludo and Carrom left on 2026-10-23): nothing to search, and its card not stretched across the row.
+    const many = names.length > 1;
 
     return (
         <div className="flex flex-1 flex-col gap-3 lg:min-h-0 lg:flex-[1_1_auto]">
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
                 <h2 className="flex items-center gap-2.5 text-lg font-black text-slate-900"><span aria-hidden="true" className="h-6 w-1.5 rounded-full bg-indigo-600" /> Available Games</h2>
-                <label className="relative block w-full sm:w-64">
+                {many && <label className="relative block w-full sm:w-64">
                     <span className="sr-only">Search games</span>
                     <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                     <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search games..." type="search"
                         className="w-full rounded-full border border-slate-200 bg-white py-1.5 pl-10 pr-4 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
-                </label>
+                </label>}
             </div>
 
-            {games.length === 0 && <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">No game called “{q.trim()}”. We have {names.slice(0, -1).join(', ')} and {names[names.length - 1]}.</p>}
+            {many && games.length === 0 && <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">No game called “{q.trim()}”. We have {names.slice(0, -1).join(', ')} and {names[names.length - 1]}.</p>}
             {/* On a wide screen the row has a set height — the photo's share of
                 the window plus the card's text and button — and may shrink. */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 lg:h-[calc(7vw+129px)] lg:min-h-0 lg:shrink lg:grid-rows-[minmax(0,1fr)]">
+            <div className={`grid grid-cols-1 gap-4 ${many ? 'sm:grid-cols-2 xl:grid-cols-3' : 'sm:max-w-xl'} lg:h-[calc(7vw+129px)] lg:min-h-0 lg:shrink lg:grid-rows-[minmax(0,1fr)]`}>
                 {games.map(([id, g]) => (
                     <article key={id} data-game={id} className="flex flex-col overflow-hidden rounded-[18px] bg-white shadow-sm ring-1 ring-slate-100 lg:min-h-0">
                         {/* Shorter than the photo, cropping its bottom; on a wide screen
@@ -113,14 +116,20 @@ const GamesTab = () => {
                                 column can measure before anything is laid out — a width
                                 share there reads as nothing and the photo collapses. */}
                             <span aria-hidden="true" className="block pb-[35.7%] lg:hidden" />
-                            <img src={gameImage(id)} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
+                            {g.art ? (
+                                <span aria-hidden="true" className={`absolute inset-0 flex items-center justify-start overflow-hidden bg-gradient-to-br pl-[8%] ${g.tone}`}>
+                                    {(() => { const Art = ART[g.art]; return <><Art className="h-[70%] w-auto text-white/90 drop-shadow-lg" strokeWidth={1.6} /><Art className="absolute -bottom-6 right-[30%] h-[90%] w-auto rotate-12 text-white/10" strokeWidth={1.2} /></>; })()}
+                                </span>
+                            ) : <img src={gameImage(id)} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />}
                             <span className={`absolute right-[4%] top-0 mt-[4%] inline-flex aspect-[3.6/1] items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-slate-900/80 px-3 text-[11px] font-semibold text-white shadow-md backdrop-blur-sm ${g.pillWidth}`}>
                                 <Users size={13} aria-hidden="true" /> {g.players.replace('players', 'Players')}
                             </span>
                         </div>
                         <div className="flex flex-1 shrink-0 flex-col p-3">
                             <div className="flex items-center gap-2.5">
-                                <img src={gameIcon(id)} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover shadow-sm" />
+                                {g.art
+                                    ? <span aria-hidden="true" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm ${g.tone}`}>{(() => { const Art = ART[g.art]; return <Art size={19} />; })()}</span>
+                                    : <img src={gameIcon(id)} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover shadow-sm" />}
                                 <div className="min-w-0">
                                     <h3 className="text-[15px] font-black leading-tight text-slate-900">{g.label}</h3>
                                     <p className="text-[11px] font-semibold text-indigo-600">{g.players}</p>
@@ -196,16 +205,22 @@ export const CompetitionCard = ({ c }) => (
                 <p className="mt-0.5 truncate text-xs text-slate-500">Organized by {c.organizedBy}</p>
             </div>
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-700">
-                <span className="inline-flex items-center gap-1.5"><Building2 size={14} className="text-slate-400" aria-hidden="true" /> {c.teamsCount} {c.hostOrganizationId ? (c.teamsCount === 1 ? 'Team' : 'Teams') : c.teamsCount === 1 ? 'College' : 'Colleges'}</span>
-                <span className="inline-flex items-center gap-1.5"><Users size={14} className="text-slate-400" aria-hidden="true" /> {c.playersCount || 0} {c.playersCount === 1 ? 'Player' : 'Players'}</span>
+                {/* Students on their own (a quiz or a hackathon): only how many have signed up. */}
+                {c.entry === 'individual'
+                    ? <span className="inline-flex items-center gap-1.5"><Users size={14} className="text-slate-400" aria-hidden="true" /> {c.teamsCount} {c.teamsCount === 1 ? 'Student' : 'Students'} · open to all</span>
+                    : <>
+                        <span className="inline-flex items-center gap-1.5"><Building2 size={14} className="text-slate-400" aria-hidden="true" /> {c.teamsCount} {c.hostOrganizationId ? (c.teamsCount === 1 ? 'Team' : 'Teams') : c.teamsCount === 1 ? 'College' : 'Colleges'}</span>
+                        <span className="inline-flex items-center gap-1.5"><Users size={14} className="text-slate-400" aria-hidden="true" /> {c.playersCount || 0} {c.playersCount === 1 ? 'Player' : 'Players'}</span>
+                    </>}
             </p>
             <dl className="space-y-1 text-xs text-slate-600">
                 {['registration-open', 'closing-soon', 'registration-soon'].includes(c.phase) && (
                     <div className="flex gap-1.5"><dt className="inline-flex items-center gap-1.5 text-slate-400"><Clock size={13} aria-hidden="true" /> Register by</dt><dd className="font-semibold text-slate-700">{fmtDateTime(c.registrationDeadline)}</dd></div>
                 )}
-                <div className="flex gap-1.5"><dt className="inline-flex items-center gap-1.5 text-slate-400"><CalendarClock size={13} aria-hidden="true" /> Date</dt><dd className="font-semibold text-slate-700">{fmtDateTime(c.startsAt)}</dd></div>
+                <div className="flex gap-1.5"><dt className="inline-flex items-center gap-1.5 text-slate-400"><CalendarClock size={13} aria-hidden="true" /> {c.kind === 'quiz' ? 'Opens' : c.kind === 'hackathon' ? 'Starts' : 'Date'}</dt><dd className="font-semibold text-slate-700">{fmtDateTime(c.startsAt)}</dd></div>
+                {c.endsAt && <div className="flex gap-1.5"><dt className="inline-flex items-center gap-1.5 text-slate-400"><Clock size={13} aria-hidden="true" /> {c.kind === 'quiz' ? 'Closes' : 'Projects due'}</dt><dd className="font-semibold text-slate-700">{fmtDateTime(c.endsAt)}</dd></div>}
             </dl>
-            {c.myTeam && <p className="text-xs font-bold text-violet-700">Your team: {c.myTeam.teamName}</p>}
+            {c.myTeam && <p className="text-xs font-bold text-violet-700">{c.myTeam.solo ? 'You are signed up' : `Your team: ${c.myTeam.teamName}`}</p>}
             <Link to={`/competitions/${c.id}`} className="mt-auto inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-colors hover:bg-indigo-700">
                 View Competition <ArrowRight size={15} aria-hidden="true" />
             </Link>
@@ -240,7 +255,9 @@ const useChosenInView = (rowRef, chosen, selector) => {
 const CompetitionsTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.list);
     const [params] = useSearchParams();
-    const [game, setGame] = useState(() => (GAMES[params.get('game')] ? params.get('game') : 'all'));
+    // One game (Chess): no filters to choose between, so every competition is listed.
+    const many = Object.keys(GAMES).length > 1;
+    const [game, setGame] = useState(() => (many && GAMES[params.get('game')] ? params.get('game') : 'all'));
     // The game filters scroll the way the section's tab bar does.
     const filtersRef = useRef(null);
     useChosenInView(filtersRef, game, '[aria-pressed="true"]');
@@ -254,15 +271,15 @@ const CompetitionsTab = () => {
     ].filter(([, rows]) => rows.length);
     return (
         <div className="space-y-6">
-            {/* The games, as a filter */}
-            <div ref={filtersRef} className="relative flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filter by game">
+            {/* The games, as a filter (when there is more than one) */}
+            {many && <div ref={filtersRef} className="relative flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filter by game">
                 {[['all', 'All games', '🎮'], ...Object.entries(GAMES).map(([id, g]) => [id, g.label, g.emoji])].map(([id, label, emoji]) => (
                     <button key={id} type="button" onClick={() => setGame(id)} aria-pressed={game === id} data-game-filter={id}
                         className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-2xl border px-4 text-sm font-bold transition-colors ${game === id ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300'}`}>
                         <span aria-hidden="true">{emoji}</span> {label}
                     </button>
                 ))}
-            </div>
+            </div>}
             <div>
                 <h2 className="text-lg font-black text-slate-900">Inter-College Competitions</h2>
                 <p className="text-sm text-slate-500">Colleges enter teams through their coordinator. Want to play? Ask your college's coordinator to put you in the team.</p>
@@ -490,6 +507,9 @@ const HistoryTab = () => {
 
 /* ── The page ─────────────────────────────────────────────────────────── */
 
+/** A quiz's or hackathon's picture, drawn (they have no photo): its colours and its sign. */
+const ART = { quiz: Brain, hackathon: Code2 };
+
 const HERO_BG = '/illustrations/games-hero-bg.png';
 const HERO_ART = '/illustrations/games-hero-art.png';
 const HERO_PILLS = [[Trophy, 'Join competitions', 'text-amber-300'], [UsersRound, 'Play for your college', 'text-white'], [Crown, 'Climb leaderboard', 'text-amber-300']];
@@ -605,7 +625,7 @@ export default function CompetitionsHome() {
                     <div className="relative lg:max-w-[50rem] lg:pr-6">
                         <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/90"><Trophy size={16} aria-hidden="true" /> Play · Compete · Win</p>
                         <h1 className="mt-1.5 text-[1.6rem] font-black leading-tight sm:text-3xl">Competitions</h1>
-                        <p className="mt-1.5 hidden max-w-lg text-sm text-white/90 sm:block">Chess, Ludo and Carrom in inter-college competitions. Play for your college and win exciting matches.</p>
+                        <p className="mt-1.5 hidden max-w-lg text-sm text-white/90 sm:block">Chess in inter-college competitions. Play for your college and win exciting matches.</p>
                         {/* On a phone the pills and the picture are the Games tab's
                             alone: on the other tabs they filled over half the
                             screen and pushed the tab itself (a live match's

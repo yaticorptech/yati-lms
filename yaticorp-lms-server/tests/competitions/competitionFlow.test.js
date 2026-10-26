@@ -18,6 +18,14 @@ const jwt = require('jsonwebtoken');
 const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
 
 const games = require('../../src/competitions/games');
+/**
+ * Ludo and Carrom are no longer offered (2026-10-23), but a competition made
+ * for one before then still runs: these tests make one as it was made then.
+ */
+const offeredAgain = (id) => {
+    before(() => { games.IDS.push(id); });
+    after(() => { games.IDS.splice(games.IDS.indexOf(id), 1); });
+};
 const { GameError } = require('../../src/competitions/games/contract');
 const Competition = require('../../src/competitions/models/Competition');
 const Team = require('../../src/competitions/models/Team');
@@ -415,7 +423,8 @@ describe('an inter-college chess competition, start to finish', () => {
     });
 });
 
-describe('a game for four teams a match', () => {
+describe('a game for four teams a match (Ludo, from before it was removed)', () => {
+    offeredAgain('ludo');
     test('five teams make two groups; the winners meet in the final', async () => {
         const r = await boss('POST', '/admin', { name: `Ludo Day ${STAMP}`, game: 'ludo', teamsPerMatch: 4, startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
         assert.equal(r.status, 201, JSON.stringify(r.body));
@@ -439,7 +448,8 @@ describe('a game for four teams a match', () => {
     });
 });
 
-describe('an organization hosting its own competition', () => {
+describe('an organization hosting its own competition (Carrom doubles, from before it was removed)', () => {
+    offeredAgain('carrom');
     let host, compId;
     test('an organization cannot host until the platform admin lets it', async () => {
         host = await makeCollege('Host', 6);
@@ -607,10 +617,12 @@ describe('certificates when participation certificates are off', () => {
     });
 });
 
-describe('UNO and playing with friends are gone (2026-10-23)', () => {
-    test('a competition of UNO cannot be made; friendly rooms cannot be made', async () => {
-        const r = await boss('POST', '/admin', { name: `UNO ${STAMP}`, game: 'uno', startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
-        assert.equal(r.status, 400); assert.match(r.body.message, /Chess, Ludo or Carrom/);
+describe('UNO, Ludo, Carrom and playing with friends are gone (2026-10-23)', () => {
+    test('a competition of UNO, Ludo or Carrom cannot be made; friendly rooms cannot be made', async () => {
+        for (const game of ['uno', 'ludo', 'carrom']) {
+            const r = await boss('POST', '/admin', { name: `${game} ${STAMP}`, game, startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
+            assert.equal(r.status, 400, game); assert.match(r.body.message, /Choose the game: Chess/);
+        }
         assert.equal((await colleges[0].students[0].call('POST', '/rooms', { game: 'chess' })).status, 404);
     });
 });

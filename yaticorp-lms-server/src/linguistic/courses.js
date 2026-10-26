@@ -20,6 +20,9 @@
 const { lessons: CONTENT } = require('./content');
 const { CODES, packOf, infoOf } = require('./languages');
 const { NO_SPACES } = require('./check');
+const parts = require('./parts');
+// What a lesson says before it starts, in the student's own language (2026-10-24); English speakers keep the English below.
+const NOTES = require('./content/asks/notes');
 
 const ENGLISH = { code: 'en', name: 'English', native: 'English', locale: 'en-IN' };
 const byKey = new Map(CONTENT.map((l) => [l.seedKey, l]));
@@ -68,8 +71,11 @@ const stubOf = (code, l) => {
         direction: l.module === 'translation' ? (write ? 'kn-en' : 'en-kn') : null, learn: {}
     };
 };
-/** Every course lesson's stub: one per English vocabulary and translation lesson, per language. */
-const stubs = () => courseCodes().filter((c) => c !== 'en').flatMap((code) => CONTENT.filter((l) => l.module === 'vocabulary' || l.module === 'translation').map((l) => stubOf(code, l)));
+/** Every course lesson's stub: one per English vocabulary and translation lesson, per language, and its second unit's (parts.js). */
+const stubs = () => courseCodes().filter((c) => c !== 'en').flatMap((code) => CONTENT.filter((l) => l.module === 'vocabulary' || l.module === 'translation').flatMap((l) => {
+    const stub = stubOf(code, l);
+    return [stub, ...parts.PARTS.slice(1).map((part) => parts.courseStub(stub, part))];
+}));
 
 /* ── A course lesson, as it is served ────────────────────────────────── */
 
@@ -88,7 +94,7 @@ const build = (stub, helper) => {
             const word = wordIn(X.code, base.seedKey, w), meaning = wordIn(Y.code, base.seedKey, w);
             return word && meaning ? { word, kannada: meaning, pos: w.pos, example: '', synonyms: [], antonyms: [], audio: null, lang: Y.name, target: X.name, locale: X.locale, course: true, en: w.word } : null;
         }).filter(Boolean);
-        out.learn = { intro: `New ${X.name} words, with their meanings in ${Y.name}. Tap a card to see the meaning, and the speaker to hear the word.` };
+        out.learn = { intro: NOTES[Y.code]?.vocab || `New ${X.name} words, with their meanings in ${Y.name}. Tap a card to see the meaning, and the speaker to hear the word.` };
         return out;
     }
     // Translation: write the language learnt (from the student's own), or read it.
@@ -106,7 +112,8 @@ const build = (stub, helper) => {
     };
     out.items = (base.items || []).map(make).filter(Boolean);
     out.quiz = (base.quiz || []).map(make).filter(Boolean);
-    out.learn = write
+    const N = NOTES[Y.code];
+    out.learn = N ? { intro: write ? N.write : N.read, points: [N.tiles, N.close] } : write
         ? { intro: `Read each sentence in ${Y.name} and write it in ${X.name}.`, points: [`Tap the word tiles in order, or switch to the keyboard and type in ${X.name}.`, `No ${X.name} keyboard? Use the ${X.name} letters under the answer box.`, 'A close answer counts: you will see the model and the small differences.'] }
         : { intro: `Read each sentence in ${X.name} and write what it means in ${Y.name}.`, points: ['Read the whole sentence first, then the words you know.', `Tap the word tiles in order, or type in ${Y.name}.`, 'A close answer counts: you will see the model and the small differences.'] };
     return out;

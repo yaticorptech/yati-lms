@@ -39,7 +39,7 @@ import { rankUpSince, climbedSince } from './rankPlaces';
 const PERIOD = 'weekly';
 // Pages that are themselves the thing being done, to the end: the climb waits
 // until the student leaves. Lesson pages are not among them (see busyNow).
-const BUSY_ROUTES = /^\/(interview\/mock\/|competitions\/play\/|career\/onboarding)/;
+const BUSY_ROUTES = /^\/(interview\/mock\/|competitions\/play\/|competitions\/[^/]+\/quiz|career\/onboarding)/;
 const LESSON_PAGE = /^\/learn\//;
 const RESUME_GAP = 60000;
 // How long after a save to look: the server pays XP once its answer has gone.

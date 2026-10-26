@@ -24,6 +24,8 @@ const sweepOnce = async () => {
     for (const g of due) {
         try { await catchUp(g); } catch (err) { console.warn('[games] sweep failed for', String(g._id), err.message); }
     }
+    // Quizzes and hackathons whose time has come go live; quizzes that have closed are decided.
+    try { await require('./challengeService').advanceDue(); } catch (err) { console.warn('[competitions] sweep of quizzes and hackathons failed:', err.message); }
     const { openMatch } = require('./bracketService');
     const starting = await Match.find({ status: 'scheduled', scheduledAt: { $ne: null, $lte: now } }).limit(50);
     for (const m of starting) {

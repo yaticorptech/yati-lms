@@ -99,4 +99,4 @@ const checkWriting = (text, task = {}) => {
     return { findings, ok: !blocking, words: n };
 };
 
-module.exports = { checkWriting, wordCount, MISSPELT };
+module.exports = { checkWriting, wordCount, sentencesOf, MISSPELT };

@@ -2,10 +2,11 @@
  * The games, by id. Each engine follows ./contract.js. Loaded on first use, so
  * one game's file failing to load cannot take the others down with it.
  */
-const IDS = ['chess', 'ludo', 'carrom'];
-// No longer offered (UNO, removed 2026-10-23): never listed or chosen, but a
-// game saved before then can still be read and timed out.
-const RETIRED = ['uno'];
+const IDS = ['chess'];
+// No longer offered (UNO, then Ludo and Carrom, removed 2026-10-23): never
+// listed or chosen for a new competition, but a competition or game made
+// before then can still be read, played to its end and timed out.
+const RETIRED = ['uno', 'ludo', 'carrom'];
 
 const cache = {};
 const engine = (id) => {

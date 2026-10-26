@@ -620,7 +620,8 @@ const StudentLayout = () => {
             { to: '/enrolled-courses', label: 'My Courses', icon: BookOpen, exact: true },
             { to: '/community', label: 'Community', icon: MessageSquare },
             // English learning; withdrawn like the others when an admin locks it.
-            isLinguisticEnabled && { to: '/linguistic', label: 'Linguistic Ability', icon: Languages }
+            // Opens on its dashboard (2026-10-26), and stays lit on every page of the section.
+            isLinguisticEnabled && { to: '/linguistic/dashboard', section: '/linguistic', label: 'Language Learning', icon: Languages }
         ].filter(Boolean) },
         { title: 'Career', items: [
             isCareerPathEnabled && { to: '/career', label: 'Career Path', icon: Compass },
@@ -628,10 +629,10 @@ const StudentLayout = () => {
             isJobsEnabled && { to: '/jobs', label: 'Jobs', icon: Briefcase },
             isCareerPathEnabled && { to: '/scholarships', label: 'Scholarships', icon: GraduationCap }
         ].filter(Boolean) },
-        // Games (the brain games) and Competitions (Chess, Ludo, Carrom): two sections since 2026-10-23.
+        // Games (the brain games) and Competitions (Chess): two sections since 2026-10-23.
         { title: 'Activities', items: [{ to: '/games', label: 'Games', icon: Gamepad2 }, { to: '/competitions', label: 'Competitions', icon: Trophy }] }
     ];
-    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.to));
+    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.section || item.to));
 
     // Render helpers, not components: inlining them keeps the subtree from
     // remounting on every parent render.

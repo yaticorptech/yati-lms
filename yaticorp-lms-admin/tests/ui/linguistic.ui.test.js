@@ -2,7 +2,7 @@
  * Linguistic Ability in the admin panel (asked 2026-10-22), with the server
  * stood in for: the lessons and their overview, the lesson editor (the
  * server's reasons shown when it refuses, questions built with their answers
- * and sent as such), and a teacher's review.
+ * and sent as such), and no writing review (2026-10-26).
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -52,12 +52,11 @@ describe('Linguistic Ability in the admin panel', { skip: skipWithoutStyles }, (
         const { result, errors } = await screen({ entry: page('/linguistic'), api, styles: true, script: `
             await sleep(800);
             const rows = $$('[data-lesson-row]').map((r) => [r.dataset.lessonRow, r.querySelector('[data-status]').innerText, !!r.querySelector('[aria-label^="Edit"]'), !!r.querySelector(r.querySelector('[data-status]').innerText === 'Published' ? '[aria-label^="Unpublish"]' : '[aria-label^="Publish"]'), !!r.querySelector('[aria-label^="Delete"]')]);
-            return { overview: $$('[data-overview] tbody tr').map((tr) => tr.innerText.replace(/\\s+/g, ' ').trim()), rows, reviewsBadge: $$('button').find((b) => /^\\s*Reviews/.test(b.innerText))?.innerText.replace(/\\s+/g, ' ').trim(), direction: /English → Kannada/.test(document.body.innerText) };` });
+            return { overview: $$('[data-overview] tbody tr').map((tr) => tr.innerText.replace(/\\s+/g, ' ').trim()), rows, direction: /English → Kannada/.test(document.body.innerText) };` });
         assert.deepEqual(errors, []);
         assert.equal(result.overview.length, 5);
         assert.match(result.overview[1], /Grammar Practice 2 published 2 published · 1 draft 2 published/);
         assert.deepEqual(result.rows, [['l1', 'Published', true, true, true], ['l2', 'Draft', true, true, true]]);
-        assert.match(result.reviewsBadge, /Reviews\s*1/);
         assert.equal(result.direction, true);
     });
 
@@ -88,18 +87,13 @@ describe('Linguistic Ability in the admin panel', { skip: skipWithoutStyles }, (
         assert.equal(result.created, true, '"Lesson created" stays in view');
     });
 
-    test('a review: the answer with the tips the student saw, and a score and comment saved', async () => {
+    test('no writing review (2026-10-26): writing is checked in the lesson and stays the student\'s own', async () => {
         const { result, errors } = await screen({ entry: page('/linguistic?tab=reviews'), api, styles: true, script: `
-            ${PUT}
             await sleep(800);
-            const card = $('[data-review="s1"]');
-            const shown = { answer: text(card.querySelector('[data-answer]')), tips: /should be "receive"/.test(card.innerText) };
-            put(card.querySelector('input[type=number]'), '85'); put(card.querySelector('input[placeholder^="What was good"]'), 'Well ordered.'); await sleep(100);
-            [...card.querySelectorAll('button')].find((b) => /Save review/.test(b.innerText)).click(); await sleep(400);
-            return { ...shown, sent: window.__calls.find((c) => c[0] === 'PUT')?.slice(1), saved: /Saved: 85\\/100/.test(document.body.innerText), gone: !$('[data-review="s1"]') };` });
+            return { tabs: $$('button').map((b) => b.innerText.trim()).filter((t) => /^(Lessons|Reviews|Students|Settings)/.test(t)), review: !!$('[data-review]'), lessons: $$('[data-lesson-row]').length };` });
         assert.deepEqual(errors, []);
-        assert.match(result.answer, /I recieve the paper/); assert.equal(result.tips, true);
-        assert.deepEqual(result.sent, ['/linguistic/admin/submissions/s1', { score: 85, comment: 'Well ordered.' }]);
-        assert.equal(result.saved, true); assert.equal(result.gone, true, 'it leaves the waiting list');
+        assert.deepEqual(result.tabs, ['Lessons', 'Students', 'Settings']);
+        assert.equal(result.review, false);
+        assert.ok(result.lessons > 0, 'an old Reviews link opens the lessons');
     });
 });

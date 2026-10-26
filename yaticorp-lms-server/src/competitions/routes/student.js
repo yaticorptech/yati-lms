@@ -9,6 +9,14 @@
  *   GET  /:id                      one competition: details, teams, rounds and matches
  *   GET  /:id/certificate          my certificate, as a PDF, once it is over
  *
+ *   A quiz or a hackathon (services/challengeService.js, asked 2026-10-23):
+ *   POST /:id/signup · DELETE      sign up on my own (a competition entered by students themselves), or withdraw
+ *   GET  /:id/quiz                 the quiz: when it runs, my attempt, and once decided the answers and standings
+ *   POST /:id/quiz/start           start my one go: the questions, and my time
+ *   PUT  /:id/quiz                 { answers: { questionId: choice }, submit } — saved as picked; submit hands it in
+ *   GET  /:id/project              the hackathon: the problem, my team's project, and once decided the marks and standings
+ *   PUT  /:id/project              { title, summary, repoUrl, demoUrl } — hand in or change my team's project
+ *
  *   POST /matches/join             { code } — a player types their match's 6-character code → the game to open
  *   GET  /play/:gameId?since=N     one match game (204-like { unchanged } when version N is current)
  *   POST /play/:gameId/join        I am here (a match starts when everyone is)
@@ -26,6 +34,7 @@ const games = require('../services/gameService');
 const { openDue } = require('../services/bracketService');
 const { catalogue } = require('../games');
 const { chargeWallet } = require('../../rewards/services/walletRuleService');
+const challenge = require('../services/challengeService');
 
 const router = express.Router();
 const VISIBLE = ['registration', 'closed', 'live', 'completed'];
@@ -47,6 +56,7 @@ const seenBy = (user, c, teams) => !c.hostOrganizationId
 router.get('/games', wrap(async (req, res) => res.json({ games: catalogue() })));
 
 router.get('/', wrap(async (req, res) => {
+    await challenge.advanceDue();
     const all = await Competition.find({ status: { $in: VISIBLE } }).sort({ startsAt: -1 }).lean();
     const teams = await Team.find({ competitionId: { $in: all.map((c) => c._id) } }).lean();
     const comps = all.filter((c) => seenBy(req.user, c, teams));
@@ -60,6 +70,7 @@ router.get('/', wrap(async (req, res) => {
 }));
 
 router.get('/me', wrap(async (req, res) => {
+    await challenge.advanceDue();
     const myTeams = await Team.find({ 'players.userId': req.user._id, status: { $in: ['pending', 'approved'] } }).lean();
     const comps = await Competition.find({ _id: { $in: myTeams.map((t) => t.competitionId) }, status: { $ne: 'draft' } }).lean();
     for (const c of comps.filter((x) => x.status === 'live')) await openDue(c._id);
@@ -179,6 +190,7 @@ const visible = async (id, user) => {
 };
 
 router.get('/:id', wrap(async (req, res) => {
+    await challenge.advanceDue();
     const c = await visible(req.params.id, req.user);
     if (!c) return res.status(404).json({ message: 'Competition not found.' });
     if (c.status === 'live') await openDue(c._id);
@@ -201,5 +213,41 @@ router.get('/:id/certificate', chargeWallet('download_competition_certificate'),
     await Team.updateOne({ _id: team._id, 'players.userId': req.user._id }, { $set: { 'players.$.certificateHiddenAt': null } });
     require('../services/certificate').draw(res, { competition, team, playerName, place: team.place || null });
 }));
+
+/* ── A quiz or a hackathon ───────────────────────────────────────────── */
+
+/** The whole competition, when this student may see it. */
+const full = async (req) => {
+    await challenge.advanceDue();
+    const c = await visible(req.params.id, req.user);
+    if (!c) throw Object.assign(new Error('Competition not found.'), { status: 404 });
+    return Competition.findById(c._id).lean();
+};
+
+router.post('/:id/signup', wrap(async (req, res) => {
+    const c = await full(req);
+    await challenge.signUp(c, req.user);
+    res.status(201).json(await views.detail(c._id, { userId: req.user._id }));
+}));
+router.delete('/:id/signup', wrap(async (req, res) => {
+    const c = await full(req);
+    await challenge.withdraw(c, req.user);
+    res.json(await views.detail(c._id, { userId: req.user._id }));
+}));
+
+router.get('/:id/quiz', wrap(async (req, res) => {
+    const c = await full(req);
+    if (c.game !== 'quiz') return res.status(404).json({ message: 'This competition has no quiz.' });
+    res.json(await challenge.quizState(c, req.user));
+}));
+router.post('/:id/quiz/start', wrap(async (req, res) => res.json(await challenge.startQuiz(await full(req), req.user))));
+router.put('/:id/quiz', wrap(async (req, res) => res.json(await challenge.saveQuiz(await full(req), req.user, { answers: req.body?.answers || {}, submit: !!req.body?.submit }))));
+
+router.get('/:id/project', wrap(async (req, res) => {
+    const c = await full(req);
+    if (c.game !== 'hackathon') return res.status(404).json({ message: 'This competition has no project to hand in.' });
+    res.json(await challenge.projectState(c, req.user));
+}));
+router.put('/:id/project', wrap(async (req, res) => res.json(await challenge.saveProject(await full(req), req.user, req.body || {}))));
 
 module.exports = router;

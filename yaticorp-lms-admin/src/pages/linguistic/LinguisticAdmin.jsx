@@ -1,10 +1,10 @@
 /**
  * Linguistic Ability (admin) — /linguistic, for platform admins.
  *   Lessons    every lesson by module and level: create, edit, publish, unpublish, delete
- *   Reviews    open-ended writing and passage translations to score
  *   Students   progress, quiz results, lessons completed
  *   Settings   passing scores, the certificate's average, the daily challenge
  * Points are Reward rules (the Rewards page); the section's on/off switch is in Settings.
+ * Writing is checked in the lesson and stays the student's own: no Reviews tab (2026-10-26).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -16,7 +16,7 @@ const SELECT = INPUT.replace('w-full', 'w-auto');
 import DeleteConfirmModal from '../../components/DeleteConfirmModal';
 import { MODULES, LEVELS, MODULE_LABEL, LEVEL_LABEL, DIRECTIONS, errorOf, fmtDate } from './shared';
 import LessonEditor from './LessonEditor';
-import { ReviewsPanel, StudentsPanel } from './Panels';
+import { StudentsPanel } from './Panels';
 
 const DIRECTION = Object.fromEntries(DIRECTIONS);
 
@@ -137,25 +137,22 @@ function SettingsTab() {
                 <label><span className={LABEL}>Certificate: average quiz score needed (%)</span><input type="number" min={0} max={100} value={config.certificateMinAverage} onChange={(e) => setConfig((c) => ({ ...c, certificateMinAverage: e.target.value }))} className={INPUT} /><span className="mt-1 block text-[11px] text-slate-400">Issued when every lesson of a level is complete and the average best score reaches this.</span></label>
                 <label><span className={LABEL}>Daily challenge: questions</span><input type="number" min={3} max={15} value={config.dailyChallengeSize} onChange={(e) => setConfig((c) => ({ ...c, dailyChallengeSize: e.target.value }))} className={INPUT} /></label>
             </div>
-            <p className="rounded-xl bg-indigo-50/60 p-3 text-sm text-slate-600">Points are set on the <Link to="/rewards" className="font-bold text-indigo-700 underline">Rewards</Link> page (the &ldquo;Linguistic Ability&rdquo; rules). The section can be switched off for students in <Link to="/settings" className="font-bold text-indigo-700 underline">Settings</Link>.</p>
+            <p className="rounded-xl bg-indigo-50/60 p-3 text-sm text-slate-600">Points are set on the <Link to="/rewards" className="font-bold text-indigo-700 underline">Rewards</Link> page (the &ldquo;Language Learning&rdquo; rules). The section can be switched off for students in <Link to="/settings" className="font-bold text-indigo-700 underline">Settings</Link>.</p>
             <div className="flex justify-end"><button type="button" onClick={save} disabled={busy} className={BTN}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save settings</button></div>
         </div>
     );
 }
 
-const TABS = [['lessons', 'Lessons'], ['reviews', 'Reviews'], ['students', 'Students'], ['settings', 'Settings']];
+const TABS = [['lessons', 'Lessons'], ['students', 'Students'], ['settings', 'Settings']];
 
 export default function LinguisticAdmin() {
     const [params, setParams] = useSearchParams();
     const tab = TABS.some(([k]) => k === params.get('tab')) ? params.get('tab') : 'lessons';
-    const [pending, setPending] = useState(null);
-    useEffect(() => { api.get('/linguistic/admin/overview').then((r) => setPending(r.data.pendingReviews)).catch(() => {}); }, [tab]);
     return (
         <div className="mx-auto max-w-7xl space-y-4">
-            <PageHeader icon={Languages} title="Linguistic Ability" subtitle="English learning, Beginner to Advanced: lessons, teacher reviews and student progress." />
-            <Segmented options={TABS} value={tab} onChange={(v) => setParams(v === 'lessons' ? {} : { tab: v })} counts={pending ? { reviews: pending } : {}} />
+            <PageHeader icon={Languages} title="Language Learning" subtitle="English learning, Beginner to Advanced: lessons and student progress." />
+            <Segmented options={TABS} value={tab} onChange={(v) => setParams(v === 'lessons' ? {} : { tab: v })} />
             {tab === 'lessons' && <LessonsTab />}
-            {tab === 'reviews' && <ReviewsPanel base="/linguistic/admin" />}
             {tab === 'students' && <StudentsPanel base="/linguistic/admin" />}
             {tab === 'settings' && <SettingsTab />}
         </div>

@@ -261,14 +261,14 @@ const XP_GROUPS = [
         ]
     },
     {
-        title: 'Linguistic Ability', rules: [
+        title: 'Language Learning', rules: [
             ['linguistic_placement', 'Take the English placement test', 'Once ever.'],
             ['linguistic_lesson', 'Complete an English lesson', 'Each lesson, the first time its quiz is passed.'],
             ['linguistic_perfect', 'Score 100% on an English quiz', 'On top of completing it; once per lesson.'],
             ['linguistic_translation', 'Translate an item correctly', 'Each practice translation, the first time it is right.'],
             ['linguistic_daily', 'Finish the daily vocabulary challenge', 'Once a day.'],
-            ['linguistic_writing', 'Writing passed by a teacher', 'A paragraph, email, letter or passage translation scored at the passing score; once per task.'],
-            ['linguistic_level', 'Complete an English level', 'Every lesson of a level done and its certificate earned; once per level.']
+            ['linguistic_level', 'Complete an English level', 'Every lesson of a level done and its certificate earned; once per level.'],
+            ['linguistic_chest', 'Open a treasure chest', 'A unit\'s chest on the path, reached by finishing the lessons before it; once per unit.']
         ]
     },
     {

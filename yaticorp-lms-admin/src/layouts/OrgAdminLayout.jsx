@@ -41,7 +41,7 @@ const NAV = [
     { to: '/organization/competitions', label: 'Competitions', short: 'Compete', icon: Trophy },
     // Students' English: writing to review and progress. In the sidebar only:
     // a seventh item would not fit the phone's bottom bar.
-    { to: '/organization/linguistic', label: 'English', short: 'English', icon: Languages, sidebarOnly: true },
+    { to: '/organization/linguistic', label: 'Language Learning', short: 'Languages', icon: Languages, sidebarOnly: true },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
 

@@ -52,27 +52,23 @@ createRoot(document.getElementById('root')).render(
     <Routes><Route path="/competitions" element={<><CompetitionsHome /><Where /></>} /><Route path="*" element={<Where />} /></Routes>
   </MemoryRouter>);`;
 
-describe('the Competitions section (Chess, Ludo and Carrom)', { skip: skipWithoutStyles }, () => {
-    test('six tabs; the games are Chess, Ludo and Carrom, with a photo each, and each opens its competitions', async () => {
+describe('the Competitions section (Chess, Quiz and Hackathon; Ludo and Carrom removed 2026-10-23)', { skip: skipWithoutStyles }, () => {
+    test('six tabs; Chess (its photo), a Quiz and a Hackathon (drawn), each opening its competitions', async () => {
         const { result, errors } = await screen({ entry: home(), api: api(), styles: true, script: `
             await sleep(600);
             const tabs = $$('nav[data-section-tabs] button').map((b) => b.innerText.trim());
             const games = $$('[data-game]').map((g) => g.dataset.game);
             const photos = $$('[data-game] img').map((i) => i.getAttribute('src'));
-            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-            const search = $('input[type=search]'); setter.call(search, 'car'); search.dispatchEvent(new Event('input', { bubbles: true })); await sleep(150);
-            const searched = $$('[data-game]').map((g) => g.dataset.game);
-            setter.call(search, ''); search.dispatchEvent(new Event('input', { bubbles: true })); await sleep(150);
-            // The cards came back after the search, so find the button now.
-            $('[data-see-competitions="ludo"]').click(); await sleep(500);
+            const searched = !!$('input[type=search]');
+            $('[data-see-competitions="chess"]').click(); await sleep(500);
             return { tabs, games, photos, searched, where: $('#where').innerText, filter: $('[data-game-filter][aria-pressed="true"]')?.dataset.gameFilter, posted: window.__calls.filter((c) => c[0] === 'POST').length };` });
         assert.deepEqual(errors, []);
         assert.deepEqual(result.tabs, ['Games', 'Competitions', 'My Games', 'Leaderboard', 'Results', 'History']);
-        assert.deepEqual(result.games, ['chess', 'ludo', 'carrom'], 'no UNO');
-        assert.deepEqual(result.photos, ['/games/chess.jpg', '/games/chess-icon.png', '/games/ludo.jpg', '/games/ludo-icon.png', '/games/carrom.jpg', '/games/carrom-icon.png']);
-        assert.deepEqual(result.searched, ['carrom'], 'Search games narrows the cards');
-        assert.equal(result.where, '/competitions?tab=competitions&game=ludo', 'Ludo\'s competitions');
-        assert.equal(result.filter, 'ludo', 'filtered to Ludo');
+        assert.deepEqual(result.games, ['chess', 'quiz', 'hackathon'], 'no UNO, Ludo or Carrom; a Quiz and a Hackathon (2026-10-23)');
+        assert.deepEqual(result.photos, ['/games/chess.jpg', '/games/chess-icon.png'], 'the quiz and the hackathon are drawn, not photos');
+        assert.equal(result.searched, true, 'Search games, with three');
+        assert.equal(result.where, '/competitions?tab=competitions&game=chess', 'Chess\'s competitions');
+        assert.equal(result.filter, 'chess', 'filtered to Chess');
         assert.equal(result.posted, 0, 'no room is made');
     });
 
@@ -82,20 +78,17 @@ describe('the Competitions section (Chess, Ludo and Carrom)', { skip: skipWithou
             const card = $('[data-competition="c1"]');
             const view = [...card.querySelectorAll('a')].find((a) => /View Competition/.test(a.innerText));
             const before = $$('[data-competition]').map((c) => c.dataset.competition);
-            $('[data-game-filter="ludo"]').click(); await sleep(200);
-            const ludoOnly = $$('[data-competition]').map((c) => c.dataset.competition);
-            return { text: text(card), href: view?.getAttribute('href'), before, ludoOnly,
+            return { text: text(card), href: view?.getAttribute('href'), before,
                      ludoPhase: $('[data-competition="c2"] [data-phase]')?.innerText,
                      filters: $$('[data-game-filter]').map((b) => b.innerText.trim()) };` });
-        assert.deepEqual(result.filters.map((f) => f.replace(/^\S+\s/, '')), ['All games', 'Chess', 'Ludo', 'Carrom']);
+        assert.deepEqual(result.filters.map((f) => f.replace(/^\S+\s/, '')), ['All games', 'Chess', 'Quiz', 'Hackathon']);
         assert.match(result.text, /Inter-College Chess Cup/);
         assert.match(result.text, /4 Colleges/);
         assert.match(result.text, /8 Players/);
         assert.doesNotMatch(result.text, /Trophy and medals|Prize/, 'no prize line on the card (the user removed it, 14 Oct)');
         assert.match(result.text, /Your team: Alpha Knights/);
         assert.equal(result.href, '/competitions/c1');
-        assert.deepEqual(result.before.sort(), ['c1', 'c2'], 'a finished competition belongs to Results, not here');
-        assert.deepEqual(result.ludoOnly, ['c2'], 'the game filter narrows the list');
+        assert.deepEqual(result.before.sort(), ['c1', 'c2'], 'a finished competition belongs to Results, not here; a Ludo one made before 2026-10-23 is still listed');
         assert.match(result.ludoPhase, /Registration Closing Soon/);
     });
 
@@ -265,29 +258,6 @@ describe('the Competitions section (Chess, Ludo and Carrom)', { skip: skipWithou
         assert.equal(result.onLeaderboard, true, 'and lands exactly on the new tab');
         assert.deepEqual(result.fades, ['1', '1'], 'scrolled along, both ends fade');
         assert.equal(result.hop, true, 'its icon hops');
-    });
-
-    test('on a phone the game filters scroll to the chosen game by itself, with the next one in view', async () => {
-        const { result, errors } = await screen({ entry: home('competitions'), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
-            const row = () => $('[aria-label="Filter by game"]');
-            const pick = (id) => $('[data-game-filter="' + id + '"]');
-            const shown = (id) => { const r = pick(id).getBoundingClientRect(); const n = row().getBoundingClientRect(); return r.left >= n.left - 1 && r.right <= n.right + 1; };
-            await sleep(700);
-            const before = { overflows: row().scrollWidth > row().clientWidth, scrolled: row().scrollLeft, carrom: shown('carrom') };
-            pick('ludo').click(); await sleep(900);
-            const atLudo = { scrolled: row().scrollLeft, ludo: shown('ludo'), carrom: shown('carrom'), pressed: pick('ludo').getAttribute('aria-pressed') };
-            pick('all').click(); await sleep(900);
-            return { before, atLudo, atAll: { scrolled: row().scrollLeft, all: shown('all') }, sideways: document.documentElement.scrollWidth > innerWidth + 1 };` });
-        assert.deepEqual(errors, []);
-        assert.equal(result.before.overflows, true, 'the filters are wider than the phone, so the row scrolls');
-        assert.equal(result.before.carrom, false, 'Carrom starts off screen');
-        assert.equal(result.atLudo.pressed, 'true');
-        assert.ok(result.atLudo.scrolled > 0, 'choosing Ludo moved the row on its own');
-        assert.equal(result.atLudo.ludo, true, 'Ludo is in view');
-        assert.equal(result.atLudo.carrom, true, 'and so is the next game');
-        assert.equal(result.atAll.scrolled, 0, 'back to All games: the row scrolls back');
-        assert.equal(result.atAll.all, true);
-        assert.equal(result.sideways, false, 'the page itself never scrolls sideways');
     });
 
     test('on a phone the My Games tabs scroll to the chosen tab by itself, with the next one in view', async () => {
@@ -741,7 +711,7 @@ describe('on a small phone', { skip: skipWithoutStyles }, () => {
             return { current: $('nav[data-section-tabs] [aria-current="page"]').innerText.trim(), games: $$('[data-game]').map((g) => g.dataset.game), banner: !!$('header h1') };` });
         assert.deepEqual(errors, []);
         assert.equal(result.current, 'Games');
-        assert.deepEqual(result.games, ['chess', 'ludo', 'carrom'], 'the three games, none of the brain games');
+        assert.deepEqual(result.games, ['chess', 'quiz', 'hackathon'], 'Chess, the Quiz and the Hackathon, none of the brain games');
         assert.equal(result.banner, true, 'with the section\'s banner');
     });
 

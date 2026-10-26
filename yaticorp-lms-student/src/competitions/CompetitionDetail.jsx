@@ -3,6 +3,10 @@
  * dates, the colleges taking part, the team limits, the rules, the prizes and
  * certificates), the knockout round by round, and the winners once decided.
  *
+ * A quiz or a hackathon (asked 2026-10-23) shows the quiz, or the problem and
+ * the team's project, in place of the rounds (ChallengeBox); one entered by
+ * students on their own has its Sign up here.
+ *
  * Once it is over this is its results page (Results → View Full Results): the
  * winners, the final standings of every team, the rounds and the rules. The
  * prizes box and the list of colleges taking part are left out there — the
@@ -15,6 +19,7 @@ import {
 } from 'lucide-react';
 import { competitionsApi, ORDINAL, fmtDateTime } from './api';
 import { StatusChip, GameChip, Rounds, Podium, Standings } from './parts';
+import { SignUpBox, QuizBox, HackathonBox } from './ChallengeBox';
 import { saveBlob } from '../native/saveFile';
 import PriceTag from '../components/rewards/PriceTag';
 
@@ -30,13 +35,13 @@ const Fact = ({ icon: Icon, label, children }) => (
 
 export default function CompetitionDetail() {
     const { id } = useParams();
-    const [state, setState] = useState({ data: null, error: '' });
+    const [state, setState] = useState({ data: null, error: '', n: 0 });
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         let alive = true;
         const load = () => competitionsApi.detail(id)
-            .then((data) => { if (alive) setState({ data, error: '' }); })
+            .then((data) => { if (alive) setState((s) => ({ data, error: '', n: s.n + 1 })); })
             .catch((e) => { if (alive) setState((s) => ({ data: s.data, error: e.message })); });
         load();
         // Live matches change underneath the page: look again every 15 seconds.
@@ -51,6 +56,9 @@ export default function CompetitionDetail() {
             : <div className="space-y-4"><div className="skeleton h-40 rounded-3xl" /><div className="skeleton h-64 rounded-3xl" /></div>;
     }
     const { competition: c, teams, rounds } = data;
+    // A quiz or a hackathon: no rounds; perhaps entered by students on their own.
+    const challenge = ['quiz', 'hackathon'].includes(c.kind);
+    const solo = c.entry === 'individual';
     const myTeamId = c.myTeam?.status === 'approved' ? c.myTeam.id : null;
     // A college's own competition: for its students only, in teams it makes.
     const own = !!c.hostOrganizationId;
@@ -81,12 +89,13 @@ export default function CompetitionDetail() {
                     </div>
                 </div>
 
-                {c.myTeam && (
+                {solo && c.status !== 'completed' && <SignUpBox competition={c} onChanged={(d) => setState((s) => ({ data: d, error: '', n: s.n + 1 }))} />}
+                {c.myTeam && (!solo || c.status === 'completed') && (
                     <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl bg-violet-50 px-4 py-3 ring-1 ring-violet-100">
                         <UserCheck size={18} className="text-violet-600" aria-hidden="true" />
                         <p className="min-w-0 flex-1 basis-56 text-sm text-violet-900">
-                            You play for <strong>{c.myTeam.teamName}</strong> ({c.myTeam.collegeName}){c.myTeam.status !== 'approved' ? ' — waiting for the organizer to approve the team.' : '.'}
-                            {c.myTeam.place ? <> Your team finished <strong>{ORDINAL[c.myTeam.place]}</strong>.</> : null}
+                            {solo ? <>You took part.</> : <>You play for <strong>{c.myTeam.teamName}</strong> ({c.myTeam.collegeName}){c.myTeam.status !== 'approved' ? ' — waiting for the organizer to approve the team.' : '.'}</>}
+                            {c.myTeam.place ? <> {solo ? 'You' : 'Your team'} finished <strong>{ORDINAL[c.myTeam.place]}</strong>.</> : null}
                         </p>
                         {c.status === 'completed' && c.myTeam.status === 'approved' && (c.myTeam.place ? c.certificates : c.participationCertificates) && (
                             <button type="button" onClick={download} disabled={saving}
@@ -98,14 +107,16 @@ export default function CompetitionDetail() {
                 )}
 
                 <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-                    <Fact icon={CalendarClock} label="Date & time">{fmtDateTime(c.startsAt)}</Fact>
+                    <Fact icon={CalendarClock} label={c.kind === 'quiz' ? 'Quiz opens' : c.kind === 'hackathon' ? 'Starts' : 'Date & time'}>{fmtDateTime(c.startsAt)}</Fact>
                     <Fact icon={Clock} label="Registration">{c.registrationOpensAt && c.phase === 'registration-soon' ? `Opens ${fmtDateTime(c.registrationOpensAt)}` : `Closes ${fmtDateTime(c.registrationDeadline)}`}</Fact>
-                    <Fact icon={Users} label="Player / team requirements">{c.maxTeams} {own ? 'teams' : 'colleges'} · up to {c.playersPerTeam} player{c.playersPerTeam === 1 ? '' : 's'} each{c.playersPerSide > 1 ? ` · ${c.playersPerSide} play a match` : ''}</Fact>
-                    <Fact icon={Swords} label="Each match">{c.teamsPerMatch} teams · the winner goes through</Fact>
+                    <Fact icon={Users} label={solo ? 'Who can enter' : 'Player / team requirements'}>{solo ? `Any student, on their own · up to ${c.maxTeams}` : `${c.maxTeams} ${own ? 'teams' : 'colleges'} · up to ${c.playersPerTeam} player${c.playersPerTeam === 1 ? '' : 's'} each${c.playersPerSide > 1 ? ` · ${c.playersPerSide} play a match` : ''}`}</Fact>
+                    {c.kind === 'quiz' ? <Fact icon={Clock} label="The quiz">{c.questionsCount} questions · {c.minutes} min · closes {fmtDateTime(c.endsAt)}</Fact>
+                        : c.kind === 'hackathon' ? <Fact icon={Clock} label="Projects due">{fmtDateTime(c.endsAt)}</Fact>
+                            : <Fact icon={Swords} label="Each match">{c.teamsPerMatch} teams · the winner goes through</Fact>}
                 </div>
 
                 {/* Registering is the college coordinator's step, in the college's own panel. */}
-                {!c.myTeam && ['registration-open', 'closing-soon', 'registration-soon'].includes(c.phase) && (
+                {!solo && !c.myTeam && ['registration-open', 'closing-soon', 'registration-soon'].includes(c.phase) && (
                     <div data-register-note className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                         <p className="font-bold">{own ? 'Your college is making the teams' : c.phase === 'registration-soon' ? `Registration opens ${fmtDateTime(c.registrationOpensAt)}` : 'Registration is open'}</p>
                         <p className="mt-0.5">{own ? 'This competition is for your college\'s students only. If you want to play, ask your college\'s coordinator to put you in a team.'
@@ -122,17 +133,21 @@ export default function CompetitionDetail() {
                 </section>
             )}
 
-            {finished && teams.length > 0 && (
+            {challenge && (c.kind === 'quiz' ? <QuizBox competition={c} tick={state.n} /> : <HackathonBox competition={c} tick={state.n} />)}
+
+            {finished && !challenge && teams.length > 0 && (
                 <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><ListOrdered size={19} className="text-indigo-600" aria-hidden="true" /> Final standings</h2>
                     <Standings teams={teams} rounds={rounds} winners={c.winners} myTeamId={c.myTeam?.id} showCollege={!own} />
                 </section>
             )}
 
+            {!challenge && (
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><Swords size={19} className="text-indigo-600" aria-hidden="true" /> Tournament rounds</h2>
                 <Rounds rounds={rounds} myTeamId={myTeamId} />
             </section>
+            )}
 
             <div className={`grid grid-cols-1 gap-5 ${finished ? '' : 'lg:grid-cols-2'}`}>
                 {!finished && (
@@ -183,14 +198,14 @@ export default function CompetitionDetail() {
 
             {!finished && (
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><Building2 size={19} className="text-indigo-600" aria-hidden="true" /> {own ? 'Teams' : 'Participating colleges'} <span className="text-sm font-semibold text-slate-400">({teams.length})</span></h2>
-                {teams.length === 0 ? <p className="text-sm text-slate-500">{own ? 'Your college is making the teams.' : c.status === 'registration' ? 'Colleges are registering now.' : 'No colleges yet.'}</p> : (
+                <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><Building2 size={19} className="text-indigo-600" aria-hidden="true" /> {solo ? 'Students taking part' : own ? 'Teams' : 'Participating colleges'} <span className="text-sm font-semibold text-slate-400">({teams.length})</span></h2>
+                {teams.length === 0 ? <p className="text-sm text-slate-500">{solo ? 'Nobody has signed up yet.' : own ? 'Your college is making the teams.' : c.status === 'registration' ? 'Colleges are registering now.' : 'No colleges yet.'}</p> : (
                     <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                         {teams.map((t) => (
                             <li key={t.id} className={`rounded-2xl border p-3 ${t.id === c.myTeam?.id ? 'border-violet-200 bg-violet-50/50' : 'border-slate-200'}`}>
                                 <p className="truncate text-sm font-bold text-slate-900">{t.teamName} {t.place && <span className="text-amber-600">· {ORDINAL[t.place]}</span>}</p>
                                 {!own && <p className="truncate text-xs text-slate-500">{t.collegeName}{t.coordinator?.name ? ` · coordinator ${t.coordinator.name}` : ''}</p>}
-                                <p className="mt-1 truncate text-xs text-slate-600">{t.players.map((p) => p.name).join(', ')}</p>
+                                {!t.solo && <p className="mt-1 truncate text-xs text-slate-600">{t.players.map((p) => p.name).join(', ')}</p>}
                             </li>
                         ))}
                     </ul>

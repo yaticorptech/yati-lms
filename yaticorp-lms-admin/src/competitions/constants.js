@@ -1,12 +1,20 @@
 /** The admin panel's competition constants and helpers (shared by the pages). */
 import api from '../utils/api';
 
-// The games a competition can be made for (UNO was removed on 2026-10-23).
-// Each game's icon is GameIcon (competitions/shared.jsx).
+// The games a competition can be made for (UNO, then Ludo and Carrom, were
+// removed on 2026-10-23). Each game's icon is GameIcon (competitions/shared.jsx).
 export const GAMES = {
     chess: { label: 'Chess', note: 'Two teams a match, one player each.' },
-    ludo: { label: 'Ludo', note: 'Two to four teams a match, one player each.' },
-    carrom: { label: 'Carrom', note: 'Two teams a match: singles, or doubles with two players each.' }
+    // No matches (asked 2026-10-23): entered by college teams or by students on their own.
+    quiz: { label: 'Quiz', note: 'Timed multiple-choice questions, one go each. The highest score wins; a tie goes to the quicker.' },
+    hackathon: { label: 'Hackathon', note: 'A problem to build something for. Each team hands in a project; you mark each out of 100.' }
+};
+export const CHALLENGES = ['quiz', 'hackathon'];
+// No longer offered, but a competition made for one before then keeps it when edited.
+export const RETIRED_GAMES = {
+    ludo: { label: 'Ludo', note: 'Ludo is no longer offered; this competition keeps it. Two to four teams a match.' },
+    carrom: { label: 'Carrom', note: 'Carrom is no longer offered; this competition keeps it. Singles, or doubles.' },
+    uno: { label: 'UNO', note: 'UNO is no longer offered; this competition keeps it.' }
 };
 
 export const STATUS = {
