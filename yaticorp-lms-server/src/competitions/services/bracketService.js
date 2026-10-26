@@ -101,15 +101,19 @@ const openMatch = async (match) => {
     }));
     const opened = await Match.findOneAndUpdate({ _id: claimed._id }, { $push: { gameIds: game._id }, $set: { sides } }, { returnDocument: 'after' });
     // Both teams' players: the game is waiting for them now.
-    afterReply('telling players a match is open', () => tellOpen(competition, claimed, teams));
+    afterReply('telling players a match is open', () => tellOpen(competition, claimed, teams, game));
     return opened;
 };
 
-/** Open every scheduled match whose time has come. Cheap; called on reads. */
-const openDue = async (competitionId) => {
-    const due = await Match.find({ competitionId, status: 'scheduled', scheduledAt: { $ne: null, $lte: new Date() } });
-    for (const m of due) await openMatch(m);
-};
+/**
+ * Matches no longer open by themselves when their time comes: only the
+ * admin's Start opens one (and only then do players get their codes). Kept so
+ * the reads that called it stay as they are.
+ */
+const openDue = async () => {};
+
+/** Minutes between a drawn game and its rematch. */
+const REMATCH_MINUTES = 5;
 
 /**
  * A match's game has finished: turn its places (sides) into teams, decide the
@@ -144,8 +148,14 @@ const recordGame = async (game) => {
         const sides = [...match.sides].filter((s) => tied.some((t) => same(t, s.teamId))).reverse();
         const competition = await Competition.findById(match.competitionId);
         const teams = await Team.find({ _id: { $in: sides.map((s) => s.teamId) } }).lean();
-        const next = await require('./gameService').openMatchGame({ competition, match: { ...match.toObject(), sides }, teams });
-        await Match.updateOne({ _id: match._id }, { $push: { gameIds: next._id }, $set: { resultNote: `Game ${draws} was drawn — replaying.` } });
+        // A rematch in 5 minutes: the players are told now, and their code
+        // (the same one) shows when it opens.
+        const replayAt = new Date(Date.now() + REMATCH_MINUTES * 60 * 1000);
+        await Match.updateOne({ _id: match._id }, { $set: { replayAt, replaySides: sides.map((s) => ({ teamId: s.teamId, lineup: s.lineup || [] })), resultNote: `Game ${draws} was drawn — rematch in ${REMATCH_MINUTES} minutes.` } });
+        const { tell } = require('./notices');
+        const players = game.seats?.map((s) => s.userId) || teams.flatMap((t) => t.players.map((p) => p.userId));
+        afterReply('telling players a rematch is coming', () => tell(players, competition, `Draw — rematch in ${REMATCH_MINUTES} minutes`,
+            `Your game was drawn. The rematch begins at ${replayAt.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}. Your joining code shows then — enter it to join again.`));
         return;
     }
     const done = await decide(match, places, game.outcome?.walkover ? 'walkover' : 'game', game.outcome?.reason || '');
@@ -213,17 +223,25 @@ const tellDraw = async (competition) => {
     }
 };
 
-/** A match's game is open: its players have JOIN_MINUTES to take their seats. */
-const tellOpen = async (competition, match, teams) => {
+/** A match's game is open: its players have JOIN_MINUTES to take their seats, each with their own code. */
+const tellOpen = async (competition, match, teams, game = null) => {
     const { tell } = require('./notices');
+    const codeOf = (userId) => game?.seats?.find((s) => String(s.userId) === String(userId))?.code;
     const { JOIN_MINUTES } = require('./gameService');
     const what = match.kind === 'third-place' ? 'Third-place match' : (match.roundName || 'Your match');
     for (const side of match.sides) {
         const mine = teams.find((t) => same(t._id, side.teamId));
         if (!mine) continue;
         const others = match.sides.filter((s) => !same(s.teamId, side.teamId)).map((s) => teams.find((t) => same(t._id, s.teamId))?.teamName).filter(Boolean).join(', ');
-        await tell(mine.players.map((p) => p.userId), competition, `${what} is open — join now`,
-            `${competition.name}: ${mine.teamName} vs ${others || 'the other team'}. Join from Games & Competitions → My Games within ${JOIN_MINUTES} minutes.`);
+        for (const p of mine.players) {
+            const code = codeOf(p.userId);
+            // Only the players at the board get a code; the rest of the team just hears it began.
+            await tell([p.userId], competition, `${what} is open — join now`,
+                code
+                    ? `${competition.name}: ${mine.teamName} vs ${others || 'the other team'}. Your joining code: ${code}. Enter it within ${JOIN_MINUTES} minutes to join.`
+                    : `${competition.name}: ${mine.teamName} vs ${others || 'the other team'} has started.`,
+                { link: game ? `/competitions/play/${game._id}` : undefined });
+        }
     }
 };
 
@@ -340,4 +358,19 @@ const advance = async (competitionId) => {
     await advance(competitionId);     // a round of byes moves straight on
 };
 
-module.exports = { drawBracket, openMatch, openDue, recordGame, adminResult, advance, settled, roundName, groupsOf, NEXT_ROUND_MINUTES };
+/** Open every rematch whose 5 minutes are up (the sweeper, and reads, call this). */
+const openDueReplays = async () => {
+    const due = await Match.find({ status: 'live', replayAt: { $ne: null, $lte: new Date() } });
+    for (const m of due) {
+        const claimed = await Match.findOneAndUpdate({ _id: m._id, replayAt: m.replayAt }, { $set: { replayAt: null } }, { returnDocument: 'after' });
+        if (!claimed) continue;
+        const competition = await Competition.findById(m.competitionId);
+        const sides = (m.replaySides || []).map((s) => ({ teamId: s.teamId, lineup: s.lineup || [] }));
+        const teams = await Team.find({ _id: { $in: sides.map((s) => s.teamId) } }).lean();
+        const game = await require('./gameService').openMatchGame({ competition, match: { ...claimed.toObject(), sides }, teams });
+        await Match.updateOne({ _id: m._id }, { $push: { gameIds: game._id }, $set: { resultNote: 'Rematch open — join with your code.' }, $unset: { replaySides: 1 } });
+        afterReply('telling players the rematch is open', () => tellOpen(competition, { ...claimed.toObject(), sides }, teams, game));
+    }
+};
+
+module.exports = { drawBracket, openMatch, openDue, openDueReplays, REMATCH_MINUTES, recordGame, adminResult, advance, settled, roundName, groupsOf, NEXT_ROUND_MINUTES };

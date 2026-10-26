@@ -11,6 +11,7 @@ import { WalletSheet } from '../components/rewards/WalletCard';
 import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
+import LanguageToggle from '../components/LanguageToggle';
 import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Languages, Shield } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
@@ -23,6 +24,7 @@ import RankUpWatcher from '../components/rewards/RankUpWatcher';
 import useBackClose from '../native/useBackClose';
 import { dayKey as platformDay } from '../career/utils/progress';
 import ProfileImage from '../components/ProfileImage';
+import CompetitionAlerts from '../competitions/CompetitionAlerts';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -628,7 +630,7 @@ const StudentLayout = () => {
             { to: '/interview', label: 'Job Preparation', icon: Mic, also: '/jobs' },
             isCareerPathEnabled && { to: '/scholarships', label: 'Scholarships', icon: GraduationCap }
         ].filter(Boolean) },
-        // Games (the brain games) and Competitions (Chess, Ludo, Carrom): two sections since 2026-10-23.
+        // Games (the brain games) and Competitions (Chess, Rapid Fire, Code Clash, Brain Sprint): two sections since 2026-10-23.
         { title: 'Activities', items: [{ to: '/games', label: 'Games', icon: Gamepad2 }, { to: '/competitions', label: 'Competitions', icon: Trophy }, { to: '/extracurricular', label: 'Extra Curricular', icon: Shield }] }
     ];
     const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.to) || (item.also && isSectionActive(item.also)));
@@ -925,6 +927,7 @@ const StudentLayout = () => {
                         itself ([data-bell]): the panel it opens is inside this
                         wrapper too, and its rows and icons turned emerald with it. */}
                     <div className="shrink-0 [&_[data-bell]]:text-emerald-600 [&_[data-bell]:hover]:bg-slate-100 [&_[data-bell]_svg]:text-emerald-600">
+                        <LanguageToggle />
                         {renderNotificationBell('mobile')}
                     </div>
                     {/* data-loop-quiet: the mascot does not explain the menu
@@ -1081,6 +1084,7 @@ const StudentLayout = () => {
                             </button>
                         )}
 
+                        <LanguageToggle />
                         {renderNotificationBell('desktop')}
                         <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
 
@@ -1168,6 +1172,8 @@ const StudentLayout = () => {
                     <Outlet />
                 </div>
             </main>
+            {/* A match or Quiz Arena just opened for me: my joining code, on screen. */}
+            <CompetitionAlerts />
             {/* No profile picture yet: choose one before going on. */}
             <ProfilePictureGate />
             {/* "A new Global Quiz is live", when one is published; waits while the student is busy. */}

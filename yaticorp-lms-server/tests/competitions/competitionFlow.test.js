@@ -9,7 +9,8 @@
  *   decision → the competition completes → prizes, certificates, leaderboard,
  *   history and each student's participation all reflect it.
  *
- * Plus a four-team-a-match game (ludo-style groups), and that UNO and friendly rooms are gone.
+ * Plus a four-team-a-match game (a Brain Sprint in groups), and that UNO, Ludo,
+ * Carrom and friendly rooms are gone.
  * The real games' rules are tested on their own in tests/competitions/*.engine.test.js.
  */
 const { test, describe, before, after } = require('node:test');
@@ -68,7 +69,7 @@ const makeCollege = async (label, n) => {
 before(async () => {
     await connect();
     games.override('chess', COIN);
-    games.override('ludo', { ...COIN, id: 'ludo' });
+    games.override('brainsprint', { ...COIN, id: 'brainsprint' });
     app = startApp({ mount: '/api/competitions', router: require('../../src/competitions') });
     const b = await makeAdmin('Games Super');
     await Admin.updateOne({ _id: b.admin._id }, { $set: { role: 'superadmin' } });
@@ -84,7 +85,7 @@ before(async () => {
 
 after(async () => {
     games.override('chess', null);
-    games.override('ludo', null);
+    games.override('brainsprint', null);
     const comps = await Competition.find({ name: { $regex: STAMP } }).select('_id').lean();
     const ids = comps.map((c) => c._id);
     await Promise.all([
@@ -216,8 +217,11 @@ describe('an inter-college chess competition, start to finish', () => {
         const seated = game.seats.map((s) => made.users.find((u) => String(u._id) === String(s.userId)));
         const calls = seated.map((u) => colleges.flatMap((c) => c.students).find((s) => String(s.user._id) === String(u._id)).call);
         assert.equal((await outsider('POST', `/play/${m.gameId}/action`, { action: { type: 'win' } })).status, 403);
-        await calls[0]('POST', `/play/${m.gameId}/join`);
-        const both = await calls[1]('POST', `/play/${m.gameId}/join`);
+        // Each player joins with their own code; nobody else's will do.
+        assert.equal((await calls[0]('POST', `/play/${m.gameId}/join`)).status, 400, 'a code is needed');
+        assert.equal((await calls[0]('POST', `/play/${m.gameId}/join`, { code: game.seats[1].code })).status, 403, 'not the other player\'s');
+        await calls[0]('POST', `/play/${m.gameId}/join`, { code: game.seats[0].code });
+        const both = await calls[1]('POST', `/play/${m.gameId}/join`, { code: game.seats[1].code.toLowerCase() });
         assert.equal(both.body.game.status, 'active');
         const polled = await calls[0]('GET', `/play/${m.gameId}`);
         assert.equal(polled.body.game.you, 0);
@@ -237,15 +241,26 @@ describe('an inter-college chess competition, start to finish', () => {
             const cur = (await boss('GET', `/admin/${comp.id}`)).body.rounds[0].matches.find((x) => x.id === m.id);
             const game = await PlayGame.findById(cur.gameId).lean();
             const callsFor = game.seats.map((s) => colleges.flatMap((c) => c.students).find((st) => String(st.user._id) === String(s.userId)).call);
-            for (const call of callsFor) await call('POST', `/play/${cur.gameId}/join`);
+            for (const [i, call] of callsFor.entries()) await call('POST', `/play/${cur.gameId}/join`, { code: game.seats[i].code });
             const r = await callsFor[0]('POST', `/play/${cur.gameId}/action`, { action: { type } });
             assert.equal(r.status, 200, JSON.stringify(r.body));
             return game;
         };
-        await play('draw');
-        const mid = (await boss('GET', `/admin/${comp.id}`)).body.rounds[0].matches.find((x) => x.id === m.id);
+        const first = await play('draw');
+        let mid = (await boss('GET', `/admin/${comp.id}`)).body.rounds[0].matches.find((x) => x.id === m.id);
         assert.equal(mid.status, 'live', 'still undecided after a draw');
-        assert.equal(mid.games, 2, 'a second game is opened');
+        assert.equal(mid.games, 1, 'no new game yet: the rematch is in 5 minutes');
+        assert.ok(new Date(mid.rematchAt).getTime() - Date.now() > 4 * 60e3, 'about 5 minutes on');
+        const player = colleges.flatMap((c) => c.students).find((st) => String(st.user._id) === String(first.seats[0].userId));
+        const waiting = (await player.call('GET', `/${comp.id}`)).body.myMatch;
+        assert.ok(waiting.rematchAt && !waiting.started && !waiting.code, 'told when; no code yet');
+        // Five minutes later: the rematch opens, with the same codes.
+        await Match.updateOne({ _id: m.id }, { $set: { replayAt: new Date(Date.now() - 1000) } });
+        const opened = (await player.call('GET', `/${comp.id}`)).body.myMatch;
+        assert.equal(opened.started, true, 'open now');
+        assert.equal(opened.code, first.seats[0].code, 'the same joining code');
+        mid = (await boss('GET', `/admin/${comp.id}`)).body.rounds[0].matches.find((x) => x.id === m.id);
+        assert.equal(mid.games, 2, 'a second game');
         await play('win');
         const done = (await boss('GET', `/admin/${comp.id}`)).body.rounds[0].matches.find((x) => x.id === m.id);
         assert.equal(done.status, 'completed');
@@ -263,7 +278,7 @@ describe('an inter-college chess competition, start to finish', () => {
         assert.deepEqual(final.sides.map((s) => s.teamId).sort(), semiWinners);
     });
 
-    test('they start by themselves 15 minutes on, and their players are told', async () => {
+    test('they are set 15 minutes on and their players told; only Start opens them', async () => {
         const bracket = require('../../src/competitions/services/bracketService');
         for (const m of [final, third]) {
             const wait = new Date(m.scheduledAt).getTime() - Date.now();
@@ -278,8 +293,11 @@ describe('an inter-college chess competition, start to finish', () => {
         const thirdPlayer = (await Team.findById(third.sides[0].teamId).lean()).players[0].userId;
         assert.equal(await Notification.countDocuments({ userId: thirdPlayer, title: 'Third-place match starts in 15 minutes' }), 1);
 
-        // Its time come, the final opens by itself — nobody presses Start.
+        // Its time come, the final still waits: only the admin's Start opens it.
         await Match.updateOne({ _id: final.id }, { $set: { scheduledAt: new Date(Date.now() - 1000) } });
+        const waiting = (await boss('GET', `/admin/${comp.id}`)).body.rounds[1].matches.find((m) => m.id === final.id);
+        assert.equal(waiting.status, 'scheduled', 'not opened by the clock');
+        await boss('POST', `/admin/${comp.id}/matches/${final.id}/start`);
         const opened = (await boss('GET', `/admin/${comp.id}`)).body.rounds[1].matches.find((m) => m.id === final.id);
         assert.equal(opened.status, 'live');
         assert.ok(opened.gameId, 'with its game');
@@ -290,7 +308,7 @@ describe('an inter-college chess competition, start to finish', () => {
         const cur = (await boss('GET', `/admin/${comp.id}`)).body.rounds[1].matches.find((x) => x.id === third.id);
         const game = await PlayGame.findById(cur.gameId).lean();
         const first = colleges.flatMap((c) => c.students).find((st) => String(st.user._id) === String(game.seats[0].userId));
-        await first.call('POST', `/play/${cur.gameId}/join`);
+        await first.call('POST', `/play/${cur.gameId}/join`, { code: game.seats[0].code });
         await PlayGame.updateOne({ _id: cur.gameId }, { $set: { joinDeadline: new Date(Date.now() - 1000) } });
         const polled = await first.call('GET', `/play/${cur.gameId}`);
         assert.equal(polled.body.game.status, 'finished');
@@ -417,7 +435,7 @@ describe('an inter-college chess competition, start to finish', () => {
 
 describe('a game for four teams a match', () => {
     test('five teams make two groups; the winners meet in the final', async () => {
-        const r = await boss('POST', '/admin', { name: `Ludo Day ${STAMP}`, game: 'ludo', teamsPerMatch: 4, startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
+        const r = await boss('POST', '/admin', { name: `Brain Sprint Day ${STAMP}`, game: 'brainsprint', teamsPerMatch: 4, startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
         assert.equal(r.status, 201, JSON.stringify(r.body));
         const id = r.body.competition.id;
         for (const [i, c] of colleges.entries()) {
@@ -471,7 +489,7 @@ describe('an organization hosting its own competition', () => {
 
     test('an organization admin creates one; it is theirs and named after them', async () => {
         const r = await host.call('POST', '/org/host', {
-            name: `Host Carrom Open ${STAMP}`, game: 'carrom', playersPerSide: 2, playersPerTeam: 3,
+            name: `Host Chess Open ${STAMP}`, game: 'chess', playersPerTeam: 3,
             startsAt: inDays(5), registrationDeadline: inDays(4), registrationOpensAt: inDays(1),
             prizeDetails: 'Trophy and medals', participationCertificates: false, open: true
         });
@@ -520,7 +538,7 @@ describe('an organization hosting its own competition', () => {
         assert.equal(twice.status, 409);
         assert.match(twice.body.message, /already in Host Reds/);
         assert.equal((await make('Mixed', [id(4), String(colleges[1].students[0].user._id)])).status, 400, 'only its own students');
-        assert.equal((await make('Solo', [id(4)])).status, 400, 'doubles needs two at the board');
+        assert.equal((await make('Nobody', [])).status, 400, 'a team needs a player');
 
         r = await make('Host Greens', [id(4), id(5)]);
         assert.equal(r.status, 201);
@@ -565,7 +583,7 @@ describe('an organization hosting its own competition', () => {
         const kept = await boss('GET', `/admin/${compId}`);
         assert.equal(kept.status, 200);
         assert.equal(kept.body.competition.status, 'registration', 'still open');
-        assert.equal((await boss('PUT', `/admin/${compId}`, { name: `Host Carrom Open ${STAMP} (run by YATICORP)` })).status, 200);
+        assert.equal((await boss('PUT', `/admin/${compId}`, { name: `Host Chess Open ${STAMP} (run by YATICORP)` })).status, 200);
     });
 
     test('drawn, its teams are fixed; it stays off the inter-college leaderboard', async () => {
@@ -607,10 +625,12 @@ describe('certificates when participation certificates are off', () => {
     });
 });
 
-describe('UNO and playing with friends are gone (2026-10-23)', () => {
-    test('a competition of UNO cannot be made; friendly rooms cannot be made', async () => {
-        const r = await boss('POST', '/admin', { name: `UNO ${STAMP}`, game: 'uno', startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
-        assert.equal(r.status, 400); assert.match(r.body.message, /Chess, Ludo or Carrom/);
+describe('UNO, Ludo, Carrom and playing with friends are gone', () => {
+    test('a competition of UNO, Ludo or Carrom cannot be made; friendly rooms cannot be made', async () => {
+        for (const game of ['uno', 'ludo', 'carrom', 'quiz']) {
+            const r = await boss('POST', '/admin', { name: `${game} ${STAMP}`, game, startsAt: inDays(3), registrationDeadline: inDays(2), open: true });
+            assert.equal(r.status, 400); assert.match(r.body.message, /Chess, Rapid Fire, Code Clash or Brain Sprint/);
+        }
         assert.equal((await colleges[0].students[0].call('POST', '/rooms', { game: 'chess' })).status, 404);
     });
 });

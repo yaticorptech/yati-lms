@@ -110,6 +110,9 @@ import OrgNotFound from './pages/org/OrgNotFound';
 const Competitions = React.lazy(() => import('./pages/Competitions'));
 const CompetitionAdmin = React.lazy(() => import('./pages/CompetitionAdmin'));
 const OrgCompetitions = React.lazy(() => import('./pages/org/OrgCompetitions'));
+// Quiz Arena: three-round live quiz contests, and their question bank.
+const QuizArena = React.lazy(() => import('./pages/QuizArena'));
+const QuizArenaCompetition = React.lazy(() => import('./pages/QuizArenaCompetition'));
 import { CourseScope, ORGANIZATION_SCOPE } from './utils/courseScope';
 
 /** The platform's course pages, working on this organization's own courses. */
@@ -143,6 +146,9 @@ function App() {
         <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
         <Route path="competitions" element={<OrgCompetitions />} />
         <Route path="competitions/host/:id" element={<CompetitionAdmin apiBase="/competitions/org/host" backTo="/organization/competitions?tab=host" />} />
+        {/* A hosting college's own Quiz Arena: its question bank and contests. */}
+        <Route path="competitions/question-bank" element={<QuizArena />} />
+        <Route path="competitions/arena/:id" element={<QuizArenaCompetition />} />
         {/* English (Linguistic Ability) is no longer in the organization panel; an old link goes to the dashboard. */}
         <Route path="linguistic" element={<Navigate to="/organization" replace />} />
         <Route path="settings" element={<OrgSettings />} />
@@ -172,6 +178,10 @@ function App() {
         <Route path="announcements" element={<Announcements />} />
         <Route path="competitions" element={<SuperAdminRoute what="competitions"><Competitions /></SuperAdminRoute>} />
         <Route path="competitions/:id" element={<SuperAdminRoute what="competitions"><CompetitionAdmin /></SuperAdminRoute>} />
+        {/* Quiz Arena lives in Games & Competitions: its contests in the list, its question bank a page of it. */}
+        <Route path="competitions/question-bank" element={<SuperAdminRoute what="competitions"><QuizArena /></SuperAdminRoute>} />
+        <Route path="competitions/arena/:id" element={<SuperAdminRoute what="competitions"><QuizArenaCompetition /></SuperAdminRoute>} />
+        <Route path="quiz-arena/*" element={<Navigate to="/competitions" replace />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
