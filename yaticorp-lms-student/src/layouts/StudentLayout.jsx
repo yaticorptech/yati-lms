@@ -625,7 +625,8 @@ const StudentLayout = () => {
         { title: 'Learn', items: [
             { to: '/enrolled-courses', label: 'My Courses', icon: BookOpen, exact: true },
             // English learning; withdrawn like the others when an admin locks it.
-            isLinguisticEnabled && { to: '/linguistic', label: 'Linguistic Ability', icon: Languages }
+            // Opens on its dashboard (2026-10-26), and stays lit on every page of the section.
+            isLinguisticEnabled && { to: '/linguistic/dashboard', section: '/linguistic', label: 'Language Learning', icon: Languages }
         ].filter(Boolean) },
         { title: 'Career', items: [
             isCareerPathEnabled && { to: '/career', label: 'Career Path', icon: Compass },
@@ -633,10 +634,10 @@ const StudentLayout = () => {
             { to: '/interview', label: 'Job Preparation', icon: Mic, also: '/jobs' },
             isCareerPathEnabled && { to: '/scholarships', label: 'Scholarships', icon: GraduationCap }
         ].filter(Boolean) },
-        // Games (the brain games) and Competitions (Chess, Rapid Fire, Code Clash, Brain Sprint): two sections since 2026-10-23.
+        // Games (the brain games) and Competitions (Chess, Rapid Fire, Code Clash, Brain Sprint, Quiz and Hackathon): two sections since 2026-10-23.
         { title: 'Activities', items: [{ to: '/games', label: 'Games', icon: Gamepad2 }, { to: '/competitions', label: 'Competitions', icon: Trophy }, { to: '/extracurricular', label: 'Extra Curricular', icon: Shield }] }
     ];
-    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.to) || (item.also && isSectionActive(item.also)));
+    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.section || item.to) || (item.also && isSectionActive(item.also)));
 
     // Render helpers, not components: inlining them keeps the subtree from
     // remounting on every parent render.

@@ -10,7 +10,17 @@ export const GAMES = {
     chess: { label: 'Chess', note: 'Two teams a match, one player each.' },
     rapidfire: { label: 'Rapid Fire', brain: true, note: 'General knowledge: each player answers every question (right +10, wrong −5); answers and scores are shown only at the end. Two to four teams a match.', questions: [10, 30, 15], seconds: [5, 20, 8] },
     codeclash: { label: 'Code Clash', brain: true, note: 'Hackathon-style coding round: predict the output, spot the bug. Two to four teams a match.', questions: [5, 15, 8], seconds: [20, 120, 45] },
-    brainsprint: { label: 'Brain Sprint', brain: true, note: 'IQ puzzles made fresh for every match: series, logic, numbers. Two to four teams a match.', questions: [5, 20, 12], seconds: [10, 60, 25] }
+    brainsprint: { label: 'Brain Sprint', brain: true, note: 'IQ puzzles made fresh for every match: series, logic, numbers. Two to four teams a match.', questions: [5, 20, 12], seconds: [10, 60, 25] },
+    // No matches (asked 2026-10-23): entered by college teams or by students on their own.
+    quiz: { label: 'Quiz', note: 'Timed multiple-choice questions, one go each. The highest score wins; a tie goes to the quicker.' },
+    hackathon: { label: 'Hackathon', note: 'A problem to build something for. Each team hands in a project; you mark each out of 100.' }
+};
+export const CHALLENGES = ['quiz', 'hackathon'];
+// No longer offered, but a competition made for one before then keeps it when edited.
+export const RETIRED_GAMES = {
+    ludo: { label: 'Ludo', note: 'Ludo is no longer offered; this competition keeps it. Two to four teams a match.' },
+    carrom: { label: 'Carrom', note: 'Carrom is no longer offered; this competition keeps it. Singles, or doubles.' },
+    uno: { label: 'UNO', note: 'UNO is no longer offered; this competition keeps it.' }
 };
 
 /** Quiz Arena's line under the game cards (it is not one of GAMES: it has models of its own). */

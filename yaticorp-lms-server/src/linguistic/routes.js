@@ -9,6 +9,7 @@
  *   POST /level                         { level } start at a level chosen instead of taking the placement test
  *   POST /goal                          { xp } the daily XP goal: 10, 20, 30 or 50
  *   POST /about                         { reason, know } why they are learning, and how much English they know (0–4)
+ *   POST /chest/:unitId                 open a unit's treasure chest on the path: bonus XP, once
  *   POST /course                        { course, start } the language to learn (English, or another's course, courses.js) and where to start
  *   GET  /modules/:module               a module's lessons by level, with what is open
  *   GET  /lessons/:id                   one lesson, without its answers
@@ -18,6 +19,9 @@
  *   POST /lessons/:id/quiz              { answers } the quiz → score, feedback, next lesson
  *   POST /lessons/:id/writing/:taskId   { answer } a writing task → feedback, model answer, review
  *   POST /lessons/:id/speaking          { checklist, recorded } a speaking self-assessment
+ *   GET  /plan · POST /plan { days }     the learning plan and its roadmap, day by day; making or changing it
+ *   GET  /plan/options                  ?course&language&level  the plans to choose from (the start screens)
+ *   POST /lessons/:id/talk              { text } a talk on a topic (Advanced) → each sentence corrected, and why
  *   GET  /daily · POST /daily           today's vocabulary challenge
  *   GET  /review · POST /review/:id     mistakes kept for revision, and answering one again
  *   GET  /submissions                   the student's writing sent for review, with the teacher's feedback
@@ -65,7 +69,8 @@ router.get('/', async (req, res, next) => {
 router.get('/placement', async (req, res, next) => {
     try {
         const progress = await svc.progressOf(req.user._id);
-        res.json({ questions: svc.placementPublic(svc.languageOf(progress)), last: progress.placement });
+        // `language`: the student's, for the test's own words (asked in Kannada for a Kannada speaker).
+        res.json({ questions: svc.placementPublic(svc.languageOf(progress)), last: progress.placement, language: svc.languageOf(progress) });
     } catch (err) { next(err); }
 });
 router.post('/placement', async (req, res, next) => {
@@ -92,6 +97,32 @@ router.post('/goal', async (req, res, next) => {
     try {
         const out = await svc.setGoal(req.user, req.body?.xp);
         if (!out) return bad(res, 'Choose a daily goal: 10, 20, 30 or 50 XP.');
+        res.json(out);
+    } catch (err) { next(err); }
+});
+
+// The learning plan (2026-10-24): the time the student gives themselves, and the roadmap made from it.
+router.get('/plan', async (req, res, next) => {
+    try { res.json(await svc.roadmapView(req.user)); } catch (err) { next(err); }
+});
+router.get('/plan/options', async (req, res, next) => {
+    try {
+        const q = req.query || {};
+        res.json({ options: await svc.planChoices(req.user, { course: String(q.course || ''), language: q.language ? String(q.language) : null, level: String(q.level || '') }) });
+    } catch (err) { next(err); }
+});
+router.post('/plan', async (req, res, next) => {
+    try {
+        const out = await svc.setPlan(req.user, req.body?.days ?? null);
+        if (out.error) return bad(res, out.error);
+        res.json(out);
+    } catch (err) { next(err); }
+});
+
+router.post('/chest/:unitId', async (req, res, next) => {
+    try {
+        const out = await svc.openChest(req.user, String(req.params.unitId || ''));
+        if (out.error) return bad(res, out.error, out.status);
         res.json(out);
     } catch (err) { next(err); }
 });
@@ -184,6 +215,7 @@ router.post('/lessons/:id/quiz', async (req, res, next) => {
         if (!answers || typeof answers !== 'object' || Array.isArray(answers)) return bad(res, 'Answer the questions first.');
         const lesson = await openLesson(req, res);
         if (!lesson) return;
+        if (lesson.review === 'talk') return bad(res, 'This lesson is a talk: speak on its topic instead.');
         res.json(await svc.submitQuiz(req.user, lesson, answers));
     } catch (err) { next(err); }
 });
@@ -211,6 +243,18 @@ router.post('/lessons/:id/speaking', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
+// Speak on a topic (talks.js): what the student said, as the browser wrote it down (or as they typed it).
+router.post('/lessons/:id/talk', async (req, res, next) => {
+    try {
+        const text = typeof req.body?.text === 'string' ? req.body.text.trim().slice(0, 4000) : '';
+        if (!text) return bad(res, 'Speak (or type) your talk first.');
+        const lesson = await openLesson(req, res);
+        if (!lesson) return;
+        if (lesson.review !== 'talk' || !lesson.talk) return bad(res, 'This lesson has no talk.');
+        res.json(await svc.submitTalk(req.user, lesson, text));
+    } catch (err) { next(err); }
+});
+
 /* ── Daily challenge ──────────────────────────────────────────────────── */
 
 /** The student's level, own language and course, for the daily challenge. */
@@ -224,7 +268,7 @@ router.get('/daily', async (req, res, next) => {
         const [config, { level, lang, course }] = await Promise.all([getConfig(), studentNow(req.user._id)]);
         const done = await LinguisticAttempt.findOne({ userId: req.user._id, kind: 'daily', day: dayKey() }).lean();
         const qs = await svc.dailyQuestions(String(req.user._id), level, config.dailyChallengeSize, lang, course);
-        res.json({ day: dayKey(), level, done: done ? { score: done.score, total: done.total, results: done.detail?.results || [] } : null, questions: qs.map((q) => svc.publicQuestion(q, `daily:${dayKey()}`)) });
+        res.json({ day: dayKey(), level, language: lang, done: done ? { score: done.score, total: done.total, results: done.detail?.results || [] } : null, questions: qs.map((q) => svc.publicQuestion(q, `daily:${dayKey()}`)) });
     } catch (err) { next(err); }
 });
 router.post('/daily', async (req, res, next) => {
@@ -267,7 +311,8 @@ const mistakeQuestion = async (m, progress) => {
 router.get('/review', async (req, res, next) => {
     try {
         const progress = await svc.progressOf(req.user._id);
-        const open = progress.mistakes.filter((m) => !m.resolvedAt).sort((a, b) => b.lastAt - a.lastAt).slice(0, 60);
+        // The course the student is on: its own mistakes only.
+        const open = (await svc.openMistakes(progress)).sort((a, b) => b.lastAt - a.lastAt).slice(0, 60);
         const out = [];
         for (const m of open) {
             const found = await mistakeQuestion(m, progress);
@@ -280,7 +325,7 @@ router.get('/review', async (req, res, next) => {
                 question: translation ? { type: 'translation', source: q.source, direction: q.direction || lesson.direction, language: lesson.language, languageName: lesson.languageName, ...(lesson.course ? { target: lesson.target, targetLocale: lesson.targetLocale } : {}) } : svc.publicQuestion(q, idOf(lesson._id))
             });
         }
-        res.json({ mistakes: out, fixed: progress.mistakes.filter((m) => m.resolvedAt).length });
+        res.json({ mistakes: out, fixed: progress.mistakes.filter((m) => m.resolvedAt).length, language: svc.languageOf(progress) });
     } catch (err) { next(err); }
 });
 router.post('/review/:id', async (req, res, next) => {
@@ -308,7 +353,7 @@ router.get('/submissions', async (req, res, next) => {
     try {
         const rows = await LinguisticSubmission.find({ userId: req.user._id }).sort({ updatedAt: -1 }).limit(50).lean();
         const lessons = new Map((await LinguisticLesson.find({ _id: { $in: rows.map((r) => r.lessonId) } }).select('title module').lean()).map((l) => [idOf(l._id), l]));
-        res.json({ submissions: rows.map((r) => ({ id: idOf(r._id), lessonId: idOf(r.lessonId), lessonTitle: lessons.get(idOf(r.lessonId))?.title || 'A lesson', module: r.module, level: r.level, kind: r.kind, taskType: r.taskType, prompt: r.prompt, answer: r.answer, model: r.model, autoFeedback: r.autoFeedback, status: r.status, score: r.score, comment: r.comment, reviewedBy: r.reviewedBy?.name || null, reviewedAt: r.reviewedAt, updatedAt: r.updatedAt })) });
+        res.json({ submissions: rows.map((r) => ({ id: idOf(r._id), lessonId: idOf(r.lessonId), lessonTitle: lessons.get(idOf(r.lessonId))?.title || 'A lesson', module: r.module, level: r.level, kind: r.kind, taskType: r.taskType, prompt: r.prompt, answer: r.answer, model: r.model, autoFeedback: r.autoFeedback, sentences: r.sentences || null, status: r.status, score: r.score, comment: r.comment, reviewedBy: r.reviewedBy?.name || null, reviewedAt: r.reviewedAt, updatedAt: r.updatedAt })) });
     } catch (err) { next(err); }
 });
 

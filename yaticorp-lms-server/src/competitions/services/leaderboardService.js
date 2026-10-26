@@ -65,6 +65,8 @@ const board = async () => {
 
     const colleges = new Map();
     for (const row of teamRows.values()) {
+        // A student on their own with no college (a quiz or hackathon) counts for no college.
+        if (row.organizationId === 'null') continue;
         const c = colleges.get(row.organizationId) || { id: row.organizationId, collegeName: row.collegeName, competitions: 0, played: 0, won: 0, titles: 0, points: 0 };
         c.competitions += 1; c.played += row.played; c.won += row.won; c.titles += row.place === 1 ? 1 : 0; c.points += row.points;
         colleges.set(row.organizationId, c);

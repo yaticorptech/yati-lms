@@ -1,24 +1,18 @@
 /**
  * Linguistic Ability for a college coordinator — /organization/linguistic:
- * the teacher's view of their own students. Review open-ended writing and
- * passage translations, and follow progress and quiz results. The server
- * limits both to students of this college.
+ * the teacher's view of their own students: progress and quiz results. The
+ * server limits it to students of this college. Writing is checked in the
+ * lesson and stays the student's own: nothing to review here (2026-10-26).
  */
-import { useSearchParams } from 'react-router-dom';
 import { Languages } from 'lucide-react';
-import { PageHeader, Segmented } from '../../components/orgUi';
-import { ReviewsPanel, StudentsPanel } from './Panels';
-
-const TABS = [['reviews', 'Writing to review'], ['students', 'Student progress']];
+import { PageHeader } from '../../components/orgUi';
+import { StudentsPanel } from './Panels';
 
 export default function OrgLinguistic() {
-    const [params, setParams] = useSearchParams();
-    const tab = params.get('tab') === 'students' ? 'students' : 'reviews';
     return (
         <div className="space-y-4">
-            <PageHeader icon={Languages} title="English (Linguistic Ability)" subtitle="Your students' English learning: review their writing, and see their levels and quiz results." />
-            <Segmented options={TABS} value={tab} onChange={(v) => setParams(v === 'reviews' ? {} : { tab: v })} />
-            {tab === 'reviews' ? <ReviewsPanel base="/linguistic/org" /> : <StudentsPanel base="/linguistic/org" />}
+            <PageHeader icon={Languages} title="Language Learning" subtitle="Your students' English learning: their levels, lessons and quiz results." />
+            <StudentsPanel base="/linguistic/org" />
         </div>
     );
 }

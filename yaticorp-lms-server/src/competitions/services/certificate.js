@@ -6,7 +6,7 @@
 const PDFDocument = require('pdfkit');
 
 const ORDINAL = { 1: '1st', 2: '2nd', 3: '3rd' };
-const GAME = { arena: 'Quiz Arena', chess: 'Chess', rapidfire: 'Rapid Fire', codeclash: 'Code Clash', brainsprint: 'Brain Sprint', ludo: 'Ludo', carrom: 'Carrom', uno: 'UNO' };
+const GAME = { arena: 'Quiz Arena', chess: 'Chess', rapidfire: 'Rapid Fire', codeclash: 'Code Clash', brainsprint: 'Brain Sprint', ludo: 'Ludo', carrom: 'Carrom', uno: 'UNO', quiz: 'Quiz', hackathon: 'Hackathon' };
 const TITLE = { 1: 'Winner', 2: 'Runner-up', 3: 'Third Place' };
 
 /**
@@ -42,7 +42,8 @@ const LEAD = { 1: 'has won first place in the', 2: 'has finished runner-up in th
 const winnerWords = ({ competition, team, place, paragraph }) => ({
     subtitle: `of Achievement — ${TITLE[place]}`,
     lead: LEAD[place],
-    paragraph: paragraph || `This certificate is awarded in recognition of your outstanding performance with ${team.teamName} (${team.collegeName}) in ${GAME[competition.game] || competition.game}. Your achievement reflects your skill, team spirit and sportsmanship, and the effort you brought to every match.`,
+    // `paragraph` (a contest played alone) replaces it. A student on their own has no team to name; a quiz or a hackathon has no matches.
+    paragraph: paragraph || `This certificate is awarded in recognition of your outstanding performance${team.soloUserId ? '' : ` with ${team.teamName} (${team.collegeName})`} in ${GAME[competition.game] || competition.game}. Your achievement reflects your skill, ${team.soloUserId ? 'dedication' : 'team spirit'} and ${['quiz', 'hackathon'].includes(competition.game) ? 'hard work' : 'sportsmanship'}, and the effort you brought to ${{ quiz: 'every question', hackathon: 'your project' }[competition.game] || 'every match'}.`,
     date: (competition.completedAt ? new Date(competition.completedAt) : new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 });
 

@@ -57,7 +57,7 @@ const studentDetail = async (userId, scope = {}) => {
         LinguisticProgress.findOne({ userId }).lean(),
         svc.publishedLessons(),
         LinguisticAttempt.find({ userId, kind: { $in: ['quiz', 'placement', 'daily'] } }).sort({ createdAt: -1 }).limit(40).lean(),
-        LinguisticSubmission.find({ userId }).sort({ updatedAt: -1 }).limit(30).lean(),
+        LinguisticSubmission.find({ userId, status: { $ne: 'checked' } }).sort({ updatedAt: -1 }).limit(30).lean(),
         getConfig()
     ]);
     const p = progress || { lessons: [], mistakes: [], certificates: [], levelsCompleted: [] };
@@ -79,7 +79,8 @@ const studentDetail = async (userId, scope = {}) => {
 /** Submissions to review (or reviewed), oldest waiting first. */
 const listSubmissions = async ({ status = 'pending', module = '', page = 1, scope = {} } = {}) => {
     const filter = { ...(scope.organizationId ? { organizationId: scope.organizationId } : {}) };
-    if (['pending', 'reviewed'].includes(status)) filter.status = status;
+    // Writing checked in the lesson (2026-10-26) is the student's own, never a teacher's to review.
+    filter.status = ['pending', 'reviewed'].includes(status) ? status : { $ne: 'checked' };
     if (module) filter.module = module;
     const [total, rows] = await Promise.all([
         LinguisticSubmission.countDocuments(filter),

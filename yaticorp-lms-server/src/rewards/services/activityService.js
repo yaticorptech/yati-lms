@@ -41,6 +41,7 @@ const DESCRIPTIONS = {
   linguistic_daily: 'for the daily vocabulary challenge',
   linguistic_writing: 'for writing your teacher approved',
   linguistic_level: 'for completing an English level',
+  linguistic_chest: 'for opening a treasure chest',
   global_quiz_win: 'for winning the Global Quiz',
   global_quiz_complete: 'for finishing the Global Quiz',
   roadmap_milestone: 'for completing a roadmap phase',

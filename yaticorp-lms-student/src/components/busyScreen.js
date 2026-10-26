@@ -10,7 +10,7 @@ import { useLoopHidden } from './loopVisibility';
 
 // Pages that are themselves the important thing: a lesson, an interview, a
 // game, setting up Career Path. A notice waits until the student leaves.
-export const BUSY_PATHS = [/^\/learn\//, /^\/interview\/mock\//, /^\/competitions\/play\//, /^\/career\/onboarding/];
+export const BUSY_PATHS = [/^\/learn\//, /^\/interview\/mock\//, /^\/competitions\/play\//, /^\/competitions\/[^/]+\/quiz/, /^\/career\/onboarding/];
 
 export const isBusyPath = (pathname) => BUSY_PATHS.some((re) => re.test(pathname || ''));
 
