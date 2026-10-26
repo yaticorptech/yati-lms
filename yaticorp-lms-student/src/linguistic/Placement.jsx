@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { linguisticApi, announceRewards } from './api';
 import { LEVELS, levelOf } from './meta';
+import { tr, line } from './say';
 import { Loading, Problem, Chunky } from './ui';
 import Session, { SessionFrame } from './session/Session';
 import { Finish } from './session/Finish';
@@ -28,11 +29,12 @@ export default function Placement() {
     useEffect(() => { load(); }, [load]);
 
     const steps = useMemo(() => (data ? [
-        { key: 'intro', part: 'intro', kind: 'intro', mascot: 'curious-question', title: data.last ? 'Retake the placement test' : 'Let’s find your English level',
-            text: `${data.questions.length} quick questions, from easy to hard. No hearts and no marks until the end — just do your best.`,
+        { key: 'intro', part: 'intro', kind: 'intro', mascot: 'curious-question', title: tr(data.language)(data.last ? 'Retake the placement test' : 'Let’s find your English level'),
+            text: line(data.language, 'placementIntro', data.questions.length),
             facts: data.last ? [`Last time: ${levelOf(data.last.level).label}, ${data.last.score}/${data.last.total}`] : ['About 5 minutes'] },
         ...data.questions.map((q) => ({ key: q.id, part: 'quiz', kind: 'question', q, collect: q.id }))
-    ] : []), [data]);
+        // Each screen in the student's language (say.js).
+    ].map((st) => ({ language: data.language, ...st })) : []), [data]);
 
     const toPath = () => navigate('/linguistic');
     if (data === undefined) return <SessionFrame label="Placement test"><Loading label="Getting the questions ready…" /></SessionFrame>;

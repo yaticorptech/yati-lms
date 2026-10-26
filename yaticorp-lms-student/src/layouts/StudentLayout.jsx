@@ -8,7 +8,6 @@ import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import WalletShortDialog from '../components/rewards/WalletShortDialog';
 import { WalletSheet } from '../components/rewards/WalletCard';
-import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
 import LanguageToggle from '../components/LanguageToggle';
@@ -24,6 +23,8 @@ import RankUpWatcher from '../components/rewards/RankUpWatcher';
 import useBackClose from '../native/useBackClose';
 import { dayKey as platformDay } from '../career/utils/progress';
 import ProfileImage from '../components/ProfileImage';
+import PlatformClosed from '../components/PlatformClosed';
+import useAccessHours from '../hooks/useAccessHours';
 import CompetitionAlerts from '../competitions/CompetitionAlerts';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
@@ -199,6 +200,8 @@ const ContactModal = ({ onClose, user, page }) => {
 
 const StudentLayout = () => {
     const { user, logout, isCareerPathEnabled, isJobsEnabled, isLinguisticEnabled } = useContext(AuthContext);
+    // The organization's access hours: outside them, the closed screen (components/PlatformClosed).
+    const accessHours = useAccessHours(Boolean(user));
     const [adminView] = useState(readAdminView);
     // Signs out of the student and closes the tab the admin panel opened; if
     // the browser will not close it, the sign-in page is left showing.
@@ -622,7 +625,8 @@ const StudentLayout = () => {
         { title: 'Learn', items: [
             { to: '/enrolled-courses', label: 'My Courses', icon: BookOpen, exact: true },
             // English learning; withdrawn like the others when an admin locks it.
-            isLinguisticEnabled && { to: '/linguistic', label: 'Linguistic Ability', icon: Languages }
+            // Opens on its dashboard (2026-10-26), and stays lit on every page of the section.
+            isLinguisticEnabled && { to: '/linguistic/dashboard', section: '/linguistic', label: 'Language Learning', icon: Languages }
         ].filter(Boolean) },
         { title: 'Career', items: [
             isCareerPathEnabled && { to: '/career', label: 'Career Path', icon: Compass },
@@ -630,10 +634,10 @@ const StudentLayout = () => {
             { to: '/interview', label: 'Job Preparation', icon: Mic, also: '/jobs' },
             isCareerPathEnabled && { to: '/scholarships', label: 'Scholarships', icon: GraduationCap }
         ].filter(Boolean) },
-        // Games (the brain games) and Competitions (Chess, Rapid Fire, Code Clash, Brain Sprint): two sections since 2026-10-23.
+        // Games (the brain games) and Competitions (Chess, Rapid Fire, Code Clash, Brain Sprint, Quiz and Hackathon): two sections since 2026-10-23.
         { title: 'Activities', items: [{ to: '/games', label: 'Games', icon: Gamepad2 }, { to: '/competitions', label: 'Competitions', icon: Trophy }, { to: '/extracurricular', label: 'Extra Curricular', icon: Shield }] }
     ];
-    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.to) || (item.also && isSectionActive(item.also)));
+    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.section || item.to) || (item.also && isSectionActive(item.also)));
 
     // Render helpers, not components: inlining them keeps the subtree from
     // remounting on every parent render.
@@ -789,6 +793,8 @@ const StudentLayout = () => {
         )}
     </div>
 );
+    if (accessHours.closed) return <PlatformClosed access={accessHours.access} onCheck={accessHours.check} onSignOut={logout} name={user?.name} />;
+
     return (
         <div className="flex h-visible bg-slate-50 text-slate-900 font-sans">
             {/* Raised whenever something wants to write to a student's own
@@ -847,16 +853,6 @@ const StudentLayout = () => {
                 <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
                     {renderNavLinks()}
                 </nav>
-
-                {/* Career Path progress, above the footer. Only when the
-                    section is switched on for this student: XP and levels are
-                    its currency, and advertising a locked feature from the
-                    sidebar of every page is worse than showing nothing. */}
-                {isCareerPathEnabled && (
-                    <div className="hidden shrink-0 px-4 pb-2 [@media(min-height:960px)]:block">
-                        <SidebarProgressCard user={progressUser || user} />
-                    </div>
-                )}
 
                 {/* Sidebar footer — the student's own row, then contact
                     support. My Profile lives here rather than in the nav, the

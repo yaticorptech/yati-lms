@@ -57,6 +57,9 @@ const syncActivation = async (req, res) => {
             await user.save();
         }
 
+        // A card an organization scanned in brings its student into it.
+        await require('../organizations/services/cardLink').joinByCard(user);
+
         // 2. Create Enrollment
         const enrollmentType = accessType === 'Bundle' || bundleId ? 'Bundle' : 'Course';
 

@@ -3,12 +3,14 @@
  * student or a teacher — only after it is verified here. Cards added here are
  * verified at once. Every card not yet registered waits for this, old or
  * new. Registered cards are shown (with how they were verified) but never
- * changed.
+ * changed. "Scan and verify" reads each card's QR code with the camera and
+ * verifies it on the spot, one card after another.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { CreditCard, ShieldCheck, Upload, Download, Plus, Loader2, Search, Undo2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { CreditCard, ShieldCheck, Upload, Download, Plus, Loader2, Search, Undo2, CheckCircle2, AlertTriangle, ScanLine, X, RotateCw, CameraOff } from 'lucide-react';
 import api from '../utils/api';
+import { useQrReader } from '../utils/qrReader';
 import { INPUT, LABEL, BTN, BTN2, CARD } from '../components/orgUi';
 
 const STATES = [['waiting', 'Waiting'], ['verified', 'Verified'], ['registered', 'Registered'], ['inactive', 'Inactive'], ['all', 'All']];
@@ -22,7 +24,7 @@ const RESULT_TONE = { verified: 'text-emerald-700', added: 'text-emerald-700', a
 /** How a card came to be usable, for the list. */
 const howVerified = (c) => {
     if (c.state === 'verified') return `Verified ${fmt(c.verifiedAt)}`;
-    if (c.state === 'waiting') return `Added ${fmt(c.createdAt)}`;
+    if (c.state === 'waiting') return c.createdAt ? `Added ${fmt(c.createdAt)}` : '';
     if (c.state !== 'registered') return '';
     if (c.verifiedVia === 'admin') return `Verified by you ${fmt(c.verifiedAt)}`;
     if (c.verifiedVia === 'account') return 'Verified when an admin added the holder';
@@ -77,6 +79,102 @@ const Results = ({ results, summary, kind }) => {
     );
 };
 
+const SCAN_BADGE = {
+    verified: ['Verified', 'bg-emerald-100 text-emerald-800'],
+    already_verified: ['Already verified', 'bg-slate-100 text-slate-600'],
+    registered: ['Registered', 'bg-slate-100 text-slate-600'],
+    inactive: ['Inactive', 'bg-red-100 text-red-700'],
+    not_found: ['Not found', 'bg-red-100 text-red-700'],
+    error: ['Not checked', 'bg-red-100 text-red-700']
+};
+const SCANNER_ID = 'verify-card-scanner';
+
+/**
+ * The camera, verifying each card as its QR code is read. It stays open for
+ * the next card; the same card held in view is read once (not again for a
+ * few seconds), and one card is checked at a time.
+ */
+const ScanDialog = ({ onClose }) => {
+    const [results, setResults] = useState([]);           // newest first
+    const [busy, setBusy] = useState(false);
+    const busyRef = useRef(false);
+    const last = useRef({ code: '', at: 0 });
+
+    const onRead = useCallback(async (decoded) => {
+        const code = String(decoded || '').trim();
+        const now = Date.now();
+        if (!code || busyRef.current || (code === last.current.code && now - last.current.at < 4000)) return;
+        last.current = { code, at: now };
+        busyRef.current = true; setBusy(true);
+        try {
+            const r = await api.post('/admin/cards/scan', { code });
+            setResults((x) => [{ ...r.data, at: now }, ...x].slice(0, 100));
+            navigator.vibrate?.(60);
+        } catch (err) {
+            setResults((x) => [{ code, result: 'error', message: errorOf(err, 'That card could not be checked.'), at: now }, ...x].slice(0, 100));
+        } finally { busyRef.current = false; setBusy(false); }
+    }, []);
+
+    const camera = useQrReader(SCANNER_ID, onRead);
+
+    useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
+
+    const verifiedCount = results.filter((r) => r.result === 'verified').length;
+    return (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4" onClick={onClose}>
+            <div role="dialog" aria-modal="true" aria-labelledby="scan-title" onClick={(e) => e.stopPropagation()}
+                className="flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+                    <h2 id="scan-title" className="flex items-center gap-2 font-bold text-slate-800"><ScanLine size={18} className="text-emerald-600" /> Scan and verify</h2>
+                    <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X size={18} /></button>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                    {/* Kept in the page while hidden: Try again starts the camera in it. */}
+                    <div id={SCANNER_ID} className={camera.error ? 'hidden' : 'min-h-[12rem] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-900'} />
+                    {camera.error
+                        ? (
+                            <div role="alert" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                <CameraOff size={18} className="mt-0.5 shrink-0" aria-hidden />
+                                <div className="min-w-0 flex-1">
+                                    <p>{camera.error.replace('Type the card numbers below instead.', 'Type the card numbers on the page instead.').replace(', or type the card numbers below.', ', or type the card numbers on the page.')}</p>
+                                    <button type="button" onClick={camera.retry} className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:underline"><RotateCw size={13} /> Try again</button>
+                                </div>
+                            </div>
+                        )
+                        : <p className="mt-2 flex items-center justify-center gap-2 text-center text-xs text-slate-500">{busy && <Loader2 size={13} className="animate-spin" />} Hold each card&apos;s QR code in the box. It is verified as soon as it is read; then show the next card.</p>}
+
+                    {results.length > 0 && (
+                        <div className="mt-4" role="status" aria-live="polite">
+                            <p className="mb-2 text-xs font-bold text-slate-500">{results.length} scanned · {verifiedCount} verified</p>
+                            <ul className="max-h-60 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 text-sm">
+                                {results.map((r) => {
+                                    const [label, tone] = SCAN_BADGE[r.result] || SCAN_BADGE.error;
+                                    return (
+                                        <li key={r.at} className="flex items-start justify-between gap-3 px-3 py-2">
+                                            <span className="min-w-0">
+                                                <span className="block truncate font-mono text-slate-800">{r.cardNumber || r.code}</span>
+                                                <span className="block text-xs text-slate-500">{r.message}</span>
+                                            </span>
+                                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${tone}`}>{label}</span>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+                <div className="flex justify-end border-t border-slate-100 px-5 py-3">
+                    <button type="button" onClick={onClose} className={BTN}>Done</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function VerifyCards() {
     const [state, setState] = useState('waiting');
     const [q, setQ] = useState('');
@@ -85,11 +183,15 @@ export default function VerifyCards() {
     const [loadError, setLoadError] = useState('');
     const [busyRow, setBusyRow] = useState('');
     const [rowNote, setRowNote] = useState('');
+    // "Verify all": asked once (confirmAll), then sent (verifyingAll).
+    const [confirmAll, setConfirmAll] = useState(false);
+    const [verifyingAll, setVerifyingAll] = useState(false);
 
     const [numbers, setNumbers] = useState('');
     const [verifying, setVerifying] = useState(false);
     const [verifyError, setVerifyError] = useState('');
     const [verifyResult, setVerifyResult] = useState(null);
+    const [scanning, setScanning] = useState(false);
 
     const [card, setCard] = useState({ CardNumber: '', CVV: '', qrCodeNumber: '', SerialNumber: '' });
     const [adding, setAdding] = useState(false);
@@ -158,7 +260,17 @@ export default function VerifyCards() {
         } catch (err) { setRowNote(errorOf(err, 'That did not work.')); } finally { setBusyRow(''); }
     };
 
+    // "Verify all" on Waiting, "Unverify all" on Verified — the same bar.
+    const bulk = state === 'waiting' ? 'verify' : state === 'verified' ? 'unverify' : null;
+    const runAll = async () => {
+        setVerifyingAll(true); setRowNote('');
+        try { const r = await api.post(`/admin/cards/${bulk}-all`, { q: q.trim() || undefined }); setRowNote(r.data.message); setConfirmAll(false); load(); }
+        catch (err) { setRowNote(errorOf(err, bulk === 'verify' ? 'The cards could not be verified.' : 'The verifications could not be undone.')); } finally { setVerifyingAll(false); }
+    };
+
     const counts = data?.counts || { waiting: 0, verified: 0, registered: 0, inactive: 0 };
+    // With a search, "all" means the cards in this tab that match it (the list's total).
+    const allCount = !bulk ? 0 : q.trim() ? data?.total || 0 : counts[state];
 
     return (
         <div className="mx-auto max-w-6xl space-y-6">
@@ -169,7 +281,7 @@ export default function VerifyCards() {
 
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {[['waiting', 'Waiting for you', 'text-amber-600'], ['verified', 'Verified, not yet used', 'text-emerald-600'], ['registered', 'Registered', 'text-slate-700'], ['inactive', 'Inactive', 'text-red-600']].map(([key, label, tone]) => (
-                    <button key={key} type="button" onClick={() => { setState(key); setPage(1); }} aria-pressed={state === key}
+                    <button key={key} type="button" onClick={() => { setState(key); setPage(1); setConfirmAll(false); }} aria-pressed={state === key}
                         className={`${CARD} p-4 text-left transition-shadow hover:shadow-md ${state === key ? 'ring-2 ring-indigo-500' : ''}`}>
                         <p className="text-xs font-semibold text-slate-500">{label}</p>
                         <p className={`mt-1 text-2xl font-black ${tone}`}>{counts[key].toLocaleString('en-IN')}</p>
@@ -187,6 +299,7 @@ export default function VerifyCards() {
                         <button type="button" onClick={() => verify(numbers)} disabled={verifying || !numbers.trim()} className={BTN}>{verifying ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} Verify</button>
                         <button type="button" onClick={() => verifyFile.current?.click()} disabled={verifying} className={BTN2}><Upload size={16} /> Upload Excel</button>
                         <input ref={verifyFile} type="file" accept=".xlsx,.xls,.csv" className="hidden" aria-label="Excel file of card numbers to verify" onChange={(e) => fromExcel(e.target.files?.[0], 'verify')} />
+                        <button type="button" onClick={() => setScanning(true)} className={BTN2}><ScanLine size={16} /> Scan and verify</button>
                     </div>
                     <p className="mt-2 text-xs text-slate-400">Excel: a column headed CardNumber (or just the numbers in the first column).</p>
                     {verifyError && <p role="alert" className="mt-3 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700"><AlertTriangle size={15} /> {verifyError}</p>}
@@ -223,10 +336,37 @@ export default function VerifyCards() {
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1 sm:inline-flex" role="group" aria-label="Show">
                     {STATES.map(([key, label]) => (
-                        <button key={key} type="button" aria-pressed={state === key} onClick={() => { setState(key); setPage(1); }}
+                        <button key={key} type="button" aria-pressed={state === key} onClick={() => { setState(key); setPage(1); setConfirmAll(false); }}
                             className={`min-w-0 truncate rounded-xl px-3 py-2 text-xs font-bold ${state === key ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>
                     ))}
                 </div>
+                {bulk && allCount > 0 && (
+                    <div className={`mt-3 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 ${bulk === 'verify' ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/60'}`}>
+                        {!confirmAll ? (
+                            <>
+                                <span className="min-w-0 flex-1 text-sm text-slate-700">
+                                    {allCount.toLocaleString('en-IN')} {allCount === 1 ? 'card is' : 'cards are'} {bulk === 'verify' ? 'waiting' : 'verified and not yet registered'}{q.trim() ? ' (matching your search)' : ''}.
+                                </span>
+                                <button type="button" onClick={() => setConfirmAll(true)} className={bulk === 'verify' ? BTN : BTN2}>
+                                    {bulk === 'verify' ? <><CheckCircle2 size={16} /> Verify all</> : <><Undo2 size={16} /> Unverify all</>}
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800">
+                                    {bulk === 'verify'
+                                        ? `Verify all ${allCount.toLocaleString('en-IN')}${q.trim() ? ' matching' : ''} waiting cards? Anyone holding one of them can then register.`
+                                        : `Unverify all ${allCount.toLocaleString('en-IN')}${q.trim() ? ' matching' : ''} verified cards? They can't be used to register until verified again. Registered cards are not affected.`}
+                                </span>
+                                <button type="button" onClick={() => setConfirmAll(false)} disabled={verifyingAll} className={BTN2}>Cancel</button>
+                                <button type="button" onClick={runAll} disabled={verifyingAll}
+                                    className={bulk === 'verify' ? BTN : 'inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50'}>
+                                    {verifyingAll ? <Loader2 size={16} className="animate-spin" /> : bulk === 'verify' ? <CheckCircle2 size={16} /> : <Undo2 size={16} />} {bulk === 'verify' ? 'Yes, verify all' : 'Yes, unverify all'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
                 {rowNote && <p role="status" className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">{rowNote}</p>}
                 {loadError && <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{loadError} <button type="button" onClick={load} className="font-bold underline">Try again</button></p>}
                 {!data && !loadError && <p className="mt-6 flex items-center gap-2 text-sm text-slate-500"><Loader2 size={16} className="animate-spin" /> Loading cards…</p>}
@@ -255,6 +395,7 @@ export default function VerifyCards() {
                     </div>
                 )}
             </section>
+            {scanning && <ScanDialog onClose={() => { setScanning(false); load(); }} />}
         </div>
     );
 }

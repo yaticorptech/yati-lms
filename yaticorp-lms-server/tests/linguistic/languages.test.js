@@ -62,10 +62,14 @@ describe('the language packs', () => {
         });
     }
 
-    test('Kannada is untouched: the lesson as written, only marked with its language', () => {
+    test('Kannada is the lesson as written, marked with its language — its questions asked in Kannada, the English kept beside', () => {
+        // Asked 2026-10-24: a Kannada speaker learning English reads the questions in Kannada (content/asks/kn.js).
+        const back = (q) => (q?.promptEn ? (({ promptEn, checklistEn, ...r }) => ({ ...r, prompt: promptEn, ...(checklistEn ? { checklist: checklistEn } : {}) }))(q) : q);
         for (const l of content.lessons) {
             const x = localize(l, 'kn');
             const { language, languageName, ...rest } = x;
+            for (const k of ['practice', 'quiz', 'writing']) if (rest[k]) rest[k] = rest[k].map(back);
+            if (rest.speaking) rest.speaking = back(rest.speaking);
             assert.deepEqual(rest, l, l.seedKey);
             assert.deepEqual([language, languageName], ['kn', 'Kannada']);
         }
@@ -78,10 +82,11 @@ describe('the language packs', () => {
         assert.equal(x.words[0].kannada, mine.words[0].kannada);
     });
 
-    test('word questions name the language and offer its meanings', () => {
+    test('word questions are asked in the student\'s language and offer its meanings (2026-10-24)', () => {
         const x = localize(byKey('vocab-beginner-1'), 'ko');
         const q = svc.quizOf({ ...x, _id: 'seed' }).find((y) => y.kind === 'meaning');
-        assert.match(q.prompt, /mean in Korean\?$/);
+        assert.equal(q.prompt, '"family"은(는) 무슨 뜻인가요?');
+        assert.match(q.explanation, /^"family"은\(는\) .+라는 뜻이에요\./, 'and explained in it');
         assert.ok(q.options.every((o) => /[가-힣]/.test(o)));
     });
 });
@@ -100,10 +105,10 @@ describe('a student who speaks English', () => {
     test('English definitions for the words; no translation unit; the placement questions in English', async () => {
         assert.equal((await api('POST', '/language', { language: 'en' })).status, 200);
         const path = (await api('GET', '/path')).body;
-        assert.ok(path.levels.every((lv) => lv.units.every((u) => u.module !== 'translation')), 'no translation for an English speaker');
+        assert.ok(path.levels.every((lv) => lv.units.every((u) => u.lessons.every((x) => x.module !== 'translation'))), 'no translation for an English speaker');
         const v = await LinguisticLesson.findOne({ seedKey: 'vocab-beginner-1' }).lean();
         const page = (await api('GET', `/lessons/${v._id}`)).body;
-        assert.equal(page.words.find((w) => w.word === 'happy').kannada, 'feeling glad or pleased');
+        assert.equal(page.words.find((w) => w.word === 'mother').kannada, 'a female parent');
         assert.ok(page.quiz.some((q) => q.prompt === 'What does "family" mean?'));
         const t = await LinguisticLesson.findOne({ seedKey: 'translation-beginner-kn-en' }).lean();
         assert.equal((await api('GET', `/lessons/${t._id}`)).status, 404, 'a translation lesson is not part of the course');
@@ -180,14 +185,15 @@ describe('a student who speaks Japanese', () => {
         const page = (await api('GET', `/lessons/${l._id}`)).body;
         assert.deepEqual([page.language, page.languageName], ['ja', 'Japanese']);
         assert.equal(page.words.find((w) => w.word === 'family').kannada, '家族');
-        const meaning = page.quiz.find((q) => /mean in Japanese/.test(q.prompt));
+        const meaning = page.quiz.find((q) => /はどういう意味ですか/.test(q.prompt));
         assert.ok(meaning && meaning.options.every((o) => /[぀-ヿ一-鿿]/.test(o)), 'options in Japanese');
-        const right = Object.fromEntries(svc.quizOf(localize(l, 'ja')).map((q) => [q.id, q.answer]));
+        const right = Object.fromEntries(svc.quizOf(svc.serve(l, { language: 'ja' })).map((q) => [q.id, q.answer]));
         const r = await api('POST', `/lessons/${l._id}/quiz`, { answers: right });
         assert.equal(r.body.percent, 100);
     });
 
     test('translation both ways: the Japanese to read, the Japanese tiles to tap', async () => {
+        await require('./unlock').unlock(kenji.user, ['translation-beginner-kn-en', 'translation-beginner-en-kn']);
         const into = await lessonBy('translation-beginner-kn-en');
         const page = (await api('GET', `/lessons/${into._id}`)).body;
         assert.ok(page.items.every((i) => !KANNADA.test(i.source)) && /[぀-ヿ一-鿿]/.test(page.items[0].source));
@@ -214,7 +220,7 @@ describe('a student who speaks Japanese', () => {
         const p = (await api('GET', '/placement')).body;
         assert.match(p.questions.find((q) => q.id === 'b4').prompt, /本/);
         const d = (await api('GET', '/daily')).body;
-        assert.ok(d.questions.some((q) => /mean in Japanese/.test(q.prompt)), 'a word question names Japanese');
+        assert.ok(d.questions.every((q) => /[぀-ヿ一-鿿]/.test(q.prompt)), 'the word questions asked in Japanese');
     });
 
     test('back to Kannada: the same lesson in Kannada again', async () => {
@@ -223,5 +229,38 @@ describe('a student who speaks Japanese', () => {
         const page = (await api('GET', `/lessons/${l._id}`)).body;
         assert.equal(page.language, 'kn');
         assert.ok(KANNADA.test(page.words[0].kannada));
+    });
+});
+
+describe('questions asked in Kannada (asked 2026-10-24)', () => {
+    const svcQ = require('../../src/linguistic/service');
+    test('a reading question in Kannada, its choices in English; the English question kept', () => {
+        const l = localize(content.lessons.find((x) => x.seedKey === 'reading-beginner-1'), 'kn');
+        const q = l.quiz.find((x) => x.id === 'q1');
+        assert.equal(q.prompt, 'ಕಾವ್ಯ ಎಲ್ಲಿ ವಾಸಿಸುತ್ತಾಳೆ?');
+        assert.equal(q.promptEn, 'Where does Kavya live?');
+        assert.ok(q.options.includes('Mysuru'), 'the choices stay English');
+        assert.equal(svcQ.publicQuestion(q, 's').promptEn, 'Where does Kavya live?');
+    });
+    test('an English sentence with a blank: a Kannada instruction before it, the sentence itself English', () => {
+        const l = localize(content.lessons.find((x) => x.seedKey === 'grammar-beginner-1'), 'kn');
+        const q = l.practice.find((x) => x.id === 'p3');
+        assert.equal(q.prompt, 'ಸರಿಯಾದ ಪದವನ್ನು ಆರಿಸಿ: ___ sun rises in the east.');
+    });
+    test('every reading and speaking question, writing task and speaking task is in Kannada', () => {
+        const KN = /[ಀ-೿]/;
+        for (const l of content.lessons.filter((x) => ['reading', 'speaking'].includes(x.module)).map((x) => localize(x, 'kn'))) {
+            for (const q of [...(l.practice || []), ...(l.quiz || [])]) assert.match(q.prompt, KN, `${l.seedKey} ${q.id}`);
+            for (const t of l.writing || []) assert.match(t.prompt, KN, `${l.seedKey} ${t.id}`);
+            if (l.speaking?.prompt) {
+                assert.match(l.speaking.prompt, KN, l.seedKey);
+                assert.equal(l.speaking.checklist.length, l.speaking.checklistEn.length, `${l.seedKey}: the checklist, item for item`);
+            }
+        }
+        for (const q of content.placement) assert.match(localizePlacement(q, 'kn').prompt, KN, `placement ${q.id}`);
+    });
+    test('another language keeps its own (English) questions', () => {
+        const q = localize(content.lessons.find((x) => x.seedKey === 'reading-beginner-1'), 'hi').quiz.find((x) => x.id === 'q1');
+        assert.equal(q.prompt, 'Where does Kavya live?');
     });
 });

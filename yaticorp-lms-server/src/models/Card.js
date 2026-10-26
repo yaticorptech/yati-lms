@@ -47,7 +47,11 @@ const cardSchema = new mongoose.Schema({
     verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null },
     // 'admin' (Verify cards, or added there), 'account' (verified by an admin
     // adding its holder).
-    verifiedVia: { type: String, enum: ['admin', 'account', null], default: null }
+    verifiedVia: { type: String, enum: ['admin', 'account', null], default: null },
+    // An organization's card (Students → Scan cards): whoever registers with
+    // it joins that organization at once (organizations/services/cardLink.js).
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null, index: true },
+    organizationLinkedAt: { type: Date, default: null }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Card', cardSchema);

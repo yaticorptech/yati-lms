@@ -4,8 +4,9 @@
  */
 const IDS = ['chess', 'rapidfire', 'codeclash', 'brainsprint'];
 // No longer offered (UNO, removed 2026-10-23; Ludo and Carrom, replaced by the
-// brain games 2026-10-24): never listed or chosen, but a game saved before
-// then can still be read and timed out.
+// brain games 2026-10-24): never listed or chosen for a new competition, but a
+// competition or game made before then can still be read, played to its end
+// and timed out. (Quiz and Hackathon are challenges, not games: no matches.)
 const RETIRED = ['uno', 'ludo', 'carrom'];
 
 const cache = {};

@@ -454,10 +454,9 @@ const Profile = ({ view = 'dashboard' }) => {
                 their posts and what is coming up (nothing until they join one). ── */}
             {!onProfile && <MyClubsCard />}
 
-            {/* ── Dashboard: My Learning — the tabs, bundles and enrol flow ── */}
+            {/* ── Dashboard: My Learning — the tabs and enrol flow ── */}
             {!onProfile && <DashboardCourses
                 courses={dashboard.courses}
-                bundles={dashboard.bundles}
                 availableCourses={dashboard.availableCourses}
                 loading={dashboard.loading}
                 error={dashboard.error}

@@ -290,6 +290,8 @@ const addUser = async (req, res) => {
     qrNumber: card.qrCodeNumber || '',
     password
 });
+        // A card an organization linked brings its holder into it.
+        await require('../organizations/services/cardLink').joinLinkedOrganization(user._id, card);
 
         // Send Welcome Email
         try {
@@ -608,6 +610,8 @@ const bulkAddUsers = async (req, res) => {
                             qrNumber: card.qrCodeNumber || '',
                             password: Password
                         });
+                        // A card an organization linked brings its holder into it.
+                        await require('../organizations/services/cardLink').joinLinkedOrganization(user._id, card);
 
 
                 // Send Welcome Email (individual for now, consider batching if needed later)

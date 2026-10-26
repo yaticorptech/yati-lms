@@ -29,6 +29,8 @@ const loginUser = async (req, res) => {
             // (a phone, say) failed it — so a right password answered 500.
             await User.updateOne({ _id: user._id }, { $inc: { loginCount: 1 } });
             const loginCount = (user.loginCount || 0) + 1;
+            // A card an organization scanned in brings its student into it (organizations/services/cardLink.js).
+            await require('../organizations/services/cardLink').joinByCard(user);
 
             res.json({
                 _id: user._id,
@@ -272,4 +274,6 @@ module.exports = {
     getUserProfile,
     updateUserProfile,
     uploadProfilePicture,
+    // The same rule for a teacher's picture (src/teacher/auth.js).
+    normalizePictureUrl,
 };

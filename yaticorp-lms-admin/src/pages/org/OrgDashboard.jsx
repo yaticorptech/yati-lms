@@ -16,6 +16,7 @@ import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { CARD, Stat, Bar, Empty, Banner, Rows, Avatar, LoadFailed } from '../../components/orgUi';
 import { relativeDay } from '../../utils/dates';
+import AccessHoursCard from '../../components/AccessHoursCard';
 
 // The organization's kind, as an icon beside its name in the welcome banner.
 const TYPE_ICON = {
@@ -141,8 +142,8 @@ const OrgDashboard = () => {
                 first load has none, and says that below with a Retry. */}
             {error && data && <Banner onClose={() => setError('')}>{error}</Banner>}
 
-            {/* ── Headline numbers: two across on a phone, three on a desktop ── */}
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+            {/* ── Headline numbers: two across on a phone, all five in a row on a desktop ── */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
                 {/* A number with a list behind it opens that list: the Students
                     page, filtered to exactly the students it counts. */}
                 <Link to="/organization/students" aria-label={`Students: ${stats?.students ?? '…'} — see them all`} className={STAT_LINK}>
@@ -153,25 +154,24 @@ const OrgDashboard = () => {
                     <Stat icon={UserCheck} label="Active students" value={stats?.activeStudents} loading={loading} tone="emerald"
                         sub="Learned in the last 30 days" />
                 </Link>
-                {/* Progress and completions here count every course a student
-                    can open — platform and bundle courses too, not only yours —
-                    and Certificates are the ones the platform has issued. */}
+                {/* Progress here counts every course a student can open —
+                    platform courses too, not only yours — and Certificates are
+                    the ones the platform has issued. (Courses completed and
+                    Total XP were taken off, 2026-10-26.) */}
                 <Stat icon={TrendingUp} label="Average progress" value={stats ? `${stats.averageProgress}%` : undefined} loading={loading} tone="violet"
                     sub="Overall, across all enrolled courses" />
                 <Stat icon={Award} label="Certificates" value={stats?.certificates} loading={loading} tone="amber"
                     sub="Issued by the platform" />
-                <Stat icon={GraduationCap} label="Courses completed" value={stats?.coursesCompleted} loading={loading} tone="emerald"
-                    sub="Across all enrolled courses" />
-                <Stat icon={Activity} label="Total XP earned" value={stats?.totalXp} loading={loading} tone="amber"
-                    sub="By all your students" />
-                {/* Teachers across the whole row: their own section, not one more student number. */}
-                <Link to="/organization/teachers" aria-label={`Teachers: ${stats?.teachers ?? '…'} — see them`} className={`${STAT_LINK} col-span-2 lg:col-span-3`}>
+                {/* Teachers: the fifth tile on a desktop; on a phone, where the
+                    tiles go two by two, it takes its row alone. */}
+                <Link to="/organization/teachers" aria-label={`Teachers: ${stats?.teachers ?? '…'} — see them`} className={`${STAT_LINK} col-span-2 lg:col-span-1`}>
                     <Stat icon={Presentation} label="Teachers" value={stats?.teachers} loading={loading} tone="slate"
-                        sub={stats?.pendingTeacherRequests > 0
-                            ? `${stats.pendingTeacherRequests} waiting to join · their research progress, theses and publications`
-                            : 'Their research progress, theses and publications — add more with their card'} />
+                        sub={stats?.pendingTeacherRequests > 0 ? `${stats.pendingTeacherRequests} waiting to join` : 'In your organization'} />
                 </Link>
             </div>
+
+            {/* ── Access hours: when the students may use the platform ─────── */}
+            <AccessHoursCard />
 
             {/* ── Recent activity ──────────────────────────────────────────── */}
             <div className={`${CARD} overflow-hidden`}>

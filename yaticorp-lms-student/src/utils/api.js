@@ -41,7 +41,14 @@ api.interceptors.response.use(
     (response) => { clearAfterSave(response.config); return onSaved(onWalletResponse(response)); },
     // A 401 means the session is over (sessionExpiry.js): signed out, back to
     // the sign-in page. The error still reaches the caller.
-    (error) => { clearAfterSave(error.config); expireSessionOn401(error); return onWalletError(error); }
+    (error) => {
+        clearAfterSave(error.config); expireSessionOn401(error);
+        // Outside the organization's access hours: the layout shows when it opens (components/PlatformClosed).
+        if (error.response?.status === 423 && error.response.data?.code === 'PLATFORM_CLOSED') {
+            window.dispatchEvent(new CustomEvent('yati:platform-closed', { detail: error.response.data }));
+        }
+        return onWalletError(error);
+    }
 );
 
 export default api;

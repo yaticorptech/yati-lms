@@ -82,7 +82,7 @@ const requireLinguisticEnabled = async (req, res, next) => {
     try {
         if (await isLinguisticEnabled()) return next();
         if (await require('../services/fullAccess').fullAccessFromRequest(req)) return next();
-        return res.status(403).json({ code: 'LINGUISTIC_LOCKED', message: 'Linguistic Ability is currently unavailable. Please check back later.' });
+        return res.status(403).json({ code: 'LINGUISTIC_LOCKED', message: 'Language Learning is currently unavailable. Please check back later.' });
     } catch (error) { next(error); }
 };
 

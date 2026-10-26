@@ -12,13 +12,21 @@
  * A team is one college's entry (models/Team.js). A match puts two or more
  * teams' players at one online game (models/Match.js); its winner goes on to
  * the next round until one team is left.
+ *
+ * A quiz or a hackathon (asked 2026-10-23) has no matches: between startsAt
+ * and endsAt its players take the quiz once each, or their team hands in one
+ * project, and the standings decide the places (services/challengeService.js).
+ * It is entered by college teams, as a game is, or by students on their own
+ * (`entry: 'individual'`: each one a team of one, made when they sign up).
  */
 const mongoose = require('mongoose');
 
 // Every game a competition may hold: UNO, Ludo and Carrom for those made before
 // they were removed (2026-10-23, 2026-10-24). New ones are checked against the
-// games offered (games/index.js IDS).
-const GAMES = ['chess', 'rapidfire', 'codeclash', 'brainsprint', 'ludo', 'carrom', 'uno'];
+// games offered (games/index.js IDS) and the challenges (quiz, hackathon:
+// services/challengeService.js).
+const GAMES = ['chess', 'rapidfire', 'codeclash', 'brainsprint', 'ludo', 'carrom', 'uno', 'quiz', 'hackathon'];
+const CHALLENGES = ['quiz', 'hackathon'];
 const STATUSES = ['draft', 'registration', 'closed', 'live', 'completed', 'cancelled'];
 
 const prizeSchema = new mongoose.Schema({
@@ -28,6 +36,14 @@ const prizeSchema = new mongoose.Schema({
     rewardPoints: { type: Number, default: 0, min: 0, max: 100000 },
     description: { type: String, default: '', trim: true, maxlength: 300 }
 }, { _id: false });
+
+/** One quiz question: two to six choices, `answer` the right one's place. Never sent to a student before the quiz is over. */
+const questionSchema = new mongoose.Schema({
+    prompt: { type: String, required: true, trim: true, maxlength: 1000 },
+    options: { type: [{ type: String, trim: true, maxlength: 300 }], default: [] },
+    answer: { type: Number, required: true, min: 0, max: 5 },
+    points: { type: Number, default: 1, min: 1, max: 10 }
+});
 
 const competitionSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true, maxlength: 140 },
@@ -39,6 +55,20 @@ const competitionSchema = new mongoose.Schema({
     bannerUrl: { type: String, default: '', trim: true, maxlength: 600 },
     description: { type: String, default: '', trim: true, maxlength: 2000 },
     game: { type: String, enum: GAMES, required: true },
+    // Who enters: college teams (their coordinator registers them), or — a quiz
+    // or a hackathon only — students on their own, each signing up themselves.
+    entry: { type: String, enum: ['team', 'individual'], default: 'team' },
+    // A quiz or a hackathon: when it closes (the last moment to answer, or to hand in the project).
+    endsAt: { type: Date, default: null },
+    quiz: {
+        questions: { type: [questionSchema], default: [] },
+        // How long each player has, from pressing Start (never past endsAt).
+        minutes: { type: Number, default: 15, min: 1, max: 180 }
+    },
+    hackathon: {
+        problem: { type: String, default: '', trim: true, maxlength: 8000 },
+        criteria: { type: String, default: '', trim: true, maxlength: 2000 }
+    },
 
     startsAt: { type: Date, required: true },
     // Registration runs from registrationOpensAt (or from publishing, when
@@ -47,7 +77,8 @@ const competitionSchema = new mongoose.Schema({
     registrationDeadline: { type: Date, required: true },
 
     // Who may enter and how a match is made up.
-    maxTeams: { type: Number, default: 16, min: 2, max: 256 },
+    // Teams; or, entered by students on their own, the most students who may sign up.
+    maxTeams: { type: Number, default: 16, min: 2, max: 5000 },
     playersPerTeam: { type: Number, default: 1, min: 1, max: 10 },
     // How many players one team puts at the board in a match: 1, or 2 for
     // carrom doubles. The rest of the team are substitutes.
@@ -83,6 +114,7 @@ const competitionSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 competitionSchema.statics.GAMES = GAMES;
+competitionSchema.statics.CHALLENGES = CHALLENGES;
 competitionSchema.statics.STATUSES = STATUSES;
 
 module.exports = mongoose.model('Competition', competitionSchema, 'competitions');

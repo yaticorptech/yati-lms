@@ -25,10 +25,11 @@ export const MODULES = {
     translation: { label: 'Translation Practice', short: 'Translation', icon: Languages, color: 'red', mascot: 'thumbs-up', blurb: 'Kannada → English and English → Kannada.', blurbIn: (l) => `${l} → English and English → ${l}.` }
 };
 export const MODULE_ORDER = ['vocabulary', 'grammar', 'reading', 'speaking', 'translation'];
+// Each level is a section of the path, named the Duolingo way with its CEFR level (asked 2026-10-24).
 export const LEVELS = [
-    { id: 'beginner', label: 'Beginner', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-    { id: 'intermediate', label: 'Intermediate', chip: 'bg-amber-50 text-amber-700 ring-amber-200' },
-    { id: 'advanced', label: 'Advanced', chip: 'bg-rose-50 text-rose-700 ring-rose-200' }
+    { id: 'beginner', label: 'Beginner', section: 'Rookie', cefr: 'A1', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+    { id: 'intermediate', label: 'Intermediate', section: 'Explorer', cefr: 'A2–B1', chip: 'bg-amber-50 text-amber-700 ring-amber-200' },
+    { id: 'advanced', label: 'Advanced', section: 'Achiever', cefr: 'B2', chip: 'bg-rose-50 text-rose-700 ring-rose-200' }
 ];
 export const levelOf = (id) => LEVELS.find((l) => l.id === id) || LEVELS[0];
 /* ── The student's own language ───────────────────────────────────────── */

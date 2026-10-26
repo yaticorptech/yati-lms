@@ -52,25 +52,25 @@ export default function ThesisList() {
 
     return (
         <div className="space-y-6">
-            <PageHeader icon={FileText} tone="from-amber-500 to-orange-600" title="Thesis Writing" subtitle="Learn how each chapter is written, then write it here — with word targets and a PDF draft."
+            <PageHeader icon={FileText} color="amber" title="Thesis Writing" subtitle="Learn how each chapter is written, then write it here, with word targets and a PDF draft."
                 actions={theses?.length > 0 && <button type="button" onClick={() => setCreating(true)} className={btn.secondary}><Plus size={15} /> New thesis</button>} />
             <ErrorNote onRetry={load}>{error}</ErrorNote>
             {!theses && !error && <Loading label="Loading your theses…" />}
             {theses && !theses.length && (
-                <EmptyState icon={FileText} title="Start your thesis" action={<button type="button" onClick={() => setCreating(true)} className={btn.primary}><Plus size={15} /> Start a thesis</button>}>
-                    It begins with the usual chapters — abstract, introduction, literature review, methodology, results, discussion, conclusion — each with a word target you can change.
+                <EmptyState icon={FileText} color="amber" title="Start your thesis" action={<button type="button" onClick={() => setCreating(true)} className={btn.primary}><Plus size={15} /> Start a thesis</button>}>
+                    It begins with the usual chapters (abstract, introduction, literature review, methodology, results, discussion, conclusion), each with a word target you can change.
                 </EmptyState>
             )}
             {theses?.length > 0 && (
                 <div className="grid gap-3 md:grid-cols-2">
                     {theses.map((t) => (
-                        <Link key={t._id} to={`/teacher/thesis/${t._id}`} className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md">
-                            <p className="text-base font-black text-slate-900 [overflow-wrap:anywhere]">{t.title}</p>
+                        <Link key={t._id} to={`/teacher/thesis/${t._id}`} className="group rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-sm">
+                            <p className="text-base font-semibold text-slate-900 [overflow-wrap:anywhere]">{t.title}</p>
                             <p className="mt-0.5 text-xs text-slate-500">{[t.degree, t.university].filter(Boolean).join(' · ')}</p>
-                            <div className="mt-3 flex items-center gap-3"><Progress value={t.targetWords ? (t.words / t.targetWords) * 100 : 0} tone="bg-amber-500" label="Words written" /><span className="shrink-0 text-xs font-bold text-slate-500">{fmtNum(t.words)} / {fmtNum(t.targetWords)}</span></div>
+                            <div className="mt-3 flex items-center gap-3"><Progress value={t.targetWords ? (t.words / t.targetWords) * 100 : 0} tone="bg-amber-500" label="Words written" /><span className="shrink-0 text-xs font-semibold text-slate-500">{fmtNum(t.words)} / {fmtNum(t.targetWords)}</span></div>
                             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                                 <span>{t.chaptersDone} of {t.chapters} chapters done{t.dueDate ? <> · <CalendarDays size={12} className="inline" /> {fmtDate(t.dueDate)}</> : ''}</span>
-                                <span className="inline-flex items-center gap-1 font-bold text-amber-700">Open <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" /></span>
+                                <span className="inline-flex items-center gap-1 font-semibold text-amber-700">Open <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" /></span>
                             </div>
                         </Link>
                     ))}

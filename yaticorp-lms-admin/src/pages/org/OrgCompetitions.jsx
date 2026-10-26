@@ -160,7 +160,9 @@ const CompetitionPanel = ({ summary, students, onChanged }) => {
     };
     // No team yet (or one withdrawn or turned down): a Register College button
     // first, then the team form. A team already sent shows its status.
-    const canRegister = c.registrationOpen && (!team || team.status === 'withdrawn' || team.status === 'rejected');
+    // A quiz or hackathon entered by students on their own: they sign up themselves; the college enters no team.
+    const solo = c.entry === 'individual';
+    const canRegister = !solo && c.registrationOpen && (!team || team.status === 'withdrawn' || team.status === 'rejected');
     const registering = c.registrationOpen && (editing || (canRegister && starting));
     return (
         <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
@@ -192,8 +194,9 @@ const CompetitionPanel = ({ summary, students, onChanged }) => {
                 </div>
             )}
             {registering && <TeamForm competition={c} team={team} students={students} onSaved={() => { setEditing(false); setStarting(false); refresh(); }} onCancel={() => { setEditing(false); setStarting(false); }} />}
-            {!c.registrationOpen && !team && <p className="text-sm text-slate-500">Registration is closed.</p>}
-            {team?.status === 'approved' && (
+            {solo && <p className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900" data-solo-entry>Students sign up for this {c.gameLabel.toLowerCase()} themselves, from Competitions in the student app. Tell your students about it{c.registrationOpen ? ` before ${fmtDateTime(c.registrationDeadline)}` : ''}.</p>}
+            {!solo && !c.registrationOpen && !team && <p className="text-sm text-slate-500">Registration is closed.</p>}
+            {team?.status === 'approved' && !['quiz', 'hackathon'].includes(c.kind) && (
                 <div>
                     <h3 className="mb-2 text-sm font-bold text-slate-800">Our matches</h3>
                     <OurMatches competition={c} detail={detail} team={team} onChanged={load} />

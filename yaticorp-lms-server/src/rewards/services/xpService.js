@@ -52,13 +52,8 @@ const addXp = async ({ userId, amount, source, refId = null, courseId = null, de
   if (level !== user.level) await User.updateOne({ _id: userId, xp: user.xp }, { $set: { level } });
   await XpTransaction.updateOne({ _id: txn._id }, { $set: { balanceAfter: user.xp } });
 
-  // Every full block of XP on the balance (the admin's "1,000 XP = ₹10")
-  // turns into money. A wallet failure must never undo or block the XP itself.
-  try {
-    await require('./walletService').convertXp(userId);
-  } catch (err) {
-    console.error('[rewards] XP → wallet credit failed:', err.message);
-  }
+  // XP is not turned into wallet money (removed 2026-10-26): it counts for
+  // levels, the leaderboard and badges only.
 
   const leveledUp = level > oldLevel;
   if (!silent) await notify(userId, 'XP earned', `+${amount} XP ${description || `for ${source.replace(/_/g, ' ')}`}.`, await linkFor('progress'));

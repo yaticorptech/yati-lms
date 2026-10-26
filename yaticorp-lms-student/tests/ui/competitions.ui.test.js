@@ -52,8 +52,8 @@ createRoot(document.getElementById('root')).render(
     <Routes><Route path="/competitions" element={<><CompetitionsHome /><Where /></>} /><Route path="*" element={<Where />} /></Routes>
   </MemoryRouter>);`;
 
-describe('the Competitions section (Chess and the brain games)', { skip: skipWithoutStyles }, () => {
-    test('six tabs; the games are Chess and the three brain games, with a picture each, and each opens its competitions', async () => {
+describe('the Competitions section (Chess, the brain games, Quiz and Hackathon)', { skip: skipWithoutStyles }, () => {
+    test('six tabs; the games are Chess, the three brain games, a Quiz and a Hackathon, each opening its competitions', async () => {
         const { result, errors } = await screen({ entry: home(), api: api(), styles: true, script: `
             await sleep(600);
             const tabs = $$('nav[data-section-tabs] button').map((b) => b.innerText.trim());
@@ -68,7 +68,7 @@ describe('the Competitions section (Chess and the brain games)', { skip: skipWit
             return { tabs, games, photos, searched, where: $('#where').innerText, filter: $('[data-game-filter][aria-pressed="true"]')?.dataset.gameFilter, posted: window.__calls.filter((c) => c[0] === 'POST').length };` });
         assert.deepEqual(errors, []);
         assert.deepEqual(result.tabs, ['Games', 'Competitions', 'My Games', 'Leaderboard', 'Results', 'History']);
-        assert.deepEqual(result.games, ['chess', 'rapidfire', 'codeclash', 'brainsprint'], 'no UNO, Ludo or Carrom');
+        assert.deepEqual(result.games, ['chess', 'rapidfire', 'codeclash', 'brainsprint', 'quiz', 'hackathon'], 'no UNO, Ludo or Carrom; a Quiz and a Hackathon (2026-10-23)');
         assert.deepEqual(result.photos, ['/games/chess.jpg', '/games/chess-icon.png', ...['rapidfire', 'codeclash', 'brainsprint'].flatMap((g) => [`/games/${g}.svg`, `/games/${g}-icon.svg`])]);
         assert.deepEqual(result.searched, ['codeclash'], 'Search games narrows the cards');
         assert.equal(result.where, '/competitions?tab=competitions&game=brainsprint', 'Brain Sprint\'s competitions');
@@ -87,7 +87,7 @@ describe('the Competitions section (Chess and the brain games)', { skip: skipWit
             return { text: text(card), href: view?.getAttribute('href'), before, quizOnly,
                      quizPhase: $('[data-competition="c2"] [data-phase]')?.innerText,
                      filters: $$('[data-game-filter]').map((b) => b.innerText.trim()) };` });
-        assert.deepEqual(result.filters.map((f) => f.replace(/^\S+\s/, '')), ['All games', 'Chess', 'Rapid Fire', 'Code Clash', 'Brain Sprint']);
+        assert.deepEqual(result.filters.map((f) => f.replace(/^\S+\s/, '')), ['All games', 'Chess', 'Rapid Fire', 'Code Clash', 'Brain Sprint', 'Quiz', 'Hackathon']);
         assert.match(result.text, /Inter-College Chess Cup/);
         assert.match(result.text, /4 Colleges/);
         assert.match(result.text, /8 Players/);
@@ -247,10 +247,10 @@ describe('the Competitions section (Chess and the brain games)', { skip: skipWit
     test('the tab highlight glides to the chosen tab and lands on it; the ends fade where tabs are hidden', async () => {
         const { result, errors } = await screen({ entry: home(), api: api(), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
             await sleep(1200);
-            const bar = $('nav[aria-label="Games & Competitions"]');
+            const bar = $('nav[data-section-tabs]');
             const pill = bar.querySelector('span[aria-hidden="true"]');
             const fades = () => [...bar.parentElement.children].filter((c) => c !== bar).map((f) => getComputedStyle(f).opacity);
-            const btn = (label) => $$('nav[aria-label="Games & Competitions"] button').find((b) => b.innerText.trim() === label);
+            const btn = (label) => $$('nav[data-section-tabs] button').find((b) => b.innerText.trim() === label);
             const onIt = (b) => { const p = pill.getBoundingClientRect(), r = b.getBoundingClientRect(); return Math.abs(p.left - r.left) < 1.5 && Math.abs(p.width - r.width) < 1.5; };
             const atStart = { onGames: onIt(btn('Games')), fades: fades() };
             const t0 = performance.now(); btn('Leaderboard').click();
@@ -741,7 +741,7 @@ describe('on a small phone', { skip: skipWithoutStyles }, () => {
             return { current: $('nav[data-section-tabs] [aria-current="page"]').innerText.trim(), games: $$('[data-game]').map((g) => g.dataset.game), banner: !!$('header h1') };` });
         assert.deepEqual(errors, []);
         assert.equal(result.current, 'Games');
-        assert.deepEqual(result.games, ['chess', 'rapidfire', 'codeclash', 'brainsprint'], 'the competition games, none of Brain Boosters\' games');
+        assert.deepEqual(result.games, ['chess', 'rapidfire', 'codeclash', 'brainsprint', 'quiz', 'hackathon'], 'the competition games and the challenges, none of Brain Boosters\' games');
         assert.equal(result.banner, true, 'with the section\'s banner');
     });
 

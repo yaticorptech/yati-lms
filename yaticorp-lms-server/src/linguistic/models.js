@@ -48,8 +48,11 @@ const lessonSchema = new Schema({
     // English course lesson its words and sentences come from. null = the English course.
     course: { type: String, default: null, index: true },
     base: { type: String, default: null },
-    // A review lesson made from its level's lessons (reviews.js): 'words', 'listen', 'sentences' or 'checkpoint'.
+    // A review lesson made from its level's lessons (reviews.js): 'words', 'listen', 'sentences' or 'checkpoint';
+    // a unit's 'unit' review and 'hear' listening; or 'talk', speaking on a topic (talks.js).
     review: { type: String, default: null },
+    // The unit of its topic a lesson is in when it is not the first (parts.js): 2 for a second unit's stub.
+    part: { type: Number, default: null },
     // Deleted lessons are kept, hidden, so students' history still points somewhere.
     deletedAt: { type: Date, default: null },
     updatedBy: { type: String, default: '' }
@@ -97,6 +100,11 @@ const progressSchema = new Schema({
     mistakes: { type: [mistakeSchema], default: [] },
     // `course`: the language course (missing = English, from before there were others).
     levelsCompleted: { type: [{ level: String, completedAt: Date, average: Number, course: String, _id: false }], default: [] },
+    // The treasure chests opened on the path (2026-10-24): "<course>:<unit id>", e.g. "en:beginner-1".
+    chests: { type: [String], default: [] },
+    // The student's learning plan in each course (2026-10-24, service.js): the days they gave themselves, from when,
+    // and whether the roadmap has every lesson ('full') or the main ones ('main').
+    plans: { type: [{ course: String, days: Number, tier: String, startedAt: Date, _id: false }], default: [] },
     certificates: { type: [{ level: String, number: String, issuedAt: Date, average: Number, course: String, hiddenAt: { type: Date, default: null }, _id: false }], default: [] },
     lastLessonId: { type: Schema.Types.ObjectId, ref: 'LinguisticLesson', default: null },
     lastActiveAt: { type: Date, default: null },
@@ -109,7 +117,18 @@ const progressSchema = new Schema({
     // The course being learnt (null = English), and where each other course was started.
     course: { type: String, default: null },
     courseStart: { type: Schema.Types.Mixed, default: {} },
-    selfRating: { type: Number, default: null, min: 0, max: 4 }
+    selfRating: { type: Number, default: null, min: 0, max: 4 },
+    // From the start screens too (2026-10-26, as other learning apps ask): the skills they most want to improve,
+    // the topics they like, and when in the day they like to learn.
+    focus: { type: [String], default: [] },
+    topics: { type: [String], default: [] },
+    studyTime: { type: String, default: null },
+    // And (2026-10-26, the questions as Talkpal asks them): what they want to achieve, how they like to learn,
+    // their age band, and the minutes a day they mean to practise (0: their own way).
+    aim: { type: String, default: null },
+    style: { type: String, default: null },
+    ageBand: { type: String, default: null },
+    practiceMinutes: { type: Number, default: null }
 }, { timestamps: true });
 
 const attemptSchema = new Schema({
@@ -145,7 +164,9 @@ const submissionSchema = new Schema({
     answer: { type: String, required: true, maxlength: 6000 },
     model: { type: String, default: '' },
     autoFeedback: { type: [{ kind: String, text: String, _id: false }], default: [] },
-    status: { type: String, enum: ['pending', 'reviewed'], default: 'pending', index: true },
+    // 'checked' (2026-10-26): corrected in the lesson by the grammar rules, kept for the student's Writing tab, never sent to a teacher.
+    status: { type: String, enum: ['pending', 'reviewed', 'checked'], default: 'pending', index: true },
+    sentences: { type: [Schema.Types.Mixed], default: undefined },   // checked: each sentence, corrected (talkCheck.js)
     score: { type: Number, default: null },          // 0–100, from the teacher
     comment: { type: String, default: '', maxlength: 2000 },
     reviewedBy: { type: new Schema({ id: String, name: String, role: String }, { _id: false }), default: null },
