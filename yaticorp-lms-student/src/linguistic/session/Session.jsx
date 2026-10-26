@@ -52,7 +52,7 @@ function Sheet({ sheet, onContinue }) {
                         <p className="flex items-center gap-2 text-[1.35rem] font-extrabold" style={{ color: c.ink }}>
                             <Icon size={24} strokeWidth={3.5} className="shrink-0 sm:hidden" /> {sheet.title}
                         </p>
-                        {sheet.answer && <p className="break-words text-[17px] font-bold" style={{ color: c.ink }} lang={langFor(sheet.answer)} dir="auto" data-sheet-answer>{sheet.answer}</p>}
+                        {sheet.answer && <p className="break-words text-[17px] font-bold" style={{ color: c.ink }} lang={langFor(sheet.answer)} dir="auto" translate="no" data-sheet-answer>{sheet.answer}</p>}
                         {sheet.diff?.length > 0 && <Diff diff={sheet.diff} />}
                         {sheet.text && <p className="text-[15px] font-semibold" style={{ color: c.ink }}>{sheet.text}</p>}
                         {sheet.tips?.length > 0 && <ul className="space-y-0.5">{sheet.tips.map((t) => <li key={t} className="text-[15px] font-semibold text-[#4b4b4b]">• {t}</li>)}</ul>}
@@ -60,7 +60,7 @@ function Sheet({ sheet, onContinue }) {
                         {sheet.model && (
                             <div className="rounded-xl bg-white/70 px-3 py-2">
                                 <p className="text-xs font-extrabold uppercase tracking-wider" style={{ color: c.ink }}>{sheet.modelLabel || 'Model answer'}</p>
-                                <p className="whitespace-pre-line break-words text-[15px] font-semibold text-[#4b4b4b]">{sheet.model}</p>
+                                <p className="whitespace-pre-line break-words text-[15px] font-semibold text-[#4b4b4b]" translate="no">{sheet.model}</p>
                             </div>
                         )}
                         {sheet.explanation && <p className="text-[15px] font-semibold leading-snug" style={{ color: c.ink }}><span className="font-extrabold">Why: </span>{sheet.explanation}</p>}
@@ -211,8 +211,9 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
                         {combo >= 3 && !step.again && <span key={combo} className="lingo-pop rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider" style={{ background: COLORS.orange.light, color: COLORS.orange.ink }} data-combo={combo}><Flame size={13} className="mr-1 inline" />{combo} in a row</span>}
                         {skippable && <button type="button" onClick={() => goTo(quizAt)} className="ml-auto inline-flex min-h-9 items-center gap-1 rounded-xl px-2 text-sm font-extrabold uppercase tracking-wide hover:bg-[#F7F7F7]" style={{ color: COLORS.blue.ink }} data-skip-to-quiz>Skip to quiz <ChevronsRight size={16} /></button>}
                     </div>
-                    <Screen key={step.key} step={step} value={value} onChange={setValue} locked={!!sheet || busy || !!ending} result={result}
-                        done={!!sheet} onDone={() => { const s = sheetOf(step, { correct: true }, tally.current.praise); tally.current.praise += 1; setSheet(s); setCombo((c) => c + 1); chime('right'); }} />
+                    {/* The lesson itself stays as written, whatever the app's language. */}
+                    <div translate="no"><Screen key={step.key} step={step} value={value} onChange={setValue} locked={!!sheet || busy || !!ending} result={result}
+                        done={!!sheet} onDone={() => { const s = sheetOf(step, { correct: true }, tally.current.praise); tally.current.praise += 1; setSheet(s); setCombo((c) => c + 1); chime('right'); }} /></div>
                 </div>
             </main>
 
