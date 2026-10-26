@@ -337,7 +337,8 @@ const Users = () => {
 
     const stopAddScanner = () => {
         if (addScannerRef.current) {
-            addScannerRef.current.stop().catch(() => { });
+            // stop() throws, not rejects, when the camera is not running.
+            try { addScannerRef.current.stop().catch(() => { }); } catch { /* nothing to stop */ }
             addScannerRef.current = null;
         }
     };

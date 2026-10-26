@@ -5,10 +5,88 @@
  * instead of the platform's key, with no daily allowance.
  */
 import React, { useEffect, useState } from 'react';
-import { KeyRound, ExternalLink, Trash2, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, ExternalLink, Trash2, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, HelpCircle, X } from 'lucide-react';
 import api from '../utils/api';
 import useJobsAccess from '../hooks/useJobsAccess';
 import useConfirmDialog from './useConfirmDialog';
+
+// The three screens a student goes through in Google AI Studio, drawn as
+// mock-ups in public/illustrations/ai-key.
+const KEY_STEPS = [
+    { img: 'step1.svg', title: 'Open Google AI Studio', text: 'Go to aistudio.google.com/app/apikey and sign in with your Google account.' },
+    { img: 'step2.svg', title: 'Create an API key', text: 'Click "Create API key", pick the default project, then "Create key".' },
+    { img: 'step3.svg', title: 'Copy and paste it here', text: 'Copy the key (it starts with AIza), paste it in the box and tap "Save key".' }
+];
+
+const KeyGuide = () => {
+    const [open, setOpen] = useState(false);
+
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [open]);
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg"
+            >
+                <HelpCircle size={14} /> How to get a key — 3 steps
+            </button>
+            {open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setOpen(false)}>
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="How to get a Gemini API key"
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-xl p-5"
+                    >
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                            <div>
+                                <h3 className="font-black text-slate-900">Get your free Gemini key in 3 steps</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">Takes about a minute. No card needed.</p>
+                            </div>
+                            <button type="button" onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600" aria-label="Close">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <ol className="grid gap-3 sm:grid-cols-3">
+                            {KEY_STEPS.map((s, i) => (
+                                <li key={s.img} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                                    <img
+                                        src={`/illustrations/ai-key/${s.img}`}
+                                        alt={`Step ${i + 1}: ${s.title}`}
+                                        className="w-full rounded-lg border border-slate-200 bg-white"
+                                    />
+                                    <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[0.65rem] flex items-center justify-center shrink-0">{i + 1}</span>
+                                        {s.title}
+                                    </p>
+                                    <p className="mt-1 text-[0.7rem] text-slate-500">{s.text}</p>
+                                </li>
+                            ))}
+                        </ol>
+                        <div className="mt-4 flex justify-end">
+                            <a
+                                href="https://aistudio.google.com/app/apikey"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold"
+                            >
+                                Open Google AI Studio <ExternalLink size={13} />
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
 
 const AiKeyForm = () => {
     const [status, setStatus] = useState(null);      // { hasKey, masked, addedAt, platformKeyAvailable }
@@ -141,6 +219,7 @@ const AiKeyForm = () => {
                         </a>
                         . No card needed; we check it with Google and store it encrypted.
                     </p>
+                    <KeyGuide />
                 </form>
             )}
 

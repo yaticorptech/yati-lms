@@ -12,9 +12,9 @@
  * something has actually changed, so the page cannot be saved by accident.
  */
 import React, { useState, useEffect, useId } from 'react';
-import { Building2, Pencil, Lock, Loader2, Check, Copy, KeyRound, ImagePlus, RotateCw, Camera } from 'lucide-react';
+import { Pencil, Lock, Loader2, Check, Copy, KeyRound, ImagePlus, RotateCw, Camera } from 'lucide-react';
 import api from '../../utils/api';
-import { CARD, INPUT, LABEL, BTN, BTN2, Banner, PageHeader } from '../../components/orgUi';
+import { CARD, INPUT, LABEL, BTN, BTN2, Banner } from '../../components/orgUi';
 import PasswordField from '../../components/PasswordField';
 import PasswordStrengthChecker from '../../components/PasswordStrengthChecker';
 import { formatDate } from '../../utils/dates';
@@ -187,9 +187,7 @@ const OrgSettings = () => {
     // reads from it. Say so and offer the request again, rather than crash.
     if (!organization) {
         return (
-            <div className="mx-auto w-full max-w-3xl space-y-4 lg:space-y-6 animate-fade-in pb-10">
-                <PageHeader icon={Building2} title="Organization Settings"
-                    subtitle="Your organization's details, as students and the platform see them." />
+            <div className="w-full space-y-4 lg:space-y-6 animate-fade-in pb-10">
                 <Banner>
                     {error || 'Could not load your organization.'} Please try again.
                 </Banner>
@@ -199,15 +197,7 @@ const OrgSettings = () => {
     }
 
     return (
-        <div className="mx-auto w-full max-w-3xl space-y-4 lg:space-y-6 animate-fade-in pb-10">
-            <PageHeader icon={Building2} title="Organization Settings"
-                subtitle="Your organization's details, as students and the platform see them.">
-                {!editing && (
-                    <button onClick={() => setEditing(true)} className={`${BTN} whitespace-nowrap`}>
-                        <Pencil size={16} />Edit details
-                    </button>
-                )}
-            </PageHeader>
+        <div className="w-full space-y-4 lg:space-y-6 animate-fade-in pb-10">
 
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             {error && <Banner onClose={() => setError('')}>{error}</Banner>}
@@ -251,9 +241,14 @@ const OrgSettings = () => {
             {/* ── The parts they can ───────────────────────────────────────── */}
             <form onSubmit={save} className={`${CARD} p-5 lg:p-6`} noValidate>
                 {/* Side by side when there is room; the hint drops under the heading on a phone. */}
-                <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                {/* The edit button sits on the card it opens, like Change password below. */}
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Your details</h2>
-                    {!editing && <span className="text-xs text-slate-400">Press “Edit details” to change these.</span>}
+                    {!editing && (
+                        <button type="button" onClick={() => setEditing(true)} className={`${BTN2} whitespace-nowrap`}>
+                            <Pencil size={16} />Edit details
+                        </button>
+                    )}
                 </div>
 
                 <div className="space-y-5">
@@ -328,6 +323,9 @@ const ChangePassword = () => {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
+    // Locked like the details above it: the fields open only on "Change password".
+    const [open, setOpen] = useState(false);
+    const close = () => { setOpen(false); setForm({ currentPassword: '', newPassword: '', confirmPassword: '' }); setError(''); };
 
     const set = (field) => (e) => {
         setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -353,6 +351,7 @@ const ChangePassword = () => {
                 try { localStorage.setItem('adminToken', res.data.token); } catch { /* storage unavailable */ }
             }
             setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+            setOpen(false);
             setNotice(res.data.message);
             setTimeout(() => setNotice(''), 6000);
         } catch (err) {
@@ -364,21 +363,25 @@ const ChangePassword = () => {
 
     return (
         <form onSubmit={submit} className={`${CARD} p-5 lg:p-6`} noValidate>
-            <div className="mb-5 flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                    <KeyRound size={20} />
-                </span>
-                <div>
-                    <h2 className="font-bold text-slate-800">Change your password</h2>
-                    <p className="text-sm text-slate-500">
-                        The password you sign in with, alongside your organization's email.
-                    </p>
+            <div className={`flex flex-wrap items-start justify-between gap-3 ${open || notice ? 'mb-5' : ''}`}>
+                <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                        <KeyRound size={20} />
+                    </span>
+                    <div>
+                        <h2 className="font-bold text-slate-800">Change your password</h2>
+                        <p className="text-sm text-slate-500">
+                            The password you sign in with, alongside your organization's email.
+                        </p>
+                    </div>
                 </div>
+                {!open && <button type="button" onClick={() => { setOpen(true); setNotice(''); }} className={BTN2}><KeyRound size={16} />Change password</button>}
             </div>
 
             {notice && <div className="mb-4"><Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner></div>}
             {error && <div className="mb-4"><Banner onClose={() => setError('')}>{error}</Banner></div>}
 
+            {open && <>
             <div className="space-y-5">
                 <div className="max-w-sm">
                     <label className={LABEL} htmlFor="pw-current">Current password</label>
@@ -404,12 +407,14 @@ const ChangePassword = () => {
                 </div>
             </div>
 
-            <div className="mt-6 flex justify-end border-t border-slate-100 pt-5">
+            <div className="mt-6 flex justify-end gap-2 border-t border-slate-100 pt-5">
+                <button type="button" onClick={close} className={BTN2} disabled={busy}>Cancel</button>
                 <button type="submit" className={BTN} disabled={busy || !ready || mismatch}>
                     {busy && <Loader2 size={16} className="animate-spin" />}
-                    Change password
+                    Save new password
                 </button>
             </div>
+            </>}
         </form>
     );
 };

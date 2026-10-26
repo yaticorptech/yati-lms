@@ -15,7 +15,7 @@ import { useLoopHidden } from './components/loopVisibility';
 import { useSayPageOnNav } from './components/loopGuide';
 import Login from './pages/Login';
 import { loginPathFor } from './utils/sessionExpiry';
-import { hasTeacherSession } from './teacher/teacherSession';
+import { hasTeacherSession, enterEmbedded } from './teacher/teacherSession';
 import EnrolledCourses from './pages/EnrolledCourses';
 // A guardian answering a part-time job permission request. Outside the auth
 // guard on purpose: a parent has no account and arrives from a link.
@@ -31,6 +31,8 @@ const SharedBioPage = React.lazy(() => import('./learningbio/SharedBioPage'));
 const InterviewDashboard = React.lazy(() => import('./interview/InterviewDashboard'));
 // Competitions: online Chess, Ludo and Carrom in inter-college competitions.
 const CompetitionsHome = React.lazy(() => import('./competitions/CompetitionsHome'));
+// Extra Curricular: NCC, NSS, Scouts & Guides and the organization's clubs.
+const ExtraCurricular = React.lazy(() => import('./nccnss/ExtraCurricular'));
 const CompetitionDetail = React.lazy(() => import('./competitions/CompetitionDetail'));
 const GamePage = React.lazy(() => import('./competitions/GamePage'));
 const PracticePage = React.lazy(() => import('./interview/PracticePage'));
@@ -39,6 +41,8 @@ const MockInterview = React.lazy(() => import('./interview/MockInterview'));
 const InterviewReport = React.lazy(() => import('./interview/InterviewReport'));
 const QuestionReview = React.lazy(() => import('./interview/QuestionReview'));
 const InterviewHistory = React.lazy(() => import('./interview/InterviewHistory'));
+// Job Preparation's tab strip: Mock Interview, Aptitude Test, Job Search.
+const JobPrepShell = React.lazy(() => import('./interview/JobPrepShell'));
 // Linguistic Ability: English learning, Beginner to Advanced.
 const LinguisticShell = React.lazy(() => import('./linguistic/LingoShell'));
 const LinguisticHome = React.lazy(() => import('./linguistic/LinguisticHome'));
@@ -68,6 +72,19 @@ const ProtectedRoute = ({ children }) => {
 };
 
 /* The teacher dashboard (src/teacher): its own sign-in, layout and pages. */
+/* From the organization panel's Research tab: take the teacher session it hands over, then open the page it asked for. */
+const TeacherSso = () => {
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const token = params.get('token');
+  const query = new URLSearchParams(window.location.search);
+  const next = query.get('next') || '/teacher';
+  if (!token) return <Navigate to="/login?as=teacher" replace />;
+  let teacher = null;
+  try { teacher = JSON.parse(params.get('teacher') || 'null'); } catch { /* the dashboard reads it again */ }
+  // embed=1 inside the panel; without it ("Open in a new tab") the full dashboard.
+  enterEmbedded(token, teacher, query.get('embed') === '1');
+  return <Navigate to={next.startsWith('/teacher') ? next : '/teacher'} replace />;
+};
 const TeacherRoute = ({ children }) => (hasTeacherSession() ? children : <Navigate to="/login?as=teacher" replace />);
 const TeacherProvider = React.lazy(() => import('./teacher/TeacherContext').then((m) => ({ default: m.TeacherProvider })));
 const TeacherLayout = React.lazy(() => import('./teacher/TeacherLayout'));
@@ -78,6 +95,7 @@ const TeacherPublications = React.lazy(() => import('./teacher/pages/Publication
 const TeacherThesisList = React.lazy(() => import('./teacher/pages/ThesisList'));
 const TeacherThesisEditor = React.lazy(() => import('./teacher/pages/ThesisEditor'));
 const TeacherWriting = React.lazy(() => import('./teacher/pages/Writing'));
+const TeacherClubs = React.lazy(() => import('./teacher/pages/Clubs'));
 const TeacherWritingEditor = React.lazy(() => import('./teacher/pages/WritingEditor'));
 const TeacherPlagiarism = React.lazy(() => import('./teacher/pages/Plagiarism'));
 const TeacherProfile = React.lazy(() => import('./teacher/pages/TeacherProfile'));
@@ -93,8 +111,6 @@ import NotFound from './pages/NotFound';
 const CoursePlayer = React.lazy(() => import('./pages/CoursePlayer'));
 const CoursePreview = React.lazy(() => import('./pages/CoursePreview'));
 const ResetPassword = React.lazy(() => import('./pages/ResetPassword'));
-const Community = React.lazy(() => import('./pages/Community'));
-const PostDetail = React.lazy(() => import('./pages/PostDetail'));
 import { RewardsProvider } from './context/RewardsContext';
 
 // ─── Career Path (FuturePath) ────────────────────────────────────────────────
@@ -259,7 +275,6 @@ const describeLoopButton = (label, el) => {
 const LOOP_PAGES = {
   '/': { label: 'Dashboard', text: "Your home base. Jump back into your last course, find new ones to enrol in, and see how far you've come." },
   '/enrolled-courses': { label: 'My Courses', text: `Every course you're enrolled in, with how far you've got in each. ${LOOP_CLICK[0].toUpperCase()}${LOOP_CLICK.slice(1)} Resume to carry on where you left off.` },
-  '/community': { label: 'Community', text: 'Ask questions, share tips and celebrate wins with other students and instructors. Start a discussion anytime!' },
   '/career': { label: 'Career Path', text: "Your career journey: today's quest, the stages to your goal and your fastest-growing skills. New here? Start onboarding to get your roadmap." },
   '/career/planner': { label: "Today's Plan", text: "Today's tasks, picked from your roadmap. Finish them all and you can unlock one more." },
   '/career/calendar': { label: 'Calendar', text: 'Your tasks day by day. Add exams and events, and set up your class timetable. The day before an exam stays free.' },
@@ -268,7 +283,7 @@ const LOOP_PAGES = {
   '/career/recommendations': { label: 'Ideas & Resources', text: 'Handpicked for your goal: courses, certifications, books, internships, scholarships and practice sites, plus ideas from your roadmap.' },
   '/career/profile': { label: 'My Progress', text: 'Where you stand: your level and XP, your skills and achievements, and any tasks still to do from earlier days.' },
   '/career/badges': { label: 'Rewards', text: 'Your level, XP and badges, how close the next badge is, and the roadmap milestones you can share.' },
-  '/interview': { label: 'Interview Prep', text: 'Get interview-ready: practise common questions, then take an AI mock interview by voice and get feedback to improve.' },
+  '/interview': { label: 'Job Preparation', text: 'Get interview-ready: practise common questions, then take an AI mock interview by voice and get feedback to improve.' },
   '/jobs': { label: 'Jobs', text: 'Jobs that match your skills and goal. Filter by type and location, apply, and save the ones you like.' },
   '/scholarships': { label: 'Scholarships', text: 'Scholarships you qualify for. Fill in the eligibility form once, then see each match with its amount and deadline.' },
   '/games': { label: 'Games', text: "Quick memory, logic, word and number games. Each level's stars earn you XP, within today's play time." },
@@ -361,16 +376,30 @@ function App() {
             open when Career Path is locked. Competitions: Chess, Ludo and Carrom. */}
         <Route path="games" element={<React.Suspense fallback={<CareerFallback />}><CareerProviders><CareerGames /></CareerProviders></React.Suspense>} />
         <Route path="competitions" element={<React.Suspense fallback={<CareerFallback />}><CompetitionsHome /></React.Suspense>} />
+        <Route path="extracurricular" element={<React.Suspense fallback={<CareerFallback />}><ExtraCurricular /></React.Suspense>} />
+        <Route path="extracurricular/:id" element={<React.Suspense fallback={<CareerFallback />}><ExtraCurricular /></React.Suspense>} />
+        <Route path="ncc-nss" element={<Navigate to="/extracurricular" replace />} />
         <Route path="competitions/play/:gameId" element={<React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense>} />
         <Route path="competitions/:id" element={<React.Suspense fallback={<CareerFallback />}><CompetitionDetail /></React.Suspense>} />
+        <Route element={<React.Suspense fallback={<CareerFallback />}><JobPrepShell /></React.Suspense>}>
         <Route path="interview" element={<React.Suspense fallback={<CareerFallback />}><InterviewDashboard /></React.Suspense>} />
         <Route path="interview/practice" element={<React.Suspense fallback={<CareerFallback />}><PracticePage /></React.Suspense>} />
         <Route path="interview/aptitude" element={<React.Suspense fallback={<CareerFallback />}><AptitudePage /></React.Suspense>} />
         <Route path="interview/aptitude/:id" element={<React.Suspense fallback={<CareerFallback />}><AptitudePage /></React.Suspense>} />
-        <Route path="interview/mock/:id" element={<React.Suspense fallback={<CareerFallback />}><MockInterview /></React.Suspense>} />
         <Route path="interview/report/:id" element={<React.Suspense fallback={<CareerFallback />}><InterviewReport /></React.Suspense>} />
         <Route path="interview/report/:id/questions" element={<React.Suspense fallback={<CareerFallback />}><QuestionReview /></React.Suspense>} />
         <Route path="interview/history" element={<React.Suspense fallback={<CareerFallback />}><InterviewHistory /></React.Suspense>} />
+        <Route element={<JobsGate />}>
+          <Route element={<SkillsGate />}>
+            <Route
+              path="jobs"
+              element={<React.Suspense fallback={<CareerFallback />}><Jobs /></React.Suspense>}
+            />
+          </Route>
+        </Route>
+        </Route>
+        {/* The live interview covers the screen, outside Job Preparation's tabs. */}
+        <Route path="interview/mock/:id" element={<React.Suspense fallback={<CareerFallback />}><MockInterview /></React.Suspense>} />
         <Route element={<LinguisticGate />}>
           {/* The tabs share the shell (stats, quests); the sessions below cover the whole screen. */}
           <Route path="linguistic" element={<React.Suspense fallback={<CareerFallback />}><LinguisticShell /></React.Suspense>}>
@@ -387,21 +416,10 @@ function App() {
         </Route>
         <Route path="profile" element={<Profile key="profile" view="profile" />} />
         <Route path="learn/:courseId" element={<React.Suspense fallback={<CareerFallback />}><CoursePlayer /></React.Suspense>} />
-        <Route path="community" element={<React.Suspense fallback={<CareerFallback />}><Community /></React.Suspense>} />
-        <Route path="community/:postId" element={<React.Suspense fallback={<CareerFallback />}><PostDetail /></React.Suspense>} />
 
         {/* Career Path. The onboarding wizard sits outside the shell because it
             is a focused five-step flow — the section's tab strip has nothing to
             offer until it has been through once. */}
-        <Route element={<JobsGate />}>
-          <Route element={<SkillsGate />}>
-            <Route
-              path="jobs"
-              element={<React.Suspense fallback={<CareerFallback />}><Jobs /></React.Suspense>}
-            />
-          </Route>
-        </Route>
-
         <Route element={<CareerGate />}>
         {/* Scholarships is its own section in the navigation, but the list
             it shows is built with the student's Career Path resources, so it
@@ -441,6 +459,7 @@ function App() {
         </Route>
         </Route>
       </Route>
+      <Route path="/teacher/sso" element={<TeacherSso />} />
       <Route path="/teacher" element={<TeacherRoute><React.Suspense fallback={<YatiLoader fullScreen label="Opening your dashboard" />}><TeacherProvider><TeacherLayout /></TeacherProvider></React.Suspense></TeacherRoute>}>
         <Route index element={teacherPage(TeacherDashboard)} />
         <Route path="methods" element={teacherPage(TeacherMethodologies)} />
@@ -452,6 +471,7 @@ function App() {
         <Route path="writing" element={teacherPage(TeacherWriting)} />
         <Route path="writing/:id" element={teacherPage(TeacherWritingEditor)} />
         <Route path="plagiarism" element={teacherPage(TeacherPlagiarism)} />
+        <Route path="clubs" element={teacherPage(TeacherClubs)} />
         <Route path="profile" element={teacherPage(TeacherProfile)} />
         <Route path="*" element={<Navigate to="/teacher" replace />} />
       </Route>

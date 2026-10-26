@@ -348,10 +348,10 @@ export default function SettingsPage() {
 
   if (loadState === 'none') {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="w-full space-y-6">
         <PageHeader
           eyebrow="Your profile"
-          title="Settings & Profile"
+          title="Edit Goal"
           subtitle="These details are what your roadmap, your daily tasks and your mentor are built from."
         />
         <Card>
@@ -371,8 +371,8 @@ export default function SettingsPage() {
 
   if (loadState === 'failed') {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
-        <PageHeader eyebrow="Your profile" title="Settings & Profile" />
+      <div className="w-full space-y-6">
+        <PageHeader eyebrow="Your profile" title="Edit Goal" />
         <Card className="border-rose-200 bg-rose-50" role="alert">
           <p className="font-semibold text-rose-800">Your profile did not load</p>
           <p className="mt-1 text-sm text-rose-700">Check your connection and try again. Nothing has changed.</p>
@@ -387,12 +387,12 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="w-full">
       {/* pb-28 keeps the last field clear of the save bar that floats over it. */}
       <form onSubmit={handleSave} className="space-y-6 pb-44 md:pb-28">
         <PageHeader
           eyebrow="Your profile"
-          title="Settings & Profile"
+          title="Edit Goal"
           subtitle={
             editing
               ? 'Change what you need, then save. Nothing is sent until you do.'
@@ -729,7 +729,7 @@ export default function SettingsPage() {
       {editing && isDirty && (
         <div
           className="animate-fade-in-up fixed inset-x-0 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-40 border-t border-line-200 bg-surface/95 px-4 py-3 shadow-[0_-4px_16px_-6px_rgb(16_24_40/0.12)] backdrop-blur sidebar:bottom-0 sidebar:left-64">
-          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
+          <div className="flex w-full flex-wrap items-center justify-between gap-3">
             <p className="text-sm font-semibold text-ink-700">
               <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-amber-500 align-middle" />
               {changed.length} unsaved {changed.length === 1 ? 'change' : 'changes'}

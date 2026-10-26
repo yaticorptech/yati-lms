@@ -46,6 +46,20 @@ export const enterTeacher = (data) => {
     window.location.assign('/teacher');
 };
 
+/**
+ * Inside the organization panel's Research tab: the panel hands over a session
+ * for the teacher's own account (in the URL fragment), and the teacher
+ * dashboard opens in its embedded layout — no sidebar, the panel has the tabs.
+ * The student's own session, if any, is left alone.
+ */
+export const TEACHER_EMBED = 'teacher:embed';
+export const isEmbedded = () => { try { return sessionStorage.getItem(TEACHER_EMBED) === '1'; } catch { return false; } };
+export const enterEmbedded = (token, teacher, embed = true) => {
+    localStorage.setItem(TEACHER_TOKEN, token);
+    localStorage.setItem(TEACHER_DATA, JSON.stringify(teacher || {}));
+    try { if (embed) sessionStorage.setItem(TEACHER_EMBED, '1'); else sessionStorage.removeItem(TEACHER_EMBED); } catch { /* the layout shows its sidebar then */ }
+};
+
 export const signOutTeacher = () => {
     forgetTeacher();
     window.location.assign('/login?as=teacher');

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" font-family="system-ui,sans-serif">
+<rect x="0.5" y="0.5" width="319" height="199" rx="10" fill="#fff" stroke="#e2e8f0"/><path d="M10.5 .5h299a10 10 0 0 1 10 10V28H.5V10.5a10 10 0 0 1 10-10z" fill="#f1f5f9"/><circle cx="14" cy="14" r="3.5" fill="#f87171"/><circle cx="26" cy="14" r="3.5" fill="#fbbf24"/><circle cx="38" cy="14" r="3.5" fill="#34d399"/>
+<rect x="0.5" y="28" width="70" height="171.5" fill="#f8fafc"/>
+<rect x="10" y="42" width="50" height="6" rx="3" fill="#cbd5e1"/><rect x="10" y="58" width="40" height="6" rx="3" fill="#e2e8f0"/>
+<rect x="6" y="70" width="58" height="16" rx="5" fill="#e0e7ff"/><text x="12" y="81" font-size="7.5" font-weight="700" fill="#4338ca">API keys</text>
+<rect x="10" y="96" width="44" height="6" rx="3" fill="#e2e8f0"/>
+<text x="84" y="52" font-size="12" font-weight="700" fill="#0f172a">API keys</text>
+<rect x="210" y="40" width="96" height="22" rx="11" fill="#4f46e5"/>
+<text x="258" y="54.5" font-size="8.5" font-weight="700" fill="#fff" text-anchor="middle">+ Create API key</text>
+<rect x="206" y="36" width="104" height="30" rx="15" fill="none" stroke="#a5b4fc" stroke-width="2" stroke-dasharray="4 3"/>
+<rect x="84" y="80" width="222" height="96" rx="8" fill="#fff" stroke="#e2e8f0"/>
+<text x="96" y="98" font-size="8" font-weight="600" fill="#334155">Choose a project</text>
+<rect x="96" y="106" width="198" height="20" rx="5" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="104" y="119" font-size="8" fill="#475569">Default Gemini Project</text><path d="M282 114l4 4 4-4" fill="none" stroke="#64748b" stroke-width="1.5"/>
+<rect x="214" y="140" width="80" height="22" rx="6" fill="#4f46e5"/><text x="254" y="154.5" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">Create key</text>
+<path d="M270 152l0 22 6-6 5 10 4-2-5-10 8 0z" fill="#0f172a" stroke="#fff" stroke-width="1.2"/>
+</svg>

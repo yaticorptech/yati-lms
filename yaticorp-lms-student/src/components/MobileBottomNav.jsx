@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, MessageSquare, Briefcase, Compass, GraduationCap, Mic, Gamepad2 } from 'lucide-react';
+import { House, BookOpen, Route, BriefcaseBusiness, HandCoins, Gamepad2 } from 'lucide-react';
 import useKeyboardOpen from '../native/useKeyboardOpen';
 import './mobileBottomNav.css';
 
@@ -12,11 +12,9 @@ import './mobileBottomNav.css';
  * destinations sit under the thumb here, and the drawer keeps what does not
  * belong in a nav bar — support and sign-out.
  *
- * Labels are shortened to one word each so eight of them sit on one line
+ * Labels are shortened to one word each so all of them sit on one line
  * under their icons; the sidebar's full name goes on the accessible label
- * too, so a screen reader still hears "My Courses". "Community" is "Forum":
- * eight cells on a 344px phone are about 43px each, and "Community" was cut
- * to "Commu…" at that width. The accessible label always starts with the
+ * too, so a screen reader still hears "My Courses". The accessible label always starts with the
  * word on screen ("Grants (Scholarships)"): someone using voice control
  * says what they see, and "tap Grants" found nothing when the label was
  * "Scholarships" alone.
@@ -31,20 +29,20 @@ import './mobileBottomNav.css';
  * is something the thumb can watch rather than a colour that changes.
  */
 // `label` is the sidebar's own name, word for word, and goes on the accessible
-// label; `short` is what fits under an icon in one line when eight of them
+// label; `short` is what fits under an icon in one line when all of them
 // share a phone.
-// My Profile stays in the drawer rather than here; Career Path sits right
-// after Courses, and Games (the brain games) is last — lit on Competitions
-// too (`also`): the two sections share one place here, as eight is all a
-// phone fits; Competitions is in the drawer.
+// My Profile stays in the drawer rather than here. The order follows a
+// student's path: learn, plan a career, prepare for jobs, fund it; Games
+// (the brain games) last — lit on Competitions too (`also`): the two
+// sections share one place here; Competitions is in the drawer. Each icon is
+// the plainest picture of its word: a house, a book, a route, a briefcase,
+// coins in a hand, a gamepad.
 const ITEMS = [
-  { to: '/', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
+  { to: '/', label: 'Dashboard', short: 'Home', icon: House, exact: true },
   { to: '/enrolled-courses', label: 'My Courses', short: 'Courses', icon: BookOpen },
-  { to: '/career', label: 'Career Path', short: 'Career', icon: Compass, flag: 'career' },
-  { to: '/community', label: 'Community', short: 'Forum', icon: MessageSquare },
-  { to: '/jobs', label: 'Jobs', short: 'Jobs', icon: Briefcase, flag: 'jobs' },
-  { to: '/scholarships', label: 'Scholarships', short: 'Grants', icon: GraduationCap, flag: 'career' },
-  { to: '/interview', label: 'Interview Prep', short: 'Interview', icon: Mic },
+  { to: '/career', label: 'Career Path', short: 'Career', icon: Route, flag: 'career' },
+  { to: '/interview', label: 'Job Preparation', short: 'Job Prep', icon: BriefcaseBusiness, also: '/jobs' },
+  { to: '/scholarships', label: 'Scholarships', short: 'Grants', icon: HandCoins, flag: 'career' },
   { to: '/games', label: 'Games', short: 'Games', icon: Gamepad2, also: '/competitions' }
 ];
 

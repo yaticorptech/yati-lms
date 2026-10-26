@@ -19,7 +19,7 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const { protectUser } = require('../middleware/authMiddleware');
 const { InterviewSession, InterviewPrep, TYPES } = require('./models');
-const { buildContext } = require('./studentContext');
+const { buildContext, levelOf } = require('./studentContext');
 const ai = require('./aiInterviewer');
 const template = require('./templateInterviewer');
 const { readiness } = require('./readinessService');
@@ -215,8 +215,25 @@ const ensurePrep = async (userId, context) => {
     return { prep, generating: true, coaching: false };
 };
 
+// Mock interviews open at PUC (Class 11–12) and after; a student in Class 1–10
+// gets the IQ tests and the rest, and this lock instead of the dashboard.
+const BELOW_PUC = new Set(['primary', 'middle', 'high']);
+const mockLock = async (userId) => {
+    const level = await levelOf(userId);
+    return BELOW_PUC.has(level.key) ? { classNo: level.classNo, message: 'Mock interviews unlock when you reach PUC (Class 11).' } : null;
+};
+const requireMockOpen = async (req, res, next) => {
+    try {
+        const locked = await mockLock(req.user._id);
+        return locked ? res.status(403).json({ message: locked.message, locked }) : next();
+    } catch (err) { next(err); }
+};
+
 router.get('/dashboard', async (req, res, next) => {
     try {
+        // Before the readiness and the question bank, which spend AI on a student who cannot use them.
+        const locked = await mockLock(req.user._id);
+        if (locked) return res.json({ locked });
         const context = await buildContext(req.user._id);
         if (!context) return res.status(404).json({ message: 'Account not found.' });
         const [r, { prep, generating: banking }] = await Promise.all([readiness(req.user._id, context), ensurePrep(req.user._id, context)]);
@@ -295,7 +312,7 @@ const askNext = async (session, context, userId, { judge = false } = {}) => {
 };
 
 // Wallet rules: a new mock interview is a priced feature (refunded if it fails to start).
-router.post('/sessions', chargeWallet('start_mock_interview', { when: (req) => TYPES.includes(String(req.body?.type || 'full').toLowerCase()) }), async (req, res, next) => {
+router.post('/sessions', requireMockOpen, chargeWallet('start_mock_interview', { when: (req) => TYPES.includes(String(req.body?.type || 'full').toLowerCase()) }), async (req, res, next) => {
     try {
         const type = String(req.body?.type || 'full').toLowerCase();
         if (!TYPES.includes(type)) return res.status(400).json({ message: 'Choose a valid interview type.' });
