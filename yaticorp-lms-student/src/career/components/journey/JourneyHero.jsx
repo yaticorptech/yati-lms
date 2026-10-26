@@ -1,5 +1,6 @@
-import { Rocket, Target } from 'lucide-react';
+import { Rocket, Target, BarChart3, Star, Trophy } from 'lucide-react';
 import CurrentMission from './CurrentMission';
+import JourneyStairs from './JourneyStairs';
 import './careerHero.css';
 
 /**
@@ -31,49 +32,26 @@ const MOTES = [
   { right: '10%', top: '18%', size: 'h-1 w-1', tint: 'bg-amber-100', delay: '6.2s' }
 ];
 
-export default function JourneyHero({ goal, task, completedToday = 0, totalToday = 0 }) {
+export default function JourneyHero({ goal, task, completedToday = 0, totalToday = 0, roadmapData, completedPhases = [], name }) {
   const careerGoal = goal?.careerGoal;
+  // The roadmap's phases, as the steps of the staircase (JourneyStairs).
+  const phases = roadmapData?.educationRoadmap || [];
+  // The line under the title: the student by name, and how many steps are left.
+  const firstName = String(name || '').trim().split(/\s+/)[0];
+  // Phases marked complete that exist in this roadmap, as the staircase counts them.
+  const stepsLeft = phases.length - new Set(completedPhases.map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < phases.length)).size;
+  const target = careerGoal || 'your goal';
 
   return (
-    <section className="ch-hero relative overflow-hidden rounded-3xl bg-white lg:bg-gradient-to-r from-white via-[#f7fbff] to-[#e9f1ff] shadow-card ring-1 ring-slate-100 ring-inset">
-      {/* ---- The scene ----
-          Behind the words on a wide screen, beneath them on a narrow one.
-          A phone has no room to the left of the illustration for a sentence
-          to sit, so the horizontal wash that protects the text on desktop
-          protects nothing here — it washed the left half of a picture that
-          was directly under the paragraph, and the text became unreadable
-          over the mountains. Below `lg` the scene therefore stops being a
-          background and becomes a band under the buttons. */}
-      {/* ---- Wide screens: the scene as the panel's background ----
-          career-hero-bg.png is the supplied artwork with its sky extended
-          leftwards, generated from career-hero-art.png (see the README in
-          public/illustrations). The extension is what lets the picture reach
-          both edges: the scene is 1.8:1 and this panel is close to 5:1, so
-          `cover` on the scene alone would have to scale it four times too
-          tall and would slice the trophy off the top. Widening the file
-          instead means the whole scene survives and nothing is cropped
-          vertically. */}
-      <div
-        aria-hidden
-        className="ch-art pointer-events-none absolute inset-0 hidden bg-cover bg-right bg-no-repeat lg:block"
-        style={{ backgroundImage: "url('/illustrations/career-hero-bg.png')" }}
-      />
-
-      {/* Narrow screens: the picture as a band across the top, at full
-          colour. As a washed-out background it sat directly under the
-          paragraph — the script "Small steps, big dreams" collided with the
-          sentence and the 70% white veil left the whole card looking hazy.
-          On its own band the scene is the bright part of the card and the
-          words below sit on plain white. Scaled a touch so the artwork's own
-          white rounded frame is cropped away. */}
-      <div className="relative aspect-[2/1] overflow-hidden lg:hidden">
-        <img
-          src="/illustrations/career-hero-art.png"
-          alt=""
-          aria-hidden
-          className="ch-art h-full w-full scale-[1.06] object-cover object-[60%_25%]"
-        />
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-b from-transparent to-white" />
+    <section className="ch-hero relative overflow-hidden rounded-3xl bg-white lg:min-h-[28rem] lg:bg-gradient-to-r from-white via-[#faf8ff] to-[#f1ecff] shadow-card ring-1 ring-slate-100 ring-inset">
+      {/* ---- The staircase ----
+          On a wide screen it stands to the right of the words; on a narrow
+          one, as a band above them (there is no room beside a sentence). */}
+      <div className="relative h-64 overflow-hidden lg:hidden [mask-image:linear-gradient(to_bottom,#000_84%,transparent)]">
+        {/* The staircase to the goal (JourneyStairs), in its twilight scene. */}
+        <div className="absolute inset-0">
+          <JourneyStairs phases={phases} completedPhases={completedPhases} goal={careerGoal} compact />
+        </div>
         {/* The student's own goal, where the generic badge was: the first
             thing on the page now says where *they* are headed. */}
         <span className="ch-badge absolute top-3 left-3 inline-flex max-w-[78%] items-center gap-1.5 rounded-full bg-white/85 px-2.5 py-1 text-[0.72rem] font-black text-violet-700 shadow-sm ring-1 ring-white/70 backdrop-blur">
@@ -91,17 +69,6 @@ export default function JourneyHero({ goal, task, completedToday = 0, totalToday
         </span>
       </div>
 
-      {/* Wide screens: a wash under the words only, finishing before the
-          scene begins. The artwork starts around 63% of the panel at the
-          common width and as early as 52% on a narrower one, so this is
-          fully clear by 50% and can never touch the illustration. The text
-          ends well before that — the sentence is capped at 28rem and the
-          buttons finish around 37%. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-white/88 from-0% via-white/38 via-30% to-transparent to-50% lg:block"
-      />
-
       {/* Motes rising through the sky half. */}
       <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
         {MOTES.map((m) => (
@@ -113,14 +80,27 @@ export default function JourneyHero({ goal, task, completedToday = 0, totalToday
         ))}
       </div>
 
+      {/* The staircase to the goal, on the right: a twilight scene with one
+          glass stair per phase, the mascot climbing a stair each time one is
+          finished (JourneyStairs). It fades into the white on its left, so the
+          scene and the words share one panel. */}
+      <div className="absolute inset-y-0 right-0 hidden w-[62%] lg:block [mask-image:linear-gradient(to_right,transparent,#000_20%)]">
+        <JourneyStairs phases={phases} completedPhases={completedPhases} goal={careerGoal} />
+      </div>
+      {/* A paper plane's dashed trail from the words toward the climb */}
+      <svg aria-hidden viewBox="0 0 160 60" className="pointer-events-none absolute top-[46%] left-[33%] hidden h-16 w-44 text-violet-500 lg:block">
+        <path d="M2 52 C 40 58, 60 20, 100 34 S 140 30, 150 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeDasharray="3 5" strokeLinecap="round" />
+        <path d="M138 6 L 158 2 L 150 22 L 146 14 Z" fill="currentColor" />
+      </svg>
+
       {/* ---- What this section is for ---- */}
-      <div className="relative px-5 pt-1 pb-5 sm:px-8 sm:pb-6 lg:pt-0 lg:w-[62%] lg:px-9 lg:py-8">
+      <div className="relative flex flex-col justify-center px-5 lg:items-start pt-1 pb-5 sm:px-8 sm:pb-6 lg:min-h-[28rem] lg:w-[58%] lg:px-10 lg:py-8">
         <span className="ch-badge hidden lg:inline-flex items-center gap-1.5 rounded-full bg-violet-100/80 px-2.5 py-1 text-[0.7rem] font-black text-violet-700 ring-1 ring-violet-200/70 ring-inset lg:gap-2 lg:px-3.5 lg:py-1.5 lg:text-sm">
           <Rocket className="h-4 w-4 text-orange-500" />
           Build Your Future
         </span>
 
-        <h1 className="text-[1.55rem] leading-[1.14] lg:mt-3 font-black tracking-tight text-slate-900 sm:text-[1.9rem] lg:text-[2.1rem] xl:text-[2.4rem]">
+        <h1 className="text-[1.55rem] leading-[1.1] lg:mt-4 font-black tracking-tight text-slate-900 sm:text-[1.9rem] lg:text-[2.6rem] xl:text-[3.15rem]">
           <span className="ch-in block" style={{ animationDelay: '0.08s' }}>
             Your Career Journey
           </span>
@@ -143,9 +123,13 @@ export default function JourneyHero({ goal, task, completedToday = 0, totalToday
           </span>
         </h1>
 
-        <p className="ch-in mt-4 hidden max-w-md text-[0.95rem] leading-relaxed text-slate-600 lg:block" style={{ animationDelay: '0.28s' }}>
-          Explore. Learn. Grow. Turn your goals into achievements with a step-by-step career
-          path designed just for you.
+        <p className="ch-in mt-5 max-w-[27rem] text-[0.95rem] leading-relaxed text-slate-600 lg:text-[1.15rem]" style={{ animationDelay: '0.28s' }}>
+          {firstName ? <>Hi <span className="font-black text-slate-900">{firstName}</span>, </> : 'Hi, '}
+          {!phases.length
+            ? <>your step-by-step path to <span className="font-bold text-violet-700">{target}</span> starts here.</>
+            : stepsLeft === 0
+              ? <>you&apos;ve climbed every step — you reached <span className="font-bold text-violet-700">{target}</span>! 🎉</>
+              : <>just <span className="font-black text-violet-700">{stepsLeft} step{stepsLeft === 1 ? '' : 's'}</span> left to reach <span className="font-bold text-violet-700">{target}</span>. Keep climbing! 🚀</>}
         </p>
 
 
@@ -153,10 +137,27 @@ export default function JourneyHero({ goal, task, completedToday = 0, totalToday
             has been removed: My Progress is a tab in the strip above, so the
             hero offered a second route to a page that was never hard to
             reach, at the cost of splitting attention with the quest. */}
-        <div className="ch-in mt-5 flex flex-wrap items-center gap-2.5 lg:gap-3 [&>a]:w-full [&>a]:justify-center lg:[&>a]:w-auto" style={{ animationDelay: '0.38s' }}>
+        <div className="ch-in mt-6 flex flex-wrap items-center gap-2.5 lg:gap-3 [&>a]:w-full [&>a]:justify-center lg:[&>a]:w-auto lg:[&>a]:!px-7 lg:[&>a]:!py-4 lg:[&>a]:!text-lg" style={{ animationDelay: '0.38s' }}>
           {/* Unchanged: it already carries the XP chip, the three states and
               the beacon that makes it findable. */}
           <CurrentMission task={task} completedToday={completedToday} totalToday={totalToday} />
+        </div>
+
+        {/* What the path does, in three words each */}
+        <div className="ch-in mt-7 hidden items-center gap-6 lg:flex" style={{ animationDelay: '0.48s' }}>
+          {[
+            [BarChart3, 'Learn', 'New skills', 'bg-violet-100 text-violet-600'],
+            [Star, 'Track', 'Your progress', 'bg-amber-100 text-amber-500'],
+            [Trophy, 'Achieve', 'Your goals', 'bg-emerald-100 text-emerald-600']
+          ].map(([Icon, title, sub, tone], i) => (
+            <div key={title} className={`flex items-center gap-2.5 ${i ? 'border-l border-slate-200 pl-5' : ''}`}>
+              <span className={`flex h-12 w-12 items-center justify-center rounded-full ${tone}`}><Icon className="h-6 w-6" /></span>
+              <span className="leading-tight">
+                <span className="block text-base font-black text-slate-900">{title}</span>
+                <span className="block text-sm text-slate-500">{sub}</span>
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
