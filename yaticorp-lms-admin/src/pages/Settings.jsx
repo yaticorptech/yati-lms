@@ -253,8 +253,8 @@ const Settings = () => {
                             <div className="py-6">
                                 <FeatureRow
                                     icon={Languages}
-                                    title="Linguistic Ability"
-                                    description="English learning: vocabulary, grammar, reading and writing, speaking and listening, and Kannada–English translation. Lessons are managed on the Linguistic Ability page."
+                                    title="Language Learning"
+                                    description="English learning: vocabulary, grammar, reading and writing, speaking and listening, and Kannada–English translation. Lessons are managed on the Language Learning page."
                                     enabled={features.isLinguisticEnabled !== false}
                                     saving={savingFeature === 'isLinguisticEnabled'}
                                     onToggle={(next) => toggleFeature('isLinguisticEnabled', next)}

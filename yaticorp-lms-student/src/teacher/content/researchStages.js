@@ -23,13 +23,13 @@ export const STAGE_GUIDES = {
             'Search Scopus, Web of Science, ERIC, PubMed, Google Scholar and Shodhganga (Indian theses).',
             'Screen titles and abstracts first; read full texts of the relevant ones.',
             'Record each study in a literature matrix: author, year, place, method, sample, findings, gaps.',
-            'Write by themes, comparing studies — a synthesis, not a list of summaries.'
+            'Write by themes, comparing studies: a synthesis, not a list of summaries.'
         ],
-        mistakes: ['Summarising one paper per paragraph instead of comparing them.', 'Relying on old sources only — include the last five years.', 'Citing papers you have not read.'],
+        mistakes: ['Summarising one paper per paragraph instead of comparing them.', 'Relying on old sources only; include the last five years.', 'Citing papers you have not read.'],
         tools: [['Shodhganga (Indian theses)', 'https://shodhganga.inflibnet.ac.in/'], ['Google Scholar', 'https://scholar.google.com/'], ['Zotero', 'https://www.zotero.org/']]
     },
     questions: {
-        why: 'Research questions decide everything that follows — the design, the data and the analysis. Precise questions make a thesis easier to write and to examine.',
+        why: 'Research questions decide everything that follows: the design, the data and the analysis. Precise questions make a thesis easier to write and to examine.',
         how: [
             'Write one main research question and two to four sub-questions or objectives.',
             'Use question words that match your aim: "What is the effect of…" (experimental), "What is the relationship between…" (correlational), "How do… experience…" (qualitative).',
@@ -42,8 +42,8 @@ export const STAGE_GUIDES = {
     methodology: {
         why: 'The methodology shows the reader how you answered your questions, and why they can trust the answers.',
         how: [
-            'Choose the research design that fits your questions (see Research Methodologies — the advisor helps).',
-            'Define the population, the sample size (with a reason — e.g. a power analysis with the free G*Power tool, or saturation) and the sampling method.',
+            'Choose the research design that fits your questions (see Research Methodologies; the advisor helps).',
+            'Define the population, the sample size (with a reason, e.g. a power analysis with the free G*Power tool, or saturation) and the sampling method.',
             'Choose validated instruments where possible; plan how you will check validity and reliability.',
             'Plan a pilot study to test your instruments and procedure.',
             'Match each research question to a specific analysis.'
@@ -51,7 +51,7 @@ export const STAGE_GUIDES = {
         mistakes: ['A design chosen before the questions.', 'No justification for the sample size.', 'Instruments made up without validation.']
     },
     proposal: {
-        why: 'The proposal (synopsis) is your plan, approved by your research committee. Ethics approval protects your participants — and you.',
+        why: 'The proposal (synopsis) is your plan, approved by your research committee. Ethics approval protects your participants, and you.',
         how: [
             'Follow your university\'s synopsis format: title, introduction, review, gap, objectives, methodology, timeline, references.',
             'Prepare a participant information sheet and consent form in the participants\' language.',
@@ -71,7 +71,7 @@ export const STAGE_GUIDES = {
         mistakes: ['Changing instruments half-way without recording it.', 'A single copy of the data on one laptop.', 'Identifiable information stored with responses.']
     },
     analysis: {
-        why: 'Analysis turns data into answers to your research questions — one question at a time.',
+        why: 'Analysis turns data into answers to your research questions, one question at a time.',
         how: [
             'Clean the data: check for errors, missing values and outliers.',
             'Quantitative: check assumptions, then run the planned tests; report effect sizes, not only p-values.',
@@ -85,11 +85,11 @@ export const STAGE_GUIDES = {
     writing: {
         why: 'Writing is where the thesis comes together. Steady writing through the project is easier than writing everything at the end.',
         how: [
-            'Draft results and methods first — they are the most concrete.',
+            'Draft results and methods first; they are the most concrete.',
             'Then the discussion: what the results mean and how they compare with earlier work.',
             'Revise the introduction and literature review to fit what you found.',
             'Write the conclusion and abstract last.',
-            'Use Thesis Writing here — each chapter has its own guide.'
+            'Use Thesis Writing here; each chapter has its own guide.'
         ],
         mistakes: ['Leaving all the writing to the last few months.', 'A discussion that only repeats the results.', 'Ignoring the university\'s formatting rules until the end.']
     },
@@ -99,7 +99,7 @@ export const STAGE_GUIDES = {
             'Format the thesis to your university\'s rules; complete declarations and certificates.',
             'Run the plagiarism check required by your university and keep the report.',
             'Submit, then prepare for the viva: a 20–30 minute presentation of the problem, method, findings and contribution.',
-            'Anticipate questions on your choices: why this design, this sample, this analysis — and your limitations.',
+            'Anticipate questions on your choices: why this design, this sample, this analysis, and your limitations.',
             'After the viva, make the corrections asked for within the time allowed.'
         ],
         mistakes: ['Not knowing your own limitations.', 'A presentation that reads slides aloud.', 'Missing the deadline for corrections.']
@@ -112,7 +112,7 @@ export const STAGE_GUIDES = {
             'Follow the step-by-step publishing guide on the Publications Map.',
             'Present at conferences and share your work after publication.'
         ],
-        mistakes: ['Publishing in predatory journals.', 'Waiting years after the viva — findings lose their freshness.'],
+        mistakes: ['Publishing in predatory journals.', 'Waiting years after the viva; findings lose their freshness.'],
         guideLink: true
     }
 };

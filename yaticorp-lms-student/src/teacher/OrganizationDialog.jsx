@@ -24,19 +24,19 @@ const CopyCode = ({ code }) => {
         try { await navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* the code is on screen to copy by hand */ }
     };
     return (
-        <button type="button" onClick={copy} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-1 font-mono text-xs font-bold text-slate-700 hover:bg-slate-200" aria-label={`Copy Organization ID ${code}`}>
+        <button type="button" onClick={copy} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-1 font-mono text-xs font-semibold text-slate-700 hover:bg-slate-200" aria-label={`Copy Organization ID ${code}`}>
             {code} {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
         </button>
     );
 };
 
 const OrgCard = ({ org, children }) => (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5">
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5">
         {org.logo
             ? <img src={org.logo} alt="" className="h-12 w-12 shrink-0 rounded-xl border border-slate-100 object-contain" />
             : <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><Building2 size={24} aria-hidden="true" /></span>}
         <div className="min-w-0 flex-1">
-            <p className="text-sm font-black text-slate-900 [overflow-wrap:anywhere]">{org.name}</p>
+            <p className="text-sm font-semibold text-slate-900 [overflow-wrap:anywhere]">{org.name}</p>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 {org.typeLabel && <span>{org.typeLabel}</span>}
                 {org.orgCode && <CopyCode code={org.orgCode} />}
@@ -102,9 +102,9 @@ export default function OrganizationDialog({ onClose, onChanged }) {
     const rejected = request?.status === 'rejected' && !state?.member;
     const title = state?.member ? 'Your organization' : pending ? 'Waiting for approval' : 'Add your organization';
 
+    // Closed with the × at the top only — no second Close button (the user's ask).
     return (
-        <Modal title={title} onClose={onClose} labelId="organization-dialog-title"
-            footer={<button type="button" onClick={onClose} className={btn.secondary}>Close</button>}>
+        <Modal title={title} onClose={onClose} labelId="organization-dialog-title">
             <div className="space-y-3">
                 <ErrorNote onRetry={!state ? load : undefined}>{error}</ErrorNote>
                 <OkNote>{note}</OkNote>
@@ -112,7 +112,7 @@ export default function OrganizationDialog({ onClose, onChanged }) {
 
                 {state?.member && (
                     <>
-                        <p className="flex items-center gap-1.5 text-sm font-bold text-emerald-700"><CheckCircle2 size={16} aria-hidden="true" /> You are a member</p>
+                        <p className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700"><CheckCircle2 size={16} aria-hidden="true" /> You are a member</p>
                         <OrgCard org={state.organization}>
                             {state.organization.status && state.organization.status !== 'active' && (
                                 <button type="button" onClick={leave} disabled={busy === 'leave'} className={btn.danger}>{busy === 'leave' ? <Loader2 size={15} className="animate-spin" /> : <LogOut size={15} />} Leave</button>
@@ -122,14 +122,14 @@ export default function OrganizationDialog({ onClose, onChanged }) {
                         {state.organization.accessNote && <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{state.organization.accessNote} You can leave it and join another.</p>}
                         <p className="flex items-start gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
                             <ShieldCheck size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-                            <span>Your organization sees your progress — research stages, publication titles and status, thesis word counts — to support your research. It never sees the words you write. To leave, ask your organization to remove you.</span>
+                            <span>Your organization sees your progress (research stages, publication titles and status, thesis word counts) to support your research. It never sees the words you write. To leave, ask your organization to remove you.</span>
                         </p>
                     </>
                 )}
 
                 {state && !state.member && pending && (
                     <>
-                        <p className="flex items-center gap-1.5 text-sm font-bold text-amber-700"><Clock size={16} aria-hidden="true" /> Your request is with the organization</p>
+                        <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-700"><Clock size={16} aria-hidden="true" /> Your request is with the organization</p>
                         <OrgCard org={request.organization || { name: 'Your organization' }}>
                             <button type="button" onClick={withdraw} disabled={busy === 'withdraw'} className={btn.secondary}>{busy === 'withdraw' && <Loader2 size={15} className="animate-spin" />} Withdraw</button>
                         </OrgCard>
@@ -151,7 +151,7 @@ export default function OrganizationDialog({ onClose, onChanged }) {
                                 <span>{request.organization?.name || 'The organization'} declined your request{request.decisionReason ? `: “${request.decisionReason}”` : '.'} You can ask again, or join another.</span>
                             </p>
                         )}
-                        <p className="text-sm text-slate-600">Ask your college or school for its <strong>Organization ID</strong> (for example <span className="font-mono">xxx_college</span>). Find it, check it is the right one, and ask to join — their admin approves.</p>
+                        <p className="text-sm text-slate-600">Ask your college or school for its <strong>Organization ID</strong> (for example <span className="font-mono">xxx_college</span>). Find it, check it is the right one, and ask to join. Their admin approves.</p>
                         <form onSubmit={find} className="flex flex-col gap-2 sm:flex-row sm:items-end">
                             <div className="min-w-0 flex-1">
                                 <Field id="org-code" label="Organization ID" error={findError}>
@@ -164,7 +164,7 @@ export default function OrganizationDialog({ onClose, onChanged }) {
                         {found && (
                             <div className="space-y-2">
                                 <OrgCard org={found.organization}>
-                                    {found.alreadyMember ? <span className="text-sm font-bold text-emerald-700">You are a member</span>
+                                    {found.alreadyMember ? <span className="text-sm font-semibold text-emerald-700">You are a member</span>
                                         : <button type="button" onClick={join} disabled={busy === 'join' || found.hasPendingRequest} className={btn.primary}>{busy === 'join' && <Loader2 size={15} className="animate-spin" />} Ask to join</button>}
                                 </OrgCard>
                                 {found.pendingElsewhere && <p className="text-xs text-amber-700">You have a request waiting with another organization. Withdraw it first.</p>}

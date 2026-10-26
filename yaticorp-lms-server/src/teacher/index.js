@@ -2,16 +2,15 @@
  * The teacher dashboard's API — /api/teacher
  *
  *   auth/*              register a card, sign in, card scan, forgotten password
- *   me                  the teacher's own details and password
+ *   me                  the teacher's own details, photo and password
  *   overview            the dashboard's summary of everything below
- *   methods             Research Methodologies: which guides are studied (the guides are in the app)
  *   projects            Research Path: projects, stages, tasks
  *   publications        Publications Map
  *   theses              Thesis Writing: chapters, PDF (the chapter guides are in the app)
  *   writing             Independent Writing: pieces, daily goal, the last 14 days
  *   plagiarism          the similarity check, its reports, and the teacher's uploaded sources
- *   guides              which steps of the guides the teacher has marked as read
  *   organization        joining a college or school (organization.js)
+ *   clubs               the organization's clubs this teacher is in charge of: their events (../nccnss/teacher.js)
  *
  * Every route past auth/ reads req.teacher only: a teacher can never reach
  * another's records (the plagiarism check compares against other documents,
@@ -22,9 +21,8 @@ const mongoose = require('mongoose');
 const { authLimiter, cardLookupLimiter, loginLimiter, loginCardLimiter } = require('../middleware/rateLimiter');
 const { dayKey, addDays } = require('../rewards/config/constants');
 const auth = require('./auth');
-const { Teacher, ResearchProject, Publication, Thesis, WritingPiece, WritingLog, PlagiarismReport, TextVersion, PlagiarismSource, PUBLICATION_TYPES, PUBLICATION_STATUSES, INDEXING, CHAPTER_STATUSES, WRITING_KINDS, GUIDES } = require('./models');
-const METHOD_KEYS = require('./methodKeys');
-const { newStages, progressOf, STAGES, KINDS } = require('./researchPath');
+const { Teacher, ResearchProject, Publication, Thesis, WritingPiece, WritingLog, PlagiarismReport, TextVersion, PlagiarismSource, PUBLICATION_TYPES, PUBLICATION_STATUSES, INDEXING, CHAPTER_STATUSES, WRITING_KINDS } = require('./models');
+const { newStages, fitToTopic, pathKey, progressOf, STAGES, KINDS } = require('./researchPath');
 const { compare, citationCheck, wordCount, SHINGLE } = require('./similarity');
 const { renderThesisPdf } = require('./thesisPdf');
 const { renderThesisDocx } = require('./thesisDocx');
@@ -118,6 +116,12 @@ router.use(protectTeacher);
 router.get('/me', auth.me);
 router.put('/me', auth.updateMe);
 router.put('/me/password', auth.changePassword);
+// A file over 5 MB, or not an image, gets a message the teacher can act on.
+router.post('/me/picture', (req, res, next) => require('../middleware/uploadMiddleware').upload.single('profilePicture')(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'That photo is too large. Choose one under 5 MB.' });
+    return res.status(400).json({ message: err.message || 'That file could not be read as a photo.' });
+}), auth.uploadPicture);
 
 /* ── Overview ──────────────────────────────────────────────────────────── */
 
@@ -125,7 +129,7 @@ router.get('/overview', async (req, res) => {
     try {
         const t = req.teacher;
         const [project, pubs, thesis, stats, lastReport] = await Promise.all([
-            ResearchProject.findOne({ teacherId: t._id }).sort({ updatedAt: -1 }).lean(),
+            ResearchProject.findOne({ teacherId: t._id }).sort({ updatedAt: -1 }).then(fitted),
             Publication.find({ teacherId: t._id }).select('status type year').lean(),
             Thesis.findOne({ teacherId: t._id }).sort({ updatedAt: -1 }).lean(),
             writingStats(t),
@@ -135,11 +139,9 @@ router.get('/overview', async (req, res) => {
         pubs.forEach((p) => { byStatus[p.status] = (byStatus[p.status] || 0) + 1; });
         const thesisWords = thesis ? thesis.chapters.reduce((n, c) => n + wordCount(c.content), 0) : 0;
         const org = t.organizationId ? await mongoose.model('Organization').findById(t.organizationId).select('name orgCode').lean() : null;
-        const guideRead = t.guideRead instanceof Map ? Object.fromEntries(t.guideRead) : {};
         res.json({
             teacher: auth.view(t),
             organization: org ? { name: org.name, orgCode: org.orgCode } : null,
-            guides: Object.fromEntries(Object.keys(GUIDES).map((g) => [g, (guideRead[g] || []).length])),
             research: project ? { _id: project._id, title: project.title, ...progressOf(project) } : null,
             publications: { total: pubs.length, published: byStatus.published, inReview: byStatus.submitted + byStatus.under_review + byStatus.revision, byStatus },
             thesis: thesis ? {
@@ -147,62 +149,39 @@ router.get('/overview', async (req, res) => {
                 chapters: thesis.chapters.length, chaptersDone: thesis.chapters.filter((c) => c.status === 'done').length
             } : null,
             writing: stats,
-            plagiarism: lastReport ? { _id: lastReport._id, title: lastReport.title, score: lastReport.score, at: lastReport.createdAt } : null,
-            methods: { studied: (t.methodsStudied || []).length, total: METHOD_KEYS.length }
+            plagiarism: lastReport ? { _id: lastReport._id, title: lastReport.title, score: lastReport.score, at: lastReport.createdAt } : null
         });
     } catch (error) { fail(res, 'overview', error); }
 });
 
 /* ── Research Methodologies ────────────────────────────────────────────── */
 
-// No outside service anywhere on the teacher side (the user's rule, 2026-10-22):
-// the guides, the advisor and the chapter guides all run in the app.
-router.get('/methods', (req, res) => res.json({ studied: req.teacher.methodsStudied || [] }));
-
-router.put('/methods/:key/studied', async (req, res) => {
-    try {
-        if (!METHOD_KEYS.includes(req.params.key)) return notFound(res, 'That methodology');
-        const op = req.body?.studied === false ? { $pull: { methodsStudied: req.params.key } } : { $addToSet: { methodsStudied: req.params.key } };
-        const t = await Teacher.findByIdAndUpdate(req.teacher._id, op, { returnDocument: 'after' }).select('methodsStudied');
-        res.json({ studied: t.methodsStudied });
-    } catch (error) { fail(res, 'methods studied', error); }
-});
-
-/* ── Guides read ───────────────────────────────────────────────────────── */
-
-// The guides themselves are in the app; the server keeps which steps are read.
-router.get('/guides', (req, res) => {
-    const read = req.teacher.guideRead instanceof Map ? Object.fromEntries(req.teacher.guideRead) : {};
-    res.json({ read: Object.fromEntries(Object.keys(GUIDES).map((g) => [g, read[g] || []])) });
-});
-
-router.put('/guides/:guide/:step', async (req, res) => {
-    try {
-        const { guide, step } = req.params;
-        if (!GUIDES[guide] || !/^[a-z0-9-]{1,40}$/.test(step)) return notFound(res, 'That guide step');
-        const path = `guideRead.${guide}`;
-        const read = req.body?.read !== false;
-        if (read && (req.teacher.guideRead?.get(guide) || []).length >= GUIDES[guide] && !(req.teacher.guideRead.get(guide) || []).includes(step)) {
-            return bad(res, 'That guide has no more steps to mark.');
-        }
-        const t = await Teacher.findByIdAndUpdate(req.teacher._id, read ? { $addToSet: { [path]: step } } : { $pull: { [path]: step } }, { returnDocument: 'after' }).select('guideRead');
-        res.json({ guide, read: t.guideRead?.get(guide) || [] });
-    } catch (error) { fail(res, 'guide read', error); }
-});
+// Nothing here: the guides and the advisor run in the app, and there is no
+// "studied" mark to keep (removed 2026-10-26). No outside service anywhere on
+// the teacher side (the user's rule, 2026-10-22).
 
 /* ── Organization ──────────────────────────────────────────────────────── */
 
 router.use('/organization', require('./organization'));
 
+/* ── Clubs in my charge (src/nccnss/teacher.js) ───────────────────────── */
+
+router.use('/clubs', require('../nccnss/teacher'));
+
 /* ── Research Path ─────────────────────────────────────────────────────── */
 
 const ownProject = (req) => (validId(req.params.id) ? ResearchProject.findOne({ _id: req.params.id, teacherId: req.teacher._id }) : null);
 const projectOut = (p) => ({ ...p.toObject(), progress: progressOf(p) });
+/** A project made before the path was worded for its topic is brought up to date as it is read. */
+const fitted = async (p) => {
+    if (p && fitToTopic(p)) await p.save({ timestamps: false });
+    return p;
+};
 const GOALS = ['phd', 'masters', 'postdoc', 'funded', 'independent'];
 
 router.get('/projects', async (req, res) => {
     try {
-        const list = await ResearchProject.find({ teacherId: req.teacher._id }).sort({ updatedAt: -1 });
+        const list = await Promise.all((await ResearchProject.find({ teacherId: req.teacher._id }).sort({ updatedAt: -1 })).map(fitted));
         res.json({
             projects: list.map(projectOut),
             template: STAGES.map(({ key, title, description }) => ({ key, title, description })),
@@ -216,14 +195,16 @@ router.post('/projects', async (req, res) => {
         const title = text(req.body?.title, 300);
         if (title.length < 3) return bad(res, 'Give the project a title.', 'title');
         if ((await ResearchProject.countDocuments({ teacherId: req.teacher._id })) >= 20) return bad(res, 'You can keep up to 20 research projects.');
+        const field = text(req.body?.field, 200);
+        const kind = KINDS[req.body?.kind] ? req.body.kind : 'general';
         const p = await ResearchProject.create({
-            teacherId: req.teacher._id, title,
-            field: text(req.body?.field, 200),
+            teacherId: req.teacher._id, title, field,
             goal: GOALS.includes(req.body?.goal) ? req.body.goal : 'phd',
             startDate: optionalDate(req.body?.startDate) || new Date(),
             targetDate: optionalDate(req.body?.targetDate) || undefined,
-            kind: KINDS[req.body?.kind] ? req.body.kind : 'general',
-            stages: newStages(KINDS[req.body?.kind] ? req.body.kind : 'general')
+            kind,
+            stages: newStages(kind, { title, field }),
+            pathFor: pathKey({ title, field })
         });
         res.status(201).json(projectOut(p));
     } catch (error) { fail(res, 'new project', error); }
@@ -231,7 +212,7 @@ router.post('/projects', async (req, res) => {
 
 router.get('/projects/:id', async (req, res) => {
     try {
-        const p = await ownProject(req);
+        const p = await fitted(await ownProject(req));
         return p ? res.json(projectOut(p)) : notFound(res, 'That project');
     } catch (error) { fail(res, 'project', error); }
 });
@@ -248,6 +229,7 @@ router.put('/projects/:id', async (req, res) => {
         if (req.body?.field !== undefined) p.field = text(req.body.field, 200);
         if (GOALS.includes(req.body?.goal)) p.goal = req.body.goal;
         for (const k of ['startDate', 'targetDate']) { const d = optionalDate(req.body?.[k]); if (d !== undefined) p[k] = d; }
+        fitToTopic(p);
         await p.save();
         res.json(projectOut(p));
     } catch (error) { fail(res, 'update project', error); }
@@ -550,7 +532,7 @@ router.put('/theses/:id/chapters/:chapter', async (req, res) => {
         }
         if (body.content !== undefined) {
             const content = String(body.content ?? '');
-            if (content.length > 400000) return bad(res, 'This chapter is too long to save in one piece — split it into two chapters.', 'content');
+            if (content.length > 400000) return bad(res, 'This chapter is too long to save in one piece. Split it into two chapters.', 'content');
             added = wordCount(content) - wordCount(c.content);
             await versionBeforeSave({ teacherId: req.teacher._id, kind: 'chapter', docId: t._id, chapterId: c._id }, c.title, c.content, content);
             c.content = content;
@@ -730,7 +712,7 @@ router.put('/writing/:id', async (req, res) => {
         }
         if (body.content !== undefined) {
             const content = String(body.content ?? '');
-            if (content.length > 400000) return bad(res, 'This piece is too long to save in one go — split it into two.', 'content');
+            if (content.length > 400000) return bad(res, 'This piece is too long to save in one go. Split it into two.', 'content');
             added = wordCount(content) - wordCount(p.content);
             await versionBeforeSave({ teacherId: req.teacher._id, kind: 'writing', docId: p._id, chapterId: null }, p.title, p.content, content);
             p.content = content;
@@ -787,7 +769,7 @@ const corpusFor = async (teacherId, exclude) => {
         for (const c of t.chapters || []) {
             if (exclude.chapterId && String(c._id) === String(exclude.chapterId)) continue;
             if (wordCount(c.content) < SHINGLE) continue;
-            sources.push({ own: mine(t.teacherId), label: mine(t.teacherId) ? `Your thesis “${t.title}” — ${c.title}` : 'Another document on YATICORP', text: c.content });
+            sources.push({ own: mine(t.teacherId), label: mine(t.teacherId) ? `Your thesis “${t.title}”: ${c.title}` : 'Another document on YATICORP', text: c.content });
         }
     }
     for (const p of pieces) {
@@ -809,7 +791,7 @@ router.post('/plagiarism/check', async (req, res) => {
             const t = validId(body.source.id) && await Thesis.findOne({ _id: body.source.id, teacherId: req.teacher._id });
             const c = t && validId(body.source.chapterId) && t.chapters.id(body.source.chapterId);
             if (!c) return notFound(res, 'That chapter');
-            content = c.content; title = `${t.title} — ${c.title}`;
+            content = c.content; title = `${t.title}: ${c.title}`;
             Object.assign(source, { kind: 'thesis', id: t._id, chapterId: c._id });
             exclude.chapterId = c._id;
         } else if (body.source?.kind === 'writing') {
@@ -821,7 +803,7 @@ router.post('/plagiarism/check', async (req, res) => {
         }
         const words = wordCount(content);
         if (words < MIN_WORDS) return bad(res, `Add at least ${MIN_WORDS} words to check.`, 'text');
-        if (words > MAX_WORDS) return bad(res, `Check up to ${MAX_WORDS.toLocaleString('en-IN')} words at a time — split a long chapter into parts.`, 'text');
+        if (words > MAX_WORDS) return bad(res, `Check up to ${MAX_WORDS.toLocaleString('en-IN')} words at a time. Split a long chapter into parts.`, 'text');
 
         const sources = await corpusFor(req.teacher._id, exclude);
         const result = compare(content, sources);
@@ -875,7 +857,7 @@ router.post('/plagiarism/sources', async (req, res) => {
         content = content.replace(/\u0000/g, '').trim();
         const title = text(body.title, 300) || text(body.fileName, 300).replace(/\.[a-z0-9]+$/i, '') || 'Untitled source';
         const words = wordCount(content);
-        if (words < MIN_WORDS) return bad(res, 'No readable text was found in that file. A scanned PDF (a picture of pages) has no text to compare — use a PDF with selectable text.', 'file');
+        if (words < MIN_WORDS) return bad(res, 'No readable text was found in that file. A scanned PDF (a picture of pages) has no text to compare. Use a PDF with selectable text.', 'file');
         if (content.length > SOURCE_MAX_CHARS) return bad(res, 'That file is too long. Upload a single paper or chapter (up to about 80,000 words).', 'file');
         if ((await PlagiarismSource.countDocuments({ teacherId: req.teacher._id })) >= MAX_UPLOADS) return bad(res, `You can keep up to ${MAX_UPLOADS} sources. Delete one you no longer need first.`);
         const s = await PlagiarismSource.create({ teacherId: req.teacher._id, title, fileName: text(body.fileName, 300), text: content, words });

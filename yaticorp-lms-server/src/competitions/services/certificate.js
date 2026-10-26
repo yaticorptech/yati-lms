@@ -6,7 +6,7 @@
 const PDFDocument = require('pdfkit');
 
 const ORDINAL = { 1: '1st', 2: '2nd', 3: '3rd' };
-const GAME = { chess: 'Chess', ludo: 'Ludo', carrom: 'Carrom', uno: 'UNO' };
+const GAME = { arena: 'Quiz Arena', chess: 'Chess', rapidfire: 'Rapid Fire', codeclash: 'Code Clash', brainsprint: 'Brain Sprint', ludo: 'Ludo', carrom: 'Carrom', uno: 'UNO', quiz: 'Quiz', hackathon: 'Hackathon' };
 const TITLE = { 1: 'Winner', 2: 'Runner-up', 3: 'Third Place' };
 
 /**
@@ -34,11 +34,16 @@ const TPL_H = 1049;
 const RED = '#8b1418';
 const LEAD = { 1: 'has won first place in the', 2: 'has finished runner-up in the', 3: 'has finished third in the' };
 
-/** The words on a winner's certificate — shared with the preview's wording. */
-const winnerWords = ({ competition, team, place }) => ({
+/**
+ * The words on a winner's certificate — shared with the preview's wording.
+ * `paragraph` replaces the team-and-game paragraph, for a contest played
+ * alone (Quiz Arena).
+ */
+const winnerWords = ({ competition, team, place, paragraph }) => ({
     subtitle: `of Achievement — ${TITLE[place]}`,
     lead: LEAD[place],
-    paragraph: `This certificate is awarded in recognition of your outstanding performance with ${team.teamName} (${team.collegeName}) in ${GAME[competition.game] || competition.game}. Your achievement reflects your skill, team spirit and sportsmanship, and the effort you brought to every match.`,
+    // `paragraph` (a contest played alone) replaces it. A student on their own has no team to name; a quiz or a hackathon has no matches.
+    paragraph: paragraph || `This certificate is awarded in recognition of your outstanding performance${team.soloUserId ? '' : ` with ${team.teamName} (${team.collegeName})`} in ${GAME[competition.game] || competition.game}. Your achievement reflects your skill, ${team.soloUserId ? 'dedication' : 'team spirit'} and ${['quiz', 'hackathon'].includes(competition.game) ? 'hard work' : 'sportsmanship'}, and the effort you brought to ${{ quiz: 'every question', hackathon: 'your project' }[competition.game] || 'every match'}.`,
     date: (competition.completedAt ? new Date(competition.completedAt) : new Date()).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 });
 
@@ -50,12 +55,12 @@ const fit = (doc, text, font, size, width, min) => {
     return s;
 };
 
-const drawWinner = (doc, { competition, team, playerName, place }) => {
+const drawWinner = (doc, { competition, team, playerName, place, paragraph }) => {
     const W = doc.page.width;
     const H = doc.page.height;
     const X = (px) => (px / TPL_W) * W;
     const Y = (px) => (px / TPL_H) * H;
-    const words = winnerWords({ competition, team, place });
+    const words = winnerWords({ competition, team, place, paragraph });
 
     doc.image(WINNER_TEMPLATE, 0, 0, { width: W, height: H });
     doc.fillColor('#1f1f1f').font('Helvetica').fontSize(X(30)).text(words.subtitle, X(155), Y(314), { lineBreak: false });
@@ -68,7 +73,11 @@ const drawWinner = (doc, { competition, team, playerName, place }) => {
     doc.fillColor('#111111').font('Times-Roman').fontSize(X(19)).text(`Date: ${words.date}`, X(838), Y(930), { lineBreak: false });
 };
 
-const draw = (res, { competition, team, playerName, place }) => {
+/**
+ * Send the certificate PDF. For a contest played alone, `paragraph` (winners)
+ * and `line` (everyone else) replace the wording about the team.
+ */
+const draw = (res, { competition, team, playerName, place, paragraph, line: ownLine }) => {
     const doc = new PDFDocument({ layout: 'landscape', size: 'A4', margin: 0 });
     const name = `${competition.name}`.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'Competition';
     res.setHeader('Content-Type', 'application/pdf');
@@ -78,7 +87,7 @@ const draw = (res, { competition, team, playerName, place }) => {
     // 1st, 2nd and 3rd: the designed certificate. Without its picture (a
     // deploy that left it out), they get the plain one below rather than none.
     if (place && fs.existsSync(WINNER_TEMPLATE)) {
-        drawWinner(doc, { competition, team, playerName, place });
+        drawWinner(doc, { competition, team, playerName, place, paragraph });
         doc.end();
         return;
     }
@@ -111,9 +120,9 @@ const draw = (res, { competition, team, playerName, place }) => {
     doc.fillColor(ink).font('Times-BoldItalic').fontSize(36)
         .text(playerName, 60, winner ? 258 : 218, { width: W - 120, align: 'center' });
 
-    const line = winner
+    const line = ownLine || (winner
         ? `${place === 1 ? 'for winning' : `for finishing ${place === 2 ? 'runner-up' : 'third'}`} with ${team.teamName} (${team.collegeName})`
-        : `for representing ${team.collegeName} as part of ${team.teamName}`;
+        : `for representing ${team.collegeName} as part of ${team.teamName}`);
     doc.fillColor('#334155').font('Helvetica').fontSize(14)
         .text(line, 80, winner ? 312 : 272, { width: W - 160, align: 'center' });
     doc.fillColor(ink).font('Helvetica-Bold').fontSize(16)

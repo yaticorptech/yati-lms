@@ -42,7 +42,7 @@ const summary = (l) => ({ id: idOf(l._id), module: l.module, level: l.level, ord
 router.get('/overview', async (_req, res, next) => {
     try {
         const [lessons, students, pending] = await Promise.all([
-            LinguisticLesson.find({ deletedAt: null, course: null, review: null }).select('module level status').lean(),
+            LinguisticLesson.find({ deletedAt: null, course: null, review: null, part: null }).select('module level status').lean(),
             LinguisticProgress.countDocuments({}),
             LinguisticSubmission.countDocuments({ status: 'pending' })
         ]);
@@ -54,7 +54,7 @@ router.get('/overview', async (_req, res, next) => {
 
 router.get('/lessons', async (req, res, next) => {
     try {
-        const filter = { deletedAt: null, course: null, review: null };
+        const filter = { deletedAt: null, course: null, review: null, part: null };
         if (MODULES.includes(req.query.module)) filter.module = req.query.module;
         if (LEVELS.includes(req.query.level)) filter.level = req.query.level;
         const rows = await LinguisticLesson.find(filter).sort({ module: 1, level: 1, order: 1, createdAt: 1 }).lean();
@@ -64,7 +64,7 @@ router.get('/lessons', async (req, res, next) => {
 });
 
 // The English course's lessons: the other languages' courses are made from them (courses.js), not edited.
-const own = (id) => (mongoose.isValidObjectId(id) ? LinguisticLesson.findOne({ _id: id, deletedAt: null, course: null, review: null }) : null);
+const own = (id) => (mongoose.isValidObjectId(id) ? LinguisticLesson.findOne({ _id: id, deletedAt: null, course: null, review: null, part: null }) : null);
 
 router.get('/lessons/:id', async (req, res, next) => {
     try {

@@ -10,6 +10,7 @@ import { UserCheck, UserSearch, Upload, Download, QrCode, Lock, Camera, Keyboard
 import * as XLSX from 'xlsx';
 import PasswordStrengthChecker from '../components/PasswordStrengthChecker';
 import { Html5Qrcode } from 'html5-qrcode';
+import { stopReader } from '../utils/qrReader';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import Select from '../components/Select';
 import { useAuth } from '../context/AuthContext';
@@ -78,8 +79,6 @@ const Users = () => {
     // after the admin has moved to another student is dropped.
     const passwordRequestFor = useRef(null);
     const [courses, setCourses] = useState([]);
-    const [bundles, setBundles] = useState([]);
-    const [selectedAssignType, setSelectedAssignType] = useState('Course');
     const [selectedAssignId, setSelectedAssignId] = useState('');
 
     const [search, setSearch] = useState('');
@@ -129,6 +128,7 @@ const Users = () => {
     const [addScanMode, setAddScanMode] = useState('manual');
     const [addScannerError, setAddScannerError] = useState('');
     const addScannerRef = useRef(null);
+    const addScannerStarted = useRef(null);
     const ADD_SCANNER_ID = 'qr-reader-add-student';
 
     // Bulk Upload State
@@ -162,14 +162,6 @@ const Users = () => {
             .then(res => {
                 const publishedCourses = res.data.filter(c => c.isPublished === true);
                 setCourses(publishedCourses);
-            })
-            .catch(console.error);
-
-        // ✅ Filter only published bundles
-        api.get('/admin/bundles')
-            .then(res => {
-                const publishedBundles = res.data.filter(b => b.isPublished === true);
-                setBundles(publishedBundles);
             })
             .catch(console.error);
 
@@ -280,7 +272,7 @@ const Users = () => {
     const assignContent = async () => {
         if (!selectedAssignId) {
             setAlertType('error');
-            setAlertMessage('Please select a course or bundle');
+            setAlertMessage('Please select a course');
             setShowAlert(true);
             return;
         }
@@ -288,13 +280,13 @@ const Users = () => {
         try {
             await api.post('/admin/enrollments', {
                 userId: selectedUser._id,
-                type: selectedAssignType,
-                courseId: selectedAssignType === 'Course' ? selectedAssignId : undefined,
-                bundleId: selectedAssignType === 'Bundle' ? selectedAssignId : undefined
+                // Courses only: bundles were taken off every dashboard (2026-10-26).
+                type: 'Course',
+                courseId: selectedAssignId
             });
 
             setAlertType('success');
-            setAlertMessage(`${selectedAssignType} assigned successfully`);
+            setAlertMessage('Course assigned successfully');
             setShowAlert(true);
 
             openUserModal(selectedUser);
@@ -318,7 +310,7 @@ const Users = () => {
         try {
             const scanner = new Html5Qrcode(ADD_SCANNER_ID);
             addScannerRef.current = scanner;
-            await scanner.start(
+            addScannerStarted.current = scanner.start(
                 { facingMode: 'environment' },
                 { fps: 10, qrbox: { width: 220, height: 220 } },
                 (decoded) => {
@@ -329,6 +321,7 @@ const Users = () => {
                 },
                 () => { }
             );
+            await addScannerStarted.current;
         } catch {
             setAddScannerError('Camera access denied. Please enter the QR code manually.');
             setAddScanMode('manual');
@@ -336,8 +329,9 @@ const Users = () => {
     };
 
     const stopAddScanner = () => {
+        // Safely, and after the camera has finished starting (utils/qrReader).
         if (addScannerRef.current) {
-            addScannerRef.current.stop().catch(() => { });
+            stopReader(addScannerRef.current, addScannerStarted.current);
             addScannerRef.current = null;
         }
     };
@@ -869,20 +863,6 @@ const Users = () => {
                                 {/* Stacked full width on a phone, one row from sm up. */}
                                 <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
 
-                                    {/* TYPE SELECT */}
-                                    <Select
-                                        value={selectedAssignType}
-                                        onChange={(e) => {
-                                            setSelectedAssignType(e.target.value);
-                                            setSelectedAssignId('');
-                                            setShowAlert(false); // ✅ clear previous popup
-                                        }}
-                                        className="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm w-full sm:w-40 focus:ring-2 focus:ring-indigo-500"
-                                    >
-                                        <option value="Course">Course</option>
-                                        <option value="Bundle">Bundle</option>
-                                    </Select>
-
                                     {/* COURSE SELECT */}
                                     <Select
                                         value={selectedAssignId}
@@ -891,18 +871,11 @@ const Users = () => {
                                     >
                                         <option value="">Select</option>
 
-                                        {selectedAssignType === 'Course'
-                                            ? courses.map(c => (
-                                                <option key={c._id} value={c._id}>
-                                                    {c.title}
-                                                </option>
-                                            ))
-                                            : bundles.map(b => (
-                                                <option key={b._id} value={b._id}>
-                                                    {b.title}
-                                                </option>
-                                            ))
-                                        }
+                                        {courses.map(c => (
+                                            <option key={c._id} value={c._id}>
+                                                {c.title}
+                                            </option>
+                                        ))}
                                     </Select>
 
                                     {/* BUTTON */}

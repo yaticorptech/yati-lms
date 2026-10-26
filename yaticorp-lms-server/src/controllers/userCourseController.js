@@ -95,6 +95,10 @@ const getMyCourses = async (req, res) => {
         // to any signed-in student, so the list is the same for everybody and
         // only the progress on it differs.
         const bundles = await findPublishedBundles();
+        // Students no longer see bundles (removed from every dashboard,
+        // 2026-10-26): a course open to them through any published bundle is
+        // listed with their courses instead, so none is out of reach.
+        bundles.forEach(b => b.courses?.forEach(c => courseIds.add(c._id.toString())));
 
         const courses = await Course.find({ _id: { $in: Array.from(courseIds) }, isPublished: true });
         const foundCourseIds = new Set(courses.map(c => c._id.toString()));
@@ -568,7 +572,7 @@ const enrollCourse = async (req, res) => {
                     const cur = w?.currency || 'INR';
                     return res.status(402).json({
                         code: 'INSUFFICIENT_FUNDS',
-                        message: `This course costs ${cur} ${price} and your wallet balance is ${cur} ${walletService.money(w?.available || 0)}. Earn XP on Career Path to add to your wallet balance.`,
+                        message: `This course costs ${cur} ${price} and your wallet balance is ${cur} ${walletService.money(w?.available || 0)}.`,
                         needed: price, balance: w?.available || 0
                     });
                 }

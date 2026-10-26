@@ -24,7 +24,7 @@ export const METHODS = [
     },
     {
         key: 'survey', name: 'Survey research', family: 'Quantitative',
-        summary: 'Collects standardised answers from many people to describe a population — what they think, do or have — and how groups differ.',
+        summary: 'Collects standardised answers from many people to describe a population (what they think, do or have) and how groups differ.',
         bestFor: ['Describing attitudes, perceptions, practices or prevalence in a large group', 'Comparing groups (by gender, region, discipline…)', 'Questions that start with "What are…" or "How many…"'],
         questionsLike: ['What are secondary-school teachers\' perceptions of AI tools in assessment?', 'How prevalent is academic stress among engineering undergraduates in Karnataka?'],
         steps: ['Define the population and the constructs you will measure', 'Adopt or adapt validated scales; write new items only when needed', 'Pilot the questionnaire with 20–30 people and refine it', 'Choose a sampling method and target size', 'Distribute (online, paper, phone) and follow up to raise the response rate', 'Clean the data; check reliability; analyse'],
@@ -46,7 +46,7 @@ export const METHODS = [
         dataCollection: ['Questionnaires', 'Existing records (marks, attendance)', 'Secondary datasets'],
         analysis: ['Pearson or Spearman correlation', 'Multiple linear or logistic regression', 'Structural equation modelling (SEM / PLS-SEM)', 'Mediation and moderation analysis'],
         sampling: 'Probability sampling where possible; a sample large enough for the number of predictors.',
-        quality: ['Correlation is not causation — say so', 'Control for known confounders', 'Reliability of every scale', 'Model fit indices for SEM (CFI, RMSEA)'],
+        quality: ['Correlation is not causation; say so', 'Control for known confounders', 'Reliability of every scale', 'Model fit indices for SEM (CFI, RMSEA)'],
         ethics: ['Consent for access to records', 'De-identify secondary data'],
         tools: ['SPSS', 'AMOS', 'SmartPLS', 'R (lavaan)'],
         pitfalls: ['Claiming cause from correlation', 'Too many predictors for the sample', 'Ignoring outliers'],
@@ -54,7 +54,7 @@ export const METHODS = [
     },
     {
         key: 'case-study', name: 'Case study', family: 'Qualitative',
-        summary: 'An in-depth study of one or a few cases — a school, a programme, an organisation, a person — in their real setting, using several sources.',
+        summary: 'An in-depth study of one or a few cases (a school, a programme, an organisation, a person) in their real setting, using several sources.',
         bestFor: ['Understanding how and why something happens in a particular setting', 'Studying a programme, institution or event in depth', 'When the boundary between the case and its context is blurred'],
         questionsLike: ['How did one rural college implement NEP 2020\'s multidisciplinary curriculum?', 'Why did a start-up incubator succeed in a tier-2 city?'],
         steps: ['Define the case and its boundaries (single or multiple cases)', 'Write propositions or guiding questions', 'Plan several sources of evidence', 'Collect data: interviews, documents, observation', 'Build a case database and a chain of evidence', 'Analyse within the case, then across cases', 'Write the case report'],
@@ -69,7 +69,7 @@ export const METHODS = [
     },
     {
         key: 'ethnography', name: 'Ethnography', family: 'Qualitative',
-        summary: 'Long immersion in a community or setting to understand its culture — shared practices, meanings and norms — from the inside.',
+        summary: 'Long immersion in a community or setting to understand its culture (shared practices, meanings and norms) from the inside.',
         bestFor: ['Culture, practices and everyday life of a group', 'Settings the researcher can spend extended time in', 'Questions about how people make sense of their world together'],
         questionsLike: ['How do weaving communities in Ilkal pass skills between generations?', 'What classroom culture forms around peer tutoring in a government school?'],
         steps: ['Choose the field site and negotiate access', 'Build rapport; spend extended time in the field', 'Take detailed field notes; interview informally and formally', 'Collect artefacts and documents', 'Reflect on your own position (reflexivity)', 'Analyse iteratively while in the field', 'Write a rich, interpretive account'],
@@ -99,7 +99,7 @@ export const METHODS = [
     },
     {
         key: 'phenomenology', name: 'Phenomenology', family: 'Qualitative',
-        summary: 'Describes the lived experience of a phenomenon — what it is like — through the accounts of people who have lived it.',
+        summary: 'Describes the lived experience of a phenomenon (what it is like) through the accounts of people who have lived it.',
         bestFor: ['Understanding what an experience means to people', 'Emotional or personal experiences', 'Small, carefully chosen groups who share an experience'],
         questionsLike: ['What is the lived experience of women teachers returning to academia after maternity leave?', 'How do visually impaired students experience online examinations?'],
         steps: ['Identify the phenomenon and the people who have experienced it', 'Set aside (bracket) your own assumptions', 'Conduct long, open interviews', 'Transcribe verbatim', 'Identify significant statements and meaning units', 'Cluster them into themes', 'Write a textural and structural description of the essence of the experience'],
@@ -114,7 +114,7 @@ export const METHODS = [
     },
     {
         key: 'narrative', name: 'Narrative inquiry', family: 'Qualitative',
-        summary: 'Studies the stories people tell about their lives — how they make sense of events and identity over time.',
+        summary: 'Studies the stories people tell about their lives: how they make sense of events and identity over time.',
         bestFor: ['Life histories and career journeys', 'Identity and change over time', 'Giving voice to individual stories'],
         questionsLike: ['How do retired teachers narrate their professional journeys?', 'What stories do first-generation learners tell about entering university?'],
         steps: ['Choose a small number of participants with stories to tell', 'Collect stories through repeated interviews, journals or letters', 'Restory: arrange the story chronologically and by key elements', 'Analyse what is told and how it is told', 'Collaborate with participants on the account', 'Write the narratives with your interpretation'],
@@ -150,7 +150,7 @@ export const METHODS = [
         steps: ['Identify a problem in your own practice', 'Plan an intervention', 'Act: carry it out', 'Observe: collect evidence of its effect', 'Reflect on what worked and why', 'Revise and start the next cycle (at least two cycles)'],
         dataCollection: ['Reflective journals', 'Student work and feedback', 'Observation by a critical friend', 'Short surveys'],
         analysis: ['Thematic analysis of reflections and feedback', 'Simple descriptive statistics', 'Comparing cycles'],
-        sampling: 'The people involved in the practice — your class, your team.',
+        sampling: 'The people involved in the practice: your class, your team.',
         quality: ['Transparency about your dual role', 'Critical friends and triangulation', 'Evidence from each cycle'],
         ethics: ['Students must not be disadvantaged by declining to take part', 'Consent despite the power relationship', 'Anonymity in reports'],
         tools: ['A reflective journal', 'Google Forms', 'Excel'],
@@ -165,7 +165,7 @@ export const METHODS = [
         steps: ['Frame the question (PICO / SPIDER)', 'Register a protocol (PROSPERO, OSF)', 'Search several databases with a documented strategy', 'Screen titles, abstracts and full texts against criteria (two reviewers)', 'Extract data with a standard form', 'Appraise quality and risk of bias', 'Synthesise narratively or by meta-analysis', 'Report with a PRISMA flow diagram'],
         dataCollection: ['Scopus, Web of Science, PubMed, ERIC, Google Scholar', 'Reference lists and citation searching', 'Grey literature'],
         analysis: ['Narrative synthesis', 'Meta-analysis (pooled effect sizes, forest plots)', 'Heterogeneity (I²) and publication bias (funnel plots)'],
-        sampling: 'All studies that meet the inclusion criteria — not a sample.',
+        sampling: 'All studies that meet the inclusion criteria, not a sample.',
         quality: ['PRISMA 2020 reporting', 'Two independent screeners', 'Risk-of-bias tools (RoB 2, CASP, JBI)'],
         ethics: ['Usually no participants; still report funding and conflicts of interest'],
         tools: ['Rayyan or Covidence for screening', 'Zotero or Mendeley', 'RevMan', 'R (metafor)'],
@@ -203,7 +203,7 @@ export const adviseByKeywords = (question) => {
     if (!top.length) {
         return {
             recommendations: [
-                { key: 'mixed-methods', fit: 'possible', why: 'Your question does not point clearly to one design yet. Many questions combine "how much" with "why" — mixed methods covers both.' },
+                { key: 'mixed-methods', fit: 'possible', why: 'Your question does not point clearly to one design yet. Many questions combine "how much" with "why"; mixed methods covers both.' },
                 { key: 'case-study', fit: 'possible', why: 'If the question is about one setting or programme, a case study lets you look at it in depth.' }
             ],
             design: 'Sharpen the question first: name the people, the setting and what you want to find out (an effect, a relationship, an experience or a process).',

@@ -46,11 +46,11 @@ export default function QuestionReview() {
         return () => window.removeEventListener('keydown', key);
     }, [answered.length, go]);
 
-    if (s === undefined) return <div className="mx-auto max-w-4xl pb-12"><Analyzing label="Loading your answers…" /></div>;
-    if (!s) return <div className="mx-auto max-w-4xl pb-12"><ErrorBox error={error} onRetry={load} /></div>;
+    if (s === undefined) return <div className="w-full pb-12"><Analyzing label="Loading your answers…" /></div>;
+    if (!s) return <div className="w-full pb-12"><ErrorBox error={error} onRetry={load} /></div>;
     if (!s.report || !answered.length) {
         return (
-            <div className="mx-auto max-w-4xl pb-12">
+            <div className="w-full pb-12">
                 <Section icon={Mic} title="There is nothing to review yet">
                     <Btn tone="primary" onClick={() => navigate(`/interview/report/${id}`)}>Back to the report</Btn>
                 </Section>
@@ -66,7 +66,7 @@ export default function QuestionReview() {
     const cheer = r.overall >= 75 ? ['Excellent work!', "You're interview ready 🌿"] : ['Keep going!', "You're doing great 🌿"];
 
     return (
-        <div className="mx-auto max-w-4xl space-y-5 pb-12 animate-fade-in">
+        <div className="w-full space-y-5 pb-12 animate-fade-in">
             {/* ── Where you are ───────────────────────────────── */}
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>

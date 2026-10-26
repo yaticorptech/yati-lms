@@ -604,6 +604,9 @@ const Login = () => {
                                 ? <>New teacher? <Link to="/signup?as=teacher" className="font-bold text-emerald-700 hover:underline">Register your card</Link></>
                                 : <>Don&apos;t have an account? <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-600 hover:underline">Sign up here</Link></>}
                         </p>
+                        <p className="mt-3 text-center text-[11px] text-slate-400">
+                            <Link to="/terms" className="hover:text-indigo-600 hover:underline">Terms and Conditions</Link> · <Link to="/privacy" className="hover:text-indigo-600 hover:underline">Privacy Policy</Link>
+                        </p>
                         {/* Inside the app the admin console travels in the same bundle, under
                             /admin/. On the website it is its own site, so no link here. */}
                         {isNative() && (

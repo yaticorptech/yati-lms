@@ -19,10 +19,11 @@ import { createPortal } from 'react-dom';
 import { X, Heart, Volume2, VolumeX, Check, Flame, RotateCcw, Send, ChevronsRight } from 'lucide-react';
 import { useHideLoop } from '../../components/loopVisibility';
 import { COLORS, chime, soundOn, setSoundOn, langFor } from '../meta';
+import { tr, line } from '../say';
 import { Chunky, Bar, Mascot } from '../ui';
 import { Diff } from './Finish';
 import { startValue, givenOf, answered, isInfo, sheetOf, xpIn } from './logic';
-import { IntroStep, NotesStep, WordsStep, PassageStep, DialogueStep, PairsStep, QuestionStep, TranslateStep, WriteStep, SpeakStep } from './exercises';
+import { IntroStep, NotesStep, WordsStep, PassageStep, DialogueStep, PairsStep, QuestionStep, TranslateStep, WriteStep, SpeakStep, TalkStep } from './exercises';
 import '../lingo.css';
 
 /** The session's own full screen, over the app's header and menus. */
@@ -36,11 +37,11 @@ export function SessionFrame({ children, label }) {
     );
 }
 
-const SCREENS = { intro: IntroStep, notes: NotesStep, words: WordsStep, passage: PassageStep, dialogue: DialogueStep, pairs: PairsStep, question: QuestionStep, translate: TranslateStep, write: WriteStep, speak: SpeakStep };
+const SCREENS = { intro: IntroStep, notes: NotesStep, words: WordsStep, passage: PassageStep, dialogue: DialogueStep, pairs: PairsStep, question: QuestionStep, translate: TranslateStep, write: WriteStep, speak: SpeakStep, talk: TalkStep };
 const TONE = { right: COLORS.green, wrong: COLORS.red, info: COLORS.blue };
 
-/** The sheet under a checked answer. */
-function Sheet({ sheet, onContinue }) {
+/** The sheet under a checked answer. `T`: its words in the student's language (say.js). */
+function Sheet({ sheet, onContinue, T }) {
     const c = TONE[sheet.tone];
     const Icon = sheet.tone === 'right' ? Check : sheet.tone === 'wrong' ? X : Send;
     return (
@@ -52,38 +53,38 @@ function Sheet({ sheet, onContinue }) {
                         <p className="flex items-center gap-2 text-[1.35rem] font-extrabold" style={{ color: c.ink }}>
                             <Icon size={24} strokeWidth={3.5} className="shrink-0 sm:hidden" /> {sheet.title}
                         </p>
-                        {sheet.answer && <p className="break-words text-[17px] font-bold" style={{ color: c.ink }} lang={langFor(sheet.answer)} dir="auto" data-sheet-answer>{sheet.answer}</p>}
+                        {sheet.answer && <p className="break-words text-[17px] font-bold" style={{ color: c.ink }} lang={langFor(sheet.answer)} dir="auto" translate="no" data-sheet-answer>{sheet.answer}</p>}
                         {sheet.diff?.length > 0 && <Diff diff={sheet.diff} />}
                         {sheet.text && <p className="text-[15px] font-semibold" style={{ color: c.ink }}>{sheet.text}</p>}
                         {sheet.tips?.length > 0 && <ul className="space-y-0.5">{sheet.tips.map((t) => <li key={t} className="text-[15px] font-semibold text-[#4b4b4b]">• {t}</li>)}</ul>}
                         {sheet.good?.length > 0 && <ul className="space-y-0.5">{sheet.good.map((t) => <li key={t} className="text-[15px] font-semibold" style={{ color: COLORS.green.ink }}>✓ {t}</li>)}</ul>}
                         {sheet.model && (
                             <div className="rounded-xl bg-white/70 px-3 py-2">
-                                <p className="text-xs font-extrabold uppercase tracking-wider" style={{ color: c.ink }}>{sheet.modelLabel || 'Model answer'}</p>
-                                <p className="whitespace-pre-line break-words text-[15px] font-semibold text-[#4b4b4b]">{sheet.model}</p>
+                                <p className="text-xs font-extrabold uppercase tracking-wider" style={{ color: c.ink }}>{sheet.modelLabel || T('Model answer')}</p>
+                                <p className="whitespace-pre-line break-words text-[15px] font-semibold text-[#4b4b4b]" translate="no">{sheet.model}</p>
                             </div>
                         )}
-                        {sheet.explanation && <p className="text-[15px] font-semibold leading-snug" style={{ color: c.ink }}><span className="font-extrabold">Why: </span>{sheet.explanation}</p>}
+                        {sheet.explanation && <p className="text-[15px] font-semibold leading-snug" style={{ color: c.ink }}><span className="font-extrabold">{T('Why: ')}</span>{sheet.explanation}</p>}
                     </div>
                 </div>
                 <Chunky color={sheet.tone === 'right' ? 'green' : sheet.tone === 'wrong' ? 'red' : 'blue'} onClick={onContinue} className="w-full shrink-0 sm:w-auto sm:min-w-[150px]" data-continue autoFocus>
-                    {sheet.tone === 'wrong' ? 'Got it' : 'Continue'}
+                    {sheet.tone === 'wrong' ? T('Got it') : T('Continue')}
                 </Chunky>
             </div>
         </div>
     );
 }
 
-function QuitDialog({ onStay, onQuit }) {
+function QuitDialog({ onStay, onQuit, T }) {
     return (
         <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/40 sm:items-center" onClick={onStay}>
             <div className="lingo-sheet w-full max-w-md rounded-t-3xl bg-white p-6 text-center sm:rounded-3xl" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-labelledby="lingo-quit" data-quit>
                 <Mascot pose="sad" className="mx-auto h-28 w-28" />
-                <p id="lingo-quit" className="mt-2 text-xl font-extrabold text-[#3c3c3c]">Wait, don&apos;t go!</p>
-                <p className="mt-1 text-[15px] font-semibold text-[#777]">You&apos;ll lose your progress in this session if you quit now.</p>
+                <p id="lingo-quit" className="mt-2 text-xl font-extrabold text-[#3c3c3c]">{T("Wait, don't go!")}</p>
+                <p className="mt-1 text-[15px] font-semibold text-[#777]">{T("You'll lose your progress in this session if you quit now.")}</p>
                 <div className="mt-5 grid gap-2">
-                    <Chunky color="blue" onClick={onStay} autoFocus>Keep learning</Chunky>
-                    <Chunky color="red" variant="ghost" onClick={onQuit} data-end-session>End session</Chunky>
+                    <Chunky color="blue" onClick={onStay} autoFocus>{T('Keep learning')}</Chunky>
+                    <Chunky color="red" variant="ghost" onClick={onQuit} data-end-session>{T('End session')}</Chunky>
                 </div>
             </div>
         </div>
@@ -186,8 +187,10 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
     const progress = ((index + (sheet || (isInfo(step) && index === lastIndex) ? 1 : 0)) / queue.length) * 100;
     const info = isInfo(step);
     const ready = info || (step.kind !== 'pairs' && answered(step, value));
-    const label2 = info ? 'Continue' : mode === 'end' ? (index === lastIndex ? 'Finish' : 'Continue')
-        : step.kind === 'speak' ? 'Save' : step.kind === 'write' && !['jumbled', 'sentence'].includes(step.task.type) ? 'Submit' : 'Check';
+    // The screen's own words in the student's language (say.js): Kannada for a Kannada speaker.
+    const T = tr(step.language);
+    const label2 = T(info ? 'Continue' : mode === 'end' ? (index === lastIndex ? 'Finish' : 'Continue')
+        : step.kind === 'speak' ? 'Save' : step.kind === 'write' && !['jumbled', 'sentence'].includes(step.task.type) ? 'Submit' : 'Check');
 
     return (
         <>
@@ -207,37 +210,38 @@ export default function Session({ steps, mode = 'each', hearts: startHearts = nu
             <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-answer-area>
                 <div className="mx-auto w-full max-w-[600px] px-4 pb-8 pt-4 sm:pt-8">
                     <div className="mb-3 flex min-h-7 flex-wrap items-center gap-2">
-                        {step.again && <span className="rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider" style={{ background: COLORS.orange.light, color: COLORS.orange.ink }} data-again><RotateCcw size={12} className="mr-1 inline" />Previous mistake</span>}
-                        {combo >= 3 && !step.again && <span key={combo} className="lingo-pop rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider" style={{ background: COLORS.orange.light, color: COLORS.orange.ink }} data-combo={combo}><Flame size={13} className="mr-1 inline" />{combo} in a row</span>}
-                        {skippable && <button type="button" onClick={() => goTo(quizAt)} className="ml-auto inline-flex min-h-9 items-center gap-1 rounded-xl px-2 text-sm font-extrabold uppercase tracking-wide hover:bg-[#F7F7F7]" style={{ color: COLORS.blue.ink }} data-skip-to-quiz>Skip to quiz <ChevronsRight size={16} /></button>}
+                        {step.again && <span className="rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider" style={{ background: COLORS.orange.light, color: COLORS.orange.ink }} data-again><RotateCcw size={12} className="mr-1 inline" />{T('Previous mistake')}</span>}
+                        {combo >= 3 && !step.again && <span key={combo} className="lingo-pop rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider" style={{ background: COLORS.orange.light, color: COLORS.orange.ink }} data-combo={combo}><Flame size={13} className="mr-1 inline" />{line(step.language, 'inARow', combo)}</span>}
+                        {skippable && <button type="button" onClick={() => goTo(quizAt)} className="ml-auto inline-flex min-h-9 items-center gap-1 rounded-xl px-2 text-sm font-extrabold uppercase tracking-wide hover:bg-[#F7F7F7]" style={{ color: COLORS.blue.ink }} data-skip-to-quiz>{T('Skip to quiz')} <ChevronsRight size={16} /></button>}
                     </div>
-                    <Screen key={step.key} step={step} value={value} onChange={setValue} locked={!!sheet || busy || !!ending} result={result}
-                        done={!!sheet} onDone={() => { const s = sheetOf(step, { correct: true }, tally.current.praise); tally.current.praise += 1; setSheet(s); setCombo((c) => c + 1); chime('right'); }} />
+                    {/* The lesson itself stays as written, whatever the app's language. */}
+                    <div translate="no"><Screen key={step.key} step={step} value={value} onChange={setValue} locked={!!sheet || busy || !!ending} result={result}
+                        done={!!sheet} onDone={() => { const s = sheetOf(step, { correct: true }, tally.current.praise); tally.current.praise += 1; setSheet(s); setCombo((c) => c + 1); chime('right'); }} /></div>
                 </div>
             </main>
 
             {error && (
                 <p className="mx-auto w-full max-w-[1000px] shrink-0 px-4 pb-2 text-center text-[15px] font-bold sm:px-10" style={{ color: COLORS.red.ink }} role="alert">
-                    {error.message || 'Something went wrong.'} Press the button to try again.
+                    {error.message || T('Something went wrong.')} {T('Press the button to try again.')}
                 </p>
             )}
 
             <footer className="shrink-0">
-                {sheet && !ending ? <Sheet sheet={sheet} onContinue={advance} /> : (
+                {sheet && !ending ? <Sheet sheet={sheet} onContinue={advance} T={T} /> : (
                     <div className="border-t-2 border-[#E5E5E5]">
                         <div className="mx-auto flex max-w-[1000px] items-center gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-10 sm:py-7">
-                            {step.kind === 'speak' && !ending && <Chunky variant="outline" color="grey" onClick={advance} className="hidden sm:inline-flex" style={{ color: '#AFAFAF' }} data-skip-speaking>Can&apos;t speak now</Chunky>}
+                            {step.kind === 'speak' && !ending && <Chunky variant="outline" color="grey" onClick={advance} className="hidden sm:inline-flex" style={{ color: '#AFAFAF' }} data-skip-speaking>{T("Can't speak now")}</Chunky>}
                             <span className="hidden flex-1 sm:block" />
-                            {step.kind === 'speak' && !ending && <button type="button" onClick={advance} className="min-h-12 shrink-0 px-2 text-sm font-extrabold uppercase text-[#AFAFAF] sm:hidden">Skip</button>}
+                            {step.kind === 'speak' && !ending && <button type="button" onClick={advance} className="min-h-12 shrink-0 px-2 text-sm font-extrabold uppercase text-[#AFAFAF] sm:hidden">{T('Skip')}</button>}
                             <Chunky color="green" onClick={() => primaryRef.current()} disabled={ending ? busy : (!ready || busy)} className="flex-1 sm:min-w-[150px] sm:flex-none" data-primary>
-                                {ending ? (busy ? 'Saving…' : 'Try again') : busy ? 'Checking…' : label2}
+                                {ending ? T(busy ? 'Saving…' : 'Try again') : busy ? T('Checking…') : label2}
                             </Chunky>
                         </div>
                     </div>
                 )}
             </footer>
 
-            {quitting && <QuitDialog onStay={() => setQuitting(false)} onQuit={onQuit} />}
+            {quitting && <QuitDialog onStay={() => setQuitting(false)} onQuit={onQuit} T={T} />}
         </>
     );
 }

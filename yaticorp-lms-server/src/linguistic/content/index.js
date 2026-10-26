@@ -8,7 +8,9 @@ const lessons = [
     ...require('./grammar'),
     ...require('./reading'),
     ...require('./speaking'),
-    ...require('./translation')
+    ...require('./translation'),
+    // The topics added later, one more per level (topics/).
+    ...require('./topics').lessons
 ];
 
 module.exports = { lessons, placement: require('./placement') };

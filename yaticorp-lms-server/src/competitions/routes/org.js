@@ -82,6 +82,7 @@ router.get('/:id', wrap(async (req, res) => {
 router.put('/:id/team', wrap(async (req, res) => {
     const c = await findCompetition(req.params.id, req);
     if (c.hostOrganizationId) throw fail(403, `${c.organizedBy}'s competition is for its own students.`);
+    if (c.entry === 'individual') throw fail(409, 'Students sign up for this competition themselves, from Competitions in the student app.');
     if (!open(c)) {
         const soon = views.registration(c).phase === 'registration-soon';
         throw fail(409, soon ? `Registration opens on ${new Date(c.registrationOpensAt).toLocaleString('en-IN', { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })}.` : 'Registration for this competition is closed.');

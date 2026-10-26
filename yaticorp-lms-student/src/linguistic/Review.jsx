@@ -26,7 +26,7 @@ export default function Review() {
 
     const steps = useMemo(() => (data ? data.mistakes.slice(0, ROUND).map((m) => (m.question.type === 'translation'
         ? { key: m.id, part: 'review', kind: 'translate', mistake: m, item: { id: m.id, source: m.question.source }, direction: m.question.direction, language: m.question.language || 'kn', target: m.question.target || 'en', targetLocale: m.question.targetLocale || 'en-IN' }
-        : { key: m.id, part: 'review', kind: 'question', mistake: m, q: m.question })) : []), [data]);
+        : { key: m.id, part: 'review', kind: 'question', mistake: m, q: m.question, language: data.language })) : []), [data]);
 
     const back = () => navigate('/linguistic/practice');
     if (data === undefined) return <SessionFrame label="Fix your mistakes"><Loading label="Finding your mistakes…" /></SessionFrame>;

@@ -15,8 +15,8 @@ import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    LayoutDashboard, Users, UserPlus, BookOpen, Settings, LogOut, RefreshCw, Trophy,
-    Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft, Hourglass, Languages, Presentation
+    LayoutDashboard, Users, BookOpen, Settings, LogOut, RefreshCw, Trophy,
+    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical
 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from '../utils/useAutoLogout';
@@ -32,20 +32,25 @@ import { Dialog, DialogTitle } from '../components/orgUi';
 // `short` is the bottom bar's label on a phone, where four full labels do not fit.
 const NAV = [
     { to: '/organization', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
-    { to: '/organization/students', label: 'Students', short: 'Students', icon: Users },
-    { to: '/organization/requests', label: 'Student requests', short: 'Requests', icon: UserPlus, badge: 'pendingRequests' },
+    // Students asking to join are a tab here (Students → Requests); the badge is their count.
+    { to: '/organization/students', label: 'Students', short: 'Students', icon: Users, badge: 'pendingRequests' },
     // Its teachers, and teachers asking to join (src/pages/org/OrgTeachers.jsx).
     { to: '/organization/teachers', label: 'Teachers', short: 'Teachers', icon: Presentation, badge: 'pendingTeacherRequests' },
     { to: '/organization/courses', label: 'Courses', short: 'Courses', icon: BookOpen },
     // Inter-college competitions: register the college's team, pick players.
     { to: '/organization/competitions', label: 'Competitions', short: 'Compete', icon: Trophy },
-    // Students' English: writing to review and progress. In the sidebar only:
-    // a seventh item would not fit the phone's bottom bar.
-    { to: '/organization/linguistic', label: 'English', short: 'English', icon: Languages, sidebarOnly: true },
+    // Extra-curricular: NCC, NSS, Scouts & Guides and clubs (src/pages/org/OrgNccNss.jsx). Sidebar only, like English.
+    { to: '/organization/ncc-nss', label: 'Extra-curricular', short: 'Activities', icon: Shield, sidebarOnly: true },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
-
-const STUDENT_PORTAL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
+// A teacher signed in to this panel (Teachers → Organisation dashboard) sees
+// only what they may use — the server refuses the rest (staffMay in
+// organizations/middleware/authMiddleware.js) — and Research, their teacher
+// dashboard, when they have that too.
+const STAFF_HIDDEN = ['/organization/teachers', '/organization/settings'];
+const RESEARCH = { to: '/organization/research', label: 'Research', short: 'Research', icon: FlaskConical };
+// No requests badge for them either: they have no Requests tab to act on it.
+const navFor = (staff) => (staff ? [...NAV.filter((n) => !STAFF_HIDDEN.includes(n.to)).map(({ badge, ...n }) => (badge === 'pendingRequests' ? n : { ...n, badge })), ...(staff.research ? [RESEARCH] : [])] : NAV);
 
 const linkClass = (active) =>
     `flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`;
@@ -167,6 +172,8 @@ const OrgAdminLayout = () => {
     const profileDropdownRef = useRef(null);
 
     const [organization, setOrganization] = useState(null);
+    const [staff, setStaff] = useState(null);
+    const nav = navFor(staff);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState('');
     const [counts, setCounts] = useState({ pendingRequests: 0, pendingTeacherRequests: 0 });
@@ -184,7 +191,7 @@ const OrgAdminLayout = () => {
     // before approval, which is exactly why it is what the shell asks for.
     useEffect(() => {
         api.get('/organizations/me/status')
-            .then((res) => setOrganization(res.data.organization))
+            .then((res) => { setOrganization(res.data.organization); setStaff(res.data.staff || null); })
             .catch((err) => setFailed(err.response?.data?.message || 'Could not reach your organization.'))
             .finally(() => setLoading(false));
     }, []);
@@ -378,7 +385,7 @@ const OrgAdminLayout = () => {
 
                 <nav className="flex-1 space-y-1.5 overflow-y-auto p-4 custom-scrollbar" aria-label="Organization">
                     <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Menu</p>
-                    {NAV.map(({ to, label, icon: Icon, exact, badge }) => {
+                    {nav.map(({ to, label, icon: Icon, exact, badge }) => {
                         const active = isActive(to, exact);
                         const count = badge ? counts[badge] : 0;
                         return (
@@ -396,12 +403,6 @@ const OrgAdminLayout = () => {
                     })}
                 </nav>
 
-                <div className="border-t border-slate-100 bg-slate-50/60 p-4">
-                    <a href={STUDENT_PORTAL} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center space-x-3 rounded-xl p-3 text-indigo-600 transition-all hover:bg-indigo-50 hover:text-indigo-700">
-                        <ExternalLink size={18} /> <span className="text-sm font-medium">Student Portal</span>
-                    </a>
-                </div>
             </aside>
 
             <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
@@ -467,10 +468,6 @@ const OrgAdminLayout = () => {
                                         <Link to="/organization/settings" onClick={() => setProfileDropdownOpen(false)} className={MENU_ITEM}>
                                             <Settings size={16} className="text-slate-400" /> Organization settings
                                         </Link>
-                                        {/* The sidebar's portal link, for phones where there is no sidebar. */}
-                                        <a href={STUDENT_PORTAL} target="_blank" rel="noopener noreferrer" className={`${MENU_ITEM} lg:hidden`}>
-                                            <ExternalLink size={16} className="text-slate-400" /> Student Portal
-                                        </a>
                                         {/* No "Refresh data" here: a phone pulls the page down to refresh it. */}
                                         <div className="my-1 h-px bg-slate-100" />
                                         {viewing ? (
@@ -493,15 +490,16 @@ const OrgAdminLayout = () => {
 
                 {/* Bottom padding on phones keeps the last card clear of the floating nav bar. */}
                 <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 pb-28 custom-scrollbar lg:p-8">
-                    <div className="mx-auto w-full max-w-7xl">
-                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} /></Suspense></ErrorBoundary>
+                    {/* The question bank uses the full width. */}
+                    <div className={`mx-auto w-full ${location.pathname.endsWith('/competitions/question-bank') ? 'max-w-none' : 'max-w-7xl'}`}>
+                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} context={{ staff, pendingRequests: counts.pendingRequests }} /></Suspense></ErrorBoundary>
                     </div>
                 </div>
                 <PullToRefresh scrollerRef={scrollerRef} onRefresh={refreshPage} className={viewing ? 'top-28 lg:top-32' : 'top-16 lg:top-20'} />
             </main>
 
             {/* ── Phones and tablets: the floating bar along the bottom ────── */}
-            <OrgBottomNav items={NAV.filter((n) => !n.sidebarOnly)} counts={counts} />
+            <OrgBottomNav items={nav.filter((n) => !n.sidebarOnly)} counts={counts} />
         </div>
     );
 };

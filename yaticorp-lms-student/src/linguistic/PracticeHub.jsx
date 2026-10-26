@@ -1,13 +1,13 @@
 /**
- * Linguistic Ability — the Practice tab: today's quests (on a phone, where the
- * side panel is not shown), the daily vocabulary challenge, the mistakes to
- * fix, and the placement test (English's; another language's course has none).
+ * Linguistic Ability — the Practice tab: the daily vocabulary challenge, the
+ * mistakes to fix, and the placement test (English's; another language's
+ * course has none). Today's quests and the timeline are on the dashboard
+ * (2026-10-26).
  */
 import { Link, useOutletContext } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { COLORS, levelOf } from './meta';
 import { Mascot } from './ui';
-import { Quests } from './Rail';
 
 function Card({ to, color, pose, title, text, cta, done = false, attr = {} }) {
     const c = COLORS[color];
@@ -28,7 +28,6 @@ export default function PracticeHub() {
     return (
         <div className="space-y-5" data-practice-hub>
             <h1 className="text-2xl font-extrabold text-[#3c3c3c]">Practice</h1>
-            <div className="xl:hidden"><Quests dash={dash} /></div>
             <div className="grid gap-3">
                 <Card to="/linguistic/daily" color="gold" pose={dash.daily.done ? 'thumbs-up' : 'flex-content'} title="Daily challenge" done={dash.daily.done}
                     text={dash.daily.done ? `Done today: ${dash.daily.score}/${dash.daily.total}. New words tomorrow!` : `${dash.daily.total} quick word questions at your level, new every day.`}

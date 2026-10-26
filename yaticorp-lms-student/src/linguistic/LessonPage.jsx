@@ -5,9 +5,9 @@
  * back on, and the next lesson open on the path. Where the student is (learn,
  * practice, quiz) is saved; one who has reached the quiz before can skip to it.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Zap, Target, Timer, Award, Download } from 'lucide-react';
+import { Zap, Target, Timer, Award, Download, MessageSquareText } from 'lucide-react';
 import { saveBlob } from '../native/saveFile';
 import { linguisticApi, announceRewards } from './api';
 import { COLORS, levelOf } from './meta';
@@ -42,6 +42,7 @@ function LessonPage() {
     const [error, setError] = useState(null);
     const [run, setRun] = useState({ n: 0, from: 'start' });
     const [done, setDone] = useState(null);           // { r, summary }
+    const talked = useRef(null);                      // a talk's last result (Speak on a topic)
 
     const load = useCallback(() => linguisticApi.lesson(lessonId).then((l) => { setLesson(l); setError(null); }).catch((e) => { setError(e); setLesson(null); }), [lessonId]);
     useEffect(() => { load(); }, [load]);
@@ -74,14 +75,39 @@ function LessonPage() {
         }
         if (step.kind === 'write') return linguisticApi.writing(id, step.task.id, given);
         if (step.kind === 'speak') return linguisticApi.speaking(id, value.ticks, value.recorded);
+        if (step.kind === 'talk') return linguisticApi.talk(id, given).then((r) => { talked.current = r; return r; });
         return Promise.resolve({ correct: true });
     };
-    const complete = (summary) => linguisticApi.quiz(id, summary.answers).then((r) => { announceRewards(r.events); setDone({ r, summary }); });
+    // A talk is saved when it is checked; its sentences are the answers to look back on.
+    const complete = (summary) => (lesson.talk
+        ? Promise.resolve(talked.current).then((r) => {
+            announceRewards(r.events);
+            setDone({ r: { ...r, talk: true, results: r.sentences.map((s, i) => ({ id: `s${i}`, prompt: `Sentence ${i + 1}`, given: s.text, correct: !s.mistakes.length, answer: s.corrected, explanation: [...new Set(s.mistakes.map((m) => m.why))].join(' ') })) }, summary });
+        })
+        : linguisticApi.quiz(id, summary.answers).then((r) => { announceRewards(r.events); setDone({ r, summary }); }));
 
     if (done) {
         const { r, summary } = done;
         const xp = summary.xp + xpIn(r.events);
         const time = { label: 'Time', value: clock(summary.ms), color: 'blue', icon: Timer };
+        if (r.talk) {
+            const words = { label: 'Words', value: r.words, color: 'blue', icon: MessageSquareText };
+            return (
+                <SessionFrame label={lesson.title}>
+                    {r.passed ? (
+                        <Finish tone="pass" pose={r.percent === 100 ? 'confetti-cheer' : 'star-celebrate'} title="Well spoken!" text={r.next ? `Next up: ${r.next.title}` : null}
+                            stats={[{ label: 'Total XP', value: xp, color: 'gold', icon: Zap }, { label: 'Sentences right', value: `${r.percent}%`, color: 'green', icon: Target }, words]}
+                            banner={r.certificate ? <CertificateBanner certificate={r.certificate} courseName={lesson.targetName} /> : null}
+                            results={r.results} primary={{ label: 'Continue', onClick: toPath }} secondary={{ label: 'Speak again', onClick: retry }} />
+                    ) : (
+                        <Finish tone="fail" pose="sad" title={r.short ? 'Say a little more' : 'Fix these, then speak again'}
+                            text={r.short ? `You said ${r.words} words. Speak for at least ${r.minWords} words to finish this lesson.` : `${r.clean} of ${r.total} sentences had no mistakes (${r.percent}%). You need ${r.passingScore}%. Look at the corrections, then speak again.`}
+                            stats={[{ label: 'Sentences right', value: `${r.percent}%`, color: 'red', icon: Target }, words]}
+                            results={r.results} primary={{ label: 'Speak again', onClick: retry }} secondary={{ label: 'Back to the path', onClick: toPath }} />
+                    )}
+                </SessionFrame>
+            );
+        }
         return (
             <SessionFrame label={lesson.title}>
                 {r.passed ? (

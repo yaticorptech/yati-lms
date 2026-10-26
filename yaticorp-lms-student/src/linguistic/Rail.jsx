@@ -1,12 +1,14 @@
 /**
  * Linguistic Ability — the panels beside the path (under it, on a phone's
  * Practice tab): the student's level, streak and XP; today's quests; the
- * mistakes waiting; and the placement test.
+ * mistakes waiting; the placement test; and the timeline.
  */
 import { Link } from 'react-router-dom';
-import { Flame, Zap, Gift, BookOpen, Target, ListChecks, Compass, ChevronRight, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
+import { Flame, Zap, Gift, BookOpen, Target, ListChecks, Compass, ChevronRight, ChevronDown, CalendarDays, Check, Loader2 } from 'lucide-react';
 import { COLORS, langOf, levelOf } from './meta';
 import { Bar, Panel, Mascot } from './ui';
+import { planLabel, planStatus } from './parts/plan';
 
 const LESSON_GOAL = 2;
 
@@ -80,6 +82,113 @@ export function Quests({ dash }) {
                 <Quest icon={BookOpen} color="green" title={`Complete ${LESSON_GOAL} lessons`} value={dash.today?.lessons || 0} goal={LESSON_GOAL} />
                 <Quest icon={Target} color="blue" title="Do the daily challenge" value={dash.daily?.done ? 1 : 0} goal={1} to="/linguistic/daily" />
             </div>
+        </Panel>
+    );
+}
+
+const days = (n) => `${n} day${n === 1 ? '' : 's'}`;
+const lessonsADay = (n) => (n >= 1 ? `about ${n} lesson${n === 1 ? '' : 's'} a day` : 'a lesson every other day');
+
+/**
+ * The timeline (asked 2026-10-24: "in how many days they learn the
+ * language"): the days to finish the course at the student's daily goal, the
+ * days to finish each level one after another, the days at the pace they
+ * really keep, and a faster goal to pick (`onGoal(xp)`). Days only, never a
+ * date (asked the same day).
+ */
+export function Timeline({ dash, onGoal }) {
+    const [busy, setBusy] = useState(0);
+    const t = dash.timeline;
+    // With a learning plan (2026-10-24), its day and today's lessons instead.
+    if (dash.plan) return <PlanCard dash={dash} />;
+    if (!t) return null;
+    const course = dash.course?.name || 'English';
+    if (!t.remaining) {
+        return (
+            <Panel className="flex items-center gap-4 p-5" data-timeline="done">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ background: COLORS.green.light, color: COLORS.green.ink }}><Check size={24} strokeWidth={3} /></span>
+                <p className="text-[17px] font-extrabold text-[#3c3c3c]">You have finished every level of {course}!</p>
+            </Panel>
+        );
+    }
+    const faster = t.goals.filter((g) => g.xp > t.goal && g.days < t.days);
+    const pick = (xp) => { if (!onGoal || busy) return; setBusy(xp); Promise.resolve(onGoal(xp)).finally(() => setBusy(0)); };
+    return (
+        <Panel className="p-5" data-timeline={t.days}>
+            <h2 className="flex items-center gap-2 text-xl font-extrabold text-[#3c3c3c]"><CalendarDays size={22} style={{ color: COLORS.purple.face }} /> Your timeline</h2>
+            <p className="mt-2 text-[17px] font-bold text-[#4b4b4b]">
+                Finish {course} in about <span className="font-extrabold" style={{ color: COLORS.purple.ink }} data-timeline-days>{days(t.days)}</span>.
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-[#777]">At your goal of {t.goal} XP a day: {lessonsADay(t.lessonsPerDay)}. {t.remaining} lesson{t.remaining === 1 ? '' : 's'} to go.</p>
+            <ol className="relative mt-4 space-y-3 border-l-2 border-[#E5E5E5] pl-5">
+                {t.levels.map((l) => (
+                    <li key={l.level} className="relative" data-timeline-level={l.level}>
+                        <span className="absolute -left-[1.85rem] top-0.5 flex h-5 w-5 items-center justify-center rounded-full ring-4 ring-white"
+                            style={{ background: l.done || l.skipped ? COLORS.green.face : COLORS.purple.face }}>
+                            {(l.done || l.skipped) && <Check size={12} strokeWidth={4} className="text-white" />}
+                        </span>
+                        <p className="text-[15px] font-extrabold text-[#3c3c3c]">{l.label}</p>
+                        <p className="text-sm font-semibold text-[#777]">
+                            {l.skipped ? 'Placed past it' : l.done ? 'Done' : `In about ${days(l.days)} · ${l.left} lesson${l.left === 1 ? '' : 's'} left`}
+                        </p>
+                    </li>
+                ))}
+            </ol>
+            {t.pace && (
+                <p className="mt-4 rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: COLORS.blue.light, color: COLORS.blue.ink }} data-timeline-pace>
+                    At the pace you keep ({lessonsADay(t.pace.lessonsPerDay)}): about {days(t.pace.days)}.
+                </p>
+            )}
+            <Link to="/linguistic/roadmap" className="mt-4 flex items-center gap-2 rounded-xl px-3 py-2 text-[15px] font-extrabold" style={{ background: COLORS.purple.light, color: COLORS.purple.ink }} data-make-plan>
+                <CalendarDays size={18} /> <span className="flex-1">Short on time? Make a plan that fits</span> <ChevronRight size={18} />
+            </Link>
+            {onGoal && faster.length > 0 && (
+                <div className="mt-4">
+                    <p className="mb-1.5 text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">Want it sooner? Raise your daily goal</p>
+                    <div className="flex flex-wrap gap-2">
+                        {faster.map((g) => (
+                            <button key={g.xp} type="button" onClick={() => pick(g.xp)} disabled={!!busy} data-timeline-goal={g.xp}
+                                className="lingo-tile inline-flex min-h-10 items-center gap-1.5 px-3 text-sm text-[#4b4b4b]">
+                                {busy === g.xp ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} fill={COLORS.gold.face} stroke={COLORS.gold.edge} />} {g.xp} XP · {days(g.days)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </Panel>
+    );
+}
+
+/**
+ * The learning plan beside the path (asked 2026-10-24): which day of it this
+ * is, whether the student is on track, and today's lessons, each one tap
+ * away; the whole roadmap a link further.
+ */
+export function PlanCard({ dash }) {
+    const p = dash.plan;
+    const status = planStatus(p);
+    const today = p.today?.lessons || [];
+    const left = today.filter((l) => l.status !== 'completed');
+    return (
+        <Panel className="p-5" data-plan-card={p.day}>
+            <h2 className="flex items-center gap-2 text-xl font-extrabold text-[#3c3c3c]"><CalendarDays size={22} style={{ color: COLORS.purple.face }} /> Your roadmap</h2>
+            <p className="mt-1 text-sm font-bold text-[#777]">Day {Math.min(p.day, p.days)} of {p.days} · {planLabel(p.days)} plan · {p.done}/{p.total} lessons</p>
+            <Bar value={p.total ? (p.done / p.total) * 100 : 0} className="mt-2 h-3" label={`${p.done} of ${p.total} lessons done`} />
+            <p className="mt-3 rounded-xl px-3 py-2 text-sm font-bold" style={{ background: COLORS[status.tone].light, color: COLORS[status.tone].ink }}>{status.text}</p>
+            <p className="mt-4 text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">{left.length ? `Today: ${left.length} lesson${left.length === 1 ? '' : 's'} to do` : 'Today’s lessons are done!'}</p>
+            <ul className="mt-1.5 space-y-1">
+                {today.map((l) => {
+                    const done = l.status === 'completed';
+                    const row = (
+                        <>
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: done ? COLORS.green.face : COLORS.blue.light }}>{done && <Check size={14} strokeWidth={4} className="text-white" />}</span>
+                            <span className={`min-w-0 flex-1 truncate text-[15px] font-bold ${done ? 'text-[#AFAFAF] line-through' : 'text-[#4b4b4b]'}`}>{l.title}</span>
+                        </>
+                    );
+                    return <li key={l.id}>{!done && l.open ? <Link to={`/linguistic/${l.module}/${l.id}`} className="-mx-2 flex items-center gap-2.5 rounded-xl px-2 py-1 hover:bg-[#F7F7F7]" data-plan-today={l.id}>{row}<ChevronRight size={16} className="shrink-0 text-[#AFAFAF]" /></Link> : <span className="flex items-center gap-2.5 py-1" data-plan-today={l.id}>{row}</span>}</li>;
+                })}
+            </ul>
+            <Link to="/linguistic/roadmap" className="mt-3 inline-flex min-h-10 items-center gap-1 text-sm font-extrabold uppercase tracking-wide" style={{ color: COLORS.blue.ink }} data-see-roadmap>See my roadmap <ChevronRight size={16} /></Link>
         </Panel>
     );
 }

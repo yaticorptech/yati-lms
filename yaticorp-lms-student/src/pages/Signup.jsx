@@ -143,6 +143,8 @@ const Signup = () => {
     const loginLink = asTeacher ? '/login?as=teacher' : next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`;
 
     const [step, setStep] = useState(1);
+    // The Terms and Privacy Policy, agreed to before the account is made.
+    const [agreed, setAgreed] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     // The card belongs to an account already: the error then offers signing in.
@@ -346,6 +348,7 @@ const Signup = () => {
     const handleRegistrationSubmit = async (e) => {
         e.preventDefault();
         setError(null);
+        if (!agreed) return setError('Please agree to the Terms and Conditions and Privacy Policy to continue.');
 
         if (formData.password !== formData.confirmPassword) {
             focusField('confirm-password');
@@ -805,9 +808,14 @@ const Signup = () => {
                                     </div>
                                 </div>
 
+                                <label className="flex cursor-pointer items-start gap-2.5 text-sm text-slate-600">
+                                    <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); setError(null); }} className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600" />
+                                    <span>I agree to the <Link to="/terms" target="_blank" className="font-bold text-indigo-600 hover:underline">Terms and Conditions</Link> and the <Link to="/privacy" target="_blank" className="font-bold text-indigo-600 hover:underline">Privacy Policy</Link>.</span>
+                                </label>
+
                                 <div className="flex gap-3">
                                     <button type="button" onClick={() => { setError(null); setStep(2); }} className={backBtn}><ArrowLeft size={15} /> Back</button>
-                                    <button type="submit" disabled={loading || !passwordsFilled} className={primaryBtn} title={passwordsFilled ? undefined : 'Enter and confirm a password to create your account'}>
+                                    <button type="submit" disabled={loading || !passwordsFilled || !agreed} className={primaryBtn} title={passwordsFilled ? undefined : 'Enter and confirm a password to create your account'}>
                                         {loading ? 'Creating your account…' : 'Create Account'}
                                         {!loading && <span className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"><ArrowRight size={15} /></span>}
                                     </button>

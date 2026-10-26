@@ -192,7 +192,8 @@ export default function CourseOutlineDialog({ courseId, initial = {}, onClose, o
                         ) : onEnroll ? (
                             <button type="button" onClick={onEnroll} disabled={outline === undefined}
                                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-3 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:from-indigo-700 hover:to-violet-700 disabled:opacity-60">
-                                Enroll Now{course.price > 0 ? ` · ${price(course.price)}` : ''} <ArrowRight size={16} />
+                                {/* The price is on the badge by the title; the button just says what it does. */}
+                                Enroll Now <ArrowRight size={16} />
                             </button>
                         ) : null}
                     </div>

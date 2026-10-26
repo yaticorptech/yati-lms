@@ -19,13 +19,19 @@ export const linguisticApi = {
     /** Start at a level chosen instead of taking the placement test. */
     chooseLevel: (level) => post('/level', { level }),
     /** Why they are learning, and how much English they know (0 new … 4 most topics). */
-    setAbout: (reason, know) => post('/about', { reason, know }),
+    setAbout: (reason, know, more = {}) => post('/about', { reason, know, ...more }),
     /** The daily XP goal: 10, 20, 30 or 50. */
     setGoal: (xp) => post('/goal', { xp }),
+    // The learning plan (2026-10-24): the roadmap, the times to choose (before the student has started: as they said), making or changing it.
+    plan: () => get('/plan'),
+    planOptions: (course, language, level) => get(`/plan/options?${new URLSearchParams({ course: course || 'en', language: language || '', level: level || '' })}`),
+    setPlan: (days) => post('/plan', { days }),
     /** The language to learn: 'en', or another course (Vocabulary and Translation), starting at a level. */
     setCourse: (course, start = null) => post('/course', { course, start }),
     /** Choose the student's own language (meanings and translation). */
     setLanguage: (code) => post('/language', { language: code }),
+    /** Open a unit's treasure chest on the path: bonus XP, once. */
+    openChest: (unitId) => post(`/chest/${unitId}`),
     placement: () => get('/placement'),
     submitPlacement: (answers) => post('/placement', { answers }),
     module: (module) => get(`/modules/${module}`),
@@ -37,6 +43,8 @@ export const linguisticApi = {
     quiz: (id, answers) => post(`/lessons/${id}/quiz`, { answers }),
     writing: (id, taskId, answer) => post(`/lessons/${id}/writing/${taskId}`, { answer }),
     speaking: (id, checklist, recorded) => post(`/lessons/${id}/speaking`, { checklist, recorded }),
+    // Speak on a topic (Advanced): what was said → each sentence corrected, and why.
+    talk: (id, text) => post(`/lessons/${id}/talk`, { text }),
     daily: () => get('/daily'),
     submitDaily: (answers) => post('/daily', { answers }),
     review: () => get('/review'),

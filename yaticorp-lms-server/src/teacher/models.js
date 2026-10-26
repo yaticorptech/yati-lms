@@ -15,8 +15,6 @@ const BCRYPT_HASH = /^\$2[aby]\$\d{2}\$/;
 const hashPassword = async (plain) => bcrypt.hash(String(plain), await bcrypt.genSalt(10));
 
 const TEACHER_STATUSES = ['active', 'inactive', 'pending'];
-/** The guides whose steps can be marked as read, and how many steps each may hold. */
-const GUIDES = { publishing: 30, plagiarism: 30, writing: 30, stages: 20 };
 
 /* ── Teacher ───────────────────────────────────────────────────────────── */
 
@@ -39,10 +37,8 @@ const teacherSchema = new Schema({
     department: { type: String, trim: true, default: '' },
     designation: { type: String, trim: true, default: '' },
     researchArea: { type: String, trim: true, default: '' },
-    // Methodology guides the teacher has marked as studied (keys from methodKeys.js).
-    methodsStudied: [{ type: String }],
-    // Steps of the other guides marked as read: guide id → step keys (see GUIDES).
-    guideRead: { type: Map, of: [String], default: () => new Map() },
+    // A photo (uploaded, cropped round) or one of the app's avatars; optional.
+    profilePicture: { type: String, default: '' },
     // Independent Writing's daily target, in words.
     dailyWordGoal: { type: Number, default: 500, min: 50, max: 20000 },
     loginCount: { type: Number, default: 0 },
@@ -76,7 +72,9 @@ const taskSchema = new Schema({
     text: { type: String, required: true, trim: true, maxlength: 300 },
     done: { type: Boolean, default: false },
     doneAt: Date,
-    custom: { type: Boolean, default: false }
+    custom: { type: Boolean, default: false },
+    // Which template task this is ("literature.0"), so its wording can follow the topic.
+    tpl: String
 });
 
 const stageSchema = new Schema({
@@ -95,6 +93,8 @@ const researchProjectSchema = new Schema({
     goal: { type: String, enum: ['phd', 'masters', 'postdoc', 'funded', 'independent'], default: 'phd' },
     // Which task template the stages started from (researchPath.js KINDS).
     kind: { type: String, default: 'general' },
+    // The title and field the stages were last worded for (researchPath.js pathKey).
+    pathFor: { type: String, default: null },
     startDate: Date,
     targetDate: Date,
     stages: [stageSchema]
@@ -264,5 +264,5 @@ module.exports = {
     TextVersion: mongoose.models.TextVersion || mongoose.model('TextVersion', textVersionSchema),
     PlagiarismSource: mongoose.models.PlagiarismSource || mongoose.model('PlagiarismSource', plagiarismSourceSchema),
     TeacherOrgRequest: mongoose.models.TeacherOrgRequest || mongoose.model('TeacherOrgRequest', teacherOrgRequestSchema, 'teacher_org_requests'),
-    PUBLICATION_TYPES, PUBLICATION_STATUSES, INDEXING, CHAPTER_STATUSES, WRITING_KINDS, TEACHER_STATUSES, TEACHER_REQUEST_STATUSES, GUIDES
+    PUBLICATION_TYPES, PUBLICATION_STATUSES, INDEXING, CHAPTER_STATUSES, WRITING_KINDS, TEACHER_STATUSES, TEACHER_REQUEST_STATUSES
 };

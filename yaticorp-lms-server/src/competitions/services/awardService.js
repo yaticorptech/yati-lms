@@ -33,10 +33,11 @@ const award = async (competition) => {
             if (competition.participationXp > 0) {
                 await addXp({ userId, amount: competition.participationXp, source: 'competition', refId: `${id}:participation`, description: `for taking part in ${competition.name}`, silent: true });
             }
-            const won = place ? `${team.teamName} finished ${ORDINAL[place]}${prize?.title ? ` — ${prize.title}` : ''}.` : `${competition.name} is over. Thank you for playing for ${team.teamName}.`;
+            const who = team.soloUserId ? 'You' : team.teamName;
+            const won = place ? `${competition.name}: ${who} finished ${ORDINAL[place]}${prize?.title ? ` — ${prize.title}` : ''}.` : `${competition.name} is over. ${team.soloUserId ? 'Thank you for taking part.' : `Thank you for playing for ${team.teamName}.`}`;
             const extras = [prize?.xp ? `+${prize.xp} XP` : '', prize?.rewardPoints ? `+${prize.rewardPoints} reward points` : '', competition.participationXp ? `+${competition.participationXp} XP for taking part` : '']
                 .filter(Boolean).join(', ');
-            const cert = require('./certificate').eligible(competition, { place }) ? ' Your certificate is ready in Games & Competitions.' : '';
+            const cert = require('./certificate').eligible(competition, { place }) ? ' Your certificate is ready in Competitions.' : '';
             await tell([userId], competition, place ? `🏆 ${ORDINAL[place]} place!` : 'Competition complete', `${won}${extras ? ` ${extras}.` : ''}${cert}`);
         }
     }

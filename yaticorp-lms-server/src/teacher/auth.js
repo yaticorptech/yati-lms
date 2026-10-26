@@ -36,6 +36,7 @@ const view = (t) => ({
     department: t.department || '',
     designation: t.designation || '',
     researchArea: t.researchArea || '',
+    profilePicture: t.profilePicture || '',
     dailyWordGoal: t.dailyWordGoal || 500,
     organizationId: t.organizationId || null,
     role: 'teacher',
@@ -233,6 +234,14 @@ const updateMe = async (req, res) => {
         for (const [key, max] of [['institution', 200], ['department', 200], ['designation', 100], ['researchArea', 300]]) {
             if (body[key] !== undefined) changes[key] = String(body[key] || '').trim().slice(0, max);
         }
+        // A ready-made avatar, or '' to go back to initials. Only the app's own
+        // avatars and pictures we hold: never a link to any image online.
+        if (body.profilePicture !== undefined) {
+            const { normalizePictureUrl } = require('../controllers/userAuthController');
+            const picture = normalizePictureUrl(String(body.profilePicture || '').trim());
+            if (picture === null) errors.profilePicture = 'Choose one of the pictures shown, or upload a photo.';
+            else changes.profilePicture = picture;
+        }
         if (body.dailyWordGoal !== undefined) {
             const goal = Math.round(Number(body.dailyWordGoal));
             if (!Number.isFinite(goal) || goal < 50 || goal > 20000) errors.dailyWordGoal = 'Daily goal must be between 50 and 20,000 words';
@@ -275,4 +284,19 @@ const changePassword = async (req, res) => {
     }
 };
 
-module.exports = { protectTeacher, register, login, cardScan, forgotPassword, resetPassword, me, updateMe, changePassword, findTeacherByCard, view };
+/** POST /me/picture: a cropped photo (multipart "profilePicture"), stored like a student's. */
+const uploadPicture = async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'Choose a photo first.' });
+        // Looked up at call time, so a test can stand in for the storage.
+        const { uploadToBunny } = require('../utils/bunnyStorage');
+        const profilePicture = await uploadToBunny(req.file.buffer, 'profile.jpg', 'teacher-pictures');
+        const updated = await Teacher.findByIdAndUpdate(req.teacher._id, { $set: { profilePicture } }, { returnDocument: 'after' });
+        res.json(view(updated));
+    } catch (error) {
+        console.error('[teacher] picture upload failed:', error.message);
+        res.status(502).json({ message: 'Your photo could not be saved just now. Please try again, or pick an avatar.' });
+    }
+};
+
+module.exports = { protectTeacher, register, login, cardScan, forgotPassword, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };

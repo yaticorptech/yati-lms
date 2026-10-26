@@ -10,6 +10,9 @@ const PlayGame = require('../models/PlayGame');
 const { engine } = require('../games');
 
 const gameInfo = (id) => {
+    // A quiz or a hackathon has no game engine (services/challengeService.js).
+    const challenge = { quiz: { gameLabel: 'Quiz', emoji: '🧠' }, hackathon: { gameLabel: 'Hackathon', emoji: '💻' } }[id];
+    if (challenge) return challenge;
     try { const e = engine(id); return { gameLabel: e?.label || id, emoji: e?.emoji || '🎮' }; }
     catch { return { gameLabel: id, emoji: '🎮' }; }
 };
@@ -21,7 +24,7 @@ const CLOSING_SOON_MS = 48 * 3600e3;
  * Whether colleges may register right now, and the one status a person
  * should read on a card:
  *   registration-soon · registration-open · closing-soon · upcoming · live ·
- *   completed · draft · cancelled
+ *   completed · draft · cancelled · expired (its start date passed, never drawn: shown as Closed)
  */
 const registration = (c, now = Date.now()) => {
     const opens = c.registrationOpensAt ? new Date(c.registrationOpensAt).getTime() : null;
@@ -31,6 +34,9 @@ const registration = (c, now = Date.now()) => {
     let phase = c.status;
     if (published) phase = opens != null && opens > now ? 'registration-soon' : closes < now ? 'upcoming' : closes - now <= CLOSING_SOON_MS ? 'closing-soon' : 'registration-open';
     else if (c.status === 'closed') phase = 'upcoming';
+    // Its start date has passed and its matches were never drawn: it is
+    // closed, not "upcoming" — and nobody can register any more.
+    if ((published || c.status === 'closed') && c.startsAt && new Date(c.startsAt).getTime() < now) return { open: false, phase: 'expired' };
     return { open, phase };
 };
 
@@ -48,6 +54,11 @@ const competitionView = (c, { teams = [], myTeam = null } = {}) => {
         description: c.description,
         game: c.game,
         ...gameInfo(c.game),
+        // 'team': college teams; 'individual': students on their own (a quiz or a hackathon).
+        entry: c.entry || 'team',
+        kind: ['quiz', 'hackathon'].includes(c.game) ? c.game : 'match',
+        endsAt: c.endsAt || null,
+        ...(c.game === 'quiz' ? { questionsCount: c.quiz?.questions?.length || 0, minutes: c.quiz?.minutes || 15 } : {}),
         startsAt: c.startsAt,
         registrationOpensAt: c.registrationOpensAt || null,
         registrationDeadline: c.registrationDeadline,
@@ -63,6 +74,7 @@ const competitionView = (c, { teams = [], myTeam = null } = {}) => {
         prizes: c.prizes || [],
         prizeDetails: c.prizeDetails || '',
         participationXp: c.participationXp || 0,
+        entryFee: c.entryFee?.enabled ? { enabled: true, amount: c.entryFee.amount } : { enabled: false, amount: 0 },
         certificates: c.certificates !== false,
         participationCertificates: c.participationCertificates !== false,
         status: c.status,
@@ -78,8 +90,9 @@ const teamView = (t, { admin = false } = {}) => ({
     id: String(t._id),
     teamName: t.teamName,
     collegeName: t.collegeName,
-    organizationId: String(t.organizationId),
-    players: (t.players || []).map((p) => ({ userId: String(p.userId), name: p.name })),
+    organizationId: t.organizationId ? String(t.organizationId) : null,
+    solo: !!t.soloUserId,
+    players: (t.players || []).map((p) => ({ userId: String(p.userId), name: p.name, paid: !!p.paidAt, ...(admin ? { paidAt: p.paidAt || null, paidAmount: p.paidAmount || 0 } : {}) })),
     status: t.status,
     note: t.note || '',
     place: t.place || null,
@@ -114,6 +127,7 @@ const matchView = (m, teams, games = [], { showCode = false } = {}) => {
             };
         }),
         winnerTeamId: m.winnerTeamId ? String(m.winnerTeamId) : null,
+        rematchAt: m.replayAt || null,
         places: (m.places || []).map((g) => g.map(String)),
         decidedBy: m.decidedBy,
         resultNote: m.resultNote || '',
@@ -156,11 +170,19 @@ const detail = async (competitionId, { userId = null, organizationId = null, adm
         const college = await require('../../organizations/models/Organization').findById(c.hostOrganizationId).select('name').lean();
         competition.hostName = college?.name || c.organizedBy;
     }
+    // The organizer's: a quiz's questions with their answers, or the hackathon's projects with their marks; the standings so far.
+    const ch = require('./challengeService');
+    if (admin && ch.isChallenge(c)) {
+        competition.quiz = { questions: (c.quiz?.questions || []).map((q) => ({ id: String(q._id), prompt: q.prompt, options: q.options, answer: q.answer, points: q.points || 1 })), minutes: c.quiz?.minutes || 15 };
+        competition.hackathon = { problem: c.hackathon?.problem || '', criteria: c.hackathon?.criteria || '' };
+    }
     return {
         competition,
         teams: shownTeams.map((t) => teamView(t, { admin })),
+        ...(admin && ch.isChallenge(c) ? { challenge: await ch.adminView(c) } : {}),
         // Match codes: every one for the organizer; a college's for its own teams' matches.
-        rounds: roundsView(matches, teams, games, (m) => admin || (!!myTeam && m.sides.some((s) => String(s.teamId) === String(myTeam._id))))
+        // A student's own code is personal: it is in My Games (routes/student.js /me), not here.
+        rounds: roundsView(matches, teams, games, (m) => admin || (!userId && !!myTeam && m.sides.some((s) => String(s.teamId) === String(myTeam._id))))
     };
 };
 

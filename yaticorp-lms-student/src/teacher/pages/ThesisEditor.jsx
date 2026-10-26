@@ -8,11 +8,11 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, FileDown, FileType2, Settings2, Plus, ArrowUp, ArrowDown, Trash2, ListTree, ShieldCheck, Loader2, CheckCircle2, XCircle, Quote, ChevronDown, BookOpenText, Maximize2, History } from 'lucide-react';
+import { ArrowLeft, FileDown, FileType2, Settings2, Plus, ArrowUp, ArrowDown, Trash2, ListTree, ShieldCheck, Loader2, CheckCircle2, XCircle, Quote, ChevronDown, BookOpenText, Maximize2, History, Eraser } from 'lucide-react';
 import { guideForChapter, headingsText } from '../content/chapterGuides';
 import teacherApi, { messageOf } from '../teacherSession';
 import { Card, Loading, ErrorNote, Modal, Progress, Badge, SaveStatus } from '../ui';
-import { btn, inputClass, countWords, fmtNum, fmtDate, fileStem } from '../kit';
+import { btn, inputClass, selectClass, countWords, fmtNum, fmtDate, fileStem } from '../kit';
 import useAutosave from '../useAutosave';
 import useFocusTimer from '../useFocusTimer';
 import FocusWriter from '../FocusWriter';
@@ -20,6 +20,7 @@ import VersionHistory from '../VersionHistory';
 import { ThesisDetailsForm } from './ThesisList';
 import useConfirmDialog from '../../components/useConfirmDialog';
 import { saveBlob } from '../../native/saveFile';
+import Select from '../../components/Select';
 
 const STATUSES = [['not_started', 'Not started', 'bg-slate-100 text-slate-500'], ['drafting', 'Drafting', 'bg-sky-100 text-sky-700'], ['review', 'In review', 'bg-amber-100 text-amber-700'], ['done', 'Done', 'bg-emerald-100 text-emerald-700']];
 const STATUS_OF = Object.fromEntries(STATUSES.map(([k, l, t]) => [k, { label: l, tone: t }]));
@@ -88,6 +89,20 @@ export default function ThesisEditor() {
         catch (e) { setActionError(messageOf(e, 'That change could not be saved.')); }
     };
 
+    /** Empty the open chapter. Its text is kept in History first, so it can come back. */
+    const clearChapter = async () => {
+        if (!chapter || !content.trim()) return;
+        const words = countWords(content);
+        if (!(await confirm({ title: `Clear "${chapter.title}"?`, message: `Its ${fmtNum(words)} words are removed from the chapter. They are kept in History, so you can bring them back.`, confirmLabel: 'Clear', destructive: true }))) return;
+        setActionError('');
+        try {
+            await flush();
+            await teacherApi.post(`/theses/${id}/chapters/${chapter._id}/versions`, { label: 'Before clearing' });
+            type('');
+            await flush();
+        } catch (e) { setActionError(messageOf(e, 'The chapter could not be cleared.')); }
+    };
+
     const removeChapter = async (c) => {
         if (!(await confirm({ title: `Delete "${c.title}"?`, message: c.content ? `Its ${fmtNum(countWords(c.content))} words are deleted for good.` : 'The chapter is empty.', confirmLabel: 'Delete', destructive: true }))) return;
         structural(() => teacherApi.delete(`/theses/${id}/chapters/${c._id}`), (t) => openChapter(t.chapters, t.chapters[0]?._id || null));
@@ -101,7 +116,7 @@ export default function ThesisEditor() {
     const removeThesis = async () => {
         if (!(await confirm({ title: `Delete "${thesis.title}"?`, message: 'Every chapter is deleted for good. Download a PDF first if you want a copy.', confirmLabel: 'Delete thesis', destructive: true }))) return;
         try { await teacherApi.delete(`/theses/${id}`); navigate('/teacher/thesis'); }
-        catch (e) { setDetailsError(messageOf(e, 'The thesis could not be deleted.')); }
+        catch (e) { const m = messageOf(e, 'The thesis could not be deleted.'); setDetailsError(m); setActionError(m); }
     };
 
     const TYPES = { pdf: ['application/pdf', 'PDF'], docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'Word file'] };
@@ -131,17 +146,19 @@ export default function ThesisEditor() {
         <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <Link to="/teacher/thesis" className={btn.ghost}><ArrowLeft size={14} /> All theses</Link>
+                {/* Icons only on a phone, so the bar stays on one line; the names are their labels. */}
                 <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => { setDetailsError(''); setShowDetails(true); }} className={btn.secondary}><Settings2 size={15} /> Details</button>
-                    <button type="button" onClick={() => download('pdf')} disabled={Boolean(downloading)} className={btn.secondary}>{downloading === 'pdf' ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />} PDF</button>
-                    <button type="button" onClick={() => download('docx')} disabled={Boolean(downloading)} className={btn.secondary} title="Download as a Word document (.docx)">{downloading === 'docx' ? <Loader2 size={15} className="animate-spin" /> : <FileType2 size={15} />} Word</button>
+                    <button type="button" onClick={() => { setDetailsError(''); setShowDetails(true); }} aria-label="Details" className={btn.secondary}><Settings2 size={15} /> <span className="hidden sm:inline">Details</span></button>
+                    <button type="button" onClick={() => download('pdf')} disabled={Boolean(downloading)} aria-label="Download PDF" className={btn.secondary}>{downloading === 'pdf' ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />} <span className="hidden sm:inline">PDF</span></button>
+                    <button type="button" onClick={() => download('docx')} disabled={Boolean(downloading)} aria-label="Download Word" className={btn.secondary} title="Download as a Word document (.docx)">{downloading === 'docx' ? <Loader2 size={15} className="animate-spin" /> : <FileType2 size={15} />} <span className="hidden sm:inline">Word</span></button>
+                    <button type="button" onClick={removeThesis} aria-label="Delete thesis" className={`${btn.danger} px-3`} title="Delete this whole thesis"><Trash2 size={16} /></button>
                 </div>
             </div>
 
             <Card>
-                <h1 className="text-lg font-black text-slate-900 [overflow-wrap:anywhere] sm:text-xl">{thesis.title}</h1>
+                <h1 className="text-lg font-semibold text-slate-900 [overflow-wrap:anywhere] sm:text-xl">{thesis.title}</h1>
                 <p className="mt-0.5 text-xs text-slate-500">{[thesis.degree, thesis.university, thesis.supervisor && `Supervisor: ${thesis.supervisor}`, thesis.dueDate && `due ${fmtDate(thesis.dueDate)}`].filter(Boolean).join(' · ')}</p>
-                <div className="mt-3 flex items-center gap-3"><Progress value={thesis.targetWords ? (totalWords / thesis.targetWords) * 100 : 0} tone="bg-amber-500" label="Thesis words written" /><span className="shrink-0 text-xs font-bold text-slate-600">{fmtNum(totalWords)} / {fmtNum(thesis.targetWords)} words</span></div>
+                <div className="mt-3 flex items-center gap-3"><Progress value={thesis.targetWords ? (totalWords / thesis.targetWords) * 100 : 0} tone="bg-amber-500" label="Thesis words written" /><span className="shrink-0 text-xs font-semibold text-slate-600">{fmtNum(totalWords)} / {fmtNum(thesis.targetWords)} words</span></div>
             </Card>
 
             <ErrorNote>{actionError}</ErrorNote>
@@ -150,12 +167,12 @@ export default function ThesisEditor() {
                 {/* Chapters */}
                 <aside className="min-w-0 space-y-3">
                     <div className="lg:hidden">
-                        <label htmlFor="chapter-pick" className="mb-1 block text-xs font-bold text-slate-600">Chapter</label>
-                        <select id="chapter-pick" value={activeId || ''} onChange={(e) => switchTo(e.target.value)} className={inputClass}>
+                        <label htmlFor="chapter-pick" className="mb-1 block text-xs font-semibold text-slate-600">Chapter</label>
+                        <Select tone="emerald" id="chapter-pick" value={activeId || ''} onChange={(e) => switchTo(e.target.value)} className={selectClass}>
                             {thesis.chapters.map((c, i) => <option key={c._id} value={c._id}>{i + 1}. {c.title} ({STATUS_OF[c.status].label})</option>)}
-                        </select>
+                        </Select>
                     </div>
-                    <nav aria-label="Chapters" className="hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm lg:block">
+                    <nav aria-label="Chapters" className="hidden rounded-xl border border-slate-200 bg-white p-2 shadow-sm lg:block">
                         <ol className="space-y-0.5">
                             {thesis.chapters.map((c, i) => {
                                 const words = c._id === activeId ? liveWords : countWords(c.content);
@@ -163,7 +180,7 @@ export default function ThesisEditor() {
                                     <li key={c._id} className="group flex items-center gap-1">
                                         <button type="button" onClick={() => switchTo(c._id)} aria-current={c._id === activeId ? 'true' : undefined}
                                             className={`min-w-0 flex-1 rounded-xl px-2.5 py-2 text-left ${c._id === activeId ? 'bg-amber-50 ring-1 ring-amber-200' : 'hover:bg-slate-50'}`}>
-                                            <span className="flex items-center gap-1.5"><span className={`h-2 w-2 shrink-0 rounded-full ${c.status === 'done' ? 'bg-emerald-500' : c.status === 'review' ? 'bg-amber-500' : c.status === 'drafting' ? 'bg-sky-500' : 'bg-slate-300'}`} aria-hidden="true" /><span className="truncate text-sm font-bold text-slate-800">{i + 1}. {c.title}</span></span>
+                                            <span className="flex items-center gap-1.5"><span className={`h-2 w-2 shrink-0 rounded-full ${c.status === 'done' ? 'bg-emerald-500' : c.status === 'review' ? 'bg-amber-500' : c.status === 'drafting' ? 'bg-sky-500' : 'bg-slate-300'}`} aria-hidden="true" /><span className="truncate text-sm font-semibold text-slate-800">{i + 1}. {c.title}</span></span>
                                             <span className="block pl-3.5 text-[11px] text-slate-400">{fmtNum(words)}{c.targetWords ? ` / ${fmtNum(c.targetWords)}` : ''} words</span>
                                         </button>
                                         <span className="flex flex-col opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
@@ -190,13 +207,14 @@ export default function ThesisEditor() {
                                 <label htmlFor="chapter-title" className="sr-only">Chapter title</label>
                                 <input key={`t-${chapter._id}`} id="chapter-title" defaultValue={chapter.title} maxLength={200}
                                     onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== chapter.title) saveField({ title: v }); }}
-                                    className="min-w-0 flex-1 rounded-lg border border-transparent px-2 py-1 text-lg font-black text-slate-900 hover:border-slate-200 focus:border-amber-400 focus:outline-none" />
+                                    className="min-w-0 flex-1 rounded-lg border border-transparent px-2 py-1 text-lg font-semibold text-slate-900 hover:border-slate-200 focus:border-amber-400 focus:outline-none" />
                                 <label htmlFor="chapter-status" className="sr-only">Status</label>
-                                <select id="chapter-status" value={chapter.status} onChange={(e) => saveField({ status: e.target.value })} className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700">
+                                <Select tone="emerald" id="chapter-status" value={chapter.status} onChange={(e) => saveField({ status: e.target.value })} className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700">
                                     {STATUSES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                                </select>
+                                </Select>
                                 <button type="button" onClick={() => setFocus(true)} aria-label="Focus mode" title="Focus mode: the chapter alone, full screen" className="rounded-lg p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700"><Maximize2 size={16} /></button>
                                 <button type="button" onClick={() => { flush(); setHistory(true); }} aria-label="Version history" title="Version history" className="rounded-lg p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700"><History size={16} /></button>
+                                <button type="button" onClick={clearChapter} disabled={!content.trim()} aria-label="Clear the chapter text" title="Clear the text (kept in History)" className="rounded-lg p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-30"><Eraser size={16} /></button>
                                 <button type="button" onClick={() => removeChapter(chapter)} aria-label={`Delete chapter ${chapter.title}`} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={16} /></button>
                             </div>
                             <label htmlFor="chapter-text" className="sr-only">Chapter text</label>
@@ -208,7 +226,7 @@ export default function ThesisEditor() {
                                 placeholder={`Start writing "${chapter.title}"… Leave a blank line between paragraphs.`} />
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex min-w-0 flex-1 items-center gap-3">
-                                    <span className="shrink-0 text-xs font-bold text-slate-600">{fmtNum(liveWords)} words</span>
+                                    <span className="shrink-0 text-xs font-semibold text-slate-600">{fmtNum(liveWords)} words</span>
                                     {chapter.targetWords > 0 && <><Progress value={(liveWords / chapter.targetWords) * 100} tone="bg-amber-500" label="Chapter target" /><span className="shrink-0 text-xs text-slate-400">target</span></>}
                                     <label htmlFor="chapter-target" className="sr-only">Chapter word target</label>
                                     <input key={`w-${chapter._id}`} id="chapter-target" type="number" min={0} max={200000} step={500} defaultValue={chapter.targetWords}
@@ -223,12 +241,12 @@ export default function ThesisEditor() {
                             const guide = guideForChapter(chapter.title);
                             const isOpen = guideOpen;
                             return (
-                                <section aria-labelledby="chapter-guide-title" className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+                                <section aria-labelledby="chapter-guide-title" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
                                     <button type="button" onClick={() => setGuideOpen(!isOpen)} aria-expanded={isOpen}
-                                        className="flex w-full items-center gap-3 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3 text-left">
-                                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white"><BookOpenText size={18} aria-hidden="true" /></span>
+                                        className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 ${isOpen ? 'border-b border-slate-200' : ''}`}>
+                                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700"><BookOpenText size={18} aria-hidden="true" /></span>
                                         <span className="min-w-0 flex-1">
-                                            <span id="chapter-guide-title" className="block text-sm font-black text-slate-900">How to write the {guide.name}</span>
+                                            <span id="chapter-guide-title" className="block text-sm font-semibold text-slate-900">How to write the {guide.name}</span>
                                             <span className="block truncate text-xs text-slate-500">{guide.length}</span>
                                         </span>
                                         <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
@@ -237,27 +255,27 @@ export default function ThesisEditor() {
                                         <div className="space-y-4 p-4">
                                             <p className="text-sm leading-relaxed text-slate-700">{guide.purpose}</p>
                                             <div className="grid gap-4 md:grid-cols-2">
-                                                <div className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4">
-                                                    <h3 className="mb-2 flex items-center gap-1.5 text-sm font-black text-slate-900"><ListTree size={15} className="text-amber-600" aria-hidden="true" /> Usual sections</h3>
+                                                <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+                                                    <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-900"><ListTree size={15} className="text-amber-600" aria-hidden="true" /> Usual sections</h3>
                                                     <ol className="space-y-2">
                                                         {guide.structure.map(([heading, points], i) => (
-                                                            <li key={heading}><p className="text-sm font-bold text-slate-800">{i + 1}. {heading}</p><ul className="ml-5 list-disc text-sm text-slate-600">{points.map((pt) => <li key={pt}>{pt}</li>)}</ul></li>
+                                                            <li key={heading}><p className="text-sm font-semibold text-slate-800">{i + 1}. {heading}</p><ul className="ml-5 list-disc text-sm text-slate-600">{points.map((pt) => <li key={pt}>{pt}</li>)}</ul></li>
                                                         ))}
                                                     </ol>
                                                     <button type="button" onClick={() => addHeadings(guide)} className={`${btn.secondary} mt-3 w-full`}><Plus size={15} /> Add these headings to the chapter</button>
                                                 </div>
                                                 <div className="space-y-4">
                                                     <div>
-                                                        <h3 className="mb-1.5 text-sm font-black text-slate-900">Make sure you include</h3>
+                                                        <h3 className="mb-1.5 text-sm font-semibold text-slate-900">Make sure you include</h3>
                                                         <ul className="space-y-1.5">{guide.include.map((x) => <li key={x} className="flex gap-2 text-sm text-slate-700"><CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />{x}</li>)}</ul>
                                                     </div>
                                                     <div>
-                                                        <h3 className="mb-1.5 text-sm font-black text-slate-900">Common mistakes</h3>
+                                                        <h3 className="mb-1.5 text-sm font-semibold text-slate-900">Common mistakes</h3>
                                                         <ul className="space-y-1.5">{guide.mistakes.map((x) => <li key={x} className="flex gap-2 text-sm text-slate-700"><XCircle size={15} className="mt-0.5 shrink-0 text-rose-500" aria-hidden="true" />{x}</li>)}</ul>
                                                     </div>
                                                     {guide.phrases.length > 0 && (
                                                         <div>
-                                                            <h3 className="mb-1.5 text-sm font-black text-slate-900">Useful phrases</h3>
+                                                            <h3 className="mb-1.5 text-sm font-semibold text-slate-900">Useful phrases</h3>
                                                             <ul className="space-y-1">{guide.phrases.map((x) => <li key={x} className="flex gap-2 font-serif text-sm italic text-slate-700"><Quote size={13} className="mt-1 shrink-0 text-slate-400" aria-hidden="true" />{x}</li>)}</ul>
                                                         </div>
                                                     )}
@@ -278,12 +296,12 @@ export default function ThesisEditor() {
 
             {showDetails && (
                 <Modal title="Thesis details" onClose={() => setShowDetails(false)}
-                    footer={<><button type="button" onClick={removeThesis} className={`${btn.danger} mr-auto`}><Trash2 size={15} /> Delete</button><button type="button" onClick={() => setShowDetails(false)} className={btn.secondary}>Cancel</button><button type="submit" form="thesis-form" className={btn.primary}>Save</button></>}>
+                    footer={<><button type="button" onClick={removeThesis} aria-label="Delete thesis" title="Delete this whole thesis" className={`${btn.danger} mr-auto px-3`}><Trash2 size={16} /></button><button type="button" onClick={() => setShowDetails(false)} className={btn.secondary}>Cancel</button><button type="submit" form="thesis-form" className={btn.primary}>Save</button></>}>
                     <ThesisDetailsForm initial={thesis} onSubmit={saveDetails} error={detailsError} />
                 </Modal>
             )}
             {focus && chapter && (
-                <FocusWriter title={`${thesis.title} — ${chapter.title}`} value={content} onChange={type} onBlur={() => flush()} onClose={closeFocus}
+                <FocusWriter title={`${thesis.title}: ${chapter.title}`} value={content} onChange={type} onBlur={() => flush()} onClose={closeFocus}
                     status={status} timer={timer} goal={chapter.targetWords || 0} placeholder="Leave a blank line between paragraphs." />
             )}
             {history && chapter && (

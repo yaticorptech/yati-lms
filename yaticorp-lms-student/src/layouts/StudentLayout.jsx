@@ -8,10 +8,10 @@ import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import WalletShortDialog from '../components/rewards/WalletShortDialog';
 import { WalletSheet } from '../components/rewards/WalletCard';
-import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Languages } from 'lucide-react';
+import LanguageToggle from '../components/LanguageToggle';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Languages, Shield } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
@@ -23,6 +23,9 @@ import RankUpWatcher from '../components/rewards/RankUpWatcher';
 import useBackClose from '../native/useBackClose';
 import { dayKey as platformDay } from '../career/utils/progress';
 import ProfileImage from '../components/ProfileImage';
+import PlatformClosed from '../components/PlatformClosed';
+import useAccessHours from '../hooks/useAccessHours';
+import CompetitionAlerts from '../competitions/CompetitionAlerts';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -197,6 +200,8 @@ const ContactModal = ({ onClose, user, page }) => {
 
 const StudentLayout = () => {
     const { user, logout, isCareerPathEnabled, isJobsEnabled, isLinguisticEnabled } = useContext(AuthContext);
+    // The organization's access hours: outside them, the closed screen (components/PlatformClosed).
+    const accessHours = useAccessHours(Boolean(user));
     const [adminView] = useState(readAdminView);
     // Signs out of the student and closes the tab the admin panel opened; if
     // the browser will not close it, the sign-in page is left showing.
@@ -598,7 +603,8 @@ const StudentLayout = () => {
     const isActive = (path) => location.pathname === path;
     // Competitions is laid out to fill the window, edge to edge,
     // rather than sit in the centred column the other pages use.
-    const wide = location.pathname === '/competitions' || location.pathname.startsWith('/competitions/');
+    // So are Job Preparation (/interview, /jobs), Extra Curricular and Career Path.
+    const wide = ['/competitions', '/interview', '/jobs', '/extracurricular', '/career'].some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
     // Career Path is the one nav entry with screens beneath it, so it stays lit
     // on /career/planner, /career/roadmap and the rest — not just on /career.
     const isSectionActive = (path) =>
@@ -618,20 +624,20 @@ const StudentLayout = () => {
         { items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true }] },
         { title: 'Learn', items: [
             { to: '/enrolled-courses', label: 'My Courses', icon: BookOpen, exact: true },
-            { to: '/community', label: 'Community', icon: MessageSquare },
             // English learning; withdrawn like the others when an admin locks it.
-            isLinguisticEnabled && { to: '/linguistic', label: 'Linguistic Ability', icon: Languages }
+            // Opens on its dashboard (2026-10-26), and stays lit on every page of the section.
+            isLinguisticEnabled && { to: '/linguistic/dashboard', section: '/linguistic', label: 'Language Learning', icon: Languages }
         ].filter(Boolean) },
         { title: 'Career', items: [
             isCareerPathEnabled && { to: '/career', label: 'Career Path', icon: Compass },
-            { to: '/interview', label: 'Interview Prep', icon: Mic },
-            isJobsEnabled && { to: '/jobs', label: 'Jobs', icon: Briefcase },
+            // Job Preparation holds the mock interviews, aptitude tests and Jobs (/jobs) as tabs.
+            { to: '/interview', label: 'Job Preparation', icon: Mic, also: '/jobs' },
             isCareerPathEnabled && { to: '/scholarships', label: 'Scholarships', icon: GraduationCap }
         ].filter(Boolean) },
-        // Games (the brain games) and Competitions (Chess, Ludo, Carrom): two sections since 2026-10-23.
-        { title: 'Activities', items: [{ to: '/games', label: 'Games', icon: Gamepad2 }, { to: '/competitions', label: 'Competitions', icon: Trophy }] }
+        // Games (the brain games) and Competitions (Chess, Rapid Fire, Code Clash, Brain Sprint, Quiz and Hackathon): two sections since 2026-10-23.
+        { title: 'Activities', items: [{ to: '/games', label: 'Games', icon: Gamepad2 }, { to: '/competitions', label: 'Competitions', icon: Trophy }, { to: '/extracurricular', label: 'Extra Curricular', icon: Shield }] }
     ];
-    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.to));
+    const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.section || item.to) || (item.also && isSectionActive(item.also)));
 
     // Render helpers, not components: inlining them keeps the subtree from
     // remounting on every parent render.
@@ -787,6 +793,8 @@ const StudentLayout = () => {
         )}
     </div>
 );
+    if (accessHours.closed) return <PlatformClosed access={accessHours.access} onCheck={accessHours.check} onSignOut={logout} name={user?.name} />;
+
     return (
         <div className="flex h-visible bg-slate-50 text-slate-900 font-sans">
             {/* Raised whenever something wants to write to a student's own
@@ -845,16 +853,6 @@ const StudentLayout = () => {
                 <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
                     {renderNavLinks()}
                 </nav>
-
-                {/* Career Path progress, above the footer. Only when the
-                    section is switched on for this student: XP and levels are
-                    its currency, and advertising a locked feature from the
-                    sidebar of every page is worse than showing nothing. */}
-                {isCareerPathEnabled && (
-                    <div className="hidden shrink-0 px-4 pb-2 [@media(min-height:960px)]:block">
-                        <SidebarProgressCard user={progressUser || user} />
-                    </div>
-                )}
 
                 {/* Sidebar footer — the student's own row, then contact
                     support. My Profile lives here rather than in the nav, the
@@ -925,6 +923,7 @@ const StudentLayout = () => {
                         itself ([data-bell]): the panel it opens is inside this
                         wrapper too, and its rows and icons turned emerald with it. */}
                     <div className="shrink-0 [&_[data-bell]]:text-emerald-600 [&_[data-bell]:hover]:bg-slate-100 [&_[data-bell]_svg]:text-emerald-600">
+                        <LanguageToggle />
                         {renderNotificationBell('mobile')}
                     </div>
                     {/* data-loop-quiet: the mascot does not explain the menu
@@ -1081,6 +1080,7 @@ const StudentLayout = () => {
                             </button>
                         )}
 
+                        <LanguageToggle />
                         {renderNotificationBell('desktop')}
                         <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
 
@@ -1168,6 +1168,8 @@ const StudentLayout = () => {
                     <Outlet />
                 </div>
             </main>
+            {/* A match or Quiz Arena just opened for me: my joining code, on screen. */}
+            <CompetitionAlerts />
             {/* No profile picture yet: choose one before going on. */}
             <ProfilePictureGate />
             {/* "A new Global Quiz is live", when one is published; waits while the student is busy. */}

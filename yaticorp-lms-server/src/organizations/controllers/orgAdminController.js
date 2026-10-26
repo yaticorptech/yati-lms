@@ -15,6 +15,7 @@
  */
 const Organization = require('../models/Organization');
 const JoinRequest = require('../models/JoinRequest');
+const OrgAuditLog = require('../models/OrgAuditLog');
 const User = require('../../models/User');
 const Admin = require('../../models/Admin');
 const { validatePasswordStrength } = require('../../middleware/validatePassword');
@@ -459,6 +460,110 @@ const getStudent = async (req, res) => {
  * certificates and Career Path data are the student's own and are untouched —
  * the student simply stops appearing in this organization's lists.
  */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/**
+ * The welcome email for a student the organization added: their sign-in and
+ * the password they were given. Never throws: the account stands whatever
+ * the mail server does.
+ */
+const sendStudentWelcome = async (user, password, organization) => {
+    try {
+        const url = process.env.FRONTEND_URL || process.env.VITE_STUDENT_URL || 'http://localhost:5173';
+        await require('../../utils/emailService').sendEmail({
+            to: user.email,
+            toName: user.name,
+            subject: `${organization.name} added you to YATICORP`,
+            htmlContent: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <h2 style="color: #4F46E5;">Welcome to YATICORP LMS</h2>
+                    <p>Hi <strong>${escapeHtml(user.name)}</strong>,</p>
+                    <p>${escapeHtml(organization.name)} has made a student account for you, and you are a member of it.</p>
+                    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <p style="margin: 0 0 10px 0;"><strong>Email:</strong> ${escapeHtml(user.email)}</p>
+                        <p style="margin: 0 0 10px 0;"><strong>Card number:</strong> ${escapeHtml(user.cardNumber)}</p>
+                        <p style="margin: 0;"><strong>Password:</strong> ${escapeHtml(password)}</p>
+                    </div>
+                    <p style="color: #d97706; font-size: 0.9em;"><em>Please change your password after you sign in.</em></p>
+                    <p style="margin-top: 25px;"><a href="${url}/login" style="background-color: #4F46E5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Sign in</a></p>
+                </div>`
+        });
+    } catch (error) {
+        console.error('[org] student welcome email failed:', error.message);
+    }
+};
+
+/**
+ * @desc    Add a student with their card: the account is made and is my
+ *          member at once. The card must be verified by YATICORP first (as
+ *          when a student signs up); it is checked again here and claimed in
+ *          one step. A problem comes back as a 400 naming the field.
+ * @route   POST /api/organizations/me/students
+ */
+const addStudent = async (req, res) => {
+    try {
+        const Card = require('../../models/Card');
+        const { isVerified, NOT_VERIFIED, FREE } = require('../../services/cardVerification');
+        const body = req.body || {};
+        const name = String(body.name || '').trim();
+        const email = String(body.email || '').trim().toLowerCase();
+        const phone = String(body.phone || '').trim();
+        const password = String(body.password || '');
+        const bad = (field, message, code) => res.status(400).json({ field, message, ...(code ? { code } : {}) });
+
+        if (!body.CardNumber || !body.CVV || !body.qrCodeNumber) return bad('card', 'Check the card first.');
+        if (name.length < 2 || name.length > 80) return bad('name', 'Enter the student’s full name.');
+        if (!EMAIL.test(email) || email.length > 254) return bad('email', 'Enter a valid email address.');
+        const digits = phone.replace(/\D/g, '');
+        if (!/^\+?[\d\s().-]+$/.test(phone) || digits.length < 10 || digits.length > 15) return bad('phone', 'Enter a phone number of 10–15 digits.');
+        const pwError = validatePasswordStrength(password);
+        if (pwError) return bad('password', pwError);
+
+        // The three values together, as text: an object from the body never reaches the query.
+        const cardKey = { CardNumber: String(body.CardNumber), CVV: String(body.CVV), qrCodeNumber: String(body.qrCodeNumber) };
+        const card = await Card.findOne(cardKey);
+        if (!card) return bad('card', 'Those card details did not match. Check the card again.', 'CARD_INVALID');
+        if (card.status === 'used') return bad('card', 'This card already has an account.', 'CARD_USED');
+        if (!FREE.includes(card.status)) return bad('card', 'This card is inactive and cannot be used.', 'CARD_INACTIVE');
+        if (!isVerified(card)) return bad('card', NOT_VERIFIED.message, NOT_VERIFIED.code);
+        if (card.organizationId && String(card.organizationId) !== String(req.organization._id)) return bad('card', 'This card is linked to another organization.', 'CARD_OTHER_ORG');
+
+        const taken = await User.findOne({ $or: [{ email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }, { cardNumber: cardKey.CardNumber }] }).select('cardNumber').lean();
+        if (taken) {
+            return String(taken.cardNumber) === cardKey.CardNumber
+                ? bad('card', 'This card already has an account.', 'CARD_USED')
+                : bad('email', 'An account already uses this email address. Use another one.', 'EMAIL_TAKEN');
+        }
+
+        // Claimed before the account exists, so two adds with one card cannot
+        // both get through; put back if the account cannot be made.
+        const claimed = await Card.findOneAndUpdate({ _id: card._id, status: { $in: FREE } }, { $set: { status: 'used' } });
+        if (!claimed) return bad('card', 'This card already has an account.', 'CARD_USED');
+        let user;
+        try {
+            user = await User.create({
+                name, email, phone, password,
+                cardNumber: cardKey.CardNumber,
+                serialNumber: card.SerialNumber || '',
+                qrNumber: card.qrCodeNumber || '',
+                organizationId: req.organization._id,
+                organizationJoinedAt: new Date()
+            });
+        } catch (error) {
+            await Card.updateOne({ _id: card._id, status: 'used' }, { $set: { status: claimed.status } }).catch(() => {});
+            throw error;
+        }
+
+        await OrgAuditLog.record({ orgId: req.organization._id, admin: req.admin, action: 'add-student', req, details: { studentId: user._id, studentName: user.name } });
+        sendStudentWelcome(user, password, req.organization);
+        res.status(201).json({ _id: user._id, name: user.name, message: `${user.name} was added to your organization. Their sign-in details were emailed to ${user.email}.` });
+    } catch (error) {
+        console.error('[org] add student failed:', error.message);
+        res.status(500).json({ message: 'The student could not be added just now. Please try again.' });
+    }
+};
+
 const removeStudent = async (req, res) => {
     try {
         const student = await User.findOne({
@@ -661,10 +766,12 @@ module.exports = {
     getDashboard,
     getStudents,
     getStudent,
+    addStudent,
     removeStudent,
     getRequests,
     getRequestCount,
     decideRequest,
     countPendingRequests,
-    isRasterImage
+    isRasterImage,
+    rasterExtension
 };

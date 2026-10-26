@@ -12,10 +12,11 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Presentation, UserPlus, Upload, Eye, UserMinus, Copy, Check, CheckCircle2, XCircle, Mail, Phone, Clock, Loader2 } from 'lucide-react';
+import { Presentation, UserPlus, Upload, Eye, UserMinus, Copy, Check, CheckCircle2, XCircle, Mail, Phone, Clock, Loader2, Pencil } from 'lucide-react';
+import PasswordStrengthChecker from '../../components/PasswordStrengthChecker';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
-import { CARD, LABEL, INPUT, BTN, BTN2, Empty, Banner, Rows, Pill, PageHeader, Segmented, Avatar, LoadFailed, SearchInput, Dialog, DialogTitle } from '../../components/orgUi';
+import { CARD, LABEL, INPUT, BTN, BTN2, Empty, Banner, Rows, Pill, Segmented, Avatar, LoadFailed, SearchInput, Dialog, DialogTitle } from '../../components/orgUi';
 import AddTeacherModal from '../../components/teachers/AddTeacherModal';
 import BulkTeachersModal from '../../components/teachers/BulkTeachersModal';
 import TeacherDetailModal from '../../components/teachers/TeacherDetailModal';
@@ -38,8 +39,6 @@ const OrgTeachers = () => {
 
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
-            <PageHeader icon={Presentation} title="Teachers"
-                subtitle="Your teachers and their research progress. Add them with their card, or approve those who ask to join." />
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             <Segmented options={TABS} value={tab} onChange={switchTab} counts={{ requests: pending }} />
             {tab === 'teachers'
@@ -94,6 +93,13 @@ const TeachersTab = ({ onNotice, onPending }) => {
 
     const close = () => setOpen(null);
     const teachers = data?.teachers || [];
+    // Teachers with the organisation dashboard only: a sign-in to this panel, no teacher account.
+    const staff = data?.staff || [];
+    const removeStaff = async (a) => {
+        if (!window.confirm(`Stop ${a.name} signing in to this panel?`)) return;
+        try { onNotice((await api.delete(`/organizations/me/teachers/staff/${a._id}`)).data.message); reload(); }
+        catch (err) { setError(err.response?.data?.message || 'That did not go through.'); }
+    };
 
     return (
         <>
@@ -125,14 +131,14 @@ const TeachersTab = ({ onNotice, onPending }) => {
 
             <div className={`${CARD} overflow-hidden`}>
                 <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                    <p className="text-sm font-semibold text-slate-600">{data ? `${teachers.length} teacher${teachers.length === 1 ? '' : 's'}` : 'Teachers'}</p>
+                    <p className="text-sm font-semibold text-slate-600">{data ? `${teachers.length + staff.length} teacher${teachers.length + staff.length === 1 ? '' : 's'}` : 'Teachers'}</p>
                     <SearchInput value={search} onChange={setSearch} placeholder="Search name, email, card, department" label="Search teachers" className="sm:w-72" />
                 </div>
                 {loading ? (
                     <Rows count={3} height="h-16" />
                 ) : loadFailed && !data ? (
                     <LoadFailed what="your teachers" onRetry={reload} />
-                ) : !teachers.length ? (
+                ) : !teachers.length && !staff.length ? (
                     <Empty icon={Presentation}>{query ? 'No teacher matches that search.' : 'No teachers yet. Add one with their card, or share your Organization ID.'}</Empty>
                 ) : (
                     <ul className="divide-y divide-slate-100">
@@ -144,15 +150,39 @@ const TeachersTab = ({ onNotice, onPending }) => {
                                         <div className="flex flex-wrap items-center gap-2">
                                             <p className="truncate font-semibold text-slate-800">{t.name}</p>
                                             {t.status !== 'active' && <TeacherStatus status={t.status} />}
+                                            <AccessBadges teacher />{t.orgAccess && <AccessBadges organization />}
                                         </div>
                                         <p className="break-all text-xs text-slate-500">{[t.designation, t.department].filter(Boolean).join(' · ') || 'Teacher'} · {t.email}</p>
                                         <TeacherSummary summary={t.summary} />
                                         <p className="text-[11px] text-slate-400">Member since {formatDate(t.organizationJoinedAt || t.createdAt)} · last sign-in {t.lastLoginAt ? relativeDay(t.lastLoginAt).toLowerCase() : 'never'}</p>
                                     </div>
                                 </div>
-                                <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+                                <div className="grid shrink-0 grid-cols-3 gap-2 sm:flex">
                                     <button type="button" onClick={() => setOpen({ kind: 'view', teacher: t })} className={BTN2}><Eye size={15} />View</button>
+                                    <button type="button" onClick={() => setOpen({ kind: 'edit', teacher: t })} className={BTN2}><Pencil size={15} />Edit</button>
                                     <button type="button" onClick={() => setOpen({ kind: 'remove', teacher: t })}
+                                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-bold text-red-600 transition-colors hover:bg-red-50">
+                                        <UserMinus size={15} />Remove
+                                    </button>
+                                </div>
+                            </li>
+                        ))}
+                        {staff.map((a) => (
+                            <li key={a._id} className="flex flex-col gap-3 p-4 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
+                                <div className="flex min-w-0 items-start gap-3.5">
+                                    <Avatar name={a.name} />
+                                    <div className="min-w-0 space-y-1.5">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <p className="truncate font-semibold text-slate-800">{a.name}</p>
+                                            <AccessBadges organization />
+                                        </div>
+                                        <p className="break-all text-xs text-slate-500">Signs in to this panel · {a.email}</p>
+                                        <p className="text-[11px] text-slate-400">Added {formatDate(a.createdAt)}</p>
+                                    </div>
+                                </div>
+                                <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+                                    <button type="button" onClick={() => setOpen({ kind: 'editStaff', staff: a })} className={BTN2}><Pencil size={15} />Edit</button>
+                                    <button type="button" onClick={() => removeStaff(a)}
                                         className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-bold text-red-600 transition-colors hover:bg-red-50">
                                         <UserMinus size={15} />Remove
                                     </button>
@@ -163,6 +193,10 @@ const TeachersTab = ({ onNotice, onPending }) => {
                 )}
             </div>
 
+            {(open?.kind === 'edit' || open?.kind === 'editStaff') && (
+                <EditTeacherDialog teacher={open.teacher} staff={open.staff} onClose={close}
+                    onSaved={(message) => { close(); onNotice(message); reload(); }} />
+            )}
             {open?.kind === 'add' && (
                 <AddTeacherModal endpoint="/organizations/me/teachers" onClose={close}
                     onAdded={(message) => { close(); onNotice(message); reload(); }} />
@@ -176,6 +210,159 @@ const TeachersTab = ({ onNotice, onPending }) => {
         </>
     );
 };
+
+/**
+ * Edit a teacher: their details, and what they can open.
+ *   A teacher account (`teacher`): name, phone, department, designation; the
+ *     organisation dashboard on or off (a sign-in to this panel — email and,
+ *     the first time, a password); the teacher dashboard off takes them out of
+ *     the organization (as Remove does), keeping a panel sign-in if they have one.
+ *   A panel sign-in only (`staff`): name, email, a new password; the
+ *     organisation dashboard off takes the sign-in away; the teacher dashboard
+ *     on makes their teacher account, with their card, as Add teacher does.
+ */
+const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
+    const [form, setForm] = useState(() => (teacher
+        ? { name: teacher.name, phone: teacher.phone || '', department: teacher.department || '', designation: teacher.designation || '',
+            organization: Boolean(teacher.orgAccess), teacher: true, panelEmail: teacher.panelEmail || teacher.email, panelPassword: '' }
+        : { name: staff.name, email: staff.email, password: '', organization: true, teacher: false, phone: '', teacherPassword: '', department: '', designation: '' }));
+    // The card, for a panel-only teacher given the teacher dashboard: checked as Add teacher checks it.
+    const [code, setCode] = useState('');
+    const [card, setCard] = useState(null);
+    const [checking, setChecking] = useState(false);
+    const checkCard = async () => {
+        const raw = code.trim();
+        if (!raw) return;
+        setChecking(true); setError('');
+        const digits = raw.replace(/[\s-]/g, '');
+        try {
+            const r = await api.post('/auth/validate-qr', /^\d{12}$/.test(digits) ? { cardNumber: digits } : { qrCodeNumber: raw });
+            setCard({ CardNumber: r.data.cardNumber, CVV: r.data.cvv, qrCodeNumber: r.data.qrCodeNumber });
+        } catch (err) { setError(err.response?.data?.message || 'That card could not be checked.'); }
+        finally { setChecking(false); }
+    };
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const [field, setField] = useState('');
+    const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setError(''); setField(''); };
+    const submit = async (e) => {
+        e.preventDefault();
+        if (teacher && !form.teacher && !window.confirm(`Take the teacher dashboard away? ${teacher.name} leaves your organization (their account and research stay theirs).`)) return;
+        if (staff && form.teacher && !card) { setError('Check their card first.'); return; }
+        if (staff && !form.organization && !form.teacher && !window.confirm(`Take ${staff.name}'s access away? They can no longer sign in to this panel.`)) return;
+        setBusy(true);
+        try {
+            const r = teacher
+                ? await api.put(`/organizations/me/teachers/${teacher._id}`, form)
+                : await api.put(`/organizations/me/teachers/staff/${staff._id}`, { ...form, ...(form.teacher ? card : {}) });
+            onSaved(r.data.message);
+        } catch (err) {
+            setError(err.response?.data?.message || 'Could not save.');
+            setField(err.response?.data?.field || '');
+            setBusy(false);
+        }
+    };
+    const box = (on) => `flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${on ? 'border-indigo-300 bg-indigo-50 ring-1 ring-indigo-300' : 'border-slate-200 hover:bg-slate-50'}`;
+    const input = (k, props = {}) => <input className={`${INPUT} ${field === k ? 'border-red-400' : ''}`} value={form[k]} onChange={(e) => set(k, e.target.value)} {...props} />;
+    const newPanel = teacher && form.organization && !teacher.orgAccess;
+    return (
+        <Dialog onClose={() => { if (!busy) onClose(); }} size="max-w-lg">
+            <form onSubmit={submit} className="flex min-h-0 flex-col">
+                <div className="border-b border-slate-100 p-5"><DialogTitle>Edit {teacher ? teacher.name : staff.name}</DialogTitle></div>
+                <div className="min-h-0 space-y-4 overflow-y-auto p-5">
+                    <div className="space-y-3">
+                        <p className={LABEL}>Details</p>
+                        <label className="block"><span className={LABEL}>Full name</span>{input('name', { required: true })}</label>
+                        {teacher ? (
+                            <>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <label className="block"><span className={LABEL}>Phone</span>{input('phone', { type: 'tel' })}</label>
+                                    <label className="block"><span className={LABEL}>Designation</span>{input('designation')}</label>
+                                </div>
+                                <label className="block"><span className={LABEL}>Department</span>{input('department')}</label>
+                                <p className="text-xs text-slate-500">Their teacher sign-in email ({teacher.email}) and card stay as they are.</p>
+                            </>
+                        ) : (
+                            <>
+                                <label className="block"><span className={LABEL}>Email (their sign-in)</span>{input('email', { type: 'email', required: true })}</label>
+                                <label className="block"><span className={LABEL}>New password</span>{input('password', { type: 'text', autoComplete: 'new-password', placeholder: 'Leave blank to keep the current one' })}</label>
+                                {form.password && <PasswordStrengthChecker password={form.password} focused />}
+                            </>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <p className={LABEL}>What can they open?</p>
+                        {teacher ? (
+                            <>
+                                <label className={box(form.organization)}>
+                                    <input type="checkbox" checked={form.organization} onChange={() => set('organization', !form.organization)} className="mt-1 h-4 w-4 accent-indigo-600" />
+                                    <span><span className="block text-sm font-bold text-slate-800">Organisation dashboard</span><span className="text-xs text-slate-500">A limited sign-in to this panel, with Research.</span></span>
+                                </label>
+                                {form.organization && (
+                                    <div className="grid gap-3 pl-1 sm:grid-cols-2">
+                                        <label className="block"><span className={LABEL}>Panel email</span>{input('panelEmail', { type: 'email' })}</label>
+                                        <label className="block"><span className={LABEL}>{newPanel ? 'Panel password *' : 'New panel password'}</span>{input('panelPassword', { type: 'text', autoComplete: 'new-password', placeholder: newPanel ? 'Set a password' : 'Leave blank to keep' })}</label>
+                                        {form.panelPassword && <div className="sm:col-span-2"><PasswordStrengthChecker password={form.panelPassword} focused /></div>}
+                                    </div>
+                                )}
+                                <label className={box(form.teacher)}>
+                                    <input type="checkbox" checked={form.teacher} onChange={() => set('teacher', !form.teacher)} className="mt-1 h-4 w-4 accent-indigo-600" />
+                                    <span><span className="block text-sm font-bold text-slate-800">Teacher dashboard</span><span className="text-xs text-slate-500">{form.teacher ? 'Their research and writing tools, with their card.' : 'Unticked: they leave your organization; their account stays theirs.'}</span></span>
+                                </label>
+                            </>
+                        ) : (
+                            <>
+                                <label className={box(form.organization)}>
+                                    <input type="checkbox" checked={form.organization} onChange={() => set('organization', !form.organization)} className="mt-1 h-4 w-4 accent-indigo-600" />
+                                    <span><span className="block text-sm font-bold text-slate-800">Organisation dashboard</span><span className="text-xs text-slate-500">{form.organization ? 'A limited sign-in to this panel.' : 'Unticked: they can no longer sign in to this panel.'}</span></span>
+                                </label>
+                                <label className={box(form.teacher)}>
+                                    <input type="checkbox" checked={form.teacher} onChange={() => set('teacher', !form.teacher)} className="mt-1 h-4 w-4 accent-indigo-600" />
+                                    <span><span className="block text-sm font-bold text-slate-800">Teacher dashboard</span><span className="text-xs text-slate-500">Their research and writing tools, with their YATICORP card{form.organization ? ' — and Research in this panel' : ''}.</span></span>
+                                </label>
+                                {form.teacher && (
+                                    <div className="space-y-3 rounded-xl border border-slate-200 p-3">
+                                        {card ? (
+                                            <div className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                                                <span>Card <strong className="font-mono">{card.CardNumber}</strong> is free to use</span>
+                                                <button type="button" onClick={() => { setCard(null); setCode(''); }} className="text-xs font-bold hover:underline">Change</button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex gap-2">
+                                                <input value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); checkCard(); } }}
+                                                    placeholder="QR code or 12-digit card number" aria-label="QR code or card number" className={`${INPUT} min-w-0 flex-1 font-mono`} />
+                                                <button type="button" onClick={checkCard} disabled={checking || !code.trim()} className={`${BTN} shrink-0`}>{checking && <Loader2 size={15} className="animate-spin" />}Check card</button>
+                                            </div>
+                                        )}
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            <label className="block"><span className={LABEL}>Phone *</span>{input('phone', { type: 'tel' })}</label>
+                                            <label className="block"><span className={LABEL}>Teacher password *</span>{input('teacherPassword', { type: 'text', autoComplete: 'new-password', placeholder: 'For their card sign-in' })}</label>
+                                            <label className="block"><span className={LABEL}>Department</span>{input('department')}</label>
+                                            <label className="block"><span className={LABEL}>Designation</span>{input('designation')}</label>
+                                        </div>
+                                        {form.teacherPassword && <PasswordStrengthChecker password={form.teacherPassword} focused />}
+                                        <p className="text-xs text-slate-500">Their card number and this password are emailed to {form.email}.</p>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                    {error && <Banner>{error}</Banner>}
+                </div>
+                <div className="flex justify-end gap-2 border-t border-slate-100 p-4">
+                    <button type="button" onClick={onClose} disabled={busy} className={BTN2}>Cancel</button>
+                    <button type="submit" disabled={busy} className={BTN}>{busy && <Loader2 size={16} className="animate-spin" />}Save</button>
+                </div>
+            </form>
+        </Dialog>
+    );
+};
+
+/** What a teacher can open: the organisation dashboard, the teacher dashboard. */
+const AccessBadges = ({ organization }) => (organization
+    ? <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700">Organisation dashboard</span>
+    : <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Teacher dashboard</span>);
 
 /** "Remove {teacher}?" — said plainly that their account and research stay theirs. */
 const RemoveTeacherDialog = ({ teacher, onCancel, onRemoved }) => {

@@ -19,13 +19,18 @@
  * the one that is showing is built.
  */
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useOutletContext } from 'react-router-dom';
 import OrgCertificateProgress from './OrgCertificateProgress';
-import { Users, ChevronRight, Award, Download, UserMinus, Loader2 } from 'lucide-react';
+import OrgRequests from './OrgRequests';
+import { Users, ChevronRight, Award, Download, UserMinus, Loader2, UserPlus } from 'lucide-react';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import useMediaQuery from '../../hooks/useMediaQuery';
-import { CARD, Bar, Pill, Empty, Banner, Rows, BTN2, PageHeader, Segmented, Avatar, LoadFailed, SearchInput, Pager, RemoveStudentDialog } from '../../components/orgUi';
+import { CARD, INPUT, Bar, Pill, Empty, Banner, Rows, BTN, BTN2, PageHeader, Segmented, Avatar, LoadFailed, SearchInput, Pager, RemoveStudentDialog } from '../../components/orgUi';
+import Select from '../../components/Select';
+import AddStudentModal from '../../components/AddStudentModal';
+import ScanCardsModal from '../../components/ScanCardsModal';
+import ScannedCards from '../../components/ScannedCards';
 import { relativeDay, formatDate } from '../../utils/dates';
 import { saveBlob } from '../../native/saveFile';
 
@@ -108,6 +113,9 @@ const StudentList = ({ tabs }) => {
     const [busy, setBusy] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [notice, setNotice] = useState('');
+    const [adding, setAdding] = useState(false);
+    const [scanningCards, setScanningCards] = useState(false);
+    const [cardsVersion, setCardsVersion] = useState(0);    // reloads Scanned cards after adding
 
     const wide = useMediaQuery('(min-width: 1280px)');
 
@@ -216,6 +224,11 @@ const StudentList = ({ tabs }) => {
                         {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                         <span className="sm:hidden">CSV</span><span className="hidden sm:inline">Export CSV</span>
                     </button>
+                    {/* Typed card details for one student, or Scan cards for many (components/AddStudentModal). */}
+                    <button type="button" onClick={() => setAdding(true)} aria-label="Add student" title="Add student"
+                        className={`${BTN} shrink-0 whitespace-nowrap px-3 sm:px-4`}>
+                        <UserPlus size={16} /><span className="hidden sm:inline">Add student</span>
+                    </button>
                 </div>
             </PageHeader>
 
@@ -228,8 +241,14 @@ const StudentList = ({ tabs }) => {
 
             {/* The filter chips, then how many they leave. */}
             <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between xl:gap-4">
-                <div className="flex min-w-0 items-center gap-3">
-                    <span className="hidden text-xs font-bold uppercase tracking-wider text-slate-400 sm:inline">Show</span>
+                {/* A phone: a dropdown (six chips ran off its edge). Wider: the chips. */}
+                <div className="sm:hidden">
+                    <Select id="students-filter" aria-label="Show students" value={filter} onChange={(e) => update({ filter: e.target.value, page: 1 })} className={INPUT}>
+                        {FILTERS.map(([key, label]) => <option key={key} value={key}>{key === 'all' ? 'All students' : label}</option>)}
+                    </Select>
+                </div>
+                <div className="hidden min-w-0 items-center gap-3 sm:flex">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Show</span>
                     <Segmented options={FILTERS} value={filter} onChange={(f) => update({ filter: f, page: 1 })} />
                 </div>
                 <p className="shrink-0 text-sm font-medium text-slate-500 xl:hidden" aria-live="polite">
@@ -361,31 +380,46 @@ const StudentList = ({ tabs }) => {
                 )}
             </div>
 
+            {/* The cards scanned in, each with its student once registered. */}
+            <ScannedCards version={cardsVersion} />
+
             {removing && (
                 <RemoveStudentDialog student={removing} busy={busy} error={removeError}
                     onCancel={() => { setRemoving(null); setRemoveError(''); }} onConfirm={remove} />
             )}
+            {adding && <AddStudentModal onClose={() => setAdding(false)} onAdded={(message) => { setAdding(false); setNotice(message); refresh(); }}
+                onScanMany={() => { setAdding(false); setScanningCards(true); }} />}
+            {scanningCards && <ScanCardsModal onClose={() => setScanningCards(false)} onAdded={(message) => { setScanningCards(false); setNotice(message); setCardsVersion((v) => v + 1); refresh(); }} />}
         </div>
     );
 };
 
 const VIEWS = [
     ['students', 'All students'],
+    // Students asking to join: once a menu item of its own ("Student requests").
+    ['requests', 'Requests'],
     ['certificates', 'Certificate progress']
 ];
 
 /**
  * The Students section: the student list, and each student's certificate
- * progress on the organization's own courses. The open tab lives in the
- * address (?view=certificates), so it survives a refresh and can be linked to.
+ * progress on the organization's own courses, and the students asking to join
+ * (Requests; it used to be a menu item of its own). The open tab lives in the
+ * address (?view=certificates, ?view=requests), so it survives a refresh and
+ * can be linked to.
  */
 const OrgStudents = () => {
     const [params, setParams] = useSearchParams();
-    const view = params.get('view') === 'certificates' ? 'certificates' : 'students';
+    const { staff, pendingRequests } = useOutletContext() || {};
+    // A teacher signed in to the panel cannot decide requests, so they see no Requests tab.
+    const views = staff ? VIEWS.filter(([v]) => v !== 'requests') : VIEWS;
+    const asked = params.get('view');
+    const view = views.some(([v]) => v === asked) ? asked : 'students';
     // Under the page's title, not above it: the title says where you are, the
     // tabs which view of it.
-    const tabs = <Segmented options={VIEWS} value={view} onChange={(v) => setParams(v === 'students' ? {} : { view: v })} />;
+    const tabs = <Segmented options={views} value={view} onChange={(v) => setParams(v === 'students' ? {} : { view: v })} counts={{ requests: pendingRequests }} />;
     if (view === 'students') return <StudentList tabs={tabs} />;
+    if (view === 'requests') return <OrgRequests tabs={tabs} />;
     return (
         // Certificate progress is a narrower view, centred — tabs and all.
         <div className="mx-auto max-w-5xl space-y-4 lg:space-y-6 animate-fade-in pb-10">

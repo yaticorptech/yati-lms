@@ -21,6 +21,8 @@ import Select from '../components/Select';
 import OrgCodeField from '../components/OrgCodeField';
 import { orgCodeProblem } from '../utils/orgCode';
 
+// The Terms and Privacy Policy pages are the student site's (/terms, /privacy).
+const STUDENT_URL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
 const INPUT = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40';
 const INPUT_BAD = 'w-full rounded-xl border border-red-400 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400/40';
 const LABEL = 'mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500';
@@ -66,6 +68,7 @@ const RegisterOrganization = () => {
     const [types, setTypes] = useState([]);
     const [problems, setProblems] = useState({});
     const [busy, setBusy] = useState(false);
+    const [agreed, setAgreed] = useState(false);
     const [error, setError] = useState('');
     const [done, setDone] = useState(null);   // { orgCode, name }
     const [pwFocused, setPwFocused] = useState(false);
@@ -98,6 +101,7 @@ const RegisterOrganization = () => {
         const found = check(form, codeStatus);
         setProblems(found);
         if (Object.values(found).some(Boolean)) return;
+        if (!agreed) { setError('Please agree to the Terms and Conditions and Privacy Policy to continue.'); return; }
 
         setBusy(true); setError('');
         try {
@@ -247,7 +251,12 @@ const RegisterOrganization = () => {
                             </div>
                         )}
 
-                        <button type="submit" disabled={busy}
+                        <label className="flex cursor-pointer items-start gap-2.5 text-sm text-slate-600">
+                            <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); setError(''); }} className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600" />
+                            <span>I agree to the <a href={`${STUDENT_URL}/terms`} target="_blank" rel="noopener noreferrer" className="font-semibold text-indigo-600 hover:underline">Terms and Conditions</a> and the <a href={`${STUDENT_URL}/privacy`} target="_blank" rel="noopener noreferrer" className="font-semibold text-indigo-600 hover:underline">Privacy Policy</a>, on behalf of my organization.</span>
+                        </label>
+
+                        <button type="submit" disabled={busy || !agreed}
                             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition-colors hover:bg-indigo-700 disabled:opacity-50">
                             {busy ? <><Loader2 size={16} className="animate-spin" />Submitting…</> : 'Submit registration'}
                         </button>

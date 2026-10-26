@@ -7,6 +7,8 @@
  *   GET  /api/admin/cards                 the cards: ?state=waiting|verified|registered|inactive|all, ?q=, ?page=
  *   POST /api/admin/cards/verify          { cardNumbers: [...] } → a result for each
  *   POST /api/admin/cards                 { cards: [{ CardNumber, CVV, qrCodeNumber, SerialNumber? }] } → add (verified)
+ *   POST /api/admin/cards/verify-all      { q? } verify every waiting card (or those matching the search)
+ *   POST /api/admin/cards/unverify-all    { q? } undo every verification on a card not yet registered (or those matching)
  *   POST /api/admin/cards/:id/unverify    undo a verification, while the card is still free
  */
 const mongoose = require('mongoose');
@@ -27,17 +29,20 @@ const STATE_QUERY = {
     all: {}
 };
 
+/** The search box, as a query on card, serial or QR number. */
+const withSearch = (filter, raw) => {
+    const q = String(raw || '').trim().slice(0, 60);
+    if (!q) return filter;
+    const pattern = new RegExp(escapeRegExp(q.replace(/\s+/g, '')), 'i');
+    return { ...filter, $or: [{ CardNumber: pattern }, { SerialNumber: pattern }, { qrCodeNumber: pattern }] };
+};
+
 const listCards = async (req, res) => {
     try {
         const state = STATE_QUERY[req.query.state] ? req.query.state : 'waiting';
         const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
         const limit = 50;
-        const filter = { ...STATE_QUERY[state] };
-        const q = String(req.query.q || '').trim().slice(0, 60);
-        if (q) {
-            const pattern = new RegExp(escapeRegExp(q.replace(/\s+/g, '')), 'i');
-            filter.$or = [{ CardNumber: pattern }, { SerialNumber: pattern }, { qrCodeNumber: pattern }];
-        }
+        const filter = withSearch({ ...STATE_QUERY[state] }, req.query.q);
         const [rows, total, waiting, verified, registered, inactive] = await Promise.all([
             Card.find(filter).select('CardNumber SerialNumber qrCodeNumber status verified verifiedAt verifiedVia createdAt').sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
             Card.countDocuments(filter),
@@ -93,6 +98,32 @@ const verifyCards = async (req, res) => {
     } catch (error) {
         console.error('[cards] verify failed:', error.message);
         res.status(500).json({ message: 'The cards could not be verified just now.' });
+    }
+};
+
+/** Every waiting card at once — or, with a search, every waiting card that matches it. */
+const verifyAll = async (req, res) => {
+    try {
+        const filter = withSearch({ ...STATE_QUERY.waiting }, req.body?.q);
+        const result = await Card.updateMany(filter, { $set: verifiedFields(req.admin._id, 'admin') });
+        const n = result.modifiedCount;
+        res.json({ verified: n, message: n ? `${n.toLocaleString('en-IN')} ${n === 1 ? 'card is' : 'cards are'} verified and can be used to register now.` : 'There were no waiting cards to verify.' });
+    } catch (error) {
+        console.error('[cards] verify all failed:', error.message);
+        res.status(500).json({ message: 'The cards could not be verified just now.' });
+    }
+};
+
+/** Every verified card not yet registered back to waiting — or those matching the search. */
+const unverifyAll = async (req, res) => {
+    try {
+        const filter = withSearch({ ...STATE_QUERY.verified }, req.body?.q);
+        const result = await Card.updateMany(filter, { $set: { verified: false, verifiedAt: null, verifiedBy: null, verifiedVia: null } });
+        const n = result.modifiedCount;
+        res.json({ unverified: n, message: n ? `${n.toLocaleString('en-IN')} ${n === 1 ? 'card is' : 'cards are'} waiting for verification again.` : 'There were no verified cards to undo.' });
+    } catch (error) {
+        console.error('[cards] unverify all failed:', error.message);
+        res.status(500).json({ message: 'The verifications could not be undone just now.' });
     }
 };
 
@@ -154,4 +185,28 @@ const unverifyCard = async (req, res) => {
     }
 };
 
-module.exports = { listCards, verifyCards, addCards, unverifyCard };
+/**
+ * One card from the admin's camera: found by what its QR holds (the code, a
+ * link ending in it, or the card number), then verified like a typed number.
+ * Registered and inactive cards are left as they are.
+ */
+const scanAndVerify = async (req, res) => {
+    try {
+        const { scanCandidates, findScannedCard } = require('./registrationController');
+        const code = String(req.body?.code || '').trim().slice(0, 500);
+        if (!code) return res.status(400).json({ message: 'Nothing was read from the card. Try again.' });
+        const card = await findScannedCard(scanCandidates(code)).select('CardNumber status verified').lean();
+        if (!card) return res.json({ code, result: 'not_found', message: 'No card with this QR code is in the system. Add it below.' });
+        const cardNumber = normaliseCardNumber(card.CardNumber);
+        if (card.status === 'used') return res.json({ cardNumber, result: 'registered', message: 'Already registered — left as it is.' });
+        if (card.status === 'inactive') return res.json({ cardNumber, result: 'inactive', message: 'This card is inactive.' });
+        const done = card.verified ? null : await Card.updateOne({ _id: card._id, status: { $in: FREE }, verified: { $ne: true } }, { $set: verifiedFields(req.admin._id, 'admin') });
+        if (done?.modifiedCount) return res.json({ cardNumber, result: 'verified', message: 'Verified — it can be used to register now.' });
+        res.json({ cardNumber, result: 'already_verified', message: 'Was already verified.' });
+    } catch (error) {
+        console.error('[cards] scan failed:', error.message);
+        res.status(500).json({ message: 'That card could not be checked just now.' });
+    }
+};
+
+module.exports = { listCards, verifyCards, verifyAll, unverifyAll, addCards, unverifyCard, scanAndVerify };

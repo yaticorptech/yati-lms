@@ -194,7 +194,7 @@ const sendWelcome = async (teacher, password, madeBy) => {
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
                     <h2 style="color: #059669;">Welcome to YATICORP Research</h2>
                     <p>Hi <strong>${clean(teacher.name)}</strong>,</p>
-                    <p>${clean(madeBy)} has made a teacher account for you — a step-by-step guide for your research, thesis and publications.</p>
+                    <p>${clean(madeBy)} has made a teacher account for you: a step-by-step guide for your research, thesis and publications.</p>
                     <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
                         <p style="margin: 0 0 10px 0;"><strong>Card number:</strong> ${clean(teacher.cardNumber)}</p>
                         <p style="margin: 0;"><strong>Password:</strong> ${clean(password)}</p>
