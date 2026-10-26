@@ -129,14 +129,14 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
                     moreLeft: strip.parentElement.dataset.moreLeft
                 };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.count, 5, 'all five tabs are there');
+        assert.equal(result.count, 4, 'all four tabs are there (no Bundles: taken off every dashboard)');
         assert.ok(!result.names.some((n) => /My Courses/.test(n)), `My Courses is not one of them: ${result.names.join(', ')}`);
-        // In this order: Available Courses first, Bundles third. (Completed carries
-        // a count when a course is finished, dropped here.)
+        // In this order: Available Courses first. (Completed carries a count
+        // when a course is finished, dropped here.)
         assert.deepEqual(result.names.map((n) => n.replace(/\s*\d+$/, '')),
-            ['Available Courses', 'Completed', 'Bundles', 'Global Quiz', 'Weekly activity']);
+            ['Available Courses', 'Completed', 'Global Quiz', 'Weekly activity']);
         assert.equal(result.rows, 1, `they sit on one line, found ${result.rows}`);
-        assert.equal(result.scrollable, true, 'and that line scrolls, since five do not fit a phone');
+        assert.equal(result.scrollable, true, 'and that line scrolls, since four do not fit a phone');
         assert.equal(result.pageScrollsSideways, false, 'the page itself stays put');
         assert.equal(result.barHeight, 0, 'no scrollbar is drawn under the tabs');
         assert.equal(result.moreRight, 'true', 'the right edge fades, to say there is more that way');
@@ -173,8 +173,8 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
 
     test('tapping a tab moves it to the front, and brings the next one into view', async () => {
         // On a real phone width. Tapping Completed used to leave it where it
-        // was, second, with Bundles cut off under the right-hand fade until the
-        // strip was swiped.
+        // was, second, with the next tab (Global Quiz) cut off under the
+        // right-hand fade until the strip was swiped.
         const { result, errors } = await screen({
             entry, api, device: DEVICES.galaxyA55, styles: true, script: `
                 await sleep(900);
@@ -182,22 +182,22 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
                 const tab = (re) => $$('[role="tab"]').find((t) => re.test(t.innerText));
                 const S = () => strip.getBoundingClientRect();
                 const before = { completedAt: Math.round(tab(/Completed/).getBoundingClientRect().left - S().left),
-                                 bundlesWhole: tab(/Bundles/).getBoundingClientRect().right <= S().right };
+                                 nextWhole: tab(/Global Quiz/).getBoundingClientRect().right <= S().right };
                 tab(/Completed/).click();
                 await sleep(900);
-                const C = tab(/Completed/).getBoundingClientRect(), B = tab(/Bundles/).getBoundingClientRect();
+                const C = tab(/Completed/).getBoundingClientRect(), B = tab(/Global Quiz/).getBoundingClientRect();
                 return { before, vw: innerWidth,
                          completedAt: Math.round(C.left - S().left),
                          pad: parseFloat(getComputedStyle(strip).scrollPaddingInlineStart),
-                         bundlesWhole: B.left >= S().left && B.right <= S().right,
+                         nextWhole: B.left >= S().left && B.right <= S().right,
                          pageMoved: scrollX !== 0 || scrollY !== 0 };` });
         assert.deepEqual(errors, []);
         assert.equal(result.vw, 384, 'a real phone width');
-        assert.equal(result.before.bundlesWhole, false, 'at first Bundles is cut off at the edge');
+        assert.equal(result.before.nextWhole, false, 'at first Global Quiz is cut off at the edge');
         assert.ok(result.before.completedAt > 100, 'and Completed sits second, behind Available Courses');
         assert.ok(Math.abs(result.completedAt - result.pad) <= 2,
             `after the tap Completed is at the front, just clear of the fade: ${result.completedAt}px in, the fade is ${result.pad}px`);
-        assert.equal(result.bundlesWhole, true, 'and Bundles, after it, is now whole');
+        assert.equal(result.nextWhole, true, 'and Global Quiz, after it, is now whole');
         assert.equal(result.pageMoved, false, 'only the strip scrolled, not the page');
     });
 
@@ -232,7 +232,7 @@ describe('the dashboard on a phone', { skip: skipWithoutStyles }, () => {
                 await sleep(300);
                 $$('button').find((b) => /Enroll Now/.test(b.innerText)).click();
                 await sleep(300);
-                $$('button').find((b) => /Confirm Enroll/.test(b.innerText)).click();
+                $$('[role=dialog] button').find((b) => /Enroll Now/.test(b.innerText)).click();
                 await sleep(600);
                 return { landed: !!$('#enrolled-page') };` });
         assert.deepEqual(errors, []);

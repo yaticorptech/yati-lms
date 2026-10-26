@@ -12,12 +12,12 @@ import { useSearchParams } from 'react-router-dom';
 import { ShieldCheck, Loader2, FileText, PenLine, ClipboardPaste, Trash2, Info, Quote, History } from 'lucide-react';
 import teacherApi, { messageOf } from '../teacherSession';
 import { PageHeader, Card, CardTitle, ErrorNote, Badge } from '../ui';
-import { btn, inputClass, countWords, fmtDate, fmtNum } from '../kit';
+import { btn, inputClass, selectClass, countWords, fmtDate, fmtNum } from '../kit';
 import useConfirmDialog from '../../components/useConfirmDialog';
 import StepGuide from '../StepGuide';
 import PlagiarismSources from '../PlagiarismSources';
-import useGuideRead from '../useGuideRead';
 import { PLAGIARISM_STEPS } from '../content/plagiarism';
+import Select from '../../components/Select';
 
 const MIN_WORDS = 30;
 const tone = (score) => (score >= 25 ? { ring: '#e11d48', label: 'High similarity', chip: 'bg-rose-100 text-rose-700' }
@@ -62,13 +62,13 @@ const Report = ({ report }) => {
                             <circle cx="18" cy="18" r="15.5" fill="none" stroke="#f1f5f9" strokeWidth="3.5" />
                             <circle cx="18" cy="18" r="15.5" fill="none" stroke={t.ring} strokeWidth="3.5" strokeLinecap="round" strokeDasharray={`${(Math.min(100, report.score) / 100) * 97.4} 97.4`} />
                         </svg>
-                        <span className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-2xl font-black text-slate-900">{report.score}%</span><span className="text-[10px] font-bold text-slate-400">similar</span></span>
+                        <span className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-2xl font-semibold text-slate-900">{report.score}%</span><span className="text-[10px] font-semibold text-slate-400">similar</span></span>
                     </div>
                     <div className="min-w-0 md:hidden"><Badge tone={t.chip}>{t.label}</Badge></div>
                 </div>
                 <div className="min-w-0 space-y-2">
                     <div className="hidden md:block"><Badge tone={t.chip}>{t.label}</Badge></div>
-                    <p className="text-sm font-bold text-slate-800 [overflow-wrap:anywhere]">{report.title}</p>
+                    <p className="text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{report.title}</p>
                     <ul className="grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
                         <li><span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-300 align-middle" aria-hidden="true" /> Found in others&apos; work (YATICORP and your uploaded papers): <strong>{others}%</strong></li>
                         <li><span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-300 align-middle" aria-hidden="true" /> Found in your own documents: <strong>{report.ownScore}%</strong></li>
@@ -82,9 +82,9 @@ const Report = ({ report }) => {
 
             {report.sources?.length > 0 && (
                 <div>
-                    <h3 className="mb-1.5 text-xs font-black uppercase tracking-wider text-slate-500">Where the matches are</h3>
+                    <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Where the matches are</h3>
                     <ul className="space-y-1">
-                        {report.sources.map((s, i) => <li key={`${s.label}-${i}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm"><span className={`min-w-0 truncate ${s.own ? 'text-amber-800' : 'text-rose-800'}`}>{s.label}</span><span className="shrink-0 font-bold text-slate-600">{fmtNum(s.words)} words</span></li>)}
+                        {report.sources.map((s, i) => <li key={`${s.label}-${i}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-sm"><span className={`min-w-0 truncate ${s.own ? 'text-amber-800' : 'text-rose-800'}`}>{s.label}</span><span className="shrink-0 font-semibold text-slate-600">{fmtNum(s.words)} words</span></li>)}
                     </ul>
                 </div>
             )}
@@ -92,9 +92,9 @@ const Report = ({ report }) => {
             {report.text && <Highlighted text={report.text} matches={report.matches || []} flags={report.flags || []} />}
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                <p className="font-bold text-slate-800">What to do with a match</p>
+                <p className="font-semibold text-slate-800">What to do with a match</p>
                 <ul className="mt-1 list-disc space-y-0.5 pl-5">
-                    <li>Someone else&apos;s words: put them in quotation marks and cite the source, or rewrite the idea in your own words — and still cite it.</li>
+                    <li>Someone else&apos;s words: put them in quotation marks and cite the source, or rewrite the idea in your own words, and still cite it.</li>
                     <li>Your own earlier work: reusing it is fine within a thesis, but a paper usually needs it rewritten or cited (self-plagiarism).</li>
                     <li>A wavy underline marks a quotation with no citation in its sentence.</li>
                 </ul>
@@ -121,8 +121,7 @@ export default function Plagiarism() {
     // "Understanding plagiarism": open until the teacher has run a check.
     const [guideOpen, setGuideOpen] = useState(null);
     const [guideStep, setGuideStep] = useState(PLAGIARISM_STEPS[0].key);
-    const isGuideOpen = guideOpen ?? history.length === 0;
-    const guideRead = useGuideRead('plagiarism');
+    const isGuideOpen = guideOpen ?? false;
     const [sourceCount, setSourceCount] = useState(0);
     const [confirm, confirmDialog] = useConfirmDialog();
 
@@ -169,7 +168,7 @@ export default function Plagiarism() {
         catch (e) { setError(messageOf(e, 'That report could not be opened.')); }
     };
     const removeReport = async (r) => {
-        if (!(await confirm({ title: 'Delete this report?', message: `"${r.title}" — ${r.score}% similar, ${fmtDate(r.createdAt)}.`, confirmLabel: 'Delete', destructive: true }))) return;
+        if (!(await confirm({ title: 'Delete this report?', message: `"${r.title}": ${r.score}% similar, ${fmtDate(r.createdAt)}.`, confirmLabel: 'Delete', destructive: true }))) return;
         try { await teacherApi.delete(`/plagiarism/reports/${r._id}`); if (report?._id === r._id) setReport(null); loadHistory(); }
         catch (e) { setError(messageOf(e, 'The report could not be deleted.')); }
     };
@@ -180,22 +179,21 @@ export default function Plagiarism() {
 
     return (
         <div className="space-y-6">
-            <PageHeader icon={ShieldCheck} tone="from-slate-600 to-slate-800" title="Plagiarism Check" subtitle="Find copied passages and quotations that need a citation." />
+            <PageHeader icon={ShieldCheck} color="indigo" title="Plagiarism Check" subtitle="Find copied passages and quotations that need a citation." />
 
-            <StepGuide id="plagiarism-guide" tone="slate" icon={ShieldCheck} steps={PLAGIARISM_STEPS} open={isGuideOpen} onToggle={() => setGuideOpen(!isGuideOpen)} step={guideStep} onStep={setGuideStep}
-                read={guideRead.read} onToggleRead={guideRead.toggle}
+            <StepGuide id="plagiarism-guide" tone="indigo" icon={ShieldCheck} steps={PLAGIARISM_STEPS} open={isGuideOpen} onToggle={() => setGuideOpen(!isGuideOpen)} step={guideStep} onStep={setGuideStep}
                 title="Understanding and avoiding plagiarism" subtitle="What counts, paraphrasing and citing, citation styles, self-plagiarism, UGC rules and a checklist." />
 
-            <p className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
-                <Info size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
-                <span>This compares your text with the theses and writing on YATICORP — other teachers&apos; (without showing whose) and your own — and with {sourceCount ? <strong>the {sourceCount} {sourceCount === 1 ? 'paper' : 'papers'} you uploaded</strong> : 'any papers you upload below'}. It does not search the internet or journal databases, so use your university&apos;s checker (such as Turnitin or Urkund) before final submission.</span>
+            <p className="flex items-start gap-2 text-sm text-slate-500">
+                <Info size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span>Compares with writing on YATICORP and with {sourceCount ? <strong className="text-slate-700">the {sourceCount} {sourceCount === 1 ? 'paper' : 'papers'} you uploaded</strong> : 'papers you upload below'}. It does not search the internet, so use your university&apos;s checker (such as Turnitin) before submitting.</span>
             </p>
 
             <Card>
                 <div role="tablist" aria-label="What to check" className="mb-4 grid grid-cols-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
                     {[['paste', 'Paste text', ClipboardPaste], ['thesis', 'A thesis chapter', FileText], ['writing', 'A writing piece', PenLine]].map(([id, label, Icon]) => (
                         <button key={id} type="button" role="tab" aria-selected={mode === id} onClick={() => setMode(id)}
-                            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold sm:text-sm ${mode === id ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
+                            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold sm:text-sm ${mode === id ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
                             <Icon size={15} aria-hidden="true" /> <span className="truncate">{label}</span>
                         </button>
                     ))}
@@ -207,21 +205,21 @@ export default function Plagiarism() {
                         <input id="check-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} placeholder="A name for this check (optional)" className={inputClass} />
                         <label htmlFor="check-text" className="sr-only">Text to check</label>
                         <textarea id="check-text" rows={10} value={text} onChange={(e) => setText(e.target.value)} className={`${inputClass} resize-y font-serif text-[15px] leading-7`} placeholder={`Paste at least ${MIN_WORDS} words…`} />
-                        <p className={`text-xs ${pastedWords && pastedWords < MIN_WORDS ? 'text-amber-600' : 'text-slate-500'}`}>{fmtNum(pastedWords)} words{pastedWords < MIN_WORDS ? ` — at least ${MIN_WORDS} needed` : ' · up to 25,000 per check'}</p>
+                        <p className={`text-xs ${pastedWords && pastedWords < MIN_WORDS ? 'text-amber-600' : 'text-slate-500'}`}>{fmtNum(pastedWords)} words{pastedWords < MIN_WORDS ? `. At least ${MIN_WORDS} needed` : ' · up to 25,000 per check'}</p>
                     </div>
                 )}
                 {mode === 'thesis' && (theses.length ? (
                     <div className="grid gap-3 sm:grid-cols-2">
-                        <div><label htmlFor="check-thesis" className="mb-1.5 block text-xs font-bold text-slate-600">Thesis</label>
-                            <select id="check-thesis" value={thesisId} onChange={(e) => setThesisId(e.target.value)} className={inputClass}>{theses.map((t) => <option key={t._id} value={t._id}>{t.title}</option>)}</select></div>
-                        <div><label htmlFor="check-chapter" className="mb-1.5 block text-xs font-bold text-slate-600">Chapter</label>
-                            <select id="check-chapter" value={chapterId} onChange={(e) => setChapterId(e.target.value)} className={inputClass}>{chapters.map((c) => <option key={c._id} value={c._id}>{c.title} ({fmtNum(c.words)} words)</option>)}</select></div>
-                        {chosenChapter && chosenChapter.words < MIN_WORDS && <p className="text-xs text-amber-600 sm:col-span-2">This chapter has fewer than {MIN_WORDS} words — write a little more first.</p>}
+                        <div><label htmlFor="check-thesis" className="mb-1.5 block text-xs font-semibold text-slate-600">Thesis</label>
+                            <Select tone="emerald" id="check-thesis" value={thesisId} onChange={(e) => setThesisId(e.target.value)} className={selectClass}>{theses.map((t) => <option key={t._id} value={t._id}>{t.title}</option>)}</Select></div>
+                        <div><label htmlFor="check-chapter" className="mb-1.5 block text-xs font-semibold text-slate-600">Chapter</label>
+                            <Select tone="emerald" id="check-chapter" value={chapterId} onChange={(e) => setChapterId(e.target.value)} className={selectClass}>{chapters.map((c) => <option key={c._id} value={c._id}>{c.title} ({fmtNum(c.words)} words)</option>)}</Select></div>
+                        {chosenChapter && chosenChapter.words < MIN_WORDS && <p className="text-xs text-amber-600 sm:col-span-2">This chapter has fewer than {MIN_WORDS} words. Write a little more first.</p>}
                     </div>
                 ) : <p className="text-sm text-slate-500">You have no thesis yet. Start one in Thesis Writing, or paste text instead.</p>)}
                 {mode === 'writing' && (pieces.length ? (
-                    <div><label htmlFor="check-piece" className="mb-1.5 block text-xs font-bold text-slate-600">Piece</label>
-                        <select id="check-piece" value={pieceId} onChange={(e) => setPieceId(e.target.value)} className={inputClass}>{pieces.map((p) => <option key={p._id} value={p._id}>{p.title} ({fmtNum(p.words)} words)</option>)}</select></div>
+                    <div><label htmlFor="check-piece" className="mb-1.5 block text-xs font-semibold text-slate-600">Piece</label>
+                        <Select tone="emerald" id="check-piece" value={pieceId} onChange={(e) => setPieceId(e.target.value)} className={selectClass}>{pieces.map((p) => <option key={p._id} value={p._id}>{p.title} ({fmtNum(p.words)} words)</option>)}</Select></div>
                 ) : <p className="text-sm text-slate-500">You have no writing pieces yet. Paste text instead.</p>)}
 
                 <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -234,19 +232,19 @@ export default function Plagiarism() {
 
             {report && (
                 <Card id="plagiarism-result" className="scroll-mt-24">
-                    <CardTitle icon={ShieldCheck}>Result</CardTitle>
+                    <CardTitle icon={ShieldCheck} color="indigo">Result</CardTitle>
                     <Report report={report} />
                 </Card>
             )}
 
             {history.length > 0 && (
                 <Card>
-                    <CardTitle icon={History}>Earlier checks</CardTitle>
+                    <CardTitle icon={History} color="indigo">Earlier checks</CardTitle>
                     <ul className="divide-y divide-slate-100">
                         {history.map((r) => (
                             <li key={r._id} className="flex items-center gap-2 py-2">
                                 <button type="button" onClick={() => openReport(r._id)} className="min-w-0 flex-1 text-left">
-                                    <span className="block truncate text-sm font-bold text-slate-800">{r.title}</span>
+                                    <span className="block truncate text-sm font-semibold text-slate-800">{r.title}</span>
                                     <span className="text-xs text-slate-500">{fmtDate(r.createdAt)} · {fmtNum(r.words)} words</span>
                                 </button>
                                 <Badge tone={tone(r.score).chip}>{r.score}%</Badge>

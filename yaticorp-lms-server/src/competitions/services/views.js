@@ -24,7 +24,7 @@ const CLOSING_SOON_MS = 48 * 3600e3;
  * Whether colleges may register right now, and the one status a person
  * should read on a card:
  *   registration-soon · registration-open · closing-soon · upcoming · live ·
- *   completed · draft · cancelled
+ *   completed · draft · cancelled · expired (its start date passed, never drawn: shown as Closed)
  */
 const registration = (c, now = Date.now()) => {
     const opens = c.registrationOpensAt ? new Date(c.registrationOpensAt).getTime() : null;
@@ -34,6 +34,9 @@ const registration = (c, now = Date.now()) => {
     let phase = c.status;
     if (published) phase = opens != null && opens > now ? 'registration-soon' : closes < now ? 'upcoming' : closes - now <= CLOSING_SOON_MS ? 'closing-soon' : 'registration-open';
     else if (c.status === 'closed') phase = 'upcoming';
+    // Its start date has passed and its matches were never drawn: it is
+    // closed, not "upcoming" — and nobody can register any more.
+    if ((published || c.status === 'closed') && c.startsAt && new Date(c.startsAt).getTime() < now) return { open: false, phase: 'expired' };
     return { open, phase };
 };
 
@@ -71,6 +74,7 @@ const competitionView = (c, { teams = [], myTeam = null } = {}) => {
         prizes: c.prizes || [],
         prizeDetails: c.prizeDetails || '',
         participationXp: c.participationXp || 0,
+        entryFee: c.entryFee?.enabled ? { enabled: true, amount: c.entryFee.amount } : { enabled: false, amount: 0 },
         certificates: c.certificates !== false,
         participationCertificates: c.participationCertificates !== false,
         status: c.status,
@@ -88,7 +92,7 @@ const teamView = (t, { admin = false } = {}) => ({
     collegeName: t.collegeName,
     organizationId: t.organizationId ? String(t.organizationId) : null,
     solo: !!t.soloUserId,
-    players: (t.players || []).map((p) => ({ userId: String(p.userId), name: p.name })),
+    players: (t.players || []).map((p) => ({ userId: String(p.userId), name: p.name, paid: !!p.paidAt, ...(admin ? { paidAt: p.paidAt || null, paidAmount: p.paidAmount || 0 } : {}) })),
     status: t.status,
     note: t.note || '',
     place: t.place || null,
@@ -123,6 +127,7 @@ const matchView = (m, teams, games = [], { showCode = false } = {}) => {
             };
         }),
         winnerTeamId: m.winnerTeamId ? String(m.winnerTeamId) : null,
+        rematchAt: m.replayAt || null,
         places: (m.places || []).map((g) => g.map(String)),
         decidedBy: m.decidedBy,
         resultNote: m.resultNote || '',
@@ -176,7 +181,8 @@ const detail = async (competitionId, { userId = null, organizationId = null, adm
         teams: shownTeams.map((t) => teamView(t, { admin })),
         ...(admin && ch.isChallenge(c) ? { challenge: await ch.adminView(c) } : {}),
         // Match codes: every one for the organizer; a college's for its own teams' matches.
-        rounds: roundsView(matches, teams, games, (m) => admin || (!!myTeam && m.sides.some((s) => String(s.teamId) === String(myTeam._id))))
+        // A student's own code is personal: it is in My Games (routes/student.js /me), not here.
+        rounds: roundsView(matches, teams, games, (m) => admin || (!userId && !!myTeam && m.sides.some((s) => String(s.teamId) === String(myTeam._id))))
     };
 };
 

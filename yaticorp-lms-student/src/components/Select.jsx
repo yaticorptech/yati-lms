@@ -31,6 +31,13 @@ const SEARCH_FROM = 9;       // more options than this gets a search box
 const MAX_LIST = 320;        // tallest the desktop list grows, in px
 const PHONE = '(max-width: 639px)';
 
+// Colours, written out in full so Tailwind sees them. Indigo is the students';
+// emerald the teacher dashboard's.
+const TONES = {
+    indigo: { active: 'bg-indigo-50 text-indigo-700', selected: 'text-indigo-700', check: 'text-indigo-600', box: 'border-indigo-600 bg-indigo-600 text-white', done: 'bg-indigo-600 hover:bg-indigo-700', search: 'focus:border-indigo-400', tag: 'bg-indigo-50 text-indigo-700' },
+    emerald: { active: 'bg-emerald-50 text-emerald-700', selected: 'text-emerald-700', check: 'text-emerald-600', box: 'border-emerald-600 bg-emerald-600 text-white', done: 'bg-emerald-600 hover:bg-emerald-700', search: 'focus:border-emerald-400', tag: 'bg-emerald-50 text-emerald-700' }
+};
+
 /** The visible text of an option's children, for the field, search and typeahead. */
 const textOf = (node) => {
     if (node == null || typeof node === 'boolean') return '';
@@ -74,8 +81,9 @@ const usePhone = () => {
 
 export default function Select({
     value, onChange, children, className = '', disabled = false,
-    id, name, placeholder = 'Select…', 'aria-label': ariaLabel, title, multiple = false
+    id, name, placeholder = 'Select…', 'aria-label': ariaLabel, title, multiple = false, tone = 'indigo'
 }) {
+    const t = TONES[tone] || TONES.indigo;
     const options = useMemo(() => readOptions(children), [children]);
     const current = options.find((o) => o.value === String(value ?? ''));
     const picked = useMemo(() => new Set(multiple ? (Array.isArray(value) ? value : []).map(String) : []), [multiple, value]);
@@ -256,16 +264,16 @@ export default function Select({
                         onClick={() => choose(o)}
                         className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 text-sm transition-colors ${phone ? 'py-3' : 'py-2'} ${
                             o.disabled ? 'cursor-not-allowed text-slate-300'
-                                : i === active ? 'bg-indigo-50 text-indigo-700'
-                                    : selected ? 'text-indigo-700' : 'text-slate-700'
+                                : i === active ? t.active
+                                    : selected ? t.selected : 'text-slate-700'
                         }`}>
                         {multiple && (
-                            <span aria-hidden className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition-colors ${selected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                            <span aria-hidden className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition-colors ${selected ? t.box : 'border-slate-300 bg-white'}`}>
                                 {selected && <Check size={12} strokeWidth={3} />}
                             </span>
                         )}
                         <span className={`min-w-0 flex-1 ${selected ? 'font-semibold' : ''}`}>{o.label}</span>
-                        {!multiple && selected && <Check size={16} className="shrink-0 text-indigo-600" />}
+                        {!multiple && selected && <Check size={16} className={`shrink-0 ${t.check}`} />}
                     </li>
                 );
             })}
@@ -280,7 +288,7 @@ export default function Select({
                     className="rounded-lg px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100">Clear</button>
             )}
             <button type="button" onClick={() => close()}
-                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-indigo-700">Done</button>
+                className={`rounded-lg px-4 py-1.5 text-xs font-bold text-white ${t.done}`}>Done</button>
         </div>
     );
 
@@ -290,7 +298,7 @@ export default function Select({
             <input ref={searchRef} value={query} onKeyDown={onKeyDown}
                 onChange={(e) => { setQuery(e.target.value); setActive(0); }}
                 placeholder="Search…" aria-label="Search options" aria-controls={listId}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-sm text-slate-800 focus:border-indigo-400 focus:bg-white focus:outline-none" />
+                className={`w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-sm text-slate-800 focus:bg-white focus:outline-none ${t.search}`} />
         </div>
     );
 
@@ -310,7 +318,7 @@ export default function Select({
                     pickedOptions.length ? (
                         <span className="flex min-w-0 flex-1 flex-wrap gap-1.5 py-0.5">
                             {pickedOptions.slice(0, SHOW_TAGS).map((o) => (
-                                <span key={o.value} className="max-w-full truncate rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700">{o.label}</span>
+                                <span key={o.value} className={`max-w-full truncate rounded-md px-2 py-0.5 text-xs font-semibold ${t.tag}`}>{o.label}</span>
                             ))}
                             {pickedOptions.length > SHOW_TAGS && (
                                 <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">+{pickedOptions.length - SHOW_TAGS} more</span>

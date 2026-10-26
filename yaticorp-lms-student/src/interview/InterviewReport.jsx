@@ -75,9 +75,9 @@ export default function InterviewReport() {
     const load = useCallback(() => interviewApi.session(id).then((x) => { setS(x); setError(null); }).catch((e) => { setError(e); setS(null); }), [id]);
     useEffect(() => { load(); }, [load]);
 
-    if (s === undefined) return <div className="mx-auto max-w-4xl pb-12"><Analyzing label="Loading your report…" /></div>;
-    if (!s) return <div className="mx-auto max-w-4xl pb-12"><ErrorBox error={error} onRetry={load} /></div>;
-    if (!s.report) return <div className="mx-auto max-w-4xl pb-12"><Section icon={MessageSquare} title="This interview has no report yet"><Btn tone="primary" onClick={() => navigate(`/interview/mock/${s.id}`)}>Continue the interview</Btn></Section></div>;
+    if (s === undefined) return <div className="w-full pb-12"><Analyzing label="Loading your report…" /></div>;
+    if (!s) return <div className="w-full pb-12"><ErrorBox error={error} onRetry={load} /></div>;
+    if (!s.report) return <div className="w-full pb-12"><Section icon={MessageSquare} title="This interview has no report yet"><Btn tone="primary" onClick={() => navigate(`/interview/mock/${s.id}`)}>Continue the interview</Btn></Section></div>;
     const r = s.report; const meta = TYPE_META[s.type] || TYPE_META.full;
     const answered = s.turns.filter((t) => t.answer);
     const xpTotal = (s.xp?.completed || 0) + (s.xp?.improved || 0) + (s.xp?.challenge || 0);
@@ -92,7 +92,7 @@ export default function InterviewReport() {
     const firstName = (user?.name || '').trim().split(' ')[0] || 'there';
 
     return (
-        <div className="mx-auto max-w-5xl space-y-5 pb-12 animate-fade-in">
+        <div className="w-full space-y-5 pb-12 animate-fade-in">
             {/* ── Where you are, and a way straight back to practice ── */}
             <div className="flex items-center justify-between gap-3">
                 <Link to="/interview" onClick={markReturn} className="inline-flex items-center gap-2.5 text-lg font-black text-slate-900 hover:text-indigo-600">

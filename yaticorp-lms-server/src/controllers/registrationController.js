@@ -356,8 +356,14 @@ const registerStudent = async (req, res) => {
         }
 
         // Optional, and last, so nothing about it can affect the account that has
-        // just been created. `organization` is null when the field was left blank.
-        const organization = await requestOrganizationAtSignup(user._id, orgCode);
+        // just been created. A card an organization linked joins it at once
+        // (Students → Scan cards); otherwise the code typed, if any, is a
+        // request. `organization` is null when neither applies.
+        const { joinLinkedOrganization } = require('../organizations/services/cardLink');
+        const linked = await joinLinkedOrganization(user._id, card);
+        const organization = linked
+            ? { requested: false, joined: true, reason: 'joined', orgCode: linked.orgCode, name: linked.name, message: `You are now a member of ${linked.name}.` }
+            : await requestOrganizationAtSignup(user._id, orgCode);
 
         // The same shape as signing in, so the dashboard and My Profile have
         // the phone, picture, XP and level from the first screen — a new

@@ -87,8 +87,8 @@ export const MatchCard = ({ match, playing = false, showCompetition = false, myT
             </div>
             {/* The match's code: a player can also type it in Games → Join with a code. */}
             {match.gameCode && (
-                <p className="flex items-center gap-1.5 text-xs text-slate-600" data-match-code={match.gameCode}>
-                    <Ticket size={13} aria-hidden="true" /> Match code <span className="rounded-md bg-slate-900 px-1.5 py-0.5 font-mono text-[11px] font-black tracking-[0.2em] text-white">{match.gameCode}</span>
+                <p className="flex items-center gap-1.5 text-xs text-slate-600" data-match-code={match.gameCode} translate="no">
+                    <Ticket size={13} aria-hidden="true" /> Your joining code <span className="rounded-md bg-slate-900 px-1.5 py-0.5 font-mono text-[11px] font-black tracking-[0.2em] text-white">{match.gameCode}</span>
                 </p>
             )}
             {match.resultNote && <p className="text-xs text-slate-600">{match.resultNote}</p>}
@@ -103,6 +103,13 @@ export const MatchCard = ({ match, playing = false, showCompetition = false, myT
                     className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold transition-colors ${playing ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 hover:bg-indigo-700' : 'border border-slate-200 bg-white text-slate-700 hover:border-indigo-300 hover:text-indigo-700'}`}>
                     {playing ? <><Play size={15} aria-hidden="true" /> Join game</> : <><Eye size={15} aria-hidden="true" /> Watch</>}
                 </Link>
+            )}
+            {/* Not started by the organizer yet: no code, and Join stays off. */}
+            {match.status === 'scheduled' && playing && (
+                <button type="button" disabled title="Opens when the organizer starts this match"
+                    className="inline-flex min-h-10 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 text-sm font-bold text-slate-500">
+                    <Play size={15} aria-hidden="true" /> Join game · opens at the organizer&apos;s start
+                </button>
             )}
             {match.status === 'scheduled' && showCompetition && match.competition && (
                 <Link to={`/competitions/${match.competition.id}`} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-700">

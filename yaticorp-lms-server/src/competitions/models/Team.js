@@ -35,7 +35,7 @@ const teamSchema = new mongoose.Schema({
         // certificateHiddenAt: the player deleted this competition's certificate
         // from My Profile. It stays theirs — downloading it again from Games &
         // Competitions clears this and puts it back (routes/student.js).
-        type: [{ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, name: { type: String, default: '' }, certificateHiddenAt: { type: Date, default: null }, _id: false }],
+        type: [{ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, name: { type: String, default: '' }, certificateHiddenAt: { type: Date, default: null }, paidAt: { type: Date, default: null }, paidAmount: { type: Number, default: 0 }, _id: false }],
         default: []
     },
     status: { type: String, enum: ['pending', 'approved', 'rejected', 'withdrawn'], default: 'pending', index: true },

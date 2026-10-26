@@ -1,0 +1,1257 @@
+{
+  "round": 2,
+  "name": "Picture Challenge",
+  "about": "Personalities, monuments and sports (10 each), brand and Indian company logos (19) and national flags (24). Brand logos are each brand's current logo: the multicolour ones as Wikidata records them (fetched from Wikimedia Commons with their licence on import), the single-colour ones (Apple, Adidas, Starbucks, WhatsApp, Android) as clean vector icons from Simple Icons (CC0). Company logos that spell out the company's name have just their emblem cut out on import (plain cropping, no AI). The logos stay trademarks of their owners. Flags come from flagcdn.com (public domain). The other pictures are each named by a Wikipedia article: on import the server asks Wikipedia for that article's actual main picture and its licence; a picture that is not freely licensed is refused, and every picture fetched that way is marked Needs Review. Every picture must load. No AI, no paid API: to add more, upload your own pictures with Add question.",
+  "questions": [
+    {
+      "key": "r2-person-kalam",
+      "category": "Personality",
+      "difficulty": "easy",
+      "prompt": "Who is the person in this picture?",
+      "wikipediaImage": "A._P._J._Abdul_Kalam",
+      "options": [
+        "A. P. J. Abdul Kalam",
+        "C. V. Raman",
+        "Vikram Sarabhai",
+        "Homi J. Bhabha"
+      ],
+      "answer": "A. P. J. Abdul Kalam",
+      "explanation": "Missile scientist and the 11th President of India.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/A._P._J._Abdul_Kalam"
+    },
+    {
+      "key": "r2-person-gandhi",
+      "category": "Personality",
+      "difficulty": "easy",
+      "prompt": "Who is the person in this picture?",
+      "wikipediaImage": "Mahatma_Gandhi",
+      "options": [
+        "Mahatma Gandhi",
+        "Jawaharlal Nehru",
+        "Vallabhbhai Patel",
+        "Subhas Chandra Bose"
+      ],
+      "answer": "Mahatma Gandhi",
+      "explanation": "Leader of India's non-violent independence movement.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Mahatma_Gandhi"
+    },
+    {
+      "key": "r2-person-einstein",
+      "category": "Personality",
+      "difficulty": "easy",
+      "prompt": "Who is the person in this picture?",
+      "wikipediaImage": "Albert_Einstein",
+      "options": [
+        "Albert Einstein",
+        "Isaac Newton",
+        "Nikola Tesla",
+        "Charles Darwin"
+      ],
+      "answer": "Albert Einstein",
+      "explanation": "Physicist who developed the theory of relativity.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Albert_Einstein"
+    },
+    {
+      "key": "r2-person-chawla",
+      "category": "Personality",
+      "difficulty": "medium",
+      "prompt": "Who is the person in this picture?",
+      "wikipediaImage": "Kalpana_Chawla",
+      "options": [
+        "Kalpana Chawla",
+        "Sunita Williams",
+        "Valentina Tereshkova",
+        "Sally Ride"
+      ],
+      "answer": "Kalpana Chawla",
+      "explanation": "The first woman of Indian origin in space.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Kalpana_Chawla"
+    },
+    {
+      "key": "r2-person-tendulkar",
+      "category": "Personality",
+      "difficulty": "easy",
+      "prompt": "Who is the person in this picture?",
+      "wikipediaImage": "Sachin_Tendulkar",
+      "options": [
+        "Sachin Tendulkar",
+        "Virat Kohli",
+        "MS Dhoni",
+        "Sunil Gavaskar"
+      ],
+      "answer": "Sachin Tendulkar",
+      "explanation": "Indian batter, the leading run-scorer in Test and ODI cricket.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Sachin_Tendulkar"
+    },
+    {
+      "key": "r2-person-tagore",
+      "category": "Personality",
+      "difficulty": "medium",
+      "prompt": "Who is the person in this picture?",
+      "wikipediaImage": "Rabindranath_Tagore",
+      "options": [
+        "Rabindranath Tagore",
+        "Swami Vivekananda",
+        "Premchand",
+        "Sri Aurobindo"
+      ],
+      "answer": "Rabindranath Tagore",
+      "explanation": "Poet who wrote India's national anthem; Nobel Prize in Literature, 1913.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Rabindranath_Tagore"
+    },
+    {
+      "key": "r2-person-vivekananda",
+      "category": "Personality",
+      "difficulty": "medium",
+      "prompt": "Who is the person in this picture?",
+      "wikipediaImage": "Swami_Vivekananda",
+      "options": [
+        "Swami Vivekananda",
+        "Ramakrishna",
+        "Dayananda Saraswati",
+        "Sri Aurobindo"
+      ],
+      "answer": "Swami Vivekananda",
+      "explanation": "Monk and philosopher; spoke at the Parliament of the World's Religions, Chicago, 1893.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Swami_Vivekananda"
+    },
+    {
+      "key": "r2-person-bhagatsingh",
+      "category": "Personality",
+      "difficulty": "medium",
+      "prompt": "Who is the person in this picture?",
+      "wikipediaImage": "Bhagat_Singh",
+      "options": [
+        "Bhagat Singh",
+        "Chandrashekhar Azad",
+        "Sukhdev Thapar",
+        "Shivaram Rajguru"
+      ],
+      "answer": "Bhagat Singh",
+      "explanation": "Revolutionary of India's freedom struggle.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Bhagat_Singh"
+    },
+    {
+      "key": "r2-person-curie",
+      "category": "Personality",
+      "difficulty": "easy",
+      "prompt": "Who is the person in this picture?",
+      "wikipediaImage": "Marie_Curie",
+      "options": [
+        "Marie Curie",
+        "Ada Lovelace",
+        "Rosalind Franklin",
+        "Florence Nightingale"
+      ],
+      "answer": "Marie Curie",
+      "explanation": "Physicist and chemist; the first person to win two Nobel Prizes in different sciences.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Marie_Curie"
+    },
+    {
+      "key": "r2-person-newton",
+      "category": "Personality",
+      "difficulty": "easy",
+      "prompt": "Who is the person in this picture?",
+      "wikipediaImage": "Isaac_Newton",
+      "options": [
+        "Isaac Newton",
+        "Galileo Galilei",
+        "Johannes Kepler",
+        "Nicolaus Copernicus"
+      ],
+      "answer": "Isaac Newton",
+      "explanation": "Mathematician and physicist who set out the laws of motion and gravitation.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Isaac_Newton"
+    },
+    {
+      "key": "r2-monument-taj",
+      "category": "Monument",
+      "difficulty": "easy",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "Taj_Mahal",
+      "options": [
+        "Taj Mahal",
+        "Qutb Minar",
+        "India Gate",
+        "Hawa Mahal"
+      ],
+      "answer": "Taj Mahal",
+      "explanation": "The marble mausoleum in Agra built by Shah Jahan.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Taj_Mahal"
+    },
+    {
+      "key": "r2-monument-qutb",
+      "category": "Monument",
+      "difficulty": "easy",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "Qutb_Minar",
+      "options": [
+        "Qutb Minar",
+        "Charminar",
+        "India Gate",
+        "Gateway of India"
+      ],
+      "answer": "Qutb Minar",
+      "explanation": "The brick minaret in Delhi, begun in the late 12th century.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Qutb_Minar"
+    },
+    {
+      "key": "r2-monument-gateway",
+      "category": "Monument",
+      "difficulty": "medium",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "Gateway_of_India",
+      "options": [
+        "Gateway of India",
+        "India Gate",
+        "Buland Darwaza",
+        "Charminar"
+      ],
+      "answer": "Gateway of India",
+      "explanation": "The arch on the Mumbai waterfront, completed in 1924.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Gateway_of_India"
+    },
+    {
+      "key": "r2-monument-eiffel",
+      "category": "Monument",
+      "difficulty": "easy",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "Eiffel_Tower",
+      "options": [
+        "Eiffel Tower",
+        "Statue of Liberty",
+        "Big Ben",
+        "Leaning Tower of Pisa"
+      ],
+      "answer": "Eiffel Tower",
+      "explanation": "The wrought-iron tower in Paris, completed in 1889.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Eiffel_Tower"
+    },
+    {
+      "key": "r2-monument-charminar",
+      "category": "Monument",
+      "difficulty": "easy",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "Charminar",
+      "options": [
+        "Charminar",
+        "Buland Darwaza",
+        "Qutb Minar",
+        "Hawa Mahal"
+      ],
+      "answer": "Charminar",
+      "explanation": "The four-minaret monument in Hyderabad, built in 1591.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Charminar"
+    },
+    {
+      "key": "r2-monument-indiagate",
+      "category": "Monument",
+      "difficulty": "easy",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "India_Gate",
+      "options": [
+        "India Gate",
+        "Charminar",
+        "Hawa Mahal",
+        "Red Fort"
+      ],
+      "answer": "India Gate",
+      "explanation": "The war memorial arch in New Delhi, completed in 1931.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/India_Gate"
+    },
+    {
+      "key": "r2-monument-redfort",
+      "category": "Monument",
+      "difficulty": "easy",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "Red_Fort",
+      "options": [
+        "Red Fort",
+        "Mysore Palace",
+        "Victoria Memorial",
+        "Golden Temple"
+      ],
+      "answer": "Red Fort",
+      "explanation": "The Mughal fort in Delhi, built by Shah Jahan.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Red_Fort"
+    },
+    {
+      "key": "r2-monument-hawamahal",
+      "category": "Monument",
+      "difficulty": "easy",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "Hawa_Mahal",
+      "options": [
+        "Hawa Mahal",
+        "City Palace, Jaipur",
+        "Mysore Palace",
+        "Charminar"
+      ],
+      "answer": "Hawa Mahal",
+      "explanation": "The 'Palace of Winds' in Jaipur, built in 1799.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Hawa_Mahal"
+    },
+    {
+      "key": "r2-monument-liberty",
+      "category": "Monument",
+      "difficulty": "easy",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "Statue_of_Liberty",
+      "options": [
+        "Statue of Liberty",
+        "Christ the Redeemer",
+        "Statue of Unity",
+        "Big Ben"
+      ],
+      "answer": "Statue of Liberty",
+      "explanation": "The statue on Liberty Island in New York Harbor, dedicated in 1886.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Statue_of_Liberty"
+    },
+    {
+      "key": "r2-monument-greatwall",
+      "category": "Monument",
+      "difficulty": "easy",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "Great_Wall_of_China",
+      "options": [
+        "Great Wall of China",
+        "Hadrian's Wall",
+        "Forbidden City",
+        "Angkor Wat"
+      ],
+      "answer": "Great Wall of China",
+      "explanation": "Fortifications built across northern China over many centuries.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Great_Wall_of_China"
+    },
+    {
+      "key": "r2-monument-konark",
+      "category": "Monument",
+      "difficulty": "medium",
+      "prompt": "Which monument is shown in this picture?",
+      "wikipediaImage": "Konark_Sun_Temple",
+      "options": [
+        "Konark Sun Temple",
+        "Meenakshi Temple",
+        "Khajuraho temples",
+        "Brihadeeswarar Temple"
+      ],
+      "answer": "Konark Sun Temple",
+      "explanation": "The 13th-century temple to the sun god in Odisha, built as a giant chariot.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Konark_Sun_Temple"
+    },
+    {
+      "key": "r2-sport-cricket",
+      "category": "Sport",
+      "difficulty": "easy",
+      "prompt": "Which sport is shown in this picture?",
+      "wikipediaImage": "Cricket",
+      "options": [
+        "Cricket",
+        "Baseball",
+        "Hockey",
+        "Golf"
+      ],
+      "answer": "Cricket",
+      "explanation": "Two teams of eleven; a bowler bowls to a batter at the wicket.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Cricket"
+    },
+    {
+      "key": "r2-sport-kabaddi",
+      "category": "Sport",
+      "difficulty": "easy",
+      "prompt": "Which sport is shown in this picture?",
+      "wikipediaImage": "Kabaddi",
+      "options": [
+        "Kabaddi",
+        "Kho kho",
+        "Wrestling",
+        "Rugby"
+      ],
+      "answer": "Kabaddi",
+      "explanation": "A raider crosses into the other half and tags defenders on a single breath.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Kabaddi"
+    },
+    {
+      "key": "r2-sport-hockey",
+      "category": "Sport",
+      "difficulty": "medium",
+      "prompt": "Which sport is shown in this picture?",
+      "wikipediaImage": "Field_hockey",
+      "options": [
+        "Field hockey",
+        "Ice hockey",
+        "Polo",
+        "Cricket"
+      ],
+      "answer": "Field hockey",
+      "explanation": "Played with sticks and a ball on grass or turf.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Field_hockey"
+    },
+    {
+      "key": "r2-sport-badminton",
+      "category": "Sport",
+      "difficulty": "easy",
+      "prompt": "Which sport is shown in this picture?",
+      "wikipediaImage": "Badminton",
+      "options": [
+        "Badminton",
+        "Tennis",
+        "Squash",
+        "Table tennis"
+      ],
+      "answer": "Badminton",
+      "explanation": "Players hit a shuttlecock over a high net with rackets.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Badminton"
+    },
+    {
+      "key": "r2-sport-chess",
+      "category": "Sport",
+      "difficulty": "easy",
+      "prompt": "Which sport is shown in this picture?",
+      "wikipediaImage": "Chess",
+      "options": [
+        "Chess",
+        "Checkers",
+        "Carrom",
+        "Ludo"
+      ],
+      "answer": "Chess",
+      "explanation": "Two players, sixteen pieces each, on an 8×8 board.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Chess"
+    },
+    {
+      "key": "r2-sport-basketball",
+      "category": "Sport",
+      "difficulty": "easy",
+      "prompt": "Which sport is shown in this picture?",
+      "wikipediaImage": "Basketball",
+      "options": [
+        "Basketball",
+        "Volleyball",
+        "Football",
+        "Tennis"
+      ],
+      "answer": "Basketball",
+      "explanation": "Two teams of five shoot a ball through a raised hoop.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Basketball"
+    },
+    {
+      "key": "r2-sport-football",
+      "category": "Sport",
+      "difficulty": "easy",
+      "prompt": "Which sport is shown in this picture?",
+      "wikipediaImage": "Association_football",
+      "options": [
+        "Football",
+        "Rugby",
+        "Hockey",
+        "Handball"
+      ],
+      "answer": "Football",
+      "explanation": "Two teams of eleven try to kick the ball into the other team's goal.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Association_football"
+    },
+    {
+      "key": "r2-sport-tennis",
+      "category": "Sport",
+      "difficulty": "easy",
+      "prompt": "Which sport is shown in this picture?",
+      "wikipediaImage": "Tennis",
+      "options": [
+        "Tennis",
+        "Badminton",
+        "Squash",
+        "Table tennis"
+      ],
+      "answer": "Tennis",
+      "explanation": "Players hit a ball over a net with rackets on a court.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Tennis"
+    },
+    {
+      "key": "r2-sport-volleyball",
+      "category": "Sport",
+      "difficulty": "easy",
+      "prompt": "Which sport is shown in this picture?",
+      "wikipediaImage": "Volleyball",
+      "options": [
+        "Volleyball",
+        "Basketball",
+        "Handball",
+        "Netball"
+      ],
+      "answer": "Volleyball",
+      "explanation": "Two teams of six hit a ball over a high net with their hands.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Volleyball"
+    },
+    {
+      "key": "r2-sport-tabletennis",
+      "category": "Sport",
+      "difficulty": "easy",
+      "prompt": "Which sport is shown in this picture?",
+      "wikipediaImage": "Table_tennis",
+      "options": [
+        "Table tennis",
+        "Tennis",
+        "Badminton",
+        "Squash"
+      ],
+      "answer": "Table tennis",
+      "explanation": "Players hit a light ball across a table divided by a net.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Table_tennis"
+    },
+    {
+      "key": "r2-logo-youtube",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "options": [
+        "YouTube",
+        "Netflix",
+        "Vimeo",
+        "Twitch"
+      ],
+      "answer": "YouTube",
+      "explanation": "This is the logo of YouTube.",
+      "sourceUrl": "https://simpleicons.org/",
+      "image": "https://cdn.simpleicons.org/youtube",
+      "imageCredit": "Logo from Simple Icons (simpleicons.org, CC0 1.0 vector icons). The logo is a trademark of its owner, shown only to identify the brand."
+    },
+    {
+      "key": "r2-logo-instagram",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "options": [
+        "Instagram",
+        "Snapchat",
+        "Pinterest",
+        "TikTok"
+      ],
+      "answer": "Instagram",
+      "explanation": "This is the logo of Instagram.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Instagram",
+      "wikidataLogo": "Instagram"
+    },
+    {
+      "key": "r2-logo-whatsapp",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "image": "https://cdn.simpleicons.org/whatsapp",
+      "imageCredit": "Logo from Simple Icons (simpleicons.org, CC0 1.0 vector icons). The logo is a trademark of its owner, shown only to identify the brand.",
+      "options": [
+        "WhatsApp",
+        "Telegram",
+        "Signal",
+        "Skype"
+      ],
+      "answer": "WhatsApp",
+      "explanation": "This is the logo of WhatsApp.",
+      "sourceUrl": "https://simpleicons.org/"
+    },
+    {
+      "key": "r2-logo-spotify",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "options": [
+        "Spotify",
+        "SoundCloud",
+        "Apple Music",
+        "Amazon Music"
+      ],
+      "answer": "Spotify",
+      "explanation": "This is the logo of Spotify.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Spotify",
+      "wikidataLogo": "Spotify"
+    },
+    {
+      "key": "r2-logo-netflix",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "options": [
+        "Netflix",
+        "YouTube",
+        "Hulu",
+        "Disney+"
+      ],
+      "answer": "Netflix",
+      "explanation": "This is the logo of Netflix.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Netflix",
+      "wikidataLogo": "Netflix"
+    },
+    {
+      "key": "r2-logo-nike",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "options": [
+        "Nike",
+        "Adidas",
+        "Puma",
+        "Reebok"
+      ],
+      "answer": "Nike",
+      "explanation": "This is the logo of Nike.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Nike,_Inc.",
+      "wikidataLogo": "Nike, Inc."
+    },
+    {
+      "key": "r2-logo-adidas",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "image": "https://cdn.simpleicons.org/adidas",
+      "imageCredit": "Logo from Simple Icons (simpleicons.org, CC0 1.0 vector icons). The logo is a trademark of its owner, shown only to identify the brand.",
+      "options": [
+        "Adidas",
+        "Nike",
+        "Puma",
+        "Under Armour"
+      ],
+      "answer": "Adidas",
+      "explanation": "This is the logo of Adidas.",
+      "sourceUrl": "https://simpleicons.org/"
+    },
+    {
+      "key": "r2-logo-android",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "image": "https://cdn.simpleicons.org/android",
+      "imageCredit": "Logo from Simple Icons (simpleicons.org, CC0 1.0 vector icons). The logo is a trademark of its owner, shown only to identify the brand.",
+      "options": [
+        "Android",
+        "Linux",
+        "Ubuntu",
+        "Windows"
+      ],
+      "answer": "Android",
+      "explanation": "This is the logo of Android.",
+      "sourceUrl": "https://simpleicons.org/"
+    },
+    {
+      "key": "r2-logo-google",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "options": [
+        "Google",
+        "Microsoft",
+        "Yahoo",
+        "Bing"
+      ],
+      "answer": "Google",
+      "explanation": "This is the logo of Google.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Google",
+      "wikidataLogo": "Google"
+    },
+    {
+      "key": "r2-logo-apple",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "image": "https://cdn.simpleicons.org/apple",
+      "imageCredit": "Logo from Simple Icons (simpleicons.org, CC0 1.0 vector icons). The logo is a trademark of its owner, shown only to identify the brand.",
+      "options": [
+        "Apple",
+        "Samsung",
+        "Xiaomi",
+        "Sony"
+      ],
+      "answer": "Apple",
+      "explanation": "This is the logo of Apple.",
+      "sourceUrl": "https://simpleicons.org/"
+    },
+    {
+      "key": "r2-logo-mcdonalds",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "options": [
+        "McDonald's",
+        "KFC",
+        "Burger King",
+        "Subway"
+      ],
+      "answer": "McDonald's",
+      "explanation": "This is the logo of McDonald's.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/McDonald's",
+      "wikidataLogo": "McDonald's"
+    },
+    {
+      "key": "r2-logo-starbucks",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which brand's logo is shown in the picture?",
+      "image": "https://cdn.simpleicons.org/starbucks",
+      "imageCredit": "Logo from Simple Icons (simpleicons.org, CC0 1.0 vector icons). The logo is a trademark of its owner, shown only to identify the brand.",
+      "options": [
+        "Starbucks",
+        "Costa Coffee",
+        "Café Coffee Day",
+        "Dunkin'"
+      ],
+      "answer": "Starbucks",
+      "explanation": "This is the logo of Starbucks.",
+      "sourceUrl": "https://simpleicons.org/"
+    },
+    {
+      "key": "r2-logo-tata",
+      "category": "Logo",
+      "difficulty": "medium",
+      "prompt": "Which company's logo is shown in the picture?",
+      "wikidataLogo": "Tata Group",
+      "options": [
+        "Tata Group",
+        "Reliance Industries",
+        "Mahindra Group",
+        "Aditya Birla Group"
+      ],
+      "answer": "Tata Group",
+      "explanation": "This is the logo of Tata Group.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Tata_Group",
+      "crop": [
+        0,
+        0,
+        1,
+        0.58
+      ]
+    },
+    {
+      "key": "r2-logo-airtel",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which company's logo is shown in the picture?",
+      "wikidataLogo": "Bharti Airtel",
+      "options": [
+        "Airtel",
+        "Jio",
+        "Vodafone Idea",
+        "BSNL"
+      ],
+      "answer": "Airtel",
+      "explanation": "This is the logo of Airtel.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Bharti_Airtel",
+      "crop": [
+        0,
+        0,
+        1,
+        0.57
+      ]
+    },
+    {
+      "key": "r2-logo-sbi",
+      "category": "Logo",
+      "difficulty": "easy",
+      "prompt": "Which company's logo is shown in the picture?",
+      "wikidataLogo": "State Bank of India",
+      "options": [
+        "State Bank of India",
+        "Punjab National Bank",
+        "Bank of Baroda",
+        "Canara Bank"
+      ],
+      "answer": "State Bank of India",
+      "explanation": "This is the logo of State Bank of India.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/State_Bank_of_India",
+      "crop": [
+        0,
+        0,
+        0.35,
+        1
+      ]
+    },
+    {
+      "key": "r2-logo-hdfc",
+      "category": "Logo",
+      "difficulty": "medium",
+      "prompt": "Which company's logo is shown in the picture?",
+      "wikidataLogo": "HDFC Bank",
+      "options": [
+        "HDFC Bank",
+        "ICICI Bank",
+        "Axis Bank",
+        "Kotak Mahindra Bank"
+      ],
+      "answer": "HDFC Bank",
+      "explanation": "This is the logo of HDFC Bank.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/HDFC_Bank",
+      "crop": [
+        0,
+        0,
+        0.165,
+        1
+      ]
+    },
+    {
+      "key": "r2-logo-icici",
+      "category": "Logo",
+      "difficulty": "medium",
+      "prompt": "Which company's logo is shown in the picture?",
+      "wikidataLogo": "ICICI Bank",
+      "options": [
+        "ICICI Bank",
+        "HDFC Bank",
+        "Axis Bank",
+        "IndusInd Bank"
+      ],
+      "answer": "ICICI Bank",
+      "explanation": "This is the logo of ICICI Bank.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/ICICI_Bank",
+      "crop": [
+        0,
+        0,
+        0.168,
+        1
+      ]
+    },
+    {
+      "key": "r2-logo-maruti",
+      "category": "Logo",
+      "difficulty": "medium",
+      "prompt": "Which company's logo is shown in the picture?",
+      "wikidataLogo": "Maruti Suzuki",
+      "options": [
+        "Maruti Suzuki",
+        "Hyundai",
+        "Honda",
+        "Tata Motors"
+      ],
+      "answer": "Maruti Suzuki",
+      "explanation": "This is the logo of Maruti Suzuki.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Maruti_Suzuki",
+      "crop": [
+        0,
+        0,
+        0.115,
+        1
+      ]
+    },
+    {
+      "key": "r2-logo-lnt",
+      "category": "Logo",
+      "difficulty": "medium",
+      "prompt": "Which company's logo is shown in the picture?",
+      "wikidataLogo": "Larsen & Toubro",
+      "options": [
+        "Larsen & Toubro",
+        "Tata Projects",
+        "Shapoorji Pallonji",
+        "GMR Group"
+      ],
+      "answer": "Larsen & Toubro",
+      "explanation": "This is the logo of Larsen & Toubro.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Larsen_&_Toubro"
+    },
+    {
+      "key": "r2-flag-in",
+      "category": "Flag",
+      "difficulty": "easy",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/in.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "India",
+        "Ireland",
+        "Bangladesh",
+        "Sri Lanka"
+      ],
+      "answer": "India",
+      "explanation": "This is the national flag of India.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_India"
+    },
+    {
+      "key": "r2-flag-jp",
+      "category": "Flag",
+      "difficulty": "easy",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/jp.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Japan",
+        "Bangladesh",
+        "South Korea",
+        "China"
+      ],
+      "answer": "Japan",
+      "explanation": "This is the national flag of Japan.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Japan"
+    },
+    {
+      "key": "r2-flag-br",
+      "category": "Flag",
+      "difficulty": "easy",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/br.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Brazil",
+        "Argentina",
+        "Portugal",
+        "Jamaica"
+      ],
+      "answer": "Brazil",
+      "explanation": "This is the national flag of Brazil.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Brazil"
+    },
+    {
+      "key": "r2-flag-ca",
+      "category": "Flag",
+      "difficulty": "easy",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/ca.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Canada",
+        "Switzerland",
+        "Japan",
+        "Austria"
+      ],
+      "answer": "Canada",
+      "explanation": "This is the national flag of Canada.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Canada"
+    },
+    {
+      "key": "r2-flag-de",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/de.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Germany",
+        "Sweden",
+        "Spain",
+        "Colombia"
+      ],
+      "answer": "Germany",
+      "explanation": "This is the national flag of Germany.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Germany"
+    },
+    {
+      "key": "r2-flag-fr",
+      "category": "Flag",
+      "difficulty": "easy",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/fr.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "France",
+        "Germany",
+        "Japan",
+        "Brazil"
+      ],
+      "answer": "France",
+      "explanation": "This is the national flag of France.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_France"
+    },
+    {
+      "key": "r2-flag-it",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/it.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Italy",
+        "Spain",
+        "Portugal",
+        "Greece"
+      ],
+      "answer": "Italy",
+      "explanation": "This is the national flag of Italy.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Italy"
+    },
+    {
+      "key": "r2-flag-gb",
+      "category": "Flag",
+      "difficulty": "easy",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/gb.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "United Kingdom",
+        "Australia",
+        "Norway",
+        "Canada"
+      ],
+      "answer": "United Kingdom",
+      "explanation": "This is the national flag of United Kingdom.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_the_United_Kingdom"
+    },
+    {
+      "key": "r2-flag-us",
+      "category": "Flag",
+      "difficulty": "easy",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/us.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "United States",
+        "Chile",
+        "Japan",
+        "Australia"
+      ],
+      "answer": "United States",
+      "explanation": "This is the national flag of United States.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_the_United_States"
+    },
+    {
+      "key": "r2-flag-cn",
+      "category": "Flag",
+      "difficulty": "easy",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/cn.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "China",
+        "Canada",
+        "Turkey",
+        "Japan"
+      ],
+      "answer": "China",
+      "explanation": "This is the national flag of China.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_China"
+    },
+    {
+      "key": "r2-flag-za",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/za.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "South Africa",
+        "Kenya",
+        "Jamaica",
+        "Brazil"
+      ],
+      "answer": "South Africa",
+      "explanation": "This is the national flag of South Africa.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_South_Africa"
+    },
+    {
+      "key": "r2-flag-kr",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/kr.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "South Korea",
+        "Japan",
+        "China",
+        "Taiwan"
+      ],
+      "answer": "South Korea",
+      "explanation": "This is the national flag of South Korea.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_South_Korea"
+    },
+    {
+      "key": "r2-flag-np",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/np.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Nepal",
+        "Bhutan",
+        "Sri Lanka",
+        "Japan"
+      ],
+      "answer": "Nepal",
+      "explanation": "This is the national flag of Nepal.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Nepal"
+    },
+    {
+      "key": "r2-flag-lk",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/lk.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Sri Lanka",
+        "Bhutan",
+        "Nepal",
+        "India"
+      ],
+      "answer": "Sri Lanka",
+      "explanation": "This is the national flag of Sri Lanka.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Sri_Lanka"
+    },
+    {
+      "key": "r2-flag-bd",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/bd.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Bangladesh",
+        "Japan",
+        "Pakistan",
+        "Palau"
+      ],
+      "answer": "Bangladesh",
+      "explanation": "This is the national flag of Bangladesh.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Bangladesh"
+    },
+    {
+      "key": "r2-flag-au",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/au.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Australia",
+        "United Kingdom",
+        "South Africa",
+        "Canada"
+      ],
+      "answer": "Australia",
+      "explanation": "This is the national flag of Australia.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Australia"
+    },
+    {
+      "key": "r2-flag-ar",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/ar.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Argentina",
+        "Germany",
+        "Brazil",
+        "Greece"
+      ],
+      "answer": "Argentina",
+      "explanation": "This is the national flag of Argentina.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Argentina"
+    },
+    {
+      "key": "r2-flag-se",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/se.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Sweden",
+        "Finland",
+        "Denmark",
+        "Norway"
+      ],
+      "answer": "Sweden",
+      "explanation": "This is the national flag of Sweden.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Sweden"
+    },
+    {
+      "key": "r2-flag-ch",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/ch.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Switzerland",
+        "Sweden",
+        "Japan",
+        "Canada"
+      ],
+      "answer": "Switzerland",
+      "explanation": "This is the national flag of Switzerland.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Switzerland"
+    },
+    {
+      "key": "r2-flag-tr",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/tr.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Turkey",
+        "Pakistan",
+        "Japan",
+        "China"
+      ],
+      "answer": "Turkey",
+      "explanation": "This is the national flag of Turkey.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Turkey"
+    },
+    {
+      "key": "r2-flag-eg",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/eg.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Egypt",
+        "Germany",
+        "Kenya",
+        "Brazil"
+      ],
+      "answer": "Egypt",
+      "explanation": "This is the national flag of Egypt.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Egypt"
+    },
+    {
+      "key": "r2-flag-ke",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/ke.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Kenya",
+        "Brazil",
+        "Germany",
+        "Japan"
+      ],
+      "answer": "Kenya",
+      "explanation": "This is the national flag of Kenya.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Kenya"
+    },
+    {
+      "key": "r2-flag-gr",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/gr.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Greece",
+        "Argentina",
+        "Finland",
+        "Israel"
+      ],
+      "answer": "Greece",
+      "explanation": "This is the national flag of Greece.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Greece"
+    },
+    {
+      "key": "r2-flag-pt",
+      "category": "Flag",
+      "difficulty": "medium",
+      "prompt": "Which country's national flag is shown in the picture?",
+      "image": "https://flagcdn.com/w640/pt.png",
+      "imageCredit": "National flag image from flagcdn.com (flags are in the public domain)",
+      "options": [
+        "Portugal",
+        "Spain",
+        "Brazil",
+        "Italy"
+      ],
+      "answer": "Portugal",
+      "explanation": "This is the national flag of Portugal.",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Flag_of_Portugal"
+    }
+  ]
+}

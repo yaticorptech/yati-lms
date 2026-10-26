@@ -5,10 +5,10 @@
  * history and redemption.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Wallet, Gift, TrendingUp, ArrowUpCircle, Trophy, BookOpen, Award, ArrowDownToLine, RotateCcw, Briefcase, Sparkles, X } from 'lucide-react';
+import { Wallet, Gift, TrendingUp, ArrowUpCircle, Trophy, BookOpen, Award, ArrowDownToLine, RotateCcw, Briefcase, Sparkles, X, ShoppingBag } from 'lucide-react';
 import api from '../../utils/api';
 import WalletSection from './WalletSection';
-import { money, num, balance, SOURCE_LABEL, txTitle } from './format';
+import { money, balance, SOURCE_LABEL, txTitle } from './format';
 import Portal from '../Portal';
 import useBackClose from '../../native/useBackClose';
 
@@ -129,16 +129,11 @@ export default function WalletCard() {
                             <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-emerald-700">{money(balance(w.available), cur)}</p>
                             <p className="text-xs font-semibold text-emerald-700/80">Spend it on courses and features</p>
                         </div>
+                        {/* XP does not turn into wallet money (2026-10-26): money only here. */}
                         <div className="@container min-w-0 rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
-                            <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">XP Balance</p><span className="rounded-lg bg-amber-100 p-1.5 text-amber-600"><Sparkles size={16} /></span></div>
-                            <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-amber-700">{num(data.xpBalance)} XP</p>
-                            {/* The admin's live rate. Each full block converts on its own. */}
-                            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-amber-100">
-                                <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, (data.xpBalance / Math.max(1, data.conversion.pointsPerUnit)) * 100)}%` }} />
-                            </div>
-                            <p className="mt-1 text-xs font-semibold text-amber-700/80">
-                                {num(Math.max(0, data.conversion.pointsPerUnit - data.xpBalance))} XP more → +{money(data.conversion.unitValue, cur)}
-                            </p>
+                            <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">Total Spent</p><span className="rounded-lg bg-amber-100 p-1.5 text-amber-600"><ShoppingBag size={16} /></span></div>
+                            <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-amber-700">{money(w.totalSpent, cur)}</p>
+                            <p className="text-xs font-semibold text-amber-700/80">On courses and features</p>
                         </div>
                         <div className="@container min-w-0 rounded-2xl border border-sky-100 bg-sky-50/70 p-4">
                             <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">Total Earned</p><span className="rounded-lg bg-sky-100 p-1.5 text-sky-600"><TrendingUp size={16} /></span></div>

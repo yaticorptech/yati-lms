@@ -12,14 +12,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Flag, Trophy, Users, Clock, Eye, AlertTriangle } from 'lucide-react';
-import { competitionsApi } from './api';
+import { competitionsApi, BRAIN_GAMES } from './api';
 import ChessTable from './games/ChessTable';
 import LudoTable from './games/LudoTable';
 import CarromTable from './games/CarromTable';
+import QuizTable from './games/QuizTable';
 import { useHideLoop } from '../components/loopVisibility';
 import GameCelebration from '../components/GameCelebration';
+import { PlaySkeleton } from './Skeletons';
+import useGoBack from '../hooks/useGoBack';
 
-const TABLES = { chess: ChessTable, ludo: LudoTable, carrom: CarromTable };
+// Ludo and Carrom stay for a match played before they were retired (2026-10-24).
+const TABLES = { chess: ChessTable, ludo: LudoTable, carrom: CarromTable, ...Object.fromEntries(BRAIN_GAMES.map((id) => [id, QuizTable])) };
+// Games whose table draws its own players and clock: the page leaves both out.
+const OWN_PLAYERS = ['chess', 'ludo', ...BRAIN_GAMES];
+const OWN_CLOCK = ['chess', ...BRAIN_GAMES];
 
 /** Seconds left until `deadline`, ticking. */
 const useCountdown = (deadline) => {
@@ -34,7 +41,43 @@ const useCountdown = (deadline) => {
 };
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
+/**
+ * After a drawn match game: the rematch opens 5 minutes on. Counts down to
+ * it, then shows the player's (same) code and the way to the new game.
+ */
+const Rematch = ({ competitionId, gameId }) => {
+    const navigate = useNavigate();
+    const [m, setM] = useState(null);
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        let alive = true;
+        const look = () => competitionsApi.detail(competitionId).then((d) => { if (alive) setM(d.myMatch || null); }).catch(() => {});
+        look();
+        const t = setInterval(look, 3000);
+        const tick = setInterval(() => setNow(Date.now()), 1000);
+        return () => { alive = false; clearInterval(t); clearInterval(tick); };
+    }, [competitionId]);
+    if (!m) return null;
+    const next = m.started && m.gameId && m.gameId !== gameId;
+    const left = m.rematchAt ? Math.max(0, Math.ceil((new Date(m.rematchAt).getTime() - now) / 1000)) : 0;
+    if (!next && !m.rematchAt) return null;
+    return (
+        <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4" data-rematch>
+            {next ? (
+                <div className="flex flex-wrap items-center gap-3">
+                    <p className="min-w-0 flex-1 basis-48 font-bold text-indigo-900">The rematch is open. Join with your code.</p>
+                    {m.code && <span translate="no" className="rounded-xl bg-slate-900 px-3 py-1.5 font-mono text-lg font-black tracking-[0.25em] text-white">{m.code}</span>}
+                    <button type="button" onClick={() => navigate(`/competitions/play/${m.gameId}`)} className="inline-flex min-h-10 items-center rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700">Join the rematch</button>
+                </div>
+            ) : (
+                <p className="font-bold text-indigo-900">Rematch begins in <span className="tabular-nums">{clock(left)}</span>. Your joining code shows here then — stay on this page or come back.</p>
+            )}
+        </div>
+    );
+};
+
 export default function GamePage() {
+    const goBack = useGoBack();
     // The board needs the whole screen: Loop the mascot stays away until the student leaves.
     useHideLoop();
     const { gameId } = useParams();
@@ -46,7 +89,6 @@ export default function GamePage() {
     const [confirmResign, setConfirmResign] = useState(false);
     const versionRef = useRef(null);
     const statusRef = useRef('waiting');
-    const joinedRef = useRef(false);
 
     // A win gets the full-screen celebration, when the student was here to
     // see the game end: not when they open a game that finished earlier.
@@ -83,12 +125,15 @@ export default function GamePage() {
         return () => { alive = false; clearTimeout(timer); };
     }, [gameId, accept]);
 
-    // A seated player who opens a match's game is here to play: join.
-    useEffect(() => {
-        if (!game || joinedRef.current || game.kind !== 'match' || game.status !== 'waiting' || game.you == null) return;
-        joinedRef.current = true;
-        competitionsApi.join(gameId).then((r) => accept(r.game)).catch((e) => setError(e.message));
-    }, [game, gameId, accept]);
+    // A seated player takes their seat by typing their own joining code (sent
+    // to them when the match opened; it is also in My Games). Nobody else's
+    // code will do. A game opened before personal codes needs none.
+    const [joinCode, setJoinCode] = useState('');
+    const needsCode = game?.kind === 'match' && game.status === 'waiting' && game.you != null && !game.joined;
+    const joinWithCode = (e) => {
+        e?.preventDefault();
+        run('join', () => competitionsApi.join(gameId, joinCode)).catch(() => {});
+    };
 
     const run = useCallback((key, fn) => {
         setBusy(key); setError('');
@@ -101,7 +146,7 @@ export default function GamePage() {
     const onAction = useCallback((action) => run('action', () => competitionsApi.act(gameId, action)), [gameId, run]);
 
     const view = game?.view;
-    const turnLeft = useCountdown(game?.status === 'active' && game?.game !== 'chess' ? view?.deadline : null);
+    const turnLeft = useCountdown(game?.status === 'active' && !OWN_CLOCK.includes(game?.game) ? view?.deadline : null);
     const joinLeft = useCountdown(game?.status === 'waiting' && game?.kind === 'match' ? game?.joinDeadline : null);
 
     if (fatal) {
@@ -113,7 +158,7 @@ export default function GamePage() {
             </div>
         );
     }
-    if (!game) return <div className="space-y-4"><div className="skeleton h-16 rounded-3xl" /><div className="skeleton mx-auto aspect-square max-w-xl rounded-3xl" /></div>;
+    if (!game) return <PlaySkeleton />;
 
     const Table = TABLES[game.game];
     const back = game.competition ? `/competitions/${game.competition.id}` : '/competitions';
@@ -127,9 +172,9 @@ export default function GamePage() {
     const tie = outcome && outcome.places?.[0]?.length > 1;
 
     return (
-        <div className="space-y-4 pb-10" data-game-page={game.game}>
+        <div className="space-y-4 pb-10 -mt-4 sidebar:-mt-8" data-game-page={game.game}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <Link to={back} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} aria-hidden="true" /> {game.competition ? game.competition.name : 'Games'}</Link>
+                <Link to={back} onClick={goBack} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} aria-hidden="true" /> Back</Link>
                 {game.you == null && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"><Eye size={13} aria-hidden="true" /> Watching</span>}
                 {game.code && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1 font-mono text-xs font-black tracking-[0.2em] text-white" data-match-code={game.code} title="Your match code">{game.code}</span>}
             </div>
@@ -167,9 +212,10 @@ export default function GamePage() {
             )}
 
             {/* ── Players ───────────────────────────────────────────── */}
-            {/* Chess draws its own two player bars, with their clocks, and Ludo
-                its players at their corners of the board, with the dice. */}
-            {game.status !== 'waiting' && view?.seats && game.game !== 'chess' && game.game !== 'ludo' && (
+            {/* Chess draws its own two player bars, with their clocks, Ludo
+                its players at their corners of the board, with the dice, and
+                the brain games a scoreboard. */}
+            {game.status !== 'waiting' && view?.seats && !OWN_PLAYERS.includes(game.game) && (
                 // Two to a row on a phone: the name on its own line, so a long
                 // one is not cut off for a badge, and under it whose it is, the
                 // colour, and "to play" for the player whose turn it is — who
@@ -198,6 +244,17 @@ export default function GamePage() {
             {/* ── Waiting room ──────────────────────────────────────── */}
             {game.status === 'waiting' && (
                 <section className="mx-auto max-w-xl space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    {needsCode && (
+                        <form onSubmit={joinWithCode} className="space-y-2 rounded-2xl border-2 border-indigo-200 bg-white p-4" data-join-form>
+                            <p className="font-black text-slate-900">Enter your joining code to take your seat</p>
+                            <p className="text-sm text-slate-600">It was sent to you when the match opened, and it is on your match in My Games. Only your own code works.</p>
+                            <div className="flex gap-2">
+                                <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="6-character code" autoFocus
+                                    className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-lg tracking-[0.3em] text-slate-900 placeholder:font-sans placeholder:text-sm placeholder:tracking-normal focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" aria-label="Joining code" />
+                                <button type="submit" disabled={joinCode.length !== 6 || !!busy} className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">{busy === 'join' && <Loader2 size={15} className="animate-spin" />} Join</button>
+                            </div>
+                        </form>
+                    )}
                     {game.kind === 'match' && (
                         <p className="rounded-2xl bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
                             The game starts as soon as every player is here.{joinLeft != null && <> Players not here in <strong className="tabular-nums">{clock(joinLeft)}</strong> lose by walkover.</>}
@@ -239,10 +296,11 @@ export default function GamePage() {
                             <p className="text-lg font-black text-slate-900">
                                 {game.status === 'abandoned' ? 'This game did not go ahead' : iWon ? 'You won!' : tie ? 'A draw' : outcome?.places?.[0] ? `${sideName(outcome.places[0][0])} won` : 'Game over'}
                             </p>
-                            <p className="text-sm text-slate-600">{outcome?.reason}{game.kind === 'match' && tie ? ' The match will be replayed.' : ''}</p>
+                            <p className="text-sm text-slate-600">{outcome?.reason}{game.kind === 'match' && tie ? ' The match will be replayed in 5 minutes.' : ''}</p>
                         </div>
                         <Link to={back} className="inline-flex min-h-10 items-center rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800">{game.competition ? 'Back to the competition' : 'Back to games'}</Link>
                     </div>
+                    {game.kind === 'match' && tie && game.competition && <Rematch competitionId={game.competition.id} gameId={game.id || gameId} />}
                     {/* Each place may shrink and wrap: a long team and college
                         name kept on one line ran 45px past the card on a phone
                         (2026-10-17). */}

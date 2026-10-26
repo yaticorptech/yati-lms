@@ -27,6 +27,8 @@ import { CompetitionForm, Chip, GameIcon } from '../competitions/shared';
 import { TeamMaker } from '../competitions/TeamMaker';
 import { QuizPanel, HackathonPanel } from '../competitions/ChallengePanel';
 import { ORDINAL, fmtDateTime, toLocalInput, errorOf, bannerUploader, competitionBadge, deleteQuestion } from '../competitions/constants';
+import { DateTimeInput } from '../components/DateTimeInput';
+import useGoBack from '../hooks/useGoBack';
 
 const STUDENT_PORTAL = import.meta.env.VITE_STUDENT_URL || 'http://localhost:5174';
 
@@ -60,7 +62,7 @@ const AdminMatch = ({ match, onCall }) => {
             {match.status === 'scheduled' && (
                 <div className="mt-3 flex flex-wrap items-end gap-2">
                     <label className="min-w-0 flex-1 basis-44"><span className={LABEL}>Match time</span>
-                        <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} className={INPUT} /></label>
+                        <DateTimeInput value={at} onChange={setAt} label="Match time" /></label>
                     <button type="button" className={BTN2} onClick={() => onCall('put', `/matches/${match.id}`, { scheduledAt: at ? new Date(at).toISOString() : null })}><CalendarClock size={15} /> Save time</button>
                     <button type="button" className={BTN} onClick={() => onCall('post', `/matches/${match.id}/start`)}><Play size={15} /> Start now</button>
                 </div>
@@ -97,7 +99,12 @@ const AdminMatch = ({ match, onCall }) => {
  * `apiBase` is the platform's /competitions/admin, or an organization's own
  * /competitions/org/host; `backTo` is where "All competitions" goes.
  */
+/** The calendar day (India) a time falls on, as YYYY-MM-DD. */
+const dayOf = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
 export default function CompetitionAdmin({ apiBase = '/competitions/admin', backTo = '/competitions' }) {
+    const [today] = useState(() => dayOf(Date.now()));
+    const goBack = useGoBack();
     const { id } = useParams();
     const navigate = useNavigate();
     const [data, setData] = useState(null);
@@ -122,11 +129,13 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
         .catch((err) => setError(errorOf(err))), [apiBase, id]);
     useEffect(() => { load(); }, [load]);
     const live = data?.competition.status === 'live';
+    // Payments come in while registration is on too: kept fresh then as well.
+    const fees = !!data?.competition.entryFee?.enabled && !['completed', 'cancelled', 'draft'].includes(data?.competition.status);
     useEffect(() => {
-        if (!live) return undefined;
-        const t = setInterval(load, 15000);
+        if (!live && !fees) return undefined;
+        const t = setInterval(load, live ? 15000 : 10000);
         return () => clearInterval(t);
-    }, [live, load]);
+    }, [live, fees, load]);
 
     /** One admin action against this competition; the reply is the new state. */
     const call = (method, path, body) => {
@@ -150,6 +159,10 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
     // A college's own competition: for its students only, and it makes the teams.
     const own = !!c.hostOrganizationId;
     const ownTeam = (t) => own && t.organizationId === c.hostOrganizationId;
+    // A hosting college may start only from the competition's day (the platform admin any time).
+    const notYourDay = apiBase !== '/competitions/admin' && today < dayOf(c.startsAt);
+    // Matches drawn but not yet started (Start now opens them all).
+    const waitingMatches = (data.rounds || []).flatMap((r) => r.matches).filter((m) => m.status === 'scheduled').length;
     const teamsChange = own && !solo && !drawn && !['completed', 'cancelled'].includes(c.status);
     const teamSaved = (d) => { setData(d); setTeamForm(null); };
     // The platform admin looking at a college's competition: that college by
@@ -159,7 +172,7 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
 
     return (
         <div className="space-y-6 pb-12 animate-fade-in">
-            <Link to={backTo} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} /> All competitions</Link>
+            <Link to={backTo} onClick={goBack} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} /> Back</Link>
 
             <header className={`${CARD} p-5`}>
                 <div className="flex flex-wrap items-start gap-4">
@@ -177,6 +190,13 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
                     <div className="flex flex-wrap gap-2">
                         {!['completed', 'cancelled'].includes(c.status) && <button type="button" className={BTN2} onClick={() => setEditing(true)}><Pencil size={15} /> Edit</button>}
                         {c.status === 'draft' && <button type="button" className={BTN} disabled={!!busy} onClick={() => quiet(call('post', '/status', { status: 'registration' }))}><Rocket size={15} /> Open registration</button>}
+                        {/* Start any time, whatever date and time were set: draws the matches if needed and opens them. */}
+                        {(['registration', 'closed'].includes(c.status) || (c.status === 'live' && waitingMatches > 0)) && (
+                            <button type="button" className={`${BTN} disabled:cursor-not-allowed disabled:opacity-50`} disabled={!!busy || notYourDay} title={notYourDay ? `Start now opens on ${fmtDateTime(c.startsAt).split(',')[0]}, the competition's day` : undefined}
+                                onClick={() => { if (window.confirm(c.status === 'live' ? `Start the ${waitingMatches} match${waitingMatches === 1 ? '' : 'es'} waiting now? Each player gets their joining code.` : 'Start the competition now? Registration closes, the matches are drawn from the approved teams and opened, and each player gets their joining code.')) quiet(call('post', '/start-now')); }}>
+                                <Play size={15} /> Start now
+                            </button>
+                        )}
                         {c.status === 'registration' && <button type="button" className={BTN2} disabled={!!busy} onClick={() => quiet(call('post', '/status', { status: 'closed' }))}><Lock size={15} /> Close registration</button>}
                         {c.status === 'closed' && !drawn && <button type="button" className={BTN2} disabled={!!busy} onClick={() => quiet(call('post', '/status', { status: 'registration' }))}><Rocket size={15} /> Reopen registration</button>}
                         {!['completed', 'cancelled'].includes(c.status) && (
@@ -231,7 +251,13 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
                                 )}
                                 {(!ownTeam(t) || t.solo) && <Chip status={t.status} />}
                             </div>
-                            {!t.solo && <p className="mt-2 text-sm text-slate-700"><Users size={14} className="mr-1 inline text-slate-400" />{t.players.map((p) => p.name).join(', ')}</p>}
+                            {/* With an entry fee: each player, paid or not (updated as they pay). On their own, a student's name is the team's. */}
+                            {c.entryFee?.enabled ? (
+                                <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-700" data-payments>
+                                    <Users size={14} className="text-slate-400" />
+                                    {t.players.map((p) => <span key={p.userId} className="inline-flex items-center">{p.name}<span className={`ml-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${p.paid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{p.paid ? 'Paid' : 'Not paid'}</span></span>)}
+                                </p>
+                            ) : !t.solo && <p className="mt-2 text-sm text-slate-700"><Users size={14} className="mr-1 inline text-slate-400" />{t.players.map((p) => p.name).join(', ')}</p>}
                             {t.note && <p className="mt-1 text-xs text-rose-700">Note: {t.note}</p>}
                             {ownTeam(t) && teamsChange && (
                                 <div className="mt-3 flex flex-wrap gap-2">
@@ -262,7 +288,7 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
                             <p className="text-sm text-slate-600">{approved.length} approved team{approved.length === 1 ? '' : 's'}. Drawing closes registration, pairs the teams at random ({c.teamsPerMatch} a match) and starts the competition. After that it runs by itself: each match starts at its time, and when a round is over the next one (semi-final, final, third place) starts 15 minutes later. Certificates go to the players' profiles at the end.</p>
                             <div className="flex flex-wrap items-end gap-2">
                                 <label className="basis-56"><span className={LABEL}>First matches at</span>
-                                    <input type="datetime-local" value={draw.firstMatchAt || toLocalInput(c.startsAt)} onChange={(e) => setDraw((d) => ({ ...d, firstMatchAt: e.target.value }))} className={INPUT} /></label>
+                                    <DateTimeInput value={draw.firstMatchAt || toLocalInput(c.startsAt)} onChange={(v) => setDraw((d) => ({ ...d, firstMatchAt: v }))} label="First matches" /></label>
                                 <label className="basis-40"><span className={LABEL}>Minutes between matches</span>
                                     <input type="number" min={0} max={600} value={draw.gapMinutes} onChange={(e) => setDraw((d) => ({ ...d, gapMinutes: e.target.value }))} className={INPUT} /></label>
                                 <button type="button" className={BTN} disabled={!!busy || approved.length < 2 || !['registration', 'closed'].includes(c.status)}

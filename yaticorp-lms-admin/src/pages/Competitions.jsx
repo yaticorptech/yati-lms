@@ -14,9 +14,14 @@ import api from '../utils/api';
 import { PageHeader, Segmented, CARD, BTN } from '../components/orgUi';
 import { CompetitionForm, Chip, GameIcon } from '../competitions/shared';
 import { fmtDateTime, errorOf, bannerUploader, competitionBadge, deleteQuestion } from '../competitions/constants';
+import { arenaApi, arenaPath, StateChip } from '../arena/shared';
+
+// Where a Quiz Arena sits among the filters, by its state.
+const ARENA_FILTER = { draft: 'draft', registration: 'upcoming', upcoming: 'upcoming', live: 'live', ended: 'completed', results: 'completed', cancelled: 'completed' };
 
 const FILTERS = [['all', 'All'], ['upcoming', 'Upcoming'], ['live', 'Live'], ['completed', 'Completed'], ['draft', 'Drafts']];
-const inFilter = (c, f) => f === 'all' || (f === 'upcoming' ? ['registration', 'closed'].includes(c.status) : c.status === f);
+// A competition whose start date passed without being drawn is over: under Completed, not Upcoming.
+const inFilter = (c, f) => f === 'all' || (c.phase === 'expired' ? f === 'completed' : f === 'upcoming' ? ['registration', 'closed'].includes(c.status) : c.status === f);
 
 export default function Competitions({ apiBase = '/competitions/admin', linkBase = '/competitions', organizer = 'YATICORP', embedded = false, hosted = false }) {
     const navigate = useNavigate();
@@ -24,6 +29,11 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
     const [error, setError] = useState('');
     const [filter, setFilter] = useState('all');
     const [creating, setCreating] = useState(false);
+    // Quiz Arena: the platform's only (not a college's own competitions).
+    // Quiz Arena: the platform's, or a hosting college's own.
+    const withArena = apiBase === '/competitions/admin' || apiBase === '/competitions/org/host';
+    const [arenas, setArenas] = useState([]);
+    useEffect(() => { if (withArena) api.get(arenaApi()).then((r) => setArenas(r.data.competitions)).catch(() => {}); }, [withArena]);
 
     const load = useCallback(() => api.get(apiBase)
         .then((r) => { setRows(r.data.competitions); setError(''); })
@@ -38,7 +48,8 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
     };
 
     const shown = (rows || []).filter((c) => inFilter(c, filter));
-    const counts = Object.fromEntries(FILTERS.map(([k]) => [k, k === 'all' ? 0 : (rows || []).filter((c) => inFilter(c, k)).length]));
+    const arenaShown = arenas.filter((a) => filter === 'all' || ARENA_FILTER[a.state] === filter);
+    const counts = Object.fromEntries(FILTERS.map(([k]) => [k, k === 'all' ? 0 : (rows || []).filter((c) => inFilter(c, k)).length + arenas.filter((a) => ARENA_FILTER[a.state] === k).length]));
 
     return (
         <div className={`space-y-6 animate-fade-in ${embedded ? "" : "pb-12"}`}>
@@ -51,7 +62,7 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
                     <button type="button" onClick={() => setCreating(true)} className={BTN}><Plus size={16} /> Create Competition</button>
                 </div>
             ) : (
-                <PageHeader icon={Trophy} title="Games & Competitions" subtitle="Inter-college Chess competitions. Colleges register teams; you approve them, draw the matches and decide disputes.">
+                <PageHeader icon={Trophy} title="Games & Competitions" subtitle="Inter-college Chess, Rapid Fire, Code Clash, Brain Sprint and Quiz Arena, and Quiz and Hackathon challenges. Colleges enter their students or register teams; you approve them, run the matches and decide disputes.">
                     <button type="button" onClick={() => setCreating(true)} className={BTN}><Plus size={16} /> Create Competition</button>
                 </PageHeader>
             )}
@@ -60,7 +71,7 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
 
             {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
             {!rows && !error && <div className="grid gap-4 md:grid-cols-2">{[0, 1].map((i) => <div key={i} className="h-40 animate-pulse rounded-2xl bg-slate-100" />)}</div>}
-            {rows && shown.length === 0 && (
+            {rows && shown.length === 0 && arenaShown.length === 0 && (
                 <div className={`${CARD} p-10 text-center`}>
                     <Trophy size={30} className="mx-auto text-slate-300" />
                     <p className="mt-2 font-bold text-slate-800">{rows.length ? 'Nothing here' : 'No competitions yet'}</p>
@@ -69,6 +80,23 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
             )}
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {/* Quiz Arena contests, among the others. */}
+                {arenaShown.map((a) => (
+                    <article key={`arena-${a.id}`} className={`${CARD} group relative flex flex-col gap-3 p-5 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md`} data-arena={a.id}>
+                        <div className="flex items-start gap-3">
+                            <GameIcon game="quizarena" />
+                            <div className="min-w-0 flex-1">
+                                <Link to={arenaPath(`/competitions/arena/${a.id}`)} className="block font-bold leading-snug text-slate-900 after:absolute after:inset-0 after:rounded-2xl group-hover:text-indigo-700">{a.title}</Link>
+                                <p className="text-xs text-slate-500">Quiz Arena · by {a.organizedBy}</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5"><StateChip state={a.state} /></div>
+                        <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                            <span className="inline-flex items-center gap-1.5"><CalendarClock size={13} /> {fmtDateTime(a.startsAt)}</span>
+                            <span className="inline-flex items-center gap-1.5"><Users size={13} /> {a.registeredCount} / {a.maxParticipants} students</span>
+                        </div>
+                    </article>
+                ))}
                 {shown.map((c) => (
                     // The whole card opens the competition; Edit, on top of it, opens it
                     // with the form ready — published ones too, until it is over.
@@ -109,6 +137,14 @@ export default function Competitions({ apiBase = '/competitions/admin', linkBase
 
             {creating && (
                 <CompetitionForm organizer={organizer} hosted={hosted} uploadBanner={bannerUploader(apiBase)} onCancel={() => setCreating(false)}
+                    arena={withArena}
+                    onSaveArena={(body, publish) => api.post(arenaApi(), body).then(async (r) => {
+                        const id = r.data.competition.id;
+                        let notice = '';
+                        if (publish) await api.post(`${arenaApi()}/${id}/publish`).catch((err) => { notice = `Saved as a draft, not published: ${errorOf(err)}`; });
+                        setCreating(false);
+                        navigate(arenaPath(`/competitions/arena/${id}`), { state: notice ? { notice } : undefined });
+                    })}
                     onSave={(body) => api.post(apiBase, body).then((r) => { setCreating(false); navigate(`${linkBase}/${r.data.competition.id}`); })} />
             )}
         </div>

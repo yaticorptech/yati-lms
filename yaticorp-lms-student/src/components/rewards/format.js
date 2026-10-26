@@ -8,10 +8,6 @@ export const num = (n) => Number(n || 0).toLocaleString('en-IN');
 // students saw ₹1,50,000 they could not actually spend).
 export const balance = (available) => Number(available || 0);
 
-/** What `xp` is worth at the admin's rate, e.g. 1000 XP = ₹10. */
-export const xpValue = (xp, conversion) =>
-    conversion?.pointsPerUnit ? (Number(xp || 0) * Number(conversion.unitValue || 0)) / Number(conversion.pointsPerUnit) : 0;
-
 /** The line a ledger row is shown under. The starting credit always reads the
  *  same, whatever text it was booked with. */
 export const txTitle = (t) =>
@@ -23,7 +19,8 @@ export const when = (d) => {
 };
 
 export const SOURCE_LABEL = {
-    xp_reward: 'XP converted',
+    // Credits from XP made before XP stopped turning into money (2026-10-26).
+    xp_reward: 'XP reward (earlier)',
     starting_credit: 'Starting credit',
     learning_reward: 'Learning reward',
     leaderboard_reward: 'Leaderboard reward',

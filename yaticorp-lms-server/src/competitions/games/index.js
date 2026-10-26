@@ -2,10 +2,11 @@
  * The games, by id. Each engine follows ./contract.js. Loaded on first use, so
  * one game's file failing to load cannot take the others down with it.
  */
-const IDS = ['chess'];
-// No longer offered (UNO, then Ludo and Carrom, removed 2026-10-23): never
-// listed or chosen for a new competition, but a competition or game made
-// before then can still be read, played to its end and timed out.
+const IDS = ['chess', 'rapidfire', 'codeclash', 'brainsprint'];
+// No longer offered (UNO, removed 2026-10-23; Ludo and Carrom, replaced by the
+// brain games 2026-10-24): never listed or chosen for a new competition, but a
+// competition or game made before then can still be read, played to its end
+// and timed out. (Quiz and Hackathon are challenges, not games: no matches.)
 const RETIRED = ['uno', 'ludo', 'carrom'];
 
 const cache = {};

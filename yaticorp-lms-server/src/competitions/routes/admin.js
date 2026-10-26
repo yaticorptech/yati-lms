@@ -56,9 +56,9 @@ const num = (v, lo, hi, dflt) => (v == null || v === '' || Number.isNaN(Number(v
 const fromBody = (body, current = null) => {
     const b = body || {};
     const game = String(b.game ?? current?.game ?? '');
-    // UNO, Ludo and Carrom are no longer offered (2026-10-23); one made before then can still be edited.
+    // UNO is no longer offered (2026-10-23), Ludo and Carrom since the brain games (2026-10-24); one made before then can still be edited.
     const quizOrHackathon = challenge.CHALLENGES.includes(game);
-    if (!require('../games').IDS.includes(game) && !quizOrHackathon && !(current && game === current.game)) throw fail(400, 'Choose the game: Chess, a Quiz or a Hackathon (Ludo and Carrom are no longer offered).');
+    if (!require('../games').IDS.includes(game) && !quizOrHackathon && !(current && game === current.game)) throw fail(400, 'Choose the game: Chess, Rapid Fire, Code Clash, Brain Sprint, a Quiz or a Hackathon.');
     const name = String(b.name ?? current?.name ?? '').trim();
     if (!name) throw fail(400, 'Give the competition a name.');
     const startsAt = new Date(b.startsAt ?? current?.startsAt);
@@ -76,8 +76,8 @@ const fromBody = (body, current = null) => {
     // A quiz or a hackathon: when it closes, who enters, and its questions or problem.
     const extra = quizOrHackathon ? challenge.fieldsFrom(game, b, current, startsAt) : { entry: 'team', endsAt: null };
     const solo = extra.entry === 'individual';
-    // What each game allows: two teams a match for chess and carrom, up to
-    // four for ludo; doubles only in carrom.
+    // What each game allows: two teams a match for chess (and carrom), up to
+    // four for the brain games (and ludo); doubles only in carrom.
     const teamsPerMatch = ['chess', 'carrom'].includes(game) || quizOrHackathon ? 2 : num(b.teamsPerMatch ?? current?.teamsPerMatch, 2, 4, 4);
     const playersPerSide = game === 'carrom' ? num(b.playersPerSide ?? current?.playersPerSide, 1, 2, 1) : 1;
     const playersPerTeam = solo ? 1 : Math.max(playersPerSide, num(b.playersPerTeam ?? current?.playersPerTeam, 1, 10, playersPerSide));
@@ -104,6 +104,7 @@ const fromBody = (body, current = null) => {
         prizes: [...new Map(prizes.map((p) => [p.place, p])).values()].sort((x, y) => x.place - y.place),
         prizeDetails: String(b.prizeDetails ?? current?.prizeDetails ?? '').trim().slice(0, 600),
         participationXp: num(b.participationXp ?? current?.participationXp, 0, 10000, 0),
+        entryFee: feeFrom(b.entryFee, current?.entryFee),
         certificates: b.certificates == null ? current?.certificates !== false : !!b.certificates,
         participationCertificates: b.participationCertificates == null ? current?.participationCertificates !== false : !!b.participationCertificates
     };
@@ -113,6 +114,16 @@ const fromBody = (body, current = null) => {
  * The routes, for `scope` 'platform' (every competition) or 'organization'
  * (the caller's organization's own, req.organization).
  */
+/** The entry fee from a form: { enabled, amount } (₹, whole rupees). */
+const feeFrom = (b, current = {}) => {
+    const v = b === undefined ? current || {} : b || {};
+    const amount = Math.max(0, Math.min(100000, Math.round(Number(v.amount) || 0)));
+    return { enabled: !!v.enabled && amount > 0, amount };
+};
+
+/** The calendar day (India) a time falls on, as YYYY-MM-DD. */
+const dayOf = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
 const manage = (scope = 'platform') => {
     const router = express.Router();
 
@@ -254,10 +265,15 @@ const manage = (scope = 'platform') => {
         if (!team) throw fail(404, 'Team not found.');
         const { tellTeams } = require('../services/notices');
         if (status === 'approved') {
-            const { when } = require('../services/notices');
-            await tellTeams([team], c, 'Your team is in', challenge.isChallenge(c)
-                ? `${team.teamName} is approved for ${c.name}. It opens on ${when(c.startsAt)} in Competitions.`
-                : `${team.teamName} is approved for ${c.name}. Your matches will appear in Competitions.`);
+            const fee = require('../services/entryFee').due(c);
+            // With an entry fee, the way to pay; without, when it opens (a quiz or a hackathon) or that matches follow.
+            if (fee) await tellTeams([team], c, fee ? `Pay ₹${fee} to enroll` : 'Your team is in', `${team.teamName} is approved for ${c.name}.${fee ? ` Pay the ₹${fee} entry fee online in Games & Competitions to enroll — you can join only once it is paid.` : ''} Your matches will appear in Games & Competitions.`);
+            else {
+                const { when } = require('../services/notices');
+                await tellTeams([team], c, 'Your team is in', challenge.isChallenge(c)
+                    ? `${team.teamName} is approved for ${c.name}. It opens on ${when(c.startsAt)} in Competitions.`
+                    : `${team.teamName} is approved for ${c.name}. Your matches will appear in Competitions.`);
+            }
         } else {
             // A team turned down used to hear nothing at all.
             await tellTeams([team], c, 'Your team was not accepted', `${team.teamName} was not accepted for ${c.name}.${team.note ? ` Note from the organizer: ${team.note}` : ''}`);
@@ -299,7 +315,8 @@ const manage = (scope = 'platform') => {
     };
     const tellPlayers = async (c, team, userIds) => {
         const { tell } = require('../services/notices');
-        await tell(userIds, c, 'You are in a team', `You play for ${team.teamName} in ${c.name}. Your matches will appear in Games & Competitions.`);
+        const fee = require('../services/entryFee').due(c);
+        await tell(userIds, c, fee ? `Pay ₹${fee} to enroll` : 'You are in a team', `You play for ${team.teamName} in ${c.name}.${fee ? ` Pay the ₹${fee} entry fee online in Games & Competitions to enroll — you can join only once it is paid.` : ''} Your matches will appear in Games & Competitions.`);
     };
 
     router.get('/:id/students', wrap(async (req, res) => {
@@ -393,9 +410,31 @@ const manage = (scope = 'platform') => {
         res.json(await views.detail(c._id, { admin: true }));
     }));
 
+    /**
+     * Start now, whatever times were set: closes registration and draws the
+     * matches if that has not happened yet, then opens every match waiting
+     * to be played (each player then gets their own joining code).
+     */
+    router.post('/:id/start-now', wrap(async (req, res) => {
+        const c = await find(req.params.id, req);
+        // A hosting college may start only from its competition's day; the platform admin any time.
+        if (scope === 'organization' && dayOf(Date.now()) < dayOf(c.startsAt)) throw fail(409, `Start now opens on the competition's day (${new Date(c.startsAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}).`);
+        if (!['registration', 'closed', 'live'].includes(c.status)) throw fail(409, c.status === 'draft' ? 'Open registration first, so colleges can enter teams.' : 'This competition is over.');
+        if (c.status !== 'live') {
+            if (c.status === 'registration') { c.status = 'closed'; await c.save(); }
+            await bracket.drawBracket(c, { firstMatchAt: new Date() });
+        }
+        const live = await Competition.findById(c._id);
+        const waiting = await Match.find({ competitionId: c._id, status: 'scheduled' });
+        if (!waiting.length) throw fail(409, 'Every match drawn so far has already started.');
+        for (const m of waiting) await bracket.openMatch(m);
+        res.json(await views.detail(live._id, { admin: true }));
+    }));
+
     router.post('/:id/matches/:matchId/start', wrap(async (req, res) => {
         const c = await find(req.params.id, req);
         if (c.status !== 'live') throw fail(409, 'The competition is not running.');
+        if (scope === 'organization' && dayOf(Date.now()) < dayOf(c.startsAt)) throw fail(409, 'Matches can be started from the competition\'s day.');
         const m = await findMatch(c, req.params.matchId);
         if (m.status !== 'scheduled') throw fail(409, 'This match has already started.');
         await bracket.openMatch(m);

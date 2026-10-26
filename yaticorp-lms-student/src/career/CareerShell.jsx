@@ -17,7 +17,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, CalendarCheck, Calendar, Map, Target, Lightbulb,
-  UserCircle, Award, Settings, Sparkles
+  UserCircle, Award, Flag, Sparkles
 } from 'lucide-react';
 
 import api, { careerWriteCount } from './services/api';
@@ -58,7 +58,9 @@ const NAV_GROUPS = [
   },
   {
     label: 'Support',
-    items: [{ name: 'Settings', path: '/career/settings', icon: Settings, tone: 'from-slate-400 to-slate-600 shadow-slate-500/40' }]
+    // Not "Settings": the page holds the student's studies and their goal,
+    // what the roadmap is built from.
+    items: [{ name: 'Edit Goal', path: '/career/settings', icon: Flag, tone: 'from-slate-400 to-slate-600 shadow-slate-500/40' }]
   }
 ];
 

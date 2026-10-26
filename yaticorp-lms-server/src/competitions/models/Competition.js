@@ -22,9 +22,10 @@
 const mongoose = require('mongoose');
 
 // Every game a competition may hold: UNO, Ludo and Carrom for those made before
-// they were removed (2026-10-23). New ones are checked against the games offered
-// (games/index.js IDS) and the challenges (quiz, hackathon: services/challengeService.js).
-const GAMES = ['chess', 'ludo', 'carrom', 'uno', 'quiz', 'hackathon'];
+// they were removed (2026-10-23, 2026-10-24). New ones are checked against the
+// games offered (games/index.js IDS) and the challenges (quiz, hackathon:
+// services/challengeService.js).
+const GAMES = ['chess', 'rapidfire', 'codeclash', 'brainsprint', 'ludo', 'carrom', 'uno', 'quiz', 'hackathon'];
 const CHALLENGES = ['quiz', 'hackathon'];
 const STATUSES = ['draft', 'registration', 'closed', 'live', 'completed', 'cancelled'];
 
@@ -82,7 +83,7 @@ const competitionSchema = new mongoose.Schema({
     // How many players one team puts at the board in a match: 1, or 2 for
     // carrom doubles. The rest of the team are substitutes.
     playersPerSide: { type: Number, default: 1, min: 1, max: 2 },
-    // How many teams share one match: 2 for chess and carrom; 2–4 for ludo (and UNO, before it was removed).
+    // How many teams share one match: 2 for chess (and carrom); 2–4 for the brain games (and ludo and UNO, before they were removed).
     teamsPerMatch: { type: Number, default: 2, min: 2, max: 4 },
     gameOptions: { type: mongoose.Schema.Types.Mixed, default: {} },
 
@@ -91,6 +92,12 @@ const competitionSchema = new mongoose.Schema({
     // The prize in words, shown on the card and the page ("Trophy and ₹5,000").
     prizeDetails: { type: String, default: '', trim: true, maxlength: 600 },
     participationXp: { type: Number, default: 0, min: 0, max: 10000 },
+    // An entry fee, set by the organizer: each approved player pays it from
+    // their wallet before they can join (no code, no seat, until paid).
+    entryFee: {
+        enabled: { type: Boolean, default: false },
+        amount: { type: Number, default: 0, min: 0, max: 100000 }
+    },
     // Certificates for 1st, 2nd and 3rd, and separately for everyone else.
     certificates: { type: Boolean, default: true },
     participationCertificates: { type: Boolean, default: true },

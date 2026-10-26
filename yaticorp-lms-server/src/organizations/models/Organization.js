@@ -155,7 +155,16 @@ const organizationSchema = new mongoose.Schema({
     // Whether this organization may host its own inter-college competitions
     // (Games & Competitions). Only a superadmin changes it. Off until they
     // switch it on; any organization can still enter its team in others'.
-    canHostCompetitions: { type: Boolean, default: false }
+    canHostCompetitions: { type: Boolean, default: false },
+    // Access hours: when this organization's students may use the platform
+    // (services/accessSchedule.js). Off until the organization sets them.
+    accessSchedule: {
+        enabled: { type: Boolean, default: false },
+        days: { type: [Number], default: [1, 2, 3, 4, 5] },          // 0 = Sunday
+        start: { type: String, default: '09:00' },                   // HH:MM, the organization's time
+        end: { type: String, default: '17:00' },
+        timezone: { type: String, default: 'Asia/Kolkata' }
+    }
 }, { timestamps: true });
 
 // The superadmin list searches on name and code, and filters on type.

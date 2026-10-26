@@ -41,6 +41,10 @@ class ErrorBoundary extends React.Component {
                 </span>
                 <h2 className="font-bold text-slate-800">Something went wrong on this page.</h2>
                 <p className="mt-1 text-sm text-slate-500">Reload to try again, or pick another page from the menu.</p>
+                {/* In development only: what actually broke, so a screenshot is enough to find it. */}
+                {import.meta.env.DEV && (
+                    <pre className="mt-4 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-left text-xs text-red-700">{String(this.state.error?.stack || this.state.error).slice(0, 1200)}</pre>
+                )}
                 <button onClick={() => window.location.reload()} className={`${BTN} mt-5`}>
                     <RotateCw size={16} />Reload page
                 </button>

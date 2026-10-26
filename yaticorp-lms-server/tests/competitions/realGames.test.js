@@ -1,8 +1,9 @@
 /**
  * The real games, through the real service: a competition match's game for
- * each of Chess, Ludo and Carrom — opened, joined by both players — and a
- * first move made from what the view offers. (Friendly rooms, and UNO, were
- * removed on 2026-10-23; the last test checks they are gone.)
+ * Chess and each brain game — opened, joined by both players — and a first
+ * move made from what the view offers. Ludo and Carrom were retired on
+ * 2026-10-24: a game opened before then still plays. (Friendly rooms, and UNO,
+ * were removed on 2026-10-23; the last test checks they are gone.)
  */
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
@@ -31,8 +32,9 @@ const start = async (game) => {
     const teams = [a, b].map((p) => ({ _id: id(), players: [{ userId: p.user._id, name: p.user.name }] }));
     const row = await openMatchGame({ competition: { _id: id(), game, playersPerSide: 1, gameOptions: {} }, match: { _id: id(), sides: teams.map((t) => ({ teamId: t._id, lineup: [] })) }, teams });
     const gameId = String(row._id);
-    assert.equal((await a.call('POST', `/play/${gameId}/join`)).status, 200);
-    const joined = await b.call('POST', `/play/${gameId}/join`);
+    const seatCode = (p) => row.seats.find((s) => String(s.userId) === String(p.user._id)).code;
+    assert.equal((await a.call('POST', `/play/${gameId}/join`, { code: seatCode(a) })).status, 200);
+    const joined = await b.call('POST', `/play/${gameId}/join`, { code: seatCode(b) });
     assert.equal(joined.status, 200, JSON.stringify(joined.body));
     assert.equal(joined.body.game.status, 'active', 'it starts once both are there');
     return gameId;
@@ -61,7 +63,47 @@ describe('the real games, in competition matches', () => {
         assert.equal(wrong.status, 400, 'not White\'s turn now');
     });
 
-    test('ludo: the player to move rolls', async () => {
+    for (const game of ['rapidfire', 'codeclash', 'brainsprint']) {
+        test(`${game}: both players answer the same question; the answer only shows once it closes`, async () => {
+            const id = await start(game);
+            const first = await as(a, id);
+            common(first);
+            assert.equal(first.view.phase, 'ready', 'a countdown first');
+            // Skip the countdown, as if its time had come.
+            const past = Date.now() - 1;
+            await PlayGame.updateOne({ _id: id }, { $set: { nextDeadline: new Date(past), 'state.phaseEndsAt': past } });
+            const g = await as(a, id);
+            assert.equal(g.view.phase, 'question');
+            assert.equal(g.view.canAnswer, true);
+            assert.equal(g.view.answer, null, 'the answer is not sent while the question is open');
+            assert.equal(g.view.question.options.length, 4);
+            const ra = await a.call('POST', `/play/${id}/action`, { action: { type: 'answer', choice: 0 } });
+            assert.equal(ra.status, 200, JSON.stringify(ra.body));
+            const again = await a.call('POST', `/play/${id}/action`, { action: { type: 'answer', choice: 1 } });
+            assert.equal(again.status, 400, 'one answer a question');
+            const seenByB = await as(b, id);
+            const rb = await b.call('POST', `/play/${id}/action`, { action: { type: 'answer', choice: 1 } });
+            assert.equal(seenByB.view.answers[0]?.choice, undefined, 'B cannot see A\'s choice');
+            assert.equal(rb.status, 200, JSON.stringify(rb.body));
+            const shown = await as(b, id);
+            if (game === 'rapidfire') {
+                // Nothing about right or wrong until the end: straight on to question 2.
+                assert.equal(shown.view.phase, 'question');
+                assert.equal(shown.view.number, 2);
+                assert.equal(shown.view.answer, null);
+                assert.equal(shown.view.scores, null);
+            } else {
+                assert.equal(shown.view.phase, 'reveal');
+                assert.ok(Number.isInteger(shown.view.answer.index));
+            }
+            const resign = await b.call('POST', `/play/${id}/action`, { action: { type: 'resign' } });
+            assert.equal(resign.status, 200);
+            assert.equal(resign.body.game.status, 'finished');
+            assert.deepEqual(resign.body.game.outcome.places.length, 2);
+        });
+    }
+
+    test('ludo, opened before it was retired: the player to move rolls', async () => {
         const id = await start('ludo');
         const g = await as(a, id);
         common(g);
@@ -71,7 +113,7 @@ describe('the real games, in competition matches', () => {
         assert.ok(r.body.game.view.dice >= 1 && r.body.game.view.dice <= 6);
     });
 
-    test('carrom: the player to shoot takes a shot and everyone sees it replayed', async () => {
+    test('carrom, opened before it was retired: the player to shoot takes a shot and everyone sees it replayed', async () => {
         const id = await start('carrom');
         const g = await as(a, id);
         common(g);
@@ -93,22 +135,31 @@ describe('the real games, in competition matches', () => {
     });
 });
 
-describe('a match code (asked 2026-10-23)', () => {
-    test('each match game has a 6-character code; its players open it by typing it, nobody else can', async () => {
+describe('joining codes, one per player (asked 2026-10-24)', () => {
+    test('each player has their own code: it joins them; another player\'s is refused; the match code no longer joins', async () => {
         const id = () => new mongoose.Types.ObjectId();
         const teams = [a, b].map((p) => ({ _id: id(), players: [{ userId: p.user._id, name: p.user.name }] }));
         const row = await openMatchGame({ competition: { _id: id(), game: 'chess', playersPerSide: 1, gameOptions: {} }, match: { _id: id(), sides: teams.map((t) => ({ teamId: t._id, lineup: [] })) }, teams });
-        assert.match(row.code, /^[A-Z2-9]{6}$/);
-        const mine = await a.call('POST', '/matches/join', { code: row.code.toLowerCase() });
+        const [codeA, codeB] = row.seats.map((s) => s.code);
+        assert.match(codeA, /^[A-Z2-9]{6}$/);
+        assert.notEqual(codeA, codeB);
+        const alerts = (await a.call('GET', '/alerts')).body.alerts;
+        assert.ok(alerts.some((x) => x.gameId === String(row._id) && x.code === codeA), 'the pop-up has my code');
+        assert.ok(!JSON.stringify(alerts).includes(codeB), 'and never the other player\'s');
+        assert.equal((await a.call('POST', '/matches/join', { code: codeB })).status, 403, 'someone else\'s code');
+        assert.equal((await outsider.call('POST', '/matches/join', { code: codeA })).status, 403);
+        assert.equal((await a.call('POST', '/matches/join', { code: row.code })).status, 403, 'the match code alone does not join');
+        const mine = await a.call('POST', '/matches/join', { code: codeA.toLowerCase() });
         assert.equal(mine.status, 200); assert.equal(mine.body.game.id, String(row._id));
-        assert.equal((await a.call('GET', `/play/${row._id}`)).body.game.code, row.code, 'the players see it on the game');
-        const other = await outsider.call('POST', '/matches/join', { code: row.code });
-        assert.equal(other.status, 403); assert.match(other.body.message, /another match/);
-        assert.equal((await outsider.call('GET', `/play/${row._id}`)).body.game.code, null, 'a spectator does not see it');
+        const g = (await a.call('GET', `/play/${row._id}`)).body.game;
+        assert.equal(g.code, codeA, 'the game shows me my own code');
+        assert.equal(g.joined, true, 'joined by typing it');
+        assert.ok(!(await a.call('GET', '/alerts')).body.alerts.some((x) => x.gameId === String(row._id)), 'joined: no more pop-up');
+        assert.equal((await outsider.call('GET', `/play/${row._id}`)).body.game.code, null, 'a spectator sees no code');
         assert.equal((await a.call('POST', '/matches/join', { code: 'ZZZZZ9' })).status, 404);
         assert.equal((await a.call('POST', '/matches/join', { code: 'abc' })).status, 400);
         await PlayGame.updateOne({ _id: row._id }, { $set: { status: 'finished' } });
-        assert.equal((await a.call('POST', '/matches/join', { code: row.code })).status, 409, 'a match that is over');
+        assert.equal((await b.call('POST', '/matches/join', { code: codeB })).status, 409, 'a match that is over');
     });
 
     test('a match game opened before codes existed is given one when it is listed', async () => {
@@ -126,7 +177,7 @@ describe('playing with friends, and UNO, are gone', () => {
         assert.equal((await a.call('POST', '/rooms/join', { code: 'ABCDEF' })).status, 404);
         assert.equal((await a.call('GET', '/rooms/mine')).status, 404);
         const games = (await a.call('GET', '/games')).body.games.map((g) => g.id);
-        assert.deepEqual(games, ['chess'], 'Ludo and Carrom were removed too (a match of theirs made before still plays, above)');
+        assert.deepEqual(games, ['chess', 'rapidfire', 'codeclash', 'brainsprint'], 'Ludo and Carrom gave way to the brain games (a match of theirs made before still plays, above); a quiz and a hackathon are challenges, not games');
         const old = await PlayGame.create({ kind: 'friendly', game: 'uno', code: 'OLD123', hostId: a.user._id, seats: [{ userId: a.user._id, name: 'A', side: 0, joinedAt: new Date() }] });
         const r = await a.call('GET', `/play/${old._id}`);
         assert.equal(r.status, 410); assert.match(r.body.message, /no longer available/);
