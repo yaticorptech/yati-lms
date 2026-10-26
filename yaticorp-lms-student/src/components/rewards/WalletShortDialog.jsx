@@ -2,25 +2,18 @@
  * "Not enough in your wallet", for every priced thing in the LMS at once.
  *
  * The API clients announce a 402 (see utils/walletCharge); this listens and
- * explains the way out: XP earned on Career Path converts into wallet money
- * at the admin's rate. Mounted once, in the student layout.
+ * says what it costs and what is in the wallet. XP does not turn into wallet
+ * money (2026-10-26): the balance is the starting credit and what an
+ * administrator adds. Mounted once, in the student layout.
  */
-import { useContext, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Wallet, Compass, X, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Wallet, X, Info } from 'lucide-react';
 import Portal from '../Portal';
 import useBackClose from '../../native/useBackClose';
-import { AuthContext } from '../../context/AuthContext';
-import { useRewards } from '../../context/useRewards';
-import { money, num } from './format';
+import { money } from './format';
 
 export default function WalletShortDialog() {
     const [short, setShort] = useState(null);
-    const navigate = useNavigate();
-    const { isCareerPathEnabled } = useContext(AuthContext);
-    const rewards = useRewards();
-    const conversion = rewards.summary?.config?.conversion;
-    const xpBalance = rewards.summary?.wallet?.xpBalance;
 
     useEffect(() => {
         const onShort = (e) => setShort(e.detail || {});
@@ -41,9 +34,8 @@ export default function WalletShortDialog() {
     if (!short) return null;
 
     const cur = short.currency || 'INR';
-    // The server's sentence, without the Career Path hint the dialog says itself.
+    // The server's sentence (older servers ended it with an "Earn XP" hint: dropped).
     const what = String(short.message || '').replace(/\s*Earn XP on Career Path[^.]*\.?\s*$/, '');
-    const goEarn = () => { setShort(null); navigate('/career'); };
 
     return (
         <Portal>
@@ -60,21 +52,12 @@ export default function WalletShortDialog() {
                             <div className="rounded-xl bg-slate-50 p-2.5 ring-1 ring-slate-100"><p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Your balance</p><p className="font-black tabular-nums text-rose-600">{money(short.balance || 0, cur)}</p></div>
                         </div>
                     )}
-                    <div className="mt-4 rounded-2xl bg-gradient-to-br from-indigo-50 to-violet-50 p-3.5 text-left ring-1 ring-indigo-100">
-                        <p className="flex items-center gap-1.5 text-sm font-black text-indigo-900"><Sparkles size={15} className="text-indigo-500" /> Earn XP to top up your wallet</p>
-                        <p className="mt-1 text-xs leading-relaxed text-indigo-900/80">
-                            Complete lessons, quizzes and Career Path tasks, or play Brain Boosters.
-                            {conversion?.pointsPerUnit ? ` Every ${num(conversion.pointsPerUnit)} XP adds ${money(conversion.unitValue, conversion.currency || cur)} to your wallet.` : ''}
-                            {xpBalance != null && conversion?.pointsPerUnit ? ` You're ${num(Math.max(0, conversion.pointsPerUnit - xpBalance))} XP away from the next one.` : ''}
-                        </p>
-                    </div>
-                    <div className="mt-5 flex gap-2">
-                        <button type="button" onClick={() => setShort(null)} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Not now</button>
-                        {isCareerPathEnabled !== false && (
-                            <button type="button" onClick={goEarn} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-2.5 text-sm font-bold text-white shadow-md hover:from-indigo-700 hover:to-violet-700">
-                                <Compass size={16} /> Go to Career Path
-                            </button>
-                        )}
+                    <p className="mt-4 flex items-start gap-2 rounded-2xl bg-slate-50 p-3.5 text-left text-xs leading-relaxed text-slate-600 ring-1 ring-slate-100">
+                        <Info size={15} className="mt-0.5 shrink-0 text-slate-400" aria-hidden />
+                        Your wallet holds your starting credit and anything an administrator adds. Ask your institution or YATICORP support if you need more.
+                    </p>
+                    <div className="mt-5">
+                        <button type="button" onClick={() => setShort(null)} className="w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">OK</button>
                     </div>
                 </div>
             </div>

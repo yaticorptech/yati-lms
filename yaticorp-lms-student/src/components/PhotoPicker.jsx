@@ -8,10 +8,16 @@
  * a picture is saved. Its footer still offers a way out that is not a
  * picture: Sign out, or Contact support for a student whose upload will not
  * work. Otherwise it is My Profile's "Change photo".
+ *
+ * `account`: someone other than the signed-in student (the teacher
+ * dashboard): { picture, saveAvatar(url), uploadPhoto(formData), onSaved(data),
+ * remove() } in place of the student's profile calls, in the teacher side's
+ * emerald. With `remove` (a teacher's photo is optional) the picker also
+ * offers Remove photo.
  */
 import { useCallback, useContext, useRef, useState } from 'react';
 import Cropper from 'react-easy-crop';
-import { Check, Loader2, LogOut, MessageCircleQuestion, Send, Sparkles, Upload, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, Loader2, LogOut, MessageCircleQuestion, Send, Sparkles, Trash2, Upload, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
 import Portal from './Portal';
@@ -33,6 +39,12 @@ const AVATAR_GROUPS = [
     { id: 'kids', label: 'Kids', count: AVATAR_COUNTS.kids },
     { id: 'elders', label: 'Elders', count: AVATAR_COUNTS.elders },
 ].map(g => ({ ...g, tiles: Array.from({ length: g.count }, (_, i) => `/avatars/${g.id}/${i + 1}.jpg`) }));
+
+// The picker's accent: indigo for students, emerald for teachers.
+const ACCENTS = {
+    indigo: { button: 'bg-indigo-600 hover:bg-indigo-700', chip: 'bg-indigo-600 text-white', ring: 'border-indigo-600 ring-2 ring-indigo-200', dot: 'bg-indigo-600', range: 'accent-indigo-600' },
+    emerald: { button: 'bg-emerald-700 hover:bg-emerald-800', chip: 'bg-emerald-700 text-white', ring: 'border-emerald-600 ring-2 ring-emerald-200', dot: 'bg-emerald-600', range: 'accent-emerald-600' }
+};
 
 /**
  * The required picker's way to ask for help: a short message to the support
@@ -76,8 +88,10 @@ const SupportMessage = ({ user }) => {
     );
 };
 
-export default function PhotoPicker({ required = false, onClose }) {
+export default function PhotoPicker({ required = false, onClose, account = null }) {
     const { user, setUser, logout } = useContext(AuthContext);
+    const accent = ACCENTS[account ? 'emerald' : 'indigo'];
+    const currentPicture = account ? account.picture : user?.profilePicture;
     const [helpOpen, setHelpOpen] = useState(false);
     const photoInputRef = useRef(null);
     const [avatarGroup, setAvatarGroup] = useState(AVATAR_GROUPS[0].id);
@@ -119,11 +133,25 @@ export default function PhotoPicker({ required = false, onClose }) {
         setSavingAvatar(true);
         setProblem('');
         try {
-            const res = await api.put('/user/profile', { profilePicture });
-            keep(res.data);
+            if (account) account.onSaved(await account.saveAvatar(profilePicture));
+            else keep((await api.put('/user/profile', { profilePicture })).data);
             onClose?.();
         } catch (err) {
             setProblem(said(err) || (err.response ? 'Failed to update photo. Please try again.' : 'You appear to be offline. Please try again.'));
+        } finally {
+            setSavingAvatar(false);
+        }
+    };
+
+    // A teacher's photo is optional: back to their initials.
+    const removePhoto = async () => {
+        setSavingAvatar(true);
+        setProblem('');
+        try {
+            account.onSaved(await account.remove());
+            onClose?.();
+        } catch (err) {
+            setProblem(said(err) || (err.response ? 'The photo could not be removed. Please try again.' : 'You appear to be offline. Please try again.'));
         } finally {
             setSavingAvatar(false);
         }
@@ -155,10 +183,13 @@ export default function PhotoPicker({ required = false, onClose }) {
             const blob = await getCroppedBlob(cropSrc, croppedAreaPixels);
             const fd = new FormData();
             fd.append('profilePicture', blob, 'profile.jpg');
-            const res = await api.post('/user/profile/picture', fd, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            keep({ profilePicture: res.data.profilePicture });
+            if (account) account.onSaved(await account.uploadPhoto(fd));
+            else {
+                const res = await api.post('/user/profile/picture', fd, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+                keep({ profilePicture: res.data.profilePicture });
+            }
             setCropSrc(null);
             onClose?.();
         } catch (err) {
@@ -196,13 +227,21 @@ export default function PhotoPicker({ required = false, onClose }) {
                         </div>
 
                         <div className="overflow-y-auto px-5 py-4">
-                            <button
-                                onClick={() => photoInputRef.current?.click()}
-                                disabled={savingAvatar}
-                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-60"
-                            >
-                                <Upload size={15} /> Upload a photo
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => photoInputRef.current?.click()}
+                                    disabled={savingAvatar}
+                                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-60 ${accent.button}`}
+                                >
+                                    <Upload size={15} /> Upload a photo
+                                </button>
+                                {account?.remove && currentPicture && (
+                                    <button type="button" onClick={removePhoto} disabled={savingAvatar}
+                                        className="flex items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60">
+                                        <Trash2 size={15} /> Remove photo
+                                    </button>
+                                )}
+                            </div>
                             {problem && (
                                 <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{problem}</p>
                             )}
@@ -219,7 +258,7 @@ export default function PhotoPicker({ required = false, onClose }) {
                                     <button
                                         key={g.id}
                                         onClick={() => { setAvatarGroup(g.id); setSelectedAvatar(null); }}
-                                        className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${avatarGroup === g.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                        className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${avatarGroup === g.id ? accent.chip : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                                     >
                                         {g.label}
                                     </button>
@@ -235,20 +274,20 @@ export default function PhotoPicker({ required = false, onClose }) {
                             <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
                                 {group.tiles.filter((u) => !brokenAvatars.includes(u)).map((url, i) => {
                                     // The saved picture may be the absolute form of this path.
-                                    const active = selectedAvatar === url || (!selectedAvatar && !!user?.profilePicture && user.profilePicture.endsWith(url));
+                                    const active = selectedAvatar === url || (!selectedAvatar && !!currentPicture && currentPicture.endsWith(url));
                                     return (
                                         <button
                                             key={url}
                                             onClick={() => setSelectedAvatar(url)}
                                             disabled={savingAvatar}
-                                            className={`relative aspect-square overflow-hidden rounded-full border-4 bg-white transition-transform hover:scale-105 ${active ? 'border-indigo-600 ring-2 ring-indigo-200' : 'border-transparent'}`}
+                                            className={`relative aspect-square overflow-hidden rounded-full border-4 bg-white transition-transform hover:scale-105 ${active ? accent.ring : 'border-transparent'}`}
                                             aria-label={`Avatar ${i + 1}`}
                                             aria-pressed={active}
                                         >
                                             <img src={url} alt="" loading="lazy" className="h-full w-full object-cover"
                                                 onError={() => setBrokenAvatars((b) => (b.includes(url) ? b : [...b, url]))} />
                                             {active && (
-                                                <span className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"><Check size={12} /></span>
+                                                <span className={`absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full text-white ${accent.dot}`}><Check size={12} /></span>
                                             )}
                                         </button>
                                     );
@@ -269,7 +308,7 @@ export default function PhotoPicker({ required = false, onClose }) {
                             <button
                                 onClick={() => selectedAvatar && savePictureUrl(selectedAvatar)}
                                 disabled={!selectedAvatar || savingAvatar}
-                                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${accent.button}`}
                             >
                                 {savingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Use this avatar
                             </button>
@@ -329,7 +368,7 @@ export default function PhotoPicker({ required = false, onClose }) {
                                 type="range" min={1} max={3} step={0.05}
                                 value={zoom}
                                 onChange={e => setZoom(Number(e.target.value))}
-                                className="flex-1 accent-indigo-600"
+                                className={`flex-1 ${accent.range}`}
                             />
                             <ZoomIn size={16} className="text-slate-400 flex-shrink-0" />
                         </div>
@@ -348,7 +387,7 @@ export default function PhotoPicker({ required = false, onClose }) {
                             <button
                                 onClick={handleCropConfirm}
                                 disabled={uploading}
-                                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                                className={`flex-1 py-2.5 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-60 ${accent.button}`}
                             >
                                 {uploading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Apply & Upload
                             </button>

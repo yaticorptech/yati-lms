@@ -149,7 +149,7 @@ router.get('/:id', async (req, res) => {
         const org = t.organizationId ? await Organization.findById(t.organizationId).select('name orgCode status').lean() : null;
         const o = t.toObject();
         delete o.password; delete o.resetPasswordToken; delete o.resetPasswordExpiry;
-        res.json({ teacher: { ...o, guideRead: undefined, organization: orgShape(org) }, progress: await detail(t), canAssignOrganization: isSuper(req) });
+        res.json({ teacher: { ...o, organization: orgShape(org) }, progress: await detail(t), canAssignOrganization: isSuper(req) });
     } catch (error) {
         console.error('[teacher-admin] detail failed:', error.message);
         res.status(500).json({ message: 'Could not load this teacher.' });

@@ -15,7 +15,7 @@ import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    LayoutDashboard, Users, UserPlus, BookOpen, Settings, LogOut, RefreshCw, Trophy,
+    LayoutDashboard, Users, BookOpen, Settings, LogOut, RefreshCw, Trophy,
     Clock, Ban, XCircle, Copy, Check, Loader2, ExternalLink, Eye, ArrowLeft, Hourglass, Languages, Presentation
 } from 'lucide-react';
 import api from '../utils/api';
@@ -32,8 +32,8 @@ import { Dialog, DialogTitle } from '../components/orgUi';
 // `short` is the bottom bar's label on a phone, where four full labels do not fit.
 const NAV = [
     { to: '/organization', label: 'Dashboard', short: 'Home', icon: LayoutDashboard, exact: true },
-    { to: '/organization/students', label: 'Students', short: 'Students', icon: Users },
-    { to: '/organization/requests', label: 'Student requests', short: 'Requests', icon: UserPlus, badge: 'pendingRequests' },
+    // Requests are a tab of Students now: the waiting badge sits on Students.
+    { to: '/organization/students', label: 'Students', short: 'Students', icon: Users, badge: 'pendingRequests' },
     // Its teachers, and teachers asking to join (src/pages/org/OrgTeachers.jsx).
     { to: '/organization/teachers', label: 'Teachers', short: 'Teachers', icon: Presentation, badge: 'pendingTeacherRequests' },
     { to: '/organization/courses', label: 'Courses', short: 'Courses', icon: BookOpen },

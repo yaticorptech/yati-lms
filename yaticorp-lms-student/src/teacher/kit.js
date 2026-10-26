@@ -3,13 +3,33 @@
  * so React's fast refresh keeps working on the component files).
  */
 export const btn = {
-    primary: 'inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2',
-    secondary: 'inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
-    ghost: 'inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50',
-    danger: 'inline-flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-bold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50'
+    primary: 'inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-800 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2',
+    secondary: 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600',
+    ghost: 'inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50',
+    danger: 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:opacity-50'
 };
 
-export const inputClass = 'block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30';
+export const inputClass = 'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20';
+
+/**
+ * Each section's colour, used for its icon, header, tiles and the sidebar row:
+ * Research Path emerald, Methodologies sky, Publications violet, Thesis amber,
+ * Writing rose, Plagiarism indigo, Profile teal. Written out in full:
+ * Tailwind cannot see class names put together at runtime.
+ */
+export const COLORS = {
+    emerald: { solid: 'bg-emerald-600 text-white', soft: 'bg-emerald-50 text-emerald-600', text: 'text-emerald-600', nav: 'bg-emerald-50 text-emerald-800', top: 'border-t-emerald-500' },
+    sky: { solid: 'bg-sky-600 text-white', soft: 'bg-sky-50 text-sky-600', text: 'text-sky-600', nav: 'bg-sky-50 text-sky-800', top: 'border-t-sky-500' },
+    violet: { solid: 'bg-violet-600 text-white', soft: 'bg-violet-50 text-violet-600', text: 'text-violet-600', nav: 'bg-violet-50 text-violet-800', top: 'border-t-violet-500' },
+    amber: { solid: 'bg-amber-500 text-white', soft: 'bg-amber-50 text-amber-600', text: 'text-amber-600', nav: 'bg-amber-50 text-amber-800', top: 'border-t-amber-500' },
+    rose: { solid: 'bg-rose-600 text-white', soft: 'bg-rose-50 text-rose-600', text: 'text-rose-600', nav: 'bg-rose-50 text-rose-800', top: 'border-t-rose-500' },
+    indigo: { solid: 'bg-indigo-600 text-white', soft: 'bg-indigo-50 text-indigo-600', text: 'text-indigo-600', nav: 'bg-indigo-50 text-indigo-800', top: 'border-t-indigo-500' },
+    teal: { solid: 'bg-teal-600 text-white', soft: 'bg-teal-50 text-teal-600', text: 'text-teal-600', nav: 'bg-teal-50 text-teal-800', top: 'border-t-teal-500' }
+};
+export const colorOf = (c) => COLORS[c] || COLORS.emerald;
+
+/** inputClass for the styled Select (components/Select.jsx), whose trigger is a flex row. */
+export const selectClass = inputClass.replace('block ', '');
 
 /** Words in a text, counted the way the server counts them. */
 // Marks (\p{M}) included: Kannada and Hindi vowel signs and the virama are marks.
@@ -23,6 +43,9 @@ export const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-IN', { day
 
 export const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 export const toDateInput = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
+/** "Dr. Meera Iyer" → "MI": titles are skipped. */
+export const initialsOf = (name) => (name || '').trim().split(/\s+/).filter((w) => !/^(dr|prof|mr|mrs|ms)\.?$/i.test(w)).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'T';
+
 export const fmtNum = (n) => Number(n || 0).toLocaleString('en-IN');
 
 export const WRITING_KINDS = { article: 'Article', essay: 'Essay', grant: 'Grant proposal', reflection: 'Reflection', notes: 'Notes', other: 'Other' };

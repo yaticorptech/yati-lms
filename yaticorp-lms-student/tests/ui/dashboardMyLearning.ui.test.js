@@ -1,12 +1,10 @@
 /**
- * The Dashboard's My Learning: the bundle and enrol popups, the course list's
- * background refresh, and the Weekly activity tiles.
+ * The Dashboard's My Learning: the enrol popup, the course list's
+ * background refresh, and the Weekly activity tiles. (No Bundles tab: bundles
+ * were taken off every dashboard, 2026-10-26.)
  *
- *   - A course inside a bundle shows the student's own progress on it, which
- *     the server puts on the course: one reached only through the bundle is
- *     not in the enrolled list, and read 0% and "Start Course".
- *   - Both popups are dialogs with a name, so the app's pop-in notices wait
- *     for them and Yati keeps off them; Escape closes them.
+ *   - The popup is a dialog with a name, so the app's pop-in notices wait
+ *     for it and Yati keeps off it; Escape closes it.
  *   - A short wallet points to Career Path only while it is switched on.
  *   - The 30-second refresh keeps the list on screen: no spinner.
  *   - The seven day tiles come from the rewards streak, the same record as the
@@ -84,30 +82,14 @@ const escape = `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape
 const NAME = `const nameOf = (d) => d && (d.getAttribute('aria-label') || text(document.getElementById(d.getAttribute('aria-labelledby'))));`;
 
 describe("the Dashboard's My Learning", { skip: skipWithoutStyles }, () => {
-    test("a bundle's courses show the student's own progress, with Review for a finished one", async () => {
+    test('there is no Bundles tab', async () => {
         const { result, errors } = await screen({
             entry: page(), api, styles: true, width: DESKTOP, budget: 20_000, script: `
                 await sleep(1500);
-                ${tab('/Bundles/')}
-                click(/View Courses Inside/); await sleep(500);
-                ${NAME}
-                const dialog = $('[role=dialog][aria-modal=true]');
-                const cards = dialog ? [...dialog.querySelectorAll('h3')].map((h) => {
-                    const card = h.closest('.lift');
-                    return { title: text(h), progress: text([...card.querySelectorAll('span')].find((s) => /^\\d+%$/.test(s.innerText.trim()))), action: text(card.querySelector('a')) };
-                }) : [];
-                const r = { name: nameOf(dialog), close: !!dialog?.querySelector('button[aria-label=Close]'), cards };
-                ${escape}
-                return { ...r, closedByEscape: !$('[role=dialog][aria-modal=true]') };` });
+                return { tabs: $$('[role=tab]').map((t) => t.innerText.trim()), bundles: /View Courses Inside|Bundles/.test(document.body.innerText) };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.name, 'QA Bundle', 'the popup is a dialog named by its bundle');
-        assert.ok(result.close, 'its X has a name');
-        assert.deepEqual(result.cards, [
-            { title: 'Finished Course', progress: '100%', action: 'Review Course' },
-            { title: 'Bundle-only Course', progress: '50%', action: 'Resume Course' },
-            { title: 'Untouched Course', progress: '0%', action: 'Start Course' }
-        ]);
-        assert.ok(result.closedByEscape, 'Escape closes it');
+        assert.ok(!result.tabs.some((t) => /Bundles/.test(t)), `tabs: ${result.tabs.join(', ')}`);
+        assert.equal(result.bundles, false);
     });
 
     for (const career of [true, false]) {

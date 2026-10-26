@@ -188,19 +188,47 @@ describe('a teacher registers a card and signs in', () => {
 /* ── The features ──────────────────────────────────────────────────────── */
 
 describe('the dashboard features', () => {
-    let me, other, otherId, meId;
+    let me, other, otherId, meId, meToken;
     before(async () => {
         const a = await registerTeacher({ name: 'Dr. Meera Iyer' });
         const b = await registerTeacher({ name: 'Dr. Ravi Kumar' });
-        me = call(a.r.body.token); meId = a.r.body._id;
+        me = call(a.r.body.token); meId = a.r.body._id; meToken = a.r.body.token;
         other = call(b.r.body.token); otherId = b.r.body._id;
     });
 
-    test('Research Methodologies: which guides are studied (the guides themselves are in the app)', async () => {
-        assert.deepEqual((await me('GET', '/api/teacher/methods')).body, { studied: [] });
-        assert.deepEqual((await me('PUT', '/api/teacher/methods/survey/studied', { studied: true })).body.studied, ['survey']);
-        assert.deepEqual((await me('PUT', '/api/teacher/methods/survey/studied', { studied: false })).body.studied, []);
-        assert.equal((await me('PUT', '/api/teacher/methods/nonsense/studied', {})).status, 404);
+    test('a profile photo: an app avatar or an upload, never any link, and it can be removed', async () => {
+        assert.equal((await me('GET', '/api/teacher/me')).body.profilePicture, '');
+        const avatar = await me('PUT', '/api/teacher/me', { profilePicture: '/avatars/elders/2.jpg' });
+        assert.equal(avatar.status, 200);
+        assert.match(avatar.body.profilePicture, /\/avatars\/elders\/2\.jpg$/);
+        const outside = await me('PUT', '/api/teacher/me', { profilePicture: 'https://example.com/me.jpg' });
+        assert.equal(outside.status, 400);
+        assert.equal(outside.body.field, 'profilePicture');
+
+        const bunny = require('../../src/utils/bunnyStorage');
+        const real = bunny.uploadToBunny;
+        const stored = [];
+        bunny.uploadToBunny = async (buffer, name, folder) => { stored.push(folder); return 'https://yati.b-cdn.net/teacher-pictures/x.jpg'; };
+        try {
+            const fd = new FormData();
+            fd.append('profilePicture', new Blob([Buffer.from([0xff, 0xd8, 0xff, 0xe0])], { type: 'image/jpeg' }), 'profile.jpg');
+            const up = await fetch(`${base}/api/teacher/me/picture`, { method: 'POST', headers: { Authorization: `Bearer ${meToken}` }, body: fd }).then(async (r) => ({ status: r.status, body: await r.json() }));
+            assert.equal(up.status, 200);
+            assert.equal(up.body.profilePicture, 'https://yati.b-cdn.net/teacher-pictures/x.jpg');
+            assert.deepEqual(stored, ['teacher-pictures']);
+            const notImage = new FormData();
+            notImage.append('profilePicture', new Blob(['hello'], { type: 'text/plain' }), 'a.txt');
+            assert.equal((await fetch(`${base}/api/teacher/me/picture`, { method: 'POST', headers: { Authorization: `Bearer ${meToken}` }, body: notImage })).status, 400);
+        } finally { bunny.uploadToBunny = real; }
+
+        assert.equal((await me('PUT', '/api/teacher/me', { profilePicture: '' })).body.profilePicture, '');
+        assert.equal((await anon('POST', '/api/teacher/me/picture')).status, 401);
+    });
+
+    test('Research Methodologies keeps nothing: there is no "studied" mark (the guides are in the app)', async () => {
+        assert.equal((await me('GET', '/api/teacher/methods')).status, 404);
+        assert.equal((await me('PUT', '/api/teacher/methods/survey/studied', { studied: true })).status, 404);
+        assert.equal((await me('GET', '/api/teacher/overview')).body.methods, undefined);
     });
 
     test('nothing on the teacher side calls an outside service', async () => {
@@ -235,6 +263,47 @@ describe('the dashboard features', () => {
         assert.equal(dated.body.stages[1].notes, 'Scopus first');
         assert.equal((await other('GET', `/api/teacher/projects/${p._id}`)).status, 404, 'another teacher gets nothing');
         assert.equal((await me('POST', '/api/teacher/projects', { title: 'x' })).status, 400);
+    });
+
+    test('Research Path is worded for the topic, follows a new title, and brings older projects up to date', async () => {
+        const created = await me('POST', '/api/teacher/projects', { title: 'Peer tutoring and mathematics anxiety in rural colleges', field: 'Education', kind: 'experimental' });
+        assert.equal(created.status, 201);
+        const stage = (p, key) => p.stages.find((s) => s.key === key);
+        const p = created.body;
+        assert.match(stage(p, 'topic').description, /Peer tutoring and mathematics anxiety in rural colleges/);
+        assert.equal(stage(p, 'literature').tasks[0].text, 'Search ERIC, Scopus, Google Scholar and Shodhganga for: "peer tutoring" AND "mathematics anxiety" AND "rural colleges"');
+        assert.equal(stage(p, 'questions').tasks[0].text, 'Write the question as an effect: “What is the effect of peer tutoring on mathematics anxiety in rural colleges?”');
+        assert.equal(stage(p, 'methodology').tasks[3].text, 'Choose a pre-test and post-test of mathematics anxiety; plan their validity');
+
+        // A new title rewrites the template wording; ticks, added tasks and the teacher's own wording stay.
+        const lit = stage(p, 'literature');
+        await me('PUT', `/api/teacher/projects/${p._id}/stages/literature/tasks/${lit.tasks[0]._id}`, { done: true });
+        await me('PUT', `/api/teacher/projects/${p._id}/stages/literature/tasks/${lit.tasks[2]._id}`, { text: 'My own matrix in Excel' });
+        await me('POST', `/api/teacher/projects/${p._id}/stages/literature/tasks`, { text: 'Ask the librarian' });
+        const renamed = (await me('PUT', `/api/teacher/projects/${p._id}`, { title: 'Effect of peer tutoring on test anxiety among first-year students' })).body;
+        const tasks = stage(renamed, 'literature').tasks;
+        assert.equal(tasks[0].text, 'Search ERIC, Scopus, Google Scholar and Shodhganga for: "peer tutoring" AND "test anxiety" AND "first-year students"');
+        assert.equal(tasks[0].done, true);
+        assert.equal(tasks[2].text, 'My own matrix in Excel');
+        assert.ok(tasks.some((t) => t.text === 'Ask the librarian' && t.custom));
+        assert.equal(stage(renamed, 'methodology').tasks[3].text, 'Choose a pre-test and post-test of test anxiety; plan their validity');
+
+        // A project from before: general wording, no record of what it was worded for.
+        const old = await ResearchProject.create({
+            teacherId: meId, title: 'Stress and academic performance of nursing students', field: 'Nursing', kind: 'survey',
+            stages: require('../../src/teacher/researchPath').newStages('survey').map((s) => ({ ...s, tasks: s.tasks.map(({ tpl, ...t }) => t) }))
+        });
+        await ResearchProject.updateOne({ _id: old._id, 'stages.key': 'topic' }, { $set: { 'stages.$.tasks.0.done': true, 'stages.$.tasks.1.text': 'Read two reviews' } });
+        const before = (await ResearchProject.findById(old._id).lean()).updatedAt;
+        const list = (await me('GET', '/api/teacher/projects')).body.projects;
+        const fitted = list.find((x) => x._id === String(old._id));
+        assert.equal(stage(fitted, 'topic').tasks[0].text, 'Write three narrower versions of “Stress and academic performance of nursing students”: who exactly, where, and what you will measure or explore');
+        assert.equal(stage(fitted, 'topic').tasks[0].done, true);
+        assert.equal(stage(fitted, 'topic').tasks[1].text, 'Read two reviews');
+        assert.equal(stage(fitted, 'literature').tasks[0].text, 'Search PubMed, Scopus, Google Scholar and Shodhganga for: "stress" AND "academic performance" AND "nursing students"');
+        assert.equal(stage(fitted, 'questions').tasks[0].text, 'Write the main question in terms of variables, e.g. “How is stress related to academic performance among nursing students?”');
+        assert.equal((await ResearchProject.findById(old._id).lean()).updatedAt.getTime(), before.getTime(), 'bringing it up to date does not reorder the list');
+        await ResearchProject.deleteMany({ _id: { $in: [p._id, old._id] } });
     });
 
     test('Publications Map: entries, checks, stats with h-index', async () => {
@@ -348,7 +417,7 @@ describe('the dashboard features', () => {
         assert.equal(o.body.thesis.chapters, 9);
         assert.ok(o.body.thesis.words > 60);
         assert.ok(o.body.writing.today > 100);
-        assert.equal(o.body.methods.total, 12);
+        assert.equal(o.body.methods, undefined, 'no studied count');
         assert.ok(o.body.plagiarism);
     });
 

@@ -10,13 +10,13 @@ import { useSearchParams } from 'react-router-dom';
 import { BookMarked, Plus, Loader2, Search, Trash2, ExternalLink, CalendarClock, Quote, Award, Layers, BookOpenText, ArrowRight, Compass, FileSpreadsheet, FileType2, Copy, ListOrdered } from 'lucide-react';
 import teacherApi, { messageOf } from '../teacherSession';
 import { PageHeader, Card, CardTitle, StatTile, Loading, ErrorNote, EmptyState, Modal, Field, Badge } from '../ui';
-import { btn, inputClass, toDateInput, fmtDate, fmtNum, fileStem } from '../kit';
+import { btn, inputClass, selectClass, toDateInput, fmtDate, fmtNum, fileStem } from '../kit';
 import useConfirmDialog from '../../components/useConfirmDialog';
 import { saveBlob } from '../../native/saveFile';
 import StepGuide from '../StepGuide';
-import useGuideRead from '../useGuideRead';
 import { useTeacher } from '../useTeacher';
 import { PUBLISHING_STEPS, STATUS_STEPS, nextStepFor } from '../content/publishing';
+import Select from '../../components/Select';
 
 /** What the guide says to do for a paper at this status, inside the form. */
 const StageTips = ({ status }) => {
@@ -25,7 +25,7 @@ const StageTips = ({ status }) => {
     const [first, ...more] = steps;
     return (
         <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-3">
-            <p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-violet-700"><Compass size={13} aria-hidden="true" /> At this stage: {first.title}</p>
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-violet-700"><Compass size={13} aria-hidden="true" /> At this stage: {first.title}</p>
             <ul className="mt-1.5 space-y-1">
                 {first.todo.slice(0, 3).map((t) => <li key={t} className="flex gap-2 text-xs leading-relaxed text-slate-700"><span aria-hidden="true" className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-violet-500" />{t}</li>)}
             </ul>
@@ -45,6 +45,8 @@ const STATUS = [
     ['rejected', 'Rejected', 'bg-rose-100 text-rose-700']
 ];
 const STATUS_OF = Object.fromEntries(STATUS.map(([k, l, t]) => [k, { label: l, tone: t }]));
+// Each stage's colour, for the stripe on a paper's card and the dot in the filter bar.
+const STRIPE = { idea: 'bg-slate-300', drafting: 'bg-sky-400', submitted: 'bg-indigo-400', under_review: 'bg-violet-400', revision: 'bg-amber-400', accepted: 'bg-teal-400', published: 'bg-emerald-500', rejected: 'bg-rose-400' };
 const TYPES = { journal: 'Journal article', conference: 'Conference paper', chapter: 'Book chapter', book: 'Book', patent: 'Patent', preprint: 'Preprint', other: 'Other' };
 const INDEXING = ['Scopus', 'Web of Science', 'UGC-CARE', 'PubMed', 'IEEE Xplore', 'Google Scholar', 'Other'];
 
@@ -93,7 +95,7 @@ const ReferenceList = ({ onClose, exporter }) => {
             </>}>
             <div className="space-y-3">
                 <ErrorNote>{error || exporter.error}</ErrorNote>
-                <p className="text-xs text-slate-500">Accepted and published work, in alphabetical order with hanging indents, as APA asks. Volume, issue and pages come from each paper&apos;s details — fill them in for complete references.</p>
+                <p className="text-xs text-slate-500">Accepted and published work, in alphabetical order with hanging indents, as APA asks. Volume, issue and pages come from each paper&apos;s details; fill them in for complete references.</p>
                 {!refs && !error && <Loading label="Making the list…" />}
                 {refs && !refs.length && <p className="rounded-xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">No accepted or published work yet. Set a paper&apos;s status to Accepted or Published to list it here.</p>}
                 {refs?.length > 0 && (
@@ -140,7 +142,7 @@ const PublicationForm = ({ initial, onSaved, onDeleted, onClose }) => {
     return (
         <Modal wide title={initial ? 'Edit publication' : 'Add a publication'} labelId="publication-form-title" onClose={onClose}
             footer={<>
-                {initial && <button type="button" onClick={remove} className={`${btn.danger} mr-auto`}><Trash2 size={15} /> Delete</button>}
+                {initial && <button type="button" onClick={remove} aria-label="Delete publication" title="Delete publication" className={`${btn.danger} mr-auto px-3`}><Trash2 size={16} /></button>}
                 <button type="button" onClick={onClose} className={btn.secondary}>Cancel</button>
                 <button type="submit" form="publication-form" disabled={busy} className={btn.primary}>{busy && <Loader2 size={15} className="animate-spin" />} Save</button>
             </>}>
@@ -148,37 +150,38 @@ const PublicationForm = ({ initial, onSaved, onDeleted, onClose }) => {
                 <ErrorNote>{error}</ErrorNote>
                 <Field id="pub-title" label="Title" error={fieldError.title}><input id="pub-title" value={f.title} onChange={set('title')} maxLength={500} className={inputClass} /></Field>
                 <div className="grid gap-3 sm:grid-cols-3">
-                    <Field id="pub-type" label="Type"><select id="pub-type" value={f.type} onChange={set('type')} className={inputClass}>{Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-                    <Field id="pub-status" label="Status"><select id="pub-status" value={f.status} onChange={set('status')} className={inputClass}>{STATUS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
+                    <Field id="pub-type" label="Type"><Select tone="emerald" id="pub-type" value={f.type} onChange={set('type')} className={selectClass}>{Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
+                    <Field id="pub-status" label="Status"><Select tone="emerald" id="pub-status" value={f.status} onChange={set('status')} className={selectClass}>{STATUS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</Select></Field>
                     <Field id="pub-year" label="Year" optional error={fieldError.year}><input id="pub-year" inputMode="numeric" value={f.year} onChange={set('year')} maxLength={4} className={inputClass} placeholder="2026" /></Field>
                 </div>
                 <StageTips status={f.status} />
                 <div className="grid gap-3 sm:grid-cols-2">
                     <Field id="pub-venue" label="Journal / conference / publisher" optional><input id="pub-venue" value={f.venue} onChange={set('venue')} maxLength={300} className={inputClass} /></Field>
-                    <Field id="pub-authors" label="Authors" optional hint="In order, separated by commas — e.g. Asha Rao, Meera Iyer. The reference list writes them in APA form."><input id="pub-authors" value={f.authors} onChange={set('authors')} maxLength={1000} className={inputClass} /></Field>
+                    <Field id="pub-authors" label="Authors" optional hint="In order, separated by commas, e.g. Asha Rao, Meera Iyer. The reference list writes them in APA form."><input id="pub-authors" value={f.authors} onChange={set('authors')} maxLength={1000} className={inputClass} /></Field>
                 </div>
                 <div className="grid grid-cols-3 gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,2fr)]">
-                    <Field id="pub-volume" label="Volume" optional><input id="pub-volume" value={f.volume} onChange={set('volume')} maxLength={40} className={inputClass} placeholder="12" /></Field>
-                    <Field id="pub-issue" label="Issue" optional><input id="pub-issue" value={f.issue} onChange={set('issue')} maxLength={40} className={inputClass} placeholder="3" /></Field>
-                    <Field id="pub-pages" label="Pages" optional><input id="pub-pages" value={f.pages} onChange={set('pages')} maxLength={40} className={inputClass} placeholder="45–60" /></Field>
+                    <Field id="pub-volume" label="Volume"><input id="pub-volume" value={f.volume} onChange={set('volume')} maxLength={40} className={inputClass} placeholder="12" /></Field>
+                    <Field id="pub-issue" label="Issue"><input id="pub-issue" value={f.issue} onChange={set('issue')} maxLength={40} className={inputClass} placeholder="3" /></Field>
+                    <Field id="pub-pages" label="Pages"><input id="pub-pages" value={f.pages} onChange={set('pages')} maxLength={40} className={inputClass} placeholder="45–60" /></Field>
                     <div className="col-span-3 sm:col-span-1"><Field id="pub-publisher" label="Publisher" optional hint="For a book or chapter."><input id="pub-publisher" value={f.publisher} onChange={set('publisher')} maxLength={200} className={inputClass} /></Field></div>
                 </div>
+                <p className="-mt-1 text-xs text-slate-500">Volume, issue, pages and publisher are optional; they complete the APA reference.</p>
                 <fieldset>
-                    <legend className="mb-1.5 text-xs font-bold text-slate-600">Indexed in</legend>
+                    <legend className="mb-1.5 text-xs font-semibold text-slate-600">Indexed in</legend>
                     <div className="flex flex-wrap gap-1.5">
                         {INDEXING.map((i) => {
                             const on = f.indexing.includes(i);
                             return <button key={i} type="button" aria-pressed={on} onClick={() => setF((x) => ({ ...x, indexing: on ? x.indexing.filter((y) => y !== i) : [...x.indexing, i] }))}
-                                className={`rounded-full px-3 py-1.5 text-xs font-bold ${on ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{i}</button>;
+                                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${on ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{i}</button>;
                         })}
                     </div>
                 </fieldset>
                 <div className="grid gap-3 sm:grid-cols-3">
-                    <Field id="pub-quartile" label="Quartile" optional><select id="pub-quartile" value={f.quartile} onChange={set('quartile')} className={inputClass}><option value="">—</option>{['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q}>{q}</option>)}</select></Field>
+                    <Field id="pub-quartile" label="Quartile" optional><Select tone="emerald" id="pub-quartile" value={f.quartile} onChange={set('quartile')} className={selectClass}><option value="">—</option>{['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <option key={q}>{q}</option>)}</Select></Field>
                     <Field id="pub-if" label="Impact factor" optional error={fieldError.impactFactor}><input id="pub-if" inputMode="decimal" value={f.impactFactor} onChange={set('impactFactor')} className={inputClass} /></Field>
                     <Field id="pub-cites" label="Citations" optional error={fieldError.citations}><input id="pub-cites" inputMode="numeric" value={f.citations} onChange={set('citations')} className={inputClass} /></Field>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                     <Field id="pub-deadline" label="Deadline" optional><input id="pub-deadline" type="date" value={f.deadline} onChange={set('deadline')} className={inputClass} /></Field>
                     <Field id="pub-submitted" label="Submitted" optional><input id="pub-submitted" type="date" value={f.submittedOn} onChange={set('submittedOn')} className={inputClass} /></Field>
                     <Field id="pub-decision" label="Decision" optional><input id="pub-decision" type="date" value={f.decisionOn} onChange={set('decisionOn')} className={inputClass} /></Field>
@@ -198,7 +201,6 @@ const PublicationForm = ({ initial, onSaved, onDeleted, onClose }) => {
 export default function Publications() {
     const { teacher } = useTeacher();
     const exporter = useExport(teacher?.name);
-    const guideRead = useGuideRead('publishing');
     const [showRefs, setShowRefs] = useState(false);
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
@@ -210,7 +212,7 @@ export default function Publications() {
     const linked = PUBLISHING_STEPS.find((s) => s.key === params.get('guide'));
     const [guideOpen, setGuideOpen] = useState(linked ? true : null);
     const [guideStep, setGuideStep] = useState(linked?.key || PUBLISHING_STEPS[0].key);
-    const isGuideOpen = guideOpen ?? (data ? !data.publications.length : false);
+    const isGuideOpen = guideOpen ?? false;
     const openGuide = (key) => {
         if (key) setGuideStep(key);
         setGuideOpen(true);
@@ -223,13 +225,12 @@ export default function Publications() {
     useEffect(() => { load(); }, [load]);
 
     const shown = useMemo(() => (data?.publications || []).filter((p) => !query.trim() || `${p.title} ${p.venue} ${p.authors}`.toLowerCase().includes(query.trim().toLowerCase())), [data, query]);
-    const columns = STATUS.map(([k]) => [k, shown.filter((p) => p.status === k)]);
-    const years = Object.entries(data?.stats.byYear || {}).sort(([a], [b]) => a - b).slice(-8);
-    const maxYear = Math.max(1, ...years.map(([, n]) => n));
+    const [stage, setStage] = useState('all');
+    const papers = stage === 'all' ? shown : shown.filter((p) => p.status === stage);
 
     return (
         <div className="space-y-6">
-            <PageHeader icon={BookMarked} tone="from-violet-500 to-fuchsia-600" title="Publications Map" subtitle="Every paper, from idea to print."
+            <PageHeader icon={BookMarked} color="violet" title="Publications Map" subtitle="Every paper, from idea to print."
                 actions={<>
                     <button type="button" onClick={() => openGuide()} className={btn.secondary}><BookOpenText size={15} /> How to publish</button>
                     <button type="button" onClick={() => setEditing('new')} className={btn.primary}><Plus size={15} /> Add publication</button>
@@ -239,120 +240,131 @@ export default function Publications() {
             {!data && !error && <Loading label="Loading your publications…" />}
 
             {data && !data.publications.length && (
-                <EmptyState icon={BookMarked} title="Map your publications" action={<button type="button" onClick={() => setEditing('new')} className={btn.primary}><Plus size={15} /> Add your first publication</button>}>
+                <EmptyState icon={BookMarked} color="violet" title="Map your publications" action={<button type="button" onClick={() => setEditing('new')} className={btn.primary}><Plus size={15} /> Add your first publication</button>}>
                     Add papers you are planning, writing, submitting or have published. The guide below takes you through publishing, step by step.
                 </EmptyState>
             )}
 
             {data && (
                 <StepGuide id="publishing-guide" tone="violet" steps={PUBLISHING_STEPS} open={isGuideOpen} onToggle={() => setGuideOpen(!isGuideOpen)} step={guideStep} onStep={setGuideStep}
-                    read={guideRead.read} onToggleRead={guideRead.toggle}
-                    title="How to publish a research paper — step by step" subtitle="The standard route: choosing a journal, writing, ethics, submission, peer review, revision and after." />
+                    title="How to publish a research paper, step by step" subtitle="The standard route: choosing a journal, writing, ethics, submission, peer review, revision and after." />
             )}
 
             {data && data.publications.length > 0 && (
                 <>
                     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                        <StatTile icon={Award} tone="bg-emerald-50 text-emerald-600" label="Published" value={data.stats.byStatus.published} sub={`${data.stats.total} in all`} />
-                        <StatTile icon={Layers} tone="bg-violet-50 text-violet-600" label="In review" value={data.stats.byStatus.submitted + data.stats.byStatus.under_review + data.stats.byStatus.revision} sub={`${data.stats.byStatus.accepted} accepted`} />
-                        <StatTile icon={Quote} tone="bg-sky-50 text-sky-600" label="Citations" value={fmtNum(data.stats.citations)} sub="as you entered them" />
-                        <StatTile icon={Award} tone="bg-amber-50 text-amber-600" label="h-index" value={data.stats.hIndex} sub="from those citations" />
+                        <StatTile icon={Award} color="emerald" label="Published" value={data.stats.byStatus.published} sub={`${data.stats.total} in all`} />
+                        <StatTile icon={Layers} color="violet" label="In review" value={data.stats.byStatus.submitted + data.stats.byStatus.under_review + data.stats.byStatus.revision} sub={`${data.stats.byStatus.accepted} accepted`} />
+                        <StatTile icon={Quote} color="sky" label="Citations" value={fmtNum(data.stats.citations)} sub="as you entered them" />
+                        <StatTile icon={Award} color="amber" label="h-index" value={data.stats.hIndex} sub="from those citations" />
                     </div>
 
-                    <div className="relative w-full sm:w-72">
-                        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search title, journal, authors" aria-label="Search publications" className={`${inputClass} pl-9`} />
-                    </div>
-
-                    {/* The board scrolls sideways inside itself on a narrow screen; the page does not.
-                        A phone shows only the stages that hold a paper, so the papers are what it
-                        opens on rather than empty columns; a laptop shows the whole pipeline. */}
-                    <div className="-mx-4 overflow-x-auto px-4 pb-2 sidebar:mx-0 sidebar:px-0">
-                        <div className="grid auto-cols-[minmax(12rem,1fr)] grid-flow-col gap-2.5 sidebar:auto-cols-[minmax(0,1fr)]">
-                            {columns.map(([k, list]) => (
-                                <section key={k} aria-label={STATUS_OF[k].label} className={`min-w-0 rounded-2xl bg-slate-100/70 p-2 ${list.length ? '' : 'hidden sidebar:block'}`}>
-                                    <h2 className="mb-2 flex items-center justify-between px-1 text-[11px] font-black uppercase tracking-wider text-slate-500"><span>{STATUS_OF[k].label}</span><span>{list.length}</span></h2>
-                                    <div className="space-y-2">
-                                        {list.map((p) => (
-                                            <button key={p._id} type="button" onClick={() => setEditing(p)} className="block w-full rounded-xl border border-slate-200 bg-white p-2.5 text-left shadow-sm transition-colors hover:border-violet-300">
-                                                <p className="line-clamp-3 text-xs font-bold text-slate-800">{p.title}</p>
-                                                {p.venue && <p className="mt-1 line-clamp-1 text-[11px] text-slate-500">{p.venue}</p>}
-                                                <div className="mt-1.5 flex flex-wrap gap-1">
-                                                    {p.year && <Badge>{p.year}</Badge>}
-                                                    {p.quartile && <Badge tone="bg-amber-100 text-amber-700">{p.quartile}</Badge>}
-                                                    {(p.indexing || []).slice(0, 2).map((i) => <Badge key={i} tone="bg-emerald-50 text-emerald-700">{i}</Badge>)}
-                                                </div>
-                                                {p.deadline && !['published', 'rejected', 'accepted'].includes(p.status) && <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-rose-600"><CalendarClock size={12} /> {fmtDate(p.deadline)}</p>}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </section>
-                            ))}
+                    {/* Your papers: the stages as an even filter bar (one row on a laptop,
+                        a few on a phone), then one card per paper — in place of the
+                        eight-column board, which was cramped everywhere. */}
+                    <Card>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900 sm:text-base"><BookMarked size={17} className="text-emerald-600" aria-hidden="true" /> Your papers</h2>
+                            <div className="flex flex-wrap gap-2">
+                                <button type="button" onClick={() => setShowRefs(true)} className={btn.secondary}><ListOrdered size={15} /> <span className="hidden sm:inline">Reference list</span> (APA)</button>
+                                <button type="button" onClick={() => exporter.run('xlsx')} disabled={Boolean(exporter.busy)} className={btn.secondary}>
+                                    {exporter.busy === 'xlsx' ? <Loader2 size={15} className="animate-spin" /> : <FileSpreadsheet size={15} />} Excel
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                        {!showRefs && <div className="mt-3"><ErrorNote>{exporter.error}</ErrorNote></div>}
+                        <div className="relative mt-3">
+                            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search title, journal, authors" aria-label="Search publications" className={`${inputClass} pl-9`} />
+                        </div>
 
-                    <div className="grid gap-4 lg:grid-cols-3">
+                        {/* A phone picks the stage from a dropdown; wider screens get the row of boxes. */}
+                        <div className="mt-3 sm:hidden">
+                            <label htmlFor="stage-filter" className="mb-1 block text-xs font-semibold text-slate-600">Show</label>
+                            <Select tone="emerald" id="stage-filter" value={stage} onChange={(e) => setStage(e.target.value)} className={selectClass}>
+                                {[['all', 'All papers'], ...STATUS.map(([k, l]) => [k, l])].map(([k, l]) => (
+                                    <option key={k} value={k}>{l} ({k === 'all' ? shown.length : shown.filter((x) => x.status === k).length})</option>
+                                ))}
+                            </Select>
+                        </div>
+                        <div role="group" aria-label="Show papers at" className="mt-3 hidden gap-1.5 sm:grid sm:grid-cols-5 xl:grid-cols-9">
+                            {[['all', 'All'], ...STATUS.map(([k, l]) => [k, l])].map(([k, l]) => {
+                                const n = k === 'all' ? shown.length : shown.filter((x) => x.status === k).length;
+                                const on = stage === k;
+                                return (
+                                    <button key={k} type="button" aria-pressed={on} onClick={() => setStage(k)}
+                                        className={`flex min-w-0 flex-col items-center rounded-xl px-1 py-2 transition-colors ${on ? 'bg-violet-600 text-white shadow-sm' : n ? 'bg-slate-50 text-slate-700 ring-1 ring-slate-200 hover:bg-violet-50' : 'bg-slate-50/60 text-slate-400 ring-1 ring-slate-100 hover:bg-slate-100'}`}>
+                                        <span className="text-lg font-semibold leading-tight">{n}</span>
+                                        <span className="flex max-w-full items-center gap-1 truncate text-[11px] font-semibold">
+                                            {k !== 'all' && <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full ${on ? 'bg-white' : STRIPE[k]}`} />}
+                                            <span className="truncate">{l}</span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {papers.length ? (
+                            <ul className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                {papers.map((p) => {
+                                    const next = nextStepFor(p.status);
+                                    const indexing = p.indexing || [];
+                                    return (
+                                        <li key={p._id} className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-sm">
+                                            <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${STRIPE[p.status]}`} />
+                                            <button type="button" onClick={() => setEditing(p)} className="flex-1 p-4 pl-5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <Badge tone={STATUS_OF[p.status].tone}>{STATUS_OF[p.status].label}</Badge>
+                                                    {p.deadline && !['published', 'rejected', 'accepted'].includes(p.status) && (
+                                                        <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-rose-600"><CalendarClock size={12} aria-hidden="true" /> {fmtDate(p.deadline)}</span>
+                                                    )}
+                                                </div>
+                                                <p className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-slate-900">{p.title}</p>
+                                                <p className="mt-1 truncate text-xs text-slate-500">{[p.venue, TYPES[p.type], p.year].filter(Boolean).join(' · ')}</p>
+                                                {(p.quartile || indexing.length > 0 || p.citations > 0) && (
+                                                    <div className="mt-2.5 flex flex-wrap gap-1">
+                                                        {p.quartile && <Badge tone="bg-amber-100 text-amber-700">{p.quartile}</Badge>}
+                                                        {indexing.slice(0, 2).map((i) => <Badge key={i} tone="bg-emerald-50 text-emerald-700">{i}</Badge>)}
+                                                        {indexing.length > 2 && <Badge>+{indexing.length - 2}</Badge>}
+                                                        {p.citations > 0 && <Badge tone="bg-sky-50 text-sky-700">{p.citations} {p.citations === 1 ? 'citation' : 'citations'}</Badge>}
+                                                    </div>
+                                                )}
+                                            </button>
+                                            {(next || p.url || p.doi) && (
+                                                <div className="flex items-center justify-between gap-2 border-t border-slate-100 py-2 pl-5 pr-3">
+                                                    {next ? (
+                                                        <button type="button" onClick={() => openGuide(next.key)} aria-label={`Next step for ${p.title}: ${next.title}`}
+                                                            className="inline-flex min-w-0 items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-100">
+                                                            <span className="truncate">Next: {next.title}</span> <ArrowRight size={11} className="shrink-0" aria-hidden="true" />
+                                                        </button>
+                                                    ) : <span />}
+                                                    {(p.url || p.doi) && <a href={p.url || `https://doi.org/${p.doi}`} target="_blank" rel="noreferrer noopener" aria-label={`Open ${p.title}`} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><ExternalLink size={15} /></a>}
+                                                </div>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        ) : (
+                            <p className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+                                {query.trim() ? 'No paper matches your search.' : `No papers at “${STATUS_OF[stage]?.label || 'this stage'}”.`}
+                            </p>
+                        )}
+                    </Card>
+
+                    {data.stats.upcomingDeadlines.length > 0 && (
                         <Card>
-                            <CardTitle icon={Award}>Published by year</CardTitle>
-                            {years.length ? (
-                                <div className="flex h-28 items-end gap-2">
-                                    {years.map(([y, n]) => (
-                                        <div key={y} className="flex flex-1 flex-col items-center gap-1">
-                                            <span className="text-[11px] font-bold text-slate-600">{n}</span>
-                                            <div className="w-full rounded-t bg-violet-400" style={{ height: `${(n / maxYear) * 80}px` }} />
-                                            <span className="text-[10px] font-semibold text-slate-400">{y}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : <p className="text-sm text-slate-500">Published papers with a year appear here.</p>}
-                        </Card>
-                        <Card>
-                            <CardTitle icon={Layers}>Indexing of published work</CardTitle>
-                            {Object.keys(data.stats.byIndexing).length ? (
-                                <ul className="space-y-1.5">{Object.entries(data.stats.byIndexing).sort((a, b) => b[1] - a[1]).map(([i, n]) => <li key={i} className="flex justify-between text-sm"><span className="text-slate-700">{i}</span><span className="font-black text-slate-900">{n}</span></li>)}</ul>
-                            ) : <p className="text-sm text-slate-500">Mark where your published papers are indexed.</p>}
-                        </Card>
-                        <Card>
-                            <CardTitle icon={CalendarClock}>Coming deadlines</CardTitle>
+                            <CardTitle icon={CalendarClock} color="rose">Coming deadlines</CardTitle>
                             {data.stats.upcomingDeadlines.length ? (
                                 <ul className="space-y-2">{data.stats.upcomingDeadlines.map((d) => (
                                     <li key={d._id}><button type="button" onClick={() => setEditing(data.publications.find((p) => p._id === d._id))} className="w-full text-left">
-                                        <span className="line-clamp-1 text-sm font-bold text-slate-800">{d.title}</span>
+                                        <span className="line-clamp-1 text-sm font-semibold text-slate-800">{d.title}</span>
                                         <span className="text-xs font-semibold text-rose-600">{fmtDate(d.deadline)} · {STATUS_OF[d.status].label}</span>
                                     </button></li>
                                 ))}</ul>
-                            ) : <p className="text-sm text-slate-500">Deadlines you set on papers in progress show here.</p>}
+                            ) : null}
                         </Card>
-                    </div>
-
-                    <Card>
-                        <CardTitle icon={BookMarked}>All publications</CardTitle>
-                        <div className="mb-3 flex flex-wrap gap-2">
-                            <button type="button" onClick={() => setShowRefs(true)} className={btn.secondary}><ListOrdered size={15} /> Reference list (APA)</button>
-                            <button type="button" onClick={() => exporter.run('xlsx')} disabled={Boolean(exporter.busy)} className={btn.secondary}>
-                                {exporter.busy === 'xlsx' ? <Loader2 size={15} className="animate-spin" /> : <FileSpreadsheet size={15} />} Excel
-                            </button>
-                        </div>
-                        {!showRefs && <ErrorNote>{exporter.error}</ErrorNote>}
-                        <ul className="divide-y divide-slate-100">
-                            {shown.map((p) => (
-                                <li key={p._id} className="flex flex-wrap items-center gap-2 py-2.5">
-                                    <button type="button" onClick={() => setEditing(p)} className="min-w-0 flex-1 text-left">
-                                        <span className="block text-sm font-bold text-slate-800 [overflow-wrap:anywhere]">{p.title}</span>
-                                        <span className="block text-xs text-slate-500">{[TYPES[p.type], p.venue, p.year].filter(Boolean).join(' · ')}</span>
-                                    </button>
-                                    <Badge tone={STATUS_OF[p.status].tone}>{STATUS_OF[p.status].label}</Badge>
-                                    {nextStepFor(p.status) && (
-                                        <button type="button" onClick={() => openGuide(nextStepFor(p.status).key)} className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-bold text-violet-700 hover:bg-violet-100"
-                                            aria-label={`Next step for ${p.title}: ${nextStepFor(p.status).title}`}>
-                                            Next: {nextStepFor(p.status).title} <ArrowRight size={11} aria-hidden="true" />
-                                        </button>
-                                    )}
-                                    {(p.url || p.doi) && <a href={p.url || `https://doi.org/${p.doi}`} target="_blank" rel="noreferrer noopener" aria-label={`Open ${p.title}`} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><ExternalLink size={15} /></a>}
-                                </li>
-                            ))}
-                        </ul>
-                    </Card>
+                    )}
                 </>
             )}
 

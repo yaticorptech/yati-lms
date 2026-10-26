@@ -35,7 +35,7 @@ createRoot(document.getElementById('root')).render(
     <RewardsContext.Provider value={rewards}>
       <MemoryRouter initialEntries={['${at}']}>
         <Where />
-        <Dashboard courses={[]} bundles={[]} availableCourses={${available}} loading={false} error={null}
+        <Dashboard courses={[]} availableCourses={${available}} loading={false} error={null}
                    buyingCourseId={null} enrollCourse={${enrollCourse}} refresh={() => { window.__refreshed = (window.__refreshed || 0) + 1; }} weeklyActivity={<div id="weekly" />} />
       </MemoryRouter>
     </RewardsContext.Provider>
@@ -115,7 +115,7 @@ describe('My Learning tabs and the address', { skip: skipWithoutChrome }, () => 
         assert.equal(result.panelLabel, true);
     });
 
-    test('a course that is already the student\'s in a bundle says so, and offers the way to Bundles', async () => {
+    test('a course that is already the student\'s in a bundle says so, and offers to open it (no Bundles tab)', async () => {
         // The server refuses to charge for it (409 IN_BUNDLE) when the list was
         // loaded before the bundle opened.
         const refuse = `() => Promise.reject({ response: { status: 409, data: { code: 'IN_BUNDLE', message: 'This course is already yours in the "QA" bundle, so there is nothing to pay. Open it from Bundles.' } } })`;
@@ -123,18 +123,17 @@ describe('My Learning tabs and the address', { skip: skipWithoutChrome }, () => 
             entry: entry({ available: JSON.stringify([{ _id: 'kP', title: 'Priced Course', price: 500 }]), enrollCourse: refuse }), api, script: `
                 await sleep(600);
                 click(/Enroll Now/); await sleep(200);
-                click(/Confirm Enroll|Pay/, '[role=dialog] button'); await sleep(300);
+                click(/Enroll Now/, '[role=dialog] button'); await sleep(300);
                 const said = text($('[role=dialog] [role=alert]'));
                 const offered = $$('[role=dialog] button').map((b) => b.innerText.trim());
-                click(/Open Bundles/, '[role=dialog] button'); await sleep(400);
+                click(/Open course/, '[role=dialog] button'); await sleep(400);
                 return { said, offered, refreshed: window.__refreshed || 0, open: !!$('[role=dialog]'), ${READ.slice(2, -2)} };` });
         assert.deepEqual(errors, []);
-        assert.match(result.said, /already yours in the "QA" bundle/);
-        assert.ok(result.offered.includes('Open Bundles'), `buttons: ${JSON.stringify(result.offered)}`);
-        assert.ok(!result.offered.some((b) => /Pay|Confirm Enroll/.test(b)), 'no payment is offered for it');
+        assert.match(result.said, /already yours, with nothing to pay/);
+        assert.ok(result.offered.includes('Open course'), `buttons: ${JSON.stringify(result.offered)}`);
+        assert.ok(!result.offered.some((b) => /Enroll Now/.test(b)), 'no payment is offered for it');
         assert.equal(result.refreshed, 1, 'the stale list is read again');
         assert.equal(result.open, false);
-        assert.equal(result.selected, 'Bundles');
-        assert.equal(result.where, '/?tab=bundles');
+        assert.equal(result.where, '/learn/kP', 'the course opens');
     });
 });

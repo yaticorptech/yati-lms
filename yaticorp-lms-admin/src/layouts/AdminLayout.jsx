@@ -6,9 +6,9 @@ import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    LayoutDashboard, Users, BookOpen, Layers, LogOut, BookOpenCheck,
+    LayoutDashboard, Users, BookOpen, LogOut, BookOpenCheck,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, Languages, CreditCard } from 'lucide-react';
+    MessageSquare, Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, CreditCard } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 import useCenterTabs from '../hooks/useCenterTabs';
@@ -171,9 +171,6 @@ const AdminLayout = () => {
                     <Link to="/courses" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/courses') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <BookOpen size={20} /> <span className="font-medium">Courses</span>
                     </Link>
-                    <Link to="/bundles" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/bundles') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <Layers size={20} /> <span className="font-medium">Bundles</span>
-                    </Link>
                     <Link to="/community" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/community') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <MessageSquare size={20} /> <span className="font-medium">Community</span>
                     </Link>
@@ -196,9 +193,6 @@ const AdminLayout = () => {
                     </Link>
                     <Link to="/global-quiz" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/global-quiz') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Globe size={20} /> <span className="font-medium">Global Quiz</span>
-                    </Link>
-                    <Link to="/linguistic" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/linguistic') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <Languages size={20} /> <span className="font-medium">Linguistic Ability</span>
                     </Link>
                     <Link to="/analytics" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/analytics') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <BarChart2 size={20} /> <span className="font-medium">Analytics</span>

@@ -1,6 +1,6 @@
 /**
  * @author Preethesh Kulal
- * @description Shared hook for dashboard course and bundle data fetching
+ * @description Shared hook for dashboard course data fetching
  */
 import { useRef, useState } from 'react';
 import { getCourseServices } from '../api/courseService';
@@ -8,11 +8,11 @@ import useAutoRefresh from '../../hooks/useAutoRefresh';
 
 /**
  * Shared hook for the student dashboard.
- * Manages courses, bundles, and available courses.
+ * Manages courses and available courses. (Bundles are no longer shown to
+ * students: the server lists a course open through a bundle with their courses.)
  */
 export const useDashboard = (apiClient) => {
     const [courses, setCourses] = useState([]);
-    const [bundles, setBundles] = useState([]);
     const [availableCourses, setAvailableCourses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -41,7 +41,6 @@ export const useDashboard = (apiClient) => {
                 window.dispatchEvent(new CustomEvent('yati:rewards', { detail: events }));
             }
             setCourses(mine.data?.courses || []);
-            setBundles(mine.data?.bundles || []);
             setAvailableCourses(available);
             setError(null);
             loaded.current = true;
@@ -76,7 +75,6 @@ export const useDashboard = (apiClient) => {
 
     return {
         courses,
-        bundles,
         availableCourses,
         loading,
         error,

@@ -12,6 +12,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Camera, Keyboard, Lock, Loader2, UserPlus, X } from 'lucide-react';
 import api from '../../utils/api';
+import { stopReader } from '../../utils/qrReader';
 import { Dialog, DialogTitle, Banner, BTN, BTN2, INPUT, LABEL } from '../orgUi';
 import PasswordStrengthChecker from '../PasswordStrengthChecker';
 import Select from '../Select';
@@ -42,14 +43,14 @@ export default function AddTeacherModal({ endpoint, organizations, onClose, onAd
         let stopped = false;
         const reader = new Html5Qrcode(SCANNER_ID);
         scanner.current = reader;
-        reader.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, (decoded) => {
+        const started = reader.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, (decoded) => {
             if (stopped) return;
             stopped = true;
-            reader.stop().catch(() => {});
+            stopReader(reader);
             setCode(decoded.trim());
             setMode('manual');
         }, () => {}).catch(() => { setScanError('The camera could not be opened. Type the QR code or card number instead.'); setMode('manual'); });
-        return () => { stopped = true; reader.stop().catch(() => {}); scanner.current = null; };
+        return () => { stopped = true; stopReader(reader, started); scanner.current = null; };
     }, [mode, card]);
 
     const check = async () => {

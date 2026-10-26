@@ -9,7 +9,6 @@ const { ResearchProject, Publication, Thesis, WritingPiece, WritingLog, Plagiari
 const { progressOf } = require('./researchPath');
 const { wordCount } = require('./similarity');
 const { dayKey, addDays } = require('../rewards/config/constants');
-const METHOD_KEYS = require('./methodKeys');
 
 const ACTIVE_WINDOW_DAYS = 30;
 
@@ -56,7 +55,6 @@ const detail = async (teacher) => {
         WritingLog.find({ teacherId: id, day: { $gte: since } }).select('day words').lean(),
         PlagiarismReport.countDocuments({ teacherId: id })
     ]);
-    const guideRead = teacher.guideRead instanceof Map ? Object.fromEntries(teacher.guideRead) : (teacher.guideRead || {});
     return {
         research: projects.map((p) => {
             const progress = progressOf(p);
@@ -76,12 +74,7 @@ const detail = async (teacher) => {
             words30: logs.reduce((n, l) => n + l.words, 0),
             days30: logs.filter((l) => l.words > 0).length
         },
-        plagiarismChecks: checks,
-        learning: {
-            methodsStudied: (teacher.methodsStudied || []).length,
-            methodsTotal: METHOD_KEYS.length,
-            guidesRead: Object.fromEntries(Object.entries(guideRead).map(([k, v]) => [k, (v || []).length]))
-        }
+        plagiarismChecks: checks
     };
 };
 

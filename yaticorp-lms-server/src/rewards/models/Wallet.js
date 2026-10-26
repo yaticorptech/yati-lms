@@ -20,9 +20,8 @@ const walletSchema = new mongoose.Schema({
   // left of the starting credit. Feature charges use it up first; a
   // withdrawal may only take `available - spendOnly`.
   spendOnly: { type: Number, default: 0 },
-  // Lifetime XP already turned into money. The student's XP balance is
-  // user.xp - xpConverted; their level and rank keep using user.xp, so a
-  // conversion never costs them a level.
+  // Lifetime XP that was turned into money before XP stopped converting
+  // (2026-10-26). Kept for the record; nothing reads or moves it now.
   xpConverted: { type: Number, default: 0 },
   rewardPoints: { type: Number, default: 0 },
   rewardPointsEarned: { type: Number, default: 0 },

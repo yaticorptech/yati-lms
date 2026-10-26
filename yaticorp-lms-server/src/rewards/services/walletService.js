@@ -92,10 +92,10 @@ const redeemedThisMonth = async (userId) => {
  */
 // eslint-disable-next-line no-unused-vars
 const redeemPoints = async ({ user, points }) => {
-  // Only XP becomes money now, automatically in blocks (convertXp).
-  // Reward points stay a score — badges, streaks, the leaderboard — and are
-  // never cashed out. A clear refusal for any old page still asking.
-  throw fail('Reward points no longer convert into wallet balance. XP you earn is paid into your wallet automatically.', 410, 'POINTS_NOT_REDEEMABLE');
+  // Neither reward points nor XP become money: points stay a score — badges,
+  // streaks, the leaderboard — and are never cashed out. A clear refusal for
+  // any old page still asking.
+  throw fail('Reward points and XP do not convert into wallet balance.', 410, 'POINTS_NOT_REDEEMABLE');
 };
 
 // A payout destination the student typed; refused unless it is well-formed.
@@ -231,66 +231,9 @@ const grantStartingCredit = async (userId) => {
   return result;
 };
 
-/**
- * Turn XP into money in whole blocks, at the admin's rate: every
- * `pointsPerUnit` XP (e.g. 1,000) on the student's XP balance is deducted and
- * `unitValue` (e.g. ₹10) added to the wallet — repeated for every full block.
- * Every account type. Called after each XP award and on each wallet read.
- *
- * The XP balance is lifetime XP minus what has been converted; lifetime XP
- * (level, leaderboard, XP badges) is never touched. The conversion claims its
- * block by moving `xpConverted` on from the value it read, so two awards
- * landing together cannot convert the same XP twice.
- */
-const convertXp = async (userId) => {
-  const config = await getConfig();
-  if (!config.enabled) return null;
-  const { pointsPerUnit, unitValue, currency } = config.conversion;
-  const unit = Math.max(1, Math.round(Number(pointsPerUnit) || 0));
-  const value = money(unitValue);
-  if (!(value > 0)) return null;
-  const user = await User.findById(userId).select('xp').lean();
-  if (!user) return null;
-  await grantStartingCredit(userId);
+// XP does not turn into wallet money (the user's rule, 2026-10-26): it is
+// learning progress only, for levels, the leaderboard and badges. The wallet
+// grows from the starting credit and whatever an administrator adds. Credits
+// XP made before then stay in the history ('xp_reward').
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const w = await getOrCreateWallet(userId);
-    const converted = w.xpConverted || 0;
-    const blocks = Math.floor(((user.xp || 0) - converted) / unit);
-    if (blocks <= 0) return null;
-    const xp = blocks * unit;
-    const amount = money(blocks * value);
-    const upTo = converted + xp;
-    try {
-      const result = await runInTransaction(async (session) => {
-        const claimed = await Wallet.findOneAndUpdate(
-          { userId, xpConverted: converted === 0 ? { $in: [0, null] } : converted },
-          { $set: { xpConverted: upTo } },
-          { returnDocument: 'after', session }
-        );
-        if (!claimed) return null; // another award converted first; read again
-        const [txn] = await WalletTransaction.create([{
-          userId, type: 'credit', amount, source: 'xp_reward', referenceKey: `xp-convert:${upTo}`,
-          description: `${xp.toLocaleString('en-IN')} XP converted`,
-          meta: { xp, rate: { pointsPerUnit: unit, unitValue: value, currency }, xpConvertedTo: upTo }
-        }], { session });
-        const wallet = await Wallet.findOneAndUpdate(
-          { userId },
-          { $inc: { available: amount, totalEarned: amount, 'earnedBySource.xp_reward': amount } },
-          { returnDocument: 'after', session }
-        );
-        await WalletTransaction.updateOne({ _id: txn._id }, { $set: { balanceAfter: wallet.available } }, { session });
-        return { xp, amount, wallet };
-      });
-      if (!result) continue;
-      await notify(userId, 'XP converted', `${xp.toLocaleString('en-IN')} XP became ${currency} ${amount} in your wallet.`, LINKS.wallet);
-      return result;
-    } catch (err) {
-      if (isDuplicate(err)) return null;
-      throw err;
-    }
-  }
-  return null;
-};
-
-module.exports = { credit, debit, redeemPoints, requestWithdrawal, decideWithdrawal, auditWallet, redeemedThisMonth, money, grantStartingCredit, startingCreditFrom, convertXp };
+module.exports = { credit, debit, redeemPoints, requestWithdrawal, decideWithdrawal, auditWallet, redeemedThisMonth, money, grantStartingCredit, startingCreditFrom };

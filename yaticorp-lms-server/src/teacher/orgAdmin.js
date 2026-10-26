@@ -162,7 +162,7 @@ router.get('/:teacherId', async (req, res) => {
         const t = await mine(req);
         if (!t) return notMine(res);
         const o = t.toObject();
-        for (const k of ['password', 'resetPasswordToken', 'resetPasswordExpiry', 'guideRead']) delete o[k];
+        for (const k of ['password', 'resetPasswordToken', 'resetPasswordExpiry']) delete o[k];
         res.json({ teacher: o, progress: await detail(t) });
     } catch (error) {
         console.error('[org-teachers] detail failed:', error.message);

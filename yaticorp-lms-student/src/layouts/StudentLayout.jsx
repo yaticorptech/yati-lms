@@ -8,7 +8,6 @@ import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import WalletShortDialog from '../components/rewards/WalletShortDialog';
 import { WalletSheet } from '../components/rewards/WalletCard';
-import SidebarProgressCard from '../components/SidebarProgressCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
 import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, MessageSquare, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Languages } from 'lucide-react';
@@ -23,6 +22,8 @@ import RankUpWatcher from '../components/rewards/RankUpWatcher';
 import useBackClose from '../native/useBackClose';
 import { dayKey as platformDay } from '../career/utils/progress';
 import ProfileImage from '../components/ProfileImage';
+import PlatformClosed from '../components/PlatformClosed';
+import useAccessHours from '../hooks/useAccessHours';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -197,6 +198,8 @@ const ContactModal = ({ onClose, user, page }) => {
 
 const StudentLayout = () => {
     const { user, logout, isCareerPathEnabled, isJobsEnabled, isLinguisticEnabled } = useContext(AuthContext);
+    // The organization's access hours: outside them, the closed screen (components/PlatformClosed).
+    const accessHours = useAccessHours(Boolean(user));
     const [adminView] = useState(readAdminView);
     // Signs out of the student and closes the tab the admin panel opened; if
     // the browser will not close it, the sign-in page is left showing.
@@ -787,6 +790,8 @@ const StudentLayout = () => {
         )}
     </div>
 );
+    if (accessHours.closed) return <PlatformClosed access={accessHours.access} onCheck={accessHours.check} onSignOut={logout} name={user?.name} />;
+
     return (
         <div className="flex h-visible bg-slate-50 text-slate-900 font-sans">
             {/* Raised whenever something wants to write to a student's own
@@ -845,16 +850,6 @@ const StudentLayout = () => {
                 <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
                     {renderNavLinks()}
                 </nav>
-
-                {/* Career Path progress, above the footer. Only when the
-                    section is switched on for this student: XP and levels are
-                    its currency, and advertising a locked feature from the
-                    sidebar of every page is worse than showing nothing. */}
-                {isCareerPathEnabled && (
-                    <div className="hidden shrink-0 px-4 pb-2 [@media(min-height:960px)]:block">
-                        <SidebarProgressCard user={progressUser || user} />
-                    </div>
-                )}
 
                 {/* Sidebar footer — the student's own row, then contact
                     support. My Profile lives here rather than in the nav, the

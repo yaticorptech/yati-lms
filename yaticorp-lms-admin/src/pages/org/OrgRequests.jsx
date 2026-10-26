@@ -7,6 +7,9 @@
  * will actually be shown.
  *
  * Oldest first: whoever has been waiting longest is dealt with first.
+ *
+ * Shown as the Students page's Requests tab (?view=requests), with that
+ * page's tabs passed in as `tabs`; there is no menu item of its own.
  */
 import React, { useState } from 'react';
 import { UserPlus, CheckCircle2, XCircle, Loader2, Mail, Phone, Clock } from 'lucide-react';
@@ -14,6 +17,7 @@ import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { CARD, LABEL, INPUT, BTN2, Empty, Banner, Rows, Pill, PageHeader, Segmented, Avatar, LoadFailed, Dialog, DialogTitle } from '../../components/orgUi';
 import { formatDate, relativeDay } from '../../utils/dates';
+import Select from '../../components/Select';
 
 const TABS = [
     ['pending', 'Waiting'],
@@ -21,7 +25,7 @@ const TABS = [
     ['rejected', 'Rejected']
 ];
 
-const OrgRequests = () => {
+const OrgRequests = ({ tabs = null }) => {
     const [tab, setTab] = useState('pending');
     const [requests, setRequests] = useState([]);
     const [pendingCount, setPendingCount] = useState(0);
@@ -88,13 +92,22 @@ const OrgRequests = () => {
 
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
-            <PageHeader icon={UserPlus} title="Student requests"
+            <PageHeader icon={UserPlus} title="Students"
                 subtitle="Students who entered your Organization ID and asked to join. Approving one makes them a member." />
+            {tabs}
 
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             {error && !loadFailed && <Banner onClose={() => setError('')}>{error}</Banner>}
 
-            <Segmented options={TABS} value={tab} onChange={setTab} counts={{ pending: pendingCount }} />
+            {/* A phone: a dropdown, like the student filter. Wider: the chips. */}
+            <div className="sm:hidden">
+                <Select id="requests-filter" aria-label="Show requests" value={tab} onChange={(e) => setTab(e.target.value)} className={INPUT}>
+                    {TABS.map(([key, label]) => <option key={key} value={key}>{key === 'pending' && pendingCount ? `${label} (${pendingCount})` : label}</option>)}
+                </Select>
+            </div>
+            <div className="hidden sm:block">
+                <Segmented options={TABS} value={tab} onChange={setTab} counts={{ pending: pendingCount }} />
+            </div>
 
             <div className={`${CARD} overflow-hidden`}>
                 {loading ? (

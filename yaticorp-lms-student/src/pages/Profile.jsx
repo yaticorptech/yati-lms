@@ -448,10 +448,9 @@ const Profile = ({ view = 'dashboard' }) => {
                 </div>
             )}
 
-            {/* ── Dashboard: My Learning — the tabs, bundles and enrol flow ── */}
+            {/* ── Dashboard: My Learning — the tabs and enrol flow ── */}
             {!onProfile && <DashboardCourses
                 courses={dashboard.courses}
-                bundles={dashboard.bundles}
                 availableCourses={dashboard.availableCourses}
                 loading={dashboard.loading}
                 error={dashboard.error}
