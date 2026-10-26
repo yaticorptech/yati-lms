@@ -86,12 +86,10 @@ const Bundles = React.lazy(() => import('./pages/Bundles'));
 const Enrollments = React.lazy(() => import('./pages/Enrollments'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const Tickets = React.lazy(() => import('./pages/Tickets'));
-const Community = React.lazy(() => import('./pages/Community'));
 import NotFound from './pages/NotFound';
 const Analytics = React.lazy(() => import('./pages/Analytics'));
 const GlobalQuiz = React.lazy(() => import('./pages/GlobalQuiz'));
 const LinguisticAdmin = React.lazy(() => import('./pages/linguistic/LinguisticAdmin'));
-const OrgLinguistic = React.lazy(() => import('./pages/linguistic/OrgLinguistic'));
 const Announcements = React.lazy(() => import('./pages/Announcements'));
 const CareerPath = React.lazy(() => import('./pages/CareerPath'));
 const Jobs = React.lazy(() => import('./pages/Jobs'));
@@ -102,8 +100,10 @@ import OrgAdminLayout from './layouts/OrgAdminLayout';
 const OrgDashboard = React.lazy(() => import('./pages/org/OrgDashboard'));
 const OrgStudents = React.lazy(() => import('./pages/org/OrgStudents'));
 const OrgStudentDetail = React.lazy(() => import('./pages/org/OrgStudentDetail'));
-const OrgRequests = React.lazy(() => import('./pages/org/OrgRequests'));
 const OrgTeachers = React.lazy(() => import('./pages/org/OrgTeachers'));
+const OrgNccNss = React.lazy(() => import('./pages/org/OrgNccNss'));
+// Research: a teacher's own teacher dashboard, inside the organization panel.
+const OrgResearch = React.lazy(() => import('./pages/org/OrgResearch'));
 const OrgSettings = React.lazy(() => import('./pages/org/OrgSettings'));
 import OrgNotFound from './pages/org/OrgNotFound';
 // Games & Competitions: the platform runs inter-college competitions; colleges enter teams.
@@ -132,14 +132,19 @@ function App() {
         <Route index element={<OrgDashboard />} />
         <Route path="students" element={<OrgStudents />} />
         <Route path="students/:studentId" element={<OrgStudentDetail />} />
-        <Route path="requests" element={<OrgRequests />} />
+        {/* Student requests are a tab of Students now. */}
+        <Route path="requests" element={<Navigate to="/organization/students?view=requests" replace />} />
         <Route path="teachers" element={<OrgTeachers />} />
+        <Route path="ncc-nss" element={<OrgNccNss />} />
+        <Route path="research" element={<OrgResearch />} />
+        <Route path="research/:tool" element={<OrgResearch />} />
         <Route path="courses" element={<OrgCourses><Courses /></OrgCourses>} />
         <Route path="courses/:id" element={<OrgCourses><CourseEditor /></OrgCourses>} />
         <Route path="courses/:courseId/lessons/:lessonId" element={<OrgCourses><LessonEditor /></OrgCourses>} />
         <Route path="competitions" element={<OrgCompetitions />} />
         <Route path="competitions/host/:id" element={<CompetitionAdmin apiBase="/competitions/org/host" backTo="/organization/competitions?tab=host" />} />
-        <Route path="linguistic" element={<OrgLinguistic />} />
+        {/* English (Linguistic Ability) is no longer in the organization panel; an old link goes to the dashboard. */}
+        <Route path="linguistic" element={<Navigate to="/organization" replace />} />
         <Route path="settings" element={<OrgSettings />} />
         {/* Any other address in here: said inside the shell, menu and all. */}
         <Route path="*" element={<OrgNotFound />} />
@@ -158,7 +163,6 @@ function App() {
         <Route path="organizations" element={<SuperAdminRoute what="organizations"><Organizations /></SuperAdminRoute>} />
         <Route path="settings" element={<Settings />} />
         <Route path="tickets" element={<Tickets />} />
-        <Route path="community" element={<Community />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="career-path" element={<CareerPath />} />
         <Route path="jobs" element={<Jobs />} />

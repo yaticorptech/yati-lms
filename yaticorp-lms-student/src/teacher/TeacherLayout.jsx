@@ -7,10 +7,11 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, UserCircle2
+    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, UserCircle2, Users
 } from 'lucide-react';
 import { useTeacher } from './useTeacher';
 import useBackClose from '../native/useBackClose';
+import { isEmbedded } from './teacherSession';
 
 const NAV = [
     { items: [{ to: '/teacher', label: 'Dashboard', icon: LayoutDashboard, end: true }] },
@@ -27,7 +28,9 @@ const NAV = [
             { to: '/teacher/writing', label: 'Independent Writing', short: 'Writing', icon: PenLine },
             { to: '/teacher/plagiarism', label: 'Plagiarism Check', short: 'Check', icon: ShieldCheck }
         ]
-    }
+    },
+    // The clubs the organization put this teacher in charge of (pages/Clubs.jsx).
+    { title: 'Activities', items: [{ to: '/teacher/clubs', label: 'My Clubs', short: 'Clubs', icon: Users }] }
 ];
 const BOTTOM = ['/teacher', '/teacher/research-path', '/teacher/publications', '/teacher/thesis', '/teacher/writing'];
 const ALL = NAV.flatMap((g) => g.items);
@@ -76,6 +79,9 @@ export default function TeacherLayout() {
     const location = useLocation();
     useBackClose(() => setMenuOpen(false), menuOpen);
     useEffect(() => { window.scrollTo?.(0, 0); }, [location.pathname]);
+
+    // Opened from the organization panel's Research tab: the page alone; the panel has the tabs.
+    if (isEmbedded()) return <main className="min-h-screen bg-slate-50 p-4 sm:p-6"><Outlet /></main>;
 
     return (
         <div className="min-h-screen bg-slate-50">

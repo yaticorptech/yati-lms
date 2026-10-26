@@ -36,6 +36,7 @@
  *     GET    /me/requests/count          { pending } for the navigation badge
  *     PUT    /me/requests/:requestId     approve or reject
  *     *      /me/teachers/…              its teachers and their join requests (src/teacher/orgAdmin.js)
+ *     *      /me/nccnss/…                NCC/NSS members, activities, events (src/nccnss/orgAdmin.js)
  *
  *   Organization admin, before approval (protectOrgAdmin only)
  *     GET    /me/status                  where my application stands
@@ -47,11 +48,13 @@
  *     POST   /student/requests           ask to join
  *     DELETE /student/requests/:id       withdraw my request (a request, not a membership)
  *     POST   /student/leave              leave an organization that is no longer active
+ *     *      /student/nccnss/…           my NCC/NSS record (src/nccnss/student.js)
  *
  * Route order matters in two places, both marked below: a literal path that
  * would otherwise be swallowed by `/:id`, and the status endpoint that has to
  * sit in front of the active-organization gate.
  */
+const generateToken = require('../utils/generateToken');
 const express = require('express');
 const router = express.Router();
 
@@ -117,8 +120,31 @@ router.get('/me/status', (req, res) => {
             statusReason: req.organization.statusReason || '',
             typeLabel: Organization.TYPE_LABELS[req.organization.organizationType] || 'Other',
             registeredAt: req.organization.createdAt
-        }
+        },
+        // A teacher signed in to the organization panel: the app shows them
+        // only what they may use, and Research when they have the teacher dashboard too.
+        staff: req.admin.staff ? { name: req.admin.name, research: Boolean(req.admin.staffTeacherId) } : null
     });
+});
+
+/**
+ * Research, for a teacher who has both dashboards: a teacher-dashboard session
+ * for their own teacher account, which the panel opens inside itself. Only
+ * their own account, only while it is active and still this organization's.
+ */
+router.get('/me/research-session', async (req, res) => {
+    try {
+        if (!req.admin.staffTeacherId) return res.status(403).json({ message: 'This account has no teacher dashboard.' });
+        // In front of the active gate (it sits beside /me/status), so it checks the organization itself.
+        if (req.organization.status !== 'active') return res.status(403).json({ message: 'Your organization does not currently have access.' });
+        const { Teacher } = require('../teacher/models');
+        const teacher = await Teacher.findOne({ _id: req.admin.staffTeacherId, organizationId: req.organization._id, status: 'active' });
+        if (!teacher) return res.status(403).json({ message: 'Your teacher account is not active in this organization.' });
+        res.json({ token: generateToken(teacher._id, 'teacher'), teacher: require('../teacher/auth').view(teacher) });
+    } catch (error) {
+        console.error('[organizations] research session failed:', error.message);
+        res.status(500).json({ message: 'Could not open Research just now.' });
+    }
 });
 
 /**
@@ -140,6 +166,8 @@ router.put('/me/requests/:requestId', orgCtrl.decideRequest);
 // Its teachers: added with a card, or asking to join from the teacher
 // dashboard — see src/teacher/orgAdmin.js.
 router.use('/me/teachers', require('../teacher/orgAdmin'));
+// NCC and NSS: members, activities to approve, events and attendance (src/nccnss/).
+router.use('/me/nccnss', require('../nccnss/orgAdmin'));
 
 // ── Organization admin: its own courses ─────────────────────────────────────
 // The platform's course-building code, fenced: courses must be switched on by
@@ -210,6 +238,8 @@ router.delete('/me/vdocipher/video/:videoId', vdoCipherController.requireVideoId
 
 // ── Student ─────────────────────────────────────────────────────────────────
 router.use('/student', protectUser);
+// The student's own NCC/NSS record (src/nccnss/student.js).
+router.use('/student/nccnss', require('../nccnss/student'));
 // A student can leave only an organization that is no longer active (or no
 // longer exists); an active one answers 409. See the note at the top of
 // controllers/studentController.js.

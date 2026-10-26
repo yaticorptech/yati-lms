@@ -60,13 +60,13 @@ function Home() {
         interviewApi.aptitudeStart(section).then((s) => navigate(`/interview/aptitude/${s.id}`)).catch((e) => { setError(e); setStarting(false); });
     };
 
-    if (data === undefined) return <div className="mx-auto max-w-4xl pb-12"><Analyzing label="Getting your questions ready…" /></div>;
-    if (!data) return <div className="mx-auto max-w-4xl pb-12"><ErrorBox error={error} onRetry={load} /></div>;
+    if (data === undefined) return <div className="w-full pb-12"><Analyzing label="Getting your questions ready…" /></div>;
+    if (!data) return <div className="w-full pb-12"><ErrorBox error={error} onRetry={load} /></div>;
     const { stats } = data;
     const label = (id) => data.sections.find((s) => s.id === id)?.label || id;
 
     return (
-        <div className="mx-auto max-w-4xl space-y-5 pb-12 animate-fade-in">
+        <div className="w-full space-y-5 pb-12 animate-fade-in">
             <BackLink to="/interview" onClick={markReturn}>Interview</BackLink>
 
             <header className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-600 to-violet-600 p-5 text-white shadow-lg shadow-indigo-200 animate-fade-in-up sm:p-6">
@@ -156,8 +156,8 @@ function SetView({ id }) {
     const load = useCallback(() => interviewApi.aptitudeSet(id).then((s) => { setSet(s); setError(null); }).catch((e) => { setError(e); setSet((cur) => cur || null); }), [id]);
     useEffect(() => { load(); }, [load]);
 
-    if (set === undefined) return <div className="mx-auto max-w-3xl pb-12"><Analyzing label="Getting your questions ready…" /></div>;
-    if (!set) return <div className="mx-auto max-w-3xl space-y-4 pb-12"><BackLink to="/interview/aptitude">Back</BackLink><ErrorBox error={error} onRetry={load} /></div>;
+    if (set === undefined) return <div className="w-full pb-12"><Analyzing label="Getting your questions ready…" /></div>;
+    if (!set) return <div className="w-full space-y-4 pb-12"><BackLink to="/interview/aptitude">Back</BackLink><ErrorBox error={error} onRetry={load} /></div>;
 
     const firstOpen = set.questions.findIndex((q) => q.chosen === null);
     const shown = view ?? (firstOpen === -1 ? 'result' : firstOpen);
@@ -184,42 +184,42 @@ function SetView({ id }) {
     const answered = q.chosen !== null;
     const last = shown === set.questions.length - 1;
     return (
-        <div className="mx-auto max-w-3xl space-y-4 pb-12 animate-fade-in">
+        <div className="flex min-h-[calc(100dvh-7rem)] w-full flex-col gap-4 pb-6 animate-fade-in">
             <BackLink to="/interview/aptitude">{set.title}</BackLink>
 
             <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-black text-slate-900" data-progress>Question {shown + 1} of {set.total}</p>
+                    <p className="text-base font-black text-slate-900" data-progress>Question {shown + 1} of {set.total}</p>
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100"><Check size={13} strokeWidth={3} /> {set.correct} right</span>
                 </div>
                 <div className="mt-2.5 flex gap-1" aria-hidden="true">
                     {set.questions.map((x, i) => (
-                        <span key={x.id} className={`h-1.5 flex-1 rounded-full ${x.chosen === null ? (i === shown ? 'bg-indigo-300' : 'bg-slate-200') : x.right ? 'bg-emerald-500' : 'bg-rose-400'}`} />
+                        <span key={x.id} className={`h-2 flex-1 rounded-full ${x.chosen === null ? (i === shown ? 'bg-indigo-300' : 'bg-slate-200') : x.right ? 'bg-emerald-500' : 'bg-rose-400'}`} />
                     ))}
                 </div>
             </div>
 
-            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm animate-fade-in-up sm:p-6" data-question={q.id}>
+            <section className="flex flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm animate-fade-in-up sm:p-8" data-question={q.id}>
                 <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">{q.topic}</span>
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${DIFF[q.difficulty] || DIFF.medium}`}>{q.difficulty}</span>
                     {q.faq && <OftenAsked />}
                 </div>
-                <h1 className="mt-2 text-lg font-bold leading-snug text-slate-900 sm:text-xl">{q.question}</h1>
+                <h1 className="mt-3 text-xl font-bold leading-snug text-slate-900 sm:text-3xl">{q.question}</h1>
 
-                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2" role="group" aria-label="Options">
+                <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2" role="group" aria-label="Options">
                     {q.options.map((o, i) => {
                         const isAnswer = answered && i === q.answer;
                         const isWrongPick = answered && i === q.chosen && !q.right;
                         return (
                             <button key={o} type="button" onClick={() => choose(q, i)} disabled={answered || busy} data-option={i}
                                 aria-label={`${LETTERS[i]}: ${o}${isAnswer ? ' (right answer)' : isWrongPick ? ' (your answer, wrong)' : ''}`}
-                                className={`flex min-h-12 items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-left text-sm font-semibold transition-all ${
+                                className={`flex min-h-14 items-center gap-3 rounded-2xl border px-4 py-3 text-left text-base font-semibold sm:text-lg transition-all ${
                                     isAnswer ? 'border-emerald-300 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-300'
                                         : isWrongPick ? 'border-rose-300 bg-rose-50 text-rose-900 ring-2 ring-rose-300'
                                             : answered ? 'border-slate-200 bg-white text-slate-400'
                                                 : 'border-slate-200 bg-white text-slate-800 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md'}`}>
-                                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-black ${isAnswer ? 'bg-emerald-500 text-white' : isWrongPick ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-black ${isAnswer ? 'bg-emerald-500 text-white' : isWrongPick ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
                                     {isAnswer ? <Check size={15} strokeWidth={3} /> : isWrongPick ? <X size={15} strokeWidth={3} /> : LETTERS[i]}
                                 </span>
                                 <span className="min-w-0 flex-1 break-words">{o}</span>
@@ -254,7 +254,7 @@ function Result({ set, onAgain, busy, error }) {
     const great = set.percent >= 80;
     const [head, line] = great ? ['Excellent!', 'Your brain is in great shape.'] : set.percent >= 50 ? ['Good effort!', 'Read the explanations below, then try another set.'] : ['Keep practising!', 'Every set makes you quicker. Read why below, then try again.'];
     return (
-        <div className="mx-auto max-w-3xl space-y-5 pb-12 animate-fade-in">
+        <div className="w-full space-y-5 pb-12 animate-fade-in">
             <BackLink to="/interview/aptitude">{set.title}</BackLink>
             <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm animate-fade-in-up sm:p-7" data-result>
                 {great && <Celebration />}

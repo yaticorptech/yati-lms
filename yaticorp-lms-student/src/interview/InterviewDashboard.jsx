@@ -10,13 +10,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
     Mic, Target, ArrowRight, Award, Lightbulb, X, BarChart3,
     MessageCircle, Code2, Heart, BookOpen, Users, Crown, Briefcase, ChevronDown, FolderOpen,
-    MessageSquare, Star, Gauge
+    MessageSquare, Star, Gauge, Lock, Brain
 } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
 import { AuthContext } from '../context/AuthContext';
 import { interviewApi, TYPE_META, fmtDate, ROLES, ROLE_OTHER as OTHER } from './api';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
-import { TopicsCard, PracticeCard, ImproveCard, AptitudeCard } from './DashboardCards';
+import { TopicsCard, PracticeCard, ImproveCard } from './DashboardCards';
 import { ScoreRing, CountUp } from './ui';
 import { TIPS } from './tips';
 import { useReturnScroll } from './scrollMemory';
@@ -70,6 +70,20 @@ const StatTile = ({ icon: Icon, value, label, tone }) => (
     </div>
 );
 
+/** Mock interviews open at PUC (Class 11); before that, this and the way to the IQ tests. */
+const MockLocked = ({ locked }) => (
+    <section className="flex w-full flex-col items-center rounded-3xl border border-slate-200 bg-white px-6 py-14 text-center shadow-sm animate-fade-in-up">
+        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500"><Lock size={30} /></span>
+        <h1 className="mt-4 text-2xl font-black text-slate-900">Mock Interview is locked</h1>
+        <p className="mt-2 max-w-md text-sm text-slate-600">
+            You have not reached PUC yet{locked.classNo ? <> (you are in Class {locked.classNo})</> : ''}. Mock interviews unlock when you reach PUC (Class 11).
+        </p>
+        <Link to="/interview/aptitude" className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-indigo-700">
+            <Brain size={17} /> Practise IQ tests meanwhile <ArrowRight size={16} />
+        </Link>
+    </section>
+);
+
 const CardHead = ({ icon: Icon, tint, title, children, action }) => (
     <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
@@ -109,7 +123,7 @@ export default function InterviewDashboard() {
     const [tip] = useState(() => TIPS[Math.floor(Date.now() / 86_400_000) % TIPS.length]);
 
     const load = useCallback(() => interviewApi.dashboard().then((d) => {
-        setData(d); setRole((r) => r || d.student.goal || ROLES[0]); setError(null);
+        setData(d); setRole((r) => r || d.student?.goal || ROLES[0]); setError(null);
         try { localStorage.setItem(cacheKey, JSON.stringify(d)); } catch { /* private mode */ }
     }).catch((e) => { setError(e); setData((cur) => cur || null); }), [cacheKey]);
     useEffect(() => { load(); }, [load]);
@@ -117,7 +131,7 @@ export default function InterviewDashboard() {
     const rootRef = useReturnScroll(Boolean(data));
 
     const roleOptions = useMemo(() => {
-        const goal = data?.student.goal?.trim();
+        const goal = data?.student?.goal?.trim();
         return goal && !ROLES.some((x) => x.toLowerCase() === goal.toLowerCase()) ? [goal, ...ROLES] : ROLES;
     }, [data]);
     const chosenRole = role === OTHER ? customRole.trim() : role;
@@ -126,8 +140,10 @@ export default function InterviewDashboard() {
     const start = (which = type) => { setStarting(true); navigate(`/interview/mock/new?type=${encodeURIComponent(which)}&role=${encodeURIComponent(chosenRole)}`); };
     const dismissTip = () => { setTipOpen(false); try { localStorage.setItem(TIP_DISMISS_KEY, new Date().toDateString()); } catch { /* private mode */ } };
 
-    if (data === undefined) return <div className="mx-auto max-w-6xl pb-12"><Analyzing label="Checking your interview readiness…" /></div>;
-    if (!data) return <div className="mx-auto max-w-6xl pb-12"><ErrorBox error={error} onRetry={load} /></div>;
+    if (data === undefined) return <div className="w-full pb-12"><Analyzing label="Checking your interview readiness…" /></div>;
+    if (!data) return <div className="w-full pb-12"><ErrorBox error={error} onRetry={load} /></div>;
+    // Below PUC the server sends a lock instead of the dashboard.
+    if (data.locked) return <MockLocked locked={data.locked} />;
     const r = data.readiness;
     const last = r.history[r.history.length - 1];
     // The readiness card's status, in the ring's own colours (ScoreRing), and
@@ -142,7 +158,7 @@ export default function InterviewDashboard() {
             : ['🏆', 'Keep going!', "You're doing great!"];
 
     return (
-        <div ref={rootRef} className="mx-auto max-w-6xl space-y-5 pb-12 animate-fade-in">
+        <div ref={rootRef} className="w-full space-y-5 pb-12 animate-fade-in">
             {/* ── Welcome ─────────────────────────────────────────── */}
             <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-100 via-indigo-50 to-sky-100 p-5 shadow-sm ring-1 ring-indigo-100 sm:p-7">
                 <span aria-hidden="true" className="pointer-events-none absolute -right-10 top-10 h-56 w-56 rounded-full bg-white/50 blur-3xl" />
@@ -299,9 +315,6 @@ export default function InterviewDashboard() {
                 </section>
             </div>
 
-            {/* ── Aptitude practice ───────────────────────────────── */}
-            {/* A dashboard cached before it had one shows none until the fresh one arrives. */}
-            {data.aptitude && <AptitudeCard aptitude={data.aptitude} />}
 
             {/* ── What you get ────────────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3 rounded-3xl bg-gradient-to-r from-violet-50 via-indigo-50 to-sky-50 px-5 py-3.5 ring-1 ring-indigo-100">
