@@ -8,7 +8,9 @@ export const HERO = {
     rapidfire: 'from-[#9a3412] via-[#ea580c] to-[#be123c]',
     codeclash: 'from-[#0f172a] via-[#065f46] to-[#059669]',
     brainsprint: 'from-[#155e75] via-[#0891b2] to-[#4f46e5]',
-    quizarena: 'from-[#2d2693] via-[#4f3fd8] to-[#a21caf]'
+    quizarena: 'from-[#2d2693] via-[#4f3fd8] to-[#a21caf]',
+    quiz: 'from-[#5b21b6] via-[#7c3aed] to-[#c026d3]',
+    hackathon: 'from-[#064e3b] via-[#059669] to-[#0d9488]'
 };
 
 const opt = (c, key, dflt) => Number(c.gameOptions?.[key]) || dflt;
@@ -19,6 +21,23 @@ const opt = (c, key, dflt) => Number(c.gameOptions?.[key]) || dflt;
  * (server: games/*.js).
  */
 export const gameRules = (c) => {
+    // A quiz or a hackathon (2026-10-23): no matches and no joining code.
+    if (c.game === 'quiz') {
+        return [
+            `${c.questionsCount ? `${c.questionsCount} questions, ` : ''}${c.minutes || 15} minutes from when you start. One go each.`,
+            'Start any time while the quiz is open; it closes by itself.',
+            'The highest score wins. Level on points? The quicker one wins.',
+            'The organizer\'s decision on any dispute is final.'
+        ];
+    }
+    if (c.game === 'hackathon') {
+        return [
+            'The problem is shown here when the hackathon starts.',
+            'Hand in your project before it is due. You can change it until then.',
+            'The organizer marks each project out of 100. The best marks win.',
+            'The organizer\'s decision on any dispute is final.'
+        ];
+    }
     const join = 'Join only after the organizer starts your match: your own 6-character joining code appears then, here and in My Games. Enter it to take your seat.';
     const walkover = 'Join within 10 minutes of the start, or your team loses the match by walkover.';
     const knockout = `Knockout, ${c.teamsPerMatch} teams a match: the winner goes through to the next round.`;

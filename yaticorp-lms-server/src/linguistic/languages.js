@@ -19,11 +19,23 @@ const CODES = ['kn', ...INDIA, ...WORLD];
 const RTL = ['ur', 'ar'];
 
 const loaded = {};
+/**
+ * A pack with the later topics' words and sentences in it (content/topics),
+ * and their translation lessons' tips: those of the first lesson that goes
+ * the same way.
+ */
+const withTopics = (pack, code) => {
+    const topics = require('./content/topics');
+    const add = topics.packFor(code);
+    const learn = { ...(pack.learn || {}) };
+    for (const [key, from] of Object.entries(topics.tipsFrom)) if (learn[from] && !learn[key]) learn[key] = learn[from];
+    return { ...pack, words: { ...(pack.words || {}), ...add.words }, items: { ...(pack.items || {}), ...add.items }, learn };
+};
 /** A language's pack, read once; null for Kannada or a pack not there. */
 const packOf = (code) => {
     if (code === 'kn' || !CODES.includes(code)) return null;
     if (!(code in loaded)) {
-        try { loaded[code] = require(`./content/langs/${code}`); } catch { return null; }
+        try { loaded[code] = withTopics(require(`./content/langs/${code}`), code); } catch { return null; }
     }
     return loaded[code];
 };
@@ -48,7 +60,7 @@ const languageOf = (progress) => (progress?.language && infoOf(progress.language
  * as it is. Each word carries the language's name, for the questions built
  * from it ("What does … mean in Japanese?").
  */
-const localize = (lesson, code) => {
+const localizeOwn = (lesson, code) => {
     if (!lesson) return lesson;
     const lang = infoOf(code);
     const pack = packOf(lang.code);
@@ -93,10 +105,64 @@ const localize = (lesson, code) => {
     return out;
 };
 
-/** Placement questions that quote Kannada, in the student's language. */
+/*
+ * The questions asked in the student's own language (asked 2026-10-24: a
+ * Kannada speaker learning English cannot read questions written in English):
+ * content/asks/<code>.js, Kannada so far. The question is theirs; the choices
+ * and the English to work on stay English; the English question is kept as
+ * `promptEn`.
+ */
+const ASKS = {};
+const asksOf = (code) => {
+    if (!(code in ASKS)) {
+        try { ASKS[code] = require(`./content/asks/${code}`); } catch { ASKS[code] = null; }
+        // The later topics' questions in Kannada (content/topics).
+        if (ASKS[code] && code === 'kn') {
+            const more = require('./content/topics').asks;
+            ASKS[code] = { ...ASKS[code], questions: { ...ASKS[code].questions, ...more.questions }, writing: { ...ASKS[code].writing, ...more.writing }, speaking: { ...ASKS[code].speaking, ...more.speaking } };
+        }
+    }
+    return ASKS[code];
+};
+const BLANK = /_{3,}/;
+const HEAD = /^[^:]{4,70}:\s/;
+/** One question in the student's language: its own words, a phrase asked in many lessons, or "choose the word" before an English sentence with a blank. */
+const ask = (asks, byId, q) => {
+    if (!q?.prompt) return q;
+    const own = byId?.[q.id] || asks.phrases?.[q.prompt]
+        || (asks.blankHead && q.type === 'mcq' && BLANK.test(q.prompt) && !HEAD.test(q.prompt) ? `${asks.blankHead}: ${q.prompt}` : null);
+    return own ? { ...q, prompt: own, promptEn: q.prompt } : q;
+};
+const withAsks = (lesson, code) => {
+    const asks = lesson && lesson.language === code ? asksOf(code) : null;
+    if (!asks || !lesson.seedKey) return lesson;
+    const key = lesson.seedKey;
+    const byId = asks.questions?.[key];
+    const out = { ...lesson };
+    if (lesson.practice) out.practice = lesson.practice.map((q) => ask(asks, byId, q));
+    if (lesson.quiz && lesson.module !== 'translation') out.quiz = lesson.quiz.map((q) => ask(asks, byId, q));
+    if (lesson.writing) {
+        out.writing = lesson.writing.map((t) => {
+            const own = asks.writing?.[key]?.[t.id] || asks.phrases?.[t.prompt];
+            return own ? { ...t, prompt: own, promptEn: t.prompt } : t;
+        });
+    }
+    const sp = asks.speaking?.[key];
+    if (sp && lesson.speaking) {
+        out.speaking = { ...lesson.speaking, prompt: sp.prompt || lesson.speaking.prompt, promptEn: lesson.speaking.prompt, ...(sp.checklist ? { checklist: sp.checklist, checklistEn: lesson.speaking.checklist } : {}) };
+    }
+    return out;
+};
+
+/** A lesson in the student's language, its questions asked in it where they are written (content/asks). */
+const localize = (lesson, code) => withAsks(localizeOwn(lesson, code), infoOf(code).code);
+
+/** Placement questions in the student's language: those that quote Kannada (the packs), and every one asked in Kannada (content/asks). */
 const localizePlacement = (q, code) => {
     const p = packOf(code)?.placement?.[q.id];
-    return p ? { ...q, prompt: p.prompt, explanation: p.explanation ?? q.explanation } : q;
+    const out = p ? { ...q, prompt: p.prompt, explanation: p.explanation ?? q.explanation } : q;
+    const own = asksOf(code)?.placement?.[q.id];
+    return own ? { ...out, prompt: own, promptEn: q.prompt } : out;
 };
 
 module.exports = { CODES, KANNADA, packOf, languages, infoOf, languageOf, localize, localizePlacement, skipsOf };

@@ -4,8 +4,9 @@
  * games), in six tabs:
  *
  *   Games          Chess and the brain games (Rapid Fire, Code Clash,
- *                  Brain Sprint), each leading to its competitions, and
- *                  Join with a code: a player's own joining code opens their match or Quiz Arena
+ *                  Brain Sprint), a Quiz and a Hackathon (added 2026-10-23),
+ *                  each leading to its competitions, and Join with a code:
+ *                  a player's own joining code opens their match or Quiz Arena
  *                  (playing with friends, and UNO, were removed on 2026-10-23;
  *                  Ludo and Carrom gave way to the brain games on 2026-10-24)
  *   Competitions   inter-college competitions, filtered by game: open,
@@ -23,7 +24,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Gamepad2, Trophy, UserCheck, BarChart3, History, Users, UsersRound, Crown, CalendarClock, Building2, Loader2,
-    ArrowRight, Award, Download, Medal, Clock, Gift, Search, ChevronRight, Link2, Ticket, Landmark, CalendarDays, Radio, ClipboardList, CheckCircle2, Lock, X
+    ArrowRight, Award, Download, Medal, Clock, Gift, Search, ChevronRight, Link2, Ticket, Landmark, CalendarDays, Radio, ClipboardList, CheckCircle2, Lock, X, Brain, Code2
 } from 'lucide-react';
 import useRowsShown from './useRowsShown';
 import { competitionsApi, GAMES, GAME_BUTTON, PHASE, ORDINAL, fmtDateTime, fmtDate, gameImage, gameIcon } from './api';
@@ -78,19 +79,27 @@ const Loading = ({ list = false }) => (list ? <ListSkeleton /> : <CardGridSkelet
  * "See competitions" button on every card. Cards in a row line up: the
  * description keeps two lines' room and the button sits at the bottom.
  * A picture that fails to load gives way to the game's colour and a badge.
+ * A quiz and a hackathon have no photo: `art`, their icon, is drawn instead.
  */
-const GameCard = ({ id, label, image, icon, meta, blurb, tone, onOpen }) => {
+const GameCard = ({ id, label, image, icon, art: Art = null, meta, blurb, tone, onOpen }) => {
     const [broken, setBroken] = useState(false);
     return (
         <article data-game={id} className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_2px_10px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(59,49,196,0.14)] motion-reduce:hover:translate-y-0">
             <div className={`relative w-full overflow-hidden bg-gradient-to-br ${tone}`}>
-                {broken
+                {Art ? (
+                    <span aria-hidden="true" className="relative block pb-[37%]">
+                        <Art className="absolute left-[8%] top-1/2 h-[60%] w-auto -translate-y-1/2 text-white/90 drop-shadow-lg" strokeWidth={1.6} />
+                        <Art className="absolute -bottom-6 right-[18%] h-[90%] w-auto rotate-12 text-white/10" strokeWidth={1.2} />
+                    </span>
+                ) : broken
                     ? <span aria-hidden="true" className="block pb-[37%]" />
                     : <img src={image} alt="" loading="lazy" onError={() => setBroken(true)} className="block h-auto w-full transition-transform duration-500 group-hover:scale-[1.03] motion-reduce:group-hover:scale-100" />}
             </div>
             <div className="flex flex-1 flex-col p-3.5">
                 <div className="flex items-center gap-3">
-                    <img src={icon} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover shadow-sm" />
+                    {Art
+                        ? <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm ${tone}`}><Art size={20} /></span>
+                        : <img src={icon} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover shadow-sm" />}
                     <div className="min-w-0">
                         <h3 className="text-base font-black leading-tight text-[#1e1b4b]">{label}</h3>
                         <p className="truncate text-xs font-semibold text-indigo-600">{meta}</p>
@@ -169,7 +178,7 @@ const GamesTab = () => {
                 painted where the real pill sits, looks as it always has. */}
             <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {games.map(([id, g]) => (
-                    <GameCard key={id} id={id} label={g.label} image={gameImage(id)} icon={gameIcon(id)} tone={g.tone}
+                    <GameCard key={id} id={id} label={g.label} art={ART[g.art] || null} image={gameImage(id)} icon={gameIcon(id)} tone={g.tone}
                         players={g.players.replace('players', 'Players')} meta={g.format ? `${g.players} · ${g.format}` : g.players} blurb={g.blurb}
                         onOpen={() => competitionsOf(id)} />
                 ))}
@@ -232,6 +241,11 @@ const GamesTab = () => {
 const GOLD = { ink: '#0f0d2e', gold: '#b9a8ff', icon: '#3b32c4', chip: '#ebe8ff', chipText: '#3b2fc0', bar: '#4f46e5', button: 'bg-gradient-to-r from-[#3326b8] to-[#4838da] hover:from-[#2c20a3] hover:to-[#3f30c8]' };
 const cardImage = (game) => `/competitions/card-${game}.jpg?v=2`; // v2: the chess photo without its painted badge
 const chipIcon = (game) => `/competitions/chip-${game}.png`;
+/** A game's small badge: its picture, or for a quiz and a hackathon (no picture) its icon. */
+const ChipIcon = ({ game, className }) => {
+    const Art = ART[game];
+    return Art ? <Art className={className} aria-hidden="true" /> : <img src={chipIcon(game)} alt="" className={`${className} object-contain`} />;
+};
 
 /**
  * A competition as a card: its picture with its status and its game's badge,
@@ -244,7 +258,9 @@ const GoldCard = ({ game, gameLabel, bannerUrl, status, closed = false, live = f
         <article {...linkData} className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_10px_30px_rgba(59,47,192,0.10)] ring-1 ring-[#e4e1fb] transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(59,47,192,0.18)] motion-reduce:hover:translate-y-0">
             <div className="relative w-full overflow-hidden bg-[#16123f]">
                 <span aria-hidden="true" className="block pb-[36%]" />
-                {!broken && <img src={bannerUrl || cardImage(game)} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" />}
+                {!bannerUrl && ART[game] ? (
+                    <span aria-hidden="true" className={`absolute inset-0 flex items-center bg-gradient-to-br pl-[8%] ${GAMES[game].tone}`}>{(() => { const Art = ART[game]; return <Art className="h-[60%] w-auto text-white/90 drop-shadow-lg" strokeWidth={1.6} />; })()}</span>
+                ) : !broken && <img src={bannerUrl || cardImage(game)} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" />}
                 {status !== PHASE.completed.label && status !== 'Completed' && (
                     <span className={`absolute left-3 top-3 inline-flex min-h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold sm:min-h-8 sm:px-3.5 sm:text-sm text-white shadow-md ${live ? 'bg-[#3b2fc0]' : closed ? 'bg-slate-700/90' : 'bg-[#3b2fc0]'}`} data-phase>
                         {live ? <Radio size={17} aria-hidden="true" /> : <CalendarDays size={17} aria-hidden="true" />} {status}
@@ -253,7 +269,7 @@ const GoldCard = ({ game, gameLabel, bannerUrl, status, closed = false, live = f
             </div>
             <div className="flex flex-1 flex-col p-4 sm:p-5">
                 <span className="inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold" style={{ background: GOLD.chip, color: GOLD.chipText }}>
-                    <img src={chipIcon(game)} alt="" className="h-4 w-4 object-contain" /> {gameLabel}
+                    <ChipIcon game={game} className="h-4 w-4" /> {gameLabel}
                 </span>
                 <h3 className="mt-2 text-lg font-black leading-snug sm:text-xl" style={{ color: GOLD.ink }}>{name}</h3>
                 <p className="truncate text-sm text-slate-500 sm:text-[15px]">Organized by {organizedBy}</p>
@@ -281,15 +297,18 @@ const timeOnly = (d) => (d ? new Date(d).toLocaleTimeString('en-IN', { hour: 'nu
 export const CompetitionCard = ({ c }) => (
     <GoldCard game={c.game} gameLabel={c.gameLabel} bannerUrl={c.bannerUrl} status={c.status === 'cancelled' ? 'Closed' : c.phase === 'upcoming' ? 'Registration closed' : PHASE[c.phase]?.label || c.phase} closed={c.status === 'cancelled' || c.phase === 'expired'} live={c.phase === 'live'}
         name={c.name} organizedBy={c.organizedBy} to={`/competitions/${c.id}`} linkData={{ 'data-competition': c.id }}
-        stats={[
-            [Landmark, c.teamsCount, c.hostOrganizationId ? (c.teamsCount === 1 ? 'Team' : 'Teams') : c.teamsCount === 1 ? 'College' : 'Colleges'],
-            [Users, c.playersCount || 0, c.playersCount === 1 ? 'Player' : 'Players'],
-            [CalendarDays, dateOnly(c.startsAt), timeOnly(c.startsAt)]
-        ]}
+        stats={c.entry === 'individual'
+            // Students on their own (a quiz or a hackathon): how many have signed up, when it opens and closes.
+            ? [[Users, c.teamsCount, c.teamsCount === 1 ? 'Student' : 'Students'], [CalendarDays, dateOnly(c.startsAt), c.kind === 'quiz' ? 'Opens' : 'Starts'], [Clock, dateOnly(c.endsAt), c.kind === 'quiz' ? 'Closes' : 'Due']]
+            : [
+                [Landmark, c.teamsCount, c.hostOrganizationId ? (c.teamsCount === 1 ? 'Team' : 'Teams') : c.teamsCount === 1 ? 'College' : 'Colleges'],
+                [Users, c.playersCount || 0, c.playersCount === 1 ? 'Player' : 'Players'],
+                c.endsAt ? [Clock, dateOnly(c.endsAt), c.kind === 'quiz' ? 'Closes' : 'Due'] : [CalendarDays, dateOnly(c.startsAt), timeOnly(c.startsAt)]
+            ]}
         extra={(c.myTeam || ['registration-open', 'closing-soon', 'registration-soon'].includes(c.phase)) && (
             <p className="mt-3 space-x-3 text-[13px] text-slate-600">
                 {['registration-open', 'closing-soon', 'registration-soon'].includes(c.phase) && <span>Register by <b className="font-semibold">{fmtDateTime(c.registrationDeadline)}</b></span>}
-                {c.myTeam && <span className="font-bold" style={{ color: GOLD.chipText }}>Your team: {c.myTeam.teamName}</span>}
+                {c.myTeam && <span className="font-bold" style={{ color: GOLD.chipText }}>{c.myTeam.solo ? 'You are signed up' : `Your team: ${c.myTeam.teamName}`}</span>}
             </p>
         )} />
 );
@@ -372,7 +391,7 @@ const CompetitionsTab = () => {
                 })}
                 {game !== 'all' && (
                     <button type="button" onClick={clearGame} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[#ebe8ff] px-3.5 text-sm font-semibold text-[#3b2fc0] hover:bg-[#ddd8ff]" aria-label="Show every game">
-                        <img src={chipIcon(game)} alt="" className="h-5 w-5 object-contain" /> {GAMES[game]?.label || 'Quiz Arena'} <X size={14} aria-hidden="true" />
+                        <ChipIcon game={game} className="h-5 w-5" /> {GAMES[game]?.label || 'Quiz Arena'} <X size={14} aria-hidden="true" />
                     </button>
                 )}
             </div>
@@ -641,6 +660,9 @@ const HistoryTab = () => {
 };
 
 /* ── The page ─────────────────────────────────────────────────────────── */
+
+/** A quiz's or hackathon's picture, drawn (they have no photo): its colours and its sign. */
+const ART = { quiz: Brain, hackathon: Code2 };
 
 const HERO_BG = '/illustrations/games-hero-bg.png';
 const HERO_ART = '/illustrations/games-hero-art.png';

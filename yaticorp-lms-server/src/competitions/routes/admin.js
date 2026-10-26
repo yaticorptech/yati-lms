@@ -27,6 +27,10 @@
  *   POST   /:id/matches/:matchId/start     open the match's game now
  *   POST   /:id/matches/:matchId/result    decide it { winnerTeamId, order?, note? }
  *   POST   /:id/award                      issue the prizes again (safe to repeat)
+ *
+ *   A quiz or a hackathon (services/challengeService.js) has no draw or matches:
+ *   POST   /:id/finish                     decide it now: a quiz closes; a hackathon publishes its results
+ *   PUT    /:id/submissions/:subId         a hackathon project's marks { score (0–100), feedback }
  */
 const express = require('express');
 const mongoose = require('mongoose');
@@ -38,6 +42,7 @@ const views = require('../services/views');
 const bracket = require('../services/bracketService');
 const { gameOptions } = require('../services/gameService');
 const { upload: imageUpload } = require('../../middleware/uploadMiddleware');
+const challenge = require('../services/challengeService');
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((err) => {
     if (err?.status) return res.status(err.status).json({ message: err.message });
@@ -51,8 +56,9 @@ const num = (v, lo, hi, dflt) => (v == null || v === '' || Number.isNaN(Number(v
 const fromBody = (body, current = null) => {
     const b = body || {};
     const game = String(b.game ?? current?.game ?? '');
-    // UNO is no longer offered (2026-10-23); one made before then can still be edited.
-    if (!require('../games').IDS.includes(game) && !(current && game === current.game)) throw fail(400, 'Choose the game: Chess, Rapid Fire, Code Clash or Brain Sprint.');
+    // UNO is no longer offered (2026-10-23), Ludo and Carrom since the brain games (2026-10-24); one made before then can still be edited.
+    const quizOrHackathon = challenge.CHALLENGES.includes(game);
+    if (!require('../games').IDS.includes(game) && !quizOrHackathon && !(current && game === current.game)) throw fail(400, 'Choose the game: Chess, Rapid Fire, Code Clash, Brain Sprint, a Quiz or a Hackathon.');
     const name = String(b.name ?? current?.name ?? '').trim();
     if (!name) throw fail(400, 'Give the competition a name.');
     const startsAt = new Date(b.startsAt ?? current?.startsAt);
@@ -67,11 +73,14 @@ const fromBody = (body, current = null) => {
     const bannerUrl = String(b.bannerUrl ?? current?.bannerUrl ?? '').trim();
     if (bannerUrl && !/^https?:\/\//.test(bannerUrl)) throw fail(400, 'The banner must be an uploaded image.');
 
+    // A quiz or a hackathon: when it closes, who enters, and its questions or problem.
+    const extra = quizOrHackathon ? challenge.fieldsFrom(game, b, current, startsAt) : { entry: 'team', endsAt: null };
+    const solo = extra.entry === 'individual';
     // What each game allows: two teams a match for chess (and carrom), up to
     // four for the brain games (and ludo); doubles only in carrom.
-    const teamsPerMatch = ['chess', 'carrom'].includes(game) ? 2 : num(b.teamsPerMatch ?? current?.teamsPerMatch, 2, 4, 4);
+    const teamsPerMatch = ['chess', 'carrom'].includes(game) || quizOrHackathon ? 2 : num(b.teamsPerMatch ?? current?.teamsPerMatch, 2, 4, 4);
     const playersPerSide = game === 'carrom' ? num(b.playersPerSide ?? current?.playersPerSide, 1, 2, 1) : 1;
-    const playersPerTeam = Math.max(playersPerSide, num(b.playersPerTeam ?? current?.playersPerTeam, 1, 10, playersPerSide));
+    const playersPerTeam = solo ? 1 : Math.max(playersPerSide, num(b.playersPerTeam ?? current?.playersPerTeam, 1, 10, playersPerSide));
     const prizes = (Array.isArray(b.prizes) ? b.prizes : current?.prizes || [])
         .filter((p) => [1, 2, 3].includes(Number(p?.place)))
         .map((p) => ({ place: Number(p.place), title: String(p.title || '').slice(0, 120), xp: num(p.xp, 0, 100000, 0), rewardPoints: num(p.rewardPoints, 0, 100000, 0), description: String(p.description || '').slice(0, 300) }));
@@ -84,7 +93,9 @@ const fromBody = (body, current = null) => {
         registrationOpensAt,
         registrationDeadline,
         bannerUrl: bannerUrl.slice(0, 600),
-        maxTeams: num(b.maxTeams ?? current?.maxTeams, 2, 256, 16),
+        // Students on their own: up to 5,000 may sign up.
+        maxTeams: solo ? num(b.maxTeams ?? current?.maxTeams, 2, 5000, 500) : num(b.maxTeams ?? current?.maxTeams, 2, 256, 16),
+        ...extra,
         playersPerTeam,
         playersPerSide,
         teamsPerMatch,
@@ -127,6 +138,7 @@ const manage = (scope = 'platform') => {
     };
 
     router.get('/', wrap(async (req, res) => {
+        await challenge.advanceDue();
         const comps = await Competition.find(filterFor(req)).sort({ createdAt: -1 }).lean();
         const [teams, matches] = await Promise.all([
             Team.find({ competitionId: { $in: comps.map((c) => c._id) } }).select('competitionId status teamName collegeName players').lean(),
@@ -168,8 +180,9 @@ const manage = (scope = 'platform') => {
     }));
 
     router.get('/:id', wrap(async (req, res) => {
+        await challenge.advanceDue();
         const c = await find(req.params.id, req);
-        if (c.status === 'live') await bracket.openDue(c._id);
+        if (c.status === 'live' && !challenge.isChallenge(c)) await bracket.openDue(c._id);
         res.json(await views.detail(c._id, { admin: true }));
     }));
 
@@ -177,6 +190,12 @@ const manage = (scope = 'platform') => {
         const c = await find(req.params.id, req);
         if (['completed', 'cancelled'].includes(c.status)) throw fail(409, 'A finished or cancelled competition cannot be edited.');
         const fields = fromBody(req.body, c.toObject());
+        // Once teams are in, who enters stays; once anyone has started the quiz, its questions stay.
+        if (fields.entry !== (c.entry || 'team') && await Team.exists({ competitionId: c._id, status: { $ne: 'withdrawn' } })) throw fail(409, 'Entries have come in, so who enters can no longer change.');
+        if (c.game === 'quiz' && fields.game === 'quiz' && await require('../models/QuizAttempt').exists({ competitionId: c._id })) {
+            const plain = (qs) => JSON.stringify((qs || []).map((q) => [q.prompt, q.options, q.answer, q.points || 1]));
+            if (plain(fields.quiz.questions) !== plain(c.quiz?.questions)) throw fail(409, 'Players have started the quiz, so its questions can no longer change.');
+        }
         const drawn = await Match.exists({ competitionId: c._id });
         if (drawn) {
             for (const k of ['game', 'teamsPerMatch', 'playersPerSide', 'playersPerTeam']) {
@@ -247,7 +266,14 @@ const manage = (scope = 'platform') => {
         const { tellTeams } = require('../services/notices');
         if (status === 'approved') {
             const fee = require('../services/entryFee').due(c);
-            await tellTeams([team], c, fee ? `Pay ₹${fee} to enroll` : 'Your team is in', `${team.teamName} is approved for ${c.name}.${fee ? ` Pay the ₹${fee} entry fee online in Games & Competitions to enroll — you can join only once it is paid.` : ''} Your matches will appear in Games & Competitions.`);
+            // With an entry fee, the way to pay; without, when it opens (a quiz or a hackathon) or that matches follow.
+            if (fee) await tellTeams([team], c, fee ? `Pay ₹${fee} to enroll` : 'Your team is in', `${team.teamName} is approved for ${c.name}.${fee ? ` Pay the ₹${fee} entry fee online in Games & Competitions to enroll — you can join only once it is paid.` : ''} Your matches will appear in Games & Competitions.`);
+            else {
+                const { when } = require('../services/notices');
+                await tellTeams([team], c, 'Your team is in', challenge.isChallenge(c)
+                    ? `${team.teamName} is approved for ${c.name}. It opens on ${when(c.startsAt)} in Competitions.`
+                    : `${team.teamName} is approved for ${c.name}. Your matches will appear in Competitions.`);
+            }
         } else {
             // A team turned down used to hear nothing at all.
             await tellTeams([team], c, 'Your team was not accepted', `${team.teamName} was not accepted for ${c.name}.${team.note ? ` Note from the organizer: ${team.note}` : ''}`);
@@ -260,6 +286,7 @@ const manage = (scope = 'platform') => {
     const ownCompetition = async (req, { changing = true } = {}) => {
         const c = await find(req.params.id, req);
         if (!c.hostOrganizationId) throw fail(400, 'Colleges register their own teams for this competition.');
+        if (c.entry === 'individual') throw fail(400, 'Students sign up for this competition themselves.');
         if (changing) {
             if (['completed', 'cancelled'].includes(c.status)) throw fail(409, 'A finished or cancelled competition cannot change.');
             if (await Match.exists({ competitionId: c._id })) throw fail(409, 'The matches are drawn; teams can no longer change.');
@@ -350,6 +377,7 @@ const manage = (scope = 'platform') => {
 
     router.post('/:id/draw', wrap(async (req, res) => {
         const c = await find(req.params.id, req);
+        if (challenge.isChallenge(c)) throw fail(409, 'A quiz or a hackathon has no matches to draw: it opens by itself when it starts.');
         if (!['registration', 'closed'].includes(c.status)) throw fail(409, 'Close registration first, then draw the matches.');
         if (c.status === 'registration') { c.status = 'closed'; await c.save(); }
         await bracket.drawBracket(c, { firstMatchAt: req.body?.firstMatchAt || null, gapMinutes: req.body?.gapMinutes || 0 });
@@ -420,6 +448,21 @@ const manage = (scope = 'platform') => {
         if (!['scheduled', 'live'].includes(m.status)) throw fail(409, 'This match has already been decided.');
         await bracket.adminResult(m, { winnerTeamId: req.body?.winnerTeamId, order: req.body?.order || [], note: String(req.body?.note || '').slice(0, 300) });
         res.json(await views.detail(c._id, { admin: true }));
+    }));
+
+    /* ── A quiz or a hackathon ── */
+
+    router.post('/:id/finish', wrap(async (req, res) => {
+        await challenge.advanceDue();
+        const c = await find(req.params.id, req);
+        await challenge.finish(c.toObject());
+        res.json(await views.detail(c._id, { admin: true }));
+    }));
+
+    router.put('/:id/submissions/:subId', wrap(async (req, res) => {
+        const c = await find(req.params.id, req);
+        const project = await challenge.judge(c.toObject(), req.params.subId, req.body || {});
+        res.json({ project });
     }));
 
     router.post('/:id/award', wrap(async (req, res) => {

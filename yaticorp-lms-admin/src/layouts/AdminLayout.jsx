@@ -206,7 +206,7 @@ const AdminLayout = () => {
                     <Link to="/announcements" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/announcements') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Megaphone size={20} /> <span className="font-medium">Announcements</span>
                     </Link>
-                    {/* Inter-college competitions (Chess and the brain games). The super admin runs them. */}
+                    {/* Inter-college competitions (Chess, the brain games, Quiz and Hackathon). The super admin runs them. */}
                     {superAdmin && (
                     <Link to="/competitions" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/competitions') || location.pathname.startsWith('/competitions/') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Trophy size={20} /> <span className="font-medium">Competitions</span>

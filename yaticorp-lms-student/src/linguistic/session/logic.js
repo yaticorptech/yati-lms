@@ -10,7 +10,7 @@
  *          pairs                                         match the pairs; done when all are matched
  *          question | translate | write | speak          answer, then CHECK
  */
-import { PRAISE } from '../meta';
+import { tr, line, praiseIn } from '../say';
 
 const PAIR_ROUND = 4;
 
@@ -50,6 +50,12 @@ export const buildLesson = (lesson) => {
     // The language learnt: English, or a course's (its words are read aloud in it).
     const target = lesson.target || 'en';
     const targetLocale = lesson.targetLocale || 'en-IN';
+    // Speak on a topic (Advanced, talks.js on the server): what to cover and useful phrases, then the talk, corrected.
+    if (lesson.talk) {
+        add({ part: 'learn', kind: 'notes', learn: { intro: learn.intro, points: lesson.talk.points, examples: lesson.talk.phrases }, title: lesson.title });
+        add({ part: 'quiz', kind: 'talk', talk: lesson.talk });
+        return steps.map((st) => ({ language, target, targetLocale, ...st }));
+    }
     if (lesson.languageFallback) {
         add({ part: 'learn', kind: 'intro', mascot: 'thinking', title: 'In Kannada for now',
             text: `This lesson has no ${lesson.languageFallback} version yet, so its meanings and translations are in Kannada.` });
@@ -62,6 +68,12 @@ export const buildLesson = (lesson) => {
     if (m === 'reading' && learn.passage) add({ part: 'learn', kind: 'passage', passage: learn.passage });
     if (m === 'speaking' && learn.dialogue) add({ part: 'learn', kind: 'dialogue', dialogue: learn.dialogue, audio: learn.audio, phrases: learn.phrases || [] });
 
+    // A warm-up on the unit's words (asked 2026-10-24: every lesson mixes its tasks, the Duolingo way):
+    // matching pairs, each word heard as it is tapped, before the lesson's own practice.
+    if (m !== 'vocabulary' && lesson.warmup?.length >= 2) {
+        add({ part: 'practice', kind: 'pairs', words: lesson.warmup.map((w) => ({ ...w, pos: '', example: '' })), language, warmup: true });
+    }
+
     // Practise, with the answer and why after each.
     if (m === 'vocabulary' && lesson.words?.length) {
         pairRounds(lesson.words).forEach((round) => add({ part: 'practice', kind: 'pairs', words: round, language }));
@@ -69,7 +81,7 @@ export const buildLesson = (lesson) => {
         if (!lesson.course) spellPicks(lesson.words).forEach((i) => {
             const w = lesson.words[i];
             add({ part: 'practice', kind: 'question', section: 'spell', retry: true, word: w, language,
-                q: { id: `spell:${i}`, type: 'spelling', prompt: 'Type this word in English', hint: `${w.word[0]}${'_'.repeat(Math.max(0, w.word.length - 1))} (${w.word.length} letters)`, kannada: w.kannada, audio: w.audio } });
+                q: { id: `spell:${i}`, type: 'spelling', prompt: tr(language)('Type this word in English'), hint: `${w.word[0]}${'_'.repeat(Math.max(0, w.word.length - 1))} (${line(language, 'lettersCount', w.word.length)})`, kannada: w.kannada, audio: w.audio } });
         });
     }
     if (m === 'grammar') (lesson.practice || []).forEach((q) => add({ part: 'practice', kind: 'question', section: 'practice', retry: true, q }));
@@ -81,8 +93,8 @@ export const buildLesson = (lesson) => {
     // The quiz: it counts, one try per question.
     const quiz = lesson.quiz || [];
     if (quiz.length) {
-        add({ part: 'quiz', kind: 'intro', mascot: 'flex-determined', title: 'Quiz time!', quiz: true,
-            text: `${quiz.length} questions. Get ${lesson.passingScore}% or more to finish the lesson.` });
+        add({ part: 'quiz', kind: 'intro', mascot: 'flex-determined', title: tr(language)('Quiz time!'), quiz: true,
+            text: line(language, 'quizIntro', quiz.length, lesson.passingScore) });
         const context = m === 'reading' && learn.passage ? { passage: learn.passage } : m === 'speaking' && learn.dialogue ? { dialogue: learn.dialogue } : null;
         quiz.forEach((q) => (q.type === 'translation'
             ? add({ part: 'quiz', kind: 'translate', section: 'quiz', collect: q.id, item: q, direction: q.direction || lesson.direction, language })
@@ -124,28 +136,39 @@ export const isInfo = (step) => ['notes', 'words', 'passage', 'dialogue', 'intro
 
 /**
  * The sheet under a checked answer: its tone (right, wrong, or info for work
- * that goes to a teacher or is self-checked), the title, and what to show.
+ * that is checked here or self-checked), the title, and what to show.
  */
 export const sheetOf = (step, r, n = 0) => {
+    // In the student's language (say.js): Kannada for a Kannada speaker.
+    const T = tr(step.language);
+    const PRAISE = praiseIn(step.language);
     const praise = PRAISE[n % PRAISE.length];
     if (step.kind === 'pairs') return { tone: 'right', title: praise };
+    if (step.kind === 'talk') {
+        const sum = r.short ? line(step.language, 'talkShort', r.words, r.minWords) : line(step.language, 'talkResult', r.clean, r.total, r.words);
+        return { tone: r.passed ? 'right' : 'wrong', title: T(r.passed ? 'Well spoken!' : r.short ? 'Say a little more' : 'Fix these, then speak again'), text: sum, good: r.good, tips: r.tips, model: r.sample, modelLabel: T('Sample answer') };
+    }
     if (step.kind === 'speak') {
-        return { tone: 'info', title: r.total ? `Saved: ${r.ticked} of ${r.total} ticked` : 'Saved', text: r.total && r.ticked === r.total ? 'A full self-check. Well spoken!' : 'Listen to your recording again, and try once more if you like.', model: r.sample || '', modelLabel: 'Sample answer' };
+        return { tone: 'info', title: r.total ? line(step.language, 'ticked', r.ticked, r.total) : T('Saved'), text: r.total && r.ticked === r.total ? T('A full self-check. Well spoken!') : T('Listen to your recording again, and try once more if you like.'), model: r.sample || '', modelLabel: T('Sample answer') };
     }
     if (step.kind === 'write') {
         const tips = (r.findings || []).filter((f) => f.kind === 'tip').map((f) => f.text);
         const good = (r.findings || []).filter((f) => f.kind === 'good').map((f) => f.text);
-        if (r.review) return { tone: 'info', title: 'Sent to your teacher', text: 'Read the tips and compare with the model answer while you wait.', tips, good, model: r.model, modelLabel: 'Model answer' };
-        if (step.task.type === 'jumbled') return r.correct ? { tone: 'right', title: praise } : { tone: 'wrong', title: 'Correct solution:', answer: r.model };
-        return r.correct ? { tone: 'right', title: 'Good sentence!', good, model: r.model, modelLabel: 'Another way to say it' } : { tone: 'wrong', title: 'Almost — fix these:', tips, model: r.model, modelLabel: 'Model answer' };
+        // A paragraph, email or letter (2026-10-26): checked here, its grammar corrected above — not sent to a teacher.
+        if (r.checked) {
+            const clean = r.total > 0 && r.clean === r.total;
+            return { tone: clean && !tips.length ? 'right' : 'info', title: T(clean ? 'No grammar mistakes found' : 'Fix the marked words'), text: r.total ? line(step.language, 'writeResult', r.clean, r.total) : '', tips, good };
+        }
+        if (step.task.type === 'jumbled') return r.correct ? { tone: 'right', title: praise } : { tone: 'wrong', title: T('Correct solution:'), answer: r.model };
+        return r.correct ? { tone: 'right', title: T('Good sentence!'), good, model: r.model, modelLabel: T('Another way to say it') } : { tone: 'wrong', title: T('Almost — fix these:'), tips, model: r.model, modelLabel: T('Model answer') };
     }
     if (step.kind === 'translate') {
-        if (r.verdict === 'review') return { tone: 'info', title: 'Sent to your teacher', text: 'Compare your translation with the model below.', model: r.answer, modelLabel: 'Model translation' };
-        if (r.correct) return r.verdict === 'close' ? { tone: 'right', title: 'Correct — mind the small differences', answer: r.answer, diff: r.diff, explanation: r.explanation } : { tone: 'right', title: praise, explanation: r.explanation, also: r.accepted?.length ? r.answer : '' };
-        return { tone: 'wrong', title: r.verdict === 'almost' ? 'Almost there! Correct solution:' : 'Correct solution:', answer: r.answer, diff: r.diff, explanation: r.explanation };
+        if (r.verdict === 'review') return { tone: 'info', title: T('Checked'), text: [r.total ? line(step.language, 'writeResult', r.clean, r.total) : '', T('Compare your translation with the model below.')].filter(Boolean).join(' · '), model: r.answer, modelLabel: T('Model translation') };
+        if (r.correct) return r.verdict === 'close' ? { tone: 'right', title: T('Correct — mind the small differences'), answer: r.answer, diff: r.diff, explanation: r.explanation } : { tone: 'right', title: praise, explanation: r.explanation, also: r.accepted?.length ? r.answer : '' };
+        return { tone: 'wrong', title: r.verdict === 'almost' ? T('Almost there! Correct solution:') : T('Correct solution:'), answer: r.answer, diff: r.diff, explanation: r.explanation };
     }
     if (r.correct) return { tone: 'right', title: praise, explanation: r.explanation };
-    return { tone: 'wrong', title: r.near ? 'Nearly — check the spelling:' : 'Correct solution:', answer: r.answer, explanation: r.explanation };
+    return { tone: 'wrong', title: r.near ? T('Nearly — check the spelling:') : T('Correct solution:'), answer: r.answer, explanation: r.explanation };
 };
 
 /** "1:05" from milliseconds. */

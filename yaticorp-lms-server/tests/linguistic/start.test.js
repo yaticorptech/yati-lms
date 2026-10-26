@@ -24,6 +24,22 @@ describe('starting out', () => {
         assert.deepEqual([d.started, d.placement, d.goalSet, d.dailyGoal], [false, null, false, 30]);
     });
 
+    test('the timeline: every lesson left, at the lessons a day the daily goal comes to; each level\'s day; the days at every goal', async () => {
+        const d = (await api('GET', '/')).body;
+        const t = d.timeline;
+        const total = d.levels.reduce((n, l) => n + l.total, 0);
+        assert.equal(t.remaining, total, 'nothing done yet: every lesson');
+        assert.equal(t.lessonsPerDay, t.goal / t.xpPerLesson);
+        assert.equal(t.days, Math.ceil(total / t.lessonsPerDay));
+        assert.deepEqual(t.levels.map((l) => l.level), ['beginner', 'intermediate', 'advanced']);
+        assert.equal(t.levels[2].days, t.days, 'the last level finishes on the last day');
+        assert.ok(t.levels[0].days < t.levels[1].days && t.levels[1].days < t.levels[2].days, 'one level after another');
+        assert.equal(t.finishOn, new Date(Date.now() + t.days * 86400e3).toISOString().slice(0, 10));
+        assert.deepEqual(t.goals.map((g) => g.xp), [10, 20, 30, 50]);
+        assert.ok(t.goals[3].days < t.goals[0].days, 'a bigger goal, fewer days');
+        assert.equal(t.pace, null, 'no pace before any lesson');
+    });
+
     test('choosing a level: it opens that level as the test would, but is not the test', async () => {
         assert.equal((await api('POST', '/level', { level: 'expert' })).status, 400);
         const r = await api('POST', '/level', { level: 'intermediate' });
@@ -34,12 +50,32 @@ describe('starting out', () => {
         assert.equal(path.levels.find((l) => l.level === 'intermediate').open, true, 'Intermediate is open');
         assert.equal(path.levels.find((l) => l.level === 'advanced').open, false);
         assert.equal(d.achievements.find((a) => a.key === 'first_step').earned, false, '"Take the placement test" is for the test');
+        assert.deepEqual([d.timeline.levels[0].skipped, d.timeline.levels[0].left], [true, 0], 'a level placed past is not owed');
+        assert.equal(d.timeline.remaining, d.levels[1].total + d.levels[2].total);
     });
 
     test('why they are learning, and how much English they know (0–4)', async () => {
         assert.equal((await api('POST', '/about', { reason: 'school', know: 9 })).status, 400);
         assert.equal((await api('POST', '/about', { reason: 'nope', know: 1 })).status, 400);
-        assert.deepEqual((await api('POST', '/about', { reason: 'career', know: 2 })).body, { reason: 'career', selfRating: 2 });
+        assert.deepEqual((await api('POST', '/about', { reason: 'career', know: 2 })).body, { reason: 'career', selfRating: 2, focus: [], topics: [], studyTime: null, aim: null, style: null, ageBand: null, practiceMinutes: null });
+    });
+
+    test('what they want to get better at, the topics they like, when they like to learn (2026-10-26) — and the roadmap says them back', async () => {
+        assert.equal((await api('POST', '/about', { reason: 'career', know: 2, focus: [] })).status, 400, 'at least one skill');
+        assert.equal((await api('POST', '/about', { reason: 'career', know: 2, focus: ['dancing'] })).status, 400);
+        assert.equal((await api('POST', '/about', { reason: 'career', know: 2, studyTime: 'noon' })).status, 400);
+        const r = await api('POST', '/about', { reason: 'career', know: 2, focus: ['speaking', 'vocabulary', 'speaking'], topics: ['work', 'travel'], studyTime: 'evening' });
+        assert.deepEqual(r.body, { reason: 'career', selfRating: 2, focus: ['speaking', 'vocabulary'], topics: ['work', 'travel'], studyTime: 'evening', aim: null, style: null, ageBand: null, practiceMinutes: null });
+        const kept = (await api('POST', '/about', { reason: 'school', know: 1 })).body;
+        assert.deepEqual([kept.focus, kept.studyTime], [['speaking', 'vocabulary'], 'evening'], 'kept when not sent again');
+        assert.deepEqual((await api('GET', '/plan')).body.about, { focus: ['speaking', 'vocabulary'], topics: ['work', 'travel'], studyTime: 'evening', aim: null, practiceMinutes: null });
+    });
+
+    test('what they want to achieve, their learning style, age, the minutes a day, and the new reasons (2026-10-26)', async () => {
+        for (const bad of [{ aim: 'rich' }, { style: 'dancing' }, { ageBand: '12' }, { practiceMinutes: 7 }]) assert.equal((await api('POST', '/about', { reason: 'career', know: 2, ...bad })).status, 400, JSON.stringify(bad));
+        const r = (await api('POST', '/about', { reason: 'abroad', know: 0, aim: 'speaking', style: 'reading', ageBand: '18-24', practiceMinutes: 15 })).body;
+        assert.deepEqual([r.reason, r.aim, r.style, r.ageBand, r.practiceMinutes], ['abroad', 'speaking', 'reading', '18-24', 15]);
+        assert.equal((await api('POST', '/about', { reason: 'research', know: 1, practiceMinutes: 0 })).body.practiceMinutes, 0, 'their own way');
     });
 
     test('the daily goal: one of 10, 20, 30, 50', async () => {

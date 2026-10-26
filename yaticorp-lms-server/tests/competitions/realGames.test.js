@@ -177,7 +177,7 @@ describe('playing with friends, and UNO, are gone', () => {
         assert.equal((await a.call('POST', '/rooms/join', { code: 'ABCDEF' })).status, 404);
         assert.equal((await a.call('GET', '/rooms/mine')).status, 404);
         const games = (await a.call('GET', '/games')).body.games.map((g) => g.id);
-        assert.deepEqual(games, ['chess', 'rapidfire', 'codeclash', 'brainsprint']);
+        assert.deepEqual(games, ['chess', 'rapidfire', 'codeclash', 'brainsprint'], 'Ludo and Carrom gave way to the brain games (a match of theirs made before still plays, above); a quiz and a hackathon are challenges, not games');
         const old = await PlayGame.create({ kind: 'friendly', game: 'uno', code: 'OLD123', hostId: a.user._id, seats: [{ userId: a.user._id, name: 'A', side: 0, joinedAt: new Date() }] });
         const r = await a.call('GET', `/play/${old._id}`);
         assert.equal(r.status, 410); assert.match(r.body.message, /no longer available/);
