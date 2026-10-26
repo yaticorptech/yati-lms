@@ -14,7 +14,7 @@ import { Chunky, Mascot } from '../ui';
 export function Diff({ diff }) {
     if (!diff?.length) return null;
     return (
-        <p className="flex flex-wrap gap-x-1.5 gap-y-1 text-[15px] font-bold leading-relaxed" dir="auto" aria-label="Your answer compared word by word" data-diff>
+        <p className="flex flex-wrap gap-x-1.5 gap-y-1 text-[15px] font-bold leading-relaxed" dir="auto" aria-label="Your answer compared word by word" translate="no" data-diff>
             {diff.map((d, i) => (
                 <span key={i} className={d.t === 'same' ? 'text-[#4b4b4b]' : d.t === 'missing' ? 'rounded px-1' : 'rounded px-1 line-through'}
                     style={d.t === 'missing' ? { background: COLORS.green.light, color: COLORS.green.ink } : d.t === 'extra' ? { background: COLORS.red.light, color: COLORS.red.ink } : undefined}
@@ -47,10 +47,10 @@ export function AnswerList({ results }) {
                         <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full" style={{ background: r.correct ? COLORS.green.face : COLORS.red.face }}>
                             {r.correct ? <Check size={13} strokeWidth={4} className="text-white" /> : <X size={13} strokeWidth={4} className="text-white" />}
                         </span>
-                        <span className="min-w-0 break-words">{r.prompt}</span>
+                        <span className="min-w-0 break-words" translate="no">{r.prompt}</span>
                     </p>
-                    <p className="mt-1 break-words pl-7 text-sm font-semibold text-[#777]">You: <span style={{ color: r.correct ? COLORS.green.ink : COLORS.red.ink }}>{r.given || '— not answered'}</span></p>
-                    {!r.correct && r.answer && <p className="break-words pl-7 text-sm font-semibold text-[#777]">Answer: <span className="font-extrabold" style={{ color: COLORS.green.ink }}>{r.answer}</span></p>}
+                    <p className="mt-1 break-words pl-7 text-sm font-semibold text-[#777]">You: <span style={{ color: r.correct ? COLORS.green.ink : COLORS.red.ink }} translate="no">{r.given || '— not answered'}</span></p>
+                    {!r.correct && r.answer && <p className="break-words pl-7 text-sm font-semibold text-[#777]">Answer: <span className="font-extrabold" style={{ color: COLORS.green.ink }} translate="no">{r.answer}</span></p>}
                     {r.verdict && r.verdict !== 'exact' && r.diff?.length > 0 && r.given && <div className="mt-1 pl-7"><Diff diff={r.diff} /></div>}
                     {r.explanation && <p className="mt-1 pl-7 text-sm font-semibold text-[#777]">{r.explanation}</p>}
                 </li>

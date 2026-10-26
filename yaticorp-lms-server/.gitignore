@@ -20,3 +20,4 @@ scripts/migrateToMultiTenant.js
 
 # ...but the (secret-free) template must be committed
 !.env.example
+logs/
