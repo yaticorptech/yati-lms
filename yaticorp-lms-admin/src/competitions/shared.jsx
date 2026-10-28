@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { X, Save, Loader2, Rocket, ImagePlus, Trash2, ChessKnight, Dices, Target, Spade, Gamepad2, Zap, CodeXml, Puzzle, Brain, Pencil, CheckCircle2, AlertCircle, Library, Code2, Plus, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { INPUT, LABEL, BTN, BTN2 } from '../components/orgUi';
-import { GAMES, RETIRED_GAMES, CHALLENGES, STATUS, ORDINAL, ARENA_NOTE, notePoints, toLocalInput, errorOf } from './constants';
+import { GAMES, RETIRED_GAMES, CHALLENGES, STATUS, ORDINAL, ARENA_NOTE, notePoints, toLocalInput, errorOf, scheduleProblems, addDays, today } from './constants';
 import api from '../utils/api';
 import { arenaApi, arenaPath, ROUND_NAMES } from '../arena/shared';
 import QuestionBankDialog from '../arena/QuestionBankDialog';
@@ -194,7 +194,11 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
     const [bankCounts, reloadBank] = useBankCounts(isArena);
     const [bankOpen, setBankOpen] = useState(false);
     const [bankUpdated, setBankUpdated] = useState(false);
+    // The dates, checked as they are set (and again on submit).
+    const bad = scheduleProblems({ registrationOpensAt: f.registrationOpensAt, registrationDeadline: f.registrationDeadline, startsAt: f.startDate ? `${f.startDate}T${f.startTime || '10:00'}` : '', endsAt: challenge ? f.endsAt : '', isNew: !competition });
     const submit = (open) => {
+        const firstBad = Object.values(bad)[0];
+        if (firstBad) { setError(firstBad); return; }
         if (isArena) {
             if (!A.useBank) { setError('Choose the question bank for the Quiz Arena questions.'); return; }
             setBusy(open ? 'open' : 'save'); setError('');
@@ -299,17 +303,20 @@ export const CompetitionForm = ({ competition = null, locked = false, hosted = f
                         <label className="sm:col-span-2"><span className={LABEL}>Competition description <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>
                             <textarea rows={2} maxLength={2000} value={f.description} onChange={(e) => set({ description: e.target.value })} className={INPUT} /></label>
                         <label><span className={LABEL}>Registration start <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>
-                            <DateTimeInput value={f.registrationOpensAt} onChange={(v) => set({ registrationOpensAt: v })} label="Registration start" />
-                            <span className="mt-1 block text-xs text-slate-500">Empty: registration opens when you publish.</span></label>
+                            <DateTimeInput value={f.registrationOpensAt} onChange={(v) => set({ registrationOpensAt: v })} label="Registration start" min={competition ? undefined : today()} invalid={!!bad.registrationOpensAt} />
+                            {bad.registrationOpensAt ? <span className="mt-1 block text-xs font-semibold text-rose-600" data-date-error>{bad.registrationOpensAt}</span> : <span className="mt-1 block text-xs text-slate-500">Empty: registration opens when you publish.</span>}</label>
                         <label><span className={LABEL}>Registration end</span>
-                            <DateTimeInput required value={f.registrationDeadline} onChange={(v) => set({ registrationDeadline: v })} label="Registration end" /></label>
+                            <DateTimeInput required value={f.registrationDeadline} onChange={(v) => set({ registrationDeadline: v })} label="Registration end" min={(f.registrationOpensAt || '').slice(0, 10) || (competition ? undefined : today())} invalid={!!bad.registrationDeadline} />
+                            {bad.registrationDeadline && <span className="mt-1 block text-xs font-semibold text-rose-600" data-date-error>{bad.registrationDeadline}</span>}</label>
                         <label><span className={LABEL}>{f.game === 'quiz' ? 'Quiz opens on' : 'Competition date'}</span>
-                            <input type="date" required value={f.startDate} onChange={(e) => set({ startDate: e.target.value })} className={INPUT} /></label>
+                            <input type="date" required value={f.startDate} min={addDays((f.registrationDeadline || '').slice(0, 10), 1) || undefined} onChange={(e) => set({ startDate: e.target.value })} className={`${INPUT} ${bad.startsAt ? '!border-rose-400' : ''}`} />
+                            {bad.startsAt && <span className="mt-1 block text-xs font-semibold text-rose-600" data-date-error>{bad.startsAt}</span>}</label>
                         <label><span className={LABEL}>Start time</span>
                             <TimeInput required value={f.startTime} onChange={(v) => set({ startTime: v })} label="Start time" /></label>
                         {challenge && (
                             <label className="sm:col-span-2"><span className={LABEL}>{f.game === 'quiz' ? 'Quiz closes' : 'Projects due by'}</span>
                                 <input type="datetime-local" required value={f.endsAt} onChange={(e) => set({ endsAt: e.target.value })} className={INPUT} data-ends-at />
+                                {bad.endsAt && <span className="mt-1 block text-xs font-semibold text-rose-600" data-date-error>{bad.endsAt}</span>}
                                 <span className="mt-1 block text-xs text-slate-500">{f.game === 'quiz' ? 'Players can start any time before this; it is decided by itself when it closes.' : 'Teams can hand in and change their project until then. You mark the projects after.'}</span></label>
                         )}
                     </div>

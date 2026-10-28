@@ -15,6 +15,7 @@
  * The page refreshes itself every 15 seconds while the competition is live, so
  * matches finishing in the student app show up here.
  */
+import { DetailSkeleton } from '../competitions/Skeletons';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -147,7 +148,7 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
     };
     const quiet = (p) => p.catch(() => {});
 
-    if (!data) return error ? <p className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{error} <Link to={backTo} className="font-bold underline">Back</Link></p> : <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />;
+    if (!data) return error ? <p className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{error} <Link to={backTo} className="font-bold underline">Back</Link></p> : <DetailSkeleton />;
     const { competition: c, teams, rounds, challenge } = data;
     // A quiz or a hackathon: no matches; entered by college teams or students on their own.
     const kind = ['quiz', 'hackathon'].includes(c.game) ? c.game : null;
@@ -328,6 +329,14 @@ export default function CompetitionAdmin({ apiBase = '/competitions/admin', back
                             ))}
                         </ul>
                     )}
+                    {/* Students see places, points, prizes and certificates only once the results are published. */}
+                    {c.resultsHidden && c.status === 'completed' && (
+                        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm" data-publish-results>
+                            <p className="min-w-0 flex-1 basis-56 text-amber-900"><b>Results not published.</b> Students cannot see places, points or certificates, the leaderboard leaves this out, and no prizes are paid until you publish.</p>
+                            <button type="button" className={BTN} disabled={!!busy} onClick={() => { if (window.confirm('Publish the results? Students will see their places and certificates, prizes and XP will be paid, and the leaderboard will count it.')) quiet(call('post', '/publish-results')); }}>Publish results</button>
+                        </div>
+                    )}
+                    {c.resultsHidden && c.status !== 'completed' && <p className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-500">When the competition is over, publish the results: until then students see no places or points.</p>}
                     <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
                         <p className="flex items-center gap-2 font-bold"><Gift size={16} className="text-indigo-600" /> Prizes</p>
                         <ul className="mt-2 space-y-1">

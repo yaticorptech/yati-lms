@@ -9,7 +9,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, CalendarClock, Users, Timer, Trophy, Download, Crown, Medal, Building2, ListOrdered, Clock } from 'lucide-react';
-import CertificateView from '../CertificateView';
+import CertificateInline from '../CertificateInline';
+import Confetti from '../Confetti';
 import { payOnline } from '../razorpay';
 import { DetailSkeleton, ListSkeleton } from '../Skeletons';
 import { GameHero, JoinCard, CollegesCard, PayCard } from '../GameInfo';
@@ -18,7 +19,7 @@ import useGoBack from '../../hooks/useGoBack';
 import useLive from '../../live/useLive';
 
 const useNow = (ms = 1000) => {
-    const [now, setNow] = useState(Date.now());
+    const [now, setNow] = useState(() => Date.now());
     useEffect(() => { const t = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(t); }, [ms]);
     return now;
 };
@@ -38,7 +39,7 @@ const left = (ms) => {
     return d ? `${d}d ${h}h ${m}m` : h ? `${h}h ${m}m ${s % 60}s` : `${m}m ${s % 60}s`;
 };
 
-const Results = ({ id }) => {
+const Results = ({ id, title, heldOn }) => {
     const [r, setR] = useState(null);
     const [tab, setTab] = useState('overall');
     const [college, setCollege] = useState('');
@@ -47,34 +48,47 @@ const Results = ({ id }) => {
     useEffect(() => { loadResults(); }, [loadResults]);
     // Standings as the marks come in, live.
     useLive('arena', loadResults);
+    // Party poppers the first time the results are seen here.
+    const [party] = useState(() => { try { const k = `arena-party:${id}`; const seen = localStorage.getItem(k); localStorage.setItem(k, '1'); return !seen; } catch { return false; } });
     if (error && !r) return <p className="rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">{error}</p>;
     if (!r) return <ListSkeleton rows={4} />;
-    const medal = ['bg-amber-400', 'bg-slate-300', 'bg-orange-400'];
     const rows = r.overall.filter((x) => !college || x.organizationId === college);
     return (
         <section className="space-y-4" data-results>
+            {r.me && party && <Confetti pieces={r.me.rank <= 3 ? 110 : 60} />}
             {r.me && (
-                <div className="flex flex-wrap items-center gap-4 rounded-3xl border border-indigo-200 bg-indigo-50 p-5" data-my-result>
-                    <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-xl font-black text-white">#{r.me.rank}</span>
+                <div className="flex flex-wrap items-center gap-4 rounded-3xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 p-5 text-white shadow-lg" data-my-result>
+                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-xl font-black ring-1 ring-white/30">#{r.me.rank}</span>
                     <div className="min-w-0 flex-1">
-                        {r.me.rank <= 3 && <p className="text-sm font-black text-amber-700" data-you-won>🏆 You won {['1st', '2nd', '3rd'][r.me.rank - 1]} place!</p>}
-                        <p className="text-lg font-black text-slate-900">You scored {r.me.score} / {r.maxScore}</p>
-                        <p className="text-sm text-slate-600">Rank {r.me.rank} of {r.me.of} · {r.me.correctCount} of {r.questions} correct</p>
+                        <p className="text-lg font-black sm:text-xl" data-you-won>{r.me.rank <= 3 ? `🏆 Congratulations, you won ${['1st', '2nd', '3rd'][r.me.rank - 1]} place!` : '🎉 Congratulations on taking part!'}</p>
+                        <p className="text-sm font-semibold text-white/90">{title} · held on {fmt(heldOn)}</p>
+                        <p className="text-sm text-white/80">You scored <b className="text-white">{r.me.score} / {r.maxScore}</b> · rank {r.me.rank} of {r.me.of} · {r.me.correctCount} of {r.questions} correct</p>
                     </div>
-                    {r.me.certificate && <CertificateView icons load={() => arenaApi.certificate(id)} fileName="Certificate_Quiz_Arena.pdf" />}
                 </div>
             )}
+            {r.me?.certificate && <CertificateInline load={() => arenaApi.certificate(id)} fileName={`Certificate_${title.replace(/\s+/g, '_')}.pdf`} />}
             {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+            {/* The top three on a podium: 1st in the middle, tallest, in gold with a crown; 2nd silver; 3rd bronze. */}
             {r.top.length > 0 && (
-                <div className="grid gap-3 sm:grid-cols-3" data-top3>
-                    {r.top.map((x, i) => (
-                        <div key={x.rank} className={`rounded-3xl border bg-white p-4 text-center shadow-sm ${x.you ? 'border-indigo-300 ring-2 ring-indigo-200' : 'border-slate-200'}`}>
-                            <span className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full text-white ${medal[i]}`}>{i === 0 ? <Crown size={18} /> : <Medal size={18} />}</span>
-                            <p className="mt-2 font-black text-slate-900">{x.name}</p>
-                            <p className="text-xs text-slate-500">{x.collegeName}</p>
-                            <p className="mt-1 text-lg font-black text-indigo-700">{x.score}</p>
-                        </div>
-                    ))}
+                <div className="flex items-end justify-center gap-2 rounded-3xl border border-slate-200 bg-white px-3 pt-6 shadow-sm sm:gap-4 sm:px-6" data-top3>
+                    {[1, 0, 2].map((k) => r.top[k] && (() => {
+                        const x = r.top[k];
+                        const look = [
+                            { bar: 'h-36 sm:h-44 bg-gradient-to-b from-amber-300 via-yellow-400 to-amber-600 text-amber-950', ring: 'ring-amber-400', w: 'w-[38%] sm:w-56' },
+                            { bar: 'h-24 sm:h-32 bg-gradient-to-b from-slate-200 via-slate-300 to-slate-500 text-slate-800', ring: 'ring-slate-300', w: 'w-[31%] sm:w-48' },
+                            { bar: 'h-16 sm:h-24 bg-gradient-to-b from-orange-300 via-orange-400 to-orange-700 text-orange-950', ring: 'ring-orange-300', w: 'w-[31%] sm:w-48' }
+                        ][k];
+                        return (
+                            <div key={x.rank} className={`flex flex-col items-center text-center ${look.w}`} data-podium={k + 1}>
+                                {k === 0 && <Crown size={26} className="mb-1 text-amber-500 drop-shadow" aria-hidden="true" />}
+                                <span className={`flex h-11 w-11 items-center justify-center rounded-full bg-white text-base font-black text-slate-800 shadow ring-2 ${look.ring}`}>{(x.name || '?').charAt(0).toUpperCase()}</span>
+                                <p className={`mt-1.5 w-full truncate text-sm font-black text-slate-900 sm:text-base ${x.you ? 'text-indigo-700' : ''}`}>{x.name}{x.you ? ' (you)' : ''}</p>
+                                <p className="w-full truncate text-xs text-slate-500">{x.collegeName}</p>
+                                <p className="mt-0.5 text-sm font-black text-indigo-700">{x.score} <span className="text-xs font-semibold text-slate-500">pts · {x.correctCount} correct</span></p>
+                                <div className={`mt-2 flex w-full items-start justify-center rounded-t-2xl pt-2 text-2xl font-black shadow-inner sm:text-3xl ${look.bar}`}>{k + 1}</div>
+                            </div>
+                        );
+                    })())}
                 </div>
             )}
             <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -139,12 +153,13 @@ export default function ArenaDetail() {
     return (
         <div className="space-y-4 pb-10 -mt-4 sidebar:-mt-8" data-arena-detail={c.id}>
             <Link to="/competitions?tab=competitions&game=quizarena" onClick={goBack} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} aria-hidden="true" /> Back</Link>
+            {/* Its status, game and kind: below Back, off the banner (asked 2026-10-28). */}
+            <div className="!mt-2 flex flex-wrap items-center gap-2" data-competition-badges>
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ring-1 ${cls}`} data-state-chip>{label}</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-800 ring-1 ring-slate-200">🧠 Quiz Arena</span>
+                <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-800 ring-1 ring-slate-200">Inter-College</span>
+            </div>
             <GameHero game="quizarena" bannerUrl={c.bannerUrl} title={c.title} subtitle={`Organized by ${c.organizedBy || 'YATICORP'}`} description={c.description}
-                chips={<>
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${cls}`}>{label}</span>
-                    <span className="inline-flex rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold ring-1 ring-white/30">🧠 Quiz Arena</span>
-                    <span className="inline-flex rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold ring-1 ring-white/30">Inter-College</span>
-                </>}
                 meta={[[CalendarClock, fmt(c.startsAt)], [Timer, `${c.questions} questions · about ${duration(c.durationMs)}`], [Users, `${c.registeredCount} entered`]]} />
 
             {error && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}
@@ -167,7 +182,7 @@ export default function ArenaDetail() {
                     showJoin={c.registered && ['registration', 'upcoming', 'live'].includes(c.state)} />
             )}
 
-            {c.state === 'results' && <Results id={c.id} />}
+            {c.state === 'results' && <Results id={c.id} title={c.title} heldOn={c.startsAt} />}
 
             {/* Once the results are out the page is just the results. */}
             {c.state !== 'results' && (<>

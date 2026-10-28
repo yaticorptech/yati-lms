@@ -44,6 +44,10 @@ const requireHosting = (req, res, next) => {
 
 // Quiz Arena: an individual quiz contest, its own models and rules (arena/).
 // Before /admin and the student routes, whose /:id would take "arena".
+// Group Brain (groupbrain/): the super admin's management, and the public
+// check of a certificate's ID (no sign-in: anyone holding one may check it).
+router.use('/group-brain/admin', protectAdmin, superAdminOnly, require('./groupbrain/admin'));
+router.get('/group-brain/verify/:certId', (req, res, next) => require('./groupbrain/certificates').verify(req.params.certId).then((r) => res.json(r)).catch(next));
 router.use('/arena/admin', protectAdmin, superAdminOnly, require('./arena/admin')('platform'));
 router.use('/arena', protectUser, require('./arena/student'));
 router.use('/admin', protectAdmin, superAdminOnly, manage('platform'));

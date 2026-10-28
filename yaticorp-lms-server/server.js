@@ -157,7 +157,14 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, '0.0.0.0', () => {
+// An HTTP server of our own, so Socket.IO (live games, src/competitions/realtime.js)
+// shares the port with the API. It allows the same origins as the API's CORS.
+const httpServer = require('http').createServer(app);
+require('./src/competitions/realtime').init(httpServer, {
+    allowOrigin: (origin) => origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')
+        || origin === 'capacitor://localhost' || origin === 'https://localhost' || allowedOrigins.includes(origin)
+});
+httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
 

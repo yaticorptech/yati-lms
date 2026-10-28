@@ -8,16 +8,21 @@ const IDS = ['chess', 'rapidfire', 'codeclash', 'brainsprint'];
 // competition or game made before then can still be read, played to its end
 // and timed out. (Quiz and Hackathon are challenges, not games: no matches.)
 const RETIRED = ['uno', 'ludo', 'carrom'];
+// Group Brain (asked 2026-10-27): the games students play in rooms of their
+// own — Chess, and the ones played only in rooms. Their order is the
+// order the Games page shows them in.
+const ROOM_ONLY = ['memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'finalvault', 'lostkingdom'];
+const ROOM_GAMES = ['chess', ...ROOM_ONLY];
 
 const cache = {};
 const engine = (id) => {
-    if (!IDS.includes(id) && !RETIRED.includes(id)) return null;
+    if (!IDS.includes(id) && !RETIRED.includes(id) && !ROOM_ONLY.includes(id)) return null;
     if (!cache[id]) cache[id] = require(`./${id}`);
     return cache[id];
 };
 
-/** What the lobby and the forms need to know about each game. */
-const catalogue = () => IDS.map((id) => {
+/** What the lobby and the forms need to know about each game (`ids`: which ones). */
+const catalogue = (ids = IDS) => ids.map((id) => {
     const e = engine(id);
     return { id, label: e.label, emoji: e.emoji, summary: e.summary || '', minSeats: e.minSeats, maxSeats: e.maxSeats, seatsPerSide: e.seatsPerSide };
 });
@@ -28,4 +33,4 @@ const catalogue = () => IDS.map((id) => {
  */
 const override = (id, fake) => { if (fake) cache[id] = fake; else delete cache[id]; };
 
-module.exports = { IDS, RETIRED, engine, catalogue, override };
+module.exports = { IDS, RETIRED, ROOM_ONLY, ROOM_GAMES, engine, catalogue, override };

@@ -52,12 +52,12 @@ export const TimeInput = ({ value, onChange, required, disabled, label = 'Time' 
 };
 
 /** A date, then hour, minute and AM / PM. `value` and `onChange` use "YYYY-MM-DDTHH:mm" ('' when empty). */
-export const DateTimeInput = ({ value, onChange, required, disabled, label = 'Date and time' }) => {
+export const DateTimeInput = ({ value, onChange, required, disabled, label = 'Date and time', min, invalid }) => {
     const [date, time] = value ? [value.slice(0, 10), value.slice(11, 16)] : ['', ''];
     return (
         <span className="flex flex-wrap gap-1.5 sm:flex-nowrap" role="group" aria-label={label}>
-            <input type="date" required={required} disabled={disabled} value={date} aria-label="Date"
-                onChange={(e) => onChange(e.target.value ? `${e.target.value}T${time || '10:00'}` : '')} className={`${INPUT} min-w-0 flex-1`} />
+            <input type="date" required={required} disabled={disabled} value={date} aria-label="Date" min={min} aria-invalid={invalid || undefined}
+                onChange={(e) => onChange(e.target.value ? `${e.target.value}T${time || '10:00'}` : '')} className={`${INPUT} min-w-0 flex-1 ${invalid ? '!border-rose-400' : ''}`} />
             <TimeInput value={time} required={required} disabled={disabled} label="Time"
                 onChange={(t) => onChange(`${date || new Date().toISOString().slice(0, 10)}T${t}`)} />
         </span>

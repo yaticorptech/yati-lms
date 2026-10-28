@@ -167,12 +167,14 @@ const speed = (rng) => {
 /** Brain Sprint's puzzle makers, taken in turn so a game gets a mix. */
 const PUZZLES = [arithmeticSeries, equation, geometricSeries, clockAngle, notPrime, squareSeries, ages, fibonacciSeries, percent, letterSeries, speed, alternatingSeries, multiply];
 const MATHS = [add, subtract, multiply, square, percent];
+// The series alone, for Pattern Pro (a Group Brain game).
+const SERIES = [arithmeticSeries, geometricSeries, squareSeries, fibonacciSeries, alternatingSeries, letterSeries];
 
 /**
  * `count` questions from `makers`, cycled in a random order, with no prompt
- * repeated in the one game.
+ * repeated in the one game. `level`, the difficulty, goes to each maker.
  */
-const make = (makers, count, rng) => {
+const make = (makers, count, rng, level) => {
     const order = [...makers];
     for (let i = order.length - 1; i > 0; i -= 1) {
         const j = Math.floor(rng() * (i + 1));
@@ -181,7 +183,7 @@ const make = (makers, count, rng) => {
     const out = [];
     const seen = new Set();
     for (let n = 0; out.length < count && n < count * 20; n += 1) {
-        const q = order[out.length % order.length](rng);
+        const q = order[out.length % order.length](rng, level);
         if (seen.has(q.prompt + q.options[0])) continue;
         seen.add(q.prompt + q.options[0]);
         out.push(q);
@@ -189,4 +191,4 @@ const make = (makers, count, rng) => {
     return out;
 };
 
-module.exports = { PUZZLES, MATHS, make, isPrime, options };
+module.exports = { PUZZLES, MATHS, SERIES, make, isPrime, options, int, pickOne };
