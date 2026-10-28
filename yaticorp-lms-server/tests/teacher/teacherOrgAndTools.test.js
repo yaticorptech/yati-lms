@@ -88,7 +88,7 @@ after(async () => {
     await M.Teacher.deleteMany({ _id: { $in: ids } });
     await Card.deleteMany({ _id: { $in: cards.map((c) => c._id) } });
     await Admin.deleteMany({ organizationId: { $in: orgs } });
-    await OrgAuditLog.deleteMany({ organizationId: { $in: orgs } }).catch(() => {});
+    await OrgAuditLog.deleteMany({ orgId: { $in: orgs } }).catch(() => {});
     await Organization.deleteMany({ _id: { $in: orgs } });
     await cleanup([], server, [admin.admin, boss.admin]);
 });

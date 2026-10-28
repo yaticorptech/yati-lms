@@ -16,6 +16,33 @@ const hashPassword = async (plain) => bcrypt.hash(String(plain), await bcrypt.ge
 
 const TEACHER_STATUSES = ['active', 'inactive', 'pending'];
 
+/* ── Questionnaires (Research Methodologies → Questionnaire builder) ──── */
+
+// Kept inside the teacher's own record, not a collection of their own: the
+// database cluster is at its limit of collections (asked 2026-10-27; a new
+// collection was refused). The limits in questionnaire.js keep 20 of them
+// well inside one record.
+
+// 'section' is a heading that groups the questions after it; it is not asked.
+const QUESTION_TYPES = ['likert', 'single', 'multiple', 'yesno', 'short', 'long', 'section'];
+const LIKERT_SCALES = ['agreement', 'frequency', 'satisfaction', 'importance', 'likelihood'];
+
+const questionSchema = new Schema({
+    type: { type: String, enum: QUESTION_TYPES, default: 'likert' },
+    text: { type: String, default: '', maxlength: 500 },
+    options: { type: [String], default: [] },          // 'single' and 'multiple' only
+    scale: { type: String, enum: LIKERT_SCALES, default: 'agreement' },
+    points: { type: Number, enum: [5, 7], default: 5 }
+});
+
+const questionnaireSchema = new Schema({
+    title: { type: String, required: true, trim: true, maxlength: 200 },
+    intro: { type: String, default: '', maxlength: 2000 },
+    questions: [questionSchema],
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
+});
+
 /* ── Teacher ───────────────────────────────────────────────────────────── */
 
 const teacherSchema = new Schema({
@@ -45,7 +72,10 @@ const teacherSchema = new Schema({
     lastLoginAt: Date,
     passwordChangedAt: Date,
     resetPasswordToken: { type: String, select: false },
-    resetPasswordExpiry: { type: Date, select: false }
+    resetPasswordExpiry: { type: Date, select: false },
+    // Not read with the account (every request loads it): only the
+    // questionnaire routes ask for them.
+    questionnaires: { type: [questionnaireSchema], select: false, default: undefined }
 }, { timestamps: true });
 
 teacherSchema.pre('save', async function () {
@@ -264,5 +294,6 @@ module.exports = {
     TextVersion: mongoose.models.TextVersion || mongoose.model('TextVersion', textVersionSchema),
     PlagiarismSource: mongoose.models.PlagiarismSource || mongoose.model('PlagiarismSource', plagiarismSourceSchema),
     TeacherOrgRequest: mongoose.models.TeacherOrgRequest || mongoose.model('TeacherOrgRequest', teacherOrgRequestSchema, 'teacher_org_requests'),
-    PUBLICATION_TYPES, PUBLICATION_STATUSES, INDEXING, CHAPTER_STATUSES, WRITING_KINDS, TEACHER_STATUSES, TEACHER_REQUEST_STATUSES
+    PUBLICATION_TYPES, PUBLICATION_STATUSES, INDEXING, CHAPTER_STATUSES, WRITING_KINDS, TEACHER_STATUSES, TEACHER_REQUEST_STATUSES,
+    QUESTION_TYPES, LIKERT_SCALES
 };

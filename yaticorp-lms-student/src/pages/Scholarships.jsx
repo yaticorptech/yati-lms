@@ -19,7 +19,7 @@ import { readAiBudgetError } from '../career/utils/aiBudget';
 import { FundedArt, SearchFundingArt } from '../components/ScholarshipArt';
 import YatiLoader from '../components/YatiLoader';
 import useMinimumLoading from '../hooks/useMinimumLoading';
-import PriceTag from '../components/rewards/PriceTag';
+import { isWalletCancel } from '../utils/walletCharge';
 
 // A deadline that reads as a real date gets a "soon" flag when it is inside a
 // month; anything the mentor wrote as prose ("Rolling", "Every March") is
@@ -78,7 +78,7 @@ export default function Scholarships() {
     } catch (err) {
       const budget = readAiBudgetError(err);
       if (budget) setAiBudget(budget);
-      else setError(err.response?.data?.message || 'Could not find scholarships right now. Please try again.');
+      else if (!isWalletCancel(err)) setError(err.response?.data?.message || 'Could not find scholarships right now. Please try again.');
     } finally {
       setFinding(false);
     }
@@ -318,7 +318,7 @@ export default function Scholarships() {
               style={{ animationDelay: '0.3s' }}
             >
               {finding ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              {finding ? 'Finding scholarships…' : <>Find scholarships for me <PriceTag action="find_scholarship" /></>}
+              {finding ? 'Finding scholarships…' : 'Find scholarships for me'}
             </button>
           ) : (
             <Link

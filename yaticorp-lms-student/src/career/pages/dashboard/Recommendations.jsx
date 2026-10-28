@@ -16,8 +16,8 @@ import EmptyState from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
-import PriceTag from '../../../components/rewards/PriceTag';
 import useBackClose from '../../../native/useBackClose';
+import { isWalletCancel } from '../../../utils/walletCharge';
 
 /*
  * Tile palettes. Written out in full because Tailwind scans source for literal
@@ -269,7 +269,7 @@ export default function Recommendations() {
       await fetchRecs();
       toast.success('Your resource list has been rebuilt.', 'Recommendations ready');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not generate recommendations.');
+      if (!isWalletCancel(err)) toast.error(err.response?.data?.message || 'Could not generate recommendations.');
     } finally {
       setGenerating(false);
     }
@@ -508,7 +508,7 @@ export default function Recommendations() {
                 : 'Build your roadmap first, then let your AI mentor put together internships, courses, books and scholarships that fit your goal.'}
               action={
                 <Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
-                  Get recommendations <PriceTag action="generate_ideas" />
+                  Get recommendations
                 </Button>
               }
             />
@@ -539,7 +539,7 @@ export default function Recommendations() {
                 </p>
               </div>
               <Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
-                Get recommendations <PriceTag action="generate_ideas" />
+                Get recommendations
               </Button>
             </Card>
           )}

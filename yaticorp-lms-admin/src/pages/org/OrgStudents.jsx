@@ -421,8 +421,10 @@ const OrgStudents = () => {
     if (view === 'students') return <StudentList tabs={tabs} />;
     if (view === 'requests') return <OrgRequests tabs={tabs} />;
     return (
-        // Certificate progress is a narrower view, centred — tabs and all.
-        <div className="mx-auto max-w-5xl space-y-4 lg:space-y-6 animate-fade-in pb-10">
+        // Certificate progress uses the full width like the other two tabs: it
+        // was capped narrower and centred, which left wide empty margins on a
+        // laptop and moved the header and tabs when switching to it (2026-10-28).
+        <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
             <PageHeader icon={Users} title="Students"
                 subtitle="How your students are doing on your organization's own courses." />
             {tabs}

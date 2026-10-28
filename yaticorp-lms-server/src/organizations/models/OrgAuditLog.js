@@ -19,6 +19,8 @@ const orgAuditLogSchema = new mongoose.Schema({
     adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null },
     // Copied at write time so the row still reads after the account is gone.
     adminName: { type: String, default: '' },
+    // superadmin / orgadmin: the Admin audit log shows super admins' rows only.
+    role: { type: String, default: '' },
     action: { type: String, required: true, maxlength: 80 },
     method: { type: String, default: '' },
     path: { type: String, default: '', maxlength: 500 },
@@ -38,10 +40,13 @@ const OrgAuditLog = mongoose.model('OrgAuditLog', orgAuditLogSchema, 'org_audit_
 OrgAuditLog.record = async ({ orgId, admin, action, req, details = {} }) => {
     try {
         if (!orgId || !action) return;
+        // The platform audit (models/AdminAuditLog.js) then leaves this request to this row.
+        if (req) req.orgAudited = true;
         await OrgAuditLog.create({
             orgId,
             adminId: admin?._id || null,
             adminName: admin?.name || admin?.email || '',
+            role: admin?.role || '',
             action,
             method: req?.method || '',
             path: String(req?.originalUrl || '').slice(0, 500),

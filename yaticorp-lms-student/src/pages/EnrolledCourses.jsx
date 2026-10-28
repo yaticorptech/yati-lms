@@ -6,13 +6,31 @@
  */
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { PlayCircle, Clock, BookOpen, Compass, CheckCircle2, TrendingUp, Sparkles, Building2, Loader2, RotateCcw } from 'lucide-react';
-import { CoursesArt, NoCoursesArt } from '../components/PageArt';
+import { PlayCircle, Clock, BookOpen, Compass, CheckCircle2, Check, TrendingUp, Sparkles, Building2, Loader2, RotateCcw } from 'lucide-react';
+import HeroWallet from '../components/rewards/HeroWallet';
+import { useRewards } from '../context/useRewards';
+import { NoCoursesArt } from '../components/PageArt';
 import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import YatiLoader from '../components/YatiLoader';
 import useMinimumLoading from '../hooks/useMinimumLoading';
+
+// The banner heading's second line: violet, shimmering, with the design's
+// yellow underline under "off" and yellow strokes after it.
+const HERO_ACCENT = 'lms-shimmer bg-gradient-to-r from-violet-700 via-purple-500 to-violet-700 bg-clip-text text-transparent';
+const HeroUnderline = () => (
+    <svg aria-hidden viewBox="0 0 100 12" preserveAspectRatio="none" className="pointer-events-none absolute -bottom-[0.12em] left-0 h-[0.2em] w-[92%]" fill="none" stroke="#f5b20b" strokeWidth="5" strokeLinecap="round">
+        <path d="M4 8 C 30 3, 70 2, 96 6" />
+    </svg>
+);
+const HeroSparks = () => (
+    <svg aria-hidden viewBox="0 0 24 24" className="pointer-events-none absolute top-1/2 left-full ml-3 hidden h-[0.62em] w-[0.62em] -translate-y-1/2 @2xl:block" fill="none" stroke="#fbbf24" strokeWidth="2.6" strokeLinecap="round">
+        <path d="M3 7 L11 3" /><path d="M3 12 H14" /><path d="M3 17 L11 21" />
+    </svg>
+);
+const HERO_CHIP = 'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[0.8rem] font-semibold whitespace-nowrap tabular-nums ring-1 ring-inset @2xl:px-3.5 @2xl:py-2.5 @2xl:text-[0.95rem]';
+const HERO_SCENE_FADE = 'linear-gradient(to right, transparent 0, #000 20%, #000 90%, transparent 100%)';
 
 const EnrolledCourses = () => {
     // Career Path can be switched off by an administrator; its link goes with it.
@@ -39,6 +57,8 @@ const EnrolledCourses = () => {
     const [loadError, setLoadError] = useState(false);
     const loadedOnce = useRef(false);
     const navigate = useNavigate();
+    // Wallet & Rewards sits in the banner only while the admin has rewards on.
+    const walletOn = useRewards().enabled;
 
     const fetchMyCourses = async () => {
             try {
@@ -117,75 +137,110 @@ const EnrolledCourses = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-12">
             <div>
-                <div className="lms-rise lms-sheen relative overflow-hidden rounded-3xl bg-[#1e1b4b] p-5 text-white shadow-xl shadow-indigo-900/30 md:p-8">
-                    <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-900 via-violet-800 to-indigo-700" />
-                    <div aria-hidden className="pointer-events-none absolute -top-32 -left-24 h-80 w-80 rounded-full bg-fuchsia-500/30 blur-3xl" />
-                    <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-36 h-96 w-96 rounded-full bg-amber-400/25 blur-3xl" />
-                    <div
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0 opacity-[0.16]"
-                        style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }}
-                    />
-                    <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent" />
-                    <span aria-hidden className="cm-drift pointer-events-none absolute top-6 left-[48%] hidden text-2xl md:block" style={{ animationDelay: '-1.2s' }}>📚</span>
-                    <span aria-hidden className="cm-drift pointer-events-none absolute bottom-8 left-[60%] hidden text-xl md:block" style={{ animationDelay: '-3.4s' }}>🎓</span>
-                    <span aria-hidden className="cm-drift pointer-events-none absolute top-5 right-[24%] hidden text-lg md:block" style={{ animationDelay: '-0.5s' }}>✨</span>
+                {/* The banner, after the supplied design (2026-10-27): light
+                    lavender, the words on the left, Yati reading on the books in
+                    the middle (cut from the design: public/illustrations/
+                    courses-hero-scene.jpg) and Wallet & Rewards on the right.
+                    It is sized by its own width, so the picture comes in only
+                    where all three fit; a phone stacks the wallet under the
+                    words. */}
+                <div className="lms-rise @container relative rounded-[1.75rem] text-indigo-950 shadow-[0_22px_44px_-30px_rgba(76,29,149,0.5)] ring-1 ring-violet-200/70">
+                    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] bg-[#f8f6fe]">
+                        {/* A phone has the words on top and the wallet below, so its purple
+                            comes from below rather than from the right. */}
+                        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,#f8f6fe_0,#f8f6fe_40%,#cdc0fc_100%)] @2xl:bg-[linear-gradient(to_left,#aba6fb_0,#d2c5fd_21rem,#f8f6fe_40rem)]" />
+                        {/* The purple hills along the foot, under the wallet, rising from
+                            nothing on the left so they have no edge where the
+                            picture is not shown. */}
+                        <svg className="absolute right-0 bottom-0 h-[22%] w-[28rem] max-w-full" viewBox="0 0 448 100" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="courses-hero-hill" x1="0" x2="1" y1="0" y2="0">
+                                    <stop offset="0" stopColor="#6c4dc8" />
+                                    <stop offset="1" stopColor="#8f88f8" />
+                                </linearGradient>
+                            </defs>
+                            <path d="M0 100 C 50 40, 120 10, 220 8 C 330 6, 400 15, 448 25 L448 100 Z" fill="#b8a8fa" opacity="0.6" />
+                            <path d="M0 100 C 40 60, 80 42, 130 40 C 250 36, 360 45, 448 60 L448 100 Z" fill="url(#courses-hero-hill)" />
+                        </svg>
+                    </div>
 
-                    <div className="relative grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
-                        <div className="min-w-0">
-                            <p className="flex items-center gap-2 text-[0.7rem] font-black tracking-[0.18em] text-indigo-200 uppercase">
-                                <BookOpen size={14} />
+                    <div className={`relative grid items-center gap-6 p-5 @2xl:px-10 @2xl:py-6 ${walletOn ? '@2xl:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] @min-[68rem]:grid-cols-[minmax(0,1fr)_18rem_20rem] @min-[68rem]:gap-0 @min-[68rem]:pr-5' : '@min-[50rem]:grid-cols-[minmax(0,1fr)_18rem] @min-[50rem]:gap-0'}`}>
+                        <div className="relative z-10 min-w-0">
+                            <p className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-4 py-1.5 text-[0.75rem] font-bold tracking-wide text-violet-700 uppercase ring-1 ring-violet-200/70 @2xl:text-[0.8rem]">
+                                <BookOpen size={16} fill="#c4b5fd" aria-hidden />
                                 Enrolled courses
                             </p>
-                            <h1 className="mt-1.5 text-[1.6rem] font-black leading-tight sm:mt-2 sm:text-4xl">
+                            <h1 className="mt-3 text-[1.75rem] font-black leading-[1.1] @2xl:text-[2.4rem] @min-[68rem]:text-[length:clamp(2.5rem,3.9cqw,3rem)]">
                                 {courses.length > 0 ? (
-                                    <>Pick up where you <span className="lms-shimmer bg-gradient-to-r from-amber-300 via-orange-300 to-amber-300 bg-clip-text text-transparent">left off.</span></>
+                                    <>
+                                        Pick up where you{' '}
+                                        <span className="relative inline-block @2xl:block @2xl:w-fit">
+                                            <span className={HERO_ACCENT}>left </span>
+                                            <span className="relative inline-block">
+                                                <span className={HERO_ACCENT}>off.</span>
+                                                <HeroUnderline />
+                                            </span>
+                                            <HeroSparks />
+                                        </span>
+                                    </>
                                 ) : (
-                                    <>Your courses, <span className="lms-shimmer bg-gradient-to-r from-amber-300 via-orange-300 to-amber-300 bg-clip-text text-transparent">all in one place.</span></>
+                                    <>
+                                        Your courses,{' '}
+                                        <span className="relative inline-block @2xl:block @2xl:w-fit">
+                                            <span className={HERO_ACCENT}>all in one place.</span>
+                                            <HeroSparks />
+                                        </span>
+                                    </>
                                 )}
                             </h1>
-                            <p className="mt-1.5 max-w-lg text-[0.8rem] font-medium text-indigo-200 sm:mt-2 sm:text-base">
+                            <p className="mt-2.5 max-w-[27.5rem] text-[0.85rem] font-medium leading-relaxed text-slate-500 @2xl:text-[0.95rem]">
                                 {courses.length > 0
                                     ? 'Every course you are enrolled in, with how far you have come on each one.'
                                     : 'Once you enrol, each course lands here with its progress, ready to resume any time.'}
                             </p>
 
-                            <div className="lms-stagger mt-4 flex flex-wrap items-center gap-1.5 sm:mt-5 sm:gap-2.5">
+                            <div className="lms-stagger relative mt-4 flex flex-wrap items-center gap-2 @2xl:gap-2.5">
+                                <svg aria-hidden viewBox="0 0 12 24" className="absolute top-1/2 -left-7 hidden h-6 w-3 -translate-y-1/2 @2xl:block" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round">
+                                    <path d="M2 3 L10 8" /><path d="M1 12 H10" /><path d="M2 21 L10 16" />
+                                </svg>
                                 {resume && (
                                     <Link
                                         to={`/learn/${resume._id}`}
-                                        className="mb-1 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-indigo-700 sm:mb-0 sm:w-auto sm:justify-start shadow-lg shadow-indigo-900/20 transition-all hover:-translate-y-0.5 hover:bg-indigo-50 active:scale-[0.98]"
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-violet-600/25 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98] sm:w-auto"
                                     >
                                         <PlayCircle size={18} />
                                         Resume {resume.title.length > 28 ? `${resume.title.slice(0, 28)}…` : resume.title}
                                     </Link>
                                 )}
-                                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ring-1 ring-white/25 ring-inset tabular-nums sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs">
-                                    <BookOpen size={13} />
+                                <span className={`${HERO_CHIP} bg-violet-100/80 text-indigo-900 ring-violet-200/70`}>
+                                    <BookOpen size={18} className="text-violet-600" fill="#c4b5fd" aria-hidden />
                                     {courses.length} {courses.length === 1 ? 'course' : 'courses'}
                                 </span>
-                                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ring-1 ring-white/25 ring-inset tabular-nums sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs">
-                                    <CheckCircle2 size={13} />
+                                <span className={`${HERO_CHIP} bg-sky-50 text-blue-950 ring-sky-100`}>
+                                    <span aria-hidden className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-gradient-to-b from-sky-400 to-blue-600 text-white">
+                                        <Check size={12} strokeWidth={3.2} />
+                                    </span>
                                     {finished} finished
                                 </span>
                                 {courses.length > 0 && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ring-1 ring-white/25 ring-inset tabular-nums sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs">
-                                        <TrendingUp size={13} />
-                                        {avgProgress}%<span className="hidden sm:inline"> on average</span><span className="sm:hidden"> avg</span>
+                                    <span className={`${HERO_CHIP} bg-emerald-50 text-emerald-950 ring-emerald-100`}>
+                                        <TrendingUp size={18} strokeWidth={2.5} className="text-emerald-600" aria-hidden />
+                                        <span>{avgProgress}%<span className="hidden sm:inline"> on average</span><span className="sm:hidden"> avg</span></span>
                                     </span>
                                 )}
                             </div>
                         </div>
 
-                        {/* The art on its lit stage. Decorative. */}
-                        <div aria-hidden className="relative hidden h-52 w-64 items-end justify-center pb-3 md:flex">
-                            <span className="cm-glow absolute bottom-6 left-1/2 h-40 w-40 rounded-full bg-white/35 blur-2xl" />
-                            <span className="cm-ring absolute bottom-3 left-1/2 h-10 w-44 rounded-[50%] border-2 border-white/50" />
-                            <span className="absolute bottom-2 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-indigo-950/30" />
-                            <span className="absolute bottom-4 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-gradient-to-b from-white/70 to-indigo-100/60 shadow-lg" />
-                            <span className="absolute bottom-[26px] left-1/2 h-4 w-28 -translate-x-1/2 rounded-[50%] bg-white/50" />
-                            <CoursesArt className="mc-pop relative h-44 w-44" />
+                        {/* Yati reading, from the design itself; it reaches the
+                            banner's top and bottom edges, and fades at its sides. */}
+                        <div aria-hidden className={`relative -my-6 hidden self-stretch ${walletOn ? '@min-[68rem]:block' : '@min-[50rem]:block'}`}>
+                            <img src="/illustrations/courses-hero-scene.jpg" alt="" draggable={false}
+                                className="absolute inset-y-0 left-1/2 h-full w-auto max-w-none -translate-x-1/2 select-none"
+                                style={{ maskImage: HERO_SCENE_FADE, WebkitMaskImage: HERO_SCENE_FADE }} />
                         </div>
+
+                        <HeroWallet />
+
                     </div>
                 </div>
 

@@ -8,8 +8,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Upload, FileText, Sparkles, ExternalLink, Loader2, RefreshCw, MapPin, Building2, Check, AlertCircle } from 'lucide-react';
 import { jobsApi, learnerSkills } from './api';
-import PriceTag from '../components/rewards/PriceTag';
 import usePricedJobLink from './usePricedJobLink';
+import { isWalletCancel } from '../utils/walletCharge';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -51,7 +51,7 @@ export const MatchCard = ({ job, actionLabel = 'Find Job' }) => {
             <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                 <span className="min-w-0 truncate text-xs text-slate-500">{job.source ? `via ${job.source}` : ''}</span>
                 <a href={job.url} target="_blank" rel="noopener noreferrer" onClick={(e) => openJob(e, job)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700">
-                    {actionLabel} <PriceTag action="find_job" /> <ExternalLink size={14} />
+                    {actionLabel} <ExternalLink size={14} />
                 </a>
             </div>
             {openError && <p role="alert" className="mt-2 text-right text-xs font-semibold text-red-600">{openError}</p>}
@@ -103,7 +103,7 @@ export default function CareerMatchTab({ profile, onProfile, onSwitchTab, locati
             onProfile(res.profile);
             setSource('upload');
         } catch (e) {
-            setError(e.message || 'Upload failed. Please try again.');
+            if (!isWalletCancel(e)) setError(e.message || 'Upload failed. Please try again.');
         } finally {
             setUploading(false);
             if (inputRef.current) inputRef.current.value = '';

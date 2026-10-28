@@ -10,7 +10,7 @@
  * and so on, and those paths keep working untouched.
  */
 import axios from 'axios';
-import { onWalletResponse, onWalletError } from '../../utils/walletCharge';
+import { onWalletResponse, onWalletError, askWallet } from '../../utils/walletCharge';
 import { expireSessionOn401 } from '../../utils/sessionExpiry';
 import { onSaved } from '../../utils/saveSignal';
 
@@ -20,7 +20,7 @@ const lmsBaseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const api = axios.create({ baseURL: `${lmsBaseURL}/career` });
 
 // Wallet rules: a priced Career Path feature (rebuilding the roadmap) refreshes the balance.
-api.interceptors.response.use(onWalletResponse, onWalletError);
+api.interceptors.response.use(onWalletResponse, (error) => onWalletError(error, api));
 api.interceptors.response.use(onSaved);
 
 /*
@@ -55,7 +55,8 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  return config;
+  // Priced features ask before taking money (utils/walletCharge).
+  return askWallet(config);
 });
 
 /*

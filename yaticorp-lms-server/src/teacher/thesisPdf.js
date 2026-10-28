@@ -64,11 +64,16 @@ const write = (doc, text, { weight = 'regular', size = 12, color = INK, ...optio
     });
 };
 
-const renderThesisPdf = (thesis, author, out) => {
-    const doc = new PDFDocument({ size: 'A4', margins: { top: 72, bottom: 72, left: 90, right: 72 }, bufferPages: true, info: { Title: thesis.title, Author: author || '' } });
+/** Every font above, by the names fontName() gives. */
+const registerFonts = (doc) => {
     for (const [script, set] of Object.entries(FONTS)) {
         for (const [style, file] of Object.entries(set)) doc.registerFont(`${script}-${style}`, path.join(FONT_DIR, file));
     }
+};
+
+const renderThesisPdf = (thesis, author, out) => {
+    const doc = new PDFDocument({ size: 'A4', margins: { top: 72, bottom: 72, left: 90, right: 72 }, bufferPages: true, info: { Title: thesis.title, Author: author || '' } });
+    registerFonts(doc);
     doc.pipe(out);
 
     // Title page
@@ -140,4 +145,4 @@ const renderThesisPdf = (thesis, author, out) => {
     doc.end();
 };
 
-module.exports = { renderThesisPdf, fontRuns };
+module.exports = { renderThesisPdf, fontRuns, fontName, registerFonts, write, INK, MUTED };

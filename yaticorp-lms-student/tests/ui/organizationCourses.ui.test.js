@@ -57,7 +57,7 @@ describe('Enrolled Courses: organization courses', { skip: skipWithoutChrome }, 
         assert.deepEqual(errors, []);
         assert.match(result.before, /St Agnes College/);
         assert.match(result.pressed, /My courses/);
-        assert.equal(result.tabs, 2, 'the Organization tab is gone');
+        assert.equal(result.tabs, 1, 'the Organization tab is gone (no Bundles tab since 2026-10-26)');
         assert.match(result.body, /Web Development Basics/);
     });
 
@@ -66,7 +66,7 @@ describe('Enrolled Courses: organization courses', { skip: skipWithoutChrome }, 
             await sleep(600);
             return $$('button[aria-pressed]').map(text);` });
         assert.deepEqual(errors, []);
-        assert.equal(result.length, 2);
+        assert.equal(result.length, 1, 'My courses alone (no Bundles tab since 2026-10-26)');
         assert.ok(!result.some((t) => /Organization/.test(t)));
     });
 
@@ -78,7 +78,7 @@ describe('Enrolled Courses: organization courses', { skip: skipWithoutChrome }, 
             find(/Organization/, 'button[aria-pressed]').click(); await sleep(300);
             return { tabs, mine, body: text(document.body) };` });
         assert.match(result.tabs[0], /My courses\s*1/);
-        assert.match(result.tabs[2], /Organization\s*2/);
+        assert.match(result.tabs[1], /Organization\s*2/);
         assert.match(result.mine, /Web Development Basics/);
         assert.doesNotMatch(result.mine, /Campus Safety/, 'the organization course is not in My courses');
         assert.match(result.body, /St Agnes College/);
@@ -109,13 +109,13 @@ describe('Enrolled Courses: organization courses', { skip: skipWithoutChrome }, 
 
     // At real phone widths through device mode: the 500px window is the
     // narrowest headless Chrome opens, and three tabs that fit there ran the
-    // third one off the edge of a 360px phone.
+    // third one off the edge of a 360px phone. (Two tabs since Bundles went.)
     for (const [name, sizing] of [
         ['a 500px window', { width: 500 }],
         ['a 360px phone', { device: { width: 360, height: 780, dpr: 3, mobile: true } }],
         [`the narrowest phone (${DEVICES.galaxyZFold6Folded.width}px)`, { device: DEVICES.galaxyZFold6Folded }]
     ]) {
-        test(`three tabs fit ${name}, and nothing spills sideways`, { skip: skipWithoutStyles }, async () => {
+        test(`both tabs fit ${name}, and nothing spills sideways`, { skip: skipWithoutStyles }, async () => {
             const { result } = await screen({ entry: page('/enrolled-courses?tab=organization'), api: api(ORG), styles: true, ...sizing, script: `
                 await sleep(800);
                 const w = document.documentElement.clientWidth;
@@ -125,9 +125,9 @@ describe('Enrolled Courses: organization courses', { skip: skipWithoutChrome }, 
             assert.ok(result.overflow <= 0, 'page overflow ' + result.overflow);
             assert.ok(result.barRight <= result.w, `the bar ends at ${result.barRight} on a ${result.w}px screen`);
             assert.equal(result.clipped, 0, 'no tab label is cut off');
-            assert.equal(result.tabs.length, 3);
+            assert.equal(result.tabs.length, 2);
             assert.ok(result.tabs.every((t) => t.right <= result.barRight + 0.5), 'every tab sits inside the bar: ' + JSON.stringify(result.tabs));
-            assert.match(result.tabs[2].label, /Organization\s*2/);
+            assert.match(result.tabs[1].label, /Organization\s*2/);
         });
     }
 });

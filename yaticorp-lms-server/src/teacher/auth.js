@@ -164,20 +164,27 @@ const forgotPassword = async (req, res) => {
         const token = crypto.randomBytes(32).toString('hex');
         await Teacher.updateOne({ _id: teacher._id }, { $set: { resetPasswordToken: hashToken(token), resetPasswordExpiry: new Date(Date.now() + 60 * 60 * 1000) } });
         const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?as=teacher&token=${token}`;
-        // Looked up at call time, so a test can stand in for the mailer.
-        await require('../utils/emailService').sendEmail({
-            to: teacher.email,
-            toName: teacher.name,
-            subject: 'Reset your YATICORP teacher password',
-            htmlContent: `
-                <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
-                    <h2 style="color: #4f46e5; margin-bottom: 8px;">Password reset</h2>
-                    <p style="color: #475569;">Hi ${teacher.name.replace(/[<>&"]/g, '')},</p>
-                    <p style="color: #475569;">We received a request to reset the password of your YATICORP teacher account.</p>
-                    <a href="${resetUrl}" style="display: inline-block; margin: 24px 0; padding: 14px 28px; background: #4f46e5; color: white; font-weight: bold; text-decoration: none; border-radius: 8px;">Reset my password</a>
-                    <p style="color: #94a3b8; font-size: 13px;">This link expires in 1 hour. If you did not ask for it, you can ignore this email.</p>
-                </div>`
-        });
+        // Looked up at call time, so a test can stand in for the mailer. A
+        // mail that fails is logged, and the answer stays the same as for a
+        // card with no account: "Failed to send" only for real accounts told
+        // anyone which cards have one (found in the 2026-10-27 test).
+        try {
+            await require('../utils/emailService').sendEmail({
+                to: teacher.email,
+                toName: teacher.name,
+                subject: 'Reset your YATICORP teacher password',
+                htmlContent: `
+                    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
+                        <h2 style="color: #4f46e5; margin-bottom: 8px;">Password reset</h2>
+                        <p style="color: #475569;">Hi ${teacher.name.replace(/[<>&"]/g, '')},</p>
+                        <p style="color: #475569;">We received a request to reset the password of your YATICORP teacher account.</p>
+                        <a href="${resetUrl}" style="display: inline-block; margin: 24px 0; padding: 14px 28px; background: #4f46e5; color: white; font-weight: bold; text-decoration: none; border-radius: 8px;">Reset my password</a>
+                        <p style="color: #94a3b8; font-size: 13px;">This link expires in 1 hour. If you did not ask for it, you can ignore this email.</p>
+                    </div>`
+            });
+        } catch (mailError) {
+            console.error('[teacher] reset email not sent:', mailError.message);
+        }
         res.json({ message: FORGOT_REPLY });
     } catch (error) {
         console.error('[teacher] forgot password failed:', error.message);

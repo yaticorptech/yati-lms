@@ -22,6 +22,11 @@ const publicConfig = (c) => ({
 });
 
 // @desc  Everything the profile cards need in one call
+// Credits from XP made before XP stopped turning into money (2026-10-26):
+// the money stays in the wallet, but the student no longer sees the entries
+// (the user's choice). The admin ledger still lists them.
+const HIDDEN_SOURCE = 'xp_reward';
+
 // @route GET /api/rewards/summary
 const getSummary = async (req, res) => {
   try {
@@ -131,7 +136,7 @@ const getWallet = async (req, res) => {
       User.findById(userId).select('accountType walletAccess xp').lean(),
       // Twenty: the dashboard's wallet card scrolls through them (three rows
       // tall); the full wallet's overview still shows the first five.
-      WalletTransaction.find({ userId }).sort({ createdAt: -1 }).limit(20).lean(),
+      WalletTransaction.find({ userId, source: { $ne: HIDDEN_SOURCE } }).sort({ createdAt: -1 }).limit(20).lean(),
       WithdrawalRequest.findOne({ userId, status: { $in: ['pending', 'approved'] } }).lean(),
       S.wallet.redeemedThisMonth(userId)
     ]);
@@ -139,7 +144,7 @@ const getWallet = async (req, res) => {
     res.json({
       wallet: {
         ...wallet.toObject(),
-        earnedBySource: Object.fromEntries(wallet.earnedBySource || new Map()),
+        earnedBySource: Object.fromEntries([...(wallet.earnedBySource || new Map())].filter(([k]) => k !== HIDDEN_SOURCE)),
         spendOnly: wallet.spendOnly || 0,
         withdrawable: Math.max(0, Math.round((wallet.available - (wallet.spendOnly || 0)) * 100) / 100)
       },
@@ -161,7 +166,8 @@ const getWallet = async (req, res) => {
 const getWalletTransactions = async (req, res) => {
   try {
     const { limit, skip } = page(req);
-    const q = { userId: req.user._id };
+    if (req.query.source === HIDDEN_SOURCE) return res.json({ rows: [], total: 0, limit, skip });
+    const q = { userId: req.user._id, source: { $ne: HIDDEN_SOURCE } };
     if (req.query.source) q.source = req.query.source;
     if (req.query.status) q.status = req.query.status;
     if (req.query.type) q.type = req.query.type;
@@ -244,10 +250,11 @@ const markEventsSeen = async (req, res) => {
 const spend = async (req, res) => {
   try {
     const { CLIENT_CHARGED_ACTIONS } = require('../config/constants');
-    const { chargeFor, sendShort } = require('../services/walletRuleService');
+    const { chargeFor, askFirst, sendShort } = require('../services/walletRuleService');
     const action = String(req.body?.action || '');
     if (!CLIENT_CHARGED_ACTIONS.includes(action)) return res.status(400).json({ message: 'That is not a feature you pay for here.' });
     const ref = String(req.body?.ref || '').slice(0, 200) || null;
+    if (await askFirst(req, res, { action, referenceKey: ref })) return;
     try {
       const r = await chargeFor({ userId: req.user._id, action, referenceKey: ref });
       if (r.charged > 0) res.setHeader('X-Wallet-Charged', String(r.charged));

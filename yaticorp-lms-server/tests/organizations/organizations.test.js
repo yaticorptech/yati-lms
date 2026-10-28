@@ -17,7 +17,7 @@
 const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
-const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, makeAdmin, startApp, cleanup, forgetAudit } = require('../helpers');
 
 const STAMP = `${Date.now()}${Math.floor(Math.random() * 1e4)}`;
 const email = (label) => `org-test-${label}-${STAMP}@example.com`;
@@ -84,6 +84,7 @@ after(async () => {
     const ours = await Organization.find({ name: new RegExp(STAMP) }).select('_id').lean();
     const ids = ours.map((o) => o._id);
     await JoinRequest.deleteMany({ organizationId: { $in: ids } });
+    await forgetAudit({ orgs: ids, admins: await Admin.find({ $or: [{ organizationId: { $in: ids } }, { email: new RegExp(STAMP) }] }).distinct('_id'), emails: new RegExp(STAMP, 'i') });
     await Admin.deleteMany({ organizationId: { $in: ids } });
     await Organization.deleteMany({ _id: { $in: ids } });
 

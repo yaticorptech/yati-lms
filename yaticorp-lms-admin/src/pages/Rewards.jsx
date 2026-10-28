@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import api from '../utils/api';
 import {
     Gift, Settings2, Award, Wallet, ReceiptText, ArrowDownToLine, ShieldCheck, Lock, Unlock, Loader2, Plus, Trash2, Save, Search,
-    RefreshCw, CheckCircle2, XCircle, AlertTriangle, Flame, Trophy, Coins, Users, ChevronRight, X, Gamepad2
+    RefreshCw, CheckCircle2, XCircle, AlertTriangle, Flame, Trophy, Coins, Users, ChevronRight, X, Gamepad2, Globe, TrendingUp, Medal
 } from 'lucide-react';
 import Select from '../components/Select';
 import { Segmented } from '../components/orgUi';
@@ -139,7 +139,7 @@ function Overview() {
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
                 <Stat icon={Wallet} label="Wallet liability" value={money(d.wallets.available + d.wallets.pending)} sub={`${money(d.wallets.pending)} on hold · ${num(d.wallets.count)} wallets`} tone="emerald" />
                 <Stat icon={ReceiptText} label="Spent in the LMS" value={money(d.wallets.spent)} sub="Courses and wallet-rule features" tone="amber" />
-                <Stat icon={Coins} label="Reward points held" value={num(d.wallets.points)} sub="A score that unlocks badges — never money" tone="rose" />
+                <Stat icon={Coins} label="Reward points held" value={num(d.wallets.points)} sub="A score that unlocks badges — never wallet points" tone="rose" />
                 <Stat icon={Flame} label="Active streaks" value={num(d.activeStreaks)} sub={`${num(d.badgesUnlocked)} badges unlocked · ${num(d.xpLast7Days.xp)} XP this week`} tone="indigo" />
             </div>
             <div className="grid gap-4 xl:grid-cols-2">
@@ -306,51 +306,71 @@ const XP_GROUPS = [
 ];
 
 /**
- * The rules in force, by group, each with its amount and a remove button,
- * and "Add rule" for any catalogued rule not in force. Only hooks the server
- * really has are in the catalogue, so an added rule always does something.
+ * The rules in force, by group: one row each — what it is on the left, the
+ * amount on the right (₹ before it for a price, XP after it for XP), and a
+ * remove button. A value changed since the last save is ringed in amber with
+ * what it was. `query` narrows the rows; "Add rule" offers any catalogued rule
+ * not in force. Only hooks the server really has are in the catalogue, so an
+ * added rule always does something.
  */
-function RuleList({ groups, values, prefix, step = 1, onSet, onRemove, addLabel }) {
+function RuleList({ groups, values, saved = {}, query = '', prefix, suffix, step = 1, onSet, onRemove, addLabel }) {
     const [adding, setAdding] = useState(false);
     const [pick, setPick] = useState('');
     const [amount, setAmount] = useState('');
     const all = groups.flatMap((g) => g.rules.map(([k, label, , unearned]) => ({ k, label: unearned ? `${label} (not currently earned)` : label, group: g.title })));
     const missing = all.filter((r) => !(r.k in (values || {})));
+    const q = query.trim().toLowerCase();
     const add = () => {
         if (!pick) return;
         onSet(pick, Math.max(0, Number(amount) || 0));
         setAdding(false); setPick(''); setAmount('');
     };
+    const unit = (v) => (prefix ? `${prefix}${num(v)}` : `${num(v)}${suffix ? ` ${suffix}` : ''}`);
+    const shownGroups = groups
+        .map((g) => ({ ...g, live: g.rules.filter(([k, label, hint]) => k in (values || {}) && (!q || `${label} ${hint}`.toLowerCase().includes(q))) }))
+        .filter((g) => g.live.length);
     return (
         <div className="space-y-5">
-            {groups.map((g) => {
-                const live = g.rules.filter(([k]) => k in (values || {}));
-                if (!live.length) return null;
+            {shownGroups.map((g) => {
+                const { live } = g;
                 return (
                     <div key={g.title}>
-                        {groups.length > 1 && <p className="mb-2 text-xs font-black uppercase tracking-wider text-indigo-500">{g.title}</p>}
-                        <div className="grid sm:grid-cols-2 gap-3">
-                            {live.map(([k, label, hint, unearned]) => (
-                                <div key={k} className={unearned ? 'opacity-70' : ''}>
-                                    <div className="mb-1 flex items-start justify-between gap-2">
-                                        <label className={`${LABEL} !mb-0`}>
-                                            {label}
-                                            {unearned && <span className="ml-1.5 inline-block rounded-full bg-amber-100 px-1.5 py-px align-middle text-[10px] font-bold normal-case tracking-normal text-amber-700">Not currently earned</span>}
-                                        </label>
+                        {groups.length > 1 && <p className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-indigo-500">{g.title}<span className="rounded-full bg-indigo-50 px-1.5 py-px text-[10px] text-indigo-500">{live.length}</span></p>}
+                        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                            {live.map(([k, label, hint, unearned]) => {
+                                const changed = k in saved && Number(saved[k]) !== Number(values[k]);
+                                const isNew = !(k in saved);
+                                return (
+                                    // A phone stacks the row: the rule across the full width,
+                                    // the amount and the bin on a line of their own below it.
+                                    <li key={k} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 sm:flex-nowrap sm:py-2.5 sm:px-4 ${unearned ? 'bg-amber-50/30' : ''}`}>
+                                        <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
+                                            <p className="text-sm font-semibold text-slate-800">
+                                                {label}
+                                                {isNew && <span className="ml-1.5 inline-block rounded-full bg-indigo-100 px-1.5 py-px align-middle text-[10px] font-bold text-indigo-700">New</span>}
+                                                {unearned && <span className="ml-1.5 inline-block rounded-full bg-amber-100 px-1.5 py-px align-middle text-[10px] font-bold text-amber-700">Not currently earned</span>}
+                                            </p>
+                                            <p className="text-xs leading-snug text-slate-500">{hint}{unearned && <span className="block text-amber-700">{unearned}</span>}</p>
+                                        </div>
+                                        <div className="min-w-0 flex-1 sm:w-32 sm:flex-none">
+                                            <div className="relative">
+                                                {prefix && <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{prefix}</span>}
+                                                <input type="number" min="0" step={step} value={values[k] ?? 0} onChange={(e) => onSet(k, Number(e.target.value))} aria-label={label}
+                                                    className={`w-full rounded-lg border bg-white py-2 text-sm font-semibold sm:py-1.5 sm:text-right tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${prefix ? 'pl-7 pr-2.5' : suffix ? 'pl-2.5 pr-9' : 'px-2.5'} ${changed ? 'border-amber-300 ring-2 ring-amber-200' : 'border-slate-200'}`} />
+                                                {suffix && <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">{suffix}</span>}
+                                            </div>
+                                            {changed && <p className="mt-0.5 text-[10px] font-semibold text-amber-700 sm:text-right">was {unit(saved[k])}</p>}
+                                        </div>
                                         <button type="button" onClick={() => onRemove(k)} title="Remove this rule" aria-label={`Remove ${label}`}
-                                            className="-mt-1 rounded-md p-1 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-600"><Trash2 size={13} /></button>
-                                    </div>
-                                    <div className="relative">
-                                        {prefix && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{prefix}</span>}
-                                        <input type="number" min="0" step={step} value={values[k] ?? 0} onChange={(e) => onSet(k, Number(e.target.value))} className={`${INPUT} ${prefix ? (prefix.length > 1 ? 'pl-12' : 'pl-7') : ''}`} />
-                                    </div>
-                                    <p className="mt-1 text-[11px] leading-snug text-slate-400">{hint}{unearned && <span className="block text-amber-700">{unearned}</span>}</p>
-                                </div>
-                            ))}
-                        </div>
+                                            className="shrink-0 rounded-md p-2 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-600 sm:p-1.5"><Trash2 size={15} /></button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
                     </div>
                 );
             })}
+            {q && !shownGroups.length && <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm italic text-slate-400">No rule matches “{query.trim()}”.</p>}
             {adding ? (
                 <div className="flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-3">
                     <div className="min-w-[12rem] flex-1">
@@ -369,11 +389,13 @@ function RuleList({ groups, values, prefix, step = 1, onSet, onRemove, addLabel 
                     <button type="button" onClick={() => setAdding(false)} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700">Cancel</button>
                 </div>
             ) : (
-                <button type="button" onClick={() => setAdding(true)} disabled={!missing.length} className={BTN2} title={missing.length ? '' : 'Every available rule is already in use'}>
-                    <Plus size={14} /> {addLabel}
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                    <button type="button" onClick={() => setAdding(true)} disabled={!missing.length} className={BTN2} title={missing.length ? '' : 'Every available rule is already in use'}>
+                        <Plus size={14} /> {addLabel}
+                    </button>
+                    {!missing.length && <p className="text-[11px] text-slate-400">Every available rule is in use.</p>}
+                </div>
             )}
-            {!missing.length && <p className="text-[11px] text-slate-400">Every available rule is in use.</p>}
         </div>
     );
 }
@@ -383,13 +405,21 @@ function RuleList({ groups, values, prefix, step = 1, onSet, onRemove, addLabel 
 // input below it on each keystroke and the field lost focus after one digit.
 // Tones are written out in full; `bg-${tone}-100` is never generated by Tailwind.
 const CARD_TONES = { indigo: 'bg-indigo-100 text-indigo-600', emerald: 'bg-emerald-100 text-emerald-600', amber: 'bg-amber-100 text-amber-600', rose: 'bg-rose-100 text-rose-600' };
-const Card = ({ icon: Icon, title, sub, children, tone = 'indigo' }) => (
+// `save`: the save bar, in the card's header and again at its foot, so the
+// card being edited carries its own Save. `picker`: the section dropdown,
+// shown in place of the title (both 2026-10-28).
+const Card = ({ icon: Icon, title, sub, children, tone = 'indigo', save = null, picker = null }) => (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-start gap-3 bg-slate-50 lg:flex-nowrap lg:items-center">
             <div className={`shrink-0 p-2 rounded-lg ${CARD_TONES[tone] || CARD_TONES.indigo}`}><Icon size={18} /></div>
-            <div className="min-w-0"><h2 className="font-bold text-slate-800">{title}</h2><p className="text-xs text-slate-500">{sub}</p></div>
+            <div className="min-w-0 flex-1">
+                {picker ? <div className="mb-1.5 w-full sm:w-80">{picker}</div> : <h2 className="font-bold text-slate-800">{title}</h2>}
+                <p className="text-xs text-slate-500">{sub}</p>
+            </div>
+            {save && <div className="basis-full lg:basis-auto lg:shrink-0">{save}</div>}
         </div>
         <div className="p-4 sm:p-5">{children}</div>
+        {save && <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 sm:px-5">{save}</div>}
     </div>
 );
 
@@ -401,6 +431,10 @@ function Rules() {
     const [msg, setMsg] = useState(null);
     // The rulebook as last saved, to tell whether anything on screen differs.
     const [saved, setSaved] = useState(null);
+    // One section of the rulebook at a time (2026-10-28: it was one long page),
+    // and a filter for the two long rule lists.
+    const [section, setSection] = useState('xp');
+    const [query, setQuery] = useState('');
     useEffect(() => { api.get('/rewards/admin/config').then((r) => { setCfg(r.data); setSaved(JSON.stringify(r.data)); }).catch((e) => setMsg({ kind: 'error', text: e.response?.data?.message || 'Failed to load' })); }, []);
     if (!cfg) return <div className="animate-pulse h-64 bg-slate-100 rounded-2xl" />;
     const dirty = JSON.stringify(cfg) !== saved || removed.xp.length > 0 || removed.wallet.length > 0;
@@ -424,9 +458,10 @@ function Rules() {
         } catch (e) { setMsg({ kind: 'error', text: e.response?.data?.message || 'Failed to save' }); }
         finally { setBusy(false); }
     };
-    // Save, in the page flow at the top and again at the bottom of the rules —
-    // never pinned over the cards. Says whether anything is unsaved, and Save
-    // is only live when it is. A value, not a component, so it never remounts.
+    // Save, inside the card on screen: in its header and again at its foot —
+    // never pinned over the rules. Says whether anything is unsaved (in any
+    // section: they are saved together), and Save is only live when it is. A
+    // value, not a component, so it never remounts.
     const saveBar = (
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
             <span className="flex items-center gap-1.5 text-xs font-semibold">
@@ -442,69 +477,82 @@ function Rules() {
         </div>
     );
     const cur = cfg.conversion.currency;
+    const was = JSON.parse(saved);
+    const differs = (key) => JSON.stringify(cfg[key] ?? null) !== JSON.stringify(was[key] ?? null);
+    const SECTIONS = [
+        { id: 'xp', label: 'XP rules', count: Object.keys(cfg.xpRules || {}).length, dirty: differs('xpRules') || removed.xp.length > 0 },
+        { id: 'wallet', label: 'Wallet rules', count: Object.keys(cfg.walletRules || {}).length, dirty: differs('walletRules') || removed.wallet.length > 0 },
+        { id: 'credit', label: 'Starting credit', dirty: differs('startingCredit') },
+        { id: 'levels', label: 'Levels', count: cfg.levelThresholds.length, dirty: differs('levelThresholds') },
+        { id: 'streaks', label: 'Streak milestones', count: cfg.streakMilestones.length, dirty: differs('streakMilestones') },
+        { id: 'leaderboard', label: 'Leaderboard rewards', count: cfg.leaderboardRewards.weekly.length + cfg.leaderboardRewards.monthly.length, dirty: differs('leaderboardRewards') },
+        { id: 'quiz', label: 'Global Quiz', dirty: differs('globalQuiz') },
+        { id: 'games', label: 'Brain Boosters', dirty: differs('games') }
+    ];
+    const search = (placeholder) => (
+        <div className="relative mb-4 max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={placeholder} aria-label="Search the rules" className={`${INPUT} pl-9`} />
+        </div>
+    );
 
-    return (
-        <div className="space-y-5">
-            {msg && <Banner kind={msg.kind === 'error' ? 'error' : 'ok'} onClose={() => setMsg(null)}>{msg.text}</Banner>}
-            {saveBar}
-            <div className="grid gap-5 xl:grid-cols-2">
-                <Card icon={Coins} title="XP rules" sub="XP is learning progress: it drives levels, the leaderboard and badges. It is never wallet money.">
-                    <RuleList groups={XP_GROUPS} values={cfg.xpRules} onSet={(k, v) => setRule('xpRules', k, v)} onRemove={(k) => removeRule('xpRules', k)} addLabel="Add XP rule" />
-                    <p className="mt-4 text-[11px] leading-snug text-slate-500">Streak milestones and Brain Boosters pay their own XP (below). A removed rule pays nothing to anyone; a rule under "Add XP rule" pays nothing until it is added.</p>
-                </Card>
-                <Card icon={Wallet} title="Wallet rules" sub={`What a feature costs from the student's wallet balance, in ${cur}. 0 = free. Applies to every student from their next use; a short balance is refused, and a feature that fails is refunded.`} tone="emerald">
-                    <RuleList groups={WALLET_GROUPS} values={cfg.walletRules || {}} prefix={cur === 'INR' ? '₹' : cur} step={0.5} onSet={(k, v) => setRule('walletRules', k, v)} onRemove={(k) => removeRule('walletRules', k)} addLabel="Add wallet rule" />
-                </Card>
-                <Card icon={Trophy} title="Global Quiz" sub="What counts as winning. A win pays the &quot;Win the Global Quiz&quot; XP rule once per quiz; what starting a quiz costs is the &quot;Start the Global Quiz&quot; wallet rule." tone="amber">
-                    <div className="max-w-xs">
-                        <label className={LABEL}>Win score (%)</label>
-                        <input type="number" min="0" max="100" value={cfg.globalQuiz?.winScore ?? 60} onChange={(e) => set('globalQuiz.winScore', Number(e.target.value))} className={INPUT} />
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-2">A student who finishes with at least this score has won. Currently {num(cfg.xpRules?.global_quiz_win ?? 0)} XP; starting costs {money(cfg.walletRules?.start_global_quiz ?? 0, cur)}.</p>
-                </Card>
-                <Card icon={Gamepad2} title="Brain Boosters" sub="XP a level pays for its best result, once per star reached — replaying at the same stars pays nothing. Play is limited per student per day." tone="indigo">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="col-span-2 sm:col-span-1">
-                            <label className={LABEL}>Minutes a day</label>
-                            <input type="number" min="0" value={cfg.games?.dailyMinutes ?? 15} onChange={(e) => set('games.dailyMinutes', Number(e.target.value))} className={INPUT} />
+    const content = {
+        xp: (
+            <Card icon={Coins} title="XP rules" sub="XP is learning progress: it drives levels, the leaderboard and badges. It is never wallet points.">
+                {search('Search XP rules…')}
+                <RuleList groups={XP_GROUPS} values={cfg.xpRules} saved={was.xpRules || {}} query={query} suffix="XP" onSet={(k, v) => setRule('xpRules', k, v)} onRemove={(k) => removeRule('xpRules', k)} addLabel="Add XP rule" />
+                <p className="mt-4 text-[11px] leading-snug text-slate-500">Streak milestones and Brain Boosters pay their own XP (their own sections). A removed rule pays nothing to anyone; a rule under "Add XP rule" pays nothing until it is added.</p>
+            </Card>
+        ),
+        wallet: (
+            <Card icon={Wallet} title="Wallet rules" sub="What a feature costs from the student's wallet balance. 0 = free. Students are asked before anything is taken; a short balance is refused, and a feature that fails is refunded." tone="emerald">
+                {search('Search wallet rules…')}
+                <RuleList groups={WALLET_GROUPS} values={cfg.walletRules || {}} saved={was.walletRules || {}} query={query} prefix={cur === 'INR' ? '₹' : cur} step={0.5} onSet={(k, v) => setRule('walletRules', k, v)} onRemove={(k) => removeRule('walletRules', k)} addLabel="Add wallet rule" />
+            </Card>
+        ),
+        credit: (
+            <Card icon={Gift} title="Starting wallet credit" sub="Given once to each student who registers from now on — accounts that existed before are not credited. It pays for courses and wallet-rule features." tone="emerald">
+                <div className="max-w-xs">
+                    <label className={LABEL}>Amount ({cur})</label>
+                    <input type="number" min="0" step="1" value={cfg.startingCredit ?? 0} onChange={(e) => set('startingCredit', Number(e.target.value))} className={INPUT} />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">A change applies to students who register after it; credits already given stay as they are. 0 = no starting credit.</p>
+            </Card>
+        ),
+        levels: (
+            <Card icon={TrendingUp} title="Level thresholds" sub="XP at which each level begins. Level 1 is always 0." tone="amber">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                    {cfg.levelThresholds.map((t, i) => (
+                        <div key={i}><label className={LABEL}>Level {i + 1}</label><input type="number" min="0" disabled={i === 0} value={t} onChange={(e) => set(`levelThresholds.${i}`, Number(e.target.value))} className={INPUT} /></div>
+                    ))}
+                </div>
+                <div className="flex flex-wrap gap-2 mt-3">
+                    <button className={BTN2} onClick={() => set('levelThresholds', [...cfg.levelThresholds, cfg.levelThresholds[cfg.levelThresholds.length - 1] + Math.max(100, cfg.levelThresholds[cfg.levelThresholds.length - 1] - cfg.levelThresholds[cfg.levelThresholds.length - 2])])}><Plus size={14} /> Add level</button>
+                    <button className={BTN2} disabled={cfg.levelThresholds.length <= 2} onClick={() => set('levelThresholds', cfg.levelThresholds.slice(0, -1))}><Trash2 size={14} /> Remove last</button>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">Beyond the last level, each further level costs the same as the last gap.</p>
+            </Card>
+        ),
+        streaks: (
+            <Card icon={Flame} title="Streak milestones" sub="Reached by consecutive days with a meaningful activity. Each pays reward points and XP once per run." tone="amber">
+                <div className="space-y-2">
+                    {cfg.streakMilestones.map((m, i) => (
+                        <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end rounded-xl border border-slate-100 p-2 sm:border-0 sm:p-0">
+                            <div><label className={LABEL}>Days</label><input type="number" min="1" value={m.days} onChange={(e) => set(`streakMilestones.${i}.days`, Number(e.target.value))} className={INPUT} /></div>
+                            <div><label className={LABEL}>Reward points</label><input type="number" min="0" value={m.rewardPoints} onChange={(e) => set(`streakMilestones.${i}.rewardPoints`, Number(e.target.value))} className={INPUT} /></div>
+                            <div><label className={LABEL}>XP</label><input type="number" min="0" value={m.xp} onChange={(e) => set(`streakMilestones.${i}.xp`, Number(e.target.value))} className={INPUT} /></div>
+                            <button className="col-span-2 justify-self-end sm:col-span-1 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" onClick={() => set('streakMilestones', cfg.streakMilestones.filter((_, j) => j !== i))} title="Remove"><Trash2 size={15} /></button>
                         </div>
-                        {[['xpOneStar', '1 star'], ['xpTwoStars', '2 stars'], ['xpThreeStars', '3 stars']].map(([k, label]) => (
-                            <div key={k}>
-                                <label className={LABEL}>XP · {label}</label>
-                                <input type="number" min="0" value={cfg.games?.[k] ?? 0} onChange={(e) => set(`games.${k}`, Number(e.target.value))} className={INPUT} />
-                            </div>
-                        ))}
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-2">0 stars pays 0 XP. Minutes a day = 0 means no limit. A level first finished at 2 stars and later at 3 pays the 2-star XP, then the difference.</p>
-                </Card>
-                <Card icon={Trophy} title="Level thresholds" sub="XP at which each level begins. Level 1 is always 0." tone="amber">
-                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                        {cfg.levelThresholds.map((t, i) => (
-                            <div key={i}><label className={LABEL}>Level {i + 1}</label><input type="number" min="0" disabled={i === 0} value={t} onChange={(e) => set(`levelThresholds.${i}`, Number(e.target.value))} className={INPUT} /></div>
-                        ))}
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-3">
-                        <button className={BTN2} onClick={() => set('levelThresholds', [...cfg.levelThresholds, cfg.levelThresholds[cfg.levelThresholds.length - 1] + Math.max(100, cfg.levelThresholds[cfg.levelThresholds.length - 1] - cfg.levelThresholds[cfg.levelThresholds.length - 2])])}><Plus size={14} /> Add level</button>
-                        <button className={BTN2} disabled={cfg.levelThresholds.length <= 2} onClick={() => set('levelThresholds', cfg.levelThresholds.slice(0, -1))}><Trash2 size={14} /> Remove last</button>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-2">Beyond the last level, each further level costs the same as the last gap.</p>
-                </Card>
-                <Card icon={Flame} title="Streak milestones" sub="Reached by consecutive days with a meaningful activity. Each pays reward points and XP once per run." tone="amber">
-                    <div className="space-y-2">
-                        {cfg.streakMilestones.map((m, i) => (
-                            <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end rounded-xl border border-slate-100 p-2 sm:border-0 sm:p-0">
-                                <div><label className={LABEL}>Days</label><input type="number" min="1" value={m.days} onChange={(e) => set(`streakMilestones.${i}.days`, Number(e.target.value))} className={INPUT} /></div>
-                                <div><label className={LABEL}>Reward points</label><input type="number" min="0" value={m.rewardPoints} onChange={(e) => set(`streakMilestones.${i}.rewardPoints`, Number(e.target.value))} className={INPUT} /></div>
-                                <div><label className={LABEL}>XP</label><input type="number" min="0" value={m.xp} onChange={(e) => set(`streakMilestones.${i}.xp`, Number(e.target.value))} className={INPUT} /></div>
-                                <button className="col-span-2 justify-self-end sm:col-span-1 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" onClick={() => set('streakMilestones', cfg.streakMilestones.filter((_, j) => j !== i))} title="Remove"><Trash2 size={15} /></button>
-                            </div>
-                        ))}
-                        <button className={BTN2} onClick={() => set('streakMilestones', [...cfg.streakMilestones, { days: (cfg.streakMilestones.at(-1)?.days || 0) + 30, rewardPoints: 0, xp: 0 }])}><Plus size={14} /> Add milestone</button>
-                    </div>
-                </Card>
-                <Card icon={Trophy} title="Leaderboard rewards" sub="Paid automatically when a week or month closes, once per student per period." tone="emerald">
+                    ))}
+                    <button className={BTN2} onClick={() => set('streakMilestones', [...cfg.streakMilestones, { days: (cfg.streakMilestones.at(-1)?.days || 0) + 30, rewardPoints: 0, xp: 0 }])}><Plus size={14} /> Add milestone</button>
+                </div>
+            </Card>
+        ),
+        leaderboard: (
+            <Card icon={Medal} title="Leaderboard rewards" sub="Paid automatically when a week or month closes, once per student per period." tone="emerald">
+                <div className="grid gap-6 md:grid-cols-2">
                     {['weekly', 'monthly'].map((p) => (
-                        <div key={p} className="mb-4">
+                        <div key={p}>
                             <p className="text-sm font-bold text-slate-700 capitalize mb-2">{p}</p>
                             <div className="space-y-2">
                                 {cfg.leaderboardRewards[p].map((r, i) => (
@@ -514,27 +562,56 @@ function Rules() {
                                         <button className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" onClick={() => set(`leaderboardRewards.${p}`, cfg.leaderboardRewards[p].filter((_, j) => j !== i))}><Trash2 size={15} /></button>
                                     </div>
                                 ))}
+                                {!cfg.leaderboardRewards[p].length && <p className="text-xs italic text-slate-400">No {p} rewards.</p>}
                                 <button className={BTN2} onClick={() => set(`leaderboardRewards.${p}`, [...cfg.leaderboardRewards[p], { rank: cfg.leaderboardRewards[p].length + 1, rewardPoints: 0 }])}><Plus size={14} /> Add rank</button>
                             </div>
                         </div>
                     ))}
-                </Card>
-                {/* XP does not turn into wallet money (2026-10-26): only the wallet's currency is set here. */}
-                <Card icon={Gift} title="Wallet currency" sub="The currency wallet balances, prices and charges are shown in." tone="rose">
-                    <div className="max-w-xs">
-                        <label className={LABEL}>Currency</label>
-                        <input value={cfg.conversion.currency} maxLength={3} onChange={(e) => set('conversion.currency', e.target.value.toUpperCase())} className={INPUT} />
+                </div>
+            </Card>
+        ),
+        quiz: (
+            <Card icon={Globe} title="Global Quiz" sub="What counts as winning. A win pays the &quot;Win the Global Quiz&quot; XP rule once per quiz; what starting a quiz costs is the &quot;Start the Global Quiz&quot; wallet rule." tone="amber">
+                <div className="max-w-xs">
+                    <label className={LABEL}>Win score (%)</label>
+                    <input type="number" min="0" max="100" value={cfg.globalQuiz?.winScore ?? 60} onChange={(e) => set('globalQuiz.winScore', Number(e.target.value))} className={INPUT} />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">A student who finishes with at least this score has won. Currently {num(cfg.xpRules?.global_quiz_win ?? 0)} XP; starting costs {money(cfg.walletRules?.start_global_quiz ?? 0, cur)}.</p>
+            </Card>
+        ),
+        games: (
+            <Card icon={Gamepad2} title="Brain Boosters" sub="XP a level pays for its best result, once per star reached — replaying at the same stars pays nothing. Play is limited per student per day." tone="indigo">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="col-span-2 sm:col-span-1">
+                        <label className={LABEL}>Minutes a day</label>
+                        <input type="number" min="0" value={cfg.games?.dailyMinutes ?? 15} onChange={(e) => set('games.dailyMinutes', Number(e.target.value))} className={INPUT} />
                     </div>
-                </Card>
-                <Card icon={Wallet} title="Starting wallet credit" sub="Given once to each student who registers from now on — accounts that existed before are not credited. It pays for courses and wallet-rule features." tone="emerald">
-                    <div className="max-w-xs">
-                        <label className={LABEL}>Amount ({cur})</label>
-                        <input type="number" min="0" step="1" value={cfg.startingCredit ?? 0} onChange={(e) => set('startingCredit', Number(e.target.value))} className={INPUT} />
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-2">A change applies to students who register after it; credits already given stay as they are. 0 = no starting credit.</p>
-                </Card>
-            </div>
-            {saveBar}
+                    {[['xpOneStar', '1 star'], ['xpTwoStars', '2 stars'], ['xpThreeStars', '3 stars']].map(([k, label]) => (
+                        <div key={k}>
+                            <label className={LABEL}>XP · {label}</label>
+                            <input type="number" min="0" value={cfg.games?.[k] ?? 0} onChange={(e) => set(`games.${k}`, Number(e.target.value))} className={INPUT} />
+                        </div>
+                    ))}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">0 stars pays 0 XP. Minutes a day = 0 means no limit. A level first finished at 2 stars and later at 3 pays the 2-star XP, then the difference.</p>
+            </Card>
+        )
+    }[section];
+
+    return (
+        <div className="space-y-5">
+            {msg && <Banner kind={msg.kind === 'error' ? 'error' : 'ok'} onClose={() => setMsg(null)}>{msg.text}</Banner>}
+            {/* The card carries both the section dropdown (in place of its
+                title: each section's rule count, and "unsaved" on any with
+                changes) and its own Save. */}
+            {React.cloneElement(content, {
+                save: saveBar,
+                picker: (
+                    <Select value={section} onChange={(e) => { setSection(e.target.value); setQuery(''); }} aria-label="Reward rules section" className={`${INPUT} font-bold`}>
+                        {SECTIONS.map((x) => <option key={x.id} value={x.id}>{x.label}{x.count != null ? ` (${x.count})` : ''}{x.dirty ? ' · unsaved' : ''}</option>)}
+                    </Select>
+                )
+            })}
         </div>
     );
 }
@@ -867,7 +944,7 @@ function UserDrawer({ userId, onClose }) {
                         </div>
                         {!d.audit.ok && <Banner kind="error">This wallet does not reconcile with its ledger: stored {JSON.stringify(d.audit.stored)} vs computed {JSON.stringify(d.audit.computed)}.</Banner>}
                         <form onSubmit={submit} className="rounded-2xl border border-slate-200 p-4 grid sm:grid-cols-2 lg:grid-cols-[auto_1fr_1fr_2fr_auto] gap-3 items-end bg-slate-50/50">
-                            <div><label className={LABEL}>Adjust</label><Select value={adj.kind} onChange={(e) => setAdj({ ...adj, kind: e.target.value, source: e.target.value === 'money' ? 'admin_adjustment' : 'admin' })} className={INPUT}><option value="points">Reward points</option><option value="money">Wallet money</option><option value="xp">XP</option></Select></div>
+                            <div><label className={LABEL}>Adjust</label><Select value={adj.kind} onChange={(e) => setAdj({ ...adj, kind: e.target.value, source: e.target.value === 'money' ? 'admin_adjustment' : 'admin' })} className={INPUT}><option value="points">Reward points</option><option value="money">Wallet points</option><option value="xp">XP</option></Select></div>
                             <div><label className={LABEL}>Source</label>
                                 {adj.kind === 'points' && <Select value={adj.source} onChange={(e) => setAdj({ ...adj, source: e.target.value })} className={INPUT}><option value="admin">Bonus</option><option value="campaign">Campaign</option><option value="referral">Referral</option></Select>}
                                 {adj.kind === 'money' && <Select value={adj.source} onChange={(e) => setAdj({ ...adj, source: e.target.value })} className={INPUT}><option value="admin_adjustment">Adjustment</option><option value="job_earning">Job earning</option><option value="referral_reward">Referral reward</option><option value="learning_reward">Learning reward</option><option value="leaderboard_reward">Leaderboard reward</option><option value="purchase">Purchase (debit)</option></Select>}

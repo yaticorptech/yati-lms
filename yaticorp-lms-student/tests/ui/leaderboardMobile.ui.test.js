@@ -30,6 +30,8 @@ const board = {
     me: person(1, 'You', 230, 3, '🔥', 0, true)
 };
 const api = apiModule({ '/rewards/leaderboard': board, '/rewards/summary': { xp: 230, level: 1, streak: 3 } });
+// A student of an organization: the card offers Global / My Organization.
+const orgApi = apiModule({ '/rewards/leaderboard': { ...board, organization: { name: 'Sample College' } }, '/rewards/summary': { xp: 230, level: 1, streak: 3 } });
 
 const entry = (box) => `
 import { createRoot } from 'react-dom/client';
@@ -57,7 +59,7 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
     for (const box of [320, 360]) {
         test(`the whole card fits a ${box}px screen`, async () => {
             const { result, errors } = await screen({
-                entry: entry(box), api, width: PHONE_VIEWPORT, styles: true, script: `
+                entry: entry(box), api: orgApi, width: PHONE_VIEWPORT, styles: true, script: `
                     await sleep(900);
                     ${SWEEP}
                     return { offenders, vw: window.innerWidth };` });
@@ -67,9 +69,9 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
         });
     }
 
-    test('the period picker drops below the heading rather than squeezing it', async () => {
+    test('the Global / My Organization picker drops below the heading rather than squeezing it', async () => {
         const { result } = await screen({
-            entry: entry(320), api, width: PHONE_VIEWPORT, styles: true, script: `
+            entry: entry(320), api: orgApi, width: PHONE_VIEWPORT, styles: true, script: `
                 await sleep(900);
                 const heading = $$('h2').find((h) => /Leaderboard/.test(h.innerText));
                 const picker = $('button[aria-haspopup="listbox"]');
@@ -85,7 +87,7 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
 
     test('on a desktop the picker is back beside the heading', async () => {
         const { result } = await screen({
-            entry: entry("'100%'"), api, width: 1280, styles: true, script: `
+            entry: entry("'100%'"), api: orgApi, width: 1280, styles: true, script: `
                 await sleep(900);
                 const heading = $$('h2').find((h) => /Leaderboard/.test(h.innerText));
                 const picker = $('button[aria-haspopup="listbox"]');
@@ -131,12 +133,12 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
         assert.equal(result.stackedVisible, 0, 'only one of the two is ever on screen');
     });
 
-    test('the period picker opens the app\'s own panel, not a system menu', async () => {
+    test('the picker opens the app\'s own panel, not a system menu', async () => {
         // This was a native <select>. macOS drew its open list itself — a grey
         // menu with no relation to the card around it — and no CSS can reach
         // it, because the list belongs to the operating system.
         const { result, errors } = await screen({
-            entry: entry(360), api, width: PHONE_VIEWPORT, styles: true, script: `
+            entry: entry(360), api: orgApi, width: PHONE_VIEWPORT, styles: true, script: `
                 await sleep(900);
                 const btn = $('button[aria-haspopup="listbox"]');
                 const f = btn.getBoundingClientRect();
@@ -157,24 +159,37 @@ describe('the leaderboard on a phone', { skip: skipWithoutStyles }, () => {
         // The panel is portalled to <body> and placed from the field's
         // measured box, so what matters is where it lands, not which CSS
         // position property put it there.
-        assert.ok(result.width >= 170, `and wide enough to read a period in, was ${result.width}px`);
+        assert.ok(result.width >= 170, `and wide enough to read a choice in, was ${result.width}px`);
         assert.ok(result.gap >= 0 && result.gap <= 8, `just under the field, gap was ${result.gap}px`);
         assert.equal(result.offScreen, 0, 'no part of it is off the screen');
         assert.equal(result.insideCardish, true, 'and it is not hanging off the left of the card');
-        assert.deepEqual(result.labels, ['Today', 'This Week', 'This Month', 'All Time']);
+        assert.deepEqual(result.labels, ['Global', 'My Organization']);
     });
 
-    test('choosing a period asks the server for that period', async () => {
+    test('choosing My Organization asks the server for the organization\'s board, this week\'s', async () => {
+        const { result, errors } = await screen({
+            entry: entry(360), api: orgApi, width: PHONE_VIEWPORT, styles: true, script: `
+                await sleep(900);
+                $('button[aria-haspopup="listbox"]').click(); await sleep(400);
+                $$('li[role="option"]')[1].click(); await sleep(600);
+                return { closed: text($('button[aria-haspopup="listbox"]')),
+                         asked: window.__calls.filter((c) => /leaderboard/.test(c[1])).map((c) => c[2]) };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.closed, 'My Organization', 'the field shows the choice');
+        assert.equal(result.asked.at(-1).scope, 'organization', 'and the board is refetched for it');
+        assert.equal(result.asked.at(-1).period, 'weekly');
+    });
+
+    test('no Today / This Week / This Month / All Time picker; a student of no organization has no picker at all', async () => {
+        // Removed 2026-10-27: the board is always this week's.
         const { result, errors } = await screen({
             entry: entry(360), api, width: PHONE_VIEWPORT, styles: true, script: `
                 await sleep(900);
-                $('button[aria-haspopup="listbox"]').click(); await sleep(400);
-                $$('li[role="option"]')[2].click(); await sleep(600);
-                return { closed: text($('button[aria-haspopup="listbox"]')),
-                         asked: window.__calls.filter((c) => /leaderboard/.test(c[1])).map((c) => c[2] && c[2].period) };` });
+                return { pickers: $$('button[aria-haspopup="listbox"]').length,
+                         asked: window.__calls.filter((c) => /leaderboard/.test(c[1])).map((c) => c[2]) };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.closed, 'This Month', 'the field shows the choice');
-        assert.equal(result.asked.at(-1), 'monthly', 'and the board is refetched for it');
+        assert.equal(result.pickers, 0);
+        assert.deepEqual(result.asked.map((q) => [q.scope, q.period]), [['global', 'weekly']]);
     });
 
     // A class of 25: everything past the podium goes in the ranks card.

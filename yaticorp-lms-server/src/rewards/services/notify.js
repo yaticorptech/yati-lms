@@ -15,7 +15,7 @@ const { RewardEvent } = require('../models');
  * is only used while Career Path is open (see linkFor and noticeLink).
  */
 const LINKS = {
-  wallet: '/#wallet',
+  wallet: '/enrolled-courses#wallet',   // Wallet & Rewards is at the top of My Courses
   leaderboard: '/#leaderboard',
   progress: '/profile',
   competitions: '/competitions',

@@ -7,6 +7,7 @@ import { Outlet, Link, useLocation, useNavigate, useNavigationType } from 'react
 import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import WalletShortDialog from '../components/rewards/WalletShortDialog';
+import WalletConfirmDialog from '../components/rewards/WalletConfirmDialog';
 import { WalletSheet } from '../components/rewards/WalletCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
@@ -223,7 +224,7 @@ const StudentLayout = () => {
     const profileButtonRef = useRef(null);
 
     /**
-     * A link with a hash (the header's wallet button → /#wallet) should land on
+     * A link with a hash (a wallet notice → /enrolled-courses#wallet) should land on
      * that element; the router changes the URL but does not scroll to it.
      *
      * Two things the single 150ms attempt got wrong. Arriving from another page,
@@ -436,7 +437,8 @@ const StudentLayout = () => {
             // where to look (the wallet card, the badges page); the wallet is
             // the place for one that does not.
             kind: 'reward', id: n._id, title: n.title,
-            body: n.message, at: n.createdAt, link: n.link || '/#wallet'
+            // Older wallet notices say /#wallet: the card is on My Courses now.
+            body: n.message, at: n.createdAt, link: (n.link === '/#wallet' ? '' : n.link) || '/enrolled-courses#wallet'
         } : {
             kind: 'career', id: n._id, title: n.title,
             body: n.message, at: n.createdAt,
@@ -939,6 +941,8 @@ const StudentLayout = () => {
                 Renders nothing on a first sign-in, or without a Career Path goal. */}
             <ContinuePanel />
             <WalletShortDialog />
+            {/* Asks before any priced feature takes money from the wallet. */}
+            <WalletConfirmDialog />
             {walletOpen && <WalletSheet onClose={() => setWalletOpen(false)} />}
 
             {/* Mobile Menu Overlay */}
