@@ -39,6 +39,8 @@ const QuizPage = React.lazy(() => import('./competitions/QuizPage'));
 // Quiz Arena: three-round live quiz contests (competitions/arena/).
 const ArenaDetail = React.lazy(() => import('./competitions/arena/ArenaDetail'));
 const ArenaPlay = React.lazy(() => import('./competitions/arena/ArenaPlay'));
+// Group Brain certificate check, public.
+const VerifyCertificate = React.lazy(() => import('./competitions/VerifyCertificate'));
 const PracticePage = React.lazy(() => import('./interview/PracticePage'));
 const AptitudePage = React.lazy(() => import('./interview/AptitudePage'));
 const MockInterview = React.lazy(() => import('./interview/MockInterview'));
@@ -364,6 +366,8 @@ function App() {
           has to be able to open these, and so does anyone deciding whether to
           sign up at all. */}
       <Route path="/jobs/guardian/:token" element={<React.Suspense fallback={<CareerFallback />}><GuardianReview /></React.Suspense>} />
+      {/* Anyone may check a Group Brain certificate's ID (its QR code opens this). */}
+      <Route path="/verify/group-brain/:certId?" element={<React.Suspense fallback={<CareerFallback />}><VerifyCertificate /></React.Suspense>} />
       <Route path="/privacy" element={<React.Suspense fallback={<CareerFallback />}><Privacy /></React.Suspense>} />
       <Route path="/terms" element={<React.Suspense fallback={<CareerFallback />}><Terms /></React.Suspense>} />
       <Route path="/preview/:courseId" element={<React.Suspense fallback={<CareerFallback />}><CoursePreview /></React.Suspense>} />
@@ -381,6 +385,8 @@ function App() {
             2026-10-23 (no longer a Career Path tab); their server routes stay
             open when Career Path is locked. Competitions: Chess, the brain games, quizzes and hackathons. */}
         <Route path="games" element={<React.Suspense fallback={<CareerFallback />}><CareerProviders><CareerGames /></CareerProviders></React.Suspense>} />
+        {/* A Group Brain room — its lobby, game and result — is part of Games, not Competitions. */}
+        <Route path="games/play/:gameId" element={<React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense>} />
         <Route path="competitions" element={<React.Suspense fallback={<CareerFallback />}><CompetitionsHome /></React.Suspense>} />
         <Route path="extracurricular" element={<React.Suspense fallback={<CareerFallback />}><ExtraCurricular /></React.Suspense>} />
         <Route path="extracurricular/:id" element={<React.Suspense fallback={<CareerFallback />}><ExtraCurricular /></React.Suspense>} />

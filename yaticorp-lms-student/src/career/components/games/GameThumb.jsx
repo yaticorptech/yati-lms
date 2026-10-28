@@ -516,6 +516,45 @@ const THUMBS = {
       <circle cx="28" cy="28" r="2.5" fill="#7c2d12" />
     </>
   )
+  ,
+  // Group Brain's The Lost Kingdom: a compass rose.
+  compass: () => (
+    <>
+      <circle cx="28" cy="28" r="21" fill="#1d150b" stroke="#c9a45a" strokeWidth="2.5" />
+      <circle cx="28" cy="28" r="16" fill="none" stroke="#8a6a2f" strokeWidth="1" />
+      <path d="M28 9 L31.5 24.5 L47 28 L31.5 31.5 L28 47 L24.5 31.5 L9 28 L24.5 24.5 Z" fill="#e7c477" stroke="#6b4a1a" strokeWidth="0.8" />
+      <circle cx="28" cy="28" r="2.6" fill="#3b2610" />
+    </>
+  ),
+  // Group Brain's The Final Vault: a golden vault door.
+  vault: () => (
+    <>
+      <circle cx="28" cy="28" r="20" fill="#78350f" stroke="#fbbf24" strokeWidth="2.5" />
+      <circle cx="28" cy="28" r="13" fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="4 3" />
+      <circle cx="28" cy="28" r="5" fill="#fbbf24" />
+      {[0, 60, 120, 180, 240, 300].map((a) => <path key={a} d="M28 28 L28 17" stroke="#fde68a" strokeWidth="2" strokeLinecap="round" transform={`rotate(${a} 28 28)`} />)}
+    </>
+  ),
+  // Group Brain's Chess: a king standing on a checkered board.
+  chess: () => (
+    <>
+      <defs><clipPath id="thumb-chess-board"><rect x="6" y="6" width="44" height="44" rx="11" /></clipPath></defs>
+      <g clipPath="url(#thumb-chess-board)">
+        {[0, 1, 2, 3].flatMap((r) => [0, 1, 2, 3].map((c) => (
+          <rect key={`${r}-${c}`} x={6 + c * 11} y={6 + r * 11} width="11" height="11" fill={(r + c) % 2 ? '#818cf8' : '#e0e7ff'} />
+        )))}
+      </g>
+      <ellipse cx="28" cy="46" rx="11" ry="2.5" fill="#1e1b4b" opacity="0.25" />
+      <g fill="#312e81" stroke="#ffffff" strokeWidth="1.4" strokeLinejoin="round">
+        <rect x="18" y="40" width="20" height="5" rx="2.5" />
+        <rect x="20.5" y="36" width="15" height="4" rx="1.5" />
+        <path d="M22.5 36 L24.5 25 H31.5 L33.5 36 Z" />
+        <circle cx="28" cy="22" r="4.5" />
+        <rect x="26.8" y="10.5" width="2.4" height="8" rx="1" />
+        <rect x="24.2" y="12.8" width="7.6" height="2.4" rx="1" />
+      </g>
+    </>
+  )
 };
 
 export default function GameThumb({ id, className = '' }) {

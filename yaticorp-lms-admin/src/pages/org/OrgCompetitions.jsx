@@ -11,12 +11,17 @@
  *               — only when the platform admin has let this organization
  *               host; otherwise there is no such tab
  */
+import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import useGoBack from '../../hooks/useGoBack';
-import { Trophy, Users, CalendarClock, Check, Loader2, Send, Undo2, Swords, Search, Crown, Gift, ScrollText, ChevronDown, Gamepad2, Clock, Brain, ArrowLeft, Building2 } from 'lucide-react';
+import useStepParam from '../../hooks/useStepParam';
+import { X, Lock, Trophy, Users, CalendarClock, Check, Loader2, Send, Undo2, Swords, Search, Crown, ChevronDown, Gamepad2, Clock, Brain, ArrowLeft, Building2 } from 'lucide-react';
 import api from '../../utils/api';
 import { Segmented, CARD, BTN, BTN2, INPUT, LABEL } from '../../components/orgUi';
+import { CardGridSkeleton } from '../../competitions/Skeletons';
+
+const takePartSeen = {};
 import Competitions from '../Competitions';
 import { Chip, GameIcon } from '../../competitions/shared';
 import { ORDINAL, fmtDateTime, errorOf, competitionBadge } from '../../competitions/constants';
@@ -25,7 +30,7 @@ import { ORDINAL, fmtDateTime, errorOf, competitionBadge } from '../../competiti
 const TeamForm = ({ competition: c, team, students, onSaved, onCancel }) => {
     const [teamName, setTeamName] = useState(team?.teamName || '');
     const [coordinatorName, setCoordinatorName] = useState(team?.coordinator?.name || '');
-    const [coordinatorPhone, setCoordinatorPhone] = useState('');
+    const [coordinatorPhone, setCoordinatorPhone] = useState(team?.coordinator?.phone || '');
     const [picked, setPicked] = useState(() => new Set((team?.players || []).map((p) => p.userId)));
     const [q, setQ] = useState('');
     const [busy, setBusy] = useState(false);
@@ -38,6 +43,8 @@ const TeamForm = ({ competition: c, team, students, onSaved, onCancel }) => {
     });
     const save = (e) => {
         e.preventDefault();
+        // The coordinator's mobile: exactly 10 digits, or the form does not go.
+        if (!/^\d{10}$/.test(coordinatorPhone)) { setError('Enter the coordinator\'s 10-digit phone number.'); return; }
         setBusy(true); setError('');
         api.put(`/competitions/org/${c.id}/team`, { teamName, coordinatorName, coordinatorPhone, players: [...picked] })
             .then(() => onSaved()).catch((err) => setError(errorOf(err))).finally(() => setBusy(false));
@@ -47,7 +54,7 @@ const TeamForm = ({ competition: c, team, students, onSaved, onCancel }) => {
             <div className="grid gap-3 sm:grid-cols-3">
                 <label><span className={LABEL}>Team name</span><input required maxLength={80} value={teamName} onChange={(e) => setTeamName(e.target.value)} className={INPUT} placeholder="e.g. St Agnes Knights" /></label>
                 <label><span className={LABEL}>College coordinator</span><input maxLength={80} value={coordinatorName} onChange={(e) => setCoordinatorName(e.target.value)} className={INPUT} placeholder="Your name" /></label>
-                <label><span className={LABEL}>Coordinator phone</span><input maxLength={20} value={coordinatorPhone} onChange={(e) => setCoordinatorPhone(e.target.value)} className={INPUT} placeholder="Optional" /></label>
+                <label><span className={LABEL}>Coordinator phone</span><input required inputMode="numeric" pattern="[0-9]{10}" maxLength={10} title="10 digits" value={coordinatorPhone} onChange={(e) => setCoordinatorPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} className={INPUT} placeholder="10-digit mobile" />{coordinatorPhone && coordinatorPhone.length !== 10 && <span className="mt-1 block text-xs font-semibold text-rose-600">{10 - coordinatorPhone.length} more digit{coordinatorPhone.length === 9 ? '' : 's'}</span>}</label>
             </div>
             <div>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -165,12 +172,8 @@ const CompetitionPanel = ({ summary, students, onChanged }) => {
     const canRegister = !solo && c.registrationOpen && (!team || team.status === 'withdrawn' || team.status === 'rejected');
     const registering = c.registrationOpen && (editing || (canRegister && starting));
     return (
-        <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
-            <div className="grid gap-3 text-sm sm:grid-cols-2">
-                <p className="flex items-start gap-2 text-slate-600"><ScrollText size={15} className="mt-0.5 shrink-0 text-slate-400" /> <span className="whitespace-pre-line">{c.rules || 'Standard rules of the game.'}</span></p>
-                <p className="flex items-start gap-2 text-slate-600"><Gift size={15} className="mt-0.5 shrink-0 text-slate-400" />
-                    <span>{c.prizes.map((p) => `${ORDINAL[p.place]}: ${p.title || ''} ${p.xp ? `${p.xp} XP` : ''}${p.rewardPoints ? ` + ${p.rewardPoints} pts` : ''}`).join(' · ') || 'No prizes announced.'}{c.certificates ? ' · Certificates for every player.' : ''}</span></p>
-            </div>
+        <div className="space-y-4">
+            {/* No rules or prize line here (asked 2026-10-28): the participants list above says who won. */}
             {team && team.status !== 'withdrawn' && !editing && (
                 <div className="rounded-2xl border border-slate-200 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -299,7 +302,7 @@ const Fact = ({ icon: Icon, value, label }) => (
  * college's students (up to the contest's limit), the organizer approves
  * them, and only approved students play. Students cannot enter themselves.
  */
-const ArenaCard = ({ c, students, open, onOpen, onChanged }) => {
+const ArenaCard = ({ c, students, open, onOpen, onChanged, inModal = false }) => {
     const [picked, setPicked] = useState(new Set(c.entries.map((e) => e.userId)));
     const [q, setQ] = useState('');
     const [busy, setBusy] = useState(false);
@@ -313,19 +316,41 @@ const ArenaCard = ({ c, students, open, onOpen, onChanged }) => {
     const [label, cls] = ARENA_STATE[standOf({ kind: 'arena', c })];
     return (
         <>
-            <CardHead icon={<span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 text-violet-600"><Brain size={24} /></span>}
-                title={c.title} kicker="Quiz Arena" chips={<span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${cls}`}>{label}</span>} />
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {!inModal && <CardHead icon={<span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 text-violet-600"><Brain size={24} /></span>}
+                title={c.title} kicker="Quiz Arena" chips={<span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${cls}`}>{label}</span>} />}
+            <div className={`grid gap-2 ${inModal ? 'hidden' : ''}`}>
                 <Fact icon={CalendarClock} value={fmtDateTime(c.startsAt)} label="Starts" />
                 <Fact icon={Clock} value={fmtDateTime(c.registrationDeadline)} label="Enter by" />
                 <Fact icon={Users} value={`Up to ${c.playersPerCollege} · ${c.questions} questions`} label="Students per college" />
             </div>
             {c.entries.length > 0 && !open && (
-                <ul className="flex flex-wrap gap-1.5">
+                <ul className="flex flex-wrap gap-1.5" data-entries>
                     {c.entries.map((e) => { const [t, k] = ENTRY[e.status] || ENTRY.pending; return <li key={e.userId} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${k}`}>{e.name} · {t}</li>; })}
                 </ul>
             )}
-            {open ? (
+            {open && !c.registrationOpen ? (
+                // Entries closed: our students, their approval, and — once published — how each did.
+                <div className="space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/30 p-4" data-arena-students>
+                    <p className="text-sm font-bold text-slate-700">{c.entries.length ? `Your students (${c.entries.length})` : 'Your college did not enter any students.'}</p>
+                    {c.entries.length > 0 && (
+                        <ul className="divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">
+                            {[...c.entries].sort((x, y) => (x.rank ?? 1e9) - (y.rank ?? 1e9)).map((e) => {
+                                const [t, k] = ENTRY[e.status] || ENTRY.pending;
+                                return (
+                                    <li key={e.userId} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-sm">
+                                        <span className="w-10 shrink-0 text-center font-black text-slate-500">{e.rank ? `#${e.rank}` : '—'}</span>
+                                        <span className="min-w-[8rem] flex-1 break-words font-semibold text-slate-800">{e.name}</span>
+                                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${k}`}>{t}</span>
+                                        {c.resultsPublished && e.status === 'approved' && <span className="w-28 text-right font-black text-indigo-700">{e.score} / {c.maxScore}<span className="block text-[11px] font-semibold text-slate-500">{e.correct} of {c.questions} right</span></span>}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                    <p className="text-xs text-slate-500">{c.resultsPublished ? 'Results are published.' : ['ended', 'results'].includes(c.state) ? 'The results appear here once the organizer publishes them.' : c.state === 'live' ? 'The quiz is on now.' : 'Entries are closed; the quiz has not started yet.'}</p>
+                    {!inModal && <button type="button" onClick={() => onOpen(false)} className={`${BTN2} w-full justify-center`}>Close</button>}
+                </div>
+            ) : open ? (
                 <div className="space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/30 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-bold text-slate-700">{picked.size} of up to {c.playersPerCollege} chosen</p>
@@ -351,10 +376,127 @@ const ArenaCard = ({ c, students, open, onOpen, onChanged }) => {
                         <button type="button" disabled={busy || picked.size === 0} onClick={() => save([...picked])} className={BTN}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Submit for approval</button>
                     </div>
                 </div>
-            ) : c.registrationOpen && (
-                <button type="button" onClick={() => { setPicked(new Set(c.entries.map((e) => e.userId))); onOpen(true); }} className={`${BTN} w-full justify-center`}><Send size={15} /> {c.entries.length ? 'Change students' : 'Enter students'}</button>
+            ) : c.registrationOpen ? (
+                <button type="button" onClick={() => { setPicked(new Set(c.entries.map((e) => e.userId))); onOpen(true); }} className={`${BTN} mt-auto w-full justify-center`}><Send size={15} /> {c.entries.length ? 'Change students' : 'Enter students'}</button>
+            ) : (
+                // Entries closed: see our students, and how they did once the results are out.
+                <button type="button" onClick={() => onOpen(true)} className={`${BTN} mt-auto w-full justify-center`} data-view-arena>
+                    {c.resultsPublished ? 'View students & results' : 'View students'}
+                </button>
             )}
         </>
+    );
+};
+
+/**
+ * The pop-up's dates and everyone taking part (asked 2026-10-28): the
+ * registration window, the start, how many play; then every player — name,
+ * college, registration number, place and prize — in a list that scrolls
+ * when it is long. Another college's numbers show only their last 4 digits.
+ */
+/** Where a player (or their team) finished: Winner, Runner-up, 2nd runner-up, or Lost — once the results are out. */
+const STATUS = { 1: ['Winner', 'bg-amber-100 text-amber-800 ring-amber-200'], 2: ['Runner-up', 'bg-slate-100 text-slate-800 ring-slate-300'], 3: ['2nd runner-up', 'bg-orange-100 text-orange-800 ring-orange-200'] };
+const StatusOf = ({ r, published }) => {
+    if (!published) return <span className="text-xs font-semibold text-slate-900">Results not out</span>;
+    const [label, tone] = STATUS[r.place] || ['Lost', 'bg-rose-50 text-rose-700 ring-rose-200'];
+    return <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-black ring-1 ${tone}`}>{label}</span>;
+};
+
+const Participants = ({ url }) => {
+    const [data, setData] = useState(null);
+    const [error, setError] = useState('');
+    useEffect(() => { api.get(url).then((r) => setData(r.data)).catch((e) => setError(errorOf(e))); }, [url]);
+    if (error) return <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>;
+    if (!data) return <div className="space-y-2" aria-label="Loading">{[0, 1, 2].map((i) => <div key={i} className="h-11 animate-pulse rounded-xl bg-slate-100" />)}</div>;
+    const d = data.dates;
+    // Team competitions: the players gathered under their team, in the order they came (places first).
+    const teams = data.rows.some((r) => r.team) ? data.rows.reduce((list, r) => {
+        let t = list.find((x) => x.team === r.team && x.college === r.college);
+        if (!t) { t = { team: r.team, college: r.college, ours: r.ours, place: r.place, placeLabel: r.placeLabel, prize: r.prize, members: [] }; list.push(t); }
+        t.members.push(r);
+        return list;
+    }, []) : null;
+    return (
+        <>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" data-details-dates>
+                <Fact icon={CalendarClock} value={d.registrationOpensAt ? fmtDateTime(d.registrationOpensAt) : 'When published'} label="Registration opens" />
+                <Fact icon={Clock} value={fmtDateTime(d.registrationDeadline)} label="Registration closes" />
+                <Fact icon={Trophy} value={fmtDateTime(d.startsAt)} label="Competition starts" />
+                <Fact icon={Users} value={`${data.total} player${data.total === 1 ? '' : 's'} · ${data.colleges} college${data.colleges === 1 ? '' : 's'}`} label="Taking part" />
+            </div>
+            <section className="overflow-hidden rounded-2xl ring-1 ring-slate-200" data-participants>
+                <div className="flex items-center justify-between bg-slate-50 px-4 py-2.5">
+                    <p className="text-sm font-black text-slate-900">Participants ({data.total}){teams ? ` · ${teams.length} teams` : ''}</p>
+                    {!data.resultsPublished && <p className="text-xs font-semibold text-slate-900">Who won shows once the results are published.</p>}
+                </div>
+                {data.rows.length > 0 && <p className="px-4 pb-1 pt-0 text-[11px] font-semibold text-slate-900 md:hidden">Slide the table sideways to see every column →</p>}
+                {data.rows.length === 0 ? <p className="px-4 py-6 text-center text-sm text-slate-900">No approved players yet.</p> : (
+                    <div className="lk-scroll max-h-96 overflow-auto" data-participants-scroll>
+                        <table className="w-full min-w-[600px] text-left text-sm">
+                            <thead className="sticky top-0 z-10 bg-white text-[11px] font-black uppercase tracking-wider text-slate-900 shadow-[0_1px_0_#e2e8f0]">
+                                <tr><th className="px-4 py-2.5">Player</th><th className="px-4 py-2.5">College</th><th className="px-4 py-2.5">Reg. no.</th><th className="px-4 py-2.5">Status</th></tr>
+                            </thead>
+                            {(teams || [{ team: null, members: data.rows }]).map((t, ti) => (
+                                <tbody key={`${t.college}-${t.team}-${ti}`} className="border-b border-slate-200 last:border-0" data-team={t.team || undefined}>
+                                    {/* A team: its heading across the table, its players under it. */}
+                                    {t.team && (
+                                        <tr className={t.ours ? 'bg-indigo-50' : 'bg-slate-100'}>
+                                            <td colSpan={4} className="px-4 py-2 font-black text-slate-900">
+                                                Team {ti + 1} · {t.team}{t.ours && <span className="ml-1.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-black text-indigo-700">yours</span>}
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {t.members.map((m, mi) => (
+                                        <tr key={`${m.name}-${mi}`} className={!t.team && m.ours ? 'bg-indigo-50/60' : 'bg-white hover:bg-slate-50'}>
+                                            <td className="px-4 py-2.5 font-semibold text-slate-900">{m.name}{!t.team && m.ours && <span className="ml-1.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-black text-indigo-700">yours</span>}</td>
+                                            <td className="px-4 py-2.5 text-slate-900">{m.college}</td>
+                                            <td className="px-4 py-2.5 font-mono text-xs text-slate-900">{m.cardNumber || '—'}</td>
+                                            <td className="px-4 py-2.5"><StatusOf r={m} published={data.resultsPublished} /></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            ))}
+                        </table>
+                    </div>
+                )}
+            </section>
+        </>
+    );
+};
+
+/**
+ * A competition's details in a pop-up: the name highlighted in a coloured
+ * band at the top, an X to close (and Esc, or a click outside), the rest
+ * scrolling under it.
+ */
+const DetailsPopup = ({ icon, kicker, title, chips, onClose, children }) => {
+    useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        const before = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', onKey);
+        return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = before; };
+    }, [onClose]);
+    return createPortal(
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:p-6" onClick={onClose} role="dialog" aria-modal="true" aria-label={title} data-details-popup>
+            <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <header className="relative flex items-start gap-3 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-5 py-4 pr-14 text-white sm:px-6 sm:py-5">
+                    {icon}
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/75">{kicker}</p>
+                        <h2 className="text-xl font-black leading-tight sm:text-2xl">{title}</h2>
+                    </div>
+                    <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25" data-close><X size={20} /></button>
+                </header>
+                {/* Grey text reads black in here (asked 2026-10-28); coloured text keeps its colour. */}
+                <style>{'[data-details-body] :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-slate-700, .text-slate-800) { color: #0f172a !important; } [data-details-body] > :first-child { order: -2; } [data-details-status] { order: -1; } [data-details-body] > * { flex-shrink: 0; } .lk-scroll { scrollbar-width: thin; scrollbar-color: #a5b4fc #eef2ff; } .lk-scroll::-webkit-scrollbar { height: 8px; width: 8px; } .lk-scroll::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 999px; } .lk-scroll::-webkit-scrollbar-track { background: #eef2ff; }'}</style>
+                <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5 sm:p-6" data-details-body>
+                    {children}
+                    {chips && <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-bold text-slate-900 ring-1 ring-slate-200" data-details-status><span>Status</span>{chips}</div>}
+                </div>
+            </div>
+        </div>,
+        document.body
     );
 };
 
@@ -364,85 +506,110 @@ const CardHead = ({ icon, kicker, title, chips }) => (
         {icon}
         <div className="min-w-0 flex-1">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">{kicker}</p>
-            <p className="font-black leading-snug text-slate-900">{title}</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">{chips}</div>
+            <p className="line-clamp-2 min-h-[2.6rem] font-black leading-snug text-slate-900" title={title}>{title}</p>
+            <div className="mt-1.5 flex min-h-6 flex-wrap gap-1.5">{chips}</div>
         </div>
     </div>
 );
 
-const FILTERS = [['all', 'All'], ['open', 'Open for entries'], ['entered', 'Entered'], ['live', 'Live'], ['completed', 'Completed'], ['closed', 'Closed']];
+// The boxes at the top: each a count, and a click shows just those (asked 2026-10-28: one row, not two).
+const FILTERS = [['all', 'All', Trophy, 'text-slate-700 bg-slate-100'], ['open', 'Registration open', Send, 'text-emerald-600 bg-emerald-50'], ['entered', 'Registered', Check, 'text-indigo-600 bg-indigo-50'], ['live', 'Live', Swords, 'text-rose-600 bg-rose-50'], ['completed', 'Completed', Crown, 'text-amber-600 bg-amber-50'], ['closed', 'Closed', Lock, 'text-slate-600 bg-slate-100']];
 
 /** Competitions open to the college, and the ones it entered — games and Quiz Arena together. */
 function TakePart() {
-    const [rows, setRows] = useState(null);
-    const [arenas, setArenas] = useState([]);
+    // The last lists seen: going back shows them at once while they refresh.
+    const [rows, setRows] = useState(() => takePartSeen.rows ?? null);
+    const [arenas, setArenas] = useState(() => takePartSeen.arenas ?? null);
     const [students, setStudents] = useState([]);
     const [error, setError] = useState('');
-    const [open, setOpen] = useState(null);
+    // The pop-up is a step in the address: Back (or X) closes it, back to the list.
+    const [open, openStep, closeStep] = useStepParam('view');
+    const setOpen = (id) => (id ? openStep(id) : closeStep());
     const [filter, setFilter] = useState('all');
 
     const load = useCallback(() => {
-        api.get('/competitions/org').then((r) => { setRows(r.data.competitions); setError(''); }).catch((err) => setError(errorOf(err)));
-        api.get('/competitions/org/arena').then((r) => setArenas(r.data.competitions || [])).catch(() => {});
+        api.get('/competitions/org').then((r) => { setRows(r.data.competitions); takePartSeen.rows = r.data.competitions; setError(''); }).catch((err) => setError(errorOf(err)));
+        api.get('/competitions/org/arena').then((r) => { setArenas(r.data.competitions || []); takePartSeen.arenas = r.data.competitions || []; }).catch(() => setArenas((a) => a ?? []));
     }, []);
     useEffect(() => {
         load();
         api.get('/competitions/org/students').then((r) => setStudents(r.data.students)).catch(() => {});
     }, [load]);
 
-    const all = useMemo(() => [...arenas.map((c) => ({ kind: 'arena', id: `a-${c.id}`, c })), ...(rows || []).map((c) => ({ kind: 'game', id: c.id, c }))], [rows, arenas]);
-    const counts = Object.fromEntries(FILTERS.map(([k]) => [k, k === 'all' ? 0 : all.filter((r) => (k === 'entered' ? entered(r) : standOf(r) === k)).length]));
+    const ready = rows !== null && arenas !== null;
+    const all = useMemo(() => [...(arenas || []).map((c) => ({ kind: 'arena', id: `a-${c.id}`, c })), ...(rows || []).map((c) => ({ kind: 'game', id: c.id, c }))], [rows, arenas]);
+    const counts = Object.fromEntries(FILTERS.map(([k]) => [k, k === 'all' ? all.length : all.filter((r) => (k === 'entered' ? entered(r) : standOf(r) === k)).length]));
     const shown = all.filter((r) => filter === 'all' || (filter === 'entered' ? entered(r) : standOf(r) === filter))
         // Open ones first, then live, then the rest.
         .sort((x, y) => ['open', 'live', 'completed', 'closed'].indexOf(standOf(x)) - ['open', 'live', 'completed', 'closed'].indexOf(standOf(y)));
+    const openRow = all.find((r) => r.id === open) || null;
 
     return (
         <div className="space-y-5">
-            {/* At a glance. */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[['open', 'Open for entries', Send, 'text-emerald-600 bg-emerald-50'], ['entered', 'Entered', Check, 'text-indigo-600 bg-indigo-50'], ['live', 'Live now', Swords, 'text-rose-600 bg-rose-50'], ['completed', 'Completed', Crown, 'text-amber-600 bg-amber-50']].map(([k, label, Icon, tone]) => (
-                    <button key={k} type="button" onClick={() => setFilter(k)} className={`${CARD} flex items-center gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${filter === k ? 'ring-2 ring-indigo-300' : ''}`}>
-                        <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}><Icon size={19} /></span>
-                        <span><span className="block text-2xl font-black text-slate-900">{counts[k]}</span><span className="block text-xs font-semibold text-slate-500">{label}</span></span>
+            {/* At a glance, and the filter: click a box to see just those. */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" role="tablist" aria-label="Show" data-filter-boxes>
+                {FILTERS.map(([k, label, Icon, tone]) => (
+                    <button key={k} type="button" role="tab" aria-selected={filter === k} onClick={() => setFilter(k)} data-filter={k}
+                        className={`${CARD} flex items-center gap-3 p-4 text-left transition-colors duration-200 hover:border-indigo-200 hover:bg-indigo-50/60 ${filter === k ? 'border-indigo-400 bg-indigo-50 ring-2 ring-indigo-300' : ''}`}>
+                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone}`}><Icon size={19} /></span>
+                        <span className="min-w-0"><span className="block text-2xl font-black text-slate-900">{ready ? counts[k] : '–'}</span><span className={`block truncate text-xs font-bold ${filter === k ? 'text-indigo-700' : 'text-slate-500'}`}>{label}</span></span>
                     </button>
                 ))}
             </div>
-            <Segmented options={FILTERS} value={filter} onChange={setFilter} counts={counts} />
             {error && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
-            {!rows && !error && <div className="grid gap-4 lg:grid-cols-2">{[0, 1].map((i) => <div key={i} className="h-56 animate-pulse rounded-2xl bg-slate-100" />)}</div>}
-            {rows && shown.length === 0 && (
+            {!ready && !error && <CardGridSkeleton />}
+            {ready && shown.length === 0 && (
                 <div className={`${CARD} p-10 text-center`}>
                     <Trophy size={30} className="mx-auto text-slate-300" />
                     <p className="mt-2 font-bold text-slate-800">{filter === 'all' ? 'No competitions right now' : 'Nothing here'}</p>
                     <p className="text-sm text-slate-500">When the platform opens a competition, you can enter your college here.</p>
                 </div>
             )}
-            <div className="grid gap-4 lg:grid-cols-2">
+            {/* Three to a row, every card the same height, its button at the bottom; an open one takes the whole row. */}
+            {/* The open one, in a pop-up: its name highlighted at the top, X to close. */}
+            {openRow && (
+                <DetailsPopup onClose={() => setOpen(null)}
+                    icon={openRow.kind === 'arena' ? <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15"><Brain size={24} /></span> : <GameIcon game={openRow.c.game} size={24} className="h-12 w-12 rounded-2xl bg-white" />}
+                    kicker={openRow.kind === 'arena' ? 'Quiz Arena' : `${openRow.c.gameLabel} · by ${openRow.c.organizedBy}`}
+                    title={openRow.kind === 'arena' ? openRow.c.title : openRow.c.name}
+                    chips={openRow.kind === 'arena'
+                        ? <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${ARENA_STATE[standOf(openRow)][1]}`}>{ARENA_STATE[standOf(openRow)][0]}</span>
+                        : <><Chip status={competitionBadge(openRow.c)} />{openRow.c.myTeam && openRow.c.myTeam.status !== 'withdrawn' && <Chip status={openRow.c.myTeam.status} />}</>}>
+                    {openRow.kind === 'arena' ? (
+                        <>
+                            <Participants url={`/competitions/org/arena/${openRow.c.id}/participants`} />
+                            <ArenaCard c={openRow.c} students={students} open inModal onOpen={(v) => setOpen(v ? openRow.id : null)} onChanged={load} />
+                        </>
+                    ) : (
+                        <>
+                            <Participants url={`/competitions/org/${openRow.c.id}/participants`} />
+                            <CompetitionPanel summary={openRow.c} students={students} onChanged={load} />
+                        </>
+                    )}
+                </DetailsPopup>
+            )}
+            <div className={`grid gap-5 sm:grid-cols-2 xl:grid-cols-3 ${ready ? '' : 'hidden'}`}>
                 {shown.map((row) => {
-                    const isOpen = open === row.id;
                     const c = row.c;
                     return (
-                        <section key={row.id} className={`${CARD} flex flex-col gap-4 p-5 transition-shadow hover:shadow-md ${isOpen ? 'lg:col-span-2' : ''}`}>
+                        <section key={row.id} className={`${CARD} flex h-full flex-col gap-4 p-6 transition-colors duration-200 hover:border-indigo-200 hover:bg-indigo-50/60 hover:shadow-md`}>
                             {row.kind === 'arena' ? (
-                                <ArenaCard c={c} students={students} open={isOpen} onOpen={(v) => setOpen(v ? row.id : null)} onChanged={load} />
+                                <ArenaCard c={c} students={students} open={false} onOpen={(v) => setOpen(v ? row.id : null)} onChanged={load} />
                             ) : (
                                 <>
                                     <CardHead icon={<GameIcon game={c.game} size={24} className="h-12 w-12 rounded-2xl" />} kicker={`${c.gameLabel} · by ${c.organizedBy}`} title={c.name}
                                         chips={<><Chip status={competitionBadge(c)} />{c.myTeam && c.myTeam.status !== 'withdrawn' && <Chip status={c.myTeam.status} />}</>} />
-                                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                    <div className="grid gap-2">
                                         <Fact icon={CalendarClock} value={fmtDateTime(c.startsAt)} label="Starts" />
                                         <Fact icon={Clock} value={fmtDateTime(c.registrationDeadline)} label="Register by" />
                                         <Fact icon={Users} value={`${c.teamsCount}/${c.maxTeams} · up to ${c.playersPerTeam}`} label="Teams · players each" />
                                     </div>
-                                    {c.myTeam && c.myTeam.status !== 'withdrawn' && !isOpen && (
+                                    {c.myTeam && c.myTeam.status !== 'withdrawn' && (
                                         <p className="flex items-center gap-2 rounded-xl bg-indigo-50/60 px-3 py-2 text-sm text-slate-700"><Users size={14} className="text-indigo-500" /> <b className="font-bold">{c.myTeam.teamName}</b></p>
                                     )}
-                                    <button type="button" onClick={() => setOpen(isOpen ? null : row.id)} aria-expanded={isOpen}
-                                        className={`${isOpen ? BTN2 : BTN} mt-auto w-full justify-center`}>
-                                        {isOpen ? 'Close' : c.registrationOpen && (!c.myTeam || ['withdrawn', 'rejected'].includes(c.myTeam.status)) ? <><Send size={15} /> Register college</> : 'View team & matches'}
-                                        <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                    <button type="button" onClick={() => setOpen(row.id)} className={`${BTN} mt-auto w-full justify-center`}>
+                                        {c.registrationOpen && (!c.myTeam || ['withdrawn', 'rejected'].includes(c.myTeam.status)) ? <><Send size={15} /> Register college</> : 'View team & matches'}
                                     </button>
-                                    {isOpen && <CompetitionPanel summary={c} students={students} onChanged={load} />}
                                 </>
                             )}
                         </section>

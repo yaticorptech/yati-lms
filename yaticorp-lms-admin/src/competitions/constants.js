@@ -12,8 +12,6 @@ export const GAMES = {
     codeclash: { label: 'Code Clash', brain: true, note: 'Hackathon-style coding round: predict the output, spot the bug. Two to four teams a match.', questions: [5, 15, 8], seconds: [20, 120, 45] },
     brainsprint: { label: 'Brain Sprint', brain: true, note: 'IQ puzzles made fresh for every match: series, logic, numbers. Two to four teams a match.', questions: [5, 20, 12], seconds: [10, 60, 25] },
     // No matches (asked 2026-10-23): entered by college teams or by students on their own.
-    quiz: { label: 'Quiz', note: 'Timed multiple-choice questions, one go each. The highest score wins; a tie goes to the quicker.' },
-    hackathon: { label: 'Hackathon', note: 'A problem to build something for. Each team hands in a project; you mark each out of 100.' }
 };
 export const CHALLENGES = ['quiz', 'hackathon'];
 // No longer offered, but a competition made for one before then keeps it when edited.
@@ -71,6 +69,33 @@ export const competitionBadge = (c) => {
     return 'registration';
 };
 export const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Not scheduled');
+
+/** A "YYYY-MM-DD" day plus `n` days. */
+export const addDays = (day, n) => {
+    if (!day) return '';
+    const d = new Date(`${day}T12:00`); d.setDate(d.getDate() + n);
+    return toLocalInput(d).slice(0, 10);
+};
+/**
+ * What is wrong with a competition's dates (asked 2026-10-27), by field:
+ * registration ends after it starts; the competition starts on a later
+ * day than registration ends; a new one is not set in the past; a quiz or
+ * hackathon closes after it opens. Values are the forms' own: "YYYY-MM-DDTHH:mm"
+ * for the registration dates, `startsAt` either that or a "YYYY-MM-DD" day.
+ */
+export const scheduleProblems = ({ registrationOpensAt, registrationDeadline, startsAt, endsAt, isNew }) => {
+    const out = {};
+    const now = toLocalInput(new Date());
+    const startDay = (startsAt || '').slice(0, 10);
+    const endDay = (registrationDeadline || '').slice(0, 10);
+    if (isNew && registrationOpensAt && registrationOpensAt.slice(0, 10) < now.slice(0, 10)) out.registrationOpensAt = 'Registration start can\'t be in the past.';
+    if (registrationOpensAt && registrationDeadline && registrationDeadline <= registrationOpensAt) out.registrationDeadline = 'Registration end has to be after registration start.';
+    else if (isNew && registrationDeadline && registrationDeadline < now) out.registrationDeadline = 'Registration end can\'t be in the past.';
+    if (startDay && endDay && startDay <= endDay) out.startsAt = `The competition has to start on a later day than registration ends — from ${new Date(`${addDays(endDay, 1)}T12:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`;
+    if (endsAt && startsAt && endsAt.length > 10 && startsAt.length > 10 && endsAt <= startsAt) out.endsAt = 'It has to close after it opens.';
+    return out;
+};
+export const today = () => toLocalInput(new Date()).slice(0, 10);
 
 /** A Date as the value a datetime-local input wants, in the browser's time zone. */
 export const toLocalInput = (d) => {

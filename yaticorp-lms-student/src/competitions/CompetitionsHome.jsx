@@ -15,8 +15,8 @@
  *                  Registered · Upcoming · Live · Completed
  *   Leaderboard    College · Team · Individual
  *   Results        every finished competition: winner, runner-up, third place
- *   History        my own past competitions: where my team finished, its
- *                  record, and my certificate
+ *   Certificates   my certificates (the History tab until 2026-10-27), each
+ *                  shown on the page
  *
  * The tab lives in the address (?tab=) so a link can open the right one.
  */
@@ -31,7 +31,7 @@ import { competitionsApi, GAMES, GAME_BUTTON, PHASE, ORDINAL, fmtDateTime, fmtDa
 import { StatusChip, GameChip, MatchCard, Empty } from './parts';
 import { arenaApi } from './arena/api';
 import PriceTag from '../components/rewards/PriceTag';
-import CertificateView from './CertificateView';
+import CertificateInline from './CertificateInline';
 import { CardGridSkeleton, ListSkeleton } from './Skeletons';
 
 const TABS = [
@@ -40,7 +40,7 @@ const TABS = [
     { id: 'mine', label: 'My Games', icon: UserCheck },
     { id: 'leaderboard', label: 'Leaderboard', icon: BarChart3 },
     { id: 'results', label: 'Results', icon: Medal },
-    { id: 'history', label: 'History', icon: History }
+    { id: 'history', label: 'Certificates', icon: Award }
 ];
 
 /** Load once on mount; `reload` to fetch again. */
@@ -81,35 +81,56 @@ const Loading = ({ list = false }) => (list ? <ListSkeleton /> : <CardGridSkelet
  * A picture that fails to load gives way to the game's colour and a badge.
  * A quiz and a hackathon have no photo: `art`, their icon, is drawn instead.
  */
-const GameCard = ({ id, label, image, icon, art: Art = null, meta, blurb, tone, onOpen }) => {
+/**
+ * Each game's own colours on its card (asked 2026-10-28, from a picture): a
+ * soft tint behind the words, the details line and the button in the game's
+ * colour — Chess warm brown, Rapid Fire red, Code Clash green, Brain Sprint
+ * and Quiz Arena violet.
+ */
+const CARD_THEME = {
+    chess: { bg: 'linear-gradient(180deg, #fdf3ea 0%, #fffaf5 100%)', title: '#3b1a0b', meta: '#c2410c', button: 'linear-gradient(90deg, #7c3a12, #c2641f)', shadow: 'rgba(160,82,30,.35)' },
+    rapidfire: { bg: 'linear-gradient(180deg, #fdeeee 0%, #fff8f8 100%)', title: '#3f0d0d', meta: '#dc2626', button: 'linear-gradient(90deg, #b91c1c, #ef4444)', shadow: 'rgba(220,38,38,.35)' },
+    codeclash: { bg: 'linear-gradient(180deg, #ebf7ef 0%, #f7fcf8 100%)', title: '#0b2e1a', meta: '#16a34a', button: 'linear-gradient(90deg, #14532d, #1f7a40)', shadow: 'rgba(21,128,61,.35)' },
+    brainsprint: { bg: 'linear-gradient(180deg, #fdf3ea 0%, #fffaf5 100%)', title: '#3b1a0b', meta: '#ea580c', button: 'linear-gradient(90deg, #ea580c, #f59e0b)', shadow: 'rgba(234,88,12,.35)' },
+    quizarena: { bg: 'linear-gradient(180deg, #f1f0ff 0%, #f9f8ff 100%)', title: '#1e1b6b', meta: '#4f46e5', button: 'linear-gradient(90deg, #4338ca, #7c3aed)', shadow: 'rgba(79,70,229,.35)' }
+};
+
+const FOCUS = { chess: '50% 20%', rapidfire: '50% 20%', codeclash: '50% 40%', brainsprint: '8% 50%', quizarena: '0% 50%' };
+
+const GameCard = ({ id, label, image, icon, art: Art = null, meta, blurb, tone, onOpen, className = '' }) => {
+    // Every card's picture has one shape, so all five cards match; each photo
+    // is framed on its subject (the king's crown, the cube, the books).
+    const pic = 'pb-[46%]';
     const [broken, setBroken] = useState(false);
+    const t = CARD_THEME[id] || CARD_THEME.quizarena;
     return (
-        <article data-game={id} className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_2px_10px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(59,49,196,0.14)] motion-reduce:hover:translate-y-0">
+        <article data-game={id} className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[20px] shadow-[0_4px_16px_rgba(15,23,42,0.08)] ring-1 ring-black/5 transition-[box-shadow,transform] duration-200 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(15,23,42,0.16)] motion-reduce:hover:translate-y-0 ${className}`} style={{ background: t.bg }}>
             <div className={`relative w-full overflow-hidden bg-gradient-to-br ${tone}`}>
                 {Art ? (
-                    <span aria-hidden="true" className="relative block pb-[37%]">
+                    <span aria-hidden="true" className={`relative block ${pic}`}>
                         <Art className="absolute left-[8%] top-1/2 h-[60%] w-auto -translate-y-1/2 text-white/90 drop-shadow-lg" strokeWidth={1.6} />
                         <Art className="absolute -bottom-6 right-[18%] h-[90%] w-auto rotate-12 text-white/10" strokeWidth={1.2} />
                     </span>
                 ) : broken
-                    ? <span aria-hidden="true" className="block pb-[37%]" />
-                    : <img src={image} alt="" loading="lazy" onError={() => setBroken(true)} className="block h-auto w-full transition-transform duration-500 group-hover:scale-[1.03] motion-reduce:group-hover:scale-100" />}
+                    ? <span aria-hidden="true" className={`block ${pic}`} />
+                    : <span className={`relative block ${pic}`}><img src={image} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: FOCUS[id] || 'center' }} /></span>}
             </div>
-            <div className="flex flex-1 flex-col p-3.5">
-                <div className="flex items-center gap-3">
+            <div className="flex flex-1 flex-col p-5">
+                <div className="flex items-center gap-4">
                     {Art
-                        ? <span aria-hidden="true" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm ${tone}`}><Art size={20} /></span>
-                        : <img src={icon} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover shadow-sm" />}
+                        ? <span aria-hidden="true" className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-md ${tone}`}><Art size={26} /></span>
+                        : <img src={icon} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover shadow-md" />}
                     <div className="min-w-0">
-                        <h3 className="text-base font-black leading-tight text-[#1e1b4b]">{label}</h3>
-                        <p className="truncate text-xs font-semibold text-indigo-600">{meta}</p>
+                        <h3 className="text-xl font-black leading-tight" style={{ color: t.title }}>{label}</h3>
+                        <p className="truncate text-sm font-semibold" style={{ color: t.meta }}>{meta}</p>
                     </div>
                 </div>
-                <p className="mt-2 line-clamp-2 min-h-[2.5rem] flex-1 text-[13px] leading-snug text-slate-600">{blurb}</p>
+                <p className="mt-3 line-clamp-2 min-h-[2.75rem] flex-1 text-sm leading-snug text-slate-700">{blurb}</p>
                 <button type="button" onClick={onOpen} data-see-competitions={id}
-                    className={`after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] mt-3 flex min-h-10 w-full items-center justify-between rounded-xl px-4 text-sm font-bold text-white shadow-md transition-colors ${GAME_BUTTON}`}>
-                    <span className="inline-flex items-center gap-2.5"><Trophy size={16} aria-hidden="true" /> See competitions</span>
-                    <ChevronRight size={16} aria-hidden="true" />
+                    className="after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] mt-4 flex min-h-12 w-full items-center justify-between rounded-2xl px-5 text-base font-bold text-white transition-[filter] hover:brightness-110"
+                    style={{ background: t.button, boxShadow: `0 8px 18px ${t.shadow}` }}>
+                    <span className="inline-flex items-center gap-3"><Trophy size={18} aria-hidden="true" /> See competitions</span>
+                    <ArrowRight size={18} aria-hidden="true" />
                 </button>
             </div>
         </article>
@@ -127,7 +148,7 @@ const QuizArenaCard = () => {
         }).catch(() => {});
     }, []);
     return (
-        <GameCard id="quizarena" label="Quiz Arena" image="/games/quizarena-card.jpg?v=2" icon="/games/quizarena-icon.png" tone="from-indigo-600 to-fuchsia-700"
+        <GameCard id="quizarena" label="Quiz Arena" image="/games/quizarena-card.jpg?v=3" icon="/games/quizarena-icon.png" tone="from-indigo-600 to-fuchsia-700"
             players="Individual" meta="Everyone at once · 25 questions · 15 s each"
             blurb={next
                 ? `${next.state === 'live' ? 'Live now' : next.state === 'registration' ? 'Entries open' : 'Starting soon'}: ${next.title} · ${fmtDateTime(next.startsAt)}${next.entryStatus === 'approved' ? ' · you are in' : ''}`
@@ -146,7 +167,7 @@ const GamesTab = () => {
     const [code, setCode] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
-    // A player types their competition match's code: straight into the match.
+    // A joining code for any competition, whatever its game: straight into it.
     const join = (e) => {
         e.preventDefault();
         setBusy(true); setError('');
@@ -162,6 +183,47 @@ const GamesTab = () => {
 
     return (
         <div className="flex flex-col gap-3">
+            {/* Join with a code, and how to play for your college: first, above the games (asked 2026-10-28). */}
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.1fr_1fr]">
+                {/* A competition match's code, from My Games or the coordinator. */}
+                <section className="relative flex flex-col justify-center overflow-hidden rounded-[18px] bg-gradient-to-br from-violet-50 via-indigo-50/70 to-fuchsia-50/60 p-3.5 ring-1 ring-violet-100" data-join-code>
+                    <UsersRound size={48} aria-hidden="true" className="pointer-events-none absolute right-5 top-3 text-indigo-200/60" />
+                    <span aria-hidden="true" className="pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-violet-100/60" />
+                    <div className="relative">
+                        <h2 className="flex items-center gap-2 text-base font-black text-slate-900"><Link2 size={18} className="text-indigo-600" aria-hidden="true" /> Join with a code</h2>
+                        <p className="mt-0.5 truncate pr-12 text-xs text-slate-600" title="Works for every game: Chess, Rapid Fire, Code Clash, Brain Sprint and Quiz Arena.">Enter your 6-character code to join your competition — any of the 5 games.</p>
+                        <form onSubmit={join} className="mt-2.5 flex flex-wrap gap-2.5">
+                            <label className="relative min-w-0 flex-1 basis-48">
+                                <span className="sr-only">Joining code</span>
+                                <Ticket size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                                <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                                    placeholder="Enter code (e.g. K7Q2XM)" inputMode="text" autoCapitalize="characters"
+                                    className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 font-mono text-[15px] tracking-[0.25em] text-slate-900 shadow-sm placeholder:font-sans placeholder:text-sm placeholder:tracking-normal placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                            </label>
+                            <button type="submit" disabled={code.length !== 6 || busy}
+                                className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-700 disabled:opacity-50">
+                                {busy ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : null} Join <ChevronRight size={16} aria-hidden="true" />
+                            </button>
+                        </form>
+                        {error && <p role="alert" className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}
+                    </div>
+                </section>
+
+                {/* How the games are played now: in competitions, for a college. */}
+                <section className="flex flex-col justify-center rounded-[18px] bg-white p-3.5 shadow-sm ring-1 ring-slate-100" data-how-to-play>
+                    <h2 className="flex items-center gap-2 text-base font-black text-slate-900"><Building2 size={18} className="text-indigo-600" aria-hidden="true" /> Play for your college</h2>
+                    <p className="mt-0.5 truncate text-xs text-slate-600">Your college enters you in a team; your matches appear in My Games.</p>
+                    <div className="mt-2.5 flex flex-wrap gap-2.5">
+                        <button type="button" onClick={() => competitionsOf(null)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-700">
+                            <Trophy size={15} aria-hidden="true" /> See competitions <ChevronRight size={16} aria-hidden="true" />
+                        </button>
+                        <button type="button" onClick={() => navigate('?tab=mine')} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-white px-4 text-sm font-bold text-indigo-700 shadow-sm ring-1 ring-indigo-100 hover:bg-indigo-50">
+                            <UserCheck size={15} aria-hidden="true" /> My Games
+                        </button>
+                    </div>
+                </section>
+            </div>
+
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
                 <h2 className="flex items-center gap-2.5 text-lg font-black text-slate-900"><span aria-hidden="true" className="h-6 w-1.5 rounded-full bg-indigo-600" /> Available Games</h2>
                 <label className="relative block w-full sm:w-64">
@@ -176,7 +238,8 @@ const GamesTab = () => {
             {/* Chess, then the brain games. Each card's picture keeps one shape
                 (a share of the card's width), so Chess's photo, with its pill
                 painted where the real pill sits, looks as it always has. */}
-            <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {/* Three to a row, all five the same size. */}
+            <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {games.map(([id, g]) => (
                     <GameCard key={id} id={id} label={g.label} art={ART[g.art] || null} image={gameImage(id)} icon={gameIcon(id)} tone={g.tone}
                         players={g.players.replace('players', 'Players')} meta={g.format ? `${g.players} · ${g.format}` : g.players} blurb={g.blurb}
@@ -186,45 +249,6 @@ const GamesTab = () => {
                 {showArena && <QuizArenaCard />}
             </div>
 
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.1fr_1fr]">
-                {/* A competition match's code, from My Games or the coordinator. */}
-                <section className="relative flex flex-col justify-center overflow-hidden rounded-[18px] bg-gradient-to-br from-violet-50 via-indigo-50/70 to-fuchsia-50/60 p-3.5 ring-1 ring-violet-100" data-join-code>
-                    <UsersRound size={48} aria-hidden="true" className="pointer-events-none absolute right-5 top-3 text-indigo-200/60" />
-                    <span aria-hidden="true" className="pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-violet-100/60" />
-                    <div className="relative">
-                        <h2 className="flex items-center gap-2 text-base font-black text-slate-900"><Link2 size={18} className="text-indigo-600" aria-hidden="true" /> Join with a code</h2>
-                        <p className="mt-0.5 text-xs text-slate-600">When your match or Quiz Arena starts you get your own 6-character joining code — in a pop-up, your notifications and My Games. Only your own code lets you in.</p>
-                        <form onSubmit={join} className="mt-2.5 flex flex-wrap gap-2.5">
-                            <label className="relative min-w-0 flex-1 basis-48">
-                                <span className="sr-only">Match code</span>
-                                <Ticket size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-                                <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
-                                    placeholder="Enter code (e.g. K7Q2XM)" inputMode="text" autoCapitalize="characters"
-                                    className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 font-mono text-[15px] tracking-[0.25em] text-slate-900 shadow-sm placeholder:font-sans placeholder:text-sm placeholder:tracking-normal placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
-                            </label>
-                            <button type="submit" disabled={code.length !== 6 || busy}
-                                className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-700 disabled:opacity-50">
-                                {busy ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : null} Join Match <ChevronRight size={16} aria-hidden="true" />
-                            </button>
-                        </form>
-                        {error && <p role="alert" className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}
-                    </div>
-                </section>
-
-                {/* How the games are played now: in competitions, for a college. */}
-                <section className="flex flex-col justify-center rounded-[18px] bg-white p-3.5 shadow-sm ring-1 ring-slate-100" data-how-to-play>
-                    <h2 className="flex items-center gap-2 text-base font-black text-slate-900"><Building2 size={18} className="text-indigo-600" aria-hidden="true" /> Play for your college</h2>
-                    <p className="mt-0.5 max-w-xl text-xs text-slate-600">The games are played in competitions. Your college enters you in a team; your matches appear in My Games when they are drawn.</p>
-                    <div className="mt-2.5 flex flex-wrap gap-2.5">
-                        <button type="button" onClick={() => competitionsOf(null)} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-700">
-                            <Trophy size={15} aria-hidden="true" /> See competitions <ChevronRight size={16} aria-hidden="true" />
-                        </button>
-                        <button type="button" onClick={() => navigate('?tab=mine')} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-white px-4 text-sm font-bold text-indigo-700 shadow-sm ring-1 ring-indigo-100 hover:bg-indigo-50">
-                            <UserCheck size={15} aria-hidden="true" /> My Games
-                        </button>
-                    </div>
-                </section>
-            </div>
         </div>
     );
 };
@@ -239,7 +263,8 @@ const GamesTab = () => {
  */
 /** The Competitions tab's indigo-and-violet look. */
 const GOLD = { ink: '#0f0d2e', gold: '#b9a8ff', icon: '#3b32c4', chip: '#ebe8ff', chipText: '#3b2fc0', bar: '#4f46e5', button: 'bg-gradient-to-r from-[#3326b8] to-[#4838da] hover:from-[#2c20a3] hover:to-[#3f30c8]' };
-const cardImage = (game) => `/competitions/card-${game}.jpg?v=2`; // v2: the chess photo without its painted badge
+// The same sharp pictures as the game cards above (asked 2026-10-28: the competition cards look like them).
+const cardImage = (game) => gameImage(game);
 const chipIcon = (game) => `/competitions/chip-${game}.png`;
 /** A game's small badge: its picture, or for a quiz and a hackathon (no picture) its icon. */
 const ChipIcon = ({ game, className }) => {
@@ -252,39 +277,40 @@ const ChipIcon = ({ game, className }) => {
  * the game, the name and organizer, colleges, players and date, and View.
  * Shared by the inter-college competitions and Quiz Arena.
  */
-const GoldCard = ({ game, gameLabel, bannerUrl, status, closed = false, live = false, name, organizedBy, stats, extra, to, linkData }) => {
+const GoldCard = ({ game, gameLabel, bannerUrl, name, organizedBy, stats, extra, to, linkData }) => {
     const [broken, setBroken] = useState(false);
     return (
-        <article {...linkData} className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_10px_30px_rgba(59,47,192,0.10)] ring-1 ring-[#e4e1fb] transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(59,47,192,0.18)] motion-reduce:hover:translate-y-0">
+        // Built like the Results cards (asked 2026-10-28): one size, a short
+        // cropped picture, the game and status, a two-line name, the
+        // organizer, three facts one under another, and View at the bottom.
+        <article {...linkData} className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-[0_14px_30px_rgba(59,47,192,0.14)] motion-reduce:hover:translate-y-0">
             <div className="relative w-full overflow-hidden bg-[#16123f]">
-                <span aria-hidden="true" className="block pb-[36%]" />
+                <span aria-hidden="true" className="block pb-[30%]" />
                 {!bannerUrl && ART[game] ? (
-                    <span aria-hidden="true" className={`absolute inset-0 flex items-center bg-gradient-to-br pl-[8%] ${GAMES[game].tone}`}>{(() => { const Art = ART[game]; return <Art className="h-[60%] w-auto text-white/90 drop-shadow-lg" strokeWidth={1.6} />; })()}</span>
-                ) : !broken && <img src={bannerUrl || cardImage(game)} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" />}
-                {status !== PHASE.completed.label && status !== 'Completed' && (
-                    <span className={`absolute left-3 top-3 inline-flex min-h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold sm:min-h-8 sm:px-3.5 sm:text-sm text-white shadow-md ${live ? 'bg-[#3b2fc0]' : closed ? 'bg-slate-700/90' : 'bg-[#3b2fc0]'}`} data-phase>
-                        {live ? <Radio size={17} aria-hidden="true" /> : <CalendarDays size={17} aria-hidden="true" />} {status}
-                    </span>
-                )}
+                    <span aria-hidden="true" className={`absolute inset-0 flex items-center bg-gradient-to-br pl-[8%] ${GAMES[game].tone}`}>{(() => { const Art = ART[game]; return <Art className="h-[60%] w-auto text-white/90" strokeWidth={1.6} />; })()}</span>
+                ) : !broken && <img src={bannerUrl || cardImage(game)} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" style={bannerUrl ? undefined : { objectPosition: FOCUS[game] || 'center' }} />}
             </div>
-            <div className="flex flex-1 flex-col p-4 sm:p-5">
-                <span className="inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold" style={{ background: GOLD.chip, color: GOLD.chipText }}>
-                    <ChipIcon game={game} className="h-4 w-4" /> {gameLabel}
-                </span>
-                <h3 className="mt-2 text-lg font-black leading-snug sm:text-xl" style={{ color: GOLD.ink }}>{name}</h3>
-                <p className="truncate text-sm text-slate-500 sm:text-[15px]">Organized by {organizedBy}</p>
-                <dl className="mt-3 grid grid-cols-3 divide-x divide-[#e6e3f8] sm:mt-4">
-                    {stats.map(([Icon, value, label]) => (
-                        <div key={label} className="flex min-w-0 items-center gap-1.5 px-2 first:pl-0 last:pr-0">
-                            <Icon size={22} strokeWidth={1.7} style={{ color: GOLD.icon }} aria-hidden="true" className="shrink-0" />
-                            <div className="min-w-0"><dd className="truncate text-sm font-bold leading-tight" style={{ color: GOLD.ink }}>{value}</dd><dt className="truncate text-xs leading-tight text-slate-500">{label}</dt></div>
+            <div className="flex flex-1 flex-col p-5">
+                <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold text-slate-600"><ChipIcon game={game} className="h-4 w-4 shrink-0" /> {gameLabel}</span>
+                {/* The name (up to two lines) with the organizer right under it; the block keeps one height so every card lines up. */}
+                <div className="mt-2 min-h-[4.75rem]">
+                    <h3 className="line-clamp-2 text-lg font-bold leading-snug text-slate-900 transition-colors group-hover:text-indigo-700">{name}</h3>
+                    <p className="mt-0.5 truncate text-sm text-slate-500">Organized by {organizedBy}</p>
+                </div>
+                {/* The first two facts side by side, then the date(s), each on its own row. */}
+                <dl className="mt-3 grid grid-cols-2 gap-2">
+                    {stats.map(([Icon, value, label], i) => (
+                        <div key={label} className={`flex min-w-0 items-center gap-2.5 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-100 ${i < 2 ? '' : 'col-span-2'}`}>
+                            <Icon size={17} aria-hidden="true" className="shrink-0 text-indigo-600" />
+                            <dt className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-500">{label}</dt>
+                            <dd className="shrink-0 text-sm font-bold text-slate-900">{value}</dd>
                         </div>
                     ))}
                 </dl>
                 {extra}
-                <span aria-hidden="true" className="block h-4 shrink-0 sm:h-5" />
-                <Link to={to} className={`after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-bold sm:min-h-12 sm:text-base text-white shadow-[0_8px_18px_rgba(51,38,184,0.3)] transition-colors ${GOLD.button}`}>
-                    View Competition <ArrowRight size={17} aria-hidden="true" />
+                <span aria-hidden="true" className="block h-4 shrink-0" />
+                <Link to={to} className="after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-bold text-indigo-800 transition-colors group-hover:border-indigo-600 group-hover:bg-indigo-600 group-hover:text-white">
+                    View Competition <ArrowRight size={16} aria-hidden="true" className="transition-transform duration-200 group-hover:translate-x-1" />
                 </Link>
             </div>
         </article>
@@ -303,7 +329,7 @@ export const CompetitionCard = ({ c }) => (
             : [
                 [Landmark, c.teamsCount, c.hostOrganizationId ? (c.teamsCount === 1 ? 'Team' : 'Teams') : c.teamsCount === 1 ? 'College' : 'Colleges'],
                 [Users, c.playersCount || 0, c.playersCount === 1 ? 'Player' : 'Players'],
-                c.endsAt ? [Clock, dateOnly(c.endsAt), c.kind === 'quiz' ? 'Closes' : 'Due'] : [CalendarDays, dateOnly(c.startsAt), timeOnly(c.startsAt)]
+                c.endsAt ? [Clock, dateOnly(c.endsAt), c.kind === 'quiz' ? 'Closes' : 'Due'] : [CalendarDays, `${dateOnly(c.startsAt)}, ${timeOnly(c.startsAt)}`, 'Date']
             ]}
         extra={(c.myTeam || ['registration-open', 'closing-soon', 'registration-soon'].includes(c.phase)) && (
             <p className="mt-3 space-x-3 text-[13px] text-slate-600">
@@ -320,7 +346,7 @@ const ArenaGoldCard = ({ c }) => (
         stats={[
             [Landmark, c.questions, 'Questions'],
             [Users, c.registeredCount || 0, c.registeredCount === 1 ? 'Player' : 'Players'],
-            [CalendarDays, dateOnly(c.startsAt), timeOnly(c.startsAt)]
+            [CalendarDays, `${dateOnly(c.startsAt)}, ${timeOnly(c.startsAt)}`, 'Date']
         ]} />
 );
 
@@ -402,8 +428,8 @@ const CompetitionsTab = () => {
             ) : (
                 <div data-view-list={current}>
                     <h3 className="mb-3 flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-slate-600 sm:mb-4 sm:gap-3 sm:text-sm sm:tracking-[0.3em]"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${current === 'closed' ? 'bg-slate-400' : 'bg-[#4f46e5]'}`} /> {current === 'live' ? 'Live now' : label}</h3>
-                    {/* Three to a row on a wide screen. */}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+                    {/* Three to a row, the same size as the game cards. */}
+                    <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
                         {ars.map((c) => <ArenaGoldCard key={`a-${c.id}`} c={c} />)}
                         {rows.map((c) => <CompetitionCard key={c.id} c={c} />)}
                     </div>
@@ -484,11 +510,25 @@ const BOARDS = [
     { id: 'teams', label: 'Team', icon: Users },
     { id: 'players', label: 'Individual', icon: UserCheck }
 ];
-const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' };
+/** The top three's colours: gold, silver, bronze — the rank badge and a soft tint on the row. */
+const PODIUM = {
+    1: { badge: 'linear-gradient(135deg, #fde68a, #f59e0b)', ink: '#78350f', row: 'linear-gradient(90deg, #fffbeb, #ffffff 60%)', ring: '#fde68a' },
+    2: { badge: 'linear-gradient(135deg, #f1f5f9, #94a3b8)', ink: '#1e293b', row: 'linear-gradient(90deg, #f8fafc, #ffffff 60%)', ring: '#e2e8f0' },
+    3: { badge: 'linear-gradient(135deg, #fed7aa, #c2410c)', ink: '#431407', row: 'linear-gradient(90deg, #fff7ed, #ffffff 60%)', ring: '#fed7aa' }
+};
 
 /** Rankings shown before the list scrolls (the user's choice, 2026-10-14). */
 const RANKS_SHOWN = 2;
+const ROW_GAP = 10;
 const RANK_NOUN = { colleges: ['college', 'colleges'], teams: ['team', 'teams'], players: ['player', 'players'] };
+
+/** One highlighted figure: won, played, titles, place. */
+const StatPill = ({ icon: Icon, value, label, tone }) => (
+    <span className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold ring-1 ${tone}`}>
+        <Icon size={14} aria-hidden="true" className="shrink-0" />
+        <span className="text-sm font-black tabular-nums">{value}</span> {label}
+    </span>
+);
 
 const LeaderboardTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.leaderboard);
@@ -496,7 +536,7 @@ const LeaderboardTab = () => {
     const listRef = useRef(null);
     const rows = data?.[board] || [];
     // The top two show; the rest scroll inside the list, like the Final standings.
-    const more = useRowsShown(listRef, RANKS_SHOWN, rows.length, { key: board });
+    const more = useRowsShown(listRef, RANKS_SHOWN, rows.length, { key: board, extra: (RANKS_SHOWN - 1) * ROW_GAP });
     if (error) return <Failed error={error} onRetry={reload} />;
     if (!data) return <Loading list />;
     const label = (r) => (board === 'colleges' ? r.collegeName : board === 'teams' ? r.teamName : r.name);
@@ -515,61 +555,96 @@ const LeaderboardTab = () => {
                 ))}
             </div>
             {rows.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">No results yet. Rankings fill in as matches are played.</p> : (
-                <ol ref={listRef} className={`divide-y divide-slate-100 ${more ? 'overflow-y-auto overscroll-contain' : ''}`} data-ranking={board}>
-                    {rows.map((r) => (
-                        <li key={r.id} className="flex items-center gap-3 py-2.5">
-                            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-black tabular-nums ${MEDAL[r.rank] ? 'text-xl' : 'bg-slate-100 text-sm text-slate-600'}`}>{MEDAL[r.rank] || r.rank}</span>
-                            <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-bold text-slate-900">{label(r)}</span>
-                                <span className="block truncate text-xs text-slate-500">{sub(r)}</span>
-                            </span>
-                            <span className="hidden text-right text-xs text-slate-500 sm:block">{r.won} won · {r.played} played{r.titles ? ` · ${r.titles} 🏆` : ''}{r.place ? ` · ${ORDINAL[r.place]}` : ''}</span>
-                            <span className="text-right text-sm font-black tabular-nums text-slate-900">{r.points} <span className="text-[11px] font-semibold text-slate-400">Points</span></span>
-                        </li>
-                    ))}
+                <ol ref={listRef} className={`flex flex-col ${more ? 'overflow-y-auto overscroll-contain pr-1' : ''}`} style={{ gap: ROW_GAP }} data-ranking={board}>
+                    {rows.map((r) => {
+                        const top = PODIUM[r.rank];
+                        return (
+                            <li key={r.id} className="flex flex-col gap-3 rounded-2xl p-3 ring-1 transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:gap-4 sm:p-4"
+                                style={{ background: top ? top.row : '#ffffff', '--tw-ring-color': top ? top.ring : '#eef0f6' }}>
+                                <div className="flex min-w-0 flex-1 items-center gap-3">
+                                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-black tabular-nums shadow-sm"
+                                        style={top ? { background: top.badge, color: top.ink } : { background: '#f1f5f9', color: '#475569' }}>
+                                        {r.rank === 1 ? <Crown size={20} aria-label="1st" /> : r.rank}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-base font-black text-slate-900">{label(r)}</span>
+                                        <span className="block truncate text-xs text-slate-600">{sub(r)}</span>
+                                    </span>
+                                    {/* Points: on a phone beside the name, on a wide screen at the end. */}
+                                    <span className="shrink-0 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 px-3 py-1.5 text-center text-white shadow-md shadow-indigo-600/25 sm:hidden">
+                                        <span className="block text-lg font-black leading-none tabular-nums">{r.points}</span><span className="text-[10px] font-semibold uppercase tracking-wide text-white/80">Points</span>
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <StatPill icon={CheckCircle2} value={r.won} label="Won" tone="bg-emerald-50 text-emerald-700 ring-emerald-200" />
+                                    <StatPill icon={Gamepad2} value={r.played} label="Played" tone="bg-indigo-50 text-indigo-700 ring-indigo-200" />
+                                    {r.titles ? <StatPill icon={Trophy} value={r.titles} label={r.titles === 1 ? 'Title' : 'Titles'} tone="bg-amber-50 text-amber-700 ring-amber-200" /> : null}
+                                    {r.place ? <StatPill icon={Medal} value={ORDINAL[r.place]} label="place" tone="bg-rose-50 text-rose-700 ring-rose-200" /> : null}
+                                </div>
+                                <span className="hidden min-w-[92px] shrink-0 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 px-4 py-2 text-center text-white shadow-md shadow-indigo-600/25 sm:block">
+                                    <span className="block text-2xl font-black leading-none tabular-nums">{r.points}</span><span className="text-[11px] font-semibold uppercase tracking-wide text-white/80">Points</span>
+                                </span>
+                            </li>
+                        );
+                    })}
                 </ol>
             )}
-            {more && <p data-ranking-more className="mt-2 text-xs text-slate-500">Showing {RANKS_SHOWN} of {rows.length} {RANK_NOUN[board][1]}. Scroll the list to see the rest.</p>}
+            {more && <p data-ranking-more className="mt-3 text-xs text-slate-600">Showing {RANKS_SHOWN} of {rows.length} {RANK_NOUN[board][1]}. Scroll the list to see the rest.</p>}
         </Box>
     );
 };
 
 /* ── Results ──────────────────────────────────────────────────────────── */
 
-const PLACE_LINE = [[1, '🥇 Winner'], [2, '🥈 Runner-up'], [3, '🥉 Third place']];
+const PLACES = [
+    { place: 1, label: 'Winner', medal: '#d4a017', soft: '#fdf6e3' },
+    { place: 2, label: 'Runner-up', medal: '#94a3b8', soft: '#f5f7fa' },
+    { place: 3, label: 'Third place', medal: '#b4652a', soft: '#fbf1ea' }
+];
 
-/** A Quiz Arena whose results are out: its top three, and where I finished. */
-const ArenaResultCard = ({ c }) => {
-    const me = c.myResult;
-    return (
-        <Box className="relative h-full cursor-pointer transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-[0_14px_32px_rgba(59,49,196,0.14)] motion-reduce:hover:translate-y-0">
-            <div data-arena-result={c.id} className="space-y-3">
-                <div>
-                    <p className="font-black text-slate-900">🏆 {c.title}</p>
-                    <p className="text-xs text-slate-500">🧠 Quiz Arena · results {fmtDate(c.resultsPublishedAt)}</p>
-                </div>
-                {me?.rank != null && (
-                    <p className={`rounded-xl px-3 py-2 text-sm font-black ${me.rank <= 3 ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200' : 'bg-indigo-50 text-indigo-800'}`} data-my-place>
-                        {me.rank <= 3 ? `🏆 You won ${ORDINAL[me.rank]} place!` : `You finished #${me.rank}`} · {me.score} points
-                    </p>
-                )}
-                <dl className="space-y-1.5">
-                    {(c.winners || []).map((w) => (
-                        <div key={w.place} className="flex items-baseline gap-2 text-sm">
-                            <dt className="w-32 shrink-0 font-semibold text-slate-500">{PLACE_LINE.find(([p]) => p === w.place)?.[1]}</dt>
-                            <dd className="min-w-0 truncate font-bold text-slate-900">{w.name} <span className="font-normal text-slate-500">· {w.collegeName} · {w.score} pts</span></dd>
-                        </div>
-                    ))}
-                </dl>
-                <div className="flex flex-wrap items-center gap-2">
-                    <Link to={`/competitions/arena/${c.id}`} className="after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-700">
-                        View Full Results <ArrowRight size={13} aria-hidden="true" />
-                    </Link>
-                </div>
+/**
+ * A finished competition as a card, all of them one size (asked 2026-10-28:
+ * clean and professional, no pictures): a thin gold line on top, the game
+ * and date, the name, the top three one under another (always three rows,
+ * so every card is as tall), and View Full Results.
+ */
+const ResultCard = ({ game, gameLabel, title, date, winners, mine = null, to, data }) => (
+    <article {...data} className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-[box-shadow,border-color] duration-200 hover:border-amber-300 hover:shadow-[0_12px_28px_rgba(146,104,18,0.14)]">
+        <span aria-hidden="true" className="block h-1 w-full" style={{ background: 'linear-gradient(90deg, #b8860b, #f1c94b, #b8860b)' }} />
+        <div className="flex flex-1 flex-col p-5">
+            <div className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
+                <span className="inline-flex min-w-0 items-center gap-1.5 truncate"><ChipIcon game={game} className="h-4 w-4 shrink-0" /> {gameLabel}</span>
+                <span className="shrink-0">{fmtDate(date)}</span>
             </div>
-        </Box>
-    );
-};
+            <h3 className="mt-2 line-clamp-2 min-h-[3rem] text-lg font-bold leading-snug text-slate-900">{title}</h3>
+            {mine && <p className={`mt-2 rounded-lg px-3 py-2 text-sm font-semibold ${mine.rank <= 3 ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200' : 'bg-slate-50 text-slate-800 ring-1 ring-slate-200'}`} data-my-place>
+                {mine.rank <= 3 ? `You won ${ORDINAL[mine.rank]} place` : `You finished #${mine.rank}`} · {mine.score} points
+            </p>}
+            <ol className="mt-4 divide-y divide-slate-100 border-y border-slate-100">
+                {PLACES.map((p) => {
+                    const w = winners.find((x) => x.place === p.place);
+                    return (
+                        <li key={p.place} className="flex items-center gap-3 py-2.5">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: w ? p.soft : '#f8fafc' }}>
+                                <Medal size={17} aria-hidden="true" style={{ color: w ? p.medal : '#cbd5e1' }} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">{p.label}</span>
+                                {w ? <span className="block truncate text-sm font-bold text-slate-900">{w.name}{w.sub ? <span className="font-normal text-slate-500"> · {w.sub}</span> : null}</span>
+                                    : <span className="block text-sm text-slate-400">—</span>}
+                            </span>
+                            {w?.score != null && <span className="shrink-0 text-sm font-bold tabular-nums text-slate-700">{w.score} <span className="text-xs font-medium text-slate-500">pts</span></span>}
+                        </li>
+                    );
+                })}
+            </ol>
+            <span aria-hidden="true" className="block h-4 shrink-0" />
+            <Link to={to} className="after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-bold text-amber-900 transition-colors group-hover:bg-amber-100">
+                View Full Results <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+        </div>
+    </article>
+);
 
 const ResultsTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.history);
@@ -579,83 +654,67 @@ const ResultsTab = () => {
     const arenas = (arena.data || []).filter((c) => c.state === 'results');
     if (!data.competitions.length && !arenas.length) return <Empty icon={Medal} title="No results yet">Finished competitions, their winners and match results appear here.</Empty>;
     return (
-        // One column on a phone, each card no wider than it: without a set
-        // column, a long winner's line widened the card past the screen.
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {arenas.map((c) => <ArenaResultCard key={c.id} c={c} />)}
+        // Three to a row, all one size; one on a phone, two on a tablet.
+        <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {arenas.map((c) => (
+                <ResultCard key={`a-${c.id}`} game="quizarena" gameLabel="Quiz Arena" title={c.title} date={c.resultsPublishedAt} to={`/competitions/arena/${c.id}`} data={{ 'data-arena-result': c.id }}
+                    mine={c.myResult?.rank != null ? c.myResult : null}
+                    winners={(c.winners || []).map((w) => ({ place: w.place, name: w.name, sub: w.collegeName, score: w.score }))} />
+            ))}
             {data.competitions.map(({ competition: c }) => (
-                <Box key={c.id} className="relative h-full cursor-pointer transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-[0_14px_32px_rgba(59,49,196,0.14)] motion-reduce:hover:translate-y-0">
-                    <div data-result={c.id} className="space-y-3">
-                        <div>
-                            <p className="font-black text-slate-900">🏆 {c.name}</p>
-                            <p className="text-xs text-slate-500">{c.emoji} {c.gameLabel} · results {fmtDate(c.completedAt)}</p>
-                        </div>
-                        <dl className="space-y-1.5">
-                            {PLACE_LINE.map(([place, label]) => {
-                                const w = c.winners.find((x) => x.place === place);
-                                if (!w) return null;
-                                return (
-                                    <div key={place} className="flex items-baseline gap-2 text-sm">
-                                        <dt className="w-32 shrink-0 font-semibold text-slate-500">{label}</dt>
-                                        <dd className="min-w-0 truncate font-bold text-slate-900">{w.collegeName} <span className="font-normal text-slate-500">· {w.teamName}</span></dd>
-                                    </div>
-                                );
-                            })}
-                        </dl>
-                        <Link to={`/competitions/${c.id}`} className="after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 text-xs font-bold text-slate-700 hover:border-indigo-300 hover:text-indigo-700">
-                            View Full Results <ArrowRight size={13} aria-hidden="true" />
-                        </Link>
-                    </div>
-                </Box>
+                <ResultCard key={c.id} game={c.game} gameLabel={c.gameLabel} title={c.name} date={c.completedAt} to={`/competitions/${c.id}`} data={{ 'data-result': c.id }}
+                    winners={c.winners.map((w) => ({ place: w.place, name: w.collegeName, sub: w.teamName }))} />
             ))}
         </div>
     );
 };
 
-/* ── History (mine) ───────────────────────────────────────────────────── */
+/* ── Certificates (mine) — the History tab, as asked 2026-10-27 ─────── */
+
+/** One certificate: what it is for, and the certificate itself, opened on the page. */
+const CertificateCard = ({ title, sub, badge, load, fileName, to }) => {
+    const [open, setOpen] = useState(false);
+    return (
+        <li className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" data-certificate-card>
+            <div className="flex flex-wrap items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-amber-200 text-sm font-black text-amber-800">{badge}</span>
+                <span className="min-w-0 flex-1 basis-48">
+                    <Link to={to} className="block break-words text-sm font-black text-slate-900 hover:text-indigo-700">{title}</Link>
+                    <span className="block text-xs text-slate-500">{sub}</span>
+                </span>
+                <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-bold text-white hover:bg-indigo-700">
+                    <Award size={14} aria-hidden="true" /> {open ? 'Hide certificate' : 'Show certificate'}
+                </button>
+            </div>
+            {open && <CertificateInline className="mt-3" load={load} fileName={fileName} />}
+        </li>
+    );
+};
 
 const HistoryTab = () => {
     const { data, error, reload } = useLoad(competitionsApi.me);
     const arena = useLoad(arenaApi.list);
     if (error) return <Failed error={error} onRetry={reload} />;
     if (!data) return <Loading list />;
-    // My Quiz Arenas whose results are out.
-    const arenas = (arena.data || []).filter((c) => c.state === 'results' && c.myResult?.rank != null);
-    if (!data.results.length && !arenas.length) return <Empty icon={History} title="No past competitions yet">Once a competition you played in is over, it is kept here with your position and certificate.</Empty>;
+    // Only what earned a certificate: my Quiz Arenas and my competitions, results out.
+    const arenas = (arena.data || []).filter((c) => c.state === 'results' && c.myResult?.certificate);
+    const comps = data.results.filter((r) => r.certificate);
+    if (!comps.length && !arenas.length) return <Empty icon={Award} title="No certificates yet">When the results of a competition you played in are published, your certificate appears here.</Empty>;
     return (
-        <Box>
-            <ul className="divide-y divide-slate-100" data-history>
-                {arenas.map((c) => (
-                    <li key={`arena-${c.id}`} className="flex flex-wrap items-center gap-3 py-3">
-                        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black ${c.myResult.rank === 1 ? 'bg-amber-100 text-amber-700' : c.myResult.rank <= 3 ? 'bg-slate-100 text-slate-700' : 'bg-indigo-50 text-indigo-600'}`}>
-                            {c.myResult.rank <= 3 ? ORDINAL[c.myResult.rank] : `#${c.myResult.rank}`}
-                        </span>
-                        <span className="min-w-0 flex-1 basis-56">
-                            <Link to={`/competitions/arena/${c.id}`} className="block break-words py-0.5 text-sm font-bold text-slate-900 hover:text-indigo-700">🧠 {c.title}</Link>
-                            <span className="block text-xs text-slate-500">Quiz Arena · {c.myResult.collegeName ? `${c.myResult.collegeName} · ` : ''}{c.myResult.rank <= 3 ? `${ORDINAL[c.myResult.rank]} place` : `Rank ${c.myResult.rank}`} · {c.myResult.score} points · {fmtDate(c.resultsPublishedAt)}</span>
-                        </span>
-                        {c.myResult.certificate && <CertificateView compact load={() => arenaApi.certificate(c.id)} fileName={`Certificate_${c.title.replace(/\s+/g, '_')}.pdf`} />}
-                    </li>
-                ))}
-                {data.results.map((r) => (
-                    <li key={r.competition.id} className="flex flex-wrap items-center gap-3 py-3">
-                        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black ${r.place === 1 ? 'bg-amber-100 text-amber-700' : r.place ? 'bg-slate-100 text-slate-700' : 'bg-indigo-50 text-indigo-600'}`}>
-                            {r.place ? ORDINAL[r.place] : <Award size={18} aria-hidden="true" />}
-                        </span>
-                        {/* A base width: beside Certificate on a small phone the
-                            name was cut to "QA Chec…" and the details squeezed to a
-                            narrow column; now the button goes under them. */}
-                        <span className="min-w-0 flex-1 basis-56">
-                            <Link to={`/competitions/${r.competition.id}`} className="block break-words py-0.5 text-sm font-bold text-slate-900 hover:text-indigo-700">{r.competition.emoji} {r.competition.name}</Link>
-                            <span className="block text-xs text-slate-500">
-                                {r.competition.gameLabel} · {r.collegeName ? `${r.collegeName} · ` : ''}{r.teamName} · {r.place ? `${ORDINAL[r.place]} place` : 'Took part'} · {r.score.won}/{r.score.played} matches won · {fmtDate(r.competition.completedAt)}
-                            </span>
-                        </span>
-                        {r.certificate && <CertificateView compact load={() => competitionsApi.certificate(r.competition.id)} fileName={`Certificate_${r.competition.name.replace(/\s+/g, '_')}.pdf`} />}
-                    </li>
-                ))}
-            </ul>
-        </Box>
+        <ul className="grid items-start gap-3 lg:grid-cols-2" data-history>
+            {arenas.map((c) => (
+                <CertificateCard key={`arena-${c.id}`} to={`/competitions/arena/${c.id}`} title={`🧠 ${c.title}`}
+                    badge={c.myResult.rank <= 3 ? ORDINAL[c.myResult.rank] : `#${c.myResult.rank}`}
+                    sub={`Quiz Arena · ${c.myResult.rank <= 3 ? `${ORDINAL[c.myResult.rank]} place` : `Rank ${c.myResult.rank}`} · ${c.myResult.score} points · ${fmtDate(c.resultsPublishedAt)}`}
+                    load={() => arenaApi.certificate(c.id)} fileName={`Certificate_${c.title.replace(/\s+/g, '_')}.pdf`} />
+            ))}
+            {comps.map((r) => (
+                <CertificateCard key={r.competition.id} to={`/competitions/${r.competition.id}`} title={`${r.competition.emoji} ${r.competition.name}`}
+                    badge={r.place ? ORDINAL[r.place] : <Award size={18} aria-hidden="true" />}
+                    sub={`${r.competition.gameLabel} · ${r.place ? `${ORDINAL[r.place]} place` : 'Took part'} · ${fmtDate(r.competition.completedAt)}`}
+                    load={() => competitionsApi.certificate(r.competition.id)} fileName={`Certificate_${r.competition.name.replace(/\s+/g, '_')}.pdf`} />
+            ))}
+        </ul>
     );
 };
 
@@ -678,8 +737,8 @@ const CompetitionsBanner = ({ onPick }) => (
             <div className="mt-3.5 flex flex-wrap items-center gap-2 sm:mt-5 sm:gap-0 sm:gap-y-3">
                 {[['join', 'Join competitions', 'competitions'], ['college', 'Play for your college', 'mine'], ['board', 'Climb leaderboard', 'leaderboard']].map(([icon, label, to], i) => (
                     <button key={label} type="button" onClick={() => onPick(to)} data-hero-action={to}
-                        className={`inline-flex items-center gap-2 rounded-full bg-white/10 py-1 pl-1 pr-3 text-xs font-semibold text-white ring-1 ring-white/15 hover:text-[#cfc4ff] sm:gap-3 sm:rounded-none sm:bg-transparent sm:py-0 sm:pl-0 sm:pr-7 sm:text-[15px] sm:ring-0 ${i ? 'sm:border-l sm:border-white/20 sm:pl-7' : ''}`}>
-                        <img src={`/competitions/violet-pill-${icon}.png`} alt="" className="h-7 w-7 rounded-full sm:h-12 sm:w-12" /> {label}
+                        className={`inline-flex items-center gap-2 rounded-full bg-white/10 py-1 pl-1 pr-3 text-xs font-semibold text-white ring-1 ring-white/15 hover:text-[#cfc4ff] sm:gap-2.5 sm:rounded-none sm:bg-transparent sm:py-0 sm:pl-0 sm:pr-5 sm:text-sm sm:ring-0 ${i ? 'sm:border-l sm:border-white/20 sm:pl-5' : ''}`}>
+                        <img src={`/competitions/violet-pill-${icon}.png`} alt="" className="h-7 w-7 rounded-full sm:h-9 sm:w-9" /> {label}
                     </button>
                 ))}
             </div>
@@ -811,9 +870,12 @@ export default function CompetitionsHome() {
                 its banner kept tall on a wide screen. */}
             <div className="flex min-w-0 flex-1 flex-col gap-3 lg:min-h-0">
                 {tab === 'competitions' ? <CompetitionsBanner onPick={select} /> : (
-                <header className={`relative flex flex-col justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-[#2d2693] via-[#3b31c4] to-[#5a3fd8] p-5 text-white shadow-lg sm:px-7 sm:py-3 shrink-0 ${tab === 'games' ? 'lg:min-h-[10.5rem]' : TAB_HERO[tab] ? 'min-h-[11rem] sm:py-8 lg:min-h-[15rem]' : ''}`}>
+                <header style={tab === 'results' ? { background: 'linear-gradient(115deg, #6b4304 0%, #a8730f 45%, #d9a730 100%)' } : undefined} className={`relative flex flex-col justify-center overflow-hidden rounded-[22px] bg-gradient-to-br from-[#2d2693] via-[#3b31c4] to-[#5a3fd8] p-5 text-white shadow-lg sm:px-7 sm:py-3 shrink-0 ${tab === 'games' ? 'lg:min-h-[10.5rem]' : tab === 'results' ? 'pb-10 sm:pt-6 sm:pb-16' : 'min-h-[11rem] sm:py-8 lg:min-h-[15rem]'}`}>
                     {/* The scene, behind the words, where there is room for both. */}
-                    <span aria-hidden="true" className="absolute inset-0 hidden lg:block" style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: 'cover', backgroundPosition: 'right center' }} />
+                    {tab === 'results'
+                        // Results: gold, a large trophy on the right in place of the purple scene.
+                        ? <Trophy aria-hidden="true" strokeWidth={1.2} className="pointer-events-none absolute -right-4 top-1/2 h-[140%] w-auto -translate-y-1/2 text-white/15" />
+                        : <span aria-hidden="true" className="absolute inset-0 hidden lg:block" style={{ backgroundImage: `url(${HERO_BG})`, backgroundSize: 'cover', backgroundPosition: 'right center' }} />}
                     <div className="relative lg:max-w-[50rem] lg:pr-6">
                         {TAB_HERO[tab] ? (
                             <>
@@ -824,7 +886,7 @@ export default function CompetitionsHome() {
                         ) : (
                             <>
                                 <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/90"><Trophy size={16} aria-hidden="true" /> Play · Compete · Win</p>
-                                <h1 className="mt-1 text-[1.4rem] font-black leading-tight sm:text-2xl">Competitions</h1>
+                                <h1 className={`mt-1 font-black leading-tight ${tab === 'games' ? 'text-[1.4rem] sm:text-2xl' : 'text-[1.8rem] sm:text-4xl'}`}>Competitions</h1>
                                 <p className="mt-1 hidden max-w-lg text-[13px] text-white/90 sm:block">Chess, rapid-fire rounds, coding clashes and IQ puzzles in inter-college competitions. Play for your college and win.</p>
                             </>
                         )}

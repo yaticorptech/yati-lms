@@ -11,6 +11,7 @@
  *   ended      review the rankings, then Publish results: students then see
  *              the leaderboards and download their certificates
  */
+import { DetailSkeleton } from '../competitions/Skeletons';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Pencil, Rocket, Play, Ban, Trash2, ListChecks, Users, Trophy, Loader2, X, Check, Radio, Medal, Library, CheckCircle2, AlertCircle, MonitorPlay } from 'lucide-react';
@@ -34,6 +35,55 @@ const Section = ({ icon: Icon, title, aside, children }) => (
         {children}
     </section>
 );
+
+/**
+ * A college's own Quiz Arena: it registers its students here (asked
+ * 2026-10-27 — the hosting page did not ask for them; they could only be
+ * entered from Take part). The same call as Take part's.
+ */
+const RegisterStudents = ({ c, entries, onSaved }) => {
+    const [students, setStudents] = useState(null);
+    const [picked, setPicked] = useState(() => new Set());
+    const [q, setQ] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const [done, setDone] = useState('');
+    useEffect(() => { api.get('/competitions/org/students').then((r) => setStudents(r.data.students || [])).catch(() => setStudents([])); }, []);
+    const entered = new Set(entries);
+    const shown = (students || []).filter((s) => `${s.name} ${s.email} ${s.cardNumber}`.toLowerCase().includes(q.toLowerCase()));
+    const chosen = new Set([...entered, ...picked]);
+    const save = () => {
+        setBusy(true); setError(''); setDone('');
+        api.put(`/competitions/org/arena/${c.id}/entries`, { players: [...chosen] })
+            .then(() => { setPicked(new Set()); setDone('Students registered.'); onSaved(); }).catch((e) => setError(errorOf(e))).finally(() => setBusy(false));
+    };
+    return (
+        <Section icon={Users} title="Register your students" aside={<span className="text-xs text-slate-500">{chosen.size} of up to {c.playersPerCollege}</span>}>
+            <p className="mb-3 text-sm text-slate-600">Pick the students who will take part. Registration closes {fmtDateTime(c.registrationDeadline)}.</p>
+            {students == null ? <Loader2 className="animate-spin text-slate-400" /> : students.length === 0 ? <p className="text-sm text-slate-500">Your college has no students on the LMS yet.</p> : (<>
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search students" className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm sm:w-72" />
+                <ul className="grid max-h-72 gap-1.5 overflow-y-auto sm:grid-cols-2" data-register-students>
+                    {shown.map((s) => {
+                        const on = chosen.has(s.id);
+                        const full = !on && chosen.size >= c.playersPerCollege;
+                        return (
+                            <li key={s.id}>
+                                <button type="button" disabled={full || entered.has(s.id)} onClick={() => setPicked((p) => { const n = new Set(p); if (n.has(s.id)) n.delete(s.id); else n.add(s.id); return n; })}
+                                    className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm disabled:opacity-60 ${on ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded ${on ? 'bg-indigo-600 text-white' : 'border border-slate-300'}`}>{on && <Check size={13} />}</span>
+                                    <span className="min-w-0"><span className="block truncate font-semibold text-slate-800">{s.name}{entered.has(s.id) ? ' · registered' : ''}</span><span className="block truncate text-xs text-slate-500">{s.cardNumber || s.email}</span></span>
+                                </button>
+                            </li>
+                        );
+                    })}
+                </ul>
+                {error && <p className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}
+                {done && <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">{done}</p>}
+                <div className="mt-3 flex justify-end"><button type="button" disabled={busy || picked.size === 0} onClick={save} className={BTN}>{busy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Register {picked.size || ''} student{picked.size === 1 ? '' : 's'}</button></div>
+            </>)}
+        </Section>
+    );
+};
 
 const Results = ({ id, state, onPublished }) => {
     const [data, setData] = useState(null);
@@ -157,7 +207,8 @@ export default function QuizArenaCompetition() {
     // Created with Publish, but publishing failed: say why (it was kept as a draft).
     const [error, setError] = useState(arrived?.notice || '');
     const [busy, setBusy] = useState('');
-    const [editing, setEditing] = useState(false);
+    // ?edit=1, from a card's Edit: open with the form ready.
+    const [editing, setEditing] = useState(() => new URLSearchParams(window.location.search).get('edit') === '1');
     const [demo, setDemo] = useState(false);
     const [showPaper, setShowPaper] = useState(false);
     const [tab, setTab] = useState('entries');
@@ -178,7 +229,7 @@ export default function QuizArenaCompetition() {
         setBusy(key); setError('');
         p().then(load).catch((e) => setError(errorOf(e))).finally(() => setBusy(''));
     };
-    if (!data) return error ? <p className="rounded-xl bg-rose-50 p-4 font-semibold text-rose-700">{error}</p> : <Loader2 className="mx-auto mt-10 animate-spin text-slate-400" />;
+    if (!data) return error ? <p className="rounded-xl bg-rose-50 p-4 font-semibold text-rose-700">{error}</p> : <DetailSkeleton />;
     const c = data.competition;
     const draft = c.status === 'draft';
     // A hosting college may start only from the contest's day (the platform admin any time).
@@ -270,6 +321,10 @@ export default function QuizArenaCompetition() {
                 ? <Results id={id} state={state} onPublished={load} />
                 : <section className={`${CARD} p-8 text-center text-sm text-slate-500`}>The rankings appear here once the quiz starts.</section>)}
 
+            {/* A college's own contest: register its students here, while registration is open. */}
+            {tab === 'entries' && arenaApi().includes('/org/') && c.status === 'published' && state === 'registration' && (
+                <RegisterStudents c={{ ...c, id }} entries={data.participants.filter((p) => p.status !== 'rejected' && p.userId).map((p) => p.userId)} onSaved={load} />
+            )}
             {tab === 'entries' && <Entries data={data} canReview={c.status === 'published' && waiting} onReview={(body) => run('review', () => api.post(`${arenaApi()}/${id}/entries/review`, body))} />}
 
             {demo && <StudentPreview id={id} onClose={() => setDemo(false)} />}

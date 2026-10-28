@@ -82,6 +82,8 @@ const competitionView = (c, { teams = [], myTeam = null } = {}) => {
         colleges: [...new Set(approved.map((t) => t.collegeName))],
         winners: (c.winners || []).map((w) => ({ place: w.place, teamId: String(w.teamId), teamName: name(w.teamId)?.teamName || '', collegeName: name(w.teamId)?.collegeName || '' })),
         completedAt: c.completedAt,
+        resultsPublishedAt: c.resultsPublishedAt || null,
+        resultsHidden: resultsHidden(c),
         myTeam: myTeam ? teamView(myTeam) : null
     };
 };
@@ -150,6 +152,27 @@ const roundsView = (matches, teams, games, codeFor = () => false) => {
     return [...byRound.entries()].map(([round, ms]) => ({ round, name: ms.find((x) => x.kind === 'main')?.roundName || ms[0].roundName, matches: ms }));
 };
 
+/**
+ * A competition's results wait for the organizer (asked 2026-10-27): until
+ * the admin or the hosting college publishes them, students see no places,
+ * winners or points, the leaderboard leaves them out, and no prize is paid.
+ * Each match's result waits too, and the quiz games' scores (gameService).
+ * Everything else — other competitions, the leaderboard, My Games — shows as usual.
+ */
+const resultsHidden = (c) => !c.resultsPublishedAt;
+/** A competition (competitionView), as a student may see it. */
+const studentCompetition = (v) => (v && v.resultsHidden ? { ...v, winners: [], myTeam: v.myTeam ? { ...v.myTeam, place: null } : null } : v);
+/** A competition's page (detail), as a student may see it. */
+const studentDetail = (d) => {
+    if (!d || !d.competition?.resultsHidden) return d;
+    return {
+        ...d,
+        competition: studentCompetition(d.competition),
+        teams: d.teams.map((t) => ({ ...t, place: null })),
+        rounds: d.rounds.map((r) => ({ ...r, matches: r.matches.map((m) => ({ ...m, winnerTeamId: null, places: [], resultNote: '' })) }))
+    };
+};
+
 /** Everything about one competition, for its page. */
 const detail = async (competitionId, { userId = null, organizationId = null, admin = false } = {}) => {
     const c = await Competition.findById(competitionId).lean();
@@ -186,4 +209,4 @@ const detail = async (competitionId, { userId = null, organizationId = null, adm
     };
 };
 
-module.exports = { competitionView, teamView, matchView, roundsView, detail, gameInfo, registration };
+module.exports = { competitionView, teamView, matchView, roundsView, detail, gameInfo, registration, resultsHidden, studentCompetition, studentDetail };

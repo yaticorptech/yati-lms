@@ -275,6 +275,7 @@ const competitionFrom = (b = {}, current = null) => {
     const opensRaw = pick('registrationOpensAt');
     const registrationOpensAt = opensRaw ? new Date(opensRaw) : null;
     if (registrationOpensAt && (Number.isNaN(registrationOpensAt.getTime()) || registrationOpensAt >= registrationDeadline)) throw fail(400, 'Registration has to start before it ends.');
+    require('../services/dates').checkSchedule({ registrationOpensAt, registrationDeadline, startsAt, current });
     const bannerUrl = text(pick('bannerUrl'), 600);
     if (bannerUrl && !/^https?:\/\//.test(bannerUrl)) throw fail(400, 'The banner must be an uploaded image.');
     const counts = b.counts || current?.counts || {};
@@ -340,7 +341,7 @@ router.get('/:id', wrap(async (req, res) => {
     const chosenIds = ROUNDS.flatMap((r) => c.selection[r] || []);
     const [chosen, entries] = await Promise.all([
         ArenaQuestion.find({ _id: { $in: chosenIds }, deletedAt: null }).lean(),
-        ArenaEntry.find({ competitionId: c._id }).select('name collegeName organizationId status joinCode paidAt paidAmount registeredAt joinedAt answers').sort({ collegeName: 1, registeredAt: 1 }).lean()
+        ArenaEntry.find({ competitionId: c._id }).select('userId name collegeName organizationId status joinCode paidAt paidAmount registeredAt joinedAt answers').sort({ collegeName: 1, registeredAt: 1 }).lean()
     ]);
     const byId = new Map(chosen.map((q) => [String(q._id), q]));
     res.json({
@@ -359,7 +360,7 @@ router.get('/:id', wrap(async (req, res) => {
         },
         // How many approved questions each round of the bank has, for the readiness line.
         bank: Object.fromEntries(await Promise.all(ROUNDS.map(async (r) => [r, await ArenaQuestion.countDocuments({ round: r, status: 'approved', deletedAt: null, ...contestBank(c) })]))),
-        participants: entries.map((e) => ({ id: String(e._id), name: e.name, collegeName: e.collegeName, organizationId: e.organizationId ? String(e.organizationId) : null, status: e.status, joinCode: e.joinCode || null, paidAt: e.paidAt || null, paidAmount: e.paidAmount || 0, registeredAt: e.registeredAt, joinedAt: e.joinedAt, answered: e.answers.length })),
+        participants: entries.map((e) => ({ id: String(e._id), userId: e.userId ? String(e.userId) : null, name: e.name, collegeName: e.collegeName, organizationId: e.organizationId ? String(e.organizationId) : null, status: e.status, joinCode: e.joinCode || null, paidAt: e.paidAt || null, paidAmount: e.paidAmount || 0, registeredAt: e.registeredAt, joinedAt: e.joinedAt, answered: e.answers.length })),
         roundNames: ROUND_NAMES
     });
 }));
@@ -374,6 +375,7 @@ router.put('/:id', wrap(async (req, res) => {
         // words, the deadline (still before the start) and the seats may change.
         if (phaseAt(c, Date.now()).stage !== 'waiting') throw fail(409, 'The quiz has started: it can no longer be edited.');
         const b = req.body || {};
+        const before = { startsAt: c.startsAt, registrationDeadline: c.registrationDeadline, registrationOpensAt: c.registrationOpensAt };
         if (b.title !== undefined) c.title = text(b.title, 140) || c.title;
         for (const k of ['description', 'instructions']) if (b[k] !== undefined) c[k] = text(b[k], k === 'description' ? 2000 : 3000);
         if (b.bannerUrl !== undefined) c.bannerUrl = text(b.bannerUrl, 600);
@@ -396,6 +398,7 @@ router.put('/:id', wrap(async (req, res) => {
             if (o && (Number.isNaN(o.getTime()) || o >= c.registrationDeadline)) throw fail(400, 'Registration has to start before it ends.');
             c.registrationOpensAt = o;
         }
+        if (['startsAt', 'registrationDeadline', 'registrationOpensAt'].some((k) => b[k] !== undefined)) require('../services/dates').checkSchedule({ registrationOpensAt: c.registrationOpensAt, registrationDeadline: c.registrationDeadline, startsAt: c.startsAt, current: before });
         if (b.maxParticipants !== undefined) c.maxParticipants = Math.max(c.registeredCount, num(b.maxParticipants, 1, 100000, c.maxParticipants));
         if (b.prizes !== undefined) c.prizes = prizesFrom(b.prizes);
         if (b.participationXp !== undefined) c.participationXp = num(b.participationXp, 0, 10000, c.participationXp);

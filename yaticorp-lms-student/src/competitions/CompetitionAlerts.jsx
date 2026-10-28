@@ -9,6 +9,7 @@
  * student opens it, and, if the student has allowed it, a notification from
  * the browser too. The same code is in their notification bell and My Games.
  */
+import { markCopied } from './copiedCode';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Copy, Check, Trophy, X, Wallet, Loader2 } from 'lucide-react';
@@ -66,7 +67,7 @@ export default function CompetitionAlerts() {
             .catch((e) => setPayError(e.message || 'The payment did not go through.'))
             .finally(() => setPaying(false));
     };
-    const copy = () => { navigator.clipboard?.writeText(alert.code).then(() => setCopied(true)).catch(() => {}); };
+    const copy = () => { navigator.clipboard?.writeText(alert.code).then(() => { setCopied(true); markCopied(alert.code); }).catch(() => {}); };
     const left = alert.deadline ? Math.max(0, Math.ceil((new Date(alert.deadline).getTime() - now) / 1000)) : null;
     const canAsk = typeof Notification !== 'undefined' && Notification.permission === 'default';
 
@@ -99,7 +100,8 @@ export default function CompetitionAlerts() {
                         <p className="mt-2 text-xs text-slate-500">Only for you — it will not work for anyone else. Enter it to join.</p>
                     </div>
                     {left != null && alert.kind === 'match' && <p className={`text-sm font-bold ${left <= 120 ? 'text-rose-600' : 'text-slate-700'}`}>Join within {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')} or lose by walkover</p>}
-                    <button type="button" onClick={() => { close(); navigate(target); }} className="w-full rounded-2xl bg-indigo-600 py-3 text-sm font-black text-white shadow-md hover:bg-indigo-700">Go to join</button>
+                    {/* Go to join only once the code is copied: they will need it there. */}
+                    <button type="button" disabled={!copied} onClick={() => { close(); navigate(target); }} title={copied ? '' : 'Copy your code first'} className="w-full rounded-2xl bg-indigo-600 py-3 text-sm font-black text-white shadow-md hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none" data-go-join>{copied ? 'Go to join' : 'Copy your code to continue'}</button>
                     {canAsk && (
                         <button type="button" onClick={() => Notification.requestPermission().catch(() => {})} className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:underline">
                             <Bell size={13} aria-hidden="true" /> Notify me on screen next time

@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { X, Save, Loader2, ImagePlus, Trash2, Check, Crop as CropIcon, RefreshCw } from 'lucide-react';
 import api from '../utils/api';
 import { INPUT, LABEL, BTN, BTN2, Dialog, DialogTitle } from '../components/orgUi';
-import { toLocalInput, errorOf } from '../competitions/constants';
+import { toLocalInput, errorOf, scheduleProblems, addDays, today } from '../competitions/constants';
 import { DateTimeInput } from '../components/DateTimeInput';
 import ImageCropper from '../components/ImageCropper';
 import { RewardsFields, EntryFeeField } from '../competitions/shared';
@@ -201,7 +201,7 @@ const blankContest = () => {
     const start = new Date(Date.now() + 3 * 86400e3); start.setHours(11, 0, 0, 0);
     return {
         title: '', description: '', instructions: '', organizedBy: 'YATICORP', bannerUrl: '',
-        startsAt: toLocalInput(start), registrationDeadline: toLocalInput(new Date(start.getTime() - 3600e3)), registrationOpensAt: '',
+        startsAt: toLocalInput(start), registrationDeadline: toLocalInput(new Date(start.getTime() - 86400e3)), registrationOpensAt: '',
         maxParticipants: 500, playersPerCollege: 10, counts: { 1: 10, 2: 5, 3: 10 }, secondsPerQuestion: 20, pointsPerQuestion: 100,
         eligibility: { organizationIds: [], collegeStudentsOnly: true },
         certificates: { winners: true, participants: true, minScore: 0 },
@@ -231,8 +231,12 @@ export const ContestForm = ({ contest, onCancel, onSaved }) => {
     const set = (patch) => setF((x) => ({ ...x, ...patch }));
     const total = [1, 2, 3].reduce((n, r) => n + (Number(f.counts[r]) || 0), 0);
     const durationMs = [1, 2, 3].filter((r) => Number(f.counts[r]) > 0).reduce((t, r) => t + 8000 + Number(f.counts[r]) * (Number(f.secondsPerQuestion) * 1000 + 4000), 0);
+    // The dates, checked as they are set (and again on submit).
+    const bad = scheduleProblems({ registrationOpensAt: f.registrationOpensAt, registrationDeadline: f.registrationDeadline, startsAt: f.startsAt, isNew: !contest });
     const submit = (e) => {
         e.preventDefault();
+        const firstBad = Object.values(bad)[0];
+        if (firstBad) { setError(firstBad); return; }
         setBusy(true); setError('');
         const body = {
             title: f.title, description: f.description, instructions: f.instructions, organizedBy: f.organizedBy, bannerUrl: f.bannerUrl,
@@ -265,12 +269,14 @@ export const ContestForm = ({ contest, onCancel, onSaved }) => {
                             <input type="number" min={1} max={500} value={f.playersPerCollege} onChange={(e) => set({ playersPerCollege: e.target.value })} className={INPUT} />
                             <span className="mt-1 block text-xs text-slate-500">Each college's coordinator enters up to this many; you approve them.</span></label>
                         <label><span className={LABEL}>Starts (date and time)</span>
-                            <DateTimeInput required value={f.startsAt} onChange={(v) => set({ startsAt: v })} label="Starts" /></label>
+                            <DateTimeInput required value={f.startsAt} onChange={(v) => set({ startsAt: v })} label="Starts" min={addDays((f.registrationDeadline || '').slice(0, 10), 1) || undefined} invalid={!!bad.startsAt} />
+                            {bad.startsAt && <span className="mt-1 block text-xs font-semibold text-rose-600" data-date-error>{bad.startsAt}</span>}</label>
                         <label><span className={LABEL}>Registration start <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></span>
-                            <DateTimeInput value={f.registrationOpensAt} onChange={(v) => set({ registrationOpensAt: v })} label="Registration start" />
-                            <span className="mt-1 block text-xs text-slate-500">Empty: registration opens when you publish.</span></label>
+                            <DateTimeInput value={f.registrationOpensAt} onChange={(v) => set({ registrationOpensAt: v })} label="Registration start" min={contest ? undefined : today()} invalid={!!bad.registrationOpensAt} />
+                            {bad.registrationOpensAt ? <span className="mt-1 block text-xs font-semibold text-rose-600" data-date-error>{bad.registrationOpensAt}</span> : <span className="mt-1 block text-xs text-slate-500">Empty: registration opens when you publish.</span>}</label>
                         <label><span className={LABEL}>Registration deadline</span>
-                            <DateTimeInput required value={f.registrationDeadline} onChange={(v) => set({ registrationDeadline: v })} label="Registration deadline" /></label>
+                            <DateTimeInput required value={f.registrationDeadline} onChange={(v) => set({ registrationDeadline: v })} label="Registration deadline" min={(f.registrationOpensAt || '').slice(0, 10) || (contest ? undefined : today())} invalid={!!bad.registrationDeadline} />
+                            {bad.registrationDeadline && <span className="mt-1 block text-xs font-semibold text-rose-600" data-date-error>{bad.registrationDeadline}</span>}</label>
                         <label className="sm:col-span-2"><span className={LABEL}>Description</span>
                             <textarea rows={2} maxLength={2000} value={f.description} onChange={(e) => set({ description: e.target.value })} className={INPUT} /></label>
                         <label className="sm:col-span-2"><span className={LABEL}>Instructions for students <span className="font-normal normal-case tracking-normal text-slate-400">(added to the standard rules)</span></span>

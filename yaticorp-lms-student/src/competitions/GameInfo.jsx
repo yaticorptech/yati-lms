@@ -7,15 +7,16 @@
  */
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { Trophy, Building2, Play, CheckCircle2, Wallet, Loader2 } from 'lucide-react';
+import { Trophy, Building2, Play, CheckCircle2, Wallet, Loader2, Copy } from 'lucide-react';
 import { HERO } from './gameRules';
+import { markCopied, wasCopied } from './copiedCode';
 
 /** The coloured banner at the top. */
-export const GameHero = ({ game, bannerUrl, chips, title, subtitle, description, meta }) => (
+export const GameHero = ({ game, bannerUrl, title, subtitle, description, meta }) => (
     <header className={`relative flex min-h-[13rem] flex-col justify-center overflow-hidden rounded-[22px] bg-gradient-to-br ${HERO[game] || HERO.quizarena} p-6 text-white shadow-lg sm:min-h-[17rem] sm:p-10`} data-game-hero={game}>
         {bannerUrl && <img src={bannerUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />}
+        {/* No badges on the banner (asked 2026-10-28): each page shows them below Back. */}
         <div className="relative">
-            <div className="flex flex-wrap gap-1.5">{chips}</div>
             <h1 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">{title}</h1>
             {subtitle && <p className="mt-1 text-base font-semibold text-white/80">{subtitle}</p>}
             {description && <p className="mt-2 max-w-2xl text-sm text-white/90 sm:text-base">{description}</p>}
@@ -30,20 +31,29 @@ export const GameHero = ({ game, bannerUrl, chips, title, subtitle, description,
  * What to do now: my status, and Join — off until the organizer starts, then
  * my own code beside it. `to`: where Join leads (the page asks for the code).
  */
-export const JoinCard = ({ ok, title, note, started, code, joined, to, showJoin, label = 'Join' }) => (
+export const JoinCard = ({ ok, title, note, started, code, joined, to, showJoin, label = 'Join' }) => {
+    // Join shows only once the code is copied (here or in the pop-up).
+    const [copiedNow, setCopiedNow] = useState(false);
+    const copied = copiedNow || (code && wasCopied(code));
+    const copy = () => navigator.clipboard?.writeText(code).then(() => { markCopied(code); setCopiedNow(true); }).catch(() => {});
+    const needCopy = started && code && !joined && !copied;
+    return (
     <section className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" data-join-card>
         <div className="min-w-0 flex-1 basis-60">
             <p className={`flex items-center gap-2 font-black ${ok ? 'text-emerald-700' : 'text-slate-900'}`}>{ok && <CheckCircle2 size={18} aria-hidden="true" />} {title}</p>
             {note && <p className="text-sm text-slate-600">{note}</p>}
         </div>
         {started && code && !joined && (
-            <p className="rounded-xl bg-indigo-50 px-3 py-2 text-center text-xs font-bold text-indigo-700" data-my-code translate="no">Your joining code<span className="block font-mono text-xl tracking-[0.3em] text-indigo-900">{code}</span></p>
+            // The code itself is shown only in the start pop-up; here it can be copied, unseen.
+            needCopy && <button type="button" onClick={copy} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-50 px-4 text-sm font-bold text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100" data-copy-code><Copy size={15} aria-hidden="true" /> Copy my joining code</button>
         )}
-        {showJoin && (started && to
+        {showJoin && needCopy && <p className="basis-full text-xs font-bold text-amber-700" data-copy-first>Copy your joining code (from the pop-up, or here) to show the Join button.</p>}
+        {showJoin && !needCopy && (started && to
             ? <Link to={to} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-rose-600 px-5 text-sm font-black text-white shadow-md hover:bg-rose-700"><Play size={16} aria-hidden="true" /> {joined ? 'Back to the game' : label}</Link>
             : <button type="button" disabled title="Opens when the organizer starts it" className="inline-flex min-h-11 cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-5 text-sm font-black text-slate-500"><Play size={16} aria-hidden="true" /> {label}</button>)}
     </section>
-);
+    );
+};
 
 export const HowItWorks = ({ items, extra }) => (
     <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" data-how>

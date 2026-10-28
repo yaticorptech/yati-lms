@@ -26,6 +26,7 @@ import ProfileImage from '../components/ProfileImage';
 import PlatformClosed from '../components/PlatformClosed';
 import useAccessHours from '../hooks/useAccessHours';
 import CompetitionAlerts from '../competitions/CompetitionAlerts';
+import ResultsCelebration from '../competitions/ResultsCelebration';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -1170,6 +1171,8 @@ const StudentLayout = () => {
             </main>
             {/* A match or Quiz Arena just opened for me: my joining code, on screen. */}
             <CompetitionAlerts />
+            {/* The results of a competition I played in, just published: congratulations and my certificate. */}
+            <ResultsCelebration />
             {/* No profile picture yet: choose one before going on. */}
             <ProfilePictureGate />
             {/* "A new Global Quiz is live", when one is published; waits while the student is busy. */}

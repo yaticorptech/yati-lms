@@ -306,7 +306,7 @@ const AdminLayout = () => {
                 {/* Page Content Area */}
                 <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 sm:p-6 lg:p-8 custom-scrollbar">
                     {/* The question bank uses the full width. */}
-                    <div className={`mx-auto w-full ${location.pathname.endsWith('/competitions/question-bank') ? 'max-w-none' : 'max-w-7xl'}`}>
+                    <div className={`mx-auto w-full ${location.pathname.includes('/competitions') ? 'max-w-none' : 'max-w-7xl'}`}>
                         <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} /></Suspense></ErrorBoundary>
                     </div>
                 </div>

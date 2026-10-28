@@ -32,7 +32,12 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'nume
     recently added first. `date` is the one printed on the certificate, for the
     tooltip; `added` is when it reached the profile, which is what the frame
     goes by — an upload dated last year is still the newest thing in it. */
-const merge = (certificates, achievements, competitions = [], holder = '') => [
+const merge = (certificates, achievements, competitions = [], holder = '', groupBrain = []) => [
+    ...groupBrain.filter((c) => c.status === 'valid').map((c) => ({
+        id: `groupbrain-${c.certId}`, source: 'groupbrain', raw: c, holder,
+        title: `${c.rank ? `${['', '1st', '2nd', '3rd'][c.rank] || `${c.rank}th`} place · ` : ''}${c.title}`, issuer: `YATI LMS · ${c.eventName}`,
+        date: c.issuedAt, added: c.issuedAt, number: c.certId, thumbnailUrl: '', fileType: 'pdf'
+    })),
     ...certificates.map((c) => ({
         id: `course-${c._id}`, source: 'course', raw: c, holder,
         title: c.courseId?.title || 'Course certificate', issuer: 'YATI LMS',
@@ -81,6 +86,13 @@ const Framed = ({ item, large = false }) => (
                     <CertificatePreview name={item.holder} course={item.title} number={item.number} issuedAt={item.date} />
                 ) : item.source === 'competition' ? (
                     <CompetitionCertificatePreview certificate={item.raw} />
+                ) : item.source === 'groupbrain' ? (
+                    // A Group Brain certificate: its title and ID, as on the PDF.
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-indigo-50 via-white to-violet-50 px-2 text-center">
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-600">Group Brain</span>
+                        <span className="line-clamp-2 text-[11px] font-black leading-tight text-indigo-950">{item.title}</span>
+                        <span className="font-mono text-[8px] text-slate-500">{item.number}</span>
+                    </div>
                 ) : item.thumbnailUrl ? (
                     <img src={item.thumbnailUrl} alt={item.title} loading="lazy" className="h-full w-full object-cover" />
                 ) : (
@@ -91,7 +103,7 @@ const Framed = ({ item, large = false }) => (
                 )}
             </div>
         </div>
-        {(item.source === 'course' || item.source === 'competition') && (
+        {(item.source === 'course' || item.source === 'competition' || item.source === 'groupbrain') && (
             <span className="absolute -right-1.5 -top-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow">
                 <BadgeCheck size={11} /> Verified
             </span>
@@ -290,6 +302,7 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
         .catch(() => setCompetitionsFailed(true))
         .finally(() => setLoadingCompetitions(false));
     useEffect(() => { loadCompetitions(); }, []);
+
     const downloadCompetition = (c) => {
         setDownloadingCompetition(c.competitionId);
         setError('');
@@ -338,7 +351,8 @@ export default function CertificatesFrame({ certificates, loading, loadFailed = 
         }
     };
 
-    const trash = (item) => (
+    // A Group Brain certificate is revoked by an admin, not deleted by the student.
+    const trash = (item) => item.source !== 'groupbrain' && (
         <button type="button" onClick={() => remove(item)} disabled={removingId === item.id} aria-label={`Delete ${item.title}`} title="Delete"
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:opacity-60">
             {removingId === item.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={13} />}

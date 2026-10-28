@@ -15,6 +15,9 @@ const SOURCES = [
   'purchase',            // spent inside the LMS
   'feature_charge',      // a feature priced under Wallet rules (download, interview…)
   'feature_refund',      // that charge returned because the action failed
+  'game_entry',          // a Group Brain online table's entry fee
+  'game_prize',          // that table's prize, to its winner
+  'game_refund',         // the fee back: left before the start, or no players found
   'withdrawal',
   'withdrawal_refund',   // a rejected withdrawal returning to available
   'admin_adjustment'

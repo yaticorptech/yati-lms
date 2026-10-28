@@ -57,8 +57,10 @@ const fromBody = (body, current = null) => {
     const b = body || {};
     const game = String(b.game ?? current?.game ?? '');
     // UNO is no longer offered (2026-10-23), Ludo and Carrom since the brain games (2026-10-24); one made before then can still be edited.
+    // Quiz and Hackathon were removed on 2026-10-28: none can be made; one made before can still be edited.
+    if (!require('../games').IDS.includes(game) && !(current && game === current.game)) throw fail(400, 'Choose the game: Chess, Rapid Fire, Code Clash or Brain Sprint.');
+    // An existing quiz or hackathon (made before they were removed) keeps its own fields.
     const quizOrHackathon = challenge.CHALLENGES.includes(game);
-    if (!require('../games').IDS.includes(game) && !quizOrHackathon && !(current && game === current.game)) throw fail(400, 'Choose the game: Chess, Rapid Fire, Code Clash, Brain Sprint, a Quiz or a Hackathon.');
     const name = String(b.name ?? current?.name ?? '').trim();
     if (!name) throw fail(400, 'Give the competition a name.');
     const startsAt = new Date(b.startsAt ?? current?.startsAt);
@@ -70,6 +72,7 @@ const fromBody = (body, current = null) => {
     const registrationOpensAt = opensRaw ? new Date(opensRaw) : null;
     if (registrationOpensAt && Number.isNaN(registrationOpensAt.getTime())) throw fail(400, 'That registration start is not a date.');
     if (registrationOpensAt && registrationOpensAt > registrationDeadline) throw fail(400, 'Registration has to open before it closes.');
+    require('../services/dates').checkSchedule({ registrationOpensAt, registrationDeadline, startsAt, current });
     const bannerUrl = String(b.bannerUrl ?? current?.bannerUrl ?? '').trim();
     if (bannerUrl && !/^https?:\/\//.test(bannerUrl)) throw fail(400, 'The banner must be an uploaded image.');
 
@@ -139,7 +142,7 @@ const manage = (scope = 'platform') => {
 
     router.get('/', wrap(async (req, res) => {
         await challenge.advanceDue();
-        const comps = await Competition.find(filterFor(req)).sort({ createdAt: -1 }).lean();
+        const comps = await Competition.find({ ...filterFor(req), game: { $nin: challenge.CHALLENGES } }).sort({ createdAt: -1 }).lean();
         const [teams, matches] = await Promise.all([
             Team.find({ competitionId: { $in: comps.map((c) => c._id) } }).select('competitionId status teamName collegeName players').lean(),
             Match.find({ competitionId: { $in: comps.map((c) => c._id) } }).select('competitionId status needsDecision').lean()
@@ -452,6 +455,16 @@ const manage = (scope = 'platform') => {
 
     /* ── A quiz or a hackathon ── */
 
+    // Show the students their places, points, prizes and certificates.
+    router.post('/:id/publish-results', wrap(async (req, res) => {
+        const c = await find(req.params.id, req);
+        if (c.status !== 'completed') throw fail(409, 'Results can be published once the competition is over.');
+        if (!c.resultsPublishedAt) { c.resultsPublishedAt = new Date(); await c.save(); }
+        // Now the prizes, the XP and the students' notices.
+        require('../services/bracketService').payOnPublish(c.toObject());
+        res.json(await views.detail(c._id, { admin: true }));
+    }));
+
     router.post('/:id/finish', wrap(async (req, res) => {
         await challenge.advanceDue();
         const c = await find(req.params.id, req);
@@ -468,6 +481,7 @@ const manage = (scope = 'platform') => {
     router.post('/:id/award', wrap(async (req, res) => {
         const c = await find(req.params.id, req);
         if (c.status !== 'completed') throw fail(409, 'Prizes go out once the competition is complete.');
+        if (!c.resultsPublishedAt) throw fail(409, 'Publish the results first: the prizes go out with them.');
         await require('../services/awardService').award(c);
         res.json(await views.detail(c._id, { admin: true }));
     }));
