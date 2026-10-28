@@ -9,10 +9,11 @@
  *   PUT    /clubs/:id                rename or describe it
  *   DELETE /clubs/:id                delete one with no members left
  *   GET    /teachers                 my organization's teachers, to put one in charge of a club
- *   GET    /members                  members with progress (?scheme=&clubId=&status=&search=&filter=atRisk|eligible)
+ *   *      /units/…                  Scouts & Guides units and their leaders (./units.js)
+ *   GET    /members                  members with progress (?scheme=&clubId=&unitId=&status=&search=&filter=atRisk|eligible)
  *   GET    /members/export           the same list as CSV
  *   GET    /candidates?search=       my students, to add as members
- *   POST   /members                  add one of my students { userId, scheme, clubId?, unit, enrolmentNo, year, certStage }
+ *   POST   /members                  add one of my students { userId, scheme, clubId?, unitId? (Scouts), unit, enrolmentNo, year, certStage }
  *   GET    /members/:id              one member, their activities and attendance
  *   PUT    /members/:id              edit (a club member's role too), or approve a self-enrolment { status: 'active' | 'rejected' }
  *   DELETE /members/:id              remove (their activity rows go with them)
@@ -21,7 +22,7 @@
  *   PUT    /activities/:id           { decision: 'approve' | 'reject', reason? }, or edit { kind, title, date, hours, place }
  *   DELETE /activities/:id           delete one; its hours stop counting
  *   GET    /events                   events, newest first (?scheme=&clubId=)
- *   POST   /events                   schedule one { scheme, clubId?, … }
+ *   POST   /events                   schedule one { scheme, clubId?, unitId? (Scouts), … }
  *   PUT    /events/:id/attendance    { presentMemberIds: [] }
  *   DELETE /events/:id
  *   PUT    /settings                 { scheme, requiredHours, requiredCamps, minAttendance }
@@ -33,10 +34,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const { Teacher } = require('../teacher/models');
-const { NccNssClub, NccNssMember, NccNssActivity, NccNssEvent, NccNssSetting, SCHEMES, CLUB_CATEGORIES, CLUB_ROLES, ACTIVITY_KINDS, EVENT_KINDS, schemeName, eventKind } = require('./models');
+const { NccNssClub, NccNssMember, NccNssActivity, NccNssEvent, NccNssSetting, SCHEMES, CLUB_CATEGORIES, CLUB_ROLES, ACTIVITY_KINDS, EVENT_KINDS, schemeName, eventKind, scoutUnitFor } = require('./models');
 const { targetsFor, summarise } = require('./progress');
 
 const router = express.Router();
+router.use('/units', require('./units'));
 const STUDENT_FIELDS = 'name email cardNumber profilePicture phone';
 const notFound = (res, what = 'member') => res.status(404).json({ message: `No such ${what} in your organization.` });
 const fail = (res, error, what) => {
@@ -80,16 +82,32 @@ const memberFields = (body = {}) => {
     return out;
 };
 
+/**
+ * The unit fields for a Scouts member from body.unitId: the unit's name and
+ * section with its id, blanks for '' or null (back to a typed unit), nothing
+ * when unitId is absent. { error } for a unit that is not this organization's.
+ */
+const unitChoice = async (req, scheme, current = null) => {
+    const asked = req.body?.unitId;
+    // Unchanged is left alone, so a member of a since-retired unit can still be edited.
+    if (scheme !== 'SCOUTS' || asked === undefined || (asked && String(asked) === String(current))) return {};
+    if (!asked) return { fields: { unitId: null, section: '' } };
+    const { unit, error } = await scoutUnitFor(req.organization._id, scheme, asked);
+    if (error) return { error };
+    return { fields: { unitId: unit._id, unit: unit.name, section: unit.section } };
+};
+
 /** Members with their students and progress, filtered as asked. */
 const loadMembers = async (req) => {
     const orgId = req.organization._id;
     const filter = { organizationId: orgId };
     if (SCHEMES.includes(req.query.scheme)) filter.scheme = req.query.scheme;
     if (validId(req.query.clubId)) filter.clubId = req.query.clubId;
+    if (validId(req.query.unitId)) filter.unitId = req.query.unitId;
     if (['pending', 'active', 'rejected', 'completed'].includes(req.query.status)) filter.status = req.query.status;
     else filter.status = { $in: ['active', 'completed', 'pending'] };
 
-    let members = await NccNssMember.find(filter).populate('userId', STUDENT_FIELDS).populate('clubId', 'name').sort({ createdAt: -1 }).lean();
+    let members = await NccNssMember.find(filter).populate('userId', STUDENT_FIELDS).populate('clubId', 'name').populate('unitId', 'name section status').sort({ createdAt: -1 }).lean();
     members = members.filter((m) => m.userId).map((m) => ({ ...m, name: schemeName(m) }));
     const search = String(req.query.search || '').trim().slice(0, 100).toLowerCase();
     if (search) {
@@ -224,9 +242,9 @@ router.get('/members/export', async (req, res) => {
     try {
         const rows = await loadMembers(req);
         const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-        const header = ['Name', 'Card', 'Email', 'Scheme', 'Unit', 'Enrolment No', 'Year', 'Certificate', 'Status',
+        const header = ['Name', 'Card', 'Email', 'Scheme', 'Unit', 'Section', 'Enrolment No', 'Year', 'Certificate', 'Status',
             'Hours', 'Required hours', 'Camps', 'Required camps', 'Attendance %', 'Awards', 'Eligible', 'At risk', 'Next'];
-        const lines = rows.map((r) => [r.student.name, r.student.cardNumber, r.student.email, r.name, r.unit, r.enrolmentNo,
+        const lines = rows.map((r) => [r.student.name, r.student.cardNumber, r.student.email, r.name, r.unit, r.section, r.enrolmentNo,
             r.year, r.certStage, r.status, r.summary.hours, r.summary.requiredHours, r.summary.camps, r.summary.requiredCamps,
             r.summary.attendance ?? '', r.summary.awards, r.summary.eligible ? 'Yes' : 'No', r.summary.atRisk ? 'Yes' : 'No',
             r.summary.next].map(cell).join(','));
@@ -261,7 +279,9 @@ router.post('/members', async (req, res) => {
         if (existing && existing.status !== 'rejected') {
             return res.status(409).json({ message: `This student is already in ${name}.` });
         }
-        const fields = { ...memberFields(req.body), status: 'active', addedBy: 'organization', organizationId: req.organization._id };
+        const chosen = await unitChoice(req, scheme);
+        if (chosen.error) return res.status(400).json({ message: chosen.error });
+        const fields = { ...memberFields(req.body), ...chosen.fields, status: 'active', addedBy: 'organization', organizationId: req.organization._id };
         const member = existing
             ? await Object.assign(existing, fields).save()
             : await NccNssMember.create({ ...fields, userId, scheme, clubId: club?._id || null });
@@ -273,7 +293,7 @@ router.get('/members/:id', async (req, res) => {
     try {
         if (!validId(req.params.id)) return notFound(res);
         const member = await NccNssMember.findOne({ _id: req.params.id, organizationId: req.organization._id })
-            .populate('userId', STUDENT_FIELDS).populate('clubId', 'name').lean();
+            .populate('userId', STUDENT_FIELDS).populate('clubId', 'name').populate('unitId', 'name section status').lean();
         if (!member || !member.userId) return notFound(res);
         member.name = schemeName(member);
         const [summary] = await summarise([member], req.organization._id);
@@ -301,7 +321,9 @@ router.put('/members/:id', async (req, res) => {
         if (!validId(req.params.id)) return notFound(res);
         const member = await NccNssMember.findOne({ _id: req.params.id, organizationId: req.organization._id });
         if (!member) return notFound(res);
-        Object.assign(member, memberFields(req.body));
+        const chosen = await unitChoice(req, member.scheme, member.unitId);
+        if (chosen.error) return res.status(400).json({ message: chosen.error });
+        Object.assign(member, memberFields(req.body), chosen.fields);
         if (['active', 'rejected', 'completed'].includes(req.body?.status)) member.status = req.body.status;
         await member.save();
         const message = req.body?.status === 'active' ? 'Approved.' : req.body?.status === 'rejected' ? 'Rejected.' : 'Saved.';
@@ -417,9 +439,12 @@ router.post('/events', async (req, res) => {
         if (error) return res.status(400).json({ message: error });
         if (!String(b.title || '').trim()) return res.status(400).json({ message: 'Give the event a title.' });
         if (!b.date || Number.isNaN(new Date(b.date).getTime())) return res.status(400).json({ message: 'Choose a date.' });
+        const { unit, error: unitError } = await scoutUnitFor(req.organization._id, b.scheme, b.unitId);
+        if (unitError) return res.status(400).json({ message: unitError });
         const event = await NccNssEvent.create({
             organizationId: req.organization._id, scheme: b.scheme, clubId: club?._id || null,
-            unit: String(b.unit || '').trim().slice(0, 80),
+            unit: unit ? unit.name : String(b.unit || '').trim().slice(0, 80),
+            unitId: unit?._id || null,
             kind: eventKind(b.kind, 'parade'),
             title: String(b.title).trim().slice(0, 120),
             date: new Date(b.date),

@@ -63,7 +63,7 @@ const JoinPage = ({ data, onDone }) => {
         ...(data.clubs || []).map((c) => ({ scheme: 'CLUB', clubId: c._id, name: c.name, hint: c.description || 'A club in your organization.', ...CLUB_LOOK }))
     ];
     const [choice, setChoice] = useState(null);
-    const [form, setForm] = useState({ unit: '', enrolmentNo: '', year: 1, certStage: '', note: '' });
+    const [form, setForm] = useState({ unit: '', unitId: '', enrolmentNo: '', year: 1, certStage: '', note: '' });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -109,6 +109,8 @@ const JoinPage = ({ data, onDone }) => {
     }
 
     const club = choice.scheme === 'CLUB';
+    // Scouts: the organization's units to pick from, once it has added any; typed otherwise.
+    const scoutUnits = choice.scheme === 'SCOUTS' ? data.scoutUnits || [] : [];
     const rejected = data.memberships.find((m) => m.status === 'rejected' && sameChoice(m, choice));
     return (
         <form onSubmit={submit} className={`${CARD} space-y-4 p-5 sm:p-6`}>
@@ -122,7 +124,15 @@ const JoinPage = ({ data, onDone }) => {
             </div>
             {rejected && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">Your last request to join {choice.name} was not accepted. Check with your teacher or officer, then ask again.</p>}
             <div className="grid gap-3 sm:grid-cols-2">
-                {!club && <label><span className={LABEL}>{choice.scheme === 'SCOUTS' ? 'Troop / company' : 'Unit / company'}</span><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="As your officer calls it" /></label>}
+                {scoutUnits.length > 0 && (
+                    <label><span className={LABEL}>Your unit</span>
+                        <select className={INPUT} value={form.unitId} onChange={(e) => set('unitId', e.target.value)} required>
+                            <option value="">Choose your unit</option>
+                            {scoutUnits.map((u) => <option key={u._id} value={u._id}>{u.name} · {u.sectionLabel}</option>)}
+                        </select>
+                    </label>
+                )}
+                {!club && !scoutUnits.length && <label><span className={LABEL}>{choice.scheme === 'SCOUTS' ? 'Troop / company' : 'Unit / company'}</span><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="As your officer calls it" /></label>}
                 <label><span className={LABEL}>{club ? 'Membership no. (if you have one)' : 'Enrolment no. (if you have one)'}</span><input className={INPUT} value={form.enrolmentNo} onChange={(e) => set('enrolmentNo', e.target.value)} /></label>
                 <label><span className={LABEL}>Year in {choice.name}</span>
                     <select className={INPUT} value={form.year} onChange={(e) => set('year', e.target.value)}>{[1, 2, 3].map((y) => <option key={y} value={y}>Year {y}</option>)}</select>

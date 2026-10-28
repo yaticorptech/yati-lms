@@ -2,8 +2,8 @@
  * A student's own extra-curricular record (NCC, NSS, Scouts & Guides, and the
  * organization's clubs) — mounted at /api/organizations/student/nccnss, behind protectUser.
  *
- *   GET    /                  my memberships, progress, activities and upcoming events, and the clubs I can join
- *   POST   /join              ask to join { scheme, clubId?, unit, enrolmentNo, year, certStage, note } — the organization approves
+ *   GET    /                  my memberships, progress, activities and upcoming events, and the clubs and Scouts units I can join
+ *   POST   /join              ask to join { scheme, clubId?, unitId? (Scouts), unit, enrolmentNo, year, certStage, note } — the organization approves
  *   POST   /activities        log an activity { memberId, … } (multipart, optional "proof" photo) — the organization approves
  *   DELETE /activities/:id    withdraw one that has not been decided yet
  *   GET    /calendar?from=&to=&memberId=  the events of everything I am an active member of (or of one), between two dates
@@ -18,7 +18,7 @@ const User = require('../models/User');
 const Organization = require('../organizations/models/Organization');
 const { upload } = require('../middleware/uploadMiddleware');
 const { isRasterImage, rasterExtension } = require('../organizations/controllers/orgAdminController');
-const { NccNssClub, NccNssMember, NccNssActivity, NccNssEvent, SCHEMES, ACTIVITY_KINDS, EVENT_KINDS, schemeName, eventKind } = require('./models');
+const { NccNssClub, NccNssMember, NccNssActivity, NccNssEvent, ScoutUnit, SCHEMES, ACTIVITY_KINDS, EVENT_KINDS, SCOUT_SECTION_LABELS, schemeName, eventKind, scoutUnitFor } = require('./models');
 const { targetsFor, summarise } = require('./progress');
 
 const router = express.Router();
@@ -37,11 +37,13 @@ const myOrganization = async (userId) => {
 router.get('/', async (req, res) => {
     try {
         const organization = await myOrganization(req.user._id);
-        if (!organization) return res.json({ organization: null, memberships: [], clubs: [] });
-        const [members, clubs] = await Promise.all([
+        if (!organization) return res.json({ organization: null, memberships: [], clubs: [], scoutUnits: [] });
+        const [members, clubs, units] = await Promise.all([
             NccNssMember.find({ userId: req.user._id, organizationId: organization._id }).populate('clubId', 'name category description').sort({ createdAt: 1 }).lean(),
-            NccNssClub.find({ organizationId: organization._id }).select('name category description').sort({ name: 1 }).lean()
+            NccNssClub.find({ organizationId: organization._id }).select('name category description').sort({ name: 1 }).lean(),
+            ScoutUnit.find({ organizationId: organization._id, status: 'active' }).select('name section').sort({ name: 1 }).lean()
         ]);
+        const scoutUnits = units.map((u) => ({ ...u, sectionLabel: SCOUT_SECTION_LABELS[u.section] }));
         const targets = await targetsFor(organization._id);
         const active = members.filter((m) => m.status === 'active' || m.status === 'completed');
         const summaries = await summarise(active, organization._id, targets);
@@ -66,7 +68,7 @@ router.get('/', async (req, res) => {
                 }))
             };
         }));
-        res.json({ organization, memberships, clubs, targets });
+        res.json({ organization, memberships, clubs, scoutUnits, targets });
     } catch (error) { fail(res, error, 'load your record'); }
 });
 
@@ -148,6 +150,8 @@ router.post('/join', async (req, res) => {
             club = mongoose.isValidObjectId(b.clubId) ? await NccNssClub.findOne({ _id: b.clubId, organizationId: organization._id }).lean() : null;
             if (!club) return res.status(400).json({ message: 'Choose one of your organization\'s clubs.' });
         }
+        const { unit, error: unitError } = await scoutUnitFor(organization._id, b.scheme, b.unitId);
+        if (unitError) return res.status(400).json({ message: unitError });
         const name = club ? club.name : schemeName({ scheme: b.scheme });
         const existing = await NccNssMember.findOne({ userId: req.user._id, scheme: b.scheme, clubId: club?._id || null });
         if (existing && existing.status !== 'rejected') {
@@ -155,7 +159,9 @@ router.post('/join', async (req, res) => {
         }
         const fields = {
             organizationId: organization._id,
-            unit: String(b.unit || '').trim().slice(0, 80),
+            unit: unit ? unit.name : String(b.unit || '').trim().slice(0, 80),
+            unitId: unit?._id || null,
+            section: unit?.section || '',
             enrolmentNo: String(b.enrolmentNo || '').trim().slice(0, 40),
             year: Math.min(3, Math.max(1, Number(b.year) || 1)),
             certStage: b.scheme === 'NCC' && ['A', 'B', 'C'].includes(b.certStage) ? b.certStage : '',

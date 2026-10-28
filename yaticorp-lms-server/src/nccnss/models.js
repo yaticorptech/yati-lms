@@ -8,6 +8,8 @@
  *   NccNssActivity one thing a student did (drive, camp, award…), with its hours
  *   NccNssEvent    a parade, meeting or camp the college held, with who was present
  *   NccNssSetting  the college's own targets for each scheme
+ *   ScoutUnit      a Scouts & Guides unit the organization runs (a Cub pack, a
+ *                  Guide company…), with its section and its leaders
  *
  * Every row carries organizationId, and every query is scoped by the signed-in
  * organization (or the student's own membership), never by the request.
@@ -25,6 +27,13 @@ const ACTIVITY_KINDS = ['social', 'camp', 'parade', 'drill', 'award', 'other', '
 const ACTIVITY_STATUSES = ['pending', 'approved', 'rejected'];
 // Suggested event types; an event's type is typed freely (eventKind below).
 const EVENT_KINDS = ['parade', 'meeting', 'camp', 'drive', 'competition', 'practice', 'performance'];
+
+// Scouts & Guides sections, as a unit is registered under one. Names and
+// pairings follow common BSG usage — TO VERIFY against BSG's APRO before
+// relying on them for anything official (age bands are not enforced here).
+const SCOUT_SECTIONS = ['cubs', 'bulbuls', 'scouts', 'guides', 'rovers', 'rangers'];
+const SCOUT_SECTION_LABELS = { cubs: 'Cubs', bulbuls: 'Bulbuls', scouts: 'Scouts', guides: 'Guides', rovers: 'Rovers', rangers: 'Rangers' };
+const UNIT_STATUSES = ['active', 'inactive'];
 
 // Starting targets until the college sets its own (NSS: 240 hours over two
 // years and one special camp; NCC: one camp and 75% attendance).
@@ -53,7 +62,13 @@ const memberSchema = new mongoose.Schema({
     // Which club, for scheme 'CLUB'; null for the others.
     clubId: { type: ObjectId, ref: 'NccNssClub', default: null },
     role: { type: String, enum: CLUB_ROLES, default: 'member' },
+    // Free text for NCC/NSS. For Scouts it is the name of the ScoutUnit in unitId
+    // when one is chosen, kept in step by the organization's routes, so events,
+    // attendance and progress (which match on this string) need no second rule.
     unit: { type: String, default: '', trim: true, maxlength: 80 },
+    unitId: { type: ObjectId, ref: 'ScoutUnit', default: null, index: true },
+    // The unit's section, copied when the unit is chosen; blank for everything else.
+    section: { type: String, enum: ['', ...SCOUT_SECTIONS], default: '' },
     enrolmentNo: { type: String, default: '', trim: true, maxlength: 40 },
     year: { type: Number, min: 1, max: 3, default: 1 },
     // NCC A/B/C certificate the cadet is working towards; blank for NSS.
@@ -87,8 +102,9 @@ const eventSchema = new mongoose.Schema({
     organizationId: { type: ObjectId, ref: 'Organization', required: true, index: true },
     scheme: { type: String, enum: SCHEMES, required: true },
     clubId: { type: ObjectId, ref: 'NccNssClub', default: null },
-    // Blank means every unit of the scheme.
+    // Blank means every unit of the scheme. For Scouts, the name of unitId (as on members).
     unit: { type: String, default: '', trim: true, maxlength: 80 },
+    unitId: { type: ObjectId, ref: 'ScoutUnit', default: null },
     // Typed by whoever adds it ("Rehearsal", "Inter-college fest"…); EVENT_KINDS are only suggestions.
     // 'camp' still counts towards the camps target.
     kind: { type: String, trim: true, maxlength: 40, default: 'parade' },
@@ -113,6 +129,21 @@ const settingSchema = new mongoose.Schema({
 }, { timestamps: true });
 settingSchema.index({ organizationId: 1, scheme: 1 }, { unique: true });
 
+const scoutUnitSchema = new mongoose.Schema({
+    organizationId: { type: ObjectId, ref: 'Organization', required: true, index: true },
+    name: { type: String, required: true, trim: true, maxlength: 80 },
+    section: { type: String, enum: SCOUT_SECTIONS, required: true },
+    // The number the BSG district association registered the unit under, if any.
+    regNo: { type: String, default: '', trim: true, maxlength: 40 },
+    // Teachers of this organization authorised to lead the unit.
+    leaderTeacherIds: [{ type: ObjectId, ref: 'Teacher' }],
+    status: { type: String, enum: UNIT_STATUSES, default: 'active' },
+    note: { type: String, default: '', trim: true, maxlength: 300 }
+}, { timestamps: true });
+// Unit names are what members and events carry, so they are unique in an organization.
+scoutUnitSchema.index({ organizationId: 1, name: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } });
+scoutUnitSchema.index({ leaderTeacherIds: 1 });
+
 const NccNssClub = mongoose.model('NccNssClub', clubSchema, 'nccnss_clubs');
 const NccNssMember = mongoose.model('NccNssMember', memberSchema, 'nccnss_members');
 // The unique index before clubs was {userId, scheme}: it would allow one club
@@ -121,6 +152,7 @@ NccNssMember.collection.dropIndex('userId_1_scheme_1').catch(() => {});
 const NccNssActivity = mongoose.model('NccNssActivity', activitySchema, 'nccnss_activities');
 const NccNssEvent = mongoose.model('NccNssEvent', eventSchema, 'nccnss_events');
 const NccNssSetting = mongoose.model('NccNssSetting', settingSchema, 'nccnss_settings');
+const ScoutUnit = mongoose.model('ScoutUnit', scoutUnitSchema, 'nccnss_scout_units');
 
 /** An event type as typed: trimmed, short, a known one in its own spelling. */
 const eventKind = (v, fallback) => {
@@ -133,7 +165,22 @@ const eventKind = (v, fallback) => {
 /** What a membership or event is called: the club's name for a club, else the scheme's. */
 const schemeName = (row) => (row.scheme === 'CLUB' ? row.clubId?.name || 'Club' : SCHEME_LABELS[row.scheme] || row.scheme);
 
+/**
+ * The Scouts unit a request names, checked against the organization: { unit }
+ * (null for none, or for any other scheme), or { error } for one that is not
+ * this organization's or is no longer active.
+ */
+const scoutUnitFor = async (organizationId, scheme, unitId) => {
+    if (scheme !== 'SCOUTS' || !unitId) return { unit: null };
+    const unit = mongoose.isValidObjectId(unitId)
+        ? await ScoutUnit.findOne({ _id: unitId, organizationId, status: 'active' }).lean()
+        : null;
+    return unit ? { unit } : { error: 'Choose one of your organization\'s Scouts & Guides units.' };
+};
+
 module.exports = {
-    NccNssClub, NccNssMember, NccNssActivity, NccNssEvent, NccNssSetting,
+    scoutUnitFor,
+    NccNssClub, NccNssMember, NccNssActivity, NccNssEvent, NccNssSetting, ScoutUnit,
+    SCOUT_SECTIONS, SCOUT_SECTION_LABELS, UNIT_STATUSES,
     SCHEMES, SCHEME_LABELS, CLUB_CATEGORIES, CLUB_ROLES, ACTIVITY_KINDS, EVENT_KINDS, DEFAULT_TARGETS, schemeName, eventKind
 };

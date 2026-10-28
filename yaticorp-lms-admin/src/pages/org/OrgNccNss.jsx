@@ -4,7 +4,10 @@
  *
  *   NSS / NCC / Scouts   members with their hours, camps and attendance
  *                        against the targets; activities to approve; events
- *                        with attendance; the targets themselves.
+ *                        with attendance; the targets themselves. Scouts &
+ *                        Guides also has its units (Cub pack, Guide company…),
+ *                        each with a section and its leaders, which members
+ *                        and events are put in.
  *   Clubs                the organization's clubs (cultural, sports…). Create
  *                        one, then manage it: its members and their posts
  *                        (president, secretary…), the teacher in charge, its
@@ -37,6 +40,7 @@ const EVENT_KINDS = {
     scheme: [['parade', 'Parade'], ['meeting', 'Meeting'], ['camp', 'Camp'], ['drive', 'Drive / activity']],
     club: [['meeting', 'Meeting'], ['practice', 'Practice / rehearsal'], ['competition', 'Competition / match'], ['performance', 'Performance / show'], ['drive', 'Drive / activity'], ['camp', 'Camp / trip']]
 };
+const SECTION_LABEL = { cubs: 'Cubs', bulbuls: 'Bulbuls', scouts: 'Scouts', guides: 'Guides', rovers: 'Rovers', rangers: 'Rangers' };
 const errorOf = (err, fallback) => err.response?.data?.message || fallback;
 const today = () => new Date().toISOString().slice(0, 10);
 const isClub = (scope) => scope.scheme === 'CLUB';
@@ -120,6 +124,20 @@ const useList = (path, key, map) => {
 };
 const useStudents = () => useList('candidates', 'students', (s) => ({ id: s._id, label: s.name, sub: s.cardNumber || s.email }));
 const useTeachers = () => useList('teachers', 'teachers', (t) => ({ id: t._id, label: t.name, sub: t.designation || t.department || t.email }));
+const useScoutUnits = () => useList('units?status=active', 'units', (u) => ({ id: u._id, label: u.name, sub: SECTION_LABEL[u.section] }));
+
+/** The Scouts unit picker: this organization's active units, plus `noneLabel` for none. */
+const ScoutUnitSelect = ({ value, onChange, noneLabel = 'No unit yet', label = 'Unit' }) => {
+    const units = useScoutUnits();
+    return (
+        <Field label={label}>
+            <select className={INPUT} value={value || ''} onChange={(e) => onChange(e.target.value)} disabled={units.loading}>
+                <option value="">{units.loading ? 'Loading…' : noneLabel}</option>
+                {units.items.map((u) => <option key={u.id} value={u.id}>{u.label} · {u.sub}</option>)}
+            </select>
+        </Field>
+    );
+};
 
 /** Shared by the add-member and edit-member dialogs. */
 const MemberFields = ({ form, set, scheme }) => (
@@ -132,9 +150,13 @@ const MemberFields = ({ form, set, scheme }) => (
             </Field>
         )}
         <div className="grid grid-cols-2 gap-3">
-            {scheme !== 'CLUB' && <Field label={scheme === 'SCOUTS' ? 'Troop / company' : 'Unit / company'}><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="e.g. 5 KAR BN / Unit 2" /></Field>}
+            {scheme === 'SCOUTS' && <ScoutUnitSelect value={form.unitId} onChange={(v) => set('unitId', v)} />}
+            {scheme !== 'CLUB' && scheme !== 'SCOUTS' && <Field label="Unit / company"><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="e.g. 5 KAR BN / Unit 2" /></Field>}
             <Field label={scheme === 'CLUB' ? 'Membership no.' : 'Enrolment no.'}><input className={INPUT} value={form.enrolmentNo} onChange={(e) => set('enrolmentNo', e.target.value)} /></Field>
         </div>
+        {scheme === 'SCOUTS' && !form.unitId && form.unit && (
+            <p className="-mt-1 text-xs text-amber-700">Typed earlier as &ldquo;{form.unit}&rdquo;. Choose the unit it means to link them.</p>
+        )}
         <div className="grid grid-cols-2 gap-3">
             <Field label="Year">
                 <select className={INPUT} value={form.year} onChange={(e) => set('year', e.target.value)}>
@@ -155,7 +177,7 @@ const MemberFields = ({ form, set, scheme }) => (
 const AddMemberDialog = ({ scope, title, onClose, onDone }) => {
     const students = useStudents();
     const [userId, setUserId] = useState('');
-    const [form, setForm] = useState({ unit: '', enrolmentNo: '', year: 1, certStage: '', role: 'member' });
+    const [form, setForm] = useState({ unit: '', unitId: scope.unitId || '', enrolmentNo: '', year: 1, certStage: '', role: 'member' });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -231,7 +253,7 @@ const MemberDialog = ({ memberId, onClose, onChanged }) => {
             if (!isCurrent()) return;
             setData(res.data);
             const m = res.data.member;
-            setForm((f) => f || { unit: m.unit, enrolmentNo: m.enrolmentNo, year: m.year, certStage: m.certStage, role: m.role || 'member' });
+            setForm((f) => f || { unit: m.unit, unitId: m.unitId?._id || '', enrolmentNo: m.enrolmentNo, year: m.year, certStage: m.certStage, role: m.role || 'member' });
         } catch (err) { if (isCurrent()) setError(errorOf(err, 'Could not load the member.')); }
     };
     const reload = useAutoRefresh(load, 30000, [memberId]);
@@ -326,6 +348,18 @@ const MemberDialog = ({ memberId, onClose, onChanged }) => {
     );
 };
 
+/** The Scouts members list's unit filter. */
+const UnitFilter = ({ value, onChange }) => {
+    const units = useScoutUnits();
+    if (!units.items.length) return null;
+    return (
+        <select value={value} onChange={(e) => onChange(e.target.value)} aria-label="Unit" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+            <option value="">All units</option>
+            {units.items.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+        </select>
+    );
+};
+
 /** Members of one scheme, or of one club (then with their posts, changed in place). */
 const MembersTab = ({ scope, title, overview, onChanged }) => {
     const club = isClub(scope);
@@ -337,8 +371,9 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
     const [adding, setAdding] = useState(false);
     const [open, setOpen] = useState(null);
     const [notice, setNotice] = useState('');
+    const [unitId, setUnitId] = useState('');
 
-    const params = { ...scope, filter: ['atRisk', 'eligible'].includes(filter) ? filter : undefined, status: filter === 'pending' ? 'pending' : undefined, search: search || undefined };
+    const params = { ...scope, unitId: unitId || undefined, filter: ['atRisk', 'eligible'].includes(filter) ? filter : undefined, status: filter === 'pending' ? 'pending' : undefined, search: search || undefined };
     const load = async ({ signal, isCurrent = () => true, fresh = true } = {}) => {
         if (fresh) setLoading(true);
         try {
@@ -349,7 +384,7 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
         } catch { if (isCurrent() && fresh) setFailed(true); }
         finally { if (isCurrent()) setLoading(false); }
     };
-    const reload = useAutoRefresh(load, 30000, [scope.scheme, scope.clubId, filter, search]);
+    const reload = useAutoRefresh(load, 30000, [scope.scheme, scope.clubId, filter, search, unitId]);
     const changed = () => { reload(); onChanged(); };
 
     const update = async (r, body) => {
@@ -371,6 +406,7 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
                 <Segmented options={club ? [['', 'Everyone'], ['pending', 'Asked to join']] : [['', 'Everyone'], ['pending', 'Asked to join'], ['atRisk', 'Behind'], ['eligible', 'Eligible']]}
                     value={filter} onChange={setFilter} counts={{ pending: overview?.totals.pendingMembers, atRisk: overview?.totals.atRisk }} />
                 <div className="flex gap-2">
+                    {scope.scheme === 'SCOUTS' && <UnitFilter value={unitId} onChange={setUnitId} />}
                     <SearchInput value={search} onChange={setSearch} placeholder="Search name, card, unit" />
                     <button onClick={exportCsv} className={BTN2} aria-label="Export CSV"><Download size={16} /><span className="hidden sm:inline">Export</span></button>
                     <button onClick={() => setAdding(true)} className={BTN}><Plus size={16} /><span className="hidden sm:inline">Add student</span></button>
@@ -437,7 +473,10 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
                                                 <span className="min-w-0"><span className="block truncate font-semibold text-slate-800">{r.student.name}</span><span className="text-xs text-slate-500">{r.enrolmentNo || r.student.cardNumber}</span></span>
                                             </div>
                                         </td>
-                                        <td className="px-3 py-3 text-slate-700">{r.unit || '—'}</td>
+                                        <td className="px-3 py-3 text-slate-700">
+                                            {r.unit || '—'}
+                                            {r.section && <span className="block text-xs text-slate-500">{SECTION_LABEL[r.section]}</span>}
+                                        </td>
                                         <td className="px-3 py-3 text-slate-700">{r.year}{r.certStage ? ` · ${r.certStage}` : ''}</td>
                                         <td className="px-3 py-3 w-36">
                                             <span className="tabular-nums text-slate-700">{s.hours}{s.requiredHours ? ` / ${s.requiredHours}` : ''}</span>
@@ -464,7 +503,7 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
                     </table>
                 )}
             </div>
-            {adding && <AddMemberDialog scope={scope} title={title} onClose={() => setAdding(false)} onDone={(msg) => { setAdding(false); setNotice(msg); changed(); }} />}
+            {adding && <AddMemberDialog scope={{ ...scope, unitId: unitId || undefined }} title={title} onClose={() => setAdding(false)} onDone={(msg) => { setAdding(false); setNotice(msg); changed(); }} />}
             {open && <MemberDialog memberId={open} onClose={() => setOpen(null)} onChanged={changed} />}
         </div>
     );
@@ -541,7 +580,7 @@ const ApprovalsTab = ({ scope, onChanged }) => {
 
 const EventDialog = ({ scope, title, date, onClose, onDone }) => {
     const kinds = isClub(scope) ? EVENT_KINDS.club : EVENT_KINDS.scheme;
-    const [form, setForm] = useState({ unit: '', kind: '', title: '', date: date || today(), hours: 2, place: '' });
+    const [form, setForm] = useState({ unit: '', unitId: '', kind: '', title: '', date: date || today(), hours: 2, place: '' });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -559,7 +598,8 @@ const EventDialog = ({ scope, title, date, onClose, onDone }) => {
                     <input className={INPUT} list="event-kinds" value={form.kind} onChange={(e) => set('kind', e.target.value)} maxLength={40} placeholder={isClub(scope) ? 'e.g. Rehearsal' : 'e.g. Parade'} />
                     <datalist id="event-kinds">{kinds.map(([, l]) => <option key={l} value={l} />)}</datalist>
                 </Field>
-                {!isClub(scope) && <Field label="Unit (blank = all)"><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} /></Field>}
+                {scope.scheme === 'SCOUTS' && <ScoutUnitSelect value={form.unitId} onChange={(v) => set('unitId', v)} noneLabel="All units" />}
+                {!isClub(scope) && scope.scheme !== 'SCOUTS' && <Field label="Unit (blank = all)"><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} /></Field>}
             </div>
             <Field label="Title"><input className={INPUT} value={form.title} onChange={(e) => set('title', e.target.value)} placeholder={isClub(scope) ? 'e.g. Annual day rehearsal' : 'e.g. Weekly parade'} required /></Field>
             <div className="grid grid-cols-2 gap-3">
@@ -581,7 +621,7 @@ const AttendanceDialog = ({ event, onClose, onDone }) => {
     // Loaded once: ticking the list must not be undone by a background refresh.
     useEffect(() => {
         let live = true;
-        api.get(`${BASE}/members`, { params: { scheme: event.scheme, clubId: event.clubId?._id || undefined, status: 'active' } })
+        api.get(`${BASE}/members`, { params: { scheme: event.scheme, clubId: event.clubId?._id || undefined, unitId: event.unitId || undefined, status: 'active' } })
             .then((res) => { if (live) setMembers((res.data.members || []).filter((m) => !event.unit || m.unit === event.unit)); })
             .catch(() => { if (live) setError('Could not load the members.'); });
         return () => { live = false; };
@@ -792,6 +832,122 @@ const useOverview = (scope) => {
     return { overview, error, setError, reload };
 };
 
+/** Add or edit a Scouts unit: its name, section, registration number and leaders. */
+const UnitDialog = ({ unit, onClose, onDone }) => {
+    const teachers = useTeachers();
+    const [form, setForm] = useState({
+        name: unit?.name || '', section: unit?.section || '', regNo: unit?.regNo || '', note: unit?.note || '',
+        leaderTeacherIds: (unit?.leaderTeacherIds || []).map((t) => t._id)
+    });
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+    const toggleLeader = (id) => set('leaderTeacherIds', form.leaderTeacherIds.includes(id) ? form.leaderTeacherIds.filter((x) => x !== id) : [...form.leaderTeacherIds, id]);
+    const submit = async () => {
+        if (!form.section) { setError('Choose the unit\'s section.'); return; }
+        setBusy(true); setError('');
+        try { onDone((unit ? await api.put(`${BASE}/units/${unit._id}`, form) : await api.post(`${BASE}/units`, form)).data.message); }
+        catch (err) { setError(errorOf(err, 'Could not save the unit.')); }
+        finally { setBusy(false); }
+    };
+    return (
+        <DialogShell title={unit ? 'Edit unit' : 'Add a unit'} onClose={onClose} onSubmit={submit} busy={busy} error={error} submitLabel={unit ? 'Save' : 'Add'}>
+            <Field label="Name"><input className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. 1st Scout Troop" required /></Field>
+            <div className="grid grid-cols-2 gap-3">
+                <Field label="Section">
+                    <select className={INPUT} value={form.section} onChange={(e) => set('section', e.target.value)}>
+                        <option value="">Choose…</option>
+                        {Object.entries(SECTION_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                </Field>
+                <Field label="BSG registration no."><input className={INPUT} value={form.regNo} onChange={(e) => set('regNo', e.target.value)} placeholder="If registered" /></Field>
+            </div>
+            <Field label="Leaders">
+                {teachers.loading ? <p className="text-sm text-slate-400">Loading…</p> : teachers.items.length === 0 ? (
+                    <p className="text-sm text-slate-500">No teachers yet. Add teachers to your organization first.</p>
+                ) : (
+                    <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2">
+                        {teachers.items.map((t) => (
+                            <label key={t.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
+                                <input type="checkbox" checked={form.leaderTeacherIds.includes(t.id)} onChange={() => toggleLeader(t.id)} />
+                                <span className="font-semibold text-slate-800">{t.label}</span>{t.sub && <span className="text-slate-500">· {t.sub}</span>}
+                            </label>
+                        ))}
+                    </div>
+                )}
+            </Field>
+            <Field label="Note"><textarea className={INPUT} rows={2} value={form.note} onChange={(e) => set('note', e.target.value)} /></Field>
+        </DialogShell>
+    );
+};
+
+/** Scouts & Guides units: each with its section, leaders and member count. */
+const UnitsTab = () => {
+    const [rows, setRows] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [failed, setFailed] = useState(false);
+    const [notice, setNotice] = useState('');
+    const [editing, setEditing] = useState(null);   // 'new', or the unit
+
+    const load = async ({ signal, isCurrent = () => true, fresh = true } = {}) => {
+        if (fresh) setLoading(true);
+        try {
+            const res = await api.get(`${BASE}/units`, { signal });
+            if (!isCurrent()) return;
+            setRows(res.data.units || []); setFailed(false);
+        } catch { if (isCurrent() && fresh) setFailed(true); }
+        finally { if (isCurrent()) setLoading(false); }
+    };
+    const reload = useAutoRefresh(load, 30000, []);
+    const done = (msg) => { setEditing(null); setNotice(msg); reload(); };
+    const setStatus = async (u, status) => {
+        try { done((await api.put(`${BASE}/units/${u._id}`, { status })).data.message); }
+        catch (err) { setNotice(errorOf(err, 'That did not go through.')); }
+    };
+    const remove = async (u) => {
+        if (!window.confirm(`Delete ${u.name}?`)) return;
+        try { done((await api.delete(`${BASE}/units/${u._id}`)).data.message); }
+        catch (err) { setNotice(errorOf(err, 'Could not delete.')); }
+    };
+
+    return (
+        <div className="space-y-3">
+            {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
+            <div className="flex justify-end"><button onClick={() => setEditing('new')} className={BTN}><Plus size={16} /> Add unit</button></div>
+            <div className={`${CARD} overflow-x-auto`}>
+                {loading ? <Rows count={3} /> : failed ? <LoadFailed what="the units" onRetry={reload} /> : rows.length === 0 ? (
+                    <Empty icon={Users}>No units yet. Add your Cub pack, Bulbul flock, Scout troop, Guide company, Rover crew or Ranger team, then put members in them.</Empty>
+                ) : (
+                    <table className="w-full min-w-[720px] text-sm">
+                        <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <tr><th className="px-4 py-3">Unit</th><th className="px-3 py-3">Section</th><th className="px-3 py-3">Leaders</th><th className="px-3 py-3">Members</th><th className="px-3 py-3">Status</th><th className="px-4 py-3" /></tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {rows.map((u) => (
+                                <tr key={u._id} className="hover:bg-slate-50">
+                                    <td className="px-4 py-3"><span className="block font-semibold text-slate-800">{u.name}</span>{u.regNo && <span className="text-xs text-slate-500">Reg. {u.regNo}</span>}</td>
+                                    <td className="px-3 py-3 text-slate-700">{SECTION_LABEL[u.section]}</td>
+                                    <td className="px-3 py-3 text-slate-700">{u.leaderTeacherIds?.length ? u.leaderTeacherIds.map((t) => t.name).join(', ') : <span className="text-amber-700">No leader yet</span>}</td>
+                                    <td className="px-3 py-3 text-slate-700">{u.members}{u.pending > 0 && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{u.pending} asked</span>}</td>
+                                    <td className="px-3 py-3">{u.status === 'active' ? <Pill status="active" /> : <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Retired</span>}</td>
+                                    <td className="px-4 py-3 text-right">
+                                        <span className="inline-flex gap-1">
+                                            <button onClick={() => setEditing(u)} className="p-1 text-slate-400 hover:text-indigo-600" aria-label={`Edit ${u.name}`}><Pencil size={15} /></button>
+                                            <button onClick={() => setStatus(u, u.status === 'active' ? 'inactive' : 'active')} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50">{u.status === 'active' ? 'Retire' : 'Reactivate'}</button>
+                                            <button onClick={() => remove(u)} className="p-1 text-slate-400 hover:text-red-600" aria-label={`Delete ${u.name}`}><Trash2 size={15} /></button>
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+            {editing && <UnitDialog unit={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onDone={done} />}
+        </div>
+    );
+};
+
 /** NSS, NCC or Scouts & Guides: its numbers, then members, approvals, events and targets. */
 const SchemeView = ({ scheme }) => {
     const scope = useMemo(() => ({ scheme }), [scheme]);
@@ -808,9 +964,10 @@ const SchemeView = ({ scheme }) => {
                 <Stat icon={AlertTriangle} tone="violet" label="Behind" value={t?.atRisk} sub={t && `Avg attendance ${t.avgAttendance ?? '—'}${t.avgAttendance !== null ? '%' : ''}`} loading={!overview} />
                 <Stat icon={Award} tone="emerald" label="Eligible" value={t?.eligible} sub={t && `${t.totalHours} hours logged`} loading={!overview} />
             </div>
-            <Segmented options={[['members', 'Members'], ['approvals', 'Approvals'], ['events', 'Calendar'], ['targets', 'Targets']]} value={tab} onChange={setTab}
+            <Segmented options={[['members', 'Members'], ...(scheme === 'SCOUTS' ? [['units', 'Units']] : []), ['approvals', 'Approvals'], ['events', 'Calendar'], ['targets', 'Targets']]} value={tab} onChange={setTab}
                 counts={{ approvals: t?.pendingActivities, members: t?.pendingMembers }} />
             {tab === 'members' && <MembersTab scope={scope} title={title} overview={overview} onChanged={reload} />}
+            {tab === 'units' && <UnitsTab />}
             {tab === 'approvals' && <ApprovalsTab scope={scope} onChanged={reload} />}
             {tab === 'events' && <EventsTab scope={scope} title={title} onChanged={reload} />}
             {tab === 'targets' && (overview ? <TargetsTab scheme={scheme} targets={overview.targets} onChanged={reload} /> : <Rows count={2} />)}
