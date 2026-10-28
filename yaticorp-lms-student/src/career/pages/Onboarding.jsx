@@ -23,6 +23,7 @@ import {
   coursesFor,
   statesFor
 } from '../utils/profileOptions';
+import { isWalletCancel } from '../../utils/walletCharge';
 
 const EDUCATION_LEVELS = [
   'Primary School (Class 1–5)',
@@ -306,7 +307,7 @@ export default function Onboarding() {
       setIsGenerating(false);
       setDone(true);
     } catch (err) {
-      setError(err.response?.data?.message || 'Something went wrong');
+      if (!isWalletCancel(err)) setError(err.response?.data?.message || 'Something went wrong');
       setIsGenerating(false);
     }
   };

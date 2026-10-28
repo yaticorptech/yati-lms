@@ -249,6 +249,64 @@ const adjustUser = async (req, res) => {
   } catch (error) { err(res, error); }
 };
 
+// ── Wallet recharge ─────────────────────────────────────────────────────────
+// A super admin finds a student and adds money to their wallet. It is booked
+// as "wallet_recharge" with the admin's note, and the student is told.
+
+// @route GET /api/rewards/admin/recharge/students?q=
+// Up to ten students matching a name, email, card or phone number, each with
+// the balance their wallet holds now (zero for one who has no wallet yet).
+const findStudents = async (req, res) => {
+  try {
+    const text = String(req.query.q || '').trim();
+    if (text.length < 2) return res.json({ rows: [] });
+    const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(escaped, 'i');
+    const or = [{ name: rx }, { email: rx }, { cardNumber: rx }, { phone: rx }];
+    // Imported phones and cards may still be stored as numbers until
+    // scripts/normalizePhones.js / normalizeCardNumbers.js has run.
+    if (/^\d+$/.test(text)) for (const f of ['$phone', '$cardNumber']) or.push({ $expr: { $regexMatch: { input: { $toString: f }, regex: escaped } } });
+    const users = await User.find({ $or: or }).select('name email cardNumber phone').sort({ name: 1 }).limit(10).lean();
+    const wallets = await Wallet.find({ userId: { $in: users.map((u) => u._id) } }).select('userId available currency').lean();
+    const byUser = Object.fromEntries(wallets.map((w) => [String(w.userId), w]));
+    const fallback = (await S.config.getConfig()).conversion?.currency || 'INR';
+    res.json({
+      rows: users.map((u) => {
+        const w = byUser[String(u._id)];
+        return { ...u, cardNumber: u.cardNumber == null ? '' : String(u.cardNumber), phone: u.phone == null ? '' : String(u.phone), available: w?.available || 0, currency: w?.currency || fallback };
+      })
+    });
+  } catch (error) { err(res, error); }
+};
+
+// @route GET /api/rewards/admin/recharge/recent
+const recentRecharges = async (req, res) => {
+  try {
+    const rows = await WalletTransaction.find({ source: 'wallet_recharge' }).sort({ createdAt: -1 }).limit(Math.min(100, Number(req.query.limit) || 20)).populate('userId', 'name email cardNumber').lean();
+    res.json({ rows });
+  } catch (error) { err(res, error); }
+};
+
+// @route POST /api/rewards/admin/recharge/:id { amount, note, key }
+// `key` comes from the form: a double click or a retried request credits once.
+const rechargeWallet = async (req, res) => {
+  try {
+    const userId = oid(req.params.id);
+    if (!userId) return res.status(400).json({ message: 'That id is not valid.' });
+    if (!(await User.exists({ _id: userId }))) return res.status(404).json({ message: 'User not found' });
+    const amount = S.wallet.money(req.body.amount);
+    if (!(amount > 0)) return res.status(400).json({ message: 'Enter an amount above zero' });
+    const note = String(req.body.note || '').trim().slice(0, 140) || 'Wallet recharge';
+    const key = String(req.body.key || '').replace(/[^\w-]/g, '').slice(0, 64) || String(Date.now());
+    const result = await S.wallet.credit({ userId, amount, source: 'wallet_recharge', referenceKey: `recharge:${key}`, description: note, createdBy: `admin:${req.admin._id}` });
+    if (result.duplicate) return res.json({ ok: true, duplicate: true, wallet: await Wallet.findOne({ userId }).lean() });
+    const cur = result.wallet.currency;
+    await S.notify.celebrate(userId, 'wallet', `${cur} ${amount} added to your wallet`, note, { amount, source: 'wallet_recharge' });
+    await S.notify.notify(userId, 'Wallet credited', `${cur} ${amount} — ${note}`, S.notify.LINKS.wallet);
+    res.json({ ok: true, wallet: result.wallet, txn: result.txn });
+  } catch (error) { err(res, error); }
+};
+
 // ── Fraud / integrity checks ────────────────────────────────────────────────
 // @route GET /api/rewards/admin/audit
 const runAudit = async (req, res) => {
@@ -279,4 +337,4 @@ const runJobsNow = async (req, res) => {
   try { await S.jobs.runScheduled(); res.json({ ok: true }); } catch (error) { err(res, error); }
 };
 
-module.exports = { getOverview, getConfig, updateConfig, listBadges, createBadge, updateBadge, deleteBadge, listWallets, listTransactions, listWithdrawals, decideWithdrawal, getUserHistory, adjustUser, runAudit, runJobsNow };
+module.exports = { getOverview, getConfig, updateConfig, listBadges, createBadge, updateBadge, deleteBadge, listWallets, listTransactions, listWithdrawals, decideWithdrawal, getUserHistory, adjustUser, findStudents, recentRecharges, rechargeWallet, runAudit, runJobsNow };

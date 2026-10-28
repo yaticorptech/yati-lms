@@ -6,6 +6,7 @@
  * server scopes to the authenticated organization. Nothing on this page sends an
  * organization id, so there is nothing to tamper with.
  */
+import { getViewedOrganization } from '../../utils/viewOrganization';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -27,9 +28,16 @@ const TYPE_ICON = {
 // The card stays a card; the link only adds a lift on hover and a focus ring.
 const STAT_LINK = 'block rounded-2xl transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 [&>div]:h-full';
 
+// The last dashboard seen, one per organization (a super admin may look at
+// several, and each signed-in account has its own): coming back to one shows
+// it at once while it refreshes, and never another organization's numbers.
+const lastDashboards = new Map();
+const dashboardKey = () => getViewedOrganization()?.id || `own:${localStorage.getItem('adminToken') || ''}`;
+
 const OrgDashboard = () => {
-    const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [cacheKey] = useState(dashboardKey);
+    const [data, setData] = useState(() => lastDashboards.get(cacheKey) || null);
+    const [loading, setLoading] = useState(() => !lastDashboards.has(cacheKey));
     const [error, setError] = useState('');
     const [copied, setCopied] = useState(false);
 
@@ -37,6 +45,7 @@ const OrgDashboard = () => {
         try {
             const res = await api.get('/organizations/me/dashboard');
             setData(res.data);
+            lastDashboards.set(cacheKey, res.data);
             setError('');
         } catch (err) {
             setError(err.response?.data?.message || 'Could not load your dashboard.');
@@ -73,9 +82,9 @@ const OrgDashboard = () => {
     };
 
     return (
-        <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
-            {/* ── Welcome, with the ID students need ───────────────────────── */}
-            <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-600/20">
+        <div className="space-y-4 pb-10 lg:space-y-6">
+            {/* ── Welcome, with the ID students need: up to the top bar, no white gap above ── */}
+            <div className="-mt-4 overflow-hidden rounded-2xl lg:-mt-8 bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-600/20">
                 <div className="relative flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between lg:p-7">
                     {/* Soft shapes behind the text; decoration only. */}
                     <span aria-hidden className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
@@ -94,7 +103,7 @@ const OrgDashboard = () => {
                     </div>
 
                     {organization && (
-                        <div className="relative shrink-0 rounded-xl bg-white/10 p-4 ring-1 ring-white/20 backdrop-blur-sm sm:min-w-[240px]">
+                        <div className="relative shrink-0 rounded-xl bg-white/10 p-4 ring-1 ring-white/20 backdrop-blur-sm transition-colors duration-200 hover:bg-white/20 hover:ring-white/40 sm:min-w-[240px]">
                             <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-100"><IdCard size={14} aria-hidden className="shrink-0" />Organization ID</p>
                             <div className="mt-1 flex items-center justify-between gap-3">
                                 <button onClick={copyCode} aria-label={`Copy Organization ID ${organization.orgCode}`}
@@ -174,7 +183,7 @@ const OrgDashboard = () => {
             <AccessHoursCard />
 
             {/* ── Recent activity ──────────────────────────────────────────── */}
-            <div className={`${CARD} overflow-hidden`}>
+            <div className={`${CARD} overflow-hidden transition-all duration-200 hover:border-indigo-200 hover:shadow-md`}>
                 <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 lg:px-6">
                     <div className="flex min-w-0 items-center gap-3">
                         <span className="shrink-0 rounded-xl bg-indigo-100 p-2 text-indigo-600"><Activity size={18} aria-hidden /></span>
@@ -200,7 +209,7 @@ const OrgDashboard = () => {
                         {data.recentActivity.map((s) => (
                             <li key={s._id}>
                                 <Link to={`/organization/students/${s._id}`}
-                                    className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50/60 active:bg-slate-50 sm:gap-4 lg:px-6">
+                                    className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-indigo-50/60 active:bg-indigo-50 sm:gap-4 lg:px-6">
                                     <Avatar name={s.name} src={s.profilePicture} />
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate font-medium text-slate-800">{s.name}</p>

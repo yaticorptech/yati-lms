@@ -12,7 +12,7 @@ const { LinguisticLesson } = require('../../src/linguistic/models');
 const { lessons } = require('../../src/linguistic/content');
 const courses = require('../../src/linguistic/courses');
 const reviews = require('../../src/linguistic/reviews');
-const { unlock } = require('./unlock');
+const { unlock, moveCourse } = require('./unlock');
 
 const DEVANAGARI = /[ऀ-ॿ]/, TAMIL = /[஀-௿]/;
 
@@ -34,7 +34,8 @@ describe('each course keeps its own mistakes', () => {
         const englishOnes = (await api('GET', '/review')).body.mistakes.length;
         assert.ok(englishOnes > 0, 'mistakes in the English course');
 
-        assert.equal((await api('POST', '/course', { course: 'hi', start: 'beginner' })).status, 200);
+        // Begun before 27 Oct (one language only since): the Hindi course as well.
+        await moveCourse(b.user, 'hi', 'beginner');
         assert.deepEqual((await api('GET', '/review')).body.mistakes, [], 'none of them while learning Hindi');
         assert.equal((await api('GET', '/')).body.mistakes, 0, 'nor counted on the dashboard (the Practice stop goes to the daily words)');
 
@@ -45,7 +46,7 @@ describe('each course keeps its own mistakes', () => {
         assert.equal(now.length, 1);
         assert.ok(now[0].question.options.every((o) => DEVANAGARI.test(o)), 'a Hindi course question: its answers in Hindi');
 
-        await api('POST', '/course', { course: 'en' });
+        await moveCourse(b.user, 'en');
         assert.equal((await api('GET', '/review')).body.mistakes.length, englishOnes, 'the English ones, back with English');
     });
 });

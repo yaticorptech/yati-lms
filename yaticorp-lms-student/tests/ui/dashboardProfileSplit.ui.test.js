@@ -80,7 +80,9 @@ const SECTIONS = `
   };`;
 
 const BOTH = [];
-const DASHBOARD_ONLY = ['welcome', 'leaderboard', 'wallet', 'myLearning'];
+const DASHBOARD_ONLY = ['welcome', 'leaderboard', 'myLearning'];
+// Wallet & Rewards is at the top of My Courses now (2026-10-26), on neither page.
+const NEITHER = ['wallet'];
 const PROFILE_ONLY = ['personalInfo', 'progress', 'certificates', 'resume', 'aiKey'];
 
 describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
@@ -90,7 +92,7 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
             script: `await sleep(1500); ${SECTIONS} return { sections };` });
         assert.deepEqual(errors, []);
         for (const s of [...BOTH, ...DASHBOARD_ONLY]) assert.equal(result.sections[s], true, `the Dashboard shows ${s}`);
-        for (const s of PROFILE_ONLY) assert.equal(result.sections[s], false, `the Dashboard no longer shows ${s}`);
+        for (const s of [...PROFILE_ONLY, ...NEITHER]) assert.equal(result.sections[s], false, `the Dashboard no longer shows ${s}`);
     });
 
     test('My Profile has its sections, and none of the Dashboard\'s', async () => {
@@ -99,7 +101,7 @@ describe('the Dashboard and My Profile', { skip: skipWithoutStyles }, () => {
             script: `await sleep(1500); ${SECTIONS} return { sections };` });
         assert.deepEqual(errors, []);
         for (const s of [...BOTH, ...PROFILE_ONLY]) assert.equal(result.sections[s], true, `My Profile shows ${s}`);
-        for (const s of DASHBOARD_ONLY) assert.equal(result.sections[s], false, `My Profile does not repeat ${s}`);
+        for (const s of [...DASHBOARD_ONLY, ...NEITHER]) assert.equal(result.sections[s], false, `My Profile does not repeat ${s}`);
     });
 
     // What each page's opening card holds. The details and the ways to change
@@ -489,7 +491,9 @@ createRoot(document.getElementById('root')).render(
                          lit: [...$('aside').querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'My Profile').className.includes('bg-indigo-600') };` });
         assert.deepEqual(errors, []);
         assert.deepEqual(result.heads, ['LEARN', 'CAREER', 'ACTIVITIES']);
-        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Community', 'Career Path', 'Interview Prep', 'Jobs', 'Scholarships', 'Games', 'Competitions']);
+        // The menu as merged from test (2026-10-26): no Community, Interview Prep
+        // and Jobs as one "Job Preparation", and Extra Curricular under Activities.
+        assert.deepEqual(result.links, ['Dashboard', 'My Courses', 'Career Path', 'Job Preparation', 'Scholarships', 'Games', 'Competitions', 'Extra Curricular']);
         assert.equal(result.href, '/profile');
         assert.equal(result.inNav, false, 'My Profile is not in the menu list');
         assert.equal(result.support, true, 'it sits in the footer with Contact Support');

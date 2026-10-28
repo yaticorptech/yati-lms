@@ -18,7 +18,9 @@ const userSchema = new mongoose.Schema({
     },
     phone: {
         type: String,
-        required: true
+        required: true,
+        // Imported records held this as a number; keep every new write as text.
+        set: (v) => (v == null ? v : String(v).trim())
     },
     cardNumber: {
         type: String,

@@ -14,7 +14,7 @@ require('../../src/utils/emailService').sendEmail = async (msg) => { sent.push(m
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
-const { connect, startApp } = require('../helpers');
+const { connect, startApp, forgetAudit } = require('../helpers');
 const mongoose = require('mongoose');
 const Card = require('../../src/models/Card');
 const User = require('../../src/models/User');
@@ -45,7 +45,7 @@ before(async () => {
 
 after(async () => {
     const users = await User.find({ cardNumber: { $in: Object.values(cards).map((c) => c.CardNumber) } }).select('_id').lean();
-    await mongoose.connection.db.collection('orgauditlogs').deleteMany({ orgId: org._id }).catch(() => {});
+    await forgetAudit({ orgs: [org._id], admins: [orgAdmin._id] });
     await User.deleteMany({ _id: { $in: users.map((u) => u._id) } });
     await Card.deleteMany({ _id: { $in: Object.values(cards).map((c) => c._id) } });
     await Admin.deleteOne({ _id: orgAdmin._id });

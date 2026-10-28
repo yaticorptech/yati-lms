@@ -8,6 +8,18 @@ const generateToken = require('../utils/generateToken');
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const { validatePasswordStrength } = require('../middleware/validatePassword');
+const AdminAuditLog = require('../models/AdminAuditLog');
+
+// Platform admins' sign-ins, kept and failed, go to the audit log (organization
+// admins have their own panel and are left out).
+const auditSignIn = (admin, req, ok, why = '') => {
+    if (!admin || admin.role === 'orgadmin') return;
+    AdminAuditLog.record({
+        admin, req, status: ok ? 200 : 401, area: 'Sign-in',
+        action: ok ? 'sign-in' : 'sign-in-failed',
+        label: ok ? 'Signed in' : `Failed sign-in (${why})`
+    });
+};
 
 /**
  * What an organization administrator's sign-in has to carry beyond the usual
@@ -53,6 +65,7 @@ const loginAdmin = async (req, res) => {
 
         if (admin && (await admin.matchPassword(password))) {
             if (admin.isTwoFactorEnabled) {
+                // Signed in only once the code is right (verify2FA).
                 return res.json({
                     message: '2FA required',
                     requires2FA: true,
@@ -60,6 +73,8 @@ const loginAdmin = async (req, res) => {
                 });
             }
 
+            // Platform admins go to the admin audit log, organization admins to their organization's.
+            auditSignIn(admin, req, true);
             recordOrgSignIn(admin, req);
             res.json({
                 _id: admin._id,
@@ -71,6 +86,7 @@ const loginAdmin = async (req, res) => {
                 token: generateToken(admin._id, admin.role)
             });
         } else {
+            auditSignIn(admin, req, false, 'wrong password');
             // A teacher at this sign-in, with their own right password: say where
             // they sign in. Only on a matching password, so it never tells anyone
             // which emails have teacher accounts.
@@ -113,6 +129,8 @@ const verify2FA = async (req, res) => {
         });
 
         if (verified) {
+            // Platform admins go to the admin audit log, organization admins to their organization's.
+            auditSignIn(admin, req, true);
             recordOrgSignIn(admin, req);
             res.json({
                 _id: admin._id,
@@ -123,6 +141,7 @@ const verify2FA = async (req, res) => {
                 token: generateToken(admin._id, admin.role)
             });
         } else {
+            auditSignIn(admin, req, false, 'wrong two-factor code');
             res.status(401).json({ message: 'Invalid 2FA code' });
         }
     } catch (error) {

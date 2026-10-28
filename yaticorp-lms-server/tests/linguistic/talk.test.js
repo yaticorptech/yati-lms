@@ -9,9 +9,45 @@ const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { connect, makeUser, startApp, cleanup } = require('../helpers');
 const { LinguisticLesson } = require('../../src/linguistic/models');
-const { checkSentence, checkTalk } = require('../../src/linguistic/talkCheck');
+const { checkSentence, checkTalk, checkWritten } = require('../../src/linguistic/talkCheck');
 const talks = require('../../src/linguistic/talks');
-const { unlock } = require('./unlock');
+const { unlock, placeAt } = require('./unlock');
+
+describe('written English (2026-10-27: random letters were passed as "no grammar mistakes")', () => {
+    test('words that cannot be English are marked; the capital letter and full stop are put right', () => {
+        const gibberish = checkWritten('cvbnmdfghjertyuuytresdfghoiuyt gfdsdfghj fgfgh');
+        assert.deepEqual(gibberish.mistakes.filter((m) => /not an English word/.test(m.why)).map((m) => m.wrong), ['cvbnmdfghjertyuuytresdfghoiuyt', 'gfdsdfghj', 'fgfgh']);
+        assert.ok(gibberish.mistakes.some((m) => /full stop/.test(m.why)));
+        const plain = checkWritten('i wake up at six');
+        assert.equal(plain.corrected, 'I wake up at six.');
+        const lower = checkWritten('my mother cooks rice');
+        assert.equal(lower.corrected, 'My mother cooks rice.');
+        assert.deepEqual(lower.mistakes.map((m) => m.right), ['My', '.']);
+    });
+    test('real English is left alone: short words, names, acronyms, words like strengths and rhythm', () => {
+        for (const t of ['My strengths are rhythm and twelfths.', 'I study at NCC in Mysuru.', 'Hmm, I like my gym!', 'Mrs. Rao teaches us HTML.', 'Is it ready?', 'He said "yes."']) {
+            assert.deepEqual(checkWritten(t).mistakes, [], t);
+        }
+    });
+    test('plurals of words ending in -e are words (2026-10-28: "trees" was cut to "tre" and marked)', () => {
+        for (const t of ['We should plant more trees.', 'My knees hurt after the match.', 'She agrees with me.', 'The boxes are heavy.', 'Our homes use solar energy.']) {
+            assert.deepEqual(checkWritten(t).mistakes, [], t);
+        }
+    });
+    test('spelling and the marks at the end put right; names left alone (2026-10-27)', () => {
+        const fix = (t) => checkWritten(t).corrected;
+        assert.equal(fix('I take a bath and eat my breakfas'), 'I take a bath and eat my breakfast.');
+        assert.equal(fix('I wake up early in the morning..'), 'I wake up early in the morning.');
+        assert.equal(fix('I get ready and go to the office.,'), 'I get ready and go to the office.');
+        assert.equal(fix('I like tea,.'), 'I like tea.');
+        assert.equal(fix('I am ready , and my face is clean .'), 'I am ready, and my face is clean.');
+        assert.equal(fix('He go to the offise.'), 'He goes to the office.');
+        for (const t of ['Hari and Sneha bought a laptop online for two lakh rupees.', 'She played and stopped, making plans quickly.', 'The algorithm was elegant.', 'Wait... what?']) assert.deepEqual(checkWritten(t).mistakes, [], t);
+    });
+    test('speech is not held to capitals and full stops', () => {
+        assert.deepEqual(checkSentence('my mother cooks rice').mistakes, []);
+    });
+});
 
 describe('the corrections', () => {
     const FIXED = [
@@ -90,8 +126,8 @@ describe('in the path and as a lesson', () => {
         api = app.call(asha.token); knApi = app.call(kavya.token);
         await require('../../src/linguistic/seed').ensureSeeded();
         await api('POST', '/language', { language: 'hi' });
-        // Placed at Advanced, so its lessons open along the path.
-        await api('POST', '/placement', { answers: Object.fromEntries(require('../../src/linguistic/content/placement').map((q) => [q.id, q.answer])) });
+        // At Advanced, as a student placed there before 2026-10-28, so its lessons open along the path.
+        await placeAt(asha.user, 'advanced');
     });
     after(async () => { await cleanup([asha.user, kavya.user], app.server); });
 
@@ -99,7 +135,7 @@ describe('in the path and as a lesson', () => {
         const p = (await api('GET', '/path')).body;
         const adv = p.levels.find((l) => l.level === 'advanced');
         const topical = adv.units.filter((u) => u.kind === 'topic');
-        assert.equal(topical.length, 6);
+        assert.equal(topical.length, 8, 'four topics, two units each (the fourth 2026-10-28)');
         for (const u of topical) assert.equal(u.lessons.filter((x) => x.type === 'talk').length, 1, u.title);
         const second = topical[1].lessons.map((x) => x.type);
         assert.ok(second.indexOf('talk') === second.indexOf('speaking') + 1, 'right after the conversation');
@@ -127,7 +163,7 @@ describe('in the path and as a lesson', () => {
         assert.ok(bad.sentences.length === 6 && bad.clean < bad.total);
         const fixed = bad.sentences.find((s) => /discussed about/.test(s.text));
         assert.equal(fixed.corrected, 'We discussed the plan every week.');
-        assert.match(fixed.mistakes[0].why, /without "about"/);
+        assert.match(fixed.mistakes[0].why, /"about" नहीं लगता/, 'why, in the student\'s language (Hindi; 2026-10-27)');
         assert.ok(bad.sample.length > 100, 'the model answer comes with the corrections');
         assert.notEqual((await api('GET', '/path')).body.levels[2].units[0].lessons.find((x) => x.type === 'talk').status, 'completed');
 

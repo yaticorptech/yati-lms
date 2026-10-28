@@ -508,8 +508,8 @@ const OrgAdminLayout = () => {
 
                 {/* Bottom padding on phones keeps the last card clear of the floating nav bar. */}
                 <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 pb-28 custom-scrollbar lg:p-8">
-                    {/* The question bank uses the full width. */}
-                    <div className={`mx-auto w-full ${location.pathname.endsWith('/competitions/question-bank') ? 'max-w-none' : 'max-w-7xl'}`}>
+                    {/* Every organisation page uses the full width (asked 2026-10-28). */}
+                    <div className="w-full">
                         <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} context={{ staff, pendingRequests: counts.pendingRequests, organization }} /></Suspense></ErrorBoundary>
                     </div>
                 </div>

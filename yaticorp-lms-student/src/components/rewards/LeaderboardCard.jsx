@@ -7,6 +7,13 @@
  * card shows the whole board. No ↑/↓ marks on the rows: a climb is told by
  * the popup instead (RankUpWatcher, on whatever page the student is on). All
  * asked 2026-10-15.
+ *
+ * Global or My Organization (asked 2026-10-27): the second ranks only the
+ * students of the student's own organization. It is offered only to a
+ * student who belongs to one (the board says, in `organization`). There is
+ * no Today / This Week / This Month / All Time picker any more (removed the
+ * same day): the board is always this week's, the week the rank-up popup
+ * and the weekly rewards go by.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Trophy } from 'lucide-react';
@@ -17,15 +24,20 @@ import LeaderboardPodium, { Avatar } from './LeaderboardPodium';
 import Dropdown from '../Dropdown';
 import useLive from '../../live/useLive';
 
-const PERIODS = [['daily', 'Today'], ['weekly', 'This Week'], ['monthly', 'This Month'], ['all', 'All Time']];
+const PERIOD = 'weekly';
+const SCOPES = [['global', 'Global'], ['organization', 'My Organization']];
 // How many students the card asks for: the server's own most.
 const ALL = 500;
 
 export default function LeaderboardCard() {
-    const [period, setPeriod] = useState('weekly');
+    const [scope, setScope] = useState('global');
     const [tick, setTick] = useState(0);
-    const query = period;
+    const query = scope;
     const [result, setResult] = useState({ query: null, board: null, error: null });
+    // The student's organization, kept from the last board so the choice does
+    // not blink out while the next one loads. A student who has left their
+    // organization is put back on Global.
+    const [organization, setOrganization] = useState(null);
 
     useEffect(() => {
         const bump = () => setTick((t) => t + 1);
@@ -36,24 +48,29 @@ export default function LeaderboardCard() {
     useLive('leaderboard', useCallback(() => setTick((t) => t + 1), []));
     useEffect(() => {
         let cancelled = false;
-        api.get('/rewards/leaderboard', { params: { period, scope: 'global', limit: ALL } })
-            .then((r) => { if (!cancelled) setResult({ query, board: r.data, error: null }); })
+        api.get('/rewards/leaderboard', { params: { period: PERIOD, scope, limit: ALL } })
+            .then((r) => {
+                if (cancelled) return;
+                setResult({ query, board: r.data, error: null });
+                setOrganization(r.data.organization || null);
+                if (!r.data.organization) setScope('global');
+            })
             .catch((e) => !cancelled && setResult({ query, board: null, error: e.response?.data?.message || 'Could not load the leaderboard' }));
         return () => { cancelled = true; };
-    }, [period, query, tick]);
+    }, [scope, query, tick]);
 
     const board = result.query === query ? result.board : null;
     const error = result.query === query ? result.error : null;
     const podium = useMemo(() => board ? board.entries.slice(0, 3) : [], [board]);
 
     // The winner's arrival is celebrated once per winner per session: the
-    // key remembers who was on top for this period, and a change
+    // key remembers who was on top for this week, and a change
     // of winner (or a first look) sets the confetti off.
     const winner = podium[0] || null;
     const [celebrating, setCelebrating] = useState(null);
     useEffect(() => {
         if (!winner) return;
-        const key = `lb-celebrated:${period}:${winner.userId}`;
+        const key = `lb-celebrated:${scope}:${PERIOD}:${winner.userId}`;
         let seen = false;
         try { seen = sessionStorage.getItem(key) === '1'; } catch { /* storage unavailable */ }
         if (seen) return;
@@ -62,7 +79,7 @@ export default function LeaderboardCard() {
             setCelebrating({ name: winner.name, isMe: !!winner.isMe });
         }, 350);
         return () => clearTimeout(t);
-    }, [winner, period]);
+    }, [winner, scope]);
     const stopCelebrating = useCallback(() => setCelebrating(null), []);
     const rest = useMemo(() => board ? board.entries.slice(3) : [], [board]);
     const me = board?.me;
@@ -97,7 +114,7 @@ export default function LeaderboardCard() {
     return (
         <section id="leaderboard" className="relative flex flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             {celebrating && <LeaderboardCelebration onDone={stopCelebrating} />}
-            {/* On a narrow phone the title and the period picker do not fit on
+            {/* On a narrow phone the title and the picker do not fit on
                 one line: the heading was pushed off the card and took the rest
                 of the page sideways with it. The picker drops to its own line
                 instead, and the text is allowed to wrap rather than insist on
@@ -111,16 +128,18 @@ export default function LeaderboardCard() {
                     {/* Not on a phone (asked 2026-10-15): the heading says it. */}
                     <p className="hidden text-sm text-slate-500 sidebar:block">Compete with learners and climb the ranks</p>
                 </div>
-                <div className="relative shrink-0">
-                    <Dropdown
-                        label="Period" accent="indigo" placement="panel"
-                        value={period}
-                        options={PERIODS.map(([v, l]) => ({ value: v, label: l }))}
-                        onChange={setPeriod}
-                        className="relative rounded-xl border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
-                        panelClassName="left-auto right-0 w-40"
-                    />
-                </div>
+                {organization && (
+                    <div className="relative shrink-0">
+                        <Dropdown
+                            label="Leaderboard" accent="indigo" placement="panel"
+                            value={scope}
+                            options={SCOPES.map(([v, l]) => ({ value: v, label: l }))}
+                            onChange={setScope}
+                            className="relative rounded-xl border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
+                            panelClassName="left-auto right-0 w-48"
+                        />
+                    </div>
+                )}
             </div>
 
             {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">{error}</div>}
@@ -129,7 +148,7 @@ export default function LeaderboardCard() {
             {board && board.entries.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center">
                     <span className="text-4xl" aria-hidden="true">🏁</span>
-                    <p className="mt-2 font-bold text-slate-800">Nobody has earned XP in this period yet</p>
+                    <p className="mt-2 font-bold text-slate-800">{scope === 'organization' ? 'Nobody in your organization has earned XP this week yet' : 'Nobody has earned XP this week yet'}</p>
                     <p className="text-sm text-slate-500">Complete a lesson and you'll be first.</p>
                 </div>
             )}

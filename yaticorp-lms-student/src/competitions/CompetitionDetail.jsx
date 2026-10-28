@@ -19,7 +19,7 @@ import { competitionsApi, ORDINAL, PHASE, fmtDateTime } from './api';
 import { Rounds, Podium, Standings } from './parts';
 import { GameHero, JoinCard, HowItWorks, CollegesCard, PayCard } from './GameInfo';
 import { gameRules } from './gameRules';
-import CertificateView from './CertificateView';
+import CertificateInline from './CertificateInline';
 import { payOnline } from './razorpay';
 import { DetailSkeleton } from './Skeletons';
 import { SignUpBox, QuizBox, HackathonBox } from './ChallengeBox';
@@ -93,13 +93,14 @@ export default function CompetitionDetail() {
         <div className="space-y-5 pb-10 -mt-4 sidebar:-mt-8">
             <Link to={`/competitions?tab=competitions&game=${c.game}`} onClick={goBack} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700">
                 <ArrowLeft size={16} aria-hidden="true" /> Back</Link>
+            <div className="!mt-2 flex flex-wrap items-center gap-2" data-competition-badges>
+                <span className="inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold text-white">{phase.label}</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-800 ring-1 ring-slate-200">{c.emoji} {c.gameLabel}</span>
+                <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-800 ring-1 ring-slate-200">{own ? 'Your college' : 'Inter-College'}</span>
+            </div>
 
+            {/* Its status, game and kind: beside Back, off the picture (asked 2026-10-28). */}
             <GameHero game={c.game} bannerUrl={c.bannerUrl} title={c.name} subtitle={`Organized by ${c.organizedBy}`} description={c.description}
-                chips={<>
-                    <span className="inline-flex rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-800">{phase.label}</span>
-                    <span className="inline-flex rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold ring-1 ring-white/30">{c.emoji} {c.gameLabel}</span>
-                    <span className="inline-flex rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold ring-1 ring-white/30">{own ? 'Your college' : 'Inter-College'}</span>
-                </>}
                 meta={[[CalendarClock, fmtDateTime(c.startsAt)], [Users, `${c.teamsCount} / ${c.maxTeams} ${solo ? 'students' : own ? 'teams' : 'colleges'}`], challenge ? [Clock, `${c.kind === 'quiz' ? 'Closes' : 'Projects due'} ${fmtDateTime(c.endsAt)}`] : [Swords, `${c.teamsPerMatch} teams a match`]]} />
 
             {/* The entry fee first: until it is paid, no code and no Join. */}
@@ -110,7 +111,6 @@ export default function CompetitionDetail() {
                 <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-violet-50 px-4 py-3 ring-1 ring-violet-100">
                     <UserCheck size={18} className="text-violet-600" aria-hidden="true" />
                     <p className="min-w-0 flex-1 basis-56 text-sm text-violet-900">{solo ? <>You took part.</> : <>You played for <strong>{c.myTeam.teamName}</strong> ({c.myTeam.collegeName}).</>}{c.myTeam.place ? <> {solo ? 'You' : 'Your team'} finished <strong>{ORDINAL[c.myTeam.place]}</strong>.</> : null}</p>
-                    {(c.myTeam.place ? c.certificates : c.participationCertificates) && <CertificateView icons load={() => competitionsApi.certificate(c.id)} fileName={`Certificate_${c.name.replace(/\s+/g, '_')}.pdf`} />}
                 </div>
             )}
             {/* Registering is the college coordinator's step, in the college's own panel. */}
@@ -144,6 +144,10 @@ export default function CompetitionDetail() {
                 </section>
             )}
 
+            {/* My certificate, on the page, above the standings. */}
+            {c.myTeam && c.status === 'completed' && c.myTeam.status === 'approved' && (c.myTeam.place ? c.certificates : c.participationCertificates) && (
+                <CertificateInline load={() => competitionsApi.certificate(c.id)} fileName={`Certificate_${c.name.replace(/\s+/g, '_')}.pdf`} />
+            )}
             {finished && !challenge && teams.length > 0 && (
                 <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <h2 className="mb-3 flex items-center gap-2 text-lg font-black text-slate-900"><ListOrdered size={19} className="text-indigo-600" aria-hidden="true" /> Final standings</h2>

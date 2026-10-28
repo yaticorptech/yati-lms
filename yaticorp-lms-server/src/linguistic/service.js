@@ -7,10 +7,11 @@
  * and opens the next one; mistakes are kept for revision; retries are always
  * allowed and the best score stands.
  *
- * Levels: Beginner is always open. A higher level opens when the placement
- * test put the student there, or when every lesson of the level below in that
- * module is done. The student's English level is the placement level, moved
- * up each time a whole level is completed.
+ * Levels (sections): Beginner is always open. A higher level opens only when
+ * every lesson of the level below is done (2026-10-28: not by the placement
+ * test or a level said, for any student); inside a section, each lesson opens
+ * when the one before it is done. The student's level is Beginner, moved up
+ * each time a whole level is completed.
  *
  * Points are the platform's own Reward rules (the linguistic_* activities),
  * paid once per thing through safeRecordActivity, so a retry or a replayed
@@ -29,8 +30,13 @@ const { languages, infoOf, languageOf, localize, localizePlacement, skipsOf } = 
 const { courses, courseOf, courseInfo, courseCodes, build } = require('./courses');
 const reviews = require('./reviews');
 const talks = require('./talks');
-const { checkTalk, checkSentence } = require('./talkCheck');
+const speakChecks = require('./speakChecks');
+const { normaliseCardNumber } = require('../utils/cardNumber');
+const { checkTalk, checkWritten } = require('./talkCheck');
+// The feedback on English in the student's own language (2026-10-27, all 20 languages).
+const { localizeFeedback } = require('./content/feedback');
 const { unitsOf, pathOrder, warmupFor, typeOf } = require('./units');
+const { CODES: SOUND_CODES, sayOf, tileSay, saysFor, wordHints } = require('./content/sounds');
 const parts = require('./parts');
 /** The lessons of the student's course: all of them, but those their language leaves out (an English speaker's translation). */
 const forStudent = (lessons, progress) => { const skip = courseOf(progress) === 'en' ? skipsOf(languageOf(progress)) : []; return skip.length ? lessons.filter((l) => !skip.includes(l.module)) : lessons; };
@@ -64,6 +70,8 @@ const serve = (doc, progress) => {
 const inCourse = (x, course) => (x.course || 'en') === course;
 /** Where the student starts in their course: the placement test's level (English), or the level chosen. */
 const placedLevel = (progress) => (courseOf(progress) === 'en' ? progress.placement?.level : progress.courseStart?.[courseOf(progress)]) || null;
+/** Where every student's lessons begin (2026-10-28): Section 1 — a placement says where they stand, not where they start. */
+const START = 'beginner';
 
 const MODULE_LABEL = { vocabulary: 'Vocabulary Builder', grammar: 'Grammar Practice', reading: 'Reading and Writing', speaking: 'Speaking and Listening', translation: 'Translation Practice' };
 const LEVEL_LABEL = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
@@ -82,6 +90,14 @@ const lessonEntry = (progress, lessonId) => progress.lessons.find((l) => idOf(l.
 const isDone = (progress, lessonId) => lessonEntry(progress, lessonId)?.status === 'completed';
 /** A level the student has finished in their course. */
 const levelDone = (progress, level) => progress.levelsCompleted.some((x) => x.level === level && inCourse(x, courseOf(progress)));
+/** A course finished: all its sections (2026-10-28: only then can the student choose their next language). */
+const courseDone = (progress, course = courseOf(progress)) => LEVELS.every((l) => progress.levelsCompleted.some((x) => x.level === l && inCourse(x, course)));
+/**
+ * Bhagyashree's two accounts (2026-10-28, user: "I am working on that"): they change the language they learn at any
+ * time, finished or not. By card number, so it holds whichever database the server uses.
+ */
+const FREE_COURSE_CARDS = new Set(['240100045056', '240100019423']);
+const changesCourseFreely = (user) => FREE_COURSE_CARDS.has(normaliseCardNumber(user?.cardNumber));
 
 /* ── What is open ─────────────────────────────────────────────────────── */
 
@@ -102,29 +118,32 @@ const levelDone = (progress, level) => progress.levelsCompleted.some((x) => x.le
  * the next one open.
  */
 const access = (lessons, progress) => {
-    const placed = placedLevel(progress) ? lvl(placedLevel(progress)) : 0;
     const lessonOpen = new Map();
     const levelOpen = Object.fromEntries(MODULES.map((m) => [m, {}]));
     let below = null;
     for (let i = 0; i < LEVELS.length; i++) {
         const at = lessons.filter((l) => l.level === LEVELS[i]);
-        const before = below ? below.filter((l) => !l.review) : [];
-        const open = i === 0 || i <= placed || levelDone(progress, LEVELS[i - 1]) || (before.length ? before.every((l) => isDone(progress, l._id)) : levelOpen[MODULES[0]][LEVELS[i - 1]]);
+        // The next section opens when every lesson of the one before is done, its unit reviews, listening and
+        // level review too (2026-10-28, "don't allow the next unit or section before it is complete") — for every
+        // student: an old placement no longer opens one.
+        const before = below || [];
+        const open = i === 0 || levelDone(progress, LEVELS[i - 1]) || (before.length ? before.every((l) => isDone(progress, l._id)) : levelOpen[MODULES[0]][LEVELS[i - 1]]);
         for (const m of MODULES) levelOpen[m][LEVELS[i]] = open;
         const walk = pathOrder(at);
         const furthest = walk.reduce((n, l, j) => (lessonEntry(progress, l._id) ? j : n), -1);
         walk.forEach((l, j) => {
             const started = !!lessonEntry(progress, l._id);
-            lessonOpen.set(idOf(l._id), started || (open && (j === 0 || j < furthest || isDone(progress, walk[j - 1]._id))));
+            // Only in an open section: a lesson begun or done in a section now shut waits for it (2026-10-28).
+            lessonOpen.set(idOf(l._id), open && (started || j === 0 || j < furthest || isDone(progress, walk[j - 1]._id)));
         });
         below = at;
     }
     return { lessonOpen, levelOpen };
 };
 
-/** The student's English level now: the placement level, moved up past every completed level. */
+/** The student's level now: Beginner, moved up past every completed level (2026-10-28: not the placement). */
 const currentLevel = (lessons, progress) => {
-    let i = placedLevel(progress) ? lvl(placedLevel(progress)) : 0;
+    let i = lvl(START);
     for (let k = 0; k < LEVELS.length; k++) {
         const at = lessons.filter((l) => l.level === LEVELS[k]);
         // A level finished before its review lessons came (2026-10-23) stays finished.
@@ -202,8 +221,43 @@ const bankFor = (item, lesson) => {
     return shuffle([...words, ...extra], seeded(`${seed}:mix`));
 };
 
+/** The course's language, when its words and sentences have their sound in English letters (content/sounds). */
+const soundsIn = (lesson) => (lesson.course && SOUND_CODES.includes(lesson.target) ? lesson.target : null);
+/** A word of the language learnt quoted in a question — What does "食べ物、食事" mean? — with how it sounds. */
+const QUOTED = /["“”„«»「」『』]([^"“”„«»「」『』]+)["“”„«»「」『』]/g;
+const promptSayOf = (code, prompt) => {
+    for (const m of String(prompt || '').matchAll(QUOTED)) {
+        const text = m[1].trim(), say = sayOf(code, text);
+        if (say) return { text, say, locale: courseInfo(code).locale };
+    }
+    return null;
+};
+/**
+ * A question in the language learnt `code` (2026-10-27): its choices with how each sounds, and the word it
+ * asks about, to hear and read in English letters (its meaning is the answer, so it is not given).
+ */
+const withSays = (code, q) => {
+    if (!code || !SOUND_CODES.includes(code)) return q;
+    const says = saysFor(code, q.options), promptSay = promptSayOf(code, q.prompt);
+    return says || promptSay ? { ...q, ...(says ? { says } : {}), ...(promptSay ? { promptSay } : {}) } : q;
+};
+/** A checked answer in the language learnt, with how it sounds (2026-10-27). */
+const withAnswerSay = (lesson, out) => {
+    const code = soundsIn(lesson), say = code && out?.answer ? sayOf(code, out.answer) : null;
+    return say ? { ...out, answerSay: say } : out;
+};
+
 const publicLesson = (lesson, entry, config) => {
     const seed = idOf(lesson._id);
+    // How the language learnt sounds, in English letters (2026-10-27): a quiz's choices; a sentence to read,
+    // or the word tiles to build one from.
+    const sounds = soundsIn(lesson);
+    const said = (it, bank) => {
+        if (!sounds) return {};
+        // A sentence to read also carries its English, whole and word by word, shown when tapped, as Duolingo's hints are.
+        const out = (it.direction || lesson.direction) === 'en-kn' ? { sourceSay: sayOf(sounds, it.source), sourceEn: it.en, sourceWords: wordHints(sounds, it.source) } : { bankSays: saysFor(sounds, bank, tileSay) };
+        return Object.fromEntries(Object.entries(out).filter(([, v]) => v));
+    };
     const out = {
         id: seed, module: lesson.module, moduleLabel: MODULE_LABEL[lesson.module], level: lesson.level, order: lesson.order,
         title: lesson.title, summary: lesson.summary, direction: lesson.direction || null, learn: lesson.learn || {},
@@ -220,15 +274,16 @@ const publicLesson = (lesson, entry, config) => {
     if (lesson.module === 'reading') {
         out.writing = (lesson.writing || []).map((t) => ({ id: t.id, type: t.type, prompt: t.prompt, ...(t.promptEn ? { promptEn: t.promptEn } : {}), minWords: t.minWords || 0, mustInclude: t.mustInclude || [], checklist: t.checklist || [], ...(t.words ? { words: tiles(t.words, t.answer, `${seed}:${t.id}`) } : {}) }));
     }
-    if (lesson.module === 'speaking') out.speaking = lesson.speaking || {};
+    // The checklist ticks itself from what is said (2026-10-28): the checks, for the page to run as the student speaks.
+    if (lesson.module === 'speaking') out.speaking = { ...(lesson.speaking || {}), checks: speakChecks.checksFor(lesson), need: speakChecks.needed((lesson.speaking?.checklist || []).length) };
     // Speak on a topic (talks.js): the task; its sample answer comes with the corrections.
     if (lesson.talk) out.talk = { ...lesson.talk, sample: undefined };
     // A review's items each carry their own direction (it mixes both).
     const way = (it) => (it.direction ? { direction: it.direction } : {});
-    if (lesson.module === 'translation') out.items = (lesson.items || []).map((it) => ({ id: it.id, kind: it.kind, topic: it.topic, source: it.source, open: !!it.open, bank: bankFor(it, lesson), ...way(it) }));
+    if (lesson.module === 'translation') out.items = (lesson.items || []).map((it) => { const bank = bankFor(it, lesson); return { id: it.id, kind: it.kind, topic: it.topic, source: it.source, open: !!it.open, bank, ...way(it), ...said(it, bank) }; });
     out.quiz = lesson.module === 'translation'
-        ? (lesson.quiz || []).map((it) => ({ id: it.id, kind: it.kind, topic: it.topic, source: it.source, type: 'translation', bank: bankFor(it, lesson), ...way(it) }))
-        : quizOf(lesson).map((q) => publicQuestion(q, seed));
+        ? (lesson.quiz || []).map((it) => { const bank = bankFor(it, lesson); return { id: it.id, kind: it.kind, topic: it.topic, source: it.source, type: 'translation', bank, ...way(it), ...said(it, bank) }; })
+        : quizOf(lesson).map((q) => withSays(sounds, publicQuestion(q, seed)));
     return out;
 };
 
@@ -348,7 +403,7 @@ const checkPractice = async (user, lesson, section, id, given) => {
     }
     await progress.save();
     await saveAttempt(user._id, lesson, 'check', { score: out.correct ? 1 : 0, total: 1, passed: !!out.correct, detail: { section, id: q.id, given: String(given).slice(0, 1500), correct: out.correct, verdict: out.verdict } });
-    return { ...out, ...(grammar || {}), events, submission: submission ? { id: idOf(submission._id), status: submission.status } : null };
+    return { ...out, ...(grammar ? { ...localizeFeedback(languageOf(progress), grammar), ok: grammar.clean === grammar.total } : {}), events, submission: submission ? { id: idOf(submission._id), status: submission.status } : null };
 };
 
 /**
@@ -440,7 +495,7 @@ const submitTalk = async (user, lesson, text) => {
     const { events, level, next } = await settle(user, progress, lesson, r.percent, r.passed, config);
     await saveAttempt(user._id, lesson, 'speaking', { score: r.clean, total: r.total, passed: r.passed, detail: { talk: true, words: r.words, mistakes: r.sentences.flatMap((x) => x.mistakes.map((m) => ({ wrong: m.wrong, right: m.right }))).slice(0, 50) } });
     return {
-        ...r, passingScore: passing, firstPass: r.passed && !wasDone, bestScore: e.bestScore, sample: lesson.talk?.sample || '',
+        ...localizeFeedback(languageOf(progress), r), passingScore: passing, firstPass: r.passed && !wasDone, bestScore: e.bestScore, sample: lesson.talk?.sample || '',
         next: next ? { id: idOf(next._id), title: next.title, level: next.level } : null,
         certificate: level.certificate ? { level: level.certificate.level, number: level.certificate.number } : null,
         events
@@ -457,9 +512,10 @@ const submit = async (user, lesson, fields, status = 'pending') => {
     return LinguisticSubmission.create({ userId: user._id, lessonId: lesson._id, ...data });
 };
 
-/** The grammar of a piece of English, sentence by sentence (talkCheck.js): each one corrected, with the reason. */
+/** The grammar of a piece of written English, sentence by sentence (talkCheck.js `checkWritten`): each one corrected, with the reason. */
 const grammarOf = (text) => {
-    const sentences = sentencesOf(String(text || '').replace(/\s+/g, ' ').trim()).map(checkSentence);
+    // A new line ends a sentence too (2026-10-27: two lines, one without its full stop, were read as one).
+    const sentences = String(text || '').split(/\n+/).flatMap((line) => sentencesOf(line.replace(/\s+/g, ' ').trim())).map(checkWritten);
     return { sentences, clean: sentences.filter((s) => !s.mistakes.length).length, total: sentences.length };
 };
 
@@ -474,29 +530,37 @@ const submitWriting = async (user, lesson, taskId, answer) => {
     } else {
         const w = checkWriting(text, task);
         const g = grammarOf(text);
+        // A spelling slip put right in the sentences: "no common spelling mistakes" would say otherwise.
+        if (g.sentences.some((x) => x.mistakes.some((m) => /^Spelling:/.test(m.why)))) w.findings = w.findings.filter((f) => !/No common spelling mistakes/.test(f.text));
         if (task.type === 'sentence') result = { correct: w.ok && g.clean === g.total, findings: w.findings, model: task.model, words: w.words, ...g };
         else {
             // Checked here, its grammar corrected sentence by sentence, and not sent to a teacher (2026-10-26:
             // "don't send the answers; correct the grammar here"). Kept for the student's Writing tab.
             const sub = text ? await submit(user, lesson, { taskId, kind: 'writing', taskType: task.type, prompt: task.prompt, answer: text, model: task.model, autoFeedback: w.findings, sentences: g.sentences }, 'checked') : null;
-            result = { correct: null, checked: true, findings: w.findings, words: w.words, ...g, submission: sub ? { id: idOf(sub._id), status: sub.status } : null };
+            // `ok`: written with no mistake to put right (2026-10-27): otherwise the same task again, until it is.
+            result = { correct: null, checked: true, ok: w.ok && g.clean === g.total, findings: w.findings, words: w.words, ...g, submission: sub ? { id: idOf(sub._id), status: sub.status } : null };
         }
     }
     const progress = await progressOf(user._id);
     touchLesson(progress, lesson, { step: 'practice' });
     await progress.save();
     await saveAttempt(user._id, lesson, 'writing', { score: result.correct ? 1 : 0, total: 1, passed: !!result.correct, detail: { taskId, type: task.type, words: result.words } });
-    return result;
+    return localizeFeedback(languageOf(progress), result);
 };
 
-const saveSpeaking = async (user, lesson, checklist = [], recorded = false) => {
+/**
+ * A speaking task, answered by voice (2026-10-28: "don't give a tick option manually"): what the browser wrote
+ * down as the student spoke, and for how long. Each point of the checklist is ticked here from what was said.
+ */
+const saveSpeaking = async (user, lesson, said = '', seconds = 0) => {
     const items = lesson.speaking?.checklist || [];
-    const ticked = items.filter((_, i) => checklist[i] === true).length;
+    const ticks = speakChecks.ticksFor(lesson, said, seconds);
+    const ticked = ticks.filter(Boolean).length;
     const progress = await progressOf(user._id);
     touchLesson(progress, lesson, { step: 'practice' });
     await progress.save();
-    await saveAttempt(user._id, lesson, 'speaking', { score: ticked, total: items.length, passed: ticked === items.length && items.length > 0, detail: { checklist: items.map((_, i) => checklist[i] === true), recorded: !!recorded } });
-    return { ticked, total: items.length, sample: lesson.speaking?.sample || '' };
+    await saveAttempt(user._id, lesson, 'speaking', { score: ticked, total: items.length, passed: ticked === items.length && items.length > 0, detail: { checklist: ticks, recorded: true, said: said.slice(0, 2000), seconds } });
+    return { ticked, total: items.length, ticks, sample: lesson.speaking?.sample || '' };
 };
 
 /* ── Placement test ───────────────────────────────────────────────────── */
@@ -526,13 +590,18 @@ const submitPlacement = async (user, answers = {}) => {
     const score = results.filter((r) => r.correct).length;
     const level = placementLevel(bands);
     const progress = await progressOf(user._id);
-    progress.placement = { level, score, total: results.length, bands, takenAt: new Date() };
+    // The test shows the student's level, but never moves them on (2026-10-28: every student starts at Section 1,
+    // and units and sections open only by finishing them). One with no place yet starts at Beginner.
+    // The result is kept (`found`, the score: the First Step badge), the place they are at stays.
+    const at = progress.placement?.level || 'beginner';
+    progress.placement = { level: at, found: level, score, total: results.length, bands, takenAt: new Date() };
+    const kept = at !== level ? at : null;
     progress.lastActiveAt = new Date();
     await retier(progress);
     await progress.save();
     await LinguisticAttempt.create({ userId: user._id, kind: 'placement', score, total: results.length, percent: Math.round((score / results.length) * 100), passed: true, detail: { level, bands }, day: dayKey() });
     const paid = await pay(user._id, 'linguistic_placement', 'placement');
-    return { level, score, total: results.length, bands, results, events: paid.events };
+    return { level, score, total: results.length, bands, results, events: paid.events, ...(kept ? { kept, keptLabel: LEVEL_LABEL[kept] } : {}) };
 };
 
 /* ── Daily vocabulary challenge ───────────────────────────────────────── */
@@ -639,7 +708,9 @@ const dashboard = async (user) => {
         level, levelLabel: LEVEL_LABEL[level], placement: progress.placement, ...languageView(progress),
         // Started: a level found by the test or chosen; until then the section asks first.
         started: !!placedLevel(progress), dailyGoal: progress.dailyGoal || DEFAULT_GOAL, goalSet: !!progress.dailyGoal,
+        knows: progress.knows ? { speak: progress.knows.speak, write: progress.knows.write, read: progress.knows.read } : null,
         ...courseView(progress),
+        ...(changesCourseFreely(user) ? { freeCourse: true } : {}),
         levels: LEVELS.map((l) => {
             const at = lessons.filter((x) => x.level === l);
             const cert = progress.certificates.find((c) => c.level === l && inCourse(c, courseOf(progress)));
@@ -680,7 +751,7 @@ const dateIn = (days) => new Date(Date.now() + days * DAY_MS).toISOString().slic
 const timelineOf = async (progress, lessons, goal) => {
     const xpPerLesson = (await require('../rewards/services/configService').xpFor('linguistic_lesson')) || 20;
     const perDayAt = (xp) => Math.max(0.5, xp / xpPerLesson);
-    const from = placedLevel(progress) ? lvl(placedLevel(progress)) : 0;
+    const from = lvl(START);
     const finished = (l) => progress.levelsCompleted.some((x) => x.level === l && inCourse(x, courseOf(progress)));
     const rows = LEVELS.map((l, i) => {
         const at = lessons.filter((x) => x.level === l);
@@ -830,7 +901,7 @@ const planChoices = async (user, { course, language, level } = {}) => {
     const progress = await progressOf(user._id);
     const as = { ...progress.toObject(), course: course && course !== 'en' ? course : null, language: language || progress.language };
     const lessons = forStudent(await publishedLessons(courseOf(as)), as);
-    return optionsFor(lessons, progress, LEVELS.includes(level) ? level : placedLevel(as) || 'beginner');
+    return optionsFor(lessons, progress, LEVELS.includes(level) ? level : START);
 };
 
 /** A plan's tier again, after the student's level or course changed (the placement test after the start screens). */
@@ -838,7 +909,7 @@ const retier = async (progress) => {
     const p = planOf(progress);
     if (!p) return;
     const lessons = await allLessonsFor(progress);
-    const left = walkFrom(lessons, placedLevel(progress)).filter((l) => !isDone(progress, l._id));
+    const left = walkFrom(lessons, START).filter((l) => !isDone(progress, l._id));
     p.tier = planFor(p.days, left.length, left.filter((l) => !isExtra(l)).length).tier;
     progress.markModified('plans');
 };
@@ -852,7 +923,7 @@ const carryPlan = async (progress) => {
     if (planOf(progress) || !(progress.plans || []).length) return;
     const last = [...progress.plans].sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))[0];
     const lessons = await allLessonsFor(progress);
-    const left = walkFrom(lessons, placedLevel(progress)).filter((l) => !isDone(progress, l._id));
+    const left = walkFrom(lessons, START).filter((l) => !isDone(progress, l._id));
     progress.plans.push({ course: courseOf(progress), days: last.days, tier: planFor(last.days, left.length, left.filter((l) => !isExtra(l)).length).tier, startedAt: new Date() });
     progress.markModified('plans');
 };
@@ -865,7 +936,7 @@ const setPlan = async (user, days) => {
     if (days != null) {
         if (!PLAN_DAYS.includes(Number(days))) return { error: 'Choose 2 weeks, 1 month, 2, 3 or 6 months.' };
         const lessons = await allLessonsFor(progress);
-        const left = walkFrom(lessons, placedLevel(progress)).filter((l) => !isDone(progress, l._id));
+        const left = walkFrom(lessons, START).filter((l) => !isDone(progress, l._id));
         const plan = planFor(Number(days), left.length, left.filter((l) => !isExtra(l)).length);
         progress.plans.push({ course, days: plan.days, tier: plan.tier, startedAt: new Date() });
         // The daily goal to match: the XP of the day's lessons.
@@ -889,7 +960,7 @@ const dayOfPlan = (plan, date = new Date()) => dayNumber(dayKey(date)) - dayNumb
 const roadmapOf = (progress, lessons, { summary = false } = {}) => {
     const plan = planOf(progress);
     if (!plan) return null;
-    const walk = walkFrom(lessons, placedLevel(progress));
+    const walk = walkFrom(lessons, START);
     const unitOf = new Map();
     for (const l of LEVELS) for (const u of unitsOf(lessons.filter((x) => x.level === l))) for (const x of u.lessons) unitOf.set(idOf(x._id), u.title);
     const { lessonOpen } = access(lessons, progress);
@@ -926,7 +997,7 @@ const roadmapView = async (user) => {
     const lessons = await lessonsFor(progress);
     return {
         ...courseView(progress), plan: roadmapOf(progress, lessons),
-        options: optionsFor(await allLessonsFor(progress), progress, placedLevel(progress) || 'beginner'), level: placedLevel(progress),
+        options: optionsFor(await allLessonsFor(progress), progress, START), level: placedLevel(progress),
         // What they said in the start screens (2026-10-26): the skills and topics they want, and when they like to learn.
         about: { focus: progress.focus || [], topics: progress.topics || [], studyTime: progress.studyTime || null, aim: progress.aim || null, practiceMinutes: progress.practiceMinutes ?? null }
     };
@@ -941,6 +1012,8 @@ const DEFAULT_GOAL = 30;
 const chooseLevel = async (user, level) => {
     if (!LEVELS.includes(level)) return null;
     const progress = await progressOf(user._id);
+    // No level above the one they are at is opened by saying it (2026-10-28): everyone starts at Beginner.
+    if (lvl(level) > lvl(progress.placement?.level || 'beginner')) return { error: 'Everyone starts at Section 1. Finish your units and sections to move on to the next level.' };
     progress.placement = { level, score: null, total: null, bands: null, takenAt: new Date(), chosen: true };
     progress.lastActiveAt = new Date();
     await retier(progress);
@@ -998,20 +1071,27 @@ const setAbout = async (user, { reason, know, focus, topics, studyTime, aim, sty
 /** The course the student is on, and every course, with the ones they have begun (to ask where to start in a new one). */
 const courseView = (progress) => ({
     course: { ...courseInfo(courseOf(progress)), full: courseOf(progress) === 'en' },
-    courses: courses().map((c) => ({ ...c, begun: c.code === 'en' ? !!progress.placement?.level : !!progress.courseStart?.[c.code] }))
+    // Finished (2026-10-28): every section of the course done — the next language can be chosen.
+    courseDone: courseDone(progress),
+    courses: courses().map((c) => ({ ...c, begun: c.code === 'en' ? !!progress.placement?.level : !!progress.courseStart?.[c.code], done: courseDone(progress, c.code) }))
 });
 
 /**
  * Learn another language (or English again): the course, and for a course
  * other than English, the level to start at (Beginner, or the level they
  * said). Their own language cannot be the course, except English for an
- * English speaker.
+ * English speaker. One language at a time: another only before the course is started, or once it is finished.
  */
 const setCourse = async (user, course, start) => {
     if (!courseCodes().includes(course)) return { error: 'That course is not available.' };
     const progress = await progressOf(user._id);
     if (course !== 'en' && course === languageOf(progress)) return { error: 'That is the language you speak. Choose another to learn.' };
     if (start != null && !LEVELS.includes(start)) return { error: 'Choose Beginner, Intermediate or Advanced.' };
+    // One language at a time (2026-10-27, user): once the student has started a course, they keep it — until they
+    // finish every section of it (2026-10-28: "after completing that, they choose the next language").
+    if (placedLevel(progress) && course !== courseOf(progress) && !courseDone(progress) && !changesCourseFreely(user)) return { error: `You are learning ${courseInfo(courseOf(progress)).name}. Finish all its sections, then choose your next language.` };
+    // A course starts at Beginner (2026-10-28): a later level opens only by finishing the one before.
+    if (start && start !== 'beginner') start = null;
     progress.course = course === 'en' ? null : course;
     if (course !== 'en' && (start || !progress.courseStart?.[course])) {
         progress.courseStart = { ...(progress.courseStart || {}), [course]: start || 'beginner' };
@@ -1021,7 +1101,25 @@ const setCourse = async (user, course, start) => {
     await retier(progress);
     await carryPlan(progress);
     await progress.save();
-    return { ...courseView(progress), started: !!placedLevel(progress) };
+    return { ...courseView(progress), started: !!placedLevel(progress), ...(changesCourseFreely(user) ? { freeCourse: true } : {}) };
+};
+
+/**
+ * The languages the student speaks, writes and reads (2026-10-28): each a list of one or more language
+ * codes the section knows; null when one is missing or holds an unknown code.
+ */
+const KNOWS = ['speak', 'write', 'read'];
+const setKnows = async (user, body = {}) => {
+    const codes = new Set(languages().map((l) => l.code)), out = {};
+    for (const k of KNOWS) {
+        const list = Array.isArray(body[k]) ? [...new Set(body[k].map(String))] : [];
+        if (!list.length || list.length > 30 || !list.every((c) => codes.has(c))) return null;
+        out[k] = list;
+    }
+    const progress = await progressOf(user._id);
+    progress.knows = out;
+    await progress.save();
+    return { knows: out };
 };
 
 /** The student's language, whether they chose it, and every language there is. */
@@ -1065,5 +1163,5 @@ const moduleView = async (user, module) => {
 module.exports = {
     MODULE_LABEL, LEVEL_LABEL, publishedLessons, progressOf, access, currentLevel, publicLesson, touchLesson, noteMistake, saveAttempt, pay,
     checkPractice, submitQuiz, submitTalk, submitWriting, saveSpeaking, placementPublic, submitPlacement, placementLevel, dailyQuestions, rebuildDaily,
-    dashboard, moduleView, pathView, openChest, openMistakes, setPlan, roadmapView, planChoices, PLAN_DAYS, forStudent, lessonsFor, serve, setCourse, courseView, placedLevel, inCourse, checkQuizAnswer, bankFor, bankWords, setLanguage, chooseLevel, setGoal, setAbout, GOALS, REASONS, languageView, localize, languageOf, findQuestion, judge, streakOf, pointsOf, lessonEntry, isDone, publicQuestion, quizOf, certificateNumber, checkLevel
+    dashboard, moduleView, pathView, withAnswerSay, setKnows, withSays, soundsIn, openChest, openMistakes, setPlan, roadmapView, planChoices, PLAN_DAYS, forStudent, lessonsFor, serve, setCourse, courseView, placedLevel, inCourse, checkQuizAnswer, bankFor, bankWords, setLanguage, chooseLevel, setGoal, setAbout, GOALS, REASONS, languageView, localize, languageOf, findQuestion, judge, streakOf, pointsOf, lessonEntry, isDone, publicQuestion, quizOf, certificateNumber, checkLevel
 };

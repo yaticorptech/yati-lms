@@ -85,10 +85,10 @@ export const MatchCard = ({ match, playing = false, showCompetition = false, myT
                     : <span className="inline-flex items-center gap-1.5"><CalendarClock size={14} aria-hidden="true" /> {fmtDateTime(match.scheduledAt)}</span>}
                 {match.games > 1 && <span>{match.games} games (replayed after a draw)</span>}
             </div>
-            {/* The match's code: a player can also type it in Games → Join with a code. */}
+            {/* The code itself only in the start pop-up (asked 2026-10-27), not on every card. */}
             {match.gameCode && (
-                <p className="flex items-center gap-1.5 text-xs text-slate-600" data-match-code={match.gameCode} translate="no">
-                    <Ticket size={13} aria-hidden="true" /> Your joining code <span className="rounded-md bg-slate-900 px-1.5 py-0.5 font-mono text-[11px] font-black tracking-[0.2em] text-white">{match.gameCode}</span>
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700" data-match-open>
+                    <Ticket size={13} aria-hidden="true" /> Open now — your joining code is in the pop-up
                 </p>
             )}
             {match.resultNote && <p className="text-xs text-slate-600">{match.resultNote}</p>}

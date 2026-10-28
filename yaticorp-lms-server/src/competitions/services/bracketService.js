@@ -250,6 +250,8 @@ const tellResult = async (match) => {
     const { tell } = require('./notices');
     const competition = await Competition.findById(match.competitionId).lean();
     if (!competition) return;
+    // Who won a match waits for the published results.
+    if (!competition.resultsPublishedAt) return;
     const teams = await Team.find({ _id: { $in: match.sides.map((s) => s.teamId) } }).lean();
     const name = (id) => teams.find((t) => same(t._id, id))?.teamName || 'the other team';
     const what = match.kind === 'third-place' ? 'third-place match' : (match.roundName || 'match');
@@ -290,7 +292,10 @@ const afterReply = (what, work) => {
     pending.add(run);
 };
 const settled = () => Promise.all([...pending]);
-const payPrizes = (competition) => afterReply('awarding prizes', () => require('./awardService').award(competition));
+// Prizes, XP and the "you finished 1st" notice go out when the results are published, not before.
+const payPrizes = (competition) => afterReply('awarding prizes', () => (competition.resultsPublishedAt ? require('./awardService').award(competition) : null));
+/** On publishing the results: the prizes, after the reply (see `settled`). */
+const payOnPublish = (competition) => afterReply('awarding prizes', () => require('./awardService').award(competition));
 
 /**
  * Build the next round once every match in the current one is decided, or
@@ -373,4 +378,4 @@ const openDueReplays = async () => {
     }
 };
 
-module.exports = { drawBracket, openMatch, openDue, openDueReplays, REMATCH_MINUTES, recordGame, adminResult, advance, settled, roundName, groupsOf, NEXT_ROUND_MINUTES };
+module.exports = { payOnPublish, drawBracket, openMatch, openDue, openDueReplays, REMATCH_MINUTES, recordGame, adminResult, advance, settled, roundName, groupsOf, NEXT_ROUND_MINUTES };

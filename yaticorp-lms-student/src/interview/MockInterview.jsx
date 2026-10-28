@@ -18,9 +18,9 @@ import { BotScene, FeatureRow } from './IntroArt';
 import { createSpeaker, createListener, requestMicrophone, listenerErrorMessage } from './speech';
 import { Btn, ErrorBox, Analyzing } from '../learningbio/ui';
 import { markReturn } from './scrollMemory';
-import PriceTag from '../components/rewards/PriceTag';
 import { Room, Bubble } from './InterviewRoom';
 import { useHideLoop } from '../components/loopVisibility';
+import { isWalletCancel } from '../utils/walletCharge';
 
 const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 
@@ -150,7 +150,7 @@ function Intro({ session, onStart, starting, error }) {
 
                 <Btn tone="primary" icon={Mic} onClick={() => onStart({ type, role: chosenRole })} loading={starting}
                     className="mt-6 w-full !rounded-2xl !py-4 !text-base">
-                    {starting ? 'Preparing your interviewer…' : resuming ? `Continue interview (${answered} answered)` : <>Start Interview <PriceTag action="start_mock_interview" /></>}
+                    {starting ? 'Preparing your interviewer…' : resuming ? `Continue interview (${answered} answered)` : 'Start Interview'}
                     {!starting && <ArrowRight size={18} className="ml-1" />}
                 </Btn>
                 <p className="mt-3 text-center text-xs text-slate-500">{meta.hint}</p>
@@ -262,7 +262,7 @@ export default function MockInterview() {
             let s = session;
             if (!s) { s = await interviewApi.start(type, role); navigate(`/interview/mock/${s.id}`, { replace: true, state: { autostart: true } }); setSession(s); }
             setLive(true);
-        } catch (e) { setError(e); } finally { setStarting(false); }
+        } catch (e) { if (!isWalletCancel(e)) setError(e); } finally { setStarting(false); }
     };
     useEffect(() => { if (location.state?.autostart && session && !live) setLive(true); }, [location.state, session, live]);
 

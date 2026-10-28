@@ -41,8 +41,10 @@ export const builtStylesheet = () => {
 export const skipWithoutStyles = skipWithoutChrome
     || (builtStylesheet() ? false : 'the app has not been built — run `npx vite build` first');
 
+// Chrome on a Mac can crash while it closes ("Teardown watchdog expired"), after
+// the page has already been printed: a printed result still counts (2026-10-27).
 const run = (cmd, args) => new Promise((resolve, reject) =>
-    execFile(cmd, args, { maxBuffer: 64 * 1024 * 1024 }, (err, stdout) => (err ? reject(err) : resolve(stdout))));
+    execFile(cmd, args, { maxBuffer: 64 * 1024 * 1024 }, (err, stdout) => (err && !/<pre id="out">/.test(stdout || '') ? reject(err) : resolve(stdout))));
 
 /**
  * @param {object} o

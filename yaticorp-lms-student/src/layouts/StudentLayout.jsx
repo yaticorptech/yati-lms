@@ -7,6 +7,7 @@ import { Outlet, Link, useLocation, useNavigate, useNavigationType } from 'react
 import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import WalletShortDialog from '../components/rewards/WalletShortDialog';
+import WalletConfirmDialog from '../components/rewards/WalletConfirmDialog';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
 import LanguageToggle from '../components/LanguageToggle';
@@ -28,6 +29,7 @@ import ProfileImage from '../components/ProfileImage';
 import PlatformClosed from '../components/PlatformClosed';
 import useAccessHours from '../hooks/useAccessHours';
 import CompetitionAlerts from '../competitions/CompetitionAlerts';
+import ResultsCelebration from '../competitions/ResultsCelebration';
 
 // "5m ago", "3h ago", "2d ago", then a plain date once it is over a week old.
 const timeAgo = (at) => {
@@ -223,7 +225,7 @@ const StudentLayout = () => {
     const profileButtonRef = useRef(null);
 
     /**
-     * A link with a hash (the header's wallet button → /#wallet) should land on
+     * A link with a hash (a wallet notice → /enrolled-courses#wallet) should land on
      * that element; the router changes the URL but does not scroll to it.
      *
      * Two things the single 150ms attempt got wrong. Arriving from another page,
@@ -436,7 +438,8 @@ const StudentLayout = () => {
             // where to look (the wallet card, the badges page); the wallet is
             // the place for one that does not.
             kind: 'reward', id: n._id, title: n.title,
-            body: n.message, at: n.createdAt, link: n.link || '/#wallet'
+            // Older wallet notices say /#wallet: the card is on My Courses now.
+            body: n.message, at: n.createdAt, link: (n.link === '/#wallet' ? '' : n.link) || '/enrolled-courses#wallet'
         } : {
             kind: 'career', id: n._id, title: n.title,
             body: n.message, at: n.createdAt,
@@ -926,6 +929,8 @@ const StudentLayout = () => {
                 Renders nothing on a first sign-in, or without a Career Path goal. */}
             <ContinuePanel />
             <WalletShortDialog />
+            {/* Asks before any priced feature takes money from the wallet. */}
+            <WalletConfirmDialog />
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
@@ -1160,6 +1165,8 @@ const StudentLayout = () => {
             </main>
             {/* A match or Quiz Arena just opened for me: my joining code, on screen. */}
             <CompetitionAlerts />
+            {/* The results of a competition I played in, just published: congratulations and my certificate. */}
+            <ResultsCelebration />
             {/* No profile picture yet: choose one before going on. */}
             <ProfilePictureGate />
             {/* "A new Global Quiz is live", when one is published; waits while the student is busy. */}

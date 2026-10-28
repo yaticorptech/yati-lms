@@ -5,6 +5,10 @@
  * tips are shown in it), then the one they want to learn (English, or another
  * language's course, courses.js on the server). Progress in each course is
  * kept; a course not begun asks where to start, in a third dropdown.
+ * One language at a time (2026-10-27, user): once a course is started (`locked`),
+ * the second dropdown shows it and cannot be changed; only the first can —
+ * until every section of it is finished (`finished`, 2026-10-28): then the
+ * student chooses their next language.
  *
  * Offered by itself once, when the device is set to one of the languages: it
  * then opens with the device's language already picked in the first dropdown.
@@ -38,10 +42,12 @@ const Field = ({ label, code, mark, tone, hint, children, attr = {} }) => (
  * @param {object}   props.course     the course now taken ({ code, name })
  * @param {string}   props.suggested  the device's language, when it is one of them
  * @param {string}   props.mode       'speak' when offered for the device's language; 'learn' from the chip
+ * @param {boolean}  props.locked     the course is started and not finished: it stays (one language at a time)
+ * @param {boolean}  props.finished   every section of the course is finished: the next language can be chosen
  * @param {Function} props.onDone     after the languages are saved
  * @param {Function} props.onClose
  */
-export default function LanguagePicker({ languages, courses = [], current, course = { code: 'en', name: 'English' }, suggested, mode = 'learn', onDone, onClose }) {
+export default function LanguagePicker({ languages, courses = [], current, course = { code: 'en', name: 'English' }, suggested, mode = 'learn', locked = false, finished = false, onDone, onClose }) {
     const offered = mode === 'speak' && suggested && suggested !== current ? suggested : null;
     const [speak, setSpeak] = useState(offered || current);
     const [learn, setLearn] = useState(course.code || 'en');
@@ -62,6 +68,11 @@ export default function LanguagePicker({ languages, courses = [], current, cours
     const changed = speak !== current || learn !== course.code;
     const groupOf = (code) => languages.find((l) => l.code === code)?.group;
     const india = languages.filter((l) => l.group !== 'world'), world = languages.filter((l) => l.group === 'world');
+    // With the course kept, its language cannot be the one they speak.
+    const speakOption = (l) => {
+        const off = locked && l.code !== 'en' && l.code === course.code;
+        return <option key={l.code} value={l.code} disabled={off}>{l.native} — {l.name}{off ? ' (you are learning it)' : ''}</option>;
+    };
 
     /**
      * Saved in an order the server accepts: the course is never the language
@@ -80,7 +91,9 @@ export default function LanguagePicker({ languages, courses = [], current, cours
             .catch((e) => { setError(e.message); setBusy(false); });
     };
 
-    const courseNote = clash ? `You speak ${langOf(speak).name}. Choose another language to learn.`
+    const courseNote = locked ? `You are learning ${chosen.name}. Finish all its sections, then choose your next language.`
+        : finished && learn === course.code ? `You finished ${course.name}. Choose your next language.`
+        : clash ? `You speak ${langOf(speak).name}. Choose another language to learn.`
         : chosen.full ? `All five skills: vocabulary, grammar, reading, speaking and translation${speak === 'en' ? ', all in English' : `, taught in ${langOf(speak).name}`}.`
             : `Words and sentences, taught in ${langOf(speak).name}. ${chosen.begun ? 'You continue where you left off.' : 'A new course.'}`;
 
@@ -92,7 +105,7 @@ export default function LanguagePicker({ languages, courses = [], current, cours
                     <Mascot pose="curious-question" className="h-20 w-20 shrink-0" />
                     <div className="min-w-0 flex-1">
                         <h2 id="lingo-lang" className="text-xl font-extrabold text-[#3c3c3c]">Your languages</h2>
-                        <p className="mt-1 text-[15px] font-semibold text-[#777]">{offered ? `Your device is set to ${langOf(offered).name}. Learn from it?` : 'The language you know, then the one you want to learn. Your progress in each course is kept.'}</p>
+                        <p className="mt-1 text-[15px] font-semibold text-[#777]">{offered ? `Your device is set to ${langOf(offered).name}. Learn from it?` : locked ? 'The language you know. The language you learn stays the same until you finish it: one language at a time.' : finished ? `Well done: you finished ${course.name}! Choose the next language to learn.` : 'The language you know, then the one you want to learn. Your progress in each course is kept.'}</p>
                     </div>
                     <button type="button" onClick={onClose} aria-label="Close" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#AFAFAF] hover:bg-[#F7F7F7]"><X size={22} strokeWidth={3} /></button>
                 </div>
@@ -101,19 +114,19 @@ export default function LanguagePicker({ languages, courses = [], current, cours
                     <Field label="I speak" code={speak} mark={langOf(speak).mark} tone={COLORS.blue.face}
                         hint="Word meanings, translations and tips are shown in it."
                         attr={{ value: speak, onChange: (e) => { setSpeak(e.target.value); setError(''); }, disabled: busy, 'data-speak': speak, 'aria-label': 'I speak' }}>
-                        {suggested && <optgroup label="Your device’s language">{languages.filter((l) => l.code === suggested).map((l) => <option key={l.code} value={l.code}>{l.native} — {l.name}</option>)}</optgroup>}
-                        <optgroup label="Languages of India">{india.filter((l) => l.code !== suggested).map((l) => <option key={l.code} value={l.code}>{l.native} — {l.name}</option>)}</optgroup>
-                        <optgroup label="World languages">{world.filter((l) => l.code !== suggested).map((l) => <option key={l.code} value={l.code}>{l.native} — {l.name}</option>)}</optgroup>
+                        {suggested && <optgroup label="Your device’s language">{languages.filter((l) => l.code === suggested).map(speakOption)}</optgroup>}
+                        <optgroup label="Languages of India">{india.filter((l) => l.code !== suggested).map(speakOption)}</optgroup>
+                        <optgroup label="World languages">{world.filter((l) => l.code !== suggested).map(speakOption)}</optgroup>
                     </Field>
 
                     <Field label="I want to learn" code={learn} mark={learn === 'en' ? 'En' : langOf(learn).mark} tone={clash ? COLORS.red.face : COLORS.green.face} hint={courseNote}
-                        attr={{ value: learn, onChange: (e) => { setLearn(e.target.value); setError(''); }, disabled: busy, 'data-learn': learn, 'aria-label': 'I want to learn' }}>
-                        <optgroup label="All five skills">{list.filter((c) => c.full).map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</optgroup>
+                        attr={{ value: learn, onChange: (e) => { setLearn(e.target.value); setError(''); }, disabled: busy || locked, 'data-learn': learn, 'aria-label': 'I want to learn' }}>
+                        <optgroup label="All five skills">{list.filter((c) => c.full).map((c) => <option key={c.code} value={c.code}>{c.name}{c.done ? ' · finished' : ''}</option>)}</optgroup>
                         <optgroup label="Words and sentences · languages of India">{list.filter((c) => !c.full && groupOf(c.code) !== 'world').map((c) => (
-                            <option key={c.code} value={c.code} disabled={c.code === speak}>{c.name}{c.code === speak ? ' (you speak it)' : c.begun ? ' · started' : ''}</option>
+                            <option key={c.code} value={c.code} disabled={c.code === speak}>{c.name}{c.code === speak ? ' (you speak it)' : c.done ? ' · finished' : c.begun ? ' · started' : ''}</option>
                         ))}</optgroup>
                         <optgroup label="Words and sentences · world languages">{list.filter((c) => !c.full && groupOf(c.code) === 'world').map((c) => (
-                            <option key={c.code} value={c.code} disabled={c.code === speak}>{c.name}{c.code === speak ? ' (you speak it)' : c.begun ? ' · started' : ''}</option>
+                            <option key={c.code} value={c.code} disabled={c.code === speak}>{c.name}{c.code === speak ? ' (you speak it)' : c.done ? ' · finished' : c.begun ? ' · started' : ''}</option>
                         ))}</optgroup>
                     </Field>
 

@@ -9,7 +9,6 @@
  * and the button goes where the work is.
  */
 import { MapPin, ExternalLink, Clock, CalendarCheck, Globe, Wallet, Briefcase, Building2 } from 'lucide-react';
-import PriceTag from '../components/rewards/PriceTag';
 import usePricedJobLink from '../jobs/usePricedJobLink';
 
 const posted = (days) => days == null ? '' : days === 0 ? 'Posted today' : days === 1 ? 'Posted yesterday' : days < 30 ? `Posted ${days} days ago` : 'Posted a while ago';
@@ -76,7 +75,7 @@ export default function WebJobCard({ job, categoryLabel }) {
                 </span>
                 <a href={job.url} target="_blank" rel="noopener noreferrer" onClick={(e) => openJob(e, job)}
                     className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50">
-                    Find Job <PriceTag action="find_job" /> <ExternalLink size={14} aria-hidden="true" />
+                    Find Job <ExternalLink size={14} aria-hidden="true" />
                 </a>
             </div>
             {openError && <p role="alert" className="mt-2 text-right text-xs font-semibold text-red-600">{openError}</p>}

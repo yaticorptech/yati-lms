@@ -14,7 +14,7 @@
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
-const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, makeAdmin, startApp, cleanup, forgetAudit } = require('../helpers');
 
 const Competition = require('../../src/competitions/models/Competition');
 const Team = require('../../src/competitions/models/Team');
@@ -59,7 +59,7 @@ after(async () => {
         Competition.deleteMany({ _id: { $in: ids } }),
         Notification.deleteMany({ userId: { $in: made.users.map((u) => u._id) } }),
         Organization.deleteMany({ _id: { $in: made.orgs } }),
-        Admin.deleteMany({ _id: { $in: made.admins } })
+        Admin.deleteMany({ _id: { $in: made.admins } }), forgetAudit({ orgs: made.orgs, admins: made.admins })
     ]);
     await cleanup(made.users, app.server);
 });
@@ -82,7 +82,7 @@ for (const game of ['chess', 'rapidfire', 'codeclash', 'brainsprint']) {
 
         test('each college enters its own player; the admin approves', async () => {
             for (const c of colleges) {
-                const r = await c.call('PUT', `/org/${id}/team`, { teamName: `${c.org.name.split(' ')[0]} ${game}`, players: [String(c.player.user._id)] });
+                const r = await c.call('PUT', `/org/${id}/team`, { coordinatorPhone: '9876543210', teamName: `${c.org.name.split(' ')[0]} ${game}`, players: [String(c.player.user._id)] });
                 assert.ok([200, 201].includes(r.status), JSON.stringify(r.body));
             }
             const pending = (await north().player.call('GET', `/${id}`)).body.competition.myTeam;
@@ -148,6 +148,10 @@ for (const game of ['chess', 'rapidfire', 'codeclash', 'brainsprint']) {
 
         test('the winner is told, paid, and finds it in Results and History with the certificate', async () => {
             const winner = north().player;
+            // Students see nothing, and nothing is paid, until the organizer publishes the results.
+            assert.ok(!(await winner.call('GET', '/history')).body.competitions.some((x) => x.competition.id === id), 'hidden before publishing');
+            assert.equal((await winner.call('GET', `/${id}/certificate`)).status, 409);
+            assert.equal((await boss('POST', `/admin/${id}/publish-results`)).status, 200);
             let told = [];
             for (let i = 0; i < 30 && !told.length; i += 1) {
                 told = (await Notification.find({ userId: winner.user._id, createdAt: { $gte: startedAt } }).lean()).filter((n) => /1st place/.test(n.title));
@@ -176,7 +180,7 @@ describe('Start now: the admin starts it any time, whatever times were set', () 
     test('straight from registration (even before the deadline): drawn, opened, codes given', async () => {
         const r = await boss('POST', '/admin', { name: `Start Now ${STAMP}`, game: 'rapidfire', startsAt: inDays(5), registrationDeadline: inDays(4), playersPerTeam: 1, maxTeams: 4, open: true });
         const id = r.body.competition.id;
-        for (const c of colleges) await c.call('PUT', `/org/${id}/team`, { teamName: `${c.org.name.split(' ')[0]} Now`, players: [String(c.player.user._id)] });
+        for (const c of colleges) await c.call('PUT', `/org/${id}/team`, { coordinatorPhone: '9876543210', teamName: `${c.org.name.split(' ')[0]} Now`, players: [String(c.player.user._id)] });
         for (const t of (await boss('GET', `/admin/${id}`)).body.teams) await boss('PUT', `/admin/${id}/teams/${t.id}`, { status: 'approved' });
         const s = await boss('POST', `/admin/${id}/start-now`);
         assert.equal(s.status, 200, JSON.stringify(s.body));
@@ -222,8 +226,9 @@ describe('a college allowed to host runs its own Quiz Arena, like the admin', ()
 
     test('creates and publishes a contest from its own bank, for its own students only', async () => {
         // Today, so the college may start it (a college's Start now opens on the day).
-        const start = new Date(Date.now() + 120e3);
-        const r = await host.call('POST', '/org/host/arena', { title: `Host Quiz ${STAMP}`, startsAt: start, registrationDeadline: new Date(start.getTime() - 60e3), counts: { 1: 2, 2: 1, 3: 2 } });
+        // Made with real dates (registration ends on an earlier day), then moved to today in the database.
+        const r = await host.call('POST', '/org/host/arena', { title: `Host Quiz ${STAMP}`, startsAt: new Date(Date.now() + 2 * 86400e3), registrationDeadline: new Date(Date.now() + 1800e3), counts: { 1: 2, 2: 1, 3: 2 } });
+        if (r.status === 201) await require('../../src/competitions/arena/models').ArenaCompetition.updateOne({ _id: r.body.competition.id }, { $set: { startsAt: new Date(Date.now() + 120e3), registrationDeadline: new Date(Date.now() + 60e3) } });
         assert.equal(r.status, 201, JSON.stringify(r.body));
         contestId = r.body.competition.id;
         const before = (await host.call('GET', `/org/host/arena/${contestId}/preview`)).body;
@@ -297,7 +302,7 @@ describe('an entry fee: approved players pay online (Razorpay) before they can j
         assert.equal(r.status, 201, JSON.stringify(r.body));
         id = r.body.competition.id;
         assert.deepEqual(r.body.competition.entryFee, { enabled: true, amount: 100 });
-        for (const c of colleges) await c.call('PUT', `/org/${id}/team`, { teamName: `${c.org.name.split(' ')[0]} Fee`, players: [String(c.player.user._id)] });
+        for (const c of colleges) await c.call('PUT', `/org/${id}/team`, { coordinatorPhone: '9876543210', teamName: `${c.org.name.split(' ')[0]} Fee`, players: [String(c.player.user._id)] });
         for (const t of (await boss('GET', `/admin/${id}`)).body.teams) await boss('PUT', `/admin/${id}/teams/${t.id}`, { status: 'approved' });
         const [a, b] = colleges.map((c) => c.player);
         assert.deepEqual((await a.call('GET', `/${id}`)).body.myPayment, { amount: 100, paid: false });
@@ -326,7 +331,7 @@ describe('an entry fee: approved players pay online (Razorpay) before they can j
     test('no code and no seat until paid', async () => {
         const r = await boss('POST', '/admin', { name: `Fee Cup 2 ${STAMP}`, game: 'rapidfire', startsAt: inDays(5), registrationDeadline: inDays(4), playersPerTeam: 1, maxTeams: 4, open: true, entryFee: { enabled: true, amount: 50 } });
         const id2 = r.body.competition.id;
-        for (const c of colleges) await c.call('PUT', `/org/${id2}/team`, { teamName: `${c.org.name.split(' ')[0]} Fee2`, players: [String(c.player.user._id)] });
+        for (const c of colleges) await c.call('PUT', `/org/${id2}/team`, { coordinatorPhone: '9876543210', teamName: `${c.org.name.split(' ')[0]} Fee2`, players: [String(c.player.user._id)] });
         for (const t of (await boss('GET', `/admin/${id2}`)).body.teams) await boss('PUT', `/admin/${id2}/teams/${t.id}`, { status: 'approved' });
         assert.equal((await boss('POST', `/admin/${id2}/start-now`)).status, 200);
         const b = colleges[1].player;
@@ -346,7 +351,7 @@ describe('without Razorpay keys: a test payment, recorded the same way', () => {
             const r = await boss('POST', '/admin', { name: `Test Pay ${STAMP}`, game: 'codeclash', startsAt: inDays(5), registrationDeadline: inDays(4), playersPerTeam: 1, maxTeams: 4, open: true, entryFee: { enabled: true, amount: 10 } });
             const id = r.body.competition.id;
             const c = colleges[0];
-            await c.call('PUT', `/org/${id}/team`, { teamName: `${c.org.name.split(' ')[0]} TP`, players: [String(c.player.user._id)] });
+            await c.call('PUT', `/org/${id}/team`, { coordinatorPhone: '9876543210', teamName: `${c.org.name.split(' ')[0]} TP`, players: [String(c.player.user._id)] });
             for (const t of (await boss('GET', `/admin/${id}`)).body.teams) await boss('PUT', `/admin/${id}/teams/${t.id}`, { status: 'approved' });
             const order = (await c.player.call('POST', `/${id}/pay`)).body;
             assert.equal(order.test, true);

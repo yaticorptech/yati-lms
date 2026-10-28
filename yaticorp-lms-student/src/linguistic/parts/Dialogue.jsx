@@ -1,13 +1,13 @@
 /**
  * A conversation to listen to, as chat bubbles. "Play the conversation" plays
  * every line's recording in turn and lights up the one playing; any line can
- * be played on its own. The words are hidden at first — listening without
- * reading is the practice — and shown with one tap. An uploaded recording of
+ * be played on its own. The words are always shown (2026-10-27, user: "show it
+ * in only words", no "Line 1" placeholders). An uploaded recording of
  * the whole conversation, when the lesson has one, plays in a normal player.
  * `compact`: the quiz's "hear it again", without the scenario.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Play, Square, Eye, EyeOff, Volume2 } from 'lucide-react';
+import { Play, Square, Volume2 } from 'lucide-react';
 import { mediaUrl } from '../api';
 import { COLORS, canSpeak } from '../meta';
 
@@ -18,7 +18,6 @@ export default function Dialogue({ dialogue, audio, compact = false }) {
     const speakers = [...new Set(lines.map((l) => l.speaker))];
     const [current, setCurrent] = useState(-1);
     const [playingAll, setPlayingAll] = useState(false);
-    const [showText, setShowText] = useState(false);
     const player = useRef(null);
     const stopped = useRef(false);
 
@@ -61,15 +60,13 @@ export default function Dialogue({ dialogue, audio, compact = false }) {
         <div data-dialogue>
             {!compact && dialogue?.scenario && <p className="mb-3 rounded-2xl px-4 py-3 text-[15px] font-bold" style={{ background: COLORS.orange.light, color: COLORS.orange.ink }}>🎧 {dialogue.scenario}</p>}
             {audio && <audio controls preload="none" src={mediaUrl(audio)} className="mb-3 w-full" aria-label="The whole conversation" />}
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-                {playable && (playingAll
-                    ? <button type="button" onClick={stop} className={btn} style={{ background: COLORS.red.face, borderColor: COLORS.red.edge, color: '#fff' }}><Square size={15} /> Stop</button>
-                    : <button type="button" onClick={playAll} className={btn} style={{ background: COLORS.blue.face, borderColor: COLORS.blue.edge, color: '#fff' }} data-play-all><Play size={15} /> Play the conversation</button>)}
-                <button type="button" onClick={() => setShowText((s) => !s)} aria-pressed={showText} className={btn} style={{ background: '#fff', borderColor: '#E5E5E5', color: '#777' }}>
-                    {showText ? <><EyeOff size={15} /> Hide the words</> : <><Eye size={15} /> Show the words</>}
-                </button>
-            </div>
-            {!showText && !compact && <p className="mb-3 text-sm font-semibold text-[#AFAFAF]">Listen first without reading. Then show the words and listen again.</p>}
+            {playable && (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                    {playingAll
+                        ? <button type="button" onClick={stop} className={btn} style={{ background: COLORS.red.face, borderColor: COLORS.red.edge, color: '#fff' }}><Square size={15} /> Stop</button>
+                        : <button type="button" onClick={playAll} className={btn} style={{ background: COLORS.blue.face, borderColor: COLORS.blue.edge, color: '#fff' }} data-play-all><Play size={15} /> Play the conversation</button>}
+                </div>
+            )}
             <ol className="space-y-2.5">
                 {lines.map((l, i) => {
                     const who = speakers.indexOf(l.speaker);
@@ -81,7 +78,7 @@ export default function Dialogue({ dialogue, audio, compact = false }) {
                             <div className={`min-w-0 max-w-[78%] rounded-2xl border-2 px-3.5 py-2.5 transition-colors ${right ? 'rounded-br-md' : 'rounded-bl-md'}`}
                                 style={current === i ? { borderColor: c.face, background: c.light } : { borderColor: '#E5E5E5', background: '#fff' }}>
                                 <p className="text-[11px] font-extrabold uppercase tracking-wider" style={{ color: c.ink }}>{l.speaker}</p>
-                                {showText ? <p className="break-words text-[15px] font-semibold text-[#4b4b4b]">{l.text}</p> : <p className="text-[15px] font-semibold text-[#AFAFAF]">Line {i + 1}</p>}
+                                <p className="break-words text-[15px] font-semibold text-[#4b4b4b]">{l.text}</p>
                             </div>
                             {canSpeak(l.audio) && (
                                 <button type="button" onClick={() => playOne(i)} aria-label={`Play line ${i + 1}, ${l.speaker}`} className="lingo-btn flex h-10 w-10 shrink-0 items-center justify-center !rounded-xl !border-b-[3px]" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.blue.face }}><Volume2 size={17} /></button>

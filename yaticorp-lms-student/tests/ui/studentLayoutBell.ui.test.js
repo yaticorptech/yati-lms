@@ -131,7 +131,7 @@ describe('the notification bell', { skip: skipWithoutChrome }, () => {
         assert.ok(result.rows.some((r) => /Badge earned.*Rewards ·/.test(r)), `rows: ${JSON.stringify(result.rows)}`);
         assert.ok(!result.rows.some((r) => /Badge earned.*Career ·/.test(r)), 'not labelled Career');
         assert.ok(result.rows.some((r) => /Exams next week.*Notice ·/.test(r)));
-        assert.equal(result.where, '/#wallet');
+        assert.equal(result.where, '/enrolled-courses#wallet');
     });
 
     test('Clear all, tapped on the phone, clears only the feeds the server cleared', async () => {

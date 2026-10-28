@@ -23,6 +23,7 @@
  * requests and logged activities show up without a reload. Server:
  * src/nccnss/orgAdmin.js.
  */
+import useStepParam from '../../hooks/useStepParam';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Shield, Users, CheckCircle2, XCircle, CalendarDays, Plus, Download, Clock, AlertTriangle, Award, Trash2, Loader2, Pencil, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Search, GraduationCap, Check } from 'lucide-react';
@@ -1278,7 +1279,9 @@ const ClubsView = () => {
     const [failed, setFailed] = useState(false);
     const [notice, setNotice] = useState('');
     const [creating, setCreating] = useState(false);
-    const [openId, setOpenId] = useState(null);
+    // An opened club is a step in the address: Back returns to all the clubs.
+    const [openId, openClub, closeClub] = useStepParam('club');
+    const setOpenId = (id) => (id ? openClub(id) : closeClub());
     const [category, setCategory] = useState('');
 
     const load = async ({ signal, isCurrent = () => true, fresh = true } = {}) => {
