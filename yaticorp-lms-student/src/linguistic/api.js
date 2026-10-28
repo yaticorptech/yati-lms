@@ -20,6 +20,7 @@ export const linguisticApi = {
     chooseLevel: (level) => post('/level', { level }),
     /** Why they are learning, and how much English they know (0 new … 4 most topics). */
     setAbout: (reason, know, more = {}) => post('/about', { reason, know, ...more }),
+    setKnows: (knows) => post('/knows', knows),
     /** The daily XP goal: 10, 20, 30 or 50. */
     setGoal: (xp) => post('/goal', { xp }),
     // The learning plan (2026-10-24): the roadmap, the times to choose (before the student has started: as they said), making or changing it.
@@ -42,7 +43,8 @@ export const linguisticApi = {
     quizCheck: (id, qid, given) => post(`/lessons/${id}/quiz/check`, { id: qid, given }),
     quiz: (id, answers) => post(`/lessons/${id}/quiz`, { answers }),
     writing: (id, taskId, answer) => post(`/lessons/${id}/writing/${taskId}`, { answer }),
-    speaking: (id, checklist, recorded) => post(`/lessons/${id}/speaking`, { checklist, recorded }),
+    // Said, not ticked (2026-10-28): the server ticks the checklist from what was said.
+    speaking: (id, said, seconds, recorded) => post(`/lessons/${id}/speaking`, { said, seconds, recorded }),
     // Speak on a topic (Advanced): what was said → each sentence corrected, and why.
     talk: (id, text) => post(`/lessons/${id}/talk`, { text }),
     daily: () => get('/daily'),

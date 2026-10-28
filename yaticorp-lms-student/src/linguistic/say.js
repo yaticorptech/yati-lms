@@ -12,10 +12,18 @@
  * they know English to read that question?").
  */
 import { PRAISE } from './meta';
-import { KEYS, WORDS, LINES as MORE_LINES } from './sayLangs';
+import { KEYS, WORDS, LINES as SAY_LINES } from './sayLangs';
+import { FEEDBACK_KEYS, FEEDBACK_WORDS, FEEDBACK_LINES } from './sayFeedback';
+import { SPEAK_KEYS, SPEAK_WORDS, SPEAK_LINES, WRITE_KEY, WRITE_WORDS, WRITE_LINES } from './saySpeak';
 
-// Every other language's words (sayLangs.js, 2026-10-24), looked up by the English.
-const MORE = Object.fromEntries(Object.entries(WORDS).map(([code, words]) => [code, Object.fromEntries(KEYS.map((k, i) => [k, words[i]]))]));
+// Every other language's words (sayLangs.js, 2026-10-24; the corrections' words, sayFeedback.js, 2026-10-27), looked up by the English.
+const MORE = Object.fromEntries(Object.entries(WORDS).map(([code, words]) => [code, {
+    ...Object.fromEntries(KEYS.map((k, i) => [k, words[i]])),
+    ...Object.fromEntries(FEEDBACK_KEYS.map((k, i) => [k, FEEDBACK_WORDS[code]?.[i]]).filter(([, v]) => v)),
+    ...Object.fromEntries(SPEAK_KEYS.map((k, i) => [k, SPEAK_WORDS[code]?.[i]]).filter(([, v]) => v)),
+    ...(WRITE_WORDS[code] ? { [WRITE_KEY]: WRITE_WORDS[code] } : {})
+}]));
+const MORE_LINES = Object.fromEntries(Object.keys(SAY_LINES).map((code) => [code, { ...SAY_LINES[code], ...FEEDBACK_LINES[code], ...SPEAK_LINES[code], ...WRITE_LINES[code] }]));
 
 const KN = {
     // The session around the questions
@@ -35,14 +43,16 @@ const KN = {
     'Put the words in order': 'ಪದಗಳನ್ನು ಕ್ರಮವಾಗಿ ಜೋಡಿಸಿ', 'Make a sentence': 'ಒಂದು ವಾಕ್ಯ ಮಾಡಿ', 'Write a paragraph': 'ಒಂದು ಪ್ಯಾರಾಗ್ರಾಫ್ ಬರೆಯಿರಿ',
     'Write an email': 'ಒಂದು ಇಮೇಲ್ ಬರೆಯಿರಿ', 'Write a letter': 'ಒಂದು ಪತ್ರ ಬರೆಯಿರಿ', Write: 'ಬರೆಯಿರಿ',
     Speak: 'ಮಾತನಾಡಿ', 'Your turn to speak': 'ಈಗ ನೀವು ಮಾತನಾಡಿ', 'Show a sample answer': 'ಮಾದರಿ ಉತ್ತರ ತೋರಿಸಿ', 'Hide the sample answer': 'ಮಾದರಿ ಉತ್ತರ ಮರೆಮಾಡಿ',
-    'Hear the sample': 'ಮಾದರಿ ಕೇಳಿ', 'After you listen back, tick what you did': 'ನಿಮ್ಮ ಧ್ವನಿಮುದ್ರಣ ಕೇಳಿದ ನಂತರ, ನೀವು ಮಾಡಿದ್ದನ್ನು ಗುರುತು ಮಾಡಿ',
+    'Hear the sample': 'ಮಾದರಿ ಕೇಳಿ', 'They tick by themselves as you say them': 'ನೀವು ಹೇಳುತ್ತಿದ್ದಂತೆ ಇವು ತಾವಾಗಿಯೇ ಗುರುತಾಗುತ್ತವೆ',
+    'What we heard': 'ನಾವು ಕೇಳಿದ್ದು', 'Type what you said': 'ನೀವು ಹೇಳಿದ್ದನ್ನು ಟೈಪ್ ಮಾಡಿ',
+    'Write at least 3 sentences. End each one with a full stop.': 'ಕನಿಷ್ಠ 3 ವಾಕ್ಯಗಳನ್ನು ಬರೆಯಿರಿ. ಪ್ರತಿಯೊಂದನ್ನೂ ಪೂರ್ಣವಿರಾಮದಿಂದ (.) ಮುಗಿಸಿ.',
     'Tap the matching pairs': 'ಹೊಂದುವ ಜೋಡಿಗಳನ್ನು ಒತ್ತಿ', 'Warm up: this unit’s words': 'ಅಭ್ಯಾಸ: ಈ ಘಟಕದ ಪದಗಳು', 'Use word bank': 'ಪದಗಳ ಸಂಗ್ರಹ ಬಳಸಿ', 'Use keyboard': 'ಕೀಬೋರ್ಡ್ ಬಳಸಿ',
     'Hint: ': 'ಸುಳಿವು: ',
     // The sheet under a checked answer
     'Correct solution:': 'ಸರಿಯಾದ ಉತ್ತರ:', 'Nearly — check the spelling:': 'ಸ್ವಲ್ಪದರಲ್ಲಿ ತಪ್ಪಿತು — ಕಾಗುಣಿತ ನೋಡಿ:',
     'Almost there! Correct solution:': 'ಬಹುತೇಕ ಸರಿ! ಸರಿಯಾದ ಉತ್ತರ:', 'Correct — mind the small differences': 'ಸರಿ — ಸಣ್ಣ ವ್ಯತ್ಯಾಸಗಳನ್ನು ಗಮನಿಸಿ',
     'Sent to your teacher': 'ನಿಮ್ಮ ಶಿಕ್ಷಕರಿಗೆ ಕಳುಹಿಸಲಾಗಿದೆ', Checked: 'ಪರಿಶೀಲಿಸಲಾಗಿದೆ',
-    'No grammar mistakes found': 'ವ್ಯಾಕರಣ ತಪ್ಪುಗಳು ಕಂಡುಬಂದಿಲ್ಲ', 'Fix the marked words': 'ಗುರುತಿಸಿದ ಪದಗಳನ್ನು ಸರಿಪಡಿಸಿ', 'You wrote': 'ನೀವು ಬರೆದದ್ದು', 'Compare your translation with the model below.': 'ನಿಮ್ಮ ಅನುವಾದವನ್ನು ಕೆಳಗಿನ ಮಾದರಿಯೊಂದಿಗೆ ಹೋಲಿಸಿ.',
+    'No grammar mistakes found': 'ವ್ಯಾಕರಣ ತಪ್ಪುಗಳು ಕಂಡುಬಂದಿಲ್ಲ', 'Fix the marked words': 'ಗುರುತಿಸಿದ ಪದಗಳನ್ನು ಸರಿಪಡಿಸಿ', 'You wrote': 'ನೀವು ಬರೆದದ್ದು', 'Show corrections': 'ತಿದ್ದುಪಡಿಗಳನ್ನು ನೋಡಿ', Close: 'ಮುಚ್ಚಿ', 'Compare your translation with the model below.': 'ನಿಮ್ಮ ಅನುವಾದವನ್ನು ಕೆಳಗಿನ ಮಾದರಿಯೊಂದಿಗೆ ಹೋಲಿಸಿ.',
     'Model translation': 'ಮಾದರಿ ಅನುವಾದ', 'Read the tips and compare with the model answer while you wait.': 'ಕಾಯುತ್ತಿರುವಾಗ ಸಲಹೆಗಳನ್ನು ಓದಿ, ಮಾದರಿ ಉತ್ತರದೊಂದಿಗೆ ಹೋಲಿಸಿ.',
     'Good sentence!': 'ಒಳ್ಳೆಯ ವಾಕ್ಯ!', 'Another way to say it': 'ಇದನ್ನು ಹೇಳುವ ಇನ್ನೊಂದು ರೀತಿ', 'Almost — fix these:': 'ಬಹುತೇಕ ಸರಿ — ಇವುಗಳನ್ನು ಸರಿಪಡಿಸಿ:',
     'Sample answer': 'ಮಾದರಿ ಉತ್ತರ', Saved: 'ಉಳಿಸಲಾಗಿದೆ', 'A full self-check. Well spoken!': 'ಎಲ್ಲವನ್ನೂ ಗುರುತು ಮಾಡಿದ್ದೀರಿ. ಚೆನ್ನಾಗಿ ಮಾತನಾಡಿದಿರಿ!',
@@ -77,6 +87,9 @@ const LINES = {
         inARow: (n) => `${n} in a row`,
         quizIntro: (n, pass) => `${n} questions. Get ${pass}% or more to finish the lesson.`,
         ticked: (a, b) => `Saved: ${a} of ${b} ticked`,
+        heard: (a, b, need) => `${a} of ${b} heard · say at least ${need}`,
+        sentences: (n, need) => (n >= need ? `${n} sentences` : `${n} of ${need} sentences`),
+        wordsAtLeast: (w, min) => (min ? `${w} word${w === 1 ? '' : 's'} · at least ${min}` : `${w} word${w === 1 ? '' : 's'}`),
         writeIn: (name) => `Write this in ${name}`,
         letters: (name, open) => (open ? `Hide ${name} letters` : `${name} letters`),
         lettersCount: (n) => `${n} letters`,
@@ -90,6 +103,9 @@ const LINES = {
         inARow: (n) => `ಸತತ ${n} ಸರಿ`,
         quizIntro: (n, pass) => `${n} ಪ್ರಶ್ನೆಗಳು. ಪಾಠ ಮುಗಿಸಲು ${pass}% ಅಥವಾ ಹೆಚ್ಚು ಅಂಕ ಪಡೆಯಿರಿ.`,
         ticked: (a, b) => `ಉಳಿಸಲಾಗಿದೆ: ${b}ರಲ್ಲಿ ${a} ಗುರುತು ಮಾಡಲಾಗಿದೆ`,
+        heard: (a, b, need) => `${b}ರಲ್ಲಿ ${a} ಕೇಳಿಸಿತು · ಕನಿಷ್ಠ ${need} ಹೇಳಿ`,
+        sentences: (n, need) => (n >= need ? `${n} ವಾಕ್ಯಗಳು` : `${need}ರಲ್ಲಿ ${n} ವಾಕ್ಯಗಳು`),
+        wordsAtLeast: (w, min) => (min ? `${w} ಪದಗಳು · ಕನಿಷ್ಠ ${min}` : `${w} ಪದಗಳು`),
         writeIn: (name) => `ಇದನ್ನು ${KN_NAMES[name] || name} ಭಾಷೆಯಲ್ಲಿ ಬರೆಯಿರಿ`,
         letters: (name, open) => `${KN_NAMES[name] || name} ಅಕ್ಷರಗಳು${open ? ' ಮರೆಮಾಡಿ' : ''}`,
         lettersCount: (n) => `${n} ಅಕ್ಷರಗಳು`,

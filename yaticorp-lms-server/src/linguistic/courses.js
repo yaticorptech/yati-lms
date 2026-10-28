@@ -19,6 +19,7 @@
  */
 const { lessons: CONTENT } = require('./content');
 const { CODES, packOf, infoOf } = require('./languages');
+const { soundOf } = require('./content/sounds');
 const { NO_SPACES } = require('./check');
 const parts = require('./parts');
 // What a lesson says before it starts, in the student's own language (2026-10-24); English speakers keep the English below.
@@ -92,7 +93,7 @@ const build = (stub, helper) => {
     if (stub.module === 'vocabulary') {
         out.words = (base.words || []).map((w) => {
             const word = wordIn(X.code, base.seedKey, w), meaning = wordIn(Y.code, base.seedKey, w);
-            return word && meaning ? { word, kannada: meaning, pos: w.pos, example: '', synonyms: [], antonyms: [], audio: null, lang: Y.name, target: X.name, locale: X.locale, course: true, en: w.word } : null;
+            return word && meaning ? { word, kannada: meaning, pos: w.pos, example: '', synonyms: [], antonyms: [], audio: null, lang: Y.name, target: X.name, locale: X.locale, course: true, en: w.word, say: soundOf(X.code, w.word) } : null;
         }).filter(Boolean);
         out.learn = { intro: NOTES[Y.code]?.vocab || `New ${X.name} words, with their meanings in ${Y.name}. Tap a card to see the meaning, and the speaker to hear the word.` };
         return out;
@@ -107,7 +108,9 @@ const build = (stub, helper) => {
             ...(to.tiles ? { tiles: to.tiles } : {}),
             // Japanese or Chinese with no tiles cut for it: one tile would be the whole answer, so it is typed.
             ...(!to.tiles && NO_SPACES.includes(write ? X.code : Y.code) ? { typed: true } : {}),
-            explanation: (write ? to : from).explanation || ''
+            explanation: (write ? to : from).explanation || '',
+            // The English it stands for: the meaning shown when the student taps a sentence's sound (2026-10-27).
+            en: itemIn('en', base, it)?.text || null
         };
     };
     out.items = (base.items || []).map(make).filter(Boolean);

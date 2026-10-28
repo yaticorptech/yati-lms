@@ -6,8 +6,8 @@
  * and handed to the tabs.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Route as PathIcon, Dumbbell, Medal, PenLine } from 'lucide-react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Route as PathIcon, Dumbbell, Medal, PenLine, X } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS, deviceLanguage, languageAsked, markLanguageAsked } from './meta';
 import { Loading, Problem } from './ui';
@@ -15,6 +15,7 @@ import { Stats } from './Rail';
 import LanguagePicker from './LanguagePicker';
 import Onboarding from './Onboarding';
 import PlanQuestion from './PlanQuestion';
+import useGoBack from '../hooks/useGoBack';
 import './lingo.css';
 
 // The Dashboard (/linguistic/dashboard, 2026-10-26) is where the section opens, from the menu; it has no tab of its own.
@@ -46,11 +47,13 @@ export default function LingoShell() {
     const [dash, setDash] = useState(undefined);
     const [error, setError] = useState(null);
     const [picking, setPicking] = useState(null);       // 'learn' (the course) | 'speak' (their language) | null
-    // The dashboard takes the whole width, like the profile dashboard (2026-10-26), and has no tabs: they show
-    // once the student goes on from it ("Continue where you stopped"). The side panel that stood beside every
-    // tab (level, roadmap, quests, mistakes) is on the dashboard only now (asked the same day).
+    // The dashboard takes the whole width, like the profile dashboard (2026-10-26). The tabs are its own (none
+    // lit: it is not one of them), in its top row with the language, level, streak and XP (2026-10-27); a page
+    // they open has only its ✕ back to the dashboard (2026-10-27, "remove the nav bar from this page"). The side
+    // panel that stood beside every tab (level, roadmap, quests, mistakes) is on the dashboard only (2026-10-26).
     const wide = useLocation().pathname === '/linguistic/dashboard';
     const navigate = useNavigate();
+    const goBack = useGoBack();
     const load = useCallback(() => linguisticApi.dashboard().then((d) => {
         setDash(d); setError(null);
         // A device set to Hindi, Japanese, French or Korean is offered that language, once.
@@ -85,10 +88,19 @@ export default function LingoShell() {
         // Every page of the section is full width (2026-10-26, "make it full screen"), as the dashboard is.
         <div className="lingo flex items-start pb-6" data-lingo-shell data-wide={wide || undefined}>
             <div className="w-full min-w-0 flex-1">
-                <div className={wide ? 'mb-5 flex justify-end' : 'mb-5 space-y-3'}>
+                {/* On the dashboard: ✕, the tabs, then the language, level, streak and XP — one row on a wide
+                    screen; on a narrower one the tabs go to a second row under the ✕ and the rest. */}
+                <div className={`mb-5 flex items-center gap-2 ${wide ? 'flex-wrap justify-between lg:flex-nowrap lg:gap-6' : ''}`}>
+                    {/* The ✕ on every page (2026-10-26): the dashboard's goes back to where the student came from
+                        (the app's Dashboard when it was opened directly); a page inside goes back to the dashboard. */}
+                    <Link to={wide ? '/' : '/linguistic/dashboard'} onClick={wide ? goBack : undefined} data-lingo-close={wide ? 'section' : 'dashboard'}
+                        aria-label={wide ? 'Close Language Learning' : 'Back to the Language Learning dashboard'} title={wide ? 'Close' : 'Back to the dashboard'}
+                        className="-ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#AFAFAF] transition-colors hover:bg-[#F2F2F2] hover:text-[#777]">
+                        <X size={26} strokeWidth={3} aria-hidden="true" />
+                    </Link>
                     {/* The language, level, streak and XP: on the dashboard only (2026-10-26, "not inside"). */}
-                    {wide && <Stats dash={dash} onLanguage={() => setPicking('learn')} className="w-full sm:w-auto sm:gap-3" />}
-                    {!wide && <nav aria-label="Language Learning" className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                    {wide && <Stats dash={dash} onLanguage={() => setPicking('learn')} className="order-2 min-w-0 flex-1 sm:flex-none sm:gap-3 lg:order-3" />}
+                    {wide && <nav aria-label="Language Learning" className="order-3 grid min-w-0 flex-1 basis-full grid-cols-4 gap-1.5 sm:gap-2 lg:order-2 lg:max-w-2xl lg:basis-auto">
                         {TABS.map(({ to, end, label, icon: Icon }) => (
                             <NavLink key={to} to={to} end={end} data-tab={label}
                                 className={({ isActive }) => `flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-1 text-[11px] font-extrabold uppercase tracking-wide transition-colors sm:flex-row sm:gap-2 sm:text-[13px] ${isActive ? '' : 'border-transparent text-[#777] hover:bg-[#F2F2F2]'}`}
@@ -102,7 +114,7 @@ export default function LingoShell() {
                 <Outlet key={`${dash.language?.code || 'kn'}:${dash.course?.code || 'en'}`} context={{ dash, reload: load }} />
             </div>
             {picking && (
-                <LanguagePicker languages={dash.languages || []} courses={dash.courses || []} current={dash.language?.code || 'kn'} course={dash.course} mode={picking}
+                <LanguagePicker languages={dash.languages || []} courses={dash.courses || []} current={dash.language?.code || 'kn'} course={dash.course} mode={picking} locked={!!dash.started && !dash.courseDone && !dash.freeCourse} finished={!!dash.started && !!dash.courseDone}
                     suggested={deviceLanguage((dash.languages || []).map((l) => l.code))} onClose={closePicker} onDone={() => { closePicker(); load(); }} />
             )}
         </div>

@@ -36,7 +36,8 @@ export default function PracticeHub() {
                     text={dash.mistakes ? `${dash.mistakes} answer${dash.mistakes === 1 ? '' : 's'} to practise until you get them right.` : 'Nothing to fix right now. Well done!'}
                     cta={dash.mistakes ? 'Practise' : 'Open'} attr={{ 'data-mistakes': dash.mistakes }} />
                 {(!dash.course || dash.course.code === 'en') && <Card to="/linguistic/placement" color="blue" pose="thinking" title="Placement test"
-                    text={dash.placement?.chosen ? `You chose ${levelOf(dash.placement.level).label}. Take the test to check it.` : dash.placement ? `You were placed at ${levelOf(dash.placement.level).label} (${dash.placement.score}/${dash.placement.total}). Take it again any time.` : 'Find your level in 15 questions, and start where you belong.'}
+                    // The test shows the level; units and sections still open in turn (2026-10-28).
+                    text={dash.placement?.chosen || !dash.placement ? 'Check your English level in 15 questions. Your lessons still open one unit at a time.' : `Your last test: ${levelOf(dash.placement.found || dash.placement.level).label} (${dash.placement.score}/${dash.placement.total}). Take it again any time.`}
                     cta={dash.placement && !dash.placement.chosen ? 'Retake' : 'Start'} attr={{ 'data-placement-card': dash.placement ? dash.placement.level : 'none' }} />}
             </div>
         </div>
