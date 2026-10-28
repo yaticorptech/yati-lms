@@ -8,7 +8,7 @@
  * (survey, experiment, qualitative, mixed, review, action research).
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Route, Plus, Trash2, CheckCircle2, Circle, ChevronDown, CalendarDays, Pencil, Loader2, X, Flag, GraduationCap, XCircle, ExternalLink, ArrowRight } from 'lucide-react';
 import { STAGE_GUIDES } from '../content/researchStages';
 import teacherApi, { messageOf } from '../teacherSession';
@@ -101,7 +101,9 @@ const ProjectForm = ({ initial, kinds = [], onSubmit, onCancel, busy, error }) =
 export default function ResearchPath() {
     const [projects, setProjects] = useState(null);
     const [kinds, setKinds] = useState([]);
-    const [activeId, setActiveId] = useState(null);
+    // ?project= opens that project (the dashboard's "Continue where you left off").
+    const [params] = useSearchParams();
+    const [activeId, setActiveId] = useState(() => params.get('project'));
     const [error, setError] = useState('');
     const [creating, setCreating] = useState(false);
     const [editing, setEditing] = useState(false);

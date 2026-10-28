@@ -20,7 +20,8 @@ const SOURCES = [
   'game_refund',         // the fee back: left before the start, or no players found
   'withdrawal',
   'withdrawal_refund',   // a rejected withdrawal returning to available
-  'admin_adjustment'
+  'admin_adjustment',
+  'wallet_recharge'      // a super admin topping up a student's wallet (admin → Wallet recharge)
 ];
 const STATUSES = ['pending', 'completed', 'failed', 'cancelled'];
 

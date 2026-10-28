@@ -8,7 +8,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
-const { connect, makeUser, startApp } = require('../helpers');
+const { connect, makeUser, startApp, forgetAudit } = require('../helpers');
 const Admin = require('../../src/models/Admin');
 const User = require('../../src/models/User');
 const Organization = require('../../src/organizations/models/Organization');
@@ -34,7 +34,7 @@ before(async () => {
 });
 
 after(async () => {
-    await mongoose.connection.db.collection('orgauditlogs').deleteMany({ orgId: org._id }).catch(() => {});
+    await forgetAudit({ orgs: [org._id], admins: [orgAdmin._id] });
     await User.deleteMany({ _id: { $in: [member.user._id, loner.user._id] } });
     await Admin.deleteOne({ _id: orgAdmin._id });
     await Organization.deleteOne({ _id: org._id });

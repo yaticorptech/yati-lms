@@ -16,6 +16,7 @@ import { DetailSkeleton, ListSkeleton } from '../Skeletons';
 import { GameHero, JoinCard, CollegesCard, PayCard } from '../GameInfo';
 import { arenaApi, STATE, fmt, duration } from './api';
 import useGoBack from '../../hooks/useGoBack';
+import useLive from '../../live/useLive';
 
 const useNow = (ms = 1000) => {
     const [now, setNow] = useState(() => Date.now());
@@ -43,13 +44,10 @@ const Results = ({ id, title, heldOn }) => {
     const [tab, setTab] = useState('overall');
     const [college, setCollege] = useState('');
     const [error, setError] = useState('');
-    // Live: fetched again every 20 seconds, so a late correction shows without a reload.
-    useEffect(() => {
-        const get = () => arenaApi.results(id).then(setR).catch((e) => setError(e.message));
-        get();
-        const t = setInterval(get, 20000);
-        return () => clearInterval(t);
-    }, [id]);
+    const loadResults = useCallback(() => { arenaApi.results(id).then(setR).catch((e) => setError(e.message)); }, [id]);
+    useEffect(() => { loadResults(); }, [loadResults]);
+    // Standings as the marks come in, live.
+    useLive('arena', loadResults);
     // Party poppers the first time the results are seen here.
     const [party] = useState(() => { try { const k = `arena-party:${id}`; const seen = localStorage.getItem(k); localStorage.setItem(k, '1'); return !seen; } catch { return false; } });
     if (error && !r) return <p className="rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">{error}</p>;
@@ -143,6 +141,8 @@ export default function ArenaDetail() {
     useEffect(() => { load(); }, [load]);
     // Refresh as the start comes and goes, so Join appears on its own.
     useEffect(() => { const t = setInterval(load, 5000); return () => clearInterval(t); }, [load]);
+    // And at once when an entry, a start or a result changes.
+    useLive('arena', load);
 
     if (!c) return error ? <p className="rounded-3xl border border-rose-200 bg-white p-6 text-center font-bold text-slate-900">{error}</p> : <DetailSkeleton />;
     const [label, cls] = STATE[c.state] || [c.state, ''];

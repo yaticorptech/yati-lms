@@ -15,7 +15,7 @@
  * React's own bookkeeping intact.
  */
 /** Raised whenever the translation files change, so browsers fetch them again. */
-const DICT_VERSION = 15;
+const DICT_VERSION = 16;
 
 /** The API (as utils/api.js uses it), for reporting text with no translation yet. */
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';

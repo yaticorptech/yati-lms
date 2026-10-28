@@ -7,14 +7,14 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users
+    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users, Compass
 } from 'lucide-react';
-import { useTeacher } from './useTeacher';
+import { useTeacher, hasResearch } from './useTeacher';
 import useBackClose from '../native/useBackClose';
 import TeacherBottomNav from './TeacherBottomNav';
 import { colorOf } from './kit';
 import { TeacherAvatar } from './ui';
-import { isEmbedded } from './teacherSession';
+import teacherApi, { isEmbedded } from './teacherSession';
 
 const NAV = [
     { items: [{ to: '/teacher', label: 'Dashboard', icon: LayoutDashboard, end: true, color: 'emerald' }] },
@@ -32,18 +32,56 @@ const NAV = [
             { to: '/teacher/plagiarism', label: 'Plagiarism Check', short: 'Check', icon: ShieldCheck, color: 'indigo' }
         ]
     },
-    // The clubs the organization put this teacher in charge of (pages/Clubs.jsx).
-    { title: 'Activities', items: [{ to: '/teacher/clubs', label: 'My Clubs', short: 'Clubs', icon: Users }] }
+    // The clubs the organization put this teacher in charge of (pages/Clubs.jsx),
+    // and the Scouts & Guides units it made them a leader of (pages/ScoutUnits.jsx).
+    // My Clubs shows only to a teacher in charge of a club (asked 2026-10-27).
+    { title: 'Activities', items: [
+        { to: '/teacher/clubs', label: 'My Clubs', short: 'Clubs', icon: Users, clubsOnly: true },
+        { to: '/teacher/scout-units', label: 'My Units', short: 'Units', icon: Compass }
+    ] }
 ];
 const BOTTOM = ['/teacher', '/teacher/research-path', '/teacher/publications', '/teacher/thesis', '/teacher/writing'];
 const ALL = NAV.flatMap((g) => g.items);
+// A teacher without an AI card (a club or Scouts leader) has only their units and clubs.
+const ACTIVITIES_NAV = [{ title: 'Activities', items: [
+    { to: '/teacher/scout-units', label: 'My Units', short: 'Units', icon: Compass, color: 'amber' },
+    { to: '/teacher/clubs', label: 'My Clubs', short: 'Clubs', icon: Users, color: 'violet' }
+] }];
+
 
 // Every item's icon in its section's colour; the current page's row tinted with it.
 const navClass = (color) => ({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? colorOf(color).nav : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`;
 
-const NavList = ({ onPick }) => (
+// Whether this teacher is in charge of any club: asked when the app opens and
+// whenever it comes back to the screen (an organization may assign them in
+// the meantime), and remembered for the session so "My Clubs" does not
+// blink in on every page.
+const CLUBS_KEY = 'teacher-has-clubs';
+const useHasClubs = (teacherId) => {
+    const [has, setHas] = useState(() => { try { return !!teacherId && sessionStorage.getItem(CLUBS_KEY) === String(teacherId); } catch { return false; } });
+    useEffect(() => {
+        if (!teacherId) return undefined;
+        let live = true;
+        const check = () => teacherApi.get('/clubs').then((r) => {
+            if (!live) return;
+            const yes = (r.data?.clubs || []).length > 0;
+            setHas(yes);
+            try {
+                if (yes) sessionStorage.setItem(CLUBS_KEY, String(teacherId));
+                else sessionStorage.removeItem(CLUBS_KEY);
+            } catch { /* storage unavailable */ }
+        }).catch(() => {});
+        check();
+        const onShow = () => { if (document.visibilityState === 'visible') check(); };
+        document.addEventListener('visibilitychange', onShow);
+        return () => { live = false; document.removeEventListener('visibilitychange', onShow); };
+    }, [teacherId]);
+    return has;
+};
+
+const NavList = ({ onPick, nav, hasClubs }) => (
     <nav aria-label="Teacher" className="space-y-6">
-        {NAV.map((group, i) => (
+        {nav.map((group) => ({ ...group, items: group.items.filter((item) => !item.clubsOnly || hasClubs) })).filter((group) => group.items.length).map((group, i) => (
             <div key={group.title || i}>
                 {group.title && <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{group.title}</p>}
                 <div className="space-y-0.5">
@@ -83,6 +121,9 @@ const SignOut = ({ onClick }) => (
 
 export default function TeacherLayout() {
     const { teacher, signOut } = useTeacher();
+    const hasClubs = useHasClubs(teacher?._id);
+    const research = hasResearch(teacher);
+    const nav = research ? NAV : ACTIVITIES_NAV;
     const [menuOpen, setMenuOpen] = useState(false);
     const location = useLocation();
     useBackClose(() => setMenuOpen(false), menuOpen);
@@ -101,7 +142,7 @@ export default function TeacherLayout() {
             {/* Sidebar */}
             <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-slate-200 bg-white sidebar:flex">
                 <div className="flex h-16 items-center border-b border-slate-200 px-5"><Brand /></div>
-                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5"><NavList /></div>
+                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5"><NavList nav={nav} hasClubs={hasClubs} /></div>
                 <div className="space-y-1 border-t border-slate-200 p-3">
                     <Me teacher={teacher} />
                     <SignOut onClick={signOut} />
@@ -125,7 +166,7 @@ export default function TeacherLayout() {
                             <span className="text-sm font-semibold text-slate-900">Menu</span>
                             <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu" className="rounded-full p-2 text-slate-500 hover:bg-slate-100"><X size={20} /></button>
                         </div>
-                        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4"><NavList onPick={() => setMenuOpen(false)} /></div>
+                        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4"><NavList nav={nav} hasClubs={hasClubs} onPick={() => setMenuOpen(false)} /></div>
                         <div className="space-y-1 border-t border-slate-200 p-3" onClick={(e) => { if (e.target.closest('a')) setMenuOpen(false); }}>
                             <Me teacher={teacher} />
                             <SignOut onClick={signOut} />
@@ -135,13 +176,17 @@ export default function TeacherLayout() {
             )}
 
             <main className="px-4 pb-28 pt-20 sidebar:ml-64 sidebar:px-8 sidebar:pb-10 sidebar:pt-8">
-                <div className="mx-auto w-full max-w-6xl">
+                {/* Every page fills the space beside the sidebar: a 72rem cap
+                    left wide empty margins on a laptop (2026-10-28). The cap
+                    that is left only stops lines stretching on a very wide
+                    monitor. */}
+                <div className="mx-auto w-full max-w-[100rem]">
                     <Outlet />
                 </div>
             </main>
 
             {/* Phone bottom bar, in the students' style */}
-            <TeacherBottomNav items={BOTTOM.map((to) => ALL.find((x) => x.to === to))} />
+            <TeacherBottomNav items={research ? BOTTOM.map((to) => ALL.find((x) => x.to === to)) : ACTIVITIES_NAV[0].items} />
         </div>
     );
 }

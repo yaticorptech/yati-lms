@@ -21,6 +21,7 @@
  * The tab lives in the address (?tab=) so a link can open the right one.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import useLive from '../live/useLive';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Gamepad2, Trophy, UserCheck, BarChart3, History, Users, UsersRound, Crown, CalendarClock, Building2, Loader2,
@@ -43,17 +44,24 @@ const TABS = [
     { id: 'history', label: 'Certificates', icon: Award }
 ];
 
-/** Load once on mount; `reload` to fetch again. */
+/**
+ * Load on mount; `reload` to fetch again. Live: loaded again whenever the
+ * server says competitions, Quiz Arena or the leaderboard changed (useLive),
+ * keeping what is on screen until the new figures arrive.
+ */
+const LIVE_TOPICS = ['competitions', 'arena', 'leaderboard'];
 const useLoad = (fn) => {
     const [state, setState] = useState({ data: null, error: '' });
     const [n, setN] = useState(0);
     useEffect(() => {
         let alive = true;
         fn().then((data) => { if (alive) setState({ data, error: '' }); })
-            .catch((e) => { if (alive) setState({ data: null, error: e.message }); });
+            .catch((e) => { if (alive) setState((s) => (s.data ? s : { data: null, error: e.message })); });
         return () => { alive = false; };
     }, [fn, n]);
-    return { ...state, reload: useCallback(() => setN((x) => x + 1), []) };
+    const reload = useCallback(() => setN((x) => x + 1), []);
+    useLive(LIVE_TOPICS, reload);
+    return { ...state, reload };
 };
 
 const Box = ({ children, className = '' }) => <section className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${className}`}>{children}</section>;
@@ -141,12 +149,14 @@ const GameCard = ({ id, label, image, icon, art: Art = null, meta, blurb, tone, 
 const QuizArenaCard = () => {
     const navigate = useNavigate();
     const [next, setNext] = useState(null);
-    useEffect(() => {
+    const load = useCallback(() => {
         arenaApi.list().then((rows) => {
             const order = ['live', 'registration', 'upcoming'];
             setNext(rows.filter((c) => order.includes(c.state)).sort((a, b) => order.indexOf(a.state) - order.indexOf(b.state))[0] || null);
         }).catch(() => {});
     }, []);
+    useEffect(() => { load(); }, [load]);
+    useLive('arena', load);
     return (
         <GameCard id="quizarena" label="Quiz Arena" image="/games/quizarena-card.jpg?v=3" icon="/games/quizarena-icon.png" tone="from-indigo-600 to-fuchsia-700"
             players="Individual" meta="Everyone at once · 25 questions · 15 s each"

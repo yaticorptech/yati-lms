@@ -28,12 +28,12 @@ import { Globe, CheckCircle2, XCircle, Loader2, Info, ArrowRight, Tag, Play, Tim
 import Portal from './Portal';
 import api from '../utils/api';
 import { GlobeScene } from './quiz/QuizArt';
-import PriceTag from './rewards/PriceTag';
 import useCountUp from '../hooks/useCountUp';
 import QuizHistory from './quiz/QuizHistory';
 import { useHideLoop } from './loopVisibility';
 // The clock and the score's colour, shared with the list of past quizzes.
 import { clock, toneFor, shortDate } from './quiz/quizFormat';
+import { isWalletCancel } from '../utils/walletCharge';
 
 const minutes = (n) => `${n} minute${n === 1 ? '' : 's'}`;
 
@@ -284,6 +284,8 @@ export default function GlobalQuiz() {
                 setWork(seedFrom(data, key));
             })
             .catch((e) => {
+                // Cancelled at the wallet's price: the quiz stays unopened.
+                if (isWalletCancel(e)) return;
                 // Already taken (or timed out) on another screen: the server has the result.
                 if (staleAttempt(e)) load();
                 else setMarkError(e.response?.data?.message || 'Could not start the quiz.');
@@ -403,7 +405,7 @@ export default function GlobalQuiz() {
                 ) : (
                     <button type="button" onClick={start} disabled={starting}
                         className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-black text-white shadow-md shadow-violet-200 hover:bg-violet-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
-                        {starting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} Start quiz <PriceTag action="start_global_quiz" />
+                        {starting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} Start quiz
                     </button>
                 )}
             </div>

@@ -11,7 +11,7 @@
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
-const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, makeAdmin, startApp, cleanup, forgetAudit } = require('../helpers');
 const games = require('../../src/competitions/games');
 const { GameError } = require('../../src/competitions/games/contract');
 const bracket = require('../../src/competitions/services/bracketService');
@@ -82,7 +82,7 @@ after(async () => {
         Team.deleteMany({ competitionId: { $in: ids } }),
         Competition.deleteMany({ _id: { $in: ids } }),
         Organization.deleteMany({ _id: { $in: made.orgs } }),
-        Admin.deleteMany({ _id: { $in: made.admins } }),
+        Admin.deleteMany({ _id: { $in: made.admins } }), forgetAudit({ orgs: made.orgs, admins: made.admins }),
         Notification.deleteMany({ userId: { $in: made.users.map((u) => u._id) } })
     ]);
     await cleanup(made.users, app.server);

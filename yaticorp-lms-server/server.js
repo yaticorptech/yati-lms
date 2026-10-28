@@ -138,6 +138,8 @@ app.use('/api/linguistic', require('./src/linguistic'));
 // Games & Competitions: online Chess, Ludo, Carrom and UNO, friendly rooms and
 // inter-college competitions run by the platform admin (src/competitions).
 app.use('/api/competitions', require('./src/competitions'));
+// Live updates: competitions, games and leaderboards refresh on open pages without a reload.
+app.use('/api/live', require('./src/live'));
 
 // The teacher dashboard: research methodologies, research path, publications,
 // thesis writing, plagiarism and independent writing (src/teacher).

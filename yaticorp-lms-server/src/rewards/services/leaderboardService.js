@@ -1,20 +1,27 @@
 /**
  * Rankings by XP earned in a window (daily/weekly/monthly) or all time,
- * within a scope (everyone, the student's institution or class, or one
- * course). Always answers with the student's own position, even when they are
+ * within a scope (everyone, the student's organization, institution or
+ * class, or one course). Always answers with the student's own position, even when they are
  * nowhere near the top.
  */
 const mongoose = require('mongoose');
 const User = require('../../models/User');
+const Organization = require('../../organizations/models/Organization');
 const { XpTransaction, Streak, RewardUserBadge, RewardBadge, LeaderboardSnapshot } = require('../models');
 const { periodWindow, dayKey, addDays } = require('../config/constants');
 const { getLevelThresholds, levelFor } = require('./configService');
 
 const PERIODS = ['daily', 'weekly', 'monthly', 'all'];
-const SCOPES = ['global', 'institution', 'class', 'course'];
+const SCOPES = ['global', 'organization', 'institution', 'class', 'course'];
 
 // The set of user ids a scope covers, or null for "everyone".
 const scopeUserIds = async (scope, me) => {
+  // The leaderboard card's Organization choice: the student's own
+  // organization only, nobody from outside it (asked 2026-10-27).
+  if (scope === 'organization') {
+    if (!me?.organizationId) return [];
+    return User.find({ organizationId: me.organizationId, status: 'active' }).distinct('_id');
+  }
   if (scope === 'institution') {
     if (!me?.institution) return [];
     return User.find({ institution: me.institution, status: 'active' }).distinct('_id');
@@ -85,14 +92,17 @@ const getBoard = async ({ period = 'weekly', scope = 'global', courseId = null, 
   const wanted = [...top, ...around];
   const userIds = wanted.map((r) => r.userId);
 
-  const [users, streaks, badges, catalogue, snapshot, ladder] = await Promise.all([
+  const [users, streaks, badges, catalogue, snapshot, ladder, org] = await Promise.all([
     User.find({ _id: { $in: userIds } }).select('name profilePicture xp institution className').lean(),
     // The student's own streak too: their row is shown even when unranked.
     Streak.find({ userId: { $in: [...userIds, me._id] } }).select('userId current lastActivityDay').lean(),
     RewardUserBadge.aggregate([{ $match: { userId: { $in: userIds } } }, { $sort: { unlockedAt: -1 } }, { $group: { _id: '$userId', badgeKey: { $first: '$badgeKey' }, count: { $sum: 1 } } }]),
     RewardBadge.find({}).select('key title emoji').lean(),
     scope === 'global' ? latestSnapshot(period, periodWindow(period).key, 'global') : null,
-    getLevelThresholds()
+    getLevelThresholds(),
+    // Whether the student has an organization to rank in: the card offers
+    // the Organization choice only then.
+    me.organizationId ? Organization.findById(me.organizationId).select('name').lean() : null
   ]);
   const userBy = Object.fromEntries(users.map((u) => [String(u._id), u]));
   // The same rule as the student's own streak card (streakService.summary): a
@@ -125,6 +135,7 @@ const getBoard = async ({ period = 'weekly', scope = 'global', courseId = null, 
 
   return {
     period, scope, courseId, periodKey: periodWindow(period).key, total: rows.length,
+    organization: org ? { name: org.name } : null,
     entries: top.map((r, i) => shape(r, i)),
     around: around.map((r) => shape(r, rows.indexOf(r))),
     me: myIndex >= 0 ? shape(rows[myIndex], myIndex) : { rank: null, xp: 0, isMe: true, name: me.name, level: levelOf(me.xp), streak: streakBy[meId] || 0, movement: null },

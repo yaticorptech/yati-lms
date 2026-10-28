@@ -3,14 +3,20 @@
  * behind protectOrgAdmin and requireActiveOrganization.
  *
  *   GET    /                    my teachers, with their research progress (?search=)
- *   POST   /                    add a teacher { access: { organization, teacher }, … }:
- *                                  teacher dashboard — with a card, my member at once;
+ *   GET    /                    my teachers, with their research progress (or, without a card, nothing to
+ *                                  show there) and the clubs and Scouts units they lead
+ *   POST   /                    add a teacher { access: { organization, teacher, research }, … }:
+ *                                  teacher dashboard — with a card (research: true, the default), my member
+ *                                  at once; or without one (research: false), email and password, for a
+ *                                  club or Scouts leader who sees only their clubs and units;
  *                                  organization dashboard — a limited sign-in to this panel (email, password);
  *                                  both — the two, linked, so Research opens inside the panel
  *   DELETE /staff/:adminId       take away an organization-dashboard sign-in
  *   PUT    /staff/:adminId       edit one { name, email, password?, organization, teacher, + card details }:
  *                                  organization off takes the panel sign-in away; teacher on makes their
  *                                  teacher account with the card (Research), as Add teacher does
+ *   PUT    /:teacherId/card     give an AI card to a teacher added without one { CardNumber, CVV, qrCodeNumber }:
+ *                                  research access from now on, signing in with the card
  *   PUT    /:teacherId          edit a teacher { name, phone, department, designation,
  *                                  organization: bool, panelEmail?, panelPassword?, teacher: bool }:
  *                                  organization on/off gives or takes their sign-in to this panel;
@@ -30,7 +36,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const multer = require('multer');
 const { Teacher, TeacherOrgRequest, TEACHER_REQUEST_STATUSES } = require('./models');
-const { AccountError, createTeacher, createFromSheet, sendWelcome, escapeRegExp } = require('./accounts');
+const { AccountError, createTeacher, createActivityTeacher, giveCard, createFromSheet, sendWelcome, escapeRegExp } = require('./accounts');
+const { ScoutUnit, NccNssClub, SCOUT_SECTION_LABELS } = require('../nccnss/models');
 const { summarise, detail } = require('./progress');
 const Admin = require('../models/Admin');
 const { validatePasswordStrength } = require('../middleware/validatePassword');
@@ -58,12 +65,21 @@ router.get('/', async (req, res) => {
             summarise(rows),
             Admin.find({ organizationId: req.organization._id, staff: true }).select('name email staffTeacherId createdAt').sort({ name: 1 }).lean()
         ]);
+        const ids = rows.map((r) => r._id);
+        const [units, clubs] = await Promise.all([
+            ScoutUnit.find({ organizationId: req.organization._id, leaderTeacherIds: { $in: ids }, status: 'active' }).select('name section leaderTeacherIds').lean(),
+            NccNssClub.find({ organizationId: req.organization._id, inchargeTeacherId: { $in: ids } }).select('name inchargeTeacherId').lean()
+        ]);
+        const leads = (id) => [
+            ...units.filter((u) => u.leaderTeacherIds.some((x) => String(x) === String(id))).map((u) => ({ kind: 'unit', name: u.name, section: SCOUT_SECTION_LABELS[u.section] })),
+            ...clubs.filter((c) => String(c.inchargeTeacherId) === String(id)).map((c) => ({ kind: 'club', name: c.name }))
+        ];
         const q = search.toLowerCase();
         res.json({
             // Each teacher with what they can open; organization-dashboard-only sign-ins listed after.
             teachers: rows.map((r, i) => {
                 const panel = staff.find((a) => String(a.staffTeacherId) === String(r._id));
-                return { ...r, summary: summaries[i], orgAccess: Boolean(panel), panelEmail: panel?.email || '' };
+                return { ...r, summary: summaries[i], research: Boolean(r.cardNumber), leads: leads(r._id), orgAccess: Boolean(panel), panelEmail: panel?.email || '' };
             }),
             staff: staff.filter((a) => !a.staffTeacherId && (!q || `${a.name} ${a.email}`.toLowerCase().includes(q))),
             pendingRequests: await countPending(req.organization._id),
@@ -91,10 +107,59 @@ const staffDetails = async (body) => {
     return { name, email, password };
 };
 
+/**
+ * Adding a teacher whose email already has a teacher account: if it belongs to
+ * no organization, it rejoins this one — a card-less account (made for clubs
+ * and units) with the details and password given now; an account with an AI
+ * card as it is, its card and password its own. Null when there is no such
+ * account; otherwise { status, body } to answer with.
+ */
+const rejoin = async (req, details, access) => {
+    const email = String(details.email || '').trim().toLowerCase();
+    if (!EMAIL_PATTERN.test(email)) return null;
+    const existing = await Teacher.findOne({ email: new RegExp(`^\\s*${escapeRegExp(email)}\\s*$`, 'i') });
+    if (!existing) return null;
+    if (String(existing.organizationId || '') === String(req.organization._id)) {
+        return { status: 400, body: { field: 'email', message: `${existing.name} is already one of your teachers.` } };
+    }
+    if (existing.organizationId) {
+        return { status: 400, body: { field: 'email', message: 'This email is a teacher of another organization. They must leave it first.' } };
+    }
+    const carded = Boolean(existing.cardNumber);
+    if (!carded) {
+        const { name, phone } = checkDetails(details);
+        const weak = details.password ? validatePasswordStrength(String(details.password)) : 'Please choose a password.';
+        if (weak) return { status: 400, body: { field: 'password', message: weak } };
+        Object.assign(existing, {
+            name, phone, password: String(details.password),
+            department: String(details.department || '').trim(), designation: String(details.designation || '').trim()
+        });
+    }
+    existing.organizationId = req.organization._id;
+    existing.organizationJoinedAt = new Date();
+    if (existing.status === 'inactive') existing.status = 'active';
+    await existing.save();
+    if (!carded) sendWelcome(existing, details.password, madeBy(req));
+    return {
+        status: 201,
+        body: {
+            _id: existing._id, name: existing.name, rejoined: true,
+            message: carded
+                ? `${existing.name} already had a teacher account with an AI card, and is back in your organization. They sign in with their own card and password.`
+                : `${existing.name} is back in your organization. Their sign-in details were emailed to ${existing.email}.`
+        }
+    };
+};
+
 router.post('/', async (req, res) => {
     try {
         const body = req.body || {};
-        const access = { organization: Boolean(body.access?.organization), teacher: body.access ? Boolean(body.access.teacher) : true };
+        const access = {
+            organization: Boolean(body.access?.organization),
+            teacher: body.access ? Boolean(body.access.teacher) : true,
+            // With an AI card (research tools), unless the organization says no card.
+            research: body.access?.research === undefined ? true : Boolean(body.access.research)
+        };
         if (!access.organization && !access.teacher) return res.status(400).json({ field: 'access', message: 'Choose the organization dashboard, the teacher dashboard, or both.' });
         // Checked first, so "both" never leaves a teacher account without its sign-in.
         const staff = access.organization ? await staffDetails(body) : null;
@@ -102,7 +167,16 @@ router.post('/', async (req, res) => {
             const admin = await Admin.create({ ...staff, role: 'orgadmin', organizationId: req.organization._id, staff: true });
             return res.status(201).json({ _id: admin._id, name: admin.name, message: `${admin.name} can now sign in to this panel with ${admin.email} and the password you set.` });
         }
-        const teacher = await createTeacher({ ...body, institution: body.institution || req.organization.name }, { by: 'organization', organizationId: req.organization._id });
+        const details = { ...body, institution: body.institution || req.organization.name };
+        // Their account may already exist — most often a teacher this organization
+        // removed, whose account stayed theirs. Then it is brought back, not refused.
+        if (!staff) {
+            const back = await rejoin(req, details, access);
+            if (back) return res.status(back.status).json(back.body);
+        }
+        const teacher = access.research
+            ? await createTeacher(details, { by: 'organization', organizationId: req.organization._id })
+            : await createActivityTeacher(details, { organizationId: req.organization._id });
         sendWelcome(teacher, body.password, madeBy(req));
         if (staff) {
             try {
@@ -111,13 +185,27 @@ router.post('/', async (req, res) => {
                 console.error('[org-teachers] panel sign-in failed:', error.message);
                 return res.status(201).json({ _id: teacher._id, name: teacher.name, message: `${teacher.name} was added with the teacher dashboard, but their organization-dashboard sign-in could not be made. Try adding it again.` });
             }
-            return res.status(201).json({ _id: teacher._id, name: teacher.name, message: `${teacher.name} was added. They sign in to this panel with ${staff.email} (Research is in its menu), and to the teacher dashboard with their card.` });
+            return res.status(201).json({ _id: teacher._id, name: teacher.name, message: `${teacher.name} was added. They sign in to this panel with ${staff.email}${access.research ? ' (Research is in its menu), and to the teacher dashboard with their card' : ', and to the teacher dashboard with their email for their clubs and units'}.` });
         }
         res.status(201).json({ _id: teacher._id, name: teacher.name, message: `${teacher.name} was added to your organization. Their sign-in details were emailed to ${teacher.email}.` });
     } catch (error) {
         if (error instanceof AccountError) return accountError(res, error);
         console.error('[org-teachers] add failed:', error.message);
         res.status(500).json({ message: 'Could not add the teacher just now. Please try again.' });
+    }
+});
+
+router.put('/:teacherId/card', async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.teacherId)) return notMine(res);
+        const teacher = await Teacher.findOne({ _id: req.params.teacherId, organizationId: req.organization._id });
+        if (!teacher) return notMine(res);
+        const updated = await giveCard(teacher, req.body || {});
+        res.json({ message: `${updated.name} now has research access. From now on they sign in with card ${updated.cardNumber} and their same password.` });
+    } catch (error) {
+        if (error instanceof AccountError) return accountError(res, error);
+        console.error('[org-teachers] give card failed:', error.message);
+        res.status(500).json({ message: 'Could not link the card just now. Please try again.' });
     }
 });
 

@@ -39,6 +39,8 @@ const view = (t) => ({
     profilePicture: t.profilePicture || '',
     dailyWordGoal: t.dailyWordGoal || 500,
     organizationId: t.organizationId || null,
+    // An AI card opens the research tools; without one, only clubs and units.
+    research: Boolean(t.cardNumber),
     role: 'teacher',
     createdAt: t.createdAt
 });
@@ -96,9 +98,27 @@ const register = async (req, res) => {
 
 /* ── Signing in ────────────────────────────────────────────────────────── */
 
+/**
+ * The card-less teacher account with this email. A teacher with a card always
+ * signs in with it, so an email never opens a carded account.
+ */
+const withoutCard = (email) => {
+    const e = String(email || '').trim().toLowerCase();
+    return e ? Teacher.findOne({ email: e, cardNumber: { $in: [null, ''] } }) : null;
+};
+
 const login = async (req, res) => {
     try {
-        const { cardNumber, password } = req.body || {};
+        const { cardNumber, email, password } = req.body || {};
+        // A teacher with no AI card (a club or Scouts leader) signs in with email.
+        if (!cardNumber && email) {
+            if (typeof password !== 'string' || !password) return res.status(400).json({ message: 'Enter your email and password.' });
+            const byEmail = await withoutCard(email);
+            if (!byEmail || !(await byEmail.matchPassword(password))) return res.status(401).json({ message: 'Invalid email or password' });
+            if (byEmail.status !== 'active') return res.status(403).json(notActive(byEmail));
+            await Teacher.updateOne({ _id: byEmail._id }, { $inc: { loginCount: 1 }, $set: { lastLoginAt: new Date() } });
+            return res.json({ ...view(byEmail), token: generateToken(byEmail._id, 'teacher') });
+        }
         if (!cardNumber || typeof password !== 'string' || !password) {
             return res.status(400).json({ message: 'Enter your card number and password.' });
         }
@@ -155,29 +175,52 @@ const cardScan = async (req, res) => {
 
 const FORGOT_REPLY = 'If this card number has a teacher account, a reset link has been sent to its email.';
 
+/** Who the card's teacher account is, partly hidden, to confirm before the link is sent. */
+const forgotPasswordPreview = async (req, res) => {
+    try {
+        const { cardNumber, email } = req.body || {};
+        if (!cardNumber && !email) return res.status(400).json({ message: 'Card number is required' });
+        const teacher = cardNumber ? await findTeacherByCard(cardNumber) : await withoutCard(email);
+        if (!teacher) return res.status(404).json({ message: cardNumber ? 'No teacher account was found for this card number.' : 'No teacher account without a card uses this email.' });
+        const preview = require('../utils/accountPreview').accountPreview(teacher);
+        if (!preview) return res.status(409).json({ message: 'This account has no email on file. Ask your administrator to reset your password.' });
+        res.json(preview);
+    } catch (error) {
+        console.error('[teacher] forgot password preview failed:', error.message);
+        res.status(500).json({ message: 'Could not look up that card. Please try again.' });
+    }
+};
+
 const forgotPassword = async (req, res) => {
     try {
-        const cardNumber = req.body?.cardNumber;
-        if (!cardNumber) return res.status(400).json({ message: 'Card number is required' });
-        const teacher = await findTeacherByCard(cardNumber);
+        const { cardNumber, email } = req.body || {};
+        if (!cardNumber && !email) return res.status(400).json({ message: 'Card number is required' });
+        const teacher = cardNumber ? await findTeacherByCard(cardNumber) : await withoutCard(email);
         if (!teacher) return res.json({ message: FORGOT_REPLY });
         const token = crypto.randomBytes(32).toString('hex');
         await Teacher.updateOne({ _id: teacher._id }, { $set: { resetPasswordToken: hashToken(token), resetPasswordExpiry: new Date(Date.now() + 60 * 60 * 1000) } });
         const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?as=teacher&token=${token}`;
-        // Looked up at call time, so a test can stand in for the mailer.
-        await require('../utils/emailService').sendEmail({
-            to: teacher.email,
-            toName: teacher.name,
-            subject: 'Reset your YATICORP teacher password',
-            htmlContent: `
-                <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
-                    <h2 style="color: #4f46e5; margin-bottom: 8px;">Password reset</h2>
-                    <p style="color: #475569;">Hi ${teacher.name.replace(/[<>&"]/g, '')},</p>
-                    <p style="color: #475569;">We received a request to reset the password of your YATICORP teacher account.</p>
-                    <a href="${resetUrl}" style="display: inline-block; margin: 24px 0; padding: 14px 28px; background: #4f46e5; color: white; font-weight: bold; text-decoration: none; border-radius: 8px;">Reset my password</a>
-                    <p style="color: #94a3b8; font-size: 13px;">This link expires in 1 hour. If you did not ask for it, you can ignore this email.</p>
-                </div>`
-        });
+        // Looked up at call time, so a test can stand in for the mailer. A
+        // mail that fails is logged, and the answer stays the same as for a
+        // card with no account: "Failed to send" only for real accounts told
+        // anyone which cards have one (found in the 2026-10-27 test).
+        try {
+            await require('../utils/emailService').sendEmail({
+                to: teacher.email,
+                toName: teacher.name,
+                subject: 'Reset your YATICORP teacher password',
+                htmlContent: `
+                    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
+                        <h2 style="color: #4f46e5; margin-bottom: 8px;">Password reset</h2>
+                        <p style="color: #475569;">Hi ${teacher.name.replace(/[<>&"]/g, '')},</p>
+                        <p style="color: #475569;">We received a request to reset the password of your YATICORP teacher account.</p>
+                        <a href="${resetUrl}" style="display: inline-block; margin: 24px 0; padding: 14px 28px; background: #4f46e5; color: white; font-weight: bold; text-decoration: none; border-radius: 8px;">Reset my password</a>
+                        <p style="color: #94a3b8; font-size: 13px;">This link expires in 1 hour. If you did not ask for it, you can ignore this email.</p>
+                    </div>`
+            });
+        } catch (mailError) {
+            console.error('[teacher] reset email not sent:', mailError.message);
+        }
         res.json({ message: FORGOT_REPLY });
     } catch (error) {
         console.error('[teacher] forgot password failed:', error.message);
@@ -299,4 +342,4 @@ const uploadPicture = async (req, res) => {
     }
 };
 
-module.exports = { protectTeacher, register, login, cardScan, forgotPassword, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };
+module.exports = { protectTeacher, register, login, cardScan, forgotPassword, forgotPasswordPreview, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };

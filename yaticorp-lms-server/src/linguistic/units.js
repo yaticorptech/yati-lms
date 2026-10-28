@@ -94,7 +94,7 @@ const warmupFor = (doc, helper) => {
     const words = (unit?.words || []).filter((w) => w.word && w.kannada);
     if (words.length < 2) return null;
     return shuffle(words, seeded(`${doc.seedKey || doc._id}:warmup`)).slice(0, WARMUP_WORDS)
-        .map((w) => ({ word: w.word, kannada: w.kannada, audio: w.audio || null, locale: unit.targetLocale || 'en-IN' }));
+        .map((w) => ({ word: w.word, kannada: w.kannada, audio: w.audio || null, locale: unit.targetLocale || 'en-IN', say: w.say || null }));
 };
 
 module.exports = { MODULE_ORDER, LEVEL_REVIEWS, unitsOf, pathOrder, warmupFor, topicOf, typeOf };

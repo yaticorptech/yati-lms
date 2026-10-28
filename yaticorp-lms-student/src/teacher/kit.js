@@ -42,6 +42,29 @@ export const fileStem = (title, fallback) => String(title || '').replace(/[^\w\s
 export const fmtDateTime = (d) => (d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '');
 
 export const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+/** The same, short, for a tight row: "now", "5m ago", "3h ago", "2d ago", then "12 Oct". */
+export const fmtAgoShort = (d, now = Date.now()) => {
+    if (!d) return '';
+    const minutes = Math.max(0, Math.round((now - new Date(d).getTime()) / 60000));
+    if (minutes < 1) return 'now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.round(hours / 24);
+    return days < 7 ? `${days}d ago` : new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+};
+/** "just now", "5 minutes ago", "3 hours ago", "yesterday", "4 days ago", then the date. */
+export const fmtAgo = (d, now = Date.now()) => {
+    if (!d) return '';
+    const minutes = Math.max(0, Math.round((now - new Date(d).getTime()) / 60000));
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+    const days = Math.round(hours / 24);
+    if (days === 1) return 'yesterday';
+    return days < 7 ? `${days} days ago` : `on ${fmtDate(d)}`;
+};
 export const toDateInput = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
 /** "Dr. Meera Iyer" → "MI": titles are skipped. */
 export const initialsOf = (name) => (name || '').trim().split(/\s+/).filter((w) => !/^(dr|prof|mr|mrs|ms)\.?$/i.test(w)).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'T';

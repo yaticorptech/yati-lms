@@ -164,6 +164,18 @@ describe('a teacher registers a card and signs in', () => {
         assert.equal((await anon('POST', '/api/teacher/auth/login', { cardNumber: reg.card.CardNumber, password: 'New-Teach1!' })).status, 200);
     });
 
+    test('a reset email that fails gets the same answer as a card with no account', async () => {
+        const mailer = require('../../src/utils/emailService');
+        const working = mailer.sendEmail;
+        mailer.sendEmail = async () => { throw new Error('mail service down'); };
+        try {
+            const real = await anon('POST', '/api/teacher/auth/forgot-password', { cardNumber: reg.card.CardNumber });
+            const unknown = await anon('POST', '/api/teacher/auth/forgot-password', { cardNumber: '999999999999' });
+            assert.equal(real.status, 200);
+            assert.deepEqual(real.body, unknown.body, 'nothing tells whether the card has an account');
+        } finally { mailer.sendEmail = working; }
+    });
+
     test('changing the password needs the current one; a mistake is a 400', async () => {
         const login = await anon('POST', '/api/teacher/auth/login', { cardNumber: reg.card.CardNumber, password: 'New-Teach1!' });
         const me = call(login.body.token);

@@ -5,27 +5,12 @@
  * history and redemption.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Wallet, Gift, TrendingUp, ArrowUpCircle, Trophy, BookOpen, Award, ArrowDownToLine, RotateCcw, Briefcase, Sparkles, X, ShoppingBag } from 'lucide-react';
+import { Wallet, X, ShoppingBag } from 'lucide-react';
 import api from '../../utils/api';
 import WalletSection from './WalletSection';
-import { money, balance, SOURCE_LABEL, txTitle } from './format';
+import { money, balance, SOURCE_LABEL, txTitle, iconOf } from './format';
 import Portal from '../Portal';
 import useBackClose from '../../native/useBackClose';
-
-const ICON = {
-    xp_reward: { Icon: Sparkles, cls: 'bg-amber-100 text-amber-600' },
-    starting_credit: { Icon: Gift, cls: 'bg-emerald-100 text-emerald-600' },
-    learning_reward: { Icon: ArrowUpCircle, cls: 'bg-emerald-100 text-emerald-600' },
-    leaderboard_reward: { Icon: Trophy, cls: 'bg-amber-100 text-amber-600' },
-    referral_reward: { Icon: Gift, cls: 'bg-pink-100 text-pink-600' },
-    job_earning: { Icon: Briefcase, cls: 'bg-sky-100 text-sky-600' },
-    purchase: { Icon: BookOpen, cls: 'bg-indigo-100 text-indigo-600' },
-    feature_charge: { Icon: Sparkles, cls: 'bg-indigo-100 text-indigo-600' },
-    feature_refund: { Icon: RotateCcw, cls: 'bg-emerald-100 text-emerald-600' },
-    withdrawal: { Icon: ArrowDownToLine, cls: 'bg-slate-100 text-slate-600' },
-    withdrawal_refund: { Icon: RotateCcw, cls: 'bg-slate-100 text-slate-600' },
-    admin_adjustment: { Icon: Award, cls: 'bg-violet-100 text-violet-600' }
-};
 
 const ago = (d) => {
     const s = (Date.now() - new Date(d).getTime()) / 1000;
@@ -50,7 +35,7 @@ const Sheet = ({ title, label, onClose, children, wide }) => {
     return (
         <Portal>
             <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
-                <div className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-3xl ${wide ? 'max-w-4xl' : 'max-w-md'} rw-pop`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title || label}>
+                <div className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-3xl ${wide ? 'max-w-xl' : 'max-w-md'} rw-pop`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title || label}>
                     {title && (
                         <div className="flex items-center justify-between rounded-t-3xl border-b border-slate-100 bg-white px-5 py-4">
                             <p className="text-lg font-black text-slate-900">{title}</p>
@@ -74,7 +59,8 @@ export function WalletSheet({ onClose }) {
     return (
         <Sheet onClose={onClose} label="Wallet and transactions" wide>
             <div className="relative">
-                <button onClick={onClose} className="absolute right-3 top-3 z-20 rounded-full bg-white p-1.5 text-slate-400 shadow-md ring-1 ring-slate-200 hover:text-slate-600" aria-label="Close"><X size={16} /></button>
+                {/* Over the wallet's violet header, so white on a glass circle. */}
+                <button onClick={onClose} className="absolute right-3 top-3 z-20 rounded-full bg-white/15 p-1.5 text-white ring-1 ring-white/30 backdrop-blur transition-colors hover:bg-white/25 sm:right-4 sm:top-4" aria-label="Close"><X size={16} /></button>
                 <WalletSection />
             </div>
         </Sheet>
@@ -120,10 +106,11 @@ export default function WalletCard() {
                     <button type="button" onClick={load} className="rounded-xl border border-red-200 bg-white px-3 py-1.5 text-sm font-bold text-red-700 hover:bg-red-100">Try again</button>
                 </div>
             ) : !data ? (
-                <div className="grid gap-3 sm:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-32 rounded-2xl" />)}</div>
+                <div className="grid gap-3 sm:grid-cols-2">{[0, 1].map((i) => <div key={i} className="skeleton h-32 rounded-2xl" />)}</div>
             ) : (
                 <>
-                    <div className="stagger grid gap-3 sm:grid-cols-3">
+                    {/* Balance and spent only: no "Total earned" (taken off, 2026-10-26). */}
+                    <div className="stagger grid gap-3 sm:grid-cols-2">
                         <div className="@container min-w-0 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
                             <p className="text-sm font-semibold text-slate-600">Wallet Balance</p>
                             <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-emerald-700">{money(balance(w.available), cur)}</p>
@@ -134,10 +121,6 @@ export default function WalletCard() {
                             <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">Total Spent</p><span className="rounded-lg bg-amber-100 p-1.5 text-amber-600"><ShoppingBag size={16} /></span></div>
                             <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-amber-700">{money(w.totalSpent, cur)}</p>
                             <p className="text-xs font-semibold text-amber-700/80">On courses and features</p>
-                        </div>
-                        <div className="@container min-w-0 rounded-2xl border border-sky-100 bg-sky-50/70 p-4">
-                            <div className="flex items-start justify-between"><p className="text-sm font-semibold text-slate-600">Total Earned</p><span className="rounded-lg bg-sky-100 p-1.5 text-sky-600"><TrendingUp size={16} /></span></div>
-                            <p className="mt-2 min-w-0 whitespace-nowrap text-[clamp(1.125rem,13cqw,1.875rem)] font-black leading-tight tabular-nums text-sky-700">{money(w.totalEarned, cur)}</p>
                         </div>
                     </div>
 
@@ -153,7 +136,7 @@ export default function WalletCard() {
                             // transaction is there, and the card never grows.
                             <ul data-transactions className="scroll-fade max-h-[194px] divide-y divide-slate-100 overflow-y-auto overscroll-contain rounded-b-2xl">
                                 {data.recent.map((t) => {
-                                    const { Icon, cls } = ICON[t.source] || ICON.admin_adjustment;
+                                    const { Icon, cls } = iconOf(t.source);
                                     const credit = t.type === 'credit';
                                     return (
                                         <li key={t._id} className="flex items-center gap-3 px-4 py-3">

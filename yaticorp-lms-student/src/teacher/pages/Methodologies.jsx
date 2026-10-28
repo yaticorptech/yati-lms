@@ -4,14 +4,17 @@
  * advisor that suggests the designs to use, from six questions answered or
  * from the research question written out.
  * The guides and the advisor are part of the app; nothing is saved here.
+ * The Questionnaire builder opens from here as a popup (QuestionnaireBuilder,
+ * asked 2026-10-27): its surveys are saved, and download as Word files.
  */
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { FlaskConical, Sparkles, ListChecks, Lightbulb, BarChart3, Users, ShieldCheck, Scale, Wrench, AlertTriangle, HelpCircle, Search, ChevronLeft, RotateCcw } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { FlaskConical, Sparkles, ListChecks, Lightbulb, BarChart3, Users, ShieldCheck, Scale, Wrench, AlertTriangle, HelpCircle, Search, ChevronLeft, RotateCcw, ClipboardList } from 'lucide-react';
 import { PageHeader, Card, ErrorNote, Badge, Modal, Progress } from '../ui';
 import { METHODS, BY_KEY, adviseByKeywords } from '../content/methodologies';
 import { ADVISOR_QUESTIONS, adviseByAnswers } from '../content/methodAdvisor';
 import { btn, inputClass } from '../kit';
+import QuestionnaireBuilder from '../QuestionnaireBuilder';
 
 const FAMILY_TONE = {
     Quantitative: 'bg-sky-100 text-sky-700',
@@ -87,6 +90,11 @@ export default function Methodologies() {
     const [adviceError, setAdviceError] = useState('');
     // How the advisor is asked: six questions (for anyone), or the question written out.
     const [mode, setMode] = useState('questions');
+    // ?questionnaire= opens the builder at that questionnaire (the dashboard's
+    // "Continue where you left off"); closing it takes the link away.
+    const [params, setParams] = useSearchParams();
+    const [builderOpen, setBuilderOpen] = useState(() => Boolean(params.get('questionnaire')));
+    const closeBuilder = () => { setBuilderOpen(false); if (params.get('questionnaire')) setParams({}, { replace: true }); };
 
     const byKey = BY_KEY;
     const open = key ? byKey.get(key) : null;
@@ -155,6 +163,15 @@ export default function Methodologies() {
                 )}
             </Card>
 
+            <Card className="flex flex-wrap items-center gap-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-violet-200 bg-violet-50 text-violet-600"><ClipboardList size={20} aria-hidden="true" /></span>
+                <div className="min-w-0 flex-1 basis-56">
+                    <h2 className="text-sm font-semibold text-slate-900">Questionnaire builder</h2>
+                    <p className="mt-0.5 text-sm text-slate-600">Build the survey for your data collection, with Likert-scale, multiple-choice and open questions, and download it as a Word file.</p>
+                </div>
+                <button type="button" onClick={() => setBuilderOpen(true)} className={`${btn.primary} w-full sm:w-auto`}><ClipboardList size={15} /> Open the builder</button>
+            </Card>
+
             {(
                 <>
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -213,6 +230,7 @@ export default function Methodologies() {
                     </div>
                 </Modal>
             )}
+            {builderOpen && <QuestionnaireBuilder initialId={params.get('questionnaire')} onClose={closeBuilder} />}
         </div>
     );
 }

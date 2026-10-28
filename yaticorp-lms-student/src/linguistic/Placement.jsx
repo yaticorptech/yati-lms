@@ -44,9 +44,10 @@ export default function Placement() {
         const label = levelOf(result.level).label;
         return (
             <SessionFrame label="Placement test">
-                <Finish tone="pass" pose="cheer-jump" title={`Your level: ${label}`} text={BLURB[result.level]}
+                {/* Taken again once lessons are begun (2026-10-28): the level shown, but the student stays where they are. */}
+                <Finish tone="pass" pose="cheer-jump" title={`Your level: ${label}`} text={result.kept ? `Well done! You keep going from ${levelOf(result.kept).label}: finish each unit and section to move on.` : BLURB[result.level]}
                     stats={LEVELS.map((l) => ({ label: l.label, value: `${result.bands[l.id]?.score ?? 0}/${result.bands[l.id]?.total ?? 0}`, color: BAND_COLOR[l.id] }))}
-                    results={result.results} primary={{ label: 'Start learning', onClick: toPath }}>
+                    results={result.results} primary={{ label: result.kept ? 'Keep learning' : 'Start learning', onClick: toPath }}>
                     <p className="sr-only" data-placed-level={result.level}>{label}</p>
                 </Finish>
             </SessionFrame>

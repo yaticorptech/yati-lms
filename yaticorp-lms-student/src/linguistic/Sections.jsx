@@ -6,7 +6,7 @@
  * section opens the path at it.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useOutletContext } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Lock, Trophy } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS, levelOf } from './meta';
@@ -16,7 +16,6 @@ const POSES = ['wave-hi', 'presenting', 'star-celebrate'];
 const TONES = ['green', 'blue', 'purple'];
 
 export default function Sections() {
-    const { dash } = useOutletContext();
     const navigate = useNavigate();
     const [path, setPath] = useState(undefined);
     const [error, setError] = useState(null);
@@ -24,7 +23,6 @@ export default function Sections() {
     useEffect(() => { load(); }, [load]);
     if (path === undefined) return <Loading label="Opening the sections…" />;
     if (!path) return <Problem error={error} onRetry={load} />;
-    const english = !dash.course || dash.course.code === 'en';
 
     return (
         <div className="space-y-5" data-sections>
@@ -55,10 +53,13 @@ export default function Sections() {
                             <Mascot pose={POSES[i % POSES.length]} className={`h-20 w-20 shrink-0 sm:h-24 sm:w-24 ${s.open ? '' : 'opacity-40 grayscale'}`} />
                         </div>
                         <div className="space-y-4 border-t-2 border-[#F2F2F2] p-5">
-                            <div className="flex items-center gap-3">
-                                <Bar value={s.total ? (s.completed / s.total) * 100 : 0} color={s.complete ? 'gold' : 'green'} className="h-3.5 flex-1" label={`${lv.section}: ${s.completed} of ${s.total} lessons`} />
-                                <span className="text-sm font-extrabold tabular-nums text-[#AFAFAF]">{s.completed}/{s.total}</span>
-                            </div>
+                            {/* No progress shown for a section still shut (2026-10-28). */}
+                            {s.open && (
+                                <div className="flex items-center gap-3">
+                                    <Bar value={s.total ? (s.completed / s.total) * 100 : 0} color={s.complete ? 'gold' : 'green'} className="h-3.5 flex-1" label={`${lv.section}: ${s.completed} of ${s.total} lessons`} />
+                                    <span className="text-sm font-extrabold tabular-nums text-[#AFAFAF]">{s.completed}/{s.total}</span>
+                                </div>
+                            )}
                             <ol className="grid gap-2 sm:grid-cols-2">
                                 {s.units.map((u) => {
                                     const lessons = u.lessons.filter((n) => !n.stop);
@@ -75,9 +76,7 @@ export default function Sections() {
                             </ol>
                             {s.open
                                 ? <button type="button" onClick={go} className="lingo-btn h-12 w-full" style={{ background: s.complete ? '#fff' : c.face, borderColor: s.complete ? '#E5E5E5' : c.edge, color: s.complete ? c.ink : '#fff' }} data-section-go>{s.complete ? 'Review' : here || s.completed ? 'Continue' : 'Start'}</button>
-                                : english
-                                    ? <Link to="/linguistic/placement" className="lingo-btn flex h-12 w-full items-center justify-center" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.blue.ink }} data-section-jump>Jump here?</Link>
-                                    : <p className="flex items-center justify-center gap-2 text-sm font-extrabold uppercase tracking-wide text-[#AFAFAF]"><Lock size={15} /> Finish Section {i} to open it</p>}
+                                : <p className="flex items-center justify-center gap-2 text-sm font-extrabold uppercase tracking-wide text-[#AFAFAF]" data-section-locked><Lock size={15} /> Finish Section {i} to open it</p>}
                         </div>
                     </Panel>
                 );

@@ -44,13 +44,13 @@ describe('reward notices', () => {
         const rows = await Notification.find({ userId: me.user._id }).lean();
         const by = Object.fromEntries(rows.map((n) => [n.title, n]));
         assert.ok(rows.every((n) => n.type === 'reward'));
-        assert.equal(by['Withdrawal paid'].link, '/#wallet');
+        assert.equal(by['Withdrawal paid'].link, '/enrolled-courses#wallet');
         assert.equal(by['🏆 Rank #2 last week!'].link, '/#leaderboard');
         assert.equal(by['🏆 1st place!'].link, '/competitions');
     });
 
     test('a notice saved without a link is given one when read, and never one into a locked Career Path', () => {
-        assert.equal(noticeLink({ title: 'Withdrawal not approved' }), '/#wallet');
+        assert.equal(noticeLink({ title: 'Withdrawal not approved' }), '/enrolled-courses#wallet');
         assert.equal(noticeLink({ title: 'XP earned' }), '/profile');
         assert.equal(noticeLink({ title: '🎖️ Badge unlocked: Quiz Master' }), '/career/badges');
         assert.equal(noticeLink({ title: '🎖️ Badge unlocked: Quiz Master' }, { careerIsOpen: false }), '/profile');

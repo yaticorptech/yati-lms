@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useTeacher, hasResearch } from './teacher/useTeacher';
 import useJobsAccess from './hooks/useJobsAccess';
 import JobsLockedNotice from './jobs/JobsLockedNotice';
 import { useContext } from 'react';
@@ -16,7 +17,6 @@ import { useSayPageOnNav } from './components/loopGuide';
 import Login from './pages/Login';
 import { loginPathFor } from './utils/sessionExpiry';
 import { hasTeacherSession, enterEmbedded } from './teacher/teacherSession';
-import EnrolledCourses from './pages/EnrolledCourses';
 // A guardian answering a part-time job permission request. Outside the auth
 // guard on purpose: a parent has no account and arrives from a link.
 const GuardianReview = React.lazy(() => import('./opportunities/application/GuardianReview'));
@@ -105,18 +105,26 @@ const TeacherThesisList = React.lazy(() => import('./teacher/pages/ThesisList'))
 const TeacherThesisEditor = React.lazy(() => import('./teacher/pages/ThesisEditor'));
 const TeacherWriting = React.lazy(() => import('./teacher/pages/Writing'));
 const TeacherClubs = React.lazy(() => import('./teacher/pages/Clubs'));
+const TeacherScoutUnits = React.lazy(() => import('./teacher/pages/ScoutUnits'));
 const TeacherWritingEditor = React.lazy(() => import('./teacher/pages/WritingEditor'));
 const TeacherPlagiarism = React.lazy(() => import('./teacher/pages/Plagiarism'));
 const TeacherProfile = React.lazy(() => import('./teacher/pages/TeacherProfile'));
 const teacherPage = (Page) => <React.Suspense fallback={<YatiLoader label="Loading this page" />}><Page /></React.Suspense>;
+// The research pages need an AI card; a teacher without one (a club or Scouts leader) is sent to their units.
+const ResearchOnly = ({ children }) => (hasResearch(useTeacher().teacher) ? children : <Navigate to="/teacher/scout-units" replace />);
+const researchPage = (Page) => <ResearchOnly>{teacherPage(Page)}</ResearchOnly>;
 
-import Profile from './pages/Profile';
-import Signup from './pages/Signup';
-import AdminAccess from './pages/AdminAccess';
-import NotFound from './pages/NotFound';
+// Only the sign-in page is in the first download. Everything else — the
+// dashboard too — is fetched when it is first opened, so a page brings only
+// its own code and the rest stays on the server until it is wanted.
+const Profile = React.lazy(() => import('./pages/Profile'));
+const Signup = React.lazy(() => import('./pages/Signup'));
+const AdminAccess = React.lazy(() => import('./pages/AdminAccess'));
+const NotFound = React.lazy(() => import('./pages/NotFound'));
+const EnrolledCourses = React.lazy(() => import('./pages/EnrolledCourses'));
 // Downloaded when first opened rather than with the sign-in page: the player
 // brings the video players, the community its editor, and every student sees
-// the sign-in page first. Login and Signup stay in the first download.
+// the sign-in page first.
 const CoursePlayer = React.lazy(() => import('./pages/CoursePlayer'));
 const CoursePreview = React.lazy(() => import('./pages/CoursePreview'));
 const ResetPassword = React.lazy(() => import('./pages/ResetPassword'));
@@ -136,11 +144,14 @@ const CareerOverview = React.lazy(() => import('./career/pages/dashboard/Overvie
 const CareerPlanner = React.lazy(() => import('./career/pages/dashboard/Planner'));
 const CareerCalendar = React.lazy(() => import('./career/pages/dashboard/Calendar'));
 const CareerRoadmap = React.lazy(() => import('./career/pages/dashboard/RoadmapPage'));
-const CareerSkills = React.lazy(() => import('./career/pages/dashboard/Skills'));
-const CareerRecommendations = React.lazy(() => import('./career/pages/dashboard/Recommendations'));
+// Skills and Ideas & Resources are one tab since 2026-10-27 (SkillsHub: My skills / What to learn).
+const CareerSkills = React.lazy(() => import('./career/pages/dashboard/SkillsHub'));
 const CareerProfile = React.lazy(() => import('./career/pages/Profile'));
 const CareerBadges = React.lazy(() => import('./career/pages/dashboard/Badges'));
 const CareerGames = React.lazy(() => import('./career/pages/dashboard/Games'));
+// Games and competitions (brain games, matches, quizzes, hackathons) always stay in English,
+// whatever the platform language: the translator skips anything inside translate="no".
+const EnglishOnly = ({ children }) => <div translate="no" className="contents">{children}</div>;
 const CareerSettings = React.lazy(() => import('./career/pages/dashboard/SettingsPage'));
 const CareerOnboarding = React.lazy(() => import('./career/pages/Onboarding'));
 
@@ -288,13 +299,12 @@ const LOOP_PAGES = {
   '/career/planner': { label: "Today's Plan", text: "Today's tasks, picked from your roadmap. Finish them all and you can unlock one more." },
   '/career/calendar': { label: 'Calendar', text: 'Your tasks day by day. Add exams and events, and set up your class timetable. The day before an exam stays free.' },
   '/career/roadmap': { label: 'Roadmap', text: `Your step-by-step path to your goal. ${LOOP_CLICK[0].toUpperCase()}${LOOP_CLICK.slice(1)} a phase to open it, or turn it into daily tasks.` },
-  '/career/skills': { label: 'Skills', text: 'The skills you build as you finish tasks: the ones in progress, the ones you have mastered, and the ones ready to start.' },
-  '/career/recommendations': { label: 'Ideas & Resources', text: 'Handpicked for your goal: courses, certifications, books, internships, scholarships and practice sites, plus ideas from your roadmap.' },
+  '/career/skills': { label: 'Skills', text: 'Your skills in one place: the ones you are building as you finish tasks, and what to learn next — courses, certifications, books and practice sites picked for your goal.' },
+  '/career/scholarships': { label: 'Scholarships', text: 'Scholarships you qualify for. Fill in the eligibility form once, then see each match with its amount and deadline.' },
   '/career/profile': { label: 'My Progress', text: 'Where you stand: your level and XP, your skills and achievements, and any tasks still to do from earlier days.' },
   '/career/badges': { label: 'Rewards', text: 'Your level, XP and badges, how close the next badge is, and the roadmap milestones you can share.' },
   '/interview': { label: 'Job Preparation', text: 'Get interview-ready: practise common questions, then take an AI mock interview by voice and get feedback to improve.' },
   '/jobs': { label: 'Jobs', text: 'Jobs that match your skills and goal. Filter by type and location, apply, and save the ones you like.' },
-  '/scholarships': { label: 'Scholarships', text: 'Scholarships you qualify for. Fill in the eligibility form once, then see each match with its amount and deadline.' },
   '/games': { label: 'Games', text: "Quick memory, logic, word and number games. Each level's stars earn you XP, within today's play time." },
   '/competitions': { label: 'Competitions', text: 'Play Chess, rapid-fire rounds, coding clashes and IQ puzzles in competitions, for your college, and take part in quizzes and hackathons.' },
   '/linguistic/dashboard': { label: 'Language Learning', text: 'Your language dashboard: where you are, your streak and XP, your roadmap, each skill and your certificates. Tap Learn to go on with your path.' },
@@ -358,10 +368,10 @@ function App() {
     {showLoop && <LoopWalker hidden={loopHidden} mode="stand" side="right" greeting={LOOP_GREETING} explain={LOOP_EXPLAIN} describeButton={describeLoopButton} height={120} mobileHeight={108} hint={false} />}
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
+      <Route path="/signup" element={<React.Suspense fallback={<CareerFallback />}><Signup /></React.Suspense>} />
       <Route path="/reset-password" element={<React.Suspense fallback={<CareerFallback />}><ResetPassword /></React.Suspense>} />
       {/* A superadmin opening a student's dashboard from the admin Users page. */}
-      <Route path="/admin-access" element={<AdminAccess />} />
+      <Route path="/admin-access" element={<React.Suspense fallback={<CareerFallback />}><AdminAccess /></React.Suspense>} />
       {/* Public and outside the auth guard on purpose: Google's OAuth reviewer
           has to be able to open these, and so does anyone deciding whether to
           sign up at all. */}
@@ -378,25 +388,25 @@ function App() {
         {/* Two routes, one component: see pages/Profile.jsx. The keys make each
             its own page — without them React would keep one instance across the
             switch, and an edit form left open on one would reappear on the other. */}
-        <Route index element={<Profile key="dashboard" />} />
-        <Route path="enrolled-courses" element={<EnrolledCourses />} />
+        <Route index element={<React.Suspense fallback={<CareerFallback />}><Profile key="dashboard" /></React.Suspense>} />
+        <Route path="enrolled-courses" element={<React.Suspense fallback={<CareerFallback />}><EnrolledCourses /></React.Suspense>} />
         <Route path="learning-bio" element={<React.Suspense fallback={<CareerFallback />}><LearningBioPage /></React.Suspense>} />
         {/* Games: the brain games (Brain Boosters), a section of their own since
             2026-10-23 (no longer a Career Path tab); their server routes stay
             open when Career Path is locked. Competitions: Chess, the brain games, quizzes and hackathons. */}
-        <Route path="games" element={<React.Suspense fallback={<CareerFallback />}><CareerProviders><CareerGames /></CareerProviders></React.Suspense>} />
+        <Route path="games" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CareerProviders><CareerGames /></CareerProviders></React.Suspense></EnglishOnly>} />
         {/* A Group Brain room — its lobby, game and result — is part of Games, not Competitions. */}
-        <Route path="games/play/:gameId" element={<React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense>} />
-        <Route path="competitions" element={<React.Suspense fallback={<CareerFallback />}><CompetitionsHome /></React.Suspense>} />
+        <Route path="games/play/:gameId" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CompetitionsHome /></React.Suspense></EnglishOnly>} />
         <Route path="extracurricular" element={<React.Suspense fallback={<CareerFallback />}><ExtraCurricular /></React.Suspense>} />
         <Route path="extracurricular/:id" element={<React.Suspense fallback={<CareerFallback />}><ExtraCurricular /></React.Suspense>} />
         <Route path="ncc-nss" element={<Navigate to="/extracurricular" replace />} />
-        <Route path="competitions/play/:gameId" element={<React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense>} />
-        <Route path="competitions/:id/quiz" element={<React.Suspense fallback={<CareerFallback />}><QuizPage /></React.Suspense>} />
+        <Route path="competitions/play/:gameId" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><GamePage /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/:id/quiz" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><QuizPage /></React.Suspense></EnglishOnly>} />
         <Route path="competitions/arena" element={<Navigate to="/competitions?tab=competitions&game=quizarena" replace />} />
-        <Route path="competitions/arena/:id" element={<React.Suspense fallback={<CareerFallback />}><ArenaDetail /></React.Suspense>} />
-        <Route path="competitions/arena/:id/play" element={<React.Suspense fallback={<CareerFallback />}><ArenaPlay /></React.Suspense>} />
-        <Route path="competitions/:id" element={<React.Suspense fallback={<CareerFallback />}><CompetitionDetail /></React.Suspense>} />
+        <Route path="competitions/arena/:id" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><ArenaDetail /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/arena/:id/play" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><ArenaPlay /></React.Suspense></EnglishOnly>} />
+        <Route path="competitions/:id" element={<EnglishOnly><React.Suspense fallback={<CareerFallback />}><CompetitionDetail /></React.Suspense></EnglishOnly>} />
         <Route element={<React.Suspense fallback={<CareerFallback />}><JobPrepShell /></React.Suspense>}>
         <Route path="interview" element={<React.Suspense fallback={<CareerFallback />}><InterviewDashboard /></React.Suspense>} />
         <Route path="interview/practice" element={<React.Suspense fallback={<CareerFallback />}><PracticePage /></React.Suspense>} />
@@ -433,7 +443,7 @@ function App() {
           <Route path="linguistic/:module" element={<React.Suspense fallback={<CareerFallback />}><LinguisticModule /></React.Suspense>} />
           <Route path="linguistic/:module/:lessonId" element={<React.Suspense fallback={<CareerFallback />}><LinguisticLesson /></React.Suspense>} />
         </Route>
-        <Route path="profile" element={<Profile key="profile" view="profile" />} />
+        <Route path="profile" element={<React.Suspense fallback={<CareerFallback />}><Profile key="profile" view="profile" /></React.Suspense>} />
         <Route path="learn/:courseId" element={<React.Suspense fallback={<CareerFallback />}><CoursePlayer /></React.Suspense>} />
 
         {/* Career Path. The onboarding wizard sits outside the shell because it
@@ -443,14 +453,8 @@ function App() {
         {/* Scholarships is its own section in the navigation, but the list
             it shows is built with the student's Career Path resources, so it
             rides on the same switch. */}
-        <Route
-          path="scholarships"
-          element={
-            <React.Suspense fallback={<CareerFallback />}>
-              <Scholarships />
-            </React.Suspense>
-          }
-        />
+        {/* Scholarships is a Career Path tab since 2026-10-27; an old link goes there. */}
+        <Route path="scholarships" element={<Navigate to="/career/scholarships" replace />} />
         <Route
           path="career/onboarding"
           element={
@@ -469,7 +473,9 @@ function App() {
           <Route path="calendar" element={<React.Suspense fallback={<CareerFallback />}><CareerCalendar /></React.Suspense>} />
           <Route path="roadmap" element={<React.Suspense fallback={<CareerFallback />}><CareerRoadmap /></React.Suspense>} />
           <Route path="skills" element={<React.Suspense fallback={<CareerFallback />}><CareerSkills /></React.Suspense>} />
-          <Route path="recommendations" element={<React.Suspense fallback={<CareerFallback />}><CareerRecommendations /></React.Suspense>} />
+          {/* Ideas & Resources is the Skills tab's "What to learn" view since 2026-10-27. */}
+          <Route path="recommendations" element={<Navigate to="/career/skills?view=learn" replace />} />
+          <Route path="scholarships" element={<React.Suspense fallback={<CareerFallback />}><Scholarships /></React.Suspense>} />
           <Route path="profile" element={<React.Suspense fallback={<CareerFallback />}><CareerProfile /></React.Suspense>} />
           <Route path="badges" element={<React.Suspense fallback={<CareerFallback />}><CareerBadges /></React.Suspense>} />
           {/* The brain games (Brain Boosters) are the Games section since 2026-10-23; an old link goes there. */}
@@ -480,22 +486,23 @@ function App() {
       </Route>
       <Route path="/teacher/sso" element={<TeacherSso />} />
       <Route path="/teacher" element={<TeacherRoute><React.Suspense fallback={<YatiLoader fullScreen label="Opening your dashboard" />}><TeacherProvider><TeacherLayout /></TeacherProvider></React.Suspense></TeacherRoute>}>
-        <Route index element={teacherPage(TeacherDashboard)} />
-        <Route path="methods" element={teacherPage(TeacherMethodologies)} />
-        <Route path="methods/:key" element={teacherPage(TeacherMethodologies)} />
-        <Route path="research-path" element={teacherPage(TeacherResearchPath)} />
-        <Route path="publications" element={teacherPage(TeacherPublications)} />
-        <Route path="thesis" element={teacherPage(TeacherThesisList)} />
-        <Route path="thesis/:id" element={teacherPage(TeacherThesisEditor)} />
-        <Route path="writing" element={teacherPage(TeacherWriting)} />
-        <Route path="writing/:id" element={teacherPage(TeacherWritingEditor)} />
-        <Route path="plagiarism" element={teacherPage(TeacherPlagiarism)} />
+        <Route index element={researchPage(TeacherDashboard)} />
+        <Route path="methods" element={researchPage(TeacherMethodologies)} />
+        <Route path="methods/:key" element={researchPage(TeacherMethodologies)} />
+        <Route path="research-path" element={researchPage(TeacherResearchPath)} />
+        <Route path="publications" element={researchPage(TeacherPublications)} />
+        <Route path="thesis" element={researchPage(TeacherThesisList)} />
+        <Route path="thesis/:id" element={researchPage(TeacherThesisEditor)} />
+        <Route path="writing" element={researchPage(TeacherWriting)} />
+        <Route path="writing/:id" element={researchPage(TeacherWritingEditor)} />
+        <Route path="plagiarism" element={researchPage(TeacherPlagiarism)} />
         <Route path="clubs" element={teacherPage(TeacherClubs)} />
+        <Route path="scout-units" element={teacherPage(TeacherScoutUnits)} />
         <Route path="profile" element={teacherPage(TeacherProfile)} />
         <Route path="*" element={<Navigate to="/teacher" replace />} />
       </Route>
       {MascotDemo && <Route path="/dev/mascot" element={<React.Suspense fallback={<CareerFallback />}><MascotDemo /></React.Suspense>} />}
-      <Route path="*" element={<NotFound />} />
+      <Route path="*" element={<React.Suspense fallback={<CareerFallback />}><NotFound /></React.Suspense>} />
     </Routes>
     </>
   );

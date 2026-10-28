@@ -11,15 +11,21 @@ import scholarshipView from './scholarshipView';
 import ScholarshipProfileForm from '../components/ScholarshipProfileForm';
 import { Link } from 'react-router-dom';
 import {
-  GraduationCap, Search, X, ExternalLink, CalendarDays, BadgeCheck, Sparkles, Coins, ShieldCheck, Compass, Building2, Loader2, RotateCw
+  GraduationCap, Search, X, ExternalLink, ArrowRight, CalendarDays, BadgeCheck, Sparkles, Coins, ShieldCheck, Compass, Building2, Loader2, RotateCw
 } from 'lucide-react';
 import api from '../career/services/api';
 import AiBudgetNotice from '../career/components/AiBudgetNotice';
 import { readAiBudgetError } from '../career/utils/aiBudget';
-import { FundedArt, SearchFundingArt } from '../components/ScholarshipArt';
+import { SearchFundingArt } from '../components/ScholarshipArt';
 import YatiLoader from '../components/YatiLoader';
 import useMinimumLoading from '../hooks/useMinimumLoading';
-import PriceTag from '../components/rewards/PriceTag';
+import { isWalletCancel } from '../utils/walletCharge';
+import './scholarships.css';
+
+// A hue per card, round the wheel: the stripe along its top, its cap tile and its Apply button share it.
+const HUES = [
+  { grad: 'from-violet-600 to-indigo-600', shadow: 'shadow-violet-500/25', hover: 'hover:shadow-violet-500/15' }
+];
 
 // A deadline that reads as a real date gets a "soon" flag when it is inside a
 // month; anything the mentor wrote as prose ("Rolling", "Every March") is
@@ -78,7 +84,7 @@ export default function Scholarships() {
     } catch (err) {
       const budget = readAiBudgetError(err);
       if (budget) setAiBudget(budget);
-      else setError(err.response?.data?.message || 'Could not find scholarships right now. Please try again.');
+      else if (!isWalletCancel(err)) setError(err.response?.data?.message || 'Could not find scholarships right now. Please try again.');
     } finally {
       setFinding(false);
     }
@@ -167,138 +173,67 @@ export default function Scholarships() {
     );
   }
 
-  const closingSoon = all.filter((s) => { const d = daysUntil(s.deadline); return d !== null && d >= 0 && d <= 30; }).length;
 
   return (
-    <div className="lms-stagger mx-auto max-w-5xl space-y-6 pb-12">
-      {/* ---- Hero ------------------------------------------------------- */}
-      <div className="lms-sheen relative overflow-hidden rounded-3xl bg-[#3b0764] p-6 text-white shadow-xl shadow-purple-900/30 md:p-8">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-600 via-purple-600 to-pink-600" />
-        <div aria-hidden className="pointer-events-none absolute -top-32 -left-24 h-80 w-80 rounded-full bg-fuchsia-300/40 blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-36 h-96 w-96 rounded-full bg-pink-400/40 blur-3xl" />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.16]"
-          style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '22px 22px' }}
-        />
-        <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent" />
-        <span aria-hidden className="cm-drift pointer-events-none absolute top-6 left-[48%] hidden text-2xl md:block" style={{ animationDelay: '-1.2s' }}>🎓</span>
-        <span aria-hidden className="cm-drift pointer-events-none absolute bottom-8 left-[60%] hidden text-xl md:block" style={{ animationDelay: '-3.4s' }}>💰</span>
-        <span aria-hidden className="cm-drift pointer-events-none absolute top-5 right-[24%] hidden text-lg md:block" style={{ animationDelay: '-0.5s' }}>✨</span>
-
-        <div className="relative grid items-center gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="min-w-0">
-            {/* Phones: the cap, small, in the corner beside the headline —
-                the big art column is desktop only, and without it the banner
-                was a wall of purple text. */}
-            <FundedArt className="mc-pop pointer-events-none absolute -top-2 -right-2 h-20 w-20 drop-shadow-lg md:hidden" />
-            <p className="flex items-center gap-2 text-[0.7rem] font-black tracking-[0.18em] text-pink-100 uppercase">
-              <GraduationCap size={14} />
-              Scholarships
-            </p>
-            <h1 className="mt-2 pr-16 text-[1.75rem] font-black leading-[1.1] sm:text-4xl md:pr-0">
-              Your dreams, <span className="lms-shimmer bg-gradient-to-r from-pink-200 via-white to-pink-200 bg-clip-text text-transparent">fully funded.</span>
-            </h1>
-            <p className="mt-2.5 text-sm font-medium text-pink-100 md:hidden">
-              Scholarships matched to your goal, so money is never the reason you stop.
-            </p>
-            <p className="mt-2 hidden max-w-lg text-base font-medium text-pink-100 md:block">
-              Real scholarships matched to your goal and stage, with who they are for and when to apply. Let money never be the reason you stop.
-            </p>
-
-            {/* Phones: the two counts as a pair of tiles rather than two
-                pills stacked under the button. */}
-            <div className="mt-3.5 grid grid-cols-2 gap-2 md:hidden">
-              <div className="flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 ring-1 ring-white/20 ring-inset">
-                <Coins size={14} className="shrink-0 text-pink-100" />
-                <span className="text-sm font-black tabular-nums">{all.length}</span>
-                <span className="truncate text-xs font-semibold text-pink-100">matched</span>
-              </div>
-              <div className="flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 ring-1 ring-white/20 ring-inset">
-                <CalendarDays size={14} className="shrink-0 text-pink-100" />
-                <span className="text-sm font-black tabular-nums">{closingSoon}</span>
-                <span className="truncate text-xs font-semibold text-pink-100">closing soon</span>
-              </div>
-            </div>
-
-            <div className="lms-stagger mt-4 flex flex-wrap items-center gap-2.5 md:mt-5 [&>a]:w-full [&>a]:justify-center [&>button]:w-full [&>button]:justify-center md:[&>a]:w-auto md:[&>button]:w-auto">
-              {data.hasGoal ? (
-                <button
-                  type="button"
-                  onClick={() => setAsking(true)}
-                  disabled={finding}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-purple-700 shadow-lg shadow-purple-900/20 transition-all hover:-translate-y-0.5 hover:bg-pink-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {finding ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                  {finding ? 'Finding scholarships…' : 'Eligibility form'}
-                </button>
-              ) : (
-                <Link
-                  to="/career"
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-purple-700 shadow-lg shadow-purple-900/20 transition-all hover:-translate-y-0.5 hover:bg-pink-50 active:scale-[0.98]"
-                >
-                  <Compass size={18} />
-                  Set up your Career Path first
-                </Link>
-              )}
-              <span className="hidden items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums md:inline-flex">
-                <Coins size={14} />
-                {all.length} {all.length === 1 ? 'scholarship' : 'scholarships'}
-              </span>
-              <span className="hidden items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/25 ring-inset tabular-nums md:inline-flex">
-                <CalendarDays size={14} />
-                {closingSoon} closing this month
-              </span>
-            </div>
-          </div>
-
-          <div aria-hidden className="relative hidden h-52 w-64 items-end justify-center pb-3 md:flex">
-            <span className="cm-glow absolute bottom-6 left-1/2 h-40 w-40 rounded-full bg-white/35 blur-2xl" />
-            <span className="cm-ring absolute bottom-3 left-1/2 h-10 w-44 rounded-[50%] border-2 border-white/50" />
-            <span className="absolute bottom-2 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-purple-950/30" />
-            <span className="absolute bottom-4 left-1/2 h-9 w-44 -translate-x-1/2 rounded-[50%] bg-gradient-to-b from-white/70 to-pink-100/60 shadow-lg" />
-            <span className="absolute bottom-[26px] left-1/2 h-4 w-28 -translate-x-1/2 rounded-[50%] bg-white/50" />
-            <FundedArt className="mc-pop relative h-44 w-44" />
-          </div>
-        </div>
-      </div>
-
+    <div className="lms-stagger w-full space-y-6 pb-12">
       {aiBudget && <AiBudgetNotice {...aiBudget} />}
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700">{error}</div>
       )}
 
-      {/* ---- Search ------------------------------------------------------ */}
-      {all.length > 0 && (
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name, eligibility or deadline…"
-            aria-label="Search scholarships"
-            className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white py-3 pr-10 pl-11 text-sm text-slate-900 shadow-sm transition-colors placeholder:text-slate-400 focus:border-purple-400 focus:outline-none"
-          />
-          {q && (
+      {/* ---- Search, with the eligibility form on its right ---------------
+          The banner that stood above went on 2026-10-27; the one action it
+          carried sits here, small, beside the search. */}
+      <div className="flex items-center gap-2.5">
+        {all.length > 0 ? (
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search scholarships…"
+              aria-label="Search scholarships"
+              className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white py-3 pr-10 pl-11 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(30,27,75,0.18)] transition-all placeholder:text-slate-400 focus:border-violet-400 focus:ring-4 focus:ring-violet-100 focus:outline-none"
+            />
+            {q && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+                className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        ) : <div className="flex-1" />}
+        {data.hasGoal ? (
             <button
               type="button"
-              onClick={() => setQuery('')}
-              aria-label="Clear search"
-              className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              onClick={() => setAsking(true)}
+              disabled={finding}
+              className="group inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-violet-600 px-4 text-sm font-black whitespace-nowrap text-white shadow-md shadow-violet-500/25 transition-all hover:-translate-y-0.5 hover:bg-violet-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <X className="h-4 w-4" />
+              {finding ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} className="transition-transform group-hover:scale-110" />}
+              {finding ? 'Finding…' : <>Eligibility<span className="hidden sm:inline">&nbsp;form</span></>}
             </button>
+          ) : (
+            <Link
+              to="/career"
+              className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-violet-600 px-4 text-sm font-black whitespace-nowrap text-white shadow-md shadow-violet-500/25 transition-all hover:-translate-y-0.5 hover:bg-violet-700"
+            >
+              <Compass size={16} /> Set up goal
+            </Link>
           )}
-        </div>
-      )}
+      </div>
 
       {/* ---- The list ---------------------------------------------------- */}
       {all.length === 0 ? (
-        <div className="relative overflow-hidden rounded-3xl border border-purple-100 bg-gradient-to-br from-violet-50 via-white to-pink-50 p-8 text-center sm:p-12">
-          <div aria-hidden className="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-purple-200/40 blur-3xl" />
+        <div className="relative overflow-hidden rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-8 text-center sm:p-12">
+          <div aria-hidden className="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-violet-200/50 blur-3xl" />
           <div className="relative mx-auto flex h-40 w-44 items-end justify-center" aria-hidden>
-            <span className="absolute bottom-1 left-1/2 h-5 w-28 -translate-x-1/2 rounded-full bg-purple-400/30 blur-lg" />
+            <span className="absolute bottom-1 left-1/2 h-5 w-28 -translate-x-1/2 rounded-full bg-violet-400/30 blur-lg" />
             <SearchFundingArt className="relative h-36 w-36" />
           </div>
           <h3 className="relative mt-3 text-2xl font-black text-slate-900">
@@ -314,16 +249,16 @@ export default function Scholarships() {
               type="button"
               onClick={find}
               disabled={finding}
-              className="lms-pop relative mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-pink-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-purple-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+              className="lms-pop relative mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-violet-500/30 transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-xl active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
               style={{ animationDelay: '0.3s' }}
             >
               {finding ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              {finding ? 'Finding scholarships…' : <>Find scholarships for me <PriceTag action="find_scholarship" /></>}
+              {finding ? 'Finding scholarships…' : 'Find scholarships for me'}
             </button>
           ) : (
             <Link
               to="/career"
-              className="lms-pop relative mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-pink-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-purple-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98]"
+              className="lms-pop relative mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-violet-500/30 transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-xl active:scale-[0.98]"
               style={{ animationDelay: '0.3s' }}
             >
               <Compass size={16} />
@@ -344,69 +279,74 @@ export default function Scholarships() {
           </button>
         </div>
       ) : (
-        <ul className="lms-stagger grid gap-4 md:grid-cols-2">
+        <ul className="lms-stagger grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((s, i) => {
             const days = daysUntil(s.deadline);
             const soon = days !== null && days >= 0 && days <= 30;
             const passed = days !== null && days < 0;
+            const hue = HUES[i % HUES.length];
             return (
               <li
                 key={`${s.name}-${i}`}
-                className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-purple-200 hover:shadow-lg hover:shadow-purple-500/10"
+                className={`group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-5 pt-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_30px_-16px_rgba(30,27,75,0.2)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${hue.hover}`}
               >
-                <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-violet-500 to-pink-500 opacity-0 transition-opacity group-hover:opacity-100" />
+                {/* The card's colour, as a stripe along its top. */}
+                <span aria-hidden className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${hue.grad}`} />
+                {/* Head: the cap tile, the name, and who gives it. */}
                 <div className="flex items-start gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-pink-600 text-white shadow-md shadow-purple-500/30">
-                    <GraduationCap size={20} strokeWidth={2.2} />
+                  <span className={`sch-tile flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${hue.grad} text-white shadow-md ${hue.shadow}`}>
+                    <GraduationCap size={19} strokeWidth={2.2} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-black leading-snug text-slate-900 break-words">{s.name}</h3>
-                    {(s.provider || s.amount) && (
-                      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-slate-500">
-                        {s.provider && (
-                          <span className="inline-flex min-w-0 items-start gap-1">
-                            <Building2 size={13} className="mt-0.5 shrink-0" />
-                            <span className="min-w-0 break-words">{s.provider}</span>
-                          </span>
-                        )}
-                        {s.amount && (
-                          <span className="inline-flex min-w-0 items-start gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 font-black text-emerald-700">
-                            <Coins size={12} className="mt-0.5 shrink-0" />
-                            <span className="min-w-0 break-words">{s.amount}</span>
-                          </span>
-                        )}
-                      </p>
-                    )}
-                    {s.deadline && (
-                      <p
-                        className={`mt-1.5 inline-flex min-w-0 max-w-full items-start gap-1.5 rounded-2xl px-2.5 py-1 text-xs font-bold sm:rounded-full ${
-                          passed
-                            ? 'bg-slate-100 text-slate-500'
-                            : soon
-                              ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-100 ring-inset'
-                              : 'bg-purple-50 text-purple-800 ring-1 ring-purple-100 ring-inset'
-                        }`}
-                      >
-                        <CalendarDays size={13} className="mt-0.5 shrink-0" />
-                        <span className="min-w-0 break-words">
-                          {passed ? 'Deadline passed · ' : soon ? `Closes in ${days} ${days === 1 ? 'day' : 'days'} · ` : 'Deadline · '}
-                          {s.deadline}
-                        </span>
+                    <h3 className="text-[0.95rem] leading-snug font-black text-indigo-950">{s.name}</h3>
+                    {s.provider && (
+                      <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-slate-500">
+                        <Building2 size={12} className="shrink-0" />
+                        <span className="min-w-0 truncate" title={s.provider}>{s.provider}</span>
                       </p>
                     )}
                   </div>
                 </div>
 
+                {/* The two facts, as labelled rows on one left edge. */}
+                {(s.amount || s.deadline) && (
+                  <dl className="mt-4 divide-y divide-slate-100 rounded-xl bg-slate-50/80 ring-1 ring-slate-100 ring-inset">
+                    {s.amount && (
+                      <div className="flex items-start gap-3 px-3 py-2.5">
+                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600"><Coins size={14} /></span>
+                        <div className="min-w-0">
+                          <dt className="text-[0.65rem] font-black tracking-wider text-slate-400 uppercase">Amount</dt>
+                          <dd className="text-sm leading-snug font-bold text-emerald-700">{s.amount}</dd>
+                        </div>
+                      </div>
+                    )}
+                    {s.deadline && (
+                      <div className="flex items-start gap-3 px-3 py-2.5">
+                        <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${passed ? 'bg-slate-100 text-slate-400' : soon ? 'sch-soon bg-amber-100 text-amber-600' : 'bg-violet-100 text-violet-600'}`}><CalendarDays size={14} /></span>
+                        <div className="min-w-0">
+                          <dt className="text-[0.65rem] font-black tracking-wider text-slate-400 uppercase">
+                            {passed ? 'Deadline passed' : soon ? `Closes in ${days} ${days === 1 ? 'day' : 'days'}` : 'Deadline'}
+                          </dt>
+                          <dd className={`text-sm leading-snug font-bold ${passed ? 'text-slate-500' : soon ? 'text-amber-800' : 'text-indigo-950'}`}>{s.deadline}</dd>
+                        </div>
+                      </div>
+                    )}
+                  </dl>
+                )}
+
                 {s.eligibility && (
-                  <p className="mt-3 flex items-start gap-2 text-sm leading-relaxed text-slate-600">
-                    <BadgeCheck size={16} className="mt-0.5 shrink-0 text-emerald-500" />
-                    <span className="min-w-0 break-words">{s.eligibility}</span>
-                  </p>
+                  <div className="mt-4">
+                    <p className="flex items-center gap-1.5 text-[0.65rem] font-black tracking-wider text-slate-400 uppercase">
+                      <BadgeCheck size={13} className="text-emerald-500" /> Who can apply
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-600">{s.eligibility}</p>
+                  </div>
                 )}
                 {s.why && (
-                  <p className="mt-2 rounded-xl bg-pink-50/70 px-3 py-2 text-xs leading-relaxed text-purple-900 ring-1 ring-pink-100 ring-inset">
-                    {s.why}
-                  </p>
+                  <div className="mt-3 rounded-xl bg-violet-50/70 px-3 py-2.5 ring-1 ring-violet-100 ring-inset">
+                    <p className="flex items-center gap-1.5 text-[0.65rem] font-black tracking-wider text-violet-700 uppercase"><Sparkles size={12} /> Why it fits you</p>
+                    <p className="mt-1 text-[0.8rem] leading-relaxed text-slate-700">{s.why}</p>
+                  </div>
                 )}
 
                 {/* Every entry that reaches this page has an application link
@@ -421,10 +361,10 @@ export default function Scholarships() {
                     href={s.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-pink-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-purple-500/25 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
+                    className={`group/btn inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r ${hue.grad} px-4 py-2.5 text-sm font-black text-white shadow-md ${hue.shadow} transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg active:scale-[0.98]`}
                   >
                     Apply
-                    <ExternalLink size={14} />
+                    <ExternalLink size={14} className="transition-transform group-hover/btn:translate-x-0.5" />
                   </a>
                 </div>
               </li>

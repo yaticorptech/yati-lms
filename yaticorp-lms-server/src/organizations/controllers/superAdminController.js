@@ -27,6 +27,8 @@ const { sendEmail } = require('../../utils/emailService');
 const { escapeHtml, plainHeader } = require('../../utils/escapeHtml');
 const { checkEmailChange, applyEmailChange } = require('../services/orgEmail');
 const OrgAuditLog = require('../models/OrgAuditLog');
+const { closeMemberships } = require('../../nccnss/membership');
+const { INDIA_STATES } = require('../../nccnss/bsg');
 
 /** Opt-in paging (`?page=`): 1-based page, limit 25 by default and at most 100. */
 const pageParams = (query) => ({
@@ -244,6 +246,16 @@ const createOrganization = async (req, res) => {
         const chosen = await checkNewOrgCode(req.body.orgCode);
         if (chosen.error) return res.status(chosen.taken ? 409 : 400).json({ message: chosen.error, field: 'orgCode' });
 
+        // A Bharat Scouts & Guides office (national, or one state's) instead of an
+        // institution: one of each, one user (the account made below).
+        const bsgOffice = ['national', 'state'].includes(req.body.bsgOffice) ? req.body.bsgOffice : '';
+        const state = INDIA_STATES.includes(req.body.state) ? req.body.state : '';
+        if (req.body.state && !state) return res.status(400).json({ message: 'Choose a state from the list.', field: 'state' });
+        if (bsgOffice === 'state' && !state) return res.status(400).json({ message: 'Choose the state this office is for.', field: 'state' });
+        if (bsgOffice && await Organization.exists({ bsgOffice, state: bsgOffice === 'state' ? state : '' })) {
+            return res.status(409).json({ message: bsgOffice === 'national' ? 'There is already a national office.' : `${state} already has a state office.` });
+        }
+
         const cleanEmail = String(email).trim().toLowerCase();
         if (await Organization.findOne({ email: cleanEmail })) {
             return res.status(400).json({ message: 'An organization is already registered with that email address.' });
@@ -265,6 +277,8 @@ const createOrganization = async (req, res) => {
             website: website ? String(website).trim().slice(0, 200) : '',
             contactPerson: contactPerson ? String(contactPerson).trim().slice(0, 120) : '',
             expectedStudents: expectedStudents ? Number(expectedStudents) : null,
+            bsgOffice,
+            state: bsgOffice === 'national' ? '' : state,
             status: 'active',
             approvedAt: new Date(),
             statusHistory: [{
@@ -657,9 +671,12 @@ const assignStudent = async (req, res) => {
             ? await Organization.findById(student.organizationId).select('name').lean()
             : null;
 
+        const leaving = student.organizationId;
         student.organizationId = organization._id;
         student.organizationJoinedAt = new Date();
         await student.save();
+        // Their extra-curricular places at the organization they left end, kept as history.
+        if (leaving) await closeMemberships({ userId: student._id, organizationId: leaving, reason: `Moved to ${organization.name}` });
 
         // Settle whatever was outstanding: an approved row for the organization
         // they left, and any request still waiting anywhere.
@@ -725,6 +742,7 @@ const unassignStudent = async (req, res) => {
         student.organizationId = null;
         student.organizationJoinedAt = null;
         await student.save();
+        await closeMemberships({ userId: student._id, organizationId: req.params.id, reason: 'Removed by a platform administrator' });
 
         await JoinRequest.updateMany(
             { userId: student._id, organizationId: req.params.id, status: 'approved' },

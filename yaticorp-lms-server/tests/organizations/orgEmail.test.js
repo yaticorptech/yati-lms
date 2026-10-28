@@ -10,7 +10,7 @@
  */
 const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeAdmin, startApp, cleanup, forgetAudit } = require('../helpers');
 
 const mailer = require('../../src/utils/emailService');
 const sent = [];
@@ -60,6 +60,7 @@ after(async () => {
     const Admin = require('../../src/models/Admin');
     const org = await Organization.findOne({ email: ORG_EMAIL }).select('_id').lean();
     if (org) {
+        await forgetAudit({ orgs: [org._id] });
         await Admin.deleteMany({ organizationId: org._id });
         await Organization.deleteOne({ _id: org._id });
     }

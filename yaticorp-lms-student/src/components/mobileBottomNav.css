@@ -60,3 +60,53 @@
   .mbn-dot { opacity: 1; }
   .mbn-press { transition: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   The student bar's island look. Scoped under .mbn-island / .mbn-capsule /
+   .mbn-cap-icon so the teacher bar, which shares the rules above, is
+   untouched.
+   --------------------------------------------------------------------------- */
+
+/* A light bar lifted off a light page: a hairline, a soft wide shadow for
+   depth and a tight one for the edge. */
+.mbn-island {
+  box-shadow:
+    0 20px 40px -18px rgb(15 23 42 / 0.28),
+    0 2px 8px -2px rgb(15 23 42 / 0.08);
+}
+
+/* The full-height capsule that slides behind the active tab — icon and
+   label together. Positioned by measurement in the component; this gives it
+   the spring. */
+.mbn-capsule {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 22px;
+  background: linear-gradient(145deg, #6366f1 0%, #4f46e5 55%, #4338ca 100%);
+  box-shadow:
+    0 10px 22px -10px rgb(79 70 229 / 0.75),
+    inset 0 1px 0 rgb(255 255 255 / 0.3);
+  transition:
+    left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+
+/* The active icon pops as the capsule lands. */
+@keyframes mbn-cap-pop {
+  0%   { transform: scale(0.8); }
+  60%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.mbn-cap-icon { animation: mbn-cap-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mbn-capsule { transition: none; }
+  .mbn-cap-icon { animation: none !important; }
+}
+
+/* The Me tab's card opens with a small spring up from the bar. */
+.mbn-pop { animation: mbn-pop 0.26s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes mbn-pop { from { opacity: 0; transform: translateY(8px) scale(0.95); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .mbn-pop { animation: none !important; } }
