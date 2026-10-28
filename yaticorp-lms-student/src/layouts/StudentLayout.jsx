@@ -10,6 +10,7 @@ import WalletShortDialog from '../components/rewards/WalletShortDialog';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
 import LanguageToggle from '../components/LanguageToggle';
+import InstallAppButton from '../components/InstallAppButton';
 import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Globe, Shield } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
@@ -887,6 +888,8 @@ const StudentLayout = () => {
                     >
                         <MessageCircleQuestion size={18} /> <span>Contact Support</span>
                     </button>
+                    {/* Renders nothing inside the native app or once installed. */}
+                    <InstallAppButton />
                 </div>
             </aside>
 
@@ -986,6 +989,11 @@ const StudentLayout = () => {
                                     )}
                                 </div>
                             </Link>
+                            {/* Renders nothing inside the native app or once installed. */}
+                            <InstallAppButton
+                                iconSize={20}
+                                className="flex items-center justify-center space-x-2 bg-indigo-600 text-white hover:bg-indigo-700 w-full py-3 rounded-xl transition-all duration-200 font-bold"
+                            />
                             {/* Logout sits in this pinned footer, beside
                                 Contact Support, so it is always on screen. At
                                 the end of the scrolling nav it was hidden below
