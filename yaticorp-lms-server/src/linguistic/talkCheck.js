@@ -12,6 +12,9 @@
  * it to the top, the will to win), so a sentence it does not change is not
  * proved right — only free of the mistakes it knows.
  */
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
 const { sentencesOf, wordCount, MISSPELT } = require('./writingCheck');
 
 /* ── Verbs and their forms ───────────────────────────────────────────── */
@@ -207,6 +210,130 @@ const checkSentence = (text) => {
     return { text, corrected: s, mistakes };
 };
 
+/*
+ * Written English (2026-10-27: a line of random letters was passed with "no
+ * grammar mistakes"): on top of the rules above, words that cannot be English
+ * — no vowel at all, six consonants in a row, or longer than any everyday
+ * word — and each sentence's capital letter and full stop. Speech is not
+ * held to these: what the browser writes down has neither.
+ */
+const NO_VOWEL_OK = new Set(['mrs', 'hrs', 'kms', 'pvt', 'ltd', 'pls', 'hmm', 'shh', 'nth', 'tsk', 'brr', 'grr', 'psst', 'pfft', 'zzz', 'www', 'bsc', 'msc', 'phd', 'mph', 'kph']);
+const notEnglish = (token) => {
+    const word = token.replace(/'.*$/, '');
+    if (word.length < 3 || (/^[A-Z]+$/.test(word) && word.length <= 6)) return false;   // short words; NCC, HTML
+    const low = word.toLowerCase();
+    if (NO_VOWEL_OK.has(low)) return false;
+    return !/[aeiouy]/.test(low) || /[^aeiouy]{6}/.test(low) || low.length > 20;
+};
+
+/*
+ * Spelling (2026-10-27: "breakfas" went by). A word is English if it, or the
+ * word it is made from (plays → play, stopped → stop, making → make), is in
+ * Webster's word list (1934, out of copyright; content/english-words.txt.gz,
+ * from /usr/share/dict/words) or in the app's own lessons. One that is not is
+ * put right only to a word one letter away that the lessons use, with the
+ * same first letter — so a rarer real word is never "corrected" into a common
+ * one, and a word with no near lesson word is left alone.
+ */
+let dictionary = null, common = null;
+const words = () => {
+    if (!dictionary) {
+        dictionary = new Set(zlib.gunzipSync(fs.readFileSync(path.join(__dirname, 'content', 'english-words.txt.gz'))).toString('utf8').split('\n'));
+        common = new Map();
+        const text = JSON.stringify(require('./content').lessons);
+        for (const w of text.match(/[A-Za-z]+(?:'[a-z]+)?/g) || []) {
+            const low = w.toLowerCase().replace(/'s$/, '');
+            if (low.length > 1) common.set(low, (common.get(low) || 0) + 1);
+        }
+        for (const w of ['email', 'emails', 'online', 'website', 'internet', 'laptop', 'mobile', 'okay', 'lakh', 'lakhs', 'crore', 'crores', 'rupee', 'rupees', 'idli', 'dosa', 'chapati', 'sambar', 'chai']) common.set(w, common.get(w) || 1);
+    }
+    return { dictionary, common };
+};
+// Each plain ending on its own (2026-10-28): taken together, "-es" was cut before "-s", so "trees" became "tre".
+const BASES = [[/ies$/, 'y'], [/ied$/, 'y'], [/ier$/, 'y'], [/iest$/, 'y'], [/ves$/, 'f'], [/(.)\1(ed|ing|er|est)$/, '$1'], [/(ed|ing)$/, 'e'],
+    ...['ed', 'ing', 'er', 'est', 'ly', 'ness', 'ment', 's', 'es', 'd', "'s"].map((end) => [new RegExp(`${end}$`), ''])];
+const isWord = (low) => {
+    const { dictionary: d, common: c } = words();
+    if (d.has(low) || c.has(low)) return true;
+    return BASES.some(([re, to]) => re.test(low) && (d.has(low.replace(re, to)) || c.has(low.replace(re, to))));
+};
+const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
+const oneAway = (w) => {
+    const out = new Set();
+    for (let i = 0; i <= w.length; i++) {
+        for (const ch of LETTERS) out.add(w.slice(0, i) + ch + w.slice(i));                 // a letter left out
+        if (i < w.length) {
+            out.add(w.slice(0, i) + w.slice(i + 1));                                          // a letter too many
+            for (const ch of LETTERS) out.add(w.slice(0, i) + ch + w.slice(i + 1));           // a wrong letter
+            if (i < w.length - 1) out.add(w.slice(0, i) + w[i + 1] + w[i] + w.slice(i + 2));  // two the wrong way round
+        }
+    }
+    return out;
+};
+const spellingOf = (token) => {
+    const low = token.toLowerCase();
+    if (low.length < 4 || isWord(low)) return null;
+    const { common: c } = words();
+    let best = null;
+    for (const cand of oneAway(low)) if (cand !== low && cand[0] === low[0] && c.has(cand) && (!best || c.get(cand) > c.get(best))) best = cand;
+    return best;
+};
+
+/**
+ * One sentence: checkSentence, then English words and spelling, and the marks
+ * tidied. Written (`spoken` false), also its capital letter and full stop —
+ * which speech, written down by the browser, does not have.
+ */
+const checkEnglish = (text, { spoken = false } = {}) => {
+    const base = checkSentence(text);
+    const mistakes = [...base.mistakes];
+    let corrected = base.corrected;
+    const tokens = String(text).split(/\s+/).map((t) => t.replace(/^[^A-Za-z]+|[^A-Za-z']+$/g, '')).filter((t) => t && !/\d/.test(t));
+    for (const w of [...new Set(tokens.filter(notEnglish))]) mistakes.push({ wrong: w, right: null, why: `"${w}" is not an English word. Check the spelling, or use another word.` });
+    // A spelling slip, put right — a word with a capital (a name, even first in the sentence: Hari) left alone.
+    tokens.forEach((w) => {
+        if (notEnglish(w) || /[A-Z]/.test(w)) return;
+        const fix = spellingOf(w.replace(/'.*$/, ''));
+        if (!fix) return;
+        const right = sameCase(w, fix);
+        const re = new RegExp(`\\b${w.replace(/'.*$/, '')}\\b`);
+        if (!re.test(corrected)) return;
+        corrected = corrected.replace(re, right);
+        mistakes.push({ wrong: w.replace(/'.*$/, ''), right, why: `Spelling: "${w.replace(/'.*$/, '').toLowerCase()}" is "${fix}".` });
+    });
+    // The marks at the end: one full stop, nothing after it, no space or comma before it.
+    const tidy = [
+        // [the mistake, what it becomes, why, the part shown put right]
+        [/(?<=[^.])\.\.(?!\.)/, '.', 'One full stop is enough.', () => '.'],
+        [/([.?!])\s*[,;:]+(\s*["'”’)\]]*)\s*$/, '$1$2', 'Nothing comes after the full stop at the end of a sentence.', (m) => m[1]],
+        [/\s*,\s*([.?!])\s*$/, '$1', 'No comma just before the full stop.', (m) => m[1]]
+    ];
+    for (const [re, to, why, part] of tidy) {
+        const m = corrected.match(re);
+        if (!m) continue;
+        corrected = corrected.replace(re, to);
+        mistakes.push({ wrong: m[0].trim() || m[0], right: part(m), why });
+    }
+    if (/\s+[.?!,;:]/.test(corrected)) {
+        corrected = corrected.replace(/\s+([.?!,;:])/g, '$1');
+        mistakes.push({ wrong: null, right: null, why: 'No space before a full stop or comma.' });
+    }
+    if (spoken) return { text: base.text, corrected, mistakes };
+    const first = corrected.match(/[A-Za-z]+/);
+    if (first && first[0][0] !== first[0][0].toUpperCase() && !notEnglish(first[0])) {
+        const right = first[0][0].toUpperCase() + first[0].slice(1);
+        corrected = corrected.slice(0, first.index) + right + corrected.slice(first.index + first[0].length);
+        mistakes.push({ wrong: first[0], right, why: 'Start a sentence with a capital letter.' });
+    }
+    if (corrected.trim() && !/[.?!]["'”’)\]]*$/.test(corrected.trim())) {
+        corrected = `${corrected.trim()}.`;
+        mistakes.push({ wrong: null, right: '.', why: 'End a sentence with a full stop (.), a question mark (?) or an exclamation mark (!).' });
+    }
+    return { text: base.text, corrected, mistakes };
+};
+const checkWritten = (text) => checkEnglish(text);
+const checkSpoken = (text) => checkEnglish(text, { spoken: true });
+
 /**
  * A talk, sentence by sentence, against the task: { minWords, words (the
  * unit's words to try) }. The score is the share of sentences with no
@@ -215,7 +342,8 @@ const checkSentence = (text) => {
 const checkTalk = (raw, task = {}, passing = 75) => {
     const text = String(raw || '').replace(/[‘’]/g, '\'').replace(/\s+/g, ' ').trim().slice(0, 4000);
     const words = wordCount(text);
-    const sentences = sentencesOf(text).map(checkSentence);
+    // Spelling, English words and the marks too (2026-10-27, "in every place"); not capitals or full stops.
+    const sentences = sentencesOf(text).map(checkSpoken);
     const clean = sentences.filter((x) => !x.mistakes.length).length;
     const percent = sentences.length ? Math.round((clean / sentences.length) * 100) : 0;
     const minWords = task.minWords || 0;
@@ -235,4 +363,4 @@ const checkTalk = (raw, task = {}, passing = 75) => {
     return { words, minWords, sentences, clean, total: sentences.length, percent, short, passed: !short && sentences.length > 0 && percent >= passing, good, tips };
 };
 
-module.exports = { checkTalk, checkSentence };
+module.exports = { checkTalk, checkSentence, checkWritten, checkSpoken };

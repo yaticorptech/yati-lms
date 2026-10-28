@@ -61,8 +61,15 @@ const sourcesOf = (stub, helper) => CONTENT
     .map((l) => (stub.course ? courses.build(courses.stubOf(stub.course, l), helper) : localize(l, helper)))
     .filter((l) => !l.notForLanguage);
 
-/** A translation item of a source lesson, carrying that lesson's direction (a review mixes both). */
-const withDirection = (s, it) => ({ ...it, id: `${s.direction}~${it.id}`, direction: s.direction });
+/**
+ * A translation item of a source lesson, carrying that lesson's direction (a review mixes both). A later
+ * topic's lesson goes the same way as the first ones, so its items carry its topic too (2026-10-28: with a
+ * fourth topic, "en-kn~q1" stood for two sentences); the first lessons' ids stay as they were.
+ */
+const withDirection = (s, it) => {
+    const order = Number(s.order) || 1;
+    return { ...it, id: order > 1 ? `${s.direction}~${order}~${it.id}` : `${s.direction}~${it.id}`, direction: s.direction };
+};
 
 /** Lists taken in turn (one of each, then the next of each), so a review swaps direction as it goes. */
 const interleave = (lists) => Array.from({ length: Math.max(0, ...lists.map((l) => l.length)) }, (_, i) => lists.map((l) => l[i]).filter(Boolean)).flat();

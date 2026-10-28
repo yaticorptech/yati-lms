@@ -138,9 +138,35 @@ export const chime = (kind) => {
 
 /* ── Recordings ───────────────────────────────────────────────────────── */
 
+/*
+ * The device's voices. The browser lists them a moment after the page opens
+ * (Chrome only after 'voiceschanged'), so the list is read again then.
+ */
+let voices = [];
+const readVoices = () => { try { voices = window.speechSynthesis.getVoices() || []; } catch { voices = []; } };
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+    readVoices();
+    window.speechSynthesis.addEventListener?.('voiceschanged', readVoices);
+}
+const norm = (l) => String(l || '').toLowerCase().replace('_', '-');
+/** The device's voice for a language ('kn-IN': a Kannada voice), or null. */
+const voiceFor = (lang) => {
+    if (!voices.length) readVoices();
+    const want = norm(lang), base = want.split('-')[0];
+    return voices.find((v) => norm(v.lang) === want) || voices.find((v) => norm(v.lang).split('-')[0] === base) || null;
+};
+/**
+ * Whether the browser can read text in `lang` (2026-10-26: Kannada was silent
+ * on a computer with no Kannada voice, with nothing said). While the voices
+ * are not listed yet, it is given the benefit of the doubt.
+ */
+export const canSpeakIn = (lang) => typeof window !== 'undefined' && !!window.speechSynthesis && (!voices.length || !!voiceFor(lang));
+
 /**
  * Play a recording; with none, the browser's own voice reads the text, where
- * the browser has one. Returns the Audio element (to stop it) or null.
+ * the browser has one — that language's voice, chosen by name rather than
+ * left to the browser, which read Kannada with an English voice, i.e. not at
+ * all. Returns the Audio element (to stop it) or null.
  */
 export const play = (src, text, lang = 'en-IN') => {
     if (src) {
@@ -151,6 +177,8 @@ export const play = (src, text, lang = 'en-IN') => {
     if (text && typeof window !== 'undefined' && window.speechSynthesis) {
         const u = new SpeechSynthesisUtterance(text);
         u.lang = lang;
+        const v = voiceFor(lang);
+        try { if (v) u.voice = v; } catch { /* not one of this browser's voices: its own pick */ }
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
     }

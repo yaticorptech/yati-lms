@@ -9,6 +9,7 @@ import { Flame, Zap, Gift, BookOpen, Target, ListChecks, Compass, ChevronRight, 
 import { COLORS, langOf, levelOf } from './meta';
 import { Bar, Panel, Mascot } from './ui';
 import { planLabel, planStatus } from './parts/plan';
+import RoadmapScene from './parts/RoadmapScene';
 
 const LESSON_GOAL = 2;
 
@@ -38,7 +39,7 @@ export function Stats({ dash, onLanguage, compact = false, className = '' }) {
             )}
             <span className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl text-[15px] font-extrabold ${pad}`} style={{ color: COLORS.blue.ink }} title="Your level">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black text-white" style={{ background: COLORS.blue.face }}>{levelOf(dash.level).label[0]}</span>
-                {levelOf(dash.level).label}
+                {/* On a narrow phone, beside the ✕, the letter alone (2026-10-26). */}<span className="hidden min-[400px]:inline">{levelOf(dash.level).label}</span>
             </span>
             <span className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl text-[15px] font-extrabold tabular-nums ${pad}`} style={{ color: streak ? COLORS.orange.face : '#AFAFAF' }} title={`Day streak · best ${dash.streak?.longest || 0}`} data-streak={streak}>
                 <Flame size={22} fill="currentColor" strokeWidth={1.5} /> {streak}
@@ -164,17 +165,69 @@ export function Timeline({ dash, onGoal }) {
  * is, whether the student is on track, and today's lessons, each one tap
  * away; the whole roadmap a link further.
  */
+/** A purple desk calendar, for the roadmap's title. */
+const CalendarArt = ({ size = 52 }) => (
+    <svg viewBox="0 0 60 60" width={size} height={size} className="shrink-0" aria-hidden="true">
+        <defs>
+            <linearGradient id="lingo-cal-top" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#C084FC" /><stop offset="1" stopColor="#8B5CF6" /></linearGradient>
+            <linearGradient id="lingo-cal-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#FFFFFF" /><stop offset="1" stopColor="#EDE9FE" /></linearGradient>
+        </defs>
+        <rect x="5" y="10" width="50" height="45" rx="10" fill="#7C3AED" opacity=".25" transform="translate(1 3)" />
+        <rect x="5" y="10" width="50" height="45" rx="10" fill="url(#lingo-cal-body)" stroke="#DDD6FE" strokeWidth="1.5" />
+        <path d="M5 20 a10 10 0 0 1 10 -10 h30 a10 10 0 0 1 10 10 v4 h-50 z" fill="url(#lingo-cal-top)" />
+        {[19, 41].map((x) => <rect key={x} x={x - 2.5} y="4" width="5" height="13" rx="2.5" fill="#A78BFA" stroke="#7C3AED" strokeWidth="1.2" />)}
+        {[[19, 34], [30, 34], [41, 34], [19, 45], [30, 45], [41, 45]].map(([x, y]) => <circle key={`${x}-${y}`} cx={x} cy={y} r="3.6" fill="#8B5CF6" />)}
+    </svg>
+);
+/** The word beside the title: a cheer when on track, a nudge when behind or out of time. */
+const PLAN_CHEER = {
+    green: () => ({ icon: '🎯', title: 'Keep going!', text: 'You’re on track' }),
+    orange: (p) => ({ icon: '⏰', title: 'Catch up!', text: `${p.behind} lesson${p.behind === 1 ? '' : 's'} behind` }),
+    red: () => ({ icon: '🔄', title: 'Time is up', text: 'Choose a new time' })
+};
+
 export function PlanCard({ dash }) {
     const p = dash.plan;
     const status = planStatus(p);
     const today = p.today?.lessons || [];
     const left = today.filter((l) => l.status !== 'completed');
+    const cheer = (PLAN_CHEER[status.tone] || PLAN_CHEER.green)(p);
+    const v = p.total ? Math.min(100, (p.done / p.total) * 100) : 0;
+    // As the picture the student asked for (2026-10-27): the calendar, the title and a cheer, a green bar, the
+    // word on how it goes, and the road from Start to the goal with the plan's days on it.
     return (
         <Panel className="p-5" data-plan-card={p.day}>
-            <h2 className="flex items-center gap-2 text-xl font-extrabold text-[#3c3c3c]"><CalendarDays size={22} style={{ color: COLORS.purple.face }} /> Your roadmap</h2>
-            <p className="mt-1 text-sm font-bold text-[#777]">Day {Math.min(p.day, p.days)} of {p.days} · {planLabel(p.days)} plan · {p.done}/{p.total} lessons</p>
-            <Bar value={p.total ? (p.done / p.total) * 100 : 0} className="mt-2 h-3" label={`${p.done} of ${p.total} lessons done`} />
-            <p className="mt-3 rounded-xl px-3 py-2 text-sm font-bold" style={{ background: COLORS[status.tone].light, color: COLORS[status.tone].ink }}>{status.text}</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                    <CalendarArt />
+                    <div className="min-w-0">
+                        <h2 className="text-2xl font-black leading-tight text-[#1F2A44]">Your roadmap</h2>
+                        <p className="mt-0.5 text-sm font-bold text-[#5B6478]">Day {Math.min(p.day, p.days)} of {p.days} · {planLabel(p.days)} plan · {p.done}/{p.total} lessons</p>
+                    </div>
+                </div>
+                <span className="flex items-center gap-2.5 rounded-2xl px-3.5 py-2 shadow-sm" style={{ background: 'linear-gradient(120deg,#FFF1F7,#F3EEFF)' }} data-plan-cheer={status.tone}>
+                    <span className="text-3xl leading-none" aria-hidden="true">{cheer.icon}</span>
+                    <span className="leading-tight">
+                        <span className="block text-[15px] font-black text-[#7C3AED]">{cheer.title}</span>
+                        <span className="block text-xs font-bold text-[#475569]">{cheer.text}</span>
+                    </span>
+                </span>
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+                <div className="relative h-4 flex-1 overflow-hidden rounded-full bg-[#E8EDF5]" role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100} aria-label={`${p.done} of ${p.total} lessons done`}>
+                    <div className="relative h-full min-w-4 rounded-full transition-[width] duration-500" style={{ width: `${v}%`, background: 'linear-gradient(90deg,#9BE15D,#58CC02)' }}>
+                        <span className="absolute left-2 right-2 top-[22%] h-[28%] rounded-full bg-white/35" />
+                    </div>
+                </div>
+                <span className="shrink-0 text-sm font-extrabold tabular-nums text-[#1F2A44]">{p.done} / {p.total} lessons</span>
+            </div>
+            <p className="mt-3 flex items-center gap-3 rounded-2xl px-4 py-3 text-[15px] font-extrabold" style={{ background: COLORS[status.tone].light, color: COLORS[status.tone].ink }} data-plan-status={status.tone}>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white" style={{ background: COLORS[status.tone].face }}>
+                    {status.tone === 'green' ? <Check size={18} strokeWidth={4} /> : <span className="text-base font-black">!</span>}
+                </span>
+                {status.text}
+            </p>
+            <RoadmapScene day={p.day} days={p.days} />
             <p className="mt-4 text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">{left.length ? `Today: ${left.length} lesson${left.length === 1 ? '' : 's'} to do` : 'Today’s lessons are done!'}</p>
             <ul className="mt-1.5 space-y-1">
                 {today.map((l) => {
@@ -188,7 +241,7 @@ export function PlanCard({ dash }) {
                     return <li key={l.id}>{!done && l.open ? <Link to={`/linguistic/${l.module}/${l.id}`} className="-mx-2 flex items-center gap-2.5 rounded-xl px-2 py-1 hover:bg-[#F7F7F7]" data-plan-today={l.id}>{row}<ChevronRight size={16} className="shrink-0 text-[#AFAFAF]" /></Link> : <span className="flex items-center gap-2.5 py-1" data-plan-today={l.id}>{row}</span>}</li>;
                 })}
             </ul>
-            <Link to="/linguistic/roadmap" className="mt-3 inline-flex min-h-10 items-center gap-1 text-sm font-extrabold uppercase tracking-wide" style={{ color: COLORS.blue.ink }} data-see-roadmap>See my roadmap <ChevronRight size={16} /></Link>
+            <Link to="/linguistic/roadmap" className="mt-3 inline-flex min-h-10 items-center gap-1 text-sm font-extrabold uppercase tracking-wide" style={{ color: COLORS.blue.ink }} data-see-roadmap>See in detail <ChevronRight size={16} /></Link>
         </Panel>
     );
 }
