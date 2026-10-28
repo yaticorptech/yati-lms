@@ -39,6 +39,8 @@ const view = (t) => ({
     profilePicture: t.profilePicture || '',
     dailyWordGoal: t.dailyWordGoal || 500,
     organizationId: t.organizationId || null,
+    // An AI card opens the research tools; without one, only clubs and units.
+    research: Boolean(t.cardNumber),
     role: 'teacher',
     createdAt: t.createdAt
 });
@@ -96,9 +98,27 @@ const register = async (req, res) => {
 
 /* ── Signing in ────────────────────────────────────────────────────────── */
 
+/**
+ * The card-less teacher account with this email. A teacher with a card always
+ * signs in with it, so an email never opens a carded account.
+ */
+const withoutCard = (email) => {
+    const e = String(email || '').trim().toLowerCase();
+    return e ? Teacher.findOne({ email: e, cardNumber: { $in: [null, ''] } }) : null;
+};
+
 const login = async (req, res) => {
     try {
-        const { cardNumber, password } = req.body || {};
+        const { cardNumber, email, password } = req.body || {};
+        // A teacher with no AI card (a club or Scouts leader) signs in with email.
+        if (!cardNumber && email) {
+            if (typeof password !== 'string' || !password) return res.status(400).json({ message: 'Enter your email and password.' });
+            const byEmail = await withoutCard(email);
+            if (!byEmail || !(await byEmail.matchPassword(password))) return res.status(401).json({ message: 'Invalid email or password' });
+            if (byEmail.status !== 'active') return res.status(403).json(notActive(byEmail));
+            await Teacher.updateOne({ _id: byEmail._id }, { $inc: { loginCount: 1 }, $set: { lastLoginAt: new Date() } });
+            return res.json({ ...view(byEmail), token: generateToken(byEmail._id, 'teacher') });
+        }
         if (!cardNumber || typeof password !== 'string' || !password) {
             return res.status(400).json({ message: 'Enter your card number and password.' });
         }
@@ -155,11 +175,27 @@ const cardScan = async (req, res) => {
 
 const FORGOT_REPLY = 'If this card number has a teacher account, a reset link has been sent to its email.';
 
+/** Who the card's teacher account is, partly hidden, to confirm before the link is sent. */
+const forgotPasswordPreview = async (req, res) => {
+    try {
+        const { cardNumber, email } = req.body || {};
+        if (!cardNumber && !email) return res.status(400).json({ message: 'Card number is required' });
+        const teacher = cardNumber ? await findTeacherByCard(cardNumber) : await withoutCard(email);
+        if (!teacher) return res.status(404).json({ message: cardNumber ? 'No teacher account was found for this card number.' : 'No teacher account without a card uses this email.' });
+        const preview = require('../utils/accountPreview').accountPreview(teacher);
+        if (!preview) return res.status(409).json({ message: 'This account has no email on file. Ask your administrator to reset your password.' });
+        res.json(preview);
+    } catch (error) {
+        console.error('[teacher] forgot password preview failed:', error.message);
+        res.status(500).json({ message: 'Could not look up that card. Please try again.' });
+    }
+};
+
 const forgotPassword = async (req, res) => {
     try {
-        const cardNumber = req.body?.cardNumber;
-        if (!cardNumber) return res.status(400).json({ message: 'Card number is required' });
-        const teacher = await findTeacherByCard(cardNumber);
+        const { cardNumber, email } = req.body || {};
+        if (!cardNumber && !email) return res.status(400).json({ message: 'Card number is required' });
+        const teacher = cardNumber ? await findTeacherByCard(cardNumber) : await withoutCard(email);
         if (!teacher) return res.json({ message: FORGOT_REPLY });
         const token = crypto.randomBytes(32).toString('hex');
         await Teacher.updateOne({ _id: teacher._id }, { $set: { resetPasswordToken: hashToken(token), resetPasswordExpiry: new Date(Date.now() + 60 * 60 * 1000) } });
@@ -306,4 +342,4 @@ const uploadPicture = async (req, res) => {
     }
 };
 
-module.exports = { protectTeacher, register, login, cardScan, forgotPassword, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };
+module.exports = { protectTeacher, register, login, cardScan, forgotPassword, forgotPasswordPreview, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };

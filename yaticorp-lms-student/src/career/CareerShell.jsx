@@ -16,7 +16,7 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, CalendarCheck, Calendar, Map, Target, Lightbulb,
+  LayoutDashboard, CalendarCheck, Calendar, Map, Target, GraduationCap,
   UserCircle, Award, Flag, Sparkles
 } from 'lucide-react';
 
@@ -44,8 +44,10 @@ const NAV_GROUPS = [
     label: 'Your path',
     items: [
       { name: 'Roadmap', path: '/career/roadmap', icon: Map, tone: 'from-emerald-400 to-teal-600 shadow-emerald-500/40' },
+      // Skills holds what was "Ideas & Resources" too, as its "What to learn" view (2026-10-27).
       { name: 'Skills', path: '/career/skills', icon: Target, tone: 'from-pink-400 to-rose-600 shadow-pink-500/40' },
-      { name: 'Ideas & Resources', short: 'Ideas', path: '/career/recommendations', icon: Lightbulb, tone: 'from-yellow-400 to-amber-500 shadow-amber-500/40' }
+      // Scholarships moved here from the sidebar the same day.
+      { name: 'Scholarships', path: '/career/scholarships', icon: GraduationCap, tone: 'from-fuchsia-500 to-violet-600 shadow-fuchsia-500/40' }
     ]
   },
   {
@@ -65,7 +67,7 @@ const NAV_GROUPS = [
 ];
 
 // Tabs the guide walks to by name; the rest keep a plain `tab-<name>`.
-const GUIDE_TARGETS = { skills: 'skills', roadmap: 'view-roadmap', recommendations: 'mentor' };
+const GUIDE_TARGETS = { skills: 'skills', roadmap: 'view-roadmap' };
 
 function CareerFrame() {
   const { refresh } = useContext(AuthContext);

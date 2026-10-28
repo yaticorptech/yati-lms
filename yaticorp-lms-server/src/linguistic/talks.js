@@ -71,6 +71,24 @@ const TOPICS = [
         phrases: ['I would rather …, because …', 'One advantage is …', 'The biggest risk is …', 'If I …, I would …'],
         sample: 'I would rather work for a big company for a few years, and then start my own business. One advantage of a company is that I can learn how a business really works, with a regular salary. I can also save money to invest later, so I will not need a large loan. The biggest risk of starting a business too early is that there may be no profit for a long time. If I started my own company, I would begin small and test the idea with real customers first. So for me, a job is the first step, and a business is the goal.',
         kn: { prompt: 'ನೀವು ನಿಮ್ಮದೇ ವ್ಯಾಪಾರ ಆರಂಭಿಸಲು ಬಯಸುತ್ತೀರಾ, ಅಥವಾ ದೊಡ್ಡ ಕಂಪನಿಯಲ್ಲಿ ಕೆಲಸ ಮಾಡಲು ಬಯಸುತ್ತೀರಾ? ಏಕೆ ಎಂದು ವಿವರಿಸಿ, ಮತ್ತು ಅಪಾಯಗಳ ಬಗ್ಗೆ ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ಮಾತನಾಡಿ.', points: ['ಮೊದಲ ವಾಕ್ಯದಲ್ಲೇ ನಿಮ್ಮ ಆಯ್ಕೆ ಹೇಳಿ.', 'ಅದಕ್ಕೆ ಎರಡು ಕಾರಣಗಳನ್ನು ನೀಡಿ.', 'ಅಪಾಯಗಳ ಬಗ್ಗೆ ಮತ್ತು ಅವುಗಳನ್ನು ಹೇಗೆ ಎದುರಿಸುತ್ತೀರಿ ಎಂದು ಹೇಳಿ.', 'ಒಂದೆರಡು ವಾಕ್ಯಗಳಲ್ಲಿ ಮುಕ್ತಾಯಗೊಳಿಸಿ.'] }
+    },
+    {
+        order: 4, part: 1, title: 'Talk: protecting our planet',
+        prompt: 'What are the biggest environmental problems in your city or village, and what can young people do about them? Give examples.',
+        points: ['Name one or two environmental problems near you.', 'Explain what causes them.', 'Suggest two things young people can do.', 'End with why it matters to you.'],
+        words: ['pollution', 'climate', 'conserve', 'biodiversity'],
+        phrases: ['One of the biggest problems is …', 'This is mainly caused by …', 'Young people can …', 'If we do nothing, …'],
+        sample: 'One of the biggest problems in my city is pollution. The air is full of dust and smoke, and many of our lakes are covered with dirty foam. This is mainly caused by heavy traffic and by waste that is thrown into the water. The climate is also changing: summers are hotter, and the rain often comes at the wrong time. Young people can do a lot about this. First, we can conserve water and electricity at home and in college. Secondly, we can join groups that clean lakes and plant saplings, which also protects the biodiversity of our area. For example, last month, my friends and I helped to clean a lake near our college. If we do nothing, our children will never see the green city our grandparents knew. That is why I want to act now.',
+        kn: { prompt: 'ನಿಮ್ಮ ನಗರ ಅಥವಾ ಹಳ್ಳಿಯಲ್ಲಿರುವ ಅತಿ ದೊಡ್ಡ ಪರಿಸರ ಸಮಸ್ಯೆಗಳು ಯಾವುವು, ಮತ್ತು ಯುವಜನರು ಅವುಗಳ ಬಗ್ಗೆ ಏನು ಮಾಡಬಹುದು? ಉದಾಹರಣೆಗಳೊಂದಿಗೆ ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ಮಾತನಾಡಿ.', points: ['ನಿಮ್ಮ ಸುತ್ತಮುತ್ತಲಿನ ಒಂದೆರಡು ಪರಿಸರ ಸಮಸ್ಯೆಗಳನ್ನು ಹೆಸರಿಸಿ.', 'ಅವುಗಳಿಗೆ ಕಾರಣ ಏನು ಎಂದು ವಿವರಿಸಿ.', 'ಯುವಜನರು ಮಾಡಬಹುದಾದ ಎರಡು ಕೆಲಸಗಳನ್ನು ಸೂಚಿಸಿ.', 'ಇದು ನಿಮಗೆ ಏಕೆ ಮುಖ್ಯ ಎಂದು ಹೇಳಿ ಮುಗಿಸಿ.'] }
+    },
+    {
+        order: 4, part: 2, title: 'Talk: one change for my city',
+        prompt: 'If you could make one change to make your city greener, what would it be? Explain how it would work and why it would help.',
+        points: ['Say clearly what your change is.', 'Explain how it would work, step by step.', 'Give two ways it would help people or nature.', 'Answer one problem it may face, then conclude.'],
+        words: ['renewable', 'recycle', 'emission', 'drought'],
+        phrases: ['If I could change one thing, …', 'It would work like this: …', 'This would help because …', 'Some people may say …, but …'],
+        sample: 'If I could change one thing in my city, I would put solar panels on every government building. It would work like this: the panels would be paid for by the city, and the electricity would be used in offices, schools and hospitals. This would help in two ways. Firstly, renewable energy from the sun would cut the emissions from power plants, so the air would be cleaner. Secondly, the money that is saved could be used to build rainwater tanks, which would help us during a drought. I would also ask every office to recycle its paper and plastic. Some people may say that solar panels are too expensive, but they pay for themselves in a few years. So I believe this one change would make a real difference.',
+        kn: { prompt: 'ನಿಮ್ಮ ನಗರವನ್ನು ಹೆಚ್ಚು ಹಸಿರಾಗಿಸಲು ನೀವು ಒಂದು ಬದಲಾವಣೆ ಮಾಡಬಹುದಾದರೆ, ಅದು ಏನಾಗಿರುತ್ತದೆ? ಅದು ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ ಮತ್ತು ಏಕೆ ಸಹಾಯವಾಗುತ್ತದೆ ಎಂದು ಇಂಗ್ಲಿಷ್‌ನಲ್ಲಿ ವಿವರಿಸಿ.', points: ['ನಿಮ್ಮ ಬದಲಾವಣೆ ಏನು ಎಂದು ಸ್ಪಷ್ಟವಾಗಿ ಹೇಳಿ.', 'ಅದು ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ ಎಂದು ಹಂತ ಹಂತವಾಗಿ ವಿವರಿಸಿ.', 'ಅದು ಜನರಿಗೆ ಅಥವಾ ಪ್ರಕೃತಿಗೆ ಸಹಾಯ ಮಾಡುವ ಎರಡು ರೀತಿಗಳನ್ನು ಹೇಳಿ.', 'ಅದು ಎದುರಿಸಬಹುದಾದ ಒಂದು ಸಮಸ್ಯೆಗೆ ಉತ್ತರಿಸಿ, ನಂತರ ಮುಕ್ತಾಯಗೊಳಿಸಿ.'] }
     }
 ];
 

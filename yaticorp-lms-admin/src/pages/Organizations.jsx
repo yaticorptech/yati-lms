@@ -30,6 +30,7 @@ import { formatDate } from '../utils/dates';
 import Select from '../components/Select';
 import OrgCodeField from '../components/OrgCodeField';
 import { orgCodeProblem } from '../utils/orgCode';
+import { INDIA_STATES } from '../utils/bsg';
 import { LoadFailed, SearchInput, Pager } from '../components/orgUi';
 import useAutoRefresh from '../hooks/useAutoRefresh';
 import useDialog from '../hooks/useDialog';
@@ -1619,7 +1620,9 @@ const AssignStudentModal = ({ organization, onClose, onAssigned }) => {
 const CreateModal = ({ types, onClose, onCreated }) => {
     const [form, setForm] = useState({
         name: '', orgCode: '', organizationType: 'school', contactPerson: '', email: '',
-        phone: '', address: '', website: '', expectedStudents: '', password: ''
+        phone: '', address: '', website: '', expectedStudents: '', password: '',
+        // '' an institution; 'national' or 'state' a Bharat Scouts & Guides office (one each, one user).
+        bsgOffice: '', state: ''
     });
     const [pwFocused, setPwFocused] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -1662,6 +1665,24 @@ const CreateModal = ({ types, onClose, onCreated }) => {
                         yourself, so there is nothing left to approve. Type the Organization ID its students will use.
                     </p>
 
+                    <div>
+                        <label className={LABEL} htmlFor="org-kind">Kind</label>
+                        <Select id="org-kind" value={form.bsgOffice} onChange={(e) => setForm((f) => ({ ...f, bsgOffice: e.target.value, ...(e.target.value === 'national' ? { state: '' } : {}), ...(e.target.value ? { organizationType: 'government' } : {}) }))} className={INPUT}>
+                            <option value="">An institution</option>
+                            <option value="national">Bharat Scouts &amp; Guides — national office</option>
+                            <option value="state">Bharat Scouts &amp; Guides — state office</option>
+                        </Select>
+                        {form.bsgOffice && <p className="mt-1 text-xs text-slate-500">One {form.bsgOffice === 'national' ? 'national office' : 'office per state'}, with one user (the email and password below). It publishes exams, camps and events for Scouts &amp; Guides to see.{form.bsgOffice === 'national' ? ' Scouts & Guides with no institution join it with its Organization ID.' : ''}</p>}
+                    </div>
+                    {form.bsgOffice !== 'national' && (
+                        <div>
+                            <label className={LABEL} htmlFor="org-state">State {form.bsgOffice === 'state' && <span className="text-red-500">*</span>}</label>
+                            <Select id="org-state" value={form.state} onChange={set('state')} className={INPUT} required={form.bsgOffice === 'state'}>
+                                <option value="">{form.bsgOffice === 'state' ? 'Choose the state' : 'Not set'}</option>
+                                {INDIA_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                        </div>
+                    )}
                     <div>
                         <label className={LABEL} htmlFor="org-name">Organization name <span className="text-red-500">*</span></label>
                         <input id="org-name" required value={form.name} onChange={set('name')} className={INPUT} data-autofocus />

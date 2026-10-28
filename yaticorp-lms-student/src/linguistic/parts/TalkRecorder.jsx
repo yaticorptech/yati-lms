@@ -14,7 +14,8 @@ import { Mic, Square, AlertCircle } from 'lucide-react';
 import { COLORS } from '../meta';
 
 const MAX_SECONDS = 180;
-const Recognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition || null) : null;
+// Looked up when used, not once at load (a page's test can then stand in for it).
+const recognizer = () => (typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition || null) : null);
 const canRecord = () => typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof window.MediaRecorder !== 'undefined';
 const QUESTION = /^(what|where|when|why|how|who|which|do|does|did|is|are|can|could|would|will|should)\b/i;
 
@@ -32,8 +33,10 @@ const joined = (...parts) => parts.filter(Boolean).join(' ').trim();
  * @param {Function} props.onChange  with the new text
  * @param {boolean}  props.disabled
  * @param {Function} props.onListening  whether it is listening now (the text is read-only then)
+ * @param {Function} props.onStop       with how many seconds that stretch of speaking took
  */
-export default function TalkRecorder({ value, onChange, disabled = false, onListening, T = (x) => x }) {
+export default function TalkRecorder({ value, onChange, disabled = false, onListening, onStop, T = (x) => x }) {
+    const Recognition = recognizer();
     const [state, setState] = useState('idle');   // idle | listening | done
     const [heard, setHeard] = useState('');        // words still being made out
     const [seconds, setSeconds] = useState(0);
@@ -51,11 +54,13 @@ export default function TalkRecorder({ value, onChange, disabled = false, onList
 
     const release = () => { clearInterval(timer.current); stream.current?.getTracks().forEach((t) => t.stop()); stream.current = null; };
     const stopAll = () => {
+        const was = on.current;
         on.current = false;
         try { recognition.current?.stop(); } catch { /* not started */ }
         if (recorder.current?.state === 'recording') recorder.current.stop(); else release();
         clearInterval(timer.current);
         setHeard(''); setState('done'); onListening?.(false);
+        if (was) onStop?.(elapsed.current);
     };
     useEffect(() => () => { on.current = false; try { recognition.current?.abort(); } catch { /* none */ } release(); }, []);
     useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);

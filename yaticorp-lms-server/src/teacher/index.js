@@ -12,6 +12,7 @@
  *   questionnaires      Research Methodologies → Questionnaire builder: surveys, as Word files
  *   organization        joining a college or school (organization.js)
  *   clubs               the organization's clubs this teacher is in charge of: their events (../nccnss/teacher.js)
+ *   scout-units         the Scouts & Guides units this teacher leads: requests, events, attendance (../nccnss/leader.js)
  *
  * Every route past auth/ reads req.teacher only: a teacher can never reach
  * another's records (the plagiarism check compares against other documents,
@@ -109,6 +110,7 @@ const writingStats = async (teacher) => {
 router.post('/auth/register', authLimiter, auth.register);
 router.post('/auth/login', loginLimiter, loginCardLimiter, auth.login);
 router.post('/auth/card-scan', cardLookupLimiter, auth.cardScan);
+router.post('/auth/forgot-password/preview', cardLookupLimiter, auth.forgotPasswordPreview);
 router.post('/auth/forgot-password', authLimiter, auth.forgotPassword);
 router.post('/auth/reset-password', authLimiter, auth.resetPassword);
 
@@ -165,7 +167,16 @@ const recentWork = async (teacherId) => {
     return items.sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 3);
 };
 
-router.get('/overview', async (req, res) => {
+/**
+ * The research side (everything from the overview on, bar the clubs and units)
+ * is opened by an AI card. A teacher added without one — a club or Scouts
+ * leader — reaches only their profile, organization, clubs and units.
+ */
+const needsCard = (req, res, next) => (req.teacher.cardNumber
+    ? next()
+    : res.status(403).json({ code: 'NO_RESEARCH', message: 'The research tools come with an AI card. Your account runs your clubs and Scouts units.' }));
+
+router.get('/overview', needsCard, async (req, res) => {
     try {
         const t = req.teacher;
         const [project, pubs, thesis, stats, lastReport, recent] = await Promise.all([
@@ -289,6 +300,13 @@ router.use('/organization', require('./organization'));
 /* ── Clubs in my charge (src/nccnss/teacher.js) ───────────────────────── */
 
 router.use('/clubs', require('../nccnss/teacher'));
+
+/* ── Scouts & Guides units I lead (src/nccnss/leader.js) ──────────────── */
+
+router.use('/scout-units', require('../nccnss/leader'));
+
+// Everything below is the research side.
+router.use(needsCard);
 
 /* ── Research Path ─────────────────────────────────────────────────────── */
 

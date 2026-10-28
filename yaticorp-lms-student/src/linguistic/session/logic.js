@@ -11,6 +11,7 @@
  *          question | translate | write | speak          answer, then CHECK
  */
 import { tr, line, praiseIn } from '../say';
+import { ticksOf, needOf, wordCount } from '../parts/speakTicks';
 
 const PAIR_ROUND = 4;
 
@@ -111,7 +112,7 @@ export const usesTiles = (step) => (step.kind === 'question' && step.q.type === 
 
 /** A screen's answer before the student does anything. */
 export const startValue = (step) => {
-    if (step.kind === 'speak') return { ticks: (step.speaking.checklist || []).map(() => false), recorded: false };
+    if (step.kind === 'speak') return { said: '', seconds: 0, recorded: false };
     if (usesTiles(step)) return [];
     if (step.kind === 'question' && step.q.type === 'correction') return step.q.prompt;
     return '';
@@ -124,10 +125,20 @@ export const givenOf = (step, value) => {
     return String(value ?? '');
 };
 
+/** A paragraph, email or letter: three sentences or more (2026-10-28). */
+export const OPEN_WRITING = ['paragraph', 'email', 'letter'];
+export const LEAST_SENTENCES = 3;
+/** Its sentences: each ends with a full stop (or ? or !) and has two words or more — as the server counts them (writingCheck.js). */
+export const sentenceCount = (text) => (String(text || '').match(/[^.!?\n]+[.!?]+/g) || []).filter((s) => wordCount(s) >= 2).length;
+
 /** Can CHECK be pressed yet? */
 export const answered = (step, value) => {
-    if (step.kind === 'speak') return true;
+    // A speaking task is answered by voice (2026-10-28: "don't give a tick option manually"): recorded, five words
+    // or more said, and half the checklist or more ticked by itself from what was said (speakTicks.js).
+    if (step.kind === 'speak') return !!value?.recorded && wordCount(value.said) >= 5 && ticksOf(step.speaking, value.said, value.seconds).filter(Boolean).length >= needOf(step.speaking);
     if (step.kind === 'pairs') return false;
+    // "Write at least three sentences, otherwise don't go to the next question" (2026-10-28).
+    if (step.kind === 'write' && OPEN_WRITING.includes(step.task.type)) return sentenceCount(value) >= LEAST_SENTENCES;
     if (step.kind === 'question' && step.q.type === 'correction') return givenOf(step, value).trim() && givenOf(step, value).trim() !== String(step.q.prompt).trim();
     return !!givenOf(step, value).trim();
 };
@@ -149,7 +160,7 @@ export const sheetOf = (step, r, n = 0) => {
         return { tone: r.passed ? 'right' : 'wrong', title: T(r.passed ? 'Well spoken!' : r.short ? 'Say a little more' : 'Fix these, then speak again'), text: sum, good: r.good, tips: r.tips, model: r.sample, modelLabel: T('Sample answer') };
     }
     if (step.kind === 'speak') {
-        return { tone: 'info', title: r.total ? line(step.language, 'ticked', r.ticked, r.total) : T('Saved'), text: r.total && r.ticked === r.total ? T('A full self-check. Well spoken!') : T('Listen to your recording again, and try once more if you like.'), model: r.sample || '', modelLabel: T('Sample answer') };
+        return { tone: 'info', title: r.total ? line(step.language, 'ticked', r.ticked, r.total) : T('Saved'), text: r.total && r.ticked === r.total ? T('Well spoken!') : T('Listen to your recording again, and try once more if you like.'), model: r.sample || '', modelLabel: T('Sample answer') };
     }
     if (step.kind === 'write') {
         const tips = (r.findings || []).filter((f) => f.kind === 'tip').map((f) => f.text);

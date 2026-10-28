@@ -11,11 +11,12 @@ const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers'
 const { LinguisticLesson } = require('../../src/linguistic/models');
 const svc = require('../../src/linguistic/service');
 const courses = require('../../src/linguistic/courses');
-const { unlockIds } = require('./unlock');
+const { unlockIds, moveCourse } = require('./unlock');
 /** A level's lessons along the path (topic units, 2026-10-24). */
 const lessonsOf = (level) => level.units.flatMap((u) => u.lessons.filter((x) => !x.stop));
 
 let app, hindi, kannada, admin, api, knApi, adminApi;
+const others = [];
 before(async () => {
     await connect();
     app = startApp({ mount: '/api/linguistic', router: require('../../src/linguistic') });
@@ -25,7 +26,7 @@ before(async () => {
 });
 after(async () => {
     await require('../../src/models/Admin').deleteMany({ _id: admin.admin._id });
-    await cleanup([hindi.user, kannada.user], app.server);
+    await cleanup([hindi.user, kannada.user, ...others], app.server);
 });
 
 /** The answers to a lesson's quiz, worked out here as the server would (the student never sees them). */
@@ -55,6 +56,19 @@ describe('courses', () => {
         assert.equal((await api('POST', '/language', { language: 'kn' })).status, 400, 'nor can they say they speak the language they learn');
     });
 
+    test('one language only (2026-10-27): once a course is started, another is refused', async () => {
+        for (const course of ['en', 'ja']) {
+            const r = await api('POST', '/course', { course });
+            assert.equal(r.status, 400, course);
+            assert.match(r.body.message, /You are learning Kannada\. Finish all its sections, then choose your next language\./);
+        }
+        assert.equal((await api('GET', '/')).body.course.code, 'kn', 'still Kannada');
+        // An English lesson's link (an old one, or the Writing tab's) says so, for the page to go to the path instead.
+        const en = await LinguisticLesson.findOne({ seedKey: 'vocab-beginner-2' }).select('_id').lean();
+        const r = await api('GET', `/lessons/${en._id}`);
+        assert.deepEqual([r.status, r.body.code], [404, 'NOT_IN_COURSE']);
+    });
+
     test('the course path: Vocabulary and Translation only, Beginner open', async () => {
         const path = (await api('GET', '/path')).body;
         assert.equal(path.course.code, 'kn');
@@ -62,7 +76,7 @@ describe('courses', () => {
         assert.deepEqual([...modules].sort(), ['translation', 'vocabulary']);
         assert.equal(path.levels.find((l) => l.level === 'beginner').open, true);
         assert.equal(path.levels.find((l) => l.level === 'advanced').open, false);
-        assert.deepEqual(path.levels[0].units.map((u) => u.title), ['Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Level review'], 'the same units as English');
+        assert.deepEqual(path.levels[0].units.map((u) => u.title), ['Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Time and days', 'My day', 'Level review'], 'the same units as English');
         assert.deepEqual(path.levels[0].units[0].lessons.map((x) => x.stop || x.review || x.module), ['vocabulary', 'translation', 'chest', 'hear', 'practice', 'unit']);
         assert.ok(lessonsOf(path.levels[0]).some((x) => /write in Kannada/.test(x.title)));
     });
@@ -119,14 +133,15 @@ describe('courses', () => {
         assert.equal(pdf.status, 200);
         assert.equal((await api('GET', '/certificates/beginner/pdf?course=en')).status, 404);
 
-        // Back to English: its own path, nothing completed there, not started (no level yet).
-        const back = await api('POST', '/course', { course: 'en' });
-        assert.deepEqual([back.body.course.code, back.body.started], ['en', false]);
+        // A student who had begun two courses before 27 Oct, back in English: its own path, nothing completed there, not started.
+        await moveCourse(hindi.user, 'en');
+        const back = (await api('GET', '/')).body;
+        assert.deepEqual([back.course.code, back.started], ['en', false]);
         const en = (await api('GET', '/path')).body;
         assert.ok(lessonsOf(en.levels[0]).some((x) => x.module === 'grammar'));
         assert.equal(en.levels.find((l) => l.level === 'beginner').complete, false);
         // And to Kannada again: still where they were.
-        await api('POST', '/course', { course: 'kn' });
+        await moveCourse(hindi.user, 'kn');
         assert.equal((await api('GET', '/path')).body.levels.find((l) => l.level === 'beginner').complete, true);
     });
 
@@ -191,6 +206,52 @@ describe('courses', () => {
                 assert.ok(n > 0, `${stub.seedKey} from ${helper}`);
             }
         }
+    });
+
+    test('the next language (2026-10-28): only once every section of the one learnt is finished; then that one is kept until it is finished too', async () => {
+        const s = await makeUser('Ling Course Next');
+        others.push(s.user);
+        const sApi = app.call(s.token);
+        assert.equal((await sApi('POST', '/language', { language: 'hi' })).status, 200);
+        assert.equal((await sApi('POST', '/course', { course: 'kn', start: 'beginner' })).status, 200);
+        const progress = await svc.progressOf(s.user._id);
+        progress.levelsCompleted.push({ level: 'beginner', completedAt: new Date(), average: 90, course: 'kn' }, { level: 'intermediate', completedAt: new Date(), average: 90, course: 'kn' });
+        await progress.save();
+        let d = (await sApi('GET', '/')).body;
+        assert.equal(d.courseDone, false);
+        const early = await sApi('POST', '/course', { course: 'ja' });
+        assert.equal(early.status, 400, 'two of three sections done: not yet');
+        assert.match(early.body.message, /Finish all its sections/);
+        const again = await svc.progressOf(s.user._id);
+        again.levelsCompleted.push({ level: 'advanced', completedAt: new Date(), average: 90, course: 'kn' });
+        await again.save();
+        d = (await sApi('GET', '/')).body;
+        assert.equal(d.courseDone, true, 'Kannada finished');
+        assert.equal(d.courses.find((c) => c.code === 'kn').done, true);
+        const next = await sApi('POST', '/course', { course: 'ja', start: 'beginner' });
+        assert.equal(next.status, 200, 'the next language');
+        assert.deepEqual([next.body.course.code, next.body.courseDone], ['ja', false]);
+        const back = await sApi('POST', '/course', { course: 'en' });
+        assert.equal(back.status, 400, 'Japanese begun: kept until it is finished');
+        assert.match(back.body.message, /You are learning Japanese\./);
+        assert.equal((await sApi('GET', '/')).body.course.code, 'ja');
+    });
+
+    test('Bhagyashree\'s two accounts (2026-10-28) change the language they learn without finishing it; no one else does', async () => {
+        const s = await makeUser('Ling Course Free');
+        others.push(s.user);
+        const sApi = app.call(s.token);
+        assert.equal((await sApi('POST', '/language', { language: 'hi' })).status, 200);
+        assert.equal((await sApi('POST', '/course', { course: 'kn', start: 'beginner' })).status, 200);
+        assert.equal((await sApi('POST', '/course', { course: 'ja' })).status, 400, 'an ordinary card: Kannada is kept');
+        assert.equal((await sApi('GET', '/')).body.freeCourse, undefined);
+        // The same student, as one of her cards (written with spaces, as some are stored).
+        for (const [cardNumber, course] of [['2401 0004 5056', 'ja'], ['240100019423', 'en']]) {
+            const r = await svc.setCourse({ _id: s.user._id, cardNumber }, course, 'beginner');
+            assert.equal(r.error, undefined, `${cardNumber} to ${course}`);
+            assert.deepEqual([r.course.code, r.freeCourse], [course, true]);
+        }
+        assert.equal((await svc.dashboard({ ...s.user.toObject?.() ?? s.user, cardNumber: '240100045056' })).freeCourse, true, 'the dashboard opens her picker');
     });
 
     test('administrators manage the English lessons; the course stubs are not in their list', async () => {

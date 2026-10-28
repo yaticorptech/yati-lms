@@ -16,7 +16,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, Settings, LogOut, RefreshCw, Trophy,
-    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical
+    Clock, Ban, XCircle, Copy, Check, Loader2, Eye, ArrowLeft, Hourglass, Presentation, Shield, FlaskConical, UserCog, ScrollText, Megaphone
 } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from '../utils/useAutoLogout';
@@ -41,15 +41,33 @@ const NAV = [
     { to: '/organization/competitions', label: 'Competitions', short: 'Compete', icon: Trophy },
     // Extra-curricular: NCC, NSS, Scouts & Guides and clubs (src/pages/org/OrgNccNss.jsx). Sidebar only, like English.
     { to: '/organization/ncc-nss', label: 'Extra-curricular', short: 'Activities', icon: Shield, sidebarOnly: true },
+    // Who signs in to this dashboard with full access, and what each of them did
+    // (src/pages/org/OrgUsers.jsx, OrgAuditLog.jsx). Sidebar only.
+    { to: '/organization/users', label: 'Users', short: 'Users', icon: UserCog, sidebarOnly: true },
+    { to: '/organization/audit', label: 'Audit log', short: 'Audit', icon: ScrollText, sidebarOnly: true },
     { to: '/organization/settings', label: 'Settings', short: 'Settings', icon: Settings }
 ];
 // A teacher signed in to this panel (Teachers → Organisation dashboard) sees
 // only what they may use — the server refuses the rest (staffMay in
 // organizations/middleware/authMiddleware.js) — and Research, their teacher
 // dashboard, when they have that too.
-const STAFF_HIDDEN = ['/organization/teachers', '/organization/settings'];
+const STAFF_HIDDEN = ['/organization/teachers', '/organization/users', '/organization/audit', '/organization/settings'];
 const RESEARCH = { to: '/organization/research', label: 'Research', short: 'Research', icon: FlaskConical };
 // No requests badge for them either: they have no Requests tab to act on it.
+// A Bharat Scouts & Guides office has one user and its own menu: its notices
+// (exams, camps, events) first. The national office also runs the Scouts &
+// Guides with no institution, who join it as students: Students and Extra-curricular.
+const NOTICES = { to: '/organization/bsg-notices', label: 'BSG notices', short: 'Notices', icon: Megaphone };
+const OFFICE_NAV = {
+    national: ['/organization', '/organization/students', '/organization/ncc-nss', '/organization/audit', '/organization/settings'],
+    state: ['/organization', '/organization/audit', '/organization/settings']
+};
+const officeNav = (level) => {
+    // An office handles Scouts & Guides only: its Extra-curricular is just that.
+    const items = OFFICE_NAV[level].map((to) => NAV.find((n) => n.to === to)).filter(Boolean)
+        .map((n) => (n.to === '/organization/ncc-nss' ? { ...n, label: 'Scouts & Guides', short: 'Scouts' } : n));
+    return [items[0], NOTICES, ...items.slice(1)];
+};
 const navFor = (staff) => (staff ? [...NAV.filter((n) => !STAFF_HIDDEN.includes(n.to)).map(({ badge, ...n }) => (badge === 'pendingRequests' ? n : { ...n, badge })), ...(staff.research ? [RESEARCH] : [])] : NAV);
 
 const linkClass = (active) =>
@@ -173,7 +191,7 @@ const OrgAdminLayout = () => {
 
     const [organization, setOrganization] = useState(null);
     const [staff, setStaff] = useState(null);
-    const nav = navFor(staff);
+    const nav = organization?.bsgOffice ? officeNav(organization.bsgOffice) : navFor(staff);
     const [loading, setLoading] = useState(true);
     const [failed, setFailed] = useState('');
     const [counts, setCounts] = useState({ pendingRequests: 0, pendingTeacherRequests: 0 });
@@ -492,7 +510,7 @@ const OrgAdminLayout = () => {
                 <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 pb-28 custom-scrollbar lg:p-8">
                     {/* The question bank uses the full width. */}
                     <div className={`mx-auto w-full ${location.pathname.endsWith('/competitions/question-bank') ? 'max-w-none' : 'max-w-7xl'}`}>
-                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} context={{ staff, pendingRequests: counts.pendingRequests }} /></Suspense></ErrorBoundary>
+                        <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} context={{ staff, pendingRequests: counts.pendingRequests, organization }} /></Suspense></ErrorBoundary>
                     </div>
                 </div>
                 <PullToRefresh scrollerRef={scrollerRef} onRefresh={refreshPage} className={viewing ? 'top-28 lg:top-32' : 'top-16 lg:top-20'} />

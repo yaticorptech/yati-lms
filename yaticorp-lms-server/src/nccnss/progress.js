@@ -22,14 +22,15 @@ const targetsFor = async (organizationId) => {
 
 const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 
-/** Events a member was expected at: their scheme (and club), their unit (or all units), since they joined. */
+/** Events a member was expected at: their scheme (and club), their unit (or all units), since they joined and until their membership ended. */
 const sameClub = (a, b) => String(a.clubId?._id || a.clubId || '') === String(b.clubId?._id || b.clubId || '');
 const expectedFor = (member, events) => events.filter((e) =>
     e.scheme === member.scheme &&
     sameClub(e, member) &&
     (!e.unit || e.unit === member.unit) &&
     e.attendanceTaken &&
-    new Date(e.date) >= startOfDay(member.createdAt));
+    new Date(e.date) >= startOfDay(member.createdAt) &&
+    (!member.endedAt || new Date(e.date) <= new Date(member.endedAt)));
 
 /**
  * One summary per member, in the same order. Two queries for the whole list,
@@ -42,7 +43,7 @@ const summarise = async (members, organizationId, targets) => {
     const [activities, events] = await Promise.all([
         NccNssActivity.find({ memberId: { $in: ids }, status: { $in: ['approved', 'pending'] } })
             .select('memberId kind hours status').lean(),
-        NccNssEvent.find({ organizationId, attendanceTaken: true }).select('scheme clubId unit kind hours date presentMemberIds').lean()
+        NccNssEvent.find({ organizationId, attendanceTaken: true }).select('scheme clubId unit kind hours date attendanceTaken presentMemberIds').lean()
     ]);
 
     return members.map((m) => {

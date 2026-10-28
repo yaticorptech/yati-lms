@@ -49,7 +49,11 @@ const teacherSchema = new Schema({
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
     phone: { type: String, required: true, trim: true },
-    cardNumber: { type: String, required: true, unique: true, set: (v) => (v == null ? v : String(v).trim()) },
+    // The AI card the teacher signs in with; it opens the research tools. An
+    // organization can also add a teacher with no card — a club or Scouts &
+    // Guides leader — who signs in with email and password and sees only their
+    // clubs and units. Unique among the teachers that have one (index below).
+    cardNumber: { type: String, set: (v) => (v == null || v === '' ? undefined : String(v).trim()) },
     password: { type: String, required: true },
     // 'pending' while the admin's approval is switched on and not yet given
     // (Setting.teacherApprovalRequired); 'inactive' is blocked or turned down.
@@ -77,6 +81,11 @@ const teacherSchema = new Schema({
     // questionnaire routes ask for them.
     questionnaires: { type: [questionnaireSchema], select: false, default: undefined }
 }, { timestamps: true });
+
+teacherSchema.index({ cardNumber: 1 }, { unique: true, name: 'card_unique', partialFilterExpression: { cardNumber: { $type: 'string' } } });
+
+/** Whether this teacher has an AI card, and with it the research tools. */
+teacherSchema.methods.hasResearch = function () { return Boolean(this.cardNumber); };
 
 teacherSchema.pre('save', async function () {
     if (!this.isModified('password') || BCRYPT_HASH.test(this.password || '')) return;
@@ -283,8 +292,17 @@ teacherOrgRequestSchema.index({ teacherId: 1 }, { unique: true, partialFilterExp
 teacherOrgRequestSchema.index({ organizationId: 1, status: 1, createdAt: 1 });
 teacherOrgRequestSchema.index({ teacherId: 1, createdAt: -1 });
 
+const Teacher = mongoose.models.Teacher || mongoose.model('Teacher', teacherSchema);
+// cardNumber_1 was unique over every teacher, so only one could ever be
+// without a card. Replaced by card_unique (unique where there is a card). No
+// teacher is touched; only the old index goes, then the new one is built.
+Teacher.init().catch(() => {})
+    .then(() => Teacher.collection.dropIndex('cardNumber_1'))
+    .then(() => Teacher.createIndexes())
+    .catch(() => {});
+
 module.exports = {
-    Teacher: mongoose.models.Teacher || mongoose.model('Teacher', teacherSchema),
+    Teacher,
     ResearchProject: mongoose.models.ResearchProject || mongoose.model('ResearchProject', researchProjectSchema),
     Publication: mongoose.models.Publication || mongoose.model('Publication', publicationSchema),
     Thesis: mongoose.models.Thesis || mongoose.model('Thesis', thesisSchema),

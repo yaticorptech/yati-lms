@@ -57,4 +57,49 @@ OrgAuditLog.record = async ({ orgId, admin, action, req, details = {} }) => {
     }
 };
 
+/**
+ * What a change made in an organization's panel was, in words, from its
+ * method and path: "Added a teacher", "Edited a Scouts unit". The most
+ * specific matching rule wins; anything unlisted reads as its verb and the
+ * section it was in, so a new route is still recorded, just plainly.
+ */
+const VERB = { POST: 'Added', PUT: 'Edited', PATCH: 'Edited', DELETE: 'Removed' };
+const RULES = [
+    [/\/me\/users(\/|$)/, 'a user'],
+    [/\/me\/password$/, null, 'Changed their password'],
+    [/\/me\/logo$/, null, 'Changed the logo'],
+    [/\/me$/, null, 'Edited the organization\'s details'],
+    [/\/me\/requests\//, null, 'Decided a student\'s request to join'],
+    [/\/me\/teachers\/requests\//, null, 'Decided a teacher\'s request to join'],
+    [/\/me\/teachers\/bulk$/, null, 'Uploaded teachers from a spreadsheet'],
+    [/\/me\/teachers\/[^/]+\/card$/, null, 'Gave a teacher an AI card'],
+    [/\/me\/teachers(\/|$)/, 'a teacher'],
+    [/\/me\/students(\/|$)/, 'a student'],
+    [/\/me\/cards(\/|$)/, 'student cards'],
+    [/\/me\/nccnss\/units(\/|$)/, 'a Scouts & Guides unit'],
+    [/\/me\/nccnss\/members\/[^/]+\/transfer$/, null, 'Transferred a member to another unit'],
+    [/\/me\/nccnss\/members\/[^/]+\/awards$/, null, 'Recorded a rank, badge or training'],
+    [/\/me\/nccnss\/awards(\/|$)/, 'a rank, badge or training'],
+    [/\/me\/nccnss\/members(\/|$)/, 'an extra-curricular member'],
+    [/\/me\/nccnss\/activities(\/|$)/, 'an extra-curricular activity'],
+    [/\/me\/nccnss\/events\/[^/]+\/attendance$/, null, 'Took attendance'],
+    [/\/me\/nccnss\/events(\/|$)/, 'an event'],
+    [/\/me\/nccnss\/clubs(\/|$)/, 'a club'],
+    [/\/me\/nccnss\/settings$/, null, 'Changed extra-curricular targets'],
+    [/\/me\/(courses|modules|lessons)(\/|$)/, 'course content'],
+    [/\/me\/bsg\/notices\/[^/]+\/attendance$/, null, 'Took attendance at an exam, camp or training'],
+    [/\/me\/bsg\/notices(\/|$)/, 'a BSG notice'],
+    [/\/competitions\/org(\/|$)/, 'a competition entry'],
+    [/\/linguistic\//, 'English content']
+];
+OrgAuditLog.describe = (req) => {
+    const path = String(req.originalUrl || '').split('?')[0].replace(/\/+$/, '');
+    const verb = VERB[req.method] || 'Changed';
+    for (const [pattern, noun, whole] of RULES) {
+        if (pattern.test(path)) return whole || `${verb} ${noun}`;
+    }
+    const section = path.replace(/^\/api\/(organizations\/me\/)?/, '').split('/')[0] || 'something';
+    return `${verb} ${section.replace(/-/g, ' ')}`;
+};
+
 module.exports = OrgAuditLog;

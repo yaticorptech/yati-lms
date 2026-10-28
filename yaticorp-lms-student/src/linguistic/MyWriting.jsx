@@ -38,7 +38,7 @@ function Row({ s }) {
                     {checked && s.sentences?.length > 0 && <Corrections r={s} T={(x) => x} said="You wrote" />}
                     {tips.length > 0 && <div className="rounded-xl px-3.5 py-2.5" style={{ background: COLORS.gold.light }}><p className="text-xs font-extrabold uppercase tracking-wider" style={{ color: COLORS.gold.ink }}>Tips</p><ul className="mt-1 space-y-0.5">{tips.map((f) => <li key={f.text} className="text-[15px] font-semibold text-[#4b4b4b]">• {f.text}</li>)}</ul></div>}
                     {s.model && <div className="rounded-xl px-3.5 py-2.5" style={{ background: COLORS.blue.light }}><p className="text-xs font-extrabold uppercase tracking-wider" style={{ color: COLORS.blue.ink }}>Model answer</p><p className="mt-1 whitespace-pre-line break-words text-[15px] font-semibold text-[#4b4b4b]">{s.model}</p></div>}
-                    <Link to={`/linguistic/${s.module}/${s.lessonId}`} className="inline-flex min-h-10 items-center gap-1.5 text-sm font-extrabold uppercase tracking-wide" style={{ color: COLORS.blue.ink }}><PenLine size={15} /> Open the lesson</Link>
+                    {s.open !== false && <Link to={`/linguistic/${s.module}/${s.lessonId}`} className="inline-flex min-h-10 items-center gap-1.5 text-sm font-extrabold uppercase tracking-wide" style={{ color: COLORS.blue.ink }}><PenLine size={15} /> Open the lesson</Link>}
                 </div>
             )}
         </Panel>

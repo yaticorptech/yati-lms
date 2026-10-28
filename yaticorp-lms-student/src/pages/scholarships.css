@@ -1,0 +1,56 @@
+/*
+ * Motion for the Scholarships page, and nothing else: every class is
+ * prefixed `sch-` and applied only by pages/Scholarships.jsx.
+ */
+
+/* The banner's sky: a pastel aurora that drifts slowly across. */
+.sch-aurora {
+  background: linear-gradient(120deg, #f5f3ff 0%, #ede9fe 30%, #e0e7ff 60%, #f5f3ff 100%);
+  background-size: 300% 300%;
+  animation: sch-aurora 16s ease-in-out infinite;
+}
+@keyframes sch-aurora {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* Soft orbs of colour wandering behind the words. */
+.sch-orb { animation: sch-orb 10s ease-in-out infinite; }
+@keyframes sch-orb {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(24px, -18px) scale(1.08); }
+  66%      { transform: translate(-16px, 14px) scale(0.95); }
+}
+
+/* Sparkles that come and go. */
+.sch-twinkle { animation: sch-twinkle 2.8s ease-in-out infinite; }
+@keyframes sch-twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.7) rotate(0deg); }
+  50%      { opacity: 1; transform: scale(1.15) rotate(20deg); }
+}
+
+/* The main button breathes a ring of its own colour. */
+.sch-cta { animation: sch-cta 2.4s ease-in-out infinite; }
+@keyframes sch-cta {
+  0%, 100% { box-shadow: 0 10px 24px -8px rgba(124, 58, 237, 0.45), 0 0 0 0 rgba(124, 58, 237, 0.35); }
+  50%      { box-shadow: 0 10px 24px -8px rgba(124, 58, 237, 0.6), 0 0 0 10px rgba(124, 58, 237, 0); }
+}
+
+/* A card's cap tile wiggles when the card is hovered. */
+.group:hover .sch-tile { animation: sch-wiggle 0.5s ease-in-out; }
+@keyframes sch-wiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25%      { transform: rotate(-8deg) scale(1.08); }
+  75%      { transform: rotate(8deg) scale(1.08); }
+}
+
+/* A deadline inside the month pulses. */
+.sch-soon { animation: sch-soon 1.8s ease-in-out infinite; }
+@keyframes sch-soon {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.35); }
+  50%      { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sch-aurora, .sch-orb, .sch-twinkle, .sch-cta, .group:hover .sch-tile, .sch-soon { animation: none !important; }
+}
