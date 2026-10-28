@@ -99,7 +99,7 @@ export default function ProgressStats({ stats, series = [], activeDays = 0 }) {
 
   return (
     // Two across on a phone too, compact; from sm up, exactly as before.
-    <aside className="grid grid-cols-2 gap-3 sm:gap-4 xl:sticky xl:top-4 xl:grid-cols-1">
+    <aside className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
       <StatShell icon={Flame} label="Day streak" tone="bg-orange-50 text-orange-500 ring-orange-100" index={0}>
         <p className="mt-2 text-2xl leading-none font-black text-ink-900 tabular-nums sm:text-4xl">
           {stats?.streak ?? 0}

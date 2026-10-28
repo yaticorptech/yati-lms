@@ -106,6 +106,7 @@ const writingStats = async (teacher) => {
 router.post('/auth/register', authLimiter, auth.register);
 router.post('/auth/login', loginLimiter, loginCardLimiter, auth.login);
 router.post('/auth/card-scan', cardLookupLimiter, auth.cardScan);
+router.post('/auth/forgot-password/preview', cardLookupLimiter, auth.forgotPasswordPreview);
 router.post('/auth/forgot-password', authLimiter, auth.forgotPassword);
 router.post('/auth/reset-password', authLimiter, auth.resetPassword);
 

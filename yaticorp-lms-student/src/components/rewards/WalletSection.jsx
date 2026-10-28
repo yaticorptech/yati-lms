@@ -168,9 +168,13 @@ function Transactions({ currency }) {
     const key = `${type}|${skip}`;
     const [result, setResult] = useState({ key: null, rows: [], total: 0 });
     useEffect(() => {
-        api.get('/rewards/wallet/transactions', { params: { type: type || undefined, limit, skip } })
+        const load = () => api.get('/rewards/wallet/transactions', { params: { type: type || undefined, limit, skip } })
             .then((r) => setResult({ key, rows: r.data.rows, total: r.data.total }))
             .catch(() => setResult({ key, rows: [], total: 0 }));
+        load();
+        // A credit or charge while the list is open shows up in it straight away.
+        window.addEventListener('yati:progress-changed', load);
+        return () => window.removeEventListener('yati:progress-changed', load);
     }, [key, type, skip]);
     const rows = result.key === key ? result.rows : null;
     const total = result.key === key ? result.total : 0;

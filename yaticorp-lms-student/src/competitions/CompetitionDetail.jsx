@@ -25,6 +25,7 @@ import { DetailSkeleton } from './Skeletons';
 import { SignUpBox, QuizBox, HackathonBox } from './ChallengeBox';
 import PriceTag from '../components/rewards/PriceTag';
 import useGoBack from '../hooks/useGoBack';
+import useLive from '../live/useLive';
 
 const Fact = ({ icon: Icon, label, children }) => (
     <div className="flex min-w-0 items-start gap-3 rounded-2xl bg-slate-50 p-3">
@@ -56,6 +57,8 @@ export default function CompetitionDetail() {
         const timer = setInterval(load, 5000);
         return () => { alive = false; clearInterval(timer); };
     }, [id, n]);
+    // And at once when anything in competitions changes (a score, a team, a start).
+    useLive('competitions', reload);
 
     const { data, error } = state;
     if (!data) {

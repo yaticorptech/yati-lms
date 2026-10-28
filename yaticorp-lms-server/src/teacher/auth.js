@@ -155,6 +155,22 @@ const cardScan = async (req, res) => {
 
 const FORGOT_REPLY = 'If this card number has a teacher account, a reset link has been sent to its email.';
 
+/** Who the card's teacher account is, partly hidden, to confirm before the link is sent. */
+const forgotPasswordPreview = async (req, res) => {
+    try {
+        const cardNumber = req.body?.cardNumber;
+        if (!cardNumber) return res.status(400).json({ message: 'Card number is required' });
+        const teacher = await findTeacherByCard(cardNumber);
+        if (!teacher) return res.status(404).json({ message: 'No teacher account was found for this card number.' });
+        const preview = require('../utils/accountPreview').accountPreview(teacher);
+        if (!preview) return res.status(409).json({ message: 'This account has no email on file. Ask your administrator to reset your password.' });
+        res.json(preview);
+    } catch (error) {
+        console.error('[teacher] forgot password preview failed:', error.message);
+        res.status(500).json({ message: 'Could not look up that card. Please try again.' });
+    }
+};
+
 const forgotPassword = async (req, res) => {
     try {
         const cardNumber = req.body?.cardNumber;
@@ -299,4 +315,4 @@ const uploadPicture = async (req, res) => {
     }
 };
 
-module.exports = { protectTeacher, register, login, cardScan, forgotPassword, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };
+module.exports = { protectTeacher, register, login, cardScan, forgotPassword, forgotPasswordPreview, resetPassword, me, updateMe, changePassword, uploadPicture, findTeacherByCard, view };

@@ -22,6 +22,17 @@ It listens on `process.env.PORT` and binds `0.0.0.0`, so platform port
 injection works as-is. `trust proxy` is already enabled for correct rate
 limiting behind a proxy.
 
+The Node version is pinned to the 22 LTS line in
+[`railpack.json`](yaticorp-lms-server/railpack.json), so every build installs
+the same runtime rather than whatever release is newest that day. Change it
+there, not in `engines`, when the time comes to move up.
+
+> **Build failed with no error after the build plan?** That is the builder,
+> not the code: nothing in this folder has to change for it to happen. Redeploy
+> the same commit once. If it fails again, open the build logs and read the
+> last lines before the stop; they name the step (`npm ci`, image export) that
+> died.
+
 Set every variable from [`.env.example`](yaticorp-lms-server/.env.example) in
 the host's environment settings. `.env` is intentionally not committed.
 

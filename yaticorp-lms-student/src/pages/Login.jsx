@@ -3,6 +3,7 @@
  * @description Student login page with card number, password and forgot password support
  */
 import Mascot from '../components/Mascot';
+import ProfileImage from '../components/ProfileImage';
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { Navigate, Link, useSearchParams } from 'react-router-dom';
@@ -103,29 +104,99 @@ const ContactAdminModal = ({ onClose, page = 'login' }) => {
 };
 
 // --- Forgot Password Modal ---
+// Three steps: the card (scanned, or its number typed), then whose account it
+// is — the name and a partly hidden email, from the server — to confirm, and
+// only then the link is sent.
+const FORGOT_SCANNER_ID = 'forgot-card-scanner';
 const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
+    const client = role === 'teacher' ? teacherApi : api;
+    const base = role === 'teacher' ? '/auth/forgot-password' : '/auth/student/forgot-password';
+    const [step, setStep] = useState('card');          // 'card' | 'confirm' | 'sent'
+    const [mode, setMode] = useState('scan');          // 'scan' | 'manual'
+    const [scanning, setScanning] = useState(false);
     const [cardNumber, setCardNumber] = useState('');
+    const [account, setAccount] = useState(null);      // { name, email }
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+    const scannerRef = useRef(null);
     // Android's back button closes this, rather than leaving the page.
     useBackClose(onClose);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const stopScanner = () => {
+        const inst = scannerRef.current;
+        scannerRef.current = null;
+        if (!inst) return;
+        try { Promise.resolve(inst.stop()).then(() => { try { inst.clear(); } catch { /* already clear */ } }).catch(() => {}); } catch { /* was not running */ }
+    };
+
+    // The card's account, to confirm.
+    const lookUp = async (number) => {
         setLoading(true);
         setError('');
         try {
-            const res = role === 'teacher'
-                ? await teacherApi.post('/auth/forgot-password', { cardNumber })
-                : await api.post('/auth/student/forgot-password', { cardNumber });
+            const res = await client.post(`${base}/preview`, { cardNumber: number });
+            setCardNumber(number);
+            setAccount(res.data);
+            setStep('confirm');
+        } catch (err) {
+            setError(err.response?.data?.message || 'Could not look up that card. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // A scanned code: the server turns it into the card number, then the account.
+    const resolveScan = async (code) => {
+        stopScanner();
+        setScanning(false);
+        setLoading(true);
+        setError('');
+        try {
+            const res = await client.post('/auth/card-scan', { code });
+            await lookUp(String(res.data.cardNumber));
+        } catch (err) {
+            setLoading(false);
+            setError(err.response?.data?.message || 'That card could not be read. Try again, or type the number.');
+        }
+    };
+
+    useEffect(() => {
+        if (!scanning) { stopScanner(); return undefined; }
+        let cancelled = false;
+        import('html5-qrcode').then(({ Html5Qrcode }) => {
+            if (cancelled) return undefined;
+            const inst = new Html5Qrcode(FORGOT_SCANNER_ID);
+            scannerRef.current = inst;
+            return inst.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 200, height: 200 } },
+                (text) => { if (!cancelled) resolveScan(text); }, () => {});
+        }).catch(() => {
+            if (cancelled) return;
+            scannerRef.current = null;
+            setScanning(false);
+            setError('The camera is not available. Type your card number instead.');
+            setMode('manual');
+        });
+        return () => { cancelled = true; stopScanner(); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scanning]);
+    useEffect(() => () => stopScanner(), []);
+
+    const send = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const res = await client.post(base, { cardNumber });
             setMessage(res.data.message);
+            setStep('sent');
         } catch (err) {
             setError(err.response?.data?.message || 'Something went wrong. Please try again.');
         } finally {
             setLoading(false);
         }
     };
+
+    const startOver = () => { setAccount(null); setCardNumber(''); setError(''); setStep('card'); };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
@@ -138,31 +209,89 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
                     <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
                 </div>
                 <div className="p-6">
-                    {message ? (
+                    {step === 'sent' ? (
                         <div className="text-center">
                             <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <Mail size={24} className="text-emerald-600" />
                             </div>
-                            <p className="text-slate-700 text-sm font-medium">{message}</p>
+                            <p className="text-slate-800 font-bold">Check your email</p>
+                            <p className="mt-1 text-slate-600 text-sm">We sent a reset link to <span className="font-semibold text-slate-800">{account?.email}</span>. It works for 1 hour.</p>
+                            {message && <p className="sr-only">{message}</p>}
                             <button onClick={onClose} className="mt-5 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors text-sm">Close</button>
                         </div>
-                    ) : (
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <p className="text-sm text-slate-500">Enter your Card Number and we'll send a password reset link to your registered email.</p>
-                            {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
-                            <div>
-                                <label htmlFor="forgot-card-number" className="block text-sm font-semibold text-slate-700 mb-1">Card Number</label>
-                                <input id="forgot-card-number" required maxLength={12} inputMode="numeric" pattern="[0-9]*" autoComplete="username" value={cardNumber} onChange={e => setCardNumber(e.target.value.replace(/\D/g, ''))}
-                                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono tracking-wider text-slate-800"
-                                    placeholder="12-Digit Card Number" />
+                    ) : step === 'confirm' ? (
+                        <div className="space-y-4">
+                            <p className="text-sm text-slate-500">Is this your account? The reset link will go to this email.</p>
+                            <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-violet-50 p-4">
+                                <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-lg font-black text-white shadow-md ring-2 ring-white">
+                                    <ProfileImage src={account?.photo} alt="" className="h-full w-full object-cover" fallback={(account?.name || '?').trim()[0]?.toUpperCase()} />
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="truncate font-bold text-slate-900">{account?.name}</p>
+                                    <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-slate-600"><Mail size={13} className="shrink-0 text-indigo-500" /> {account?.email}</p>
+                                    <p className="mt-0.5 font-mono text-xs tracking-wider text-slate-400">{cardNumber}</p>
+                                </div>
                             </div>
-                            <div className="flex justify-end space-x-3">
-                                <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm">Cancel</button>
-                                <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm disabled:opacity-50">
-                                    {loading ? 'Sending...' : 'Send Reset Link'}
+                            {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
+                            <div className="flex justify-end gap-3">
+                                <button type="button" onClick={startOver} disabled={loading} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm">Not me</button>
+                                <button type="button" onClick={send} disabled={loading} className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm disabled:opacity-50">
+                                    {loading ? <><Loader2 size={15} className="animate-spin" /> Sending…</> : <><Send size={15} /> Yes, send link</>}
                                 </button>
                             </div>
-                        </form>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <p className="text-sm text-slate-500">Scan your card or type its number. We'll show you the account before sending a reset link to its email.</p>
+
+                            <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
+                                {[['scan', 'Scan Card', ScanLine], ['manual', 'Type Instead', Keyboard]].map(([id, label, Icon]) => (
+                                    <button key={id} type="button" onClick={() => { setError(''); setScanning(false); setMode(id); }}
+                                        className={`inline-flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-bold transition-all ${mode === id ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
+                                        <Icon size={15} /> {label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
+
+                            {mode === 'scan' ? (
+                                <div className="rounded-2xl border-2 border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/70 p-5 text-center">
+                                    {/* html5-qrcode needs this element present before it starts. */}
+                                    <div id={FORGOT_SCANNER_ID} className={`overflow-hidden rounded-xl bg-slate-900 ${scanning ? 'block' : 'hidden'}`} />
+                                    {!scanning ? (
+                                        <>
+                                            <button type="button" onClick={() => { setError(''); setScanning(true); }} disabled={loading} aria-label="Scan your card"
+                                                className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white text-indigo-500 shadow-lg shadow-indigo-200 transition-transform hover:scale-105 disabled:opacity-60">
+                                                {loading ? <Loader2 size={34} className="animate-spin" /> : <ScanLine size={38} strokeWidth={1.8} />}
+                                            </button>
+                                            <p className="mt-3 font-bold text-slate-900">{loading ? 'Finding your account…' : 'Scan your card'}</p>
+                                            <p className="mt-0.5 text-xs text-slate-500">Hold the QR code on your card up to the camera</p>
+                                        </>
+                                    ) : (
+                                        <button type="button" onClick={() => setScanning(false)}
+                                            className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                                            <X size={13} /> Stop the camera
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <form onSubmit={(e) => { e.preventDefault(); lookUp(cardNumber); }} className="space-y-4">
+                                    <div>
+                                        <label htmlFor="forgot-card-number" className="block text-sm font-semibold text-slate-700 mb-1">Card Number</label>
+                                        <input id="forgot-card-number" required maxLength={12} inputMode="numeric" pattern="[0-9]*" autoComplete="username" value={cardNumber} onChange={e => setCardNumber(e.target.value.replace(/\D/g, ''))}
+                                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono tracking-wider text-slate-800"
+                                            placeholder="12-Digit Card Number" />
+                                    </div>
+                                    <div className="flex justify-end space-x-3">
+                                        <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm">Cancel</button>
+                                        <button type="submit" disabled={loading} className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm disabled:opacity-50">
+                                            {loading ? <><Loader2 size={15} className="animate-spin" /> Checking…</> : <>Continue <ArrowRight size={15} /></>}
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

@@ -1,10 +1,7 @@
-import { useState, useEffect, useMemo, useContext, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api, { getTodaysPlan } from '../../services/api';
-import { AuthContext } from '../../context/AuthContext';
 import { ArrowRight, CheckCircle2, Flame, Lock, Target, Trophy, Zap } from 'lucide-react';
-import BuildSkillsBanner from '../../components/journey/BuildSkillsBanner';
-import SkillRail from '../../components/progress/SkillRail';
 import useCountUp from '../../../hooks/useCountUp';
 import useInView from '../../../hooks/useInView';
 import Card from '../../components/ui/Card';
@@ -14,10 +11,8 @@ import Button from '../../components/ui/Button';
 import {
   LEVELS, initialsOf, nextLevel, progressOf, statusOf, tasksToNextLevel, tileFor, tilesFor
 } from '../../utils/skills';
-import { currentStreak } from '../../utils/progress';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
-import useStreak from '../../utils/useStreak';
 
 /**
  * The Skills page.
@@ -67,90 +62,132 @@ function LevelChip({ level, className = '' }) {
   );
 }
 
-/** One skill that is moving: the bar, the distance to the next rung, and today's task if there is one. */
+// The ring's colour per level: the same ladder as the chips.
+const RING = { Beginner: '#8b5cf6', Intermediate: '#0ea5e9', Advanced: '#6366f1', Expert: '#10b981' };
+
+/**
+ * One skill that is moving, as a card (2026-10-27: "two in a row, a card
+ * each"): its tile and level, its name, a ring of its progress, the distance
+ * to the next rung, and today's task when there is one.
+ */
 function ActiveRow({ skill, task, tile, index, closest, seen }) {
   const progress = progressOf(skill);
-  // Bar and number driven by one hook so they land together. A CSS width
-  // transition cannot do this: React paints the final width on the first frame,
-  // leaving nothing to transition from.
-  const width = useCountUp(progress, 900);
+  // Ring and number driven by one hook so they land together.
   const shown = useCountUp(progress, 900);
   const level = levelOf(skill);
   const up = nextLevel(level);
   const left = tasksToNextLevel(progress);
-
   const reveal = revealIn(seen, index, 0.06);
+  const R = 26;
+  const C = 2 * Math.PI * R;
 
   return (
     <li
-      className={`${reveal.className} rounded-2xl p-4 transition-colors ${
-        closest ? 'bg-journey-50/60 ring-1 ring-journey-200' : 'hover:bg-surface-50/70'
+      className={`${reveal.className} group relative flex flex-col overflow-hidden rounded-2xl bg-white p-3 shadow-sm ring-1 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg sm:p-4 ${
+        closest ? 'ring-2 ring-amber-300 shadow-amber-200/60' : 'ring-slate-200/80'
       }`}
       style={reveal.style}
     >
-      {/* On a phone the tile and the name share the first line and the bar,
-          the count and today's task run the full width beneath: in a column
-          beside the tile they left an empty strip down the card's left side
-          (asked 2026-10-15, "fill the space"). From sm up, the details sit
-          beside the tile as before. */}
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3.5 sm:items-start">
-        <div className="sm:row-span-2"><Tile tile={tile} name={skill.skillName} /></div>
+      {/* A soft wash of the skill's own colour, fading out down the card (no hard edge). */}
+      <span aria-hidden className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-br opacity-[0.14] [mask-image:linear-gradient(to_bottom,#000,transparent)] ${tile}`} />
 
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="font-bold text-ink-900">{skill.skillName}</p>
-            <LevelChip level={level} />
-            {closest && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[0.64rem] font-black text-amber-700 ring-1 ring-amber-100 ring-inset">
-                <Flame className="fp-flame-live h-3 w-3" />
-                Closest to levelling up
+      {/* Tablet and up: one row — the ring on the left, the details beside it — so a wide card is full, not tall and empty. */}
+      <div className="relative hidden items-center gap-4 sm:flex">
+        <span role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={`${skill.skillName} progress`}
+          className="relative flex h-20 w-20 shrink-0 items-center justify-center">
+          <svg viewBox="0 0 64 64" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden>
+            <circle cx="32" cy="32" r={R} fill="none" stroke="#eef2f7" strokeWidth="6" />
+            <circle cx="32" cy="32" r={R} fill="none" stroke={RING[level]} strokeWidth="6" strokeLinecap="round"
+              strokeDasharray={C} strokeDashoffset={C * (1 - shown / 100)} />
+          </svg>
+          <span className="text-base font-black tabular-nums text-ink-900">{shown}%</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <Tile tile={tile} name={skill.skillName} className="h-7 w-7 text-[0.6rem]" />
+            <p className="min-w-0 flex-1 truncate text-[0.95rem] font-black text-ink-900" title={skill.skillName}>{skill.skillName}</p>
+            {closest ? (
+              <span title="Closest to levelling up" className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[0.65rem] font-black whitespace-nowrap text-amber-700">
+                <Flame className="fp-flame-live h-3 w-3" /> Closest
               </span>
-            )}
+            ) : <LevelChip level={level} className="shrink-0 whitespace-nowrap" />}
           </div>
+          <p className="mt-2 text-xs font-semibold whitespace-nowrap text-ink-500">
+            {up ? (
+              <><span className="text-sm font-black tabular-nums text-ink-900">{left}</span> {left === 1 ? 'task' : 'tasks'} left · next <span className="font-black text-journey-700">{up}</span></>
+            ) : <span className="font-black text-amber-700">Top level reached 🏅</span>}
+          </p>
+          {task ? (
+            <Link to="/career/planner" data-mascot-target={closest ? 'skill-task' : undefined} title={`Today: ${task.title}`}
+              className="fp-press mt-2.5 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-gradient-to-r from-journey-600 to-indigo-600 px-3 py-1.5 text-xs font-black text-white shadow-md shadow-journey-500/25 transition-all hover:from-journey-700 hover:to-indigo-700">
+              <Zap className="h-3.5 w-3.5 shrink-0 fill-amber-300 text-amber-300" />
+              <span className="truncate">Today: {task.title}</span>
+              <ArrowRight className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          ) : (
+            <p className="mt-2.5 text-[0.7rem] font-semibold text-ink-400">No task today — keep it going tomorrow.</p>
+          )}
         </div>
+      </div>
 
-        <div className="col-span-2 mt-3 min-w-0 sm:col-span-1 sm:col-start-2 sm:mt-0">
-          <div className="flex items-center gap-3 sm:mt-2.5">
-            <span
-              role="progressbar"
-              aria-valuenow={progress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={`${skill.skillName} progress`}
-              className="block h-2.5 flex-1 overflow-hidden rounded-full bg-surface-100"
-            >
-              <span
-                className={`block h-full rounded-full ${LEVEL_STYLES[level].bar} ${closest ? 'fp-bar-sheen' : ''}`}
-                style={{ width: `${width}%` }}
-              />
-            </span>
-            <span className="w-11 shrink-0 text-right text-sm font-black tabular-nums text-ink-900">{shown}%</span>
-          </div>
+      {/* Phones: stacked, two cards a row. */}
+      <div className="relative flex flex-1 flex-col gap-0 sm:hidden">
+      <div className="relative flex items-center justify-between gap-2">
+        <Tile tile={tile} name={skill.skillName} className="h-9 w-9 text-xs sm:h-10 sm:w-10" />
+        {closest ? (
+          <span title="Closest to levelling up" className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[0.65rem] font-black whitespace-nowrap text-amber-700">
+            <Flame className="fp-flame-live h-3 w-3" /> Closest
+          </span>
+        ) : <LevelChip level={level} className="shrink-0 whitespace-nowrap" />}
+      </div>
 
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <p className="text-xs font-semibold text-ink-500">
-              {up ? (
-                <>
-                  <span className="font-black text-ink-700">{left}</span> more {left === 1 ? 'task' : 'tasks'} to reach{' '}
-                  <span className="font-black text-journey-700">{up}</span>
-                </>
-              ) : (
-                <span className="font-black text-amber-700">Top level reached 🏅</span>
-              )}
-            </p>
-            {task && (
-              <Link
-                to="/career/planner"
-                data-mascot-target={closest ? 'skill-task' : undefined}
-                className="fp-press group inline-flex w-full max-w-full items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 py-2 pr-3 pl-2.5 text-xs font-black text-white shadow-md shadow-journey-500/25 transition-all hover:from-journey-700 hover:to-indigo-700 sm:w-auto sm:py-1.5"
-              >
-                <Zap className="h-3.5 w-3.5 shrink-0 fill-amber-300 text-amber-300" />
-                <span className="truncate">Today: {task.title}</span>
-                <ArrowRight className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            )}
-          </div>
-        </div>
+      {/* The name, whole words only, two lines at most. */}
+      <p className="relative mt-2.5 line-clamp-2 min-h-[2.6em] text-[0.82rem] leading-[1.3] font-black [overflow-wrap:normal] [word-break:normal] text-ink-900 sm:text-sm" title={skill.skillName}>{skill.skillName}</p>
+
+      {/* The ring, with the count of tasks left beside it: short words that fit. */}
+      <div className="relative mt-2.5 flex items-center gap-3">
+        <span role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={`${skill.skillName} progress`}
+          className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+          <svg viewBox="0 0 64 64" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden>
+            <circle cx="32" cy="32" r={R} fill="none" stroke="#eef2f7" strokeWidth="7" />
+            <circle cx="32" cy="32" r={R} fill="none" stroke={RING[level]} strokeWidth="7" strokeLinecap="round"
+              strokeDasharray={C} strokeDashoffset={C * (1 - shown / 100)} />
+          </svg>
+          <span className="text-[0.8rem] font-black tabular-nums text-ink-900">{shown}%</span>
+        </span>
+        {up ? (
+          <span className="min-w-0 leading-tight whitespace-nowrap">
+            <span className="block text-lg font-black tabular-nums text-ink-900">{left}</span>
+            <span className="block text-[0.68rem] font-semibold text-ink-500">{left === 1 ? 'task left' : 'tasks left'}</span>
+          </span>
+        ) : (
+          <span className="text-xs font-black whitespace-nowrap text-amber-700">Top level 🏅</span>
+        )}
+      </div>
+
+      {/* Where those tasks lead, on its own line across the card. */}
+      {up && (
+        <p className="relative mt-2.5 mb-2.5 rounded-lg bg-journey-50 px-2 py-1.5 text-center leading-tight">
+          <span className="block text-[0.58rem] font-bold tracking-wider text-ink-400 uppercase">Next level</span>
+          <span className="block text-[0.78rem] font-black whitespace-nowrap text-journey-700">{up}</span>
+        </p>
+      )}
+
+      {/* Every card ends in one button, pinned to its foot, so the cards in a row line up:
+          today's task when there is one, otherwise a quiet way to the planner. */}
+      <Link
+        to="/career/planner"
+        title={task ? `Today: ${task.title}` : 'Open your plan'}
+        className={`fp-press relative mt-auto inline-flex w-full items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-[0.72rem] font-black whitespace-nowrap transition-all ${
+          task
+            ? 'bg-gradient-to-r from-journey-600 to-indigo-600 text-white shadow-md shadow-journey-500/25 hover:from-journey-700 hover:to-indigo-700'
+            : 'bg-surface text-journey-700 ring-1 ring-journey-200 ring-inset hover:bg-journey-50'
+        }`}
+      >
+        {task && <Zap className="h-3.5 w-3.5 shrink-0 fill-amber-300 text-amber-300" />}
+        {task ? 'Do today' : 'See tasks'}
+        <ArrowRight className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+      </Link>
       </div>
     </li>
   );
@@ -261,11 +298,8 @@ const revealIn = (seen, i, step = 0.05) => ({
 });
 
 export default function Skills() {
-  const { user } = useContext(AuthContext);
   const [skills, setSkills] = useState([]);
   const [tasks, setTasks] = useState([]);
-  const [badges, setBadges] = useState([]);
-  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   // The skill list itself not arriving. Without this a dropped connection
   // read as "No skills tracked yet" and sent the student to the planner.
@@ -278,17 +312,13 @@ export default function Skills() {
       // them failing may take the list down with it. The streak spans days,
       // so it has to come from history — `/tasks` is today's plan only, and
       // getTodaysPlan waits for it if the planner is still building it.
-      const [skillRes, taskRes, badgeRes, historyRes] = await Promise.all([
+      const [skillRes, taskRes] = await Promise.all([
         api.get('/skills'),
-        getTodaysPlan({ tries: 4 }).catch(() => null),
-        api.get('/badges').catch(() => null),
-        api.get('/tasks/history').catch(() => null)
+        getTodaysPlan({ tries: 4 }).catch(() => null)
       ]);
       setSkills(Array.isArray(skillRes.data) ? skillRes.data : []);
       const t = taskRes?.data;
       setTasks(Array.isArray(t) ? t : t?.tasks || []);
-      setBadges(Array.isArray(badgeRes?.data) ? badgeRes.data : []);
-      setHistory(Array.isArray(historyRes?.data) ? historyRes.data : []);
       setFailed(false);
     } catch (err) {
       console.error(err);
@@ -332,8 +362,6 @@ export default function Skills() {
     .filter((s) => statusOf(s) === 'pending')
     .sort((a, b) => LEVELS.indexOf(levelOf(a)) - LEVELS.indexOf(levelOf(b)) || byName(a, b));
 
-  const completed = skills.filter((s) => statusOf(s) === 'completed').length;
-  const streak = useStreak(currentStreak(history));
 
   // The one honest headline: the moving skill closest to levelling up.
   const closest = useMemo(() => {
@@ -349,11 +377,10 @@ export default function Skills() {
   if (failed) return <LoadError title="We couldn't load your skills" onRetry={retry} retrying={retrying} />;
 
   return (
-    <div className="fp-enter grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_296px]">
+    <div className="fp-enter">
       <div className="min-w-0 space-y-4">
         {skills.length === 0 ? (
           <>
-          <BuildSkillsBanner xp={user?.xp} completed={completed} streak={streak} />
           <EmptyState
             icon={Target}
             title="No skills tracked yet"
@@ -372,7 +399,6 @@ export default function Skills() {
              banner is its head and the list runs on under it. From sm up they
              stay two cards with the usual gap. */
           <div className="max-sm:overflow-hidden max-sm:rounded-2xl max-sm:border max-sm:border-line-200/80 max-sm:bg-surface max-sm:shadow-card sm:space-y-4">
-          <BuildSkillsBanner joined xp={user?.xp} completed={completed} streak={streak} />
           <Card data-mascot-target="skill-progress" padded={false} className="overflow-hidden max-sm:rounded-none max-sm:border-0 max-sm:shadow-none">
             <div className="space-y-6 p-4 sm:p-5">
               {/* ---- IN PROGRESS ---- */}
@@ -386,7 +412,7 @@ export default function Skills() {
                         title="In progress"
                         count={active.length}
                       />
-                      <ul className="mt-3 space-y-1.5">
+                      <ul className="mt-3 grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-3">
                         {active.map((skill, i) => (
                           <ActiveRow
                             key={skill._id || skill.skillName}
@@ -466,7 +492,7 @@ export default function Skills() {
         )}
       </div>
 
-      <SkillRail skills={skills} user={user} badges={badges} />
+      {/* The side rail (overall progress, skill XP, recent achievements, "Small steps") went on 2026-10-27. */}
     </div>
   );
 }

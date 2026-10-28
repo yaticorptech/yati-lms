@@ -1,0 +1,43 @@
+/* The mock interview's room (InterviewRoom.jsx). Every class is prefixed ir-. */
+
+/* Talking: the mouth opens and closes at an uneven, speech-like rhythm. */
+.ir-lips { animation: ir-lips 1.15s steps(1, end) infinite; }
+@keyframes ir-lips {
+  0%   { transform: scaleY(0.35); }
+  9%   { transform: scaleY(0.9); }
+  17%  { transform: scaleY(0.5); }
+  26%  { transform: scaleY(1.05); }
+  34%  { transform: scaleY(0.3); }
+  43%  { transform: scaleY(0.75); }
+  52%  { transform: scaleY(0.45); }
+  61%  { transform: scaleY(1); }
+  70%  { transform: scaleY(0.6); }
+  79%  { transform: scaleY(0.85); }
+  88%  { transform: scaleY(0.25); }
+  100% { transform: scaleY(0.7); }
+}
+/* Quiet: a closed smile that widens a touch now and then, like a listener's nod. */
+.ir-smile { animation: ir-smile 3.2s ease-in-out infinite; }
+@keyframes ir-smile { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08, 1.15); } }
+
+/* A blink every few seconds: the lid drops from the top and lifts again. */
+.ir-lid { transform-origin: 50% 0; animation: ir-blink 4.2s ease-in-out infinite; }
+@keyframes ir-blink {
+  0%, 92%, 100% { transform: translate(-50%, -50%) scaleY(0); }
+  95%           { transform: translate(-50%, -50%) scaleY(1); }
+}
+
+/* The view drifts slowly, as if filmed. */
+.ir-cam { animation: ir-cam 18s ease-in-out infinite; transform-origin: 48% 40%; }
+@keyframes ir-cam { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035) translate(-0.4%, 0.3%); } }
+
+/* The speech bubble pops up. */
+.ir-bubble { animation: ir-bubble 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes ir-bubble { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ir-cam, .ir-bubble, .ir-smile, .ir-lid { animation: none !important; }
+  .ir-lid { transform: translate(-50%, -50%) scaleY(0); }
+  /* The mouth still moves while speaking, slowly: it is how the student sees who is talking. */
+  .ir-lips { animation-duration: 2.4s; }
+}

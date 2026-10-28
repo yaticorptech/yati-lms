@@ -81,6 +81,26 @@ const pickVoice = () => {
 };
 const sentences = (text) => String(text || '').replace(/\s+/g, ' ').match(/[^.!?]+[.!?]*\s*/g)?.map((s) => s.trim()).filter(Boolean) || [String(text || '')];
 
+/**
+ * Tech words as they are said, not as they are spelled — "Node.js" is
+ * "Node J S", "PostgreSQL" is "Postgres Q L" — for the phone's own voice.
+ */
+const SAY = [
+    [/\bPostgreSQL\b/gi, 'Postgres Q L'], [/\bMySQL\b/gi, 'My S Q L'], [/\bNoSQL\b/gi, 'No S Q L'], [/\bGraphQL\b/gi, 'Graph Q L'],
+    [/\bMongoDB\b/gi, 'Mongo D B'], [/\bDynamoDB\b/gi, 'Dynamo D B'], [/\bSQL\b/g, 'S Q L'],
+    [/\b(Node|Next|React|Express|Vue|Nuxt|Nest|Three|D3)\.js\b/gi, '$1 J S'], [/\bJS\b/g, 'J S'], [/\bTS\b/g, 'T S'],
+    [/\bUI\/UX\b/gi, 'U I and U X'], [/\bCI\/CD\b/gi, 'C I C D'], [/\bUI\b/g, 'U I'], [/\bUX\b/g, 'U X'],
+    [/\bAPIs\b/g, 'A P Is'], [/\bAPI\b/g, 'A P I'], [/\bAWS\b/g, 'A W S'], [/\bGCP\b/g, 'G C P'], [/\bHTML5?\b/g, 'H T M L'], [/\bCSS3?\b/g, 'C S S'],
+    [/\bJSON\b/g, 'Jason'], [/\bJWT\b/g, 'J W T'], [/\bOOPS?\b/g, 'O O P'], [/\bDSA\b/g, 'D S A'], [/\bDBMS\b/g, 'D B M S'], [/\bOS\b/g, 'O S'],
+    [/\bHTTPS?\b/g, (m) => m.split('').join(' ')], [/\bURLs?\b/g, (m) => (m.endsWith('s') ? 'U R Ls' : 'U R L')], [/\bSDK\b/g, 'S D K'], [/\bCLI\b/g, 'C L I'],
+    [/\bML\b/g, 'M L'], [/\bAI\b/g, 'A I'], [/\bIoT\b/g, 'I o T'], [/\bSaaS\b/g, 'sass'], [/\bMVC\b/g, 'M V C'], [/\bORM\b/g, 'O R M'],
+    [/\bC\+\+/g, 'C plus plus'], [/\bC#/g, 'C sharp'], [/\.NET\b/g, 'dot net'], [/\bB\.?Tech\b/gi, 'B Tech'], [/\bM\.?Tech\b/gi, 'M Tech'],
+    [/\bMCA\b/g, 'M C A'], [/\bBCA\b/g, 'B C A'], [/\bCGPA\b/g, 'C G P A'], [/\bGPA\b/g, 'G P A'], [/\bHR\b/g, 'H R'],
+    [/\be\.g\.,?/gi, 'for example,'], [/\bi\.e\.,?/gi, 'that is,'], [/\betc\./gi, 'and so on.'], [/\bvs\.?\b/gi, 'versus'],
+    [/\s*&\s*/g, ' and '], [/\s*\/\s*/g, ' or '], [/[“”"«»]/g, ''], [/[‘’`]/g, "'"], [/[()[\]{}<>*_#|~]/g, ' '], [/\s*[—–]\s*/g, ', '], [/\s+/g, ' ']
+];
+export const speakable = (text) => SAY.reduce((t, [re, to]) => t.replace(re, to), String(text || '')).trim();
+
 export const createSpeaker = () => {
     if (NATIVE) return createNativeSpeaker();
     let muted = false; let token = 0;
@@ -95,7 +115,7 @@ export const createSpeaker = () => {
             return new Promise((resolve) => {
                 if (!supported || muted || !text) { onStart?.(); onEnd?.(); resolve(false); return; }
                 const my = ++token; synth.cancel();
-                const parts = sentences(text); const voice = pickVoice(); let i = 0; let started = false;
+                const parts = sentences(speakable(text)); const voice = pickVoice(); let i = 0; let started = false;
                 const finish = () => { if (my === token) { onEnd?.(); } resolve(true); };
                 const next = () => {
                     if (my !== token) { resolve(false); return; }
@@ -190,7 +210,7 @@ const createNativeSpeaker = () => {
                     const t1 = Date.now();
                     await withTimeout(tts.stop(), 2000, 'stop').then(() => voiceLog(`speak: queue cleared (${since(t1)})`), (e) => voiceLog(`speak: stop() failed: ${e?.message || e}`));
                     let started = false;
-                    const parts = sentences(text);
+                    const parts = sentences(speakable(text));
                     for (const part of parts) {
                         if (my !== token) { voiceLog('speak: cut short'); return false; }
                         if (!started) { started = true; onStart?.(); voiceLog(`speak: starting ${parts.length} sentence(s), "${part.slice(0, 40)}…"`); }

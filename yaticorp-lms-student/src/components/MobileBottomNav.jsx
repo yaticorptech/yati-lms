@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { House, BookOpen, Route, BriefcaseBusiness, HandCoins, Gamepad2 } from 'lucide-react';
+import { House, BookOpen, Route, BriefcaseBusiness, Gamepad2, Wallet, ChevronRight, UserRound } from 'lucide-react';
+import ProfileImage from './ProfileImage';
+import { money, balance } from './rewards/format';
 import useKeyboardOpen from '../native/useKeyboardOpen';
 import './mobileBottomNav.css';
 
@@ -8,25 +10,27 @@ import './mobileBottomNav.css';
  * The student's main navigation on a phone.
  *
  * The sidebar it mirrors is behind a hamburger on mobile, which puts every
- * section of the product two taps and a mental step away. The same seven
+ * section of the product two taps and a mental step away. The same
  * destinations sit under the thumb here, and the drawer keeps what does not
  * belong in a nav bar — support and sign-out.
  *
  * Labels are shortened to one word each so all of them sit on one line
  * under their icons; the sidebar's full name goes on the accessible label
- * too, so a screen reader still hears "My Courses". The accessible label always starts with the
- * word on screen ("Grants (Scholarships)"): someone using voice control
- * says what they see, and "tap Grants" found nothing when the label was
- * "Scholarships" alone.
+ * too, so a screen reader still hears "My Courses". The accessible label
+ * always starts with the word on screen ("Grants (Scholarships)"): someone
+ * using voice control says what they see, and "tap Grants" found nothing
+ * when the label was "Scholarships" alone.
  *
  * Jobs and Career Path come and go with the admin switches, exactly
  * as they do in the sidebar, so the bar never offers a section the student
  * cannot open.
  *
- * The active signal is a gradient bubble that slides along the bar to
- * whichever icon is on, the way a delivery app's bottom bar does it. It is
- * measured from the active link and springs into place, so switching tabs
- * is something the thumb can watch rather than a colour that changes.
+ * The bar is a light floating island, matching the white top bar, and the
+ * active signal is a full-height indigo capsule that slides along it to
+ * whichever tab is on — icon and label together, the way the newest phone
+ * tab bars do it. It is measured from the active tab and springs into
+ * place, so switching tabs is something the thumb can watch rather than a
+ * colour that changes.
  */
 // `label` is the sidebar's own name, word for word, and goes on the accessible
 // label; `short` is what fits under an icon in one line when all of them
@@ -42,7 +46,6 @@ const ITEMS = [
   { to: '/enrolled-courses', label: 'My Courses', short: 'Courses', icon: BookOpen },
   { to: '/career', label: 'Career Path', short: 'Career', icon: Route, flag: 'career' },
   { to: '/interview', label: 'Job Preparation', short: 'Job Prep', icon: BriefcaseBusiness, also: '/jobs' },
-  { to: '/scholarships', label: 'Scholarships', short: 'Grants', icon: HandCoins, flag: 'career' },
   { to: '/games', label: 'Games', short: 'Games', icon: Gamepad2, also: '/competitions' }
 ];
 
@@ -50,10 +53,80 @@ const ITEMS = [
 const nameOf = (item) =>
   item.label.toLowerCase().startsWith(item.short.toLowerCase()) ? item.label : `${item.short} (${item.label})`;
 
-export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) {
+const initialsOf = (name = '') => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+
+/**
+ * The last tab: the student's photo. It opens a small card above the bar —
+ * My Profile, and the wallet balance (its history opens in the wallet popup).
+ */
+function MeTab({ user, rewards, onOpenWallet }) {
+  const { pathname } = useLocation();
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef(null);
+  const active = pathname === '/profile' || pathname.startsWith('/profile/');
+
+  useEffect(() => { setOpen(false); }, [pathname]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (!boxRef.current?.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
+  }, [open]);
+
+  const wallet = rewards?.wallet;
+  const level = rewards?.level?.level;
+  return (
+    <div ref={boxRef} className="relative z-10 flex min-w-0 flex-1">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label="Me (My Profile and wallet)"
+        className={`mbn-press flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[22px] pt-2 pb-1.5 text-[0.6rem] tracking-tight transition-colors ${active || open ? 'font-bold text-indigo-700' : 'font-semibold text-slate-500'}`}>
+        <span className={`flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-[0.55rem] font-black text-indigo-700 ring-2 transition-all ${active || open ? 'ring-indigo-500' : 'ring-slate-200'}`}>
+          <ProfileImage src={user?.profilePicture} alt="" className="h-full w-full object-cover" fallback={initialsOf(user?.name)} />
+        </span>
+        <span className="whitespace-nowrap leading-none">Me</span>
+      </button>
+
+      {open && (
+        <div role="menu" aria-label="Me" className="mbn-pop absolute right-0 bottom-[calc(100%+0.9rem)] w-64 origin-bottom-right overflow-hidden rounded-3xl bg-white p-1.5 shadow-[0_18px_50px_-14px_rgba(30,27,75,0.45)] ring-1 ring-slate-900/5">
+          {/* The student, as a small member card: opens My Profile. */}
+          <Link to="/profile" role="menuitem" className="group relative flex items-center gap-3 overflow-hidden rounded-[20px] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-3 text-white">
+            <span aria-hidden="true" className="pointer-events-none absolute -top-8 -right-6 h-24 w-24 rounded-full bg-white/15 blur-xl" />
+            <span className="relative shrink-0">
+              <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-white/20 text-sm font-bold ring-2 ring-white/70">
+                <ProfileImage src={user?.profilePicture} alt="" className="h-full w-full object-cover" fallback={initialsOf(user?.name)} />
+              </span>
+              {level != null && <span className="absolute -right-1.5 -bottom-1 rounded-full bg-amber-300 px-1.5 text-[10px] leading-4 font-black text-amber-950 ring-2 ring-violet-600">Lv {level}</span>}
+            </span>
+            <span className="relative min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-[15px] font-bold">{user?.name}</span>
+              <span className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-white/80"><UserRound size={11} aria-hidden="true" /> My Profile</span>
+            </span>
+            <ChevronRight size={16} aria-hidden="true" className="relative shrink-0 text-white/80 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+
+          {/* The wallet: the balance here, the history in the wallet popup. */}
+          {wallet && (
+            <button type="button" role="menuitem" onClick={() => { setOpen(false); onOpenWallet?.(); }}
+              className="mt-1.5 flex w-full items-center gap-3 rounded-[20px] p-3 text-left transition-colors hover:bg-emerald-50 active:bg-emerald-50">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600"><Wallet size={19} aria-hidden="true" /></span>
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className="block text-[11px] font-semibold text-slate-500">Wallet balance</span>
+                <span className="block text-lg font-black text-slate-900 tabular-nums">{money(balance(wallet.available), wallet.currency || 'INR')}</span>
+              </span>
+              <span className="shrink-0 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white">History</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled, user, rewards, onOpenWallet }) {
   const { pathname } = useLocation();
   const rowRef = useRef(null);
-  const [bubble, setBubble] = useState(null);
+  const [capsule, setCapsule] = useState(null);
   // In the app, the bar steps aside while the on-screen keyboard is up: it
   // sat on top of the field being typed in.
   const keyboardOpen = useKeyboardOpen();
@@ -67,19 +140,19 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
   const isActive = (item) =>
     item.exact ? pathname === item.to : [item.to, item.also].filter(Boolean).some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
-  // Where the bubble sits: under the active icon, re-measured when the route
-  // or the screen width changes. The CSS springs it there.
+  // Where the capsule sits: behind the active tab, re-measured when the
+  // route or the screen width changes. The CSS springs it there.
   useEffect(() => {
     const measure = () => {
       const row = rowRef.current;
-      const icon = row?.querySelector('[data-active-icon="true"]');
-      if (!row || !icon) {
-        setBubble(null);
+      const tab = row?.querySelector('[data-active-tab="true"]');
+      if (!row || !tab) {
+        setCapsule(null);
         return;
       }
       const rowBox = row.getBoundingClientRect();
-      const box = icon.getBoundingClientRect();
-      setBubble({ left: box.left - rowBox.left, width: box.width });
+      const box = tab.getBoundingClientRect();
+      setCapsule({ left: box.left - rowBox.left, width: box.width });
     };
     measure();
     window.addEventListener('resize', measure);
@@ -91,19 +164,16 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
       aria-label="Main sections"
       data-loop-skip
       data-keyboard-open={keyboardOpen || undefined}
-      className={`mbn-in fixed inset-x-1.5 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 sidebar:hidden ${keyboardOpen ? 'hidden' : ''}`}
+      className={`mbn-in fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 sidebar:hidden ${keyboardOpen ? 'hidden' : ''}`}
     >
-      {/* Solid, with no backdrop blur: the bar never leaves the screen, so the
-          blur was worked out again for every frame of every scroll, and the
-          page scrolled unevenly on phones — for a blur that showed through only
-          a tenth of the bar's 90% dark. */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900 shadow-[0_18px_40px_-16px_rgba(15,23,42,0.8)]">
-        {/* A faint sheen across the top edge, so the bar reads as glass. */}
-        <span aria-hidden className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-
-        <div ref={rowRef} className="relative flex items-stretch px-0.5 pt-1.5 pb-1.5">
-          {bubble && (
-            <span aria-hidden className="mbn-bubble" style={{ left: bubble.left, width: bubble.width }} />
+      {/* Solid white, with no backdrop blur: the bar never leaves the screen,
+          so a blur was worked out again for every frame of every scroll, and
+          the page scrolled unevenly on phones. A hairline border and a soft,
+          low shadow lift it off the page instead. */}
+      <div className="mbn-island relative rounded-[28px] border border-slate-200/70 bg-white p-1.5">
+        <div ref={rowRef} className="relative flex items-stretch">
+          {capsule && (
+            <span aria-hidden className="mbn-capsule" style={{ left: capsule.left, width: capsule.width }} />
           )}
 
           {visible.map((item) => {
@@ -112,33 +182,28 @@ export default function MobileBottomNav({ isJobsEnabled, isCareerPathEnabled }) 
               <Link
                 key={item.to}
                 to={item.to}
+                data-active-tab={active || undefined}
                 aria-label={nameOf(item)}
                 aria-current={active ? 'page' : undefined}
-                className={`mbn-press relative z-10 flex min-w-0 flex-1 flex-col items-center justify-start gap-0.5 px-0 pt-0.5 pb-1.5 text-[0.56rem] font-bold tracking-tight transition-colors duration-300 ${
-                  active ? 'text-white' : 'text-slate-400'
+                className={`mbn-press relative z-10 flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[22px] px-0 pt-2 pb-1.5 text-[0.6rem] tracking-tight transition-colors duration-300 ${
+                  active ? 'font-bold text-white' : 'font-semibold text-slate-500 active:text-slate-700'
                 }`}
               >
-                {/* The icon's box is what the bubble is measured from, so the
-                    bubble always fits the icon rather than the whole cell. */}
                 <span
-                  data-active-icon={active || undefined}
                   key={active ? `${item.to}-on` : `${item.to}-off`}
-                  className={`flex h-10 w-full max-w-11 shrink-0 items-center justify-center rounded-full transition-colors duration-300 ${
-                    active ? 'mbn-icon-active text-white' : 'text-slate-400'
-                  }`}
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center ${active ? 'mbn-cap-icon' : ''}`}
                 >
-                  <item.icon size={20} strokeWidth={active ? 2.5 : 2} />
+                  <item.icon size={21} strokeWidth={active ? 2.4 : 1.9} />
                 </span>
 
-                {/* Whole, never cut: on a 344px phone "Interview" is 44px in a
-                    41px cell and runs 1.5px past each edge — into the gap its
-                    neighbour's shorter label leaves, not into the label. */}
+                {/* Whole, never cut: on a 344px phone "Job Prep" runs a hair
+                    past its cell — into the gap its neighbour's shorter label
+                    leaves, not into the label. */}
                 <span className="whitespace-nowrap text-center leading-none">{item.short}</span>
-
-                {active && <span aria-hidden className="mbn-dot absolute bottom-0 h-1 w-1 rounded-full bg-indigo-300" />}
               </Link>
             );
           })}
+          <MeTab user={user} rewards={rewards} onOpenWallet={onOpenWallet} />
         </div>
       </div>
     </nav>
