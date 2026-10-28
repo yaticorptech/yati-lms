@@ -37,8 +37,11 @@
  */
 const { GameError, clone } = require('./contract');
 
-const PALETTE = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b'];
+// One colour a seat (up to six in a Group Brain room).
+const PALETTE = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#0ea5e9', '#a855f7', '#ec4899', '#84cc16'];
 const READY_MS = 4000;
+const LEVELS = ['easy', 'medium', 'hard'];
+const LEVEL_TIME = { easy: 1.5, medium: 1, hard: 0.7 };
 
 /** A whole number from `value`, kept inside [min, max]; `fallback` when it is not a number. */
 const clampNumber = (value, fallback, min, max) => {
@@ -107,10 +110,17 @@ const placesOf = (state) => {
  * Make an engine. `config`:
  *   id, label, emoji, summary
  *   mode            'simultaneous' | 'buzzer' | 'hidden'
+ *   maxSeats        optional: most players (4 if not given; Group Brain games 6)
  *   questions       { min, max, fallback }   how many a game has
  *   seconds         { min, max, fallback }   time on each question
  *   revealMs        how long the answer shows
- *   pick(count, rng) -> raw questions { topic, prompt, code?, lang?, options, answer, explain?, fixedOrder? }
+ *   pick(count, rng, level) -> raw questions { topic, prompt, code?, lang?, options, answer, explain?, fixedOrder? }
+ *                   `level` is the game's difficulty: 'easy' | 'medium' | 'hard'
+ *
+ * options.difficulty (a Group Brain room's): 'easy' gives half as long again
+ * on each question, 'hard' 30% less, unless questionSeconds is set.
+ * options.extraQuestions (a Group Brain room's): an admin's own questions,
+ * mixed in for up to a third of the game; any not well formed is left out.
  */
 const makeEngine = (config) => {
     const buzzer = config.mode === 'buzzer';
@@ -209,18 +219,28 @@ const makeEngine = (config) => {
         emoji: config.emoji,
         summary: config.summary,
         minSeats: 2,
-        maxSeats: 4,
+        // Four in a competition match; a Group Brain game takes up to six (config.maxSeats).
+        maxSeats: config.maxSeats || 4,
         seatsPerSide: { min: 1, max: 1 },
 
         create(seats, options, ctx) {
-            if (!Array.isArray(seats) || seats.length < 2 || seats.length > 4) throw new GameError(`${config.label} needs 2 to 4 players.`);
+            if (!Array.isArray(seats) || seats.length < 2 || seats.length > engine.maxSeats) throw new GameError(`${config.label} needs 2 to ${engine.maxSeats} players.`);
             const o = options || {};
+            const level = LEVELS.includes(o.difficulty) ? o.difficulty : 'medium';
             const count = clampNumber(o.questionCount, config.questions.fallback, config.questions.min, config.questions.max);
-            const seconds = clampNumber(o.questionSeconds, config.seconds.fallback, config.seconds.min, config.seconds.max);
-            const questions = config.pick(count, ctx.rng).map((q) => prepare(q, ctx.rng));
+            const seconds = clampNumber(o.questionSeconds, Math.round(config.seconds.fallback * LEVEL_TIME[level]), config.seconds.min, config.seconds.max);
+            let raw = config.pick(count, ctx.rng, level);
+            const extra = (Array.isArray(o.extraQuestions) ? o.extraQuestions : [])
+                .filter((q) => q && typeof q.prompt === 'string' && Array.isArray(q.options) && q.options.length === 4 && new Set(q.options.map(String)).size === 4 && [0, 1, 2, 3].includes(q.answer));
+            if (extra.length) {
+                const n = Math.min(Math.floor(count / 3), extra.length);
+                raw = shuffle([...raw.slice(0, raw.length - n), ...sample(extra, n, ctx.rng)], ctx.rng);
+            }
+            const questions = raw.map((q) => prepare(q, ctx.rng));
             return {
                 game: config.id,
                 mode: config.mode,
+                difficulty: level,
                 status: 'active',
                 seats: seats.map((s) => ({ name: s.name || 'Player', side: s.side })),
                 questions,
@@ -276,6 +296,7 @@ const makeEngine = (config) => {
                 outcome: engine.outcome(state),
 
                 mode: state.mode,
+                difficulty: state.difficulty || null,
                 phase: state.phase,
                 serverNow: ctx?.now ?? null,
                 phaseStartedAt: state.phaseStartedAt,
@@ -346,4 +367,4 @@ const makeEngine = (config) => {
     return engine;
 };
 
-module.exports = { makeEngine, shuffle, sample, prepare, clampNumber, READY_MS };
+module.exports = { makeEngine, shuffle, sample, prepare, clampNumber, READY_MS, LEVELS, PALETTE };

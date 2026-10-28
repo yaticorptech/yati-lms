@@ -22,8 +22,25 @@
  *   POST /play/:gameId/join        I am here (a match starts when everyone is)
  *   POST /play/:gameId/action      { action } — a move, a roll, a shot
  *
- * Playing with friends (rooms with a code) was removed on 2026-10-23, and UNO
- * with it: a friendly game saved before then answers 410.
+ *   Group Brain rooms (services/roomService.js, asked 2026-10-27):
+ *   GET  /rooms/games              the ten Group Brain games
+ *   GET  /rooms/mine               the room I am in now, if any
+ *   POST /rooms                    { game, options: { difficulty } } — make a room → its code
+ *   POST /rooms/join               { code } — join a room with its code
+ *   GET  /rooms/online             the entry fees, table sizes and wait
+ *   POST /rooms/online             { game, players, fee } — Play online: a seat at a table (fee from the wallet)
+ *   GET  /rooms/history            my finished rooms
+ *   GET  /rooms/leaderboard?type=points|chess|xp&period=all|week&game=   a leaderboard, and my place on it
+ *   GET  /rooms/profile            my dashboard: totals, games, Brain Performance Score, chess rating, XP, achievements, certificates
+ *   GET  /rooms/certificates/:id   one of my certificates, as a PDF
+ *   POST /play/:gameId/ready       { ready } — I am ready (or not)
+ *   POST /play/:gameId/start       the room's maker starts the game
+ *   POST /play/:gameId/leave       leave a room before its game starts
+ *   POST /play/:gameId/remove      { seat } — the host removes a player before the start
+ *   (The game itself: GET /play/:gameId and POST /play/:gameId/action, as a match.)
+ *
+ * Playing with friends (rooms with a code, before Group Brain) was removed on
+ * 2026-10-23, and UNO with it: a friendly game saved before then answers 410.
  */
 const express = require('express');
 const Competition = require('../models/Competition');
@@ -34,13 +51,15 @@ const views = require('../services/views');
 const games = require('../services/gameService');
 const { openDue } = require('../services/bracketService');
 const { catalogue } = require('../games');
-const { chargeWallet } = require('../../rewards/services/walletRuleService');
 const challenge = require('../services/challengeService');
+const rooms = require('../services/roomService');
 
 const router = express.Router();
 const VISIBLE = ['registration', 'closed', 'live', 'completed'];
+// Quiz and Hackathon were removed on 2026-10-28: none is listed any more.
+const NO_CHALLENGES = { game: { $nin: ['quiz', 'hackathon'] } };
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((err) => {
-    if (err?.status) return res.status(err.status).json({ message: err.message });
+    if (err?.status) return res.status(err.status).json({ message: err.message, ...(err.roomId ? { roomId: err.roomId } : {}) });
     next(err);
 });
 
@@ -60,14 +79,14 @@ router.get('/', wrap(async (req, res) => {
     await challenge.advanceDue();
     // Cancelled ones too (shown as Closed), once colleges had entered them:
     // a draft cancelled before anyone saw it stays hidden.
-    const all = await Competition.find({ status: { $in: [...VISIBLE, 'cancelled'] } }).sort({ startsAt: -1 }).lean();
+    const all = await Competition.find({ status: { $in: [...VISIBLE, 'cancelled'] } , ...NO_CHALLENGES }).sort({ startsAt: -1 }).lean();
     const teams = await Team.find({ competitionId: { $in: all.map((c) => c._id) } }).lean();
     const comps = all.filter((c) => seenBy(req.user, c, teams) && (c.status !== 'cancelled' || teams.some((t) => String(t.competitionId) === String(c._id))));
     const order = { live: 0, registration: 1, closed: 2, completed: 3, cancelled: 4 };
     const rows = comps.map((c) => {
         const mine = teams.filter((t) => String(t.competitionId) === String(c._id));
         const myTeam = mine.find((t) => t.status !== 'withdrawn' && t.players.some((p) => String(p.userId) === String(req.user._id)));
-        return views.competitionView(c, { teams: mine, myTeam });
+        return views.studentCompetition(views.competitionView(c, { teams: mine, myTeam }));
     }).sort((a, b) => order[a.status] - order[b.status]);
     res.json({ competitions: rows });
 }));
@@ -75,7 +94,7 @@ router.get('/', wrap(async (req, res) => {
 router.get('/me', wrap(async (req, res) => {
     await challenge.advanceDue();
     const myTeams = await Team.find({ 'players.userId': req.user._id, status: { $in: ['pending', 'approved'] } }).lean();
-    const comps = await Competition.find({ _id: { $in: myTeams.map((t) => t.competitionId) }, status: { $ne: 'draft' } }).lean();
+    const comps = await Competition.find({ _id: { $in: myTeams.map((t) => t.competitionId) }, status: { $ne: 'draft' } , ...NO_CHALLENGES }).lean();
     for (const c of comps.filter((x) => x.status === 'live')) await openDue(c._id);
     const matches = await Match.find({ 'sides.teamId': { $in: myTeams.map((t) => t._id) } }).lean();
     const allTeams = await Team.find({ _id: { $in: matches.flatMap((m) => m.sides.map((s) => s.teamId)) } }).lean();
@@ -88,6 +107,7 @@ router.get('/me', wrap(async (req, res) => {
         const team = myTeamIn(m);
         const side = m.sides.find((s) => String(s.teamId) === String(team?._id));
         const v = views.matchView(m, allTeams, gameRows, { showCode: true });
+        if (c && views.resultsHidden(c)) Object.assign(v, { winnerTeamId: null, places: [], resultNote: '' });
         // My own joining code for the open game, not the match's.
         const latest = gameRows.find((g) => String(g._id) === String(m.gameIds?.at(-1)));
         const seat = latest?.seats?.find((s) => String(s.userId) === String(req.user._id));
@@ -102,24 +122,24 @@ router.get('/me', wrap(async (req, res) => {
             myTeamId: team ? String(team._id) : null,
             // Whether I am one of the players at the board for this match.
             playing: !!side && (side.lineup.length ? side.lineup.some((id) => String(id) === String(req.user._id)) : team.players.slice(0, c?.playersPerSide || 1).some((p) => String(p.userId) === String(req.user._id))),
-            result: m.status === 'completed' && team ? (String(m.winnerTeamId) === String(team._id) ? 'won' : 'lost') : null
+            result: m.status === 'completed' && team && !(c && views.resultsHidden(c)) ? (String(m.winnerTeamId) === String(team._id) ? 'won' : 'lost') : null
         };
     };
     const rows = matches.filter((m) => compOf(m.competitionId)).map(withComp);
     const byTime = (a, b) => new Date(a.scheduledAt || 8.64e15) - new Date(b.scheduledAt || 8.64e15);
     res.json({
-        competitions: comps.map((c) => views.competitionView(c, { teams: [], myTeam: myTeams.find((t) => String(t.competitionId) === String(c._id)) })),
+        competitions: comps.map((c) => views.studentCompetition(views.competitionView(c, { teams: [], myTeam: myTeams.find((t) => String(t.competitionId) === String(c._id)) }))),
         upcoming: rows.filter((m) => m.status === 'scheduled').sort(byTime),
         live: rows.filter((m) => m.status === 'live'),
         completed: rows.filter((m) => m.status === 'completed').sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)),
         // My history: every finished competition I played in, where my team
         // finished, and its record — matches won of those played.
-        results: comps.filter((c) => c.status === 'completed').map((c) => {
+        results: comps.filter((c) => c.status === 'completed' && !views.resultsHidden(c)).map((c) => {
             const team = myTeams.find((t) => String(t.competitionId) === String(c._id));
             const decided = matches.filter((m) => String(m.competitionId) === String(c._id) && m.status === 'completed'
                 && m.sides.some((s) => String(s.teamId) === String(team?._id)));
             return {
-                competition: { id: String(c._id), name: c.name, game: c.game, ...views.gameInfo(c.game), completedAt: c.completedAt },
+                competition: { id: String(c._id), name: c.name, game: c.game, ...views.gameInfo(c.game), completedAt: c.resultsPublishedAt || c.completedAt },
                 teamName: team?.teamName || '',
                 collegeName: team?.collegeName || '',
                 place: team?.place || null,
@@ -136,9 +156,9 @@ router.get('/leaderboard', wrap(async (req, res) => {
 
 router.get('/history', wrap(async (req, res) => {
     const mine = await Team.find({ 'players.userId': req.user._id }).lean();
-    const comps = (await Competition.find({ status: 'completed' }).sort({ completedAt: -1 }).lean()).filter((c) => seenBy(req.user, c, mine));
+    const comps = (await Competition.find({ status: 'completed' , ...NO_CHALLENGES }).sort({ completedAt: -1 }).lean()).filter((c) => seenBy(req.user, c, mine));
     const out = [];
-    for (const c of comps) out.push(await views.detail(c._id, { userId: req.user._id }));
+    for (const c of comps.filter((x) => !views.resultsHidden(x))) out.push(views.studentDetail(await views.detail(c._id, { userId: req.user._id })));
     res.json({ competitions: out });
 }));
 
@@ -150,7 +170,7 @@ router.get('/history', wrap(async (req, res) => {
 router.get('/certificates', wrap(async (req, res) => {
     const { eligible, winnerWords, TITLE, GAME } = require('../services/certificate');
     const teams = await Team.find({ 'players.userId': req.user._id, status: 'approved' }).lean();
-    const comps = await Competition.find({ _id: { $in: teams.map((t) => t.competitionId) }, status: 'completed' }).lean();
+    const comps = await Competition.find({ _id: { $in: teams.map((t) => t.competitionId) }, status: 'completed', resultsPublishedAt: { $ne: null }, ...NO_CHALLENGES }).lean();
     const certificates = comps.map((c) => {
         const team = teams.find((t) => String(t.competitionId) === String(c._id));
         if (!team || !eligible(c, team)) return null;
@@ -191,7 +211,7 @@ router.post('/matches/join', wrap(async (req, res) => {
     if (match) return res.json(match);
     const arena = await require('../arena/student').joinByCode(req.user, req.body?.code);
     if (arena) return res.json(arena);
-    res.status(404).json({ message: 'No match or Quiz Arena has that code. Check the code sent to you.' });
+    res.status(404).json({ message: 'No competition has that code. Check the code sent to you.' });
 }));
 
 /**
@@ -256,6 +276,31 @@ router.get('/play/:gameId', wrap(async (req, res) => {
     }
     res.json(out);
 }));
+/* ── Group Brain rooms ───────────────────────────────────────────────── */
+
+router.get('/rooms/games', wrap(async (req, res) => res.json({ games: await rooms.catalogue() })));
+router.get('/rooms/mine', wrap(async (req, res) => res.json(await rooms.myRoom(req.user._id))));
+router.post('/rooms', wrap(async (req, res) => res.status(201).json(await rooms.createRoom(req.user, String(req.body?.game || ''), req.body?.options || {}))));
+router.post('/rooms/join', wrap(async (req, res) => res.json(await rooms.joinRoom(req.user, req.body?.code))));
+// Play online (like online Ludo): a seat at a table of 2 or 4, the entry fee from the wallet (services/onlineService.js).
+router.get('/rooms/online', wrap(async (req, res) => { const o = require('../services/onlineService'); res.json({ fees: o.FEES, sizes: o.SIZES, waitSeconds: o.WAIT_MS / 1000, prizeShare: o.PRIZE_SHARE }); }));
+router.post('/rooms/online', wrap(async (req, res) => res.json(await require('../services/onlineService').findTable(req.user, String(req.body?.game || ''), { players: req.body?.players, fee: req.body?.fee }))));
+router.get('/rooms/history', wrap(async (req, res) => res.json(await rooms.history(req.user._id))));
+router.get('/rooms/leaderboard', wrap(async (req, res) => res.json(await rooms.leaderboard({ type: String(req.query.type || 'points'), period: String(req.query.period || 'all'), game: req.query.game ? String(req.query.game) : undefined, userId: req.user._id }))));
+// My Group Brain certificates as PDFs (a revoked one is not handed out).
+router.get('/rooms/certificates/:certId', wrap(async (req, res) => {
+    const { GroupBrainCertificate } = require('../groupbrain/models');
+    const cert = await GroupBrainCertificate.findOne({ certId: String(req.params.certId).toUpperCase(), userId: req.user._id }).lean();
+    if (!cert) return res.status(404).json({ message: 'Certificate not found.' });
+    if (cert.status !== 'valid') return res.status(410).json({ message: `This certificate was revoked${cert.revokedReason ? `: ${cert.revokedReason}` : ''}.` });
+    return require('../groupbrain/certificates').pdf(cert, res);
+}));
+router.get('/rooms/profile', wrap(async (req, res) => res.json(await rooms.profile(req.user))));
+router.post('/play/:gameId/ready', wrap(async (req, res) => res.json(await rooms.setReady(req.params.gameId, req.user._id, req.body?.ready !== false))));
+router.post('/play/:gameId/start', wrap(async (req, res) => res.json(await rooms.startRoom(req.params.gameId, req.user._id))));
+router.post('/play/:gameId/remove', wrap(async (req, res) => res.json(await rooms.removePlayer(req.params.gameId, req.user._id, req.body?.seat))));
+router.post('/play/:gameId/leave', wrap(async (req, res) => res.json(await rooms.leaveRoom(req.params.gameId, req.user._id))));
+
 router.post('/play/:gameId/join', wrap(async (req, res) => res.json(await games.join(req.params.gameId, req.user._id, req.body?.code))));
 router.post('/play/:gameId/action', wrap(async (req, res) => res.json(await games.act(req.params.gameId, req.user._id, req.body?.action))));
 
@@ -274,7 +319,7 @@ router.get('/:id', wrap(async (req, res) => {
     const c = await visible(req.params.id, req.user);
     if (!c) return res.status(404).json({ message: 'Competition not found.' });
     if (c.status === 'live') await require('../services/bracketService').openDueReplays();
-    const d = await views.detail(c._id, { userId: req.user._id });
+    const d = views.studentDetail(await views.detail(c._id, { userId: req.user._id }));
     // My team's current match: whether it has been started, and only then my own code.
     const team = d.competition.myTeam?.status === 'approved' ? d.competition.myTeam : null;
     if (team) {
@@ -334,11 +379,13 @@ router.post('/:id/pay/verify', wrap(async (req, res) => {
 }));
 
 // Wallet rule (optional): each certificate PDF, like a course's; refunded when there is none to give.
-router.get('/:id/certificate', chargeWallet('download_competition_certificate'), wrap(async (req, res) => {
+// Certificates are free (asked 2026-10-27): no wallet charge.
+router.get('/:id/certificate', wrap(async (req, res) => {
     const c = await visible(req.params.id, req.user);
     if (!c) return res.status(404).json({ message: 'Competition not found.' });
     const competition = await Competition.findById(c._id).lean();
     if (competition.status !== 'completed') return res.status(409).json({ message: 'Certificates are ready once the competition is over.' });
+    if (views.resultsHidden(competition)) return res.status(409).json({ message: 'Certificates come with the results, once the organizer publishes them.' });
     const team = await Team.findOne({ competitionId: c._id, status: 'approved', 'players.userId': req.user._id }).lean();
     if (!team) return res.status(403).json({ message: 'Only players of a team that took part get a certificate.' });
     if (!require('../services/certificate').eligible(competition, team)) {
@@ -363,12 +410,12 @@ const full = async (req) => {
 router.post('/:id/signup', wrap(async (req, res) => {
     const c = await full(req);
     await challenge.signUp(c, req.user);
-    res.status(201).json(await views.detail(c._id, { userId: req.user._id }));
+    res.status(201).json(views.studentDetail(await views.detail(c._id, { userId: req.user._id })));
 }));
 router.delete('/:id/signup', wrap(async (req, res) => {
     const c = await full(req);
     await challenge.withdraw(c, req.user);
-    res.json(await views.detail(c._id, { userId: req.user._id }));
+    res.json(views.studentDetail(await views.detail(c._id, { userId: req.user._id })));
 }));
 
 router.get('/:id/quiz', wrap(async (req, res) => {
