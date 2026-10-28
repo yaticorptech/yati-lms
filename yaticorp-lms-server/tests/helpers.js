@@ -86,12 +86,27 @@ const startApp = ({ mount = '/api/interview', router = require('../src/interview
  */
 const cleanup = async (users, server, admins = []) => {
     const db = mongoose.connection.db; const ids = users.map((u) => u._id);
-    if (admins.length) await require('../src/models/Admin').deleteMany({ _id: { $in: admins.map((a) => a._id) } });
+    if (admins.length) {
+        await require('../src/models/Admin').deleteMany({ _id: { $in: admins.map((a) => a._id) } });
+        // And what they did in the admin panel (the audit log, models/AdminAuditLog.js).
+        await forgetAudit({ admins: admins.map((a) => a._id) });
+    }
     const collections = (await db.listCollections().toArray()).map((c) => c.name).filter((n) => n !== 'users');
     for (const c of collections) await db.collection(c).deleteMany({ userId: { $in: ids } }).catch(() => {});
     await require('../src/models/User').deleteMany({ _id: { $in: ids } });
     if (server) await new Promise((r) => server.close(r));
     await mongoose.disconnect();
+};
+
+/**
+ * Remove the audit rows (org_audit_logs: organizations' and the admin panel's)
+ * that test organizations and admins left behind, so the Admin audit log page
+ * on the test database is not filled with deleted test accounts.
+ */
+const forgetAudit = async ({ orgs = [], admins = [], emails = null } = {}) => {
+    await require('../src/models/AdminAuditLog').settle();
+    await mongoose.connection.db.collection('org_audit_logs')
+        .deleteMany({ $or: [{ orgId: { $in: orgs } }, { adminId: { $in: admins } }, ...(emails ? [{ adminEmail: emails }] : [])] }).catch(() => {});
 };
 
 /** A candidate profile the way studentContext builds one, without a database. */
@@ -103,4 +118,4 @@ const fakeContext = (over = {}) => ({
     projects: [{ name: 'Sales Dashboard', description: 'A retail sales dashboard', skills: ['Python', 'SQL'] }], certificates: [], interests: ['Data'], hash: 'h1', ...over
 });
 
-module.exports = { connect, makeUser, makeAdmin, startApp, cleanup, fakeContext, openJobs };
+module.exports = { connect, makeUser, makeAdmin, startApp, cleanup, forgetAudit, fakeContext, openJobs };

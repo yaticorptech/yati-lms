@@ -4,7 +4,8 @@
  *   - "Add your organization", a popup from the dashboard and My profile (no
  *     menu item): find a college by its ID, ask to join, see it waiting
  *   - focus mode and version history in the writing editor
- *   - the thesis as a Word file
+ *   - the thesis as a Word file, after the check of what needs a look
+ *   - the questionnaire builder, a popup from Research Methodologies
  *   - the APA reference list, the Excel and Word downloads, and the new
  *     volume / issue / pages fields
  *   - the six-question methodology advisor
@@ -44,7 +45,20 @@ const ROUTES = {
     ], stats: { total: 1, byStatus: { idea: 0, drafting: 0, submitted: 0, under_review: 0, revision: 0, accepted: 0, published: 1, rejected: 0 }, byType: {}, byYear: { 2023: 1 }, byIndexing: { Scopus: 1 }, citations: 4, hIndex: 1, upcomingDeadlines: [] } },
     '/plagiarism/sources': { sources: [], max: 50 },
     '/plagiarism/reports': { reports: [] },
-    '/theses': { theses: [] }
+    '/theses': { theses: [] },
+    '/questionnaires/q1': { _id: 'q1', title: 'Online classes survey', intro: 'About your online classes.', questions: [
+        { _id: 'x1', type: 'section', text: 'Section A: About you', options: [], scale: 'agreement', points: 5 },
+        { _id: 'x2', type: 'single', text: 'Your age group', options: ['Under 18', '18 and above'], scale: 'agreement', points: 5 }
+    ] },
+    '/questionnaires': {
+        questionnaires: [{ _id: 'q1', title: 'Online classes survey', questions: 1, updatedAt: '2026-10-26T09:00:00Z' }],
+        scales: {
+            agreement: { label: 'Agreement', 5: ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'], 7: ['Strongly disagree', 'Disagree', 'Somewhat disagree', 'Neutral', 'Somewhat agree', 'Agree', 'Strongly agree'] },
+            frequency: { label: 'Frequency', 5: ['Never', 'Rarely', 'Sometimes', 'Often', 'Always'], 7: ['Never', 'Very rarely', 'Rarely', 'Sometimes', 'Often', 'Very often', 'Always'] }
+        },
+        types: ['likert', 'single', 'multiple', 'yesno', 'short', 'long', 'section'],
+        limits: { questionnaires: 20, questions: 100, options: 12, title: 200, intro: 2000, text: 500, option: 120 }
+    }
 };
 
 const teacherSessionStub = `
@@ -64,6 +78,7 @@ export const TEACHER_TOKEN = 'teacherToken';
 export const TEACHER_DATA = 'teacherData';
 export const readTeacher = () => ROUTES['/me'];
 export const hasTeacherSession = () => true;
+export const isEmbedded = () => false;
 export const forgetTeacher = () => {};
 export const signOutTeacher = () => {};
 export const messageOf = (e, f = 'Something went wrong.') => e?.response?.data?.message || f;
@@ -225,16 +240,44 @@ describe('focus mode and version history', { skip: skipWithoutStyles }, () => {
 });
 
 describe('downloads', { skip: skipWithoutStyles }, () => {
-    test('the thesis downloads as a Word file', async () => {
+    test('the thesis downloads as a Word file, after the check', async () => {
         const { result, errors } = await screen({ entry: page('/teacher/thesis/th1'), api: apiModule({}), modules, styles: true, width: 1280, script: `
             ${SET}
             await sleep(400);
             button(/^Word$/).click(); await sleep(300);
-            return { call: calls('GET', /docx/)[0], saved: window.__saved };` });
+            const check = text($('#thesis-check-title'));
+            const asked = calls('GET', /docx/).length;
+            const body = $('[role=dialog]').innerText;
+            button(/Download anyway/).click(); await sleep(300);
+            return { check, asked, body, call: calls('GET', /docx/)[0], saved: window.__saved };` });
         assert.deepEqual(errors, []);
+        assert.equal(result.check, 'Check before you download');
+        assert.equal(result.asked, 0, 'nothing is downloaded until the teacher says so');
+        // The stub thesis is one chapter, an introduction.
+        assert.match(result.body, /No abstract/);
+        assert.match(result.body, /No reference list/);
+        assert.match(result.body, /The title page is missing details/);
         assert.equal(result.call[1], '/theses/th1/docx');
         assert.deepEqual(result.call[2], { responseType: 'blob' });
         assert.deepEqual(result.saved, ['Peer_tutoring_and_mathematics_anxiety.docx']);
+    });
+
+    test('the check goes back to writing, or to the chapter or Details it names', async () => {
+        const { result, errors } = await screen({ entry: page('/teacher/thesis/th1'), api: apiModule({}), modules, styles: true, width: 500, height: 900, script: `
+            ${SET}
+            await sleep(400);
+            button(/Download PDF/).click(); await sleep(300);
+            const overflow = OVERFLOW();
+            button(/Back to writing/).click(); await sleep(300);
+            const closed = !$('#thesis-check-title');
+            button(/Download PDF/).click(); await sleep(300);
+            button(/Open Details/).click(); await sleep(300);
+            return { overflow, closed, details: text($('#teacher-modal-title')), downloads: calls('GET', /\\/pdf$/).length };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.overflow, 0, 'the check fits a phone');
+        assert.equal(result.closed, true);
+        assert.equal(result.details, 'Thesis details');
+        assert.equal(result.downloads, 0);
     });
 
     test('the APA reference list shows journal names in italics, copies, and downloads as Word and Excel', async () => {
@@ -355,5 +398,148 @@ describe('Independent Writing and uploaded sources', { skip: skipWithoutStyles }
         assert.match(result.post[2].text, /^Peer tutoring benefits/);
         assert.match(result.body, /Added “rao2021”/);
         assert.match(result.body, /the 1 paper you uploaded/);
+    });
+});
+
+describe('the questionnaire builder', { skip: skipWithoutStyles }, () => {
+    test('a popup from Research Methodologies, not a menu item: a questionnaire opens, a Likert statement is added, saved and downloaded as Word', async () => {
+        const { result, errors } = await screen({ entry: page('/teacher/methods'), api: apiModule({}), modules, styles: true, width: 1280, script: `
+            ${SET}
+            await sleep(500);
+            const menu = $$('nav a').map((a) => a.innerText.trim().toLowerCase());
+            button(/Open the builder/).click(); await sleep(400);
+            const title = text($('#questionnaire-builder-title'));
+            const listed = text($('[role=dialog] ul li'));
+            button(/Online classes survey/).click(); await sleep(400);
+            button(/^Likert statement$/).click(); await sleep(200);
+            const boxes = $$('[role=dialog] textarea');
+            setVal(boxes[boxes.length - 1], 'Online classes are easy to follow.');
+            await sleep(100);
+            const scale = $$('[role=dialog] [aria-label="The answers"] span').map((s) => s.innerText);
+            button(/^Download Word$/).click(); await sleep(400);
+            return { menu, title, listed, scale, put: calls('PUT', /^\\/questionnaires\\/q1$/).at(-1), docx: calls('GET', /\\/questionnaires\\/q1\\/docx$/)[0], saved: window.__saved };` });
+        assert.deepEqual(errors, []);
+        assert.ok(!result.menu.some((m) => /questionnaire/.test(m)), 'no menu item');
+        assert.equal(result.title, 'Questionnaire builder');
+        assert.match(result.listed, /Online classes survey/);
+        assert.deepEqual(result.scale, ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree']);
+        assert.ok(result.put, 'saved before the file is made');
+        assert.deepEqual(result.put[2].questions.at(-1), { type: 'likert', text: 'Online classes are easy to follow.', options: [], scale: 'agreement', points: 5 });
+        assert.equal(result.put[2].questions.length, 3);
+        assert.deepEqual(result.docx[2], { responseType: 'blob' });
+        assert.deepEqual(result.saved, ['Online_classes_survey.docx']);
+    });
+
+    test('a new one starts with an "About you" section and three Likert statements, and the builder fits a phone', async () => {
+        const extra = `window.__treply = (m, u, b) => {
+  if (m === 'POST' && u === '/questionnaires') return { _id: 'q2', ...b };
+  if (m === 'GET' && u === '/questionnaires/q2') { const p = window.__tcalls.find((c) => c[0] === 'POST' && c[1] === '/questionnaires')[2]; return { _id: 'q2', ...p }; }
+  return null;
+};`;
+        const { result, errors } = await screen({ entry: page('/teacher/methods', extra), api: apiModule({}), modules, styles: true, width: 500, height: 900, script: `
+            ${SET}
+            await sleep(500);
+            button(/Open the builder/).click(); await sleep(400);
+            const listOverflow = OVERFLOW();
+            setVal($('#new-questionnaire-title'), 'Study habits survey');
+            button(/Create and open/).click(); await sleep(500);
+            return { post: calls('POST', /^\\/questionnaires$/)[0], badges: $$('[role=dialog] ol > li').map((li) => li.querySelector('span').innerText), listOverflow, overflow: OVERFLOW() };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.post[2].title, 'Study habits survey');
+        assert.match(result.post[2].intro, /anonymous/);
+        assert.deepEqual(result.post[2].questions.map((q) => q.type), ['section', 'single', 'single', 'single', 'short', 'section', 'likert', 'likert', 'likert']);
+        assert.deepEqual(result.badges, ['Section', 'Q1', 'Q2', 'Q3', 'Q4', 'Section', 'Q5', 'Q6', 'Q7'], 'sections are not numbered');
+        assert.equal(result.listOverflow, 0);
+        assert.equal(result.overflow, 0);
+    });
+});
+
+describe('My Clubs in the menu', { skip: skipWithoutStyles }, () => {
+    const menu = `
+            await sleep(600);
+            return { menu: $$('nav[aria-label=Teacher] a').map((a) => a.innerText.trim()), groups: $$('nav[aria-label=Teacher] p').map((p) => p.innerText.trim()), asked: calls('GET', /^\\/clubs$/).length };`;
+
+    test('a teacher in charge of no club has no My Clubs and no Activities heading', async () => {
+        const { result, errors } = await screen({ entry: page('/teacher', `window.__treply = (m, u) => (u === '/clubs' ? { clubs: [] } : null);`), api: apiModule({}), modules, styles: true, width: 1280, script: `${SET}${menu}` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.asked >= 1, 'the clubs are asked about');
+        assert.ok(!result.menu.includes('My Clubs'), result.menu.join(' | '));
+        assert.ok(!result.groups.some((g) => /activities/i.test(g)));
+    });
+
+    test('a teacher in charge of a club sees My Clubs under Activities', async () => {
+        const { result, errors } = await screen({ entry: page('/teacher', `window.__treply = (m, u) => (u === '/clubs' ? { clubs: [{ _id: 'k1', name: 'NSS Unit 1', members: 12 }] } : null);`), api: apiModule({}), modules, styles: true, width: 1280, script: `${SET}${menu}` });
+        assert.deepEqual(errors, []);
+        assert.ok(result.menu.includes('My Clubs'));
+        assert.ok(result.groups.some((g) => /activities/i.test(g)));
+    });
+});
+
+describe('Continue where you left off, and the plagiarism report as a PDF', { skip: skipWithoutStyles }, () => {
+    const recent = `window.__treply = (m, u) => (m === 'GET' && u === '/overview' ? {
+  teacher: { name: 'Dr. Meera Iyer' }, organization: null, research: null,
+  publications: { total: 0, published: 0, inReview: 0, byStatus: {} }, thesis: null,
+  writing: { today: 0, goal: 500, last14: [] }, plagiarism: null,
+  recent: [
+    { kind: 'chapter', id: 'c1', parentId: 'th1', title: 'Introduction', context: 'Peer tutoring and mathematics anxiety', at: new Date(Date.now() - 2 * 3600e3).toISOString() },
+    { kind: 'questionnaire', id: 'q1', title: 'Online classes survey', context: '', at: new Date(Date.now() - 26 * 3600e3).toISOString() },
+    { kind: 'writing', id: 'w1', title: 'An essay on mentoring', context: 'essay', at: new Date(Date.now() - 3 * 864e5).toISOString() }
+  ]
+} : null);`;
+
+    test('the dashboard shows only the last thing worked on, with one Continue button that opens it', async () => {
+        const { result, errors } = await screen({ entry: page('/teacher', recent), api: apiModule({}), modules, styles: true, width: 1280, script: `
+            ${SET}
+            await sleep(500);
+            const card = $('section[aria-labelledby=continue-title]');
+            const links = [...card.querySelectorAll('a')].map((a) => [a.getAttribute('href'), a.innerText.replace(/\\s+/g, ' ').trim(), a.getAttribute('aria-label')]);
+            const height = Math.round(card.getBoundingClientRect().height);
+            const shown = card.innerText.replace(/\\s+/g, ' ').trim();
+            card.querySelector('a').click(); await sleep(500);
+            return { links, height, shown, chapter: $('#chapter-title') && $('#chapter-title').value, path: location.pathname };` });
+        assert.deepEqual(errors, []);
+        // Only the last one (asked 2026-10-27), on one row, with one button to it.
+        assert.equal(result.links.length, 1);
+        assert.equal(result.links[0][0], '/teacher/thesis/th1?chapter=c1');
+        assert.equal(result.links[0][1], 'Continue');
+        assert.equal(result.links[0][2], 'Continue: Introduction, Thesis chapter in “Peer tutoring and mathematics anxiety”, edited 2 hours ago');
+        assert.equal(result.shown, 'CONTINUE WHERE YOU LEFT OFF Introduction · 2h ago Continue');
+        assert.ok(!/Online classes survey|An essay on mentoring/.test(result.shown), 'the older ones are not listed');
+        assert.ok(result.height <= 70, `the card is ${result.height}px tall`);
+        assert.equal(result.chapter, 'Introduction', 'the chapter itself is open');
+    });
+
+    test('a questionnaire link opens the builder at that questionnaire; a new teacher has no card', async () => {
+        const { result, errors } = await screen({ entry: page('/teacher/methods?questionnaire=q1'), api: apiModule({}), modules, styles: true, width: 1280, script: `
+            ${SET}
+            await sleep(600);
+            return { title: $('#questionnaire-title') && $('#questionnaire-title').value };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.title, 'Online classes survey');
+        const fresh = await screen({ entry: page('/teacher'), api: apiModule({}), modules, styles: true, width: 500, script: `
+            await sleep(500);
+            return { card: /Continue where you left off/.test(document.body.innerText), overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };` });
+        assert.deepEqual(fresh.errors, []);
+        assert.equal(fresh.result.card, false, 'nothing to continue yet');
+    });
+
+    test('a plagiarism report downloads as a PDF, from the result and from the earlier checks', async () => {
+        const extra = `window.__treply = (m, u) => {
+  if (m === 'GET' && u === '/plagiarism/reports') return { reports: [{ _id: 'r1', title: 'Draft one', score: 12, words: 300, createdAt: '2026-10-27T08:00:00Z' }] };
+  if (m === 'GET' && u === '/plagiarism/reports/r1') return { _id: 'r1', title: 'Draft one', score: 12, ownScore: 2, words: 300, documentsCompared: 9, text: 'Some checked text.', matches: [], flags: [], sources: [], citations: { found: 0 }, createdAt: '2026-10-27T08:00:00Z' };
+  return null;
+};`;
+        const { result, errors } = await screen({ entry: page('/teacher/plagiarism', extra), api: apiModule({}), modules, styles: true, width: 500, height: 900, script: `
+            ${SET}
+            await sleep(600);
+            button(/Download the report for Draft one as PDF/).click(); await sleep(300);
+            $$('button').find((b) => /Draft one/.test(b.innerText) && !b.getAttribute('aria-label')).click(); await sleep(400);
+            const inResult = button(/^Download PDF$/);
+            inResult.click(); await sleep(300);
+            return { pdfs: calls('GET', /\\/pdf$/).map((c) => [c[1], c[2]]), saved: window.__saved, overflow: OVERFLOW() };` });
+        assert.deepEqual(errors, []);
+        assert.deepEqual(result.pdfs, [['/plagiarism/reports/r1/pdf', { responseType: 'blob' }], ['/plagiarism/reports/r1/pdf', { responseType: 'blob' }]]);
+        assert.deepEqual(result.saved, ['Similarity_report_Draft_one.pdf', 'Similarity_report_Draft_one.pdf']);
+        assert.equal(result.overflow, 0);
     });
 });

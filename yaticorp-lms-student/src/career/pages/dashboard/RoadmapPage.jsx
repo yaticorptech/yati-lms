@@ -16,6 +16,7 @@ import GeneratingRoadmap from '../../components/journey/GeneratingRoadmap';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
 import { useMascot } from '../../mascot/useMascot';
+import { isWalletCancel } from '../../../utils/walletCharge';
 
 export default function RoadmapPage() {
   const [roadmap, setRoadmap] = useState(null);
@@ -113,6 +114,8 @@ export default function RoadmapPage() {
       setRoadmap(data.roadmapData);
       setCompletedPhases(data.completedPhases || []);
     } catch (err) {
+      // Cancelled at the wallet's price: nothing happened, nothing to say.
+      if (isWalletCancel(err)) return;
       // A spent allowance is not a failure to report in red. It gets its own
       // notice, which says when it comes back and that nothing has been lost.
       const budget = readAiBudgetError(err);

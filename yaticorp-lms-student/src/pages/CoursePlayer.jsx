@@ -19,8 +19,7 @@ import { unlockedLessonIds, nextLessonAfter, hasWatched, markWatched } from '../
 import { useMascot } from '../mascot/useMascot';
 import { REACTIONS } from '../mascot/reactions';
 import { saveBlob } from '../native/saveFile';
-import PriceTag from '../components/rewards/PriceTag';
-import { isShortOfFunds, serverMessage } from '../utils/walletCharge';
+import { isShortOfFunds, serverMessage, isWalletCancel } from '../utils/walletCharge';
 
 const CoursePlayer = () => {
     // Loop, the mascot, stays off the whole player: everything here is a
@@ -172,7 +171,7 @@ const CoursePlayer = () => {
             });
         } catch (e) {
             // A short wallet balance says what the certificate costs (Wallet rules).
-            setCertError(isShortOfFunds(e) ? serverMessage(e) : 'Your certificate could not be made. Please try again.');
+            if (!isWalletCancel(e)) setCertError(isShortOfFunds(e) ? serverMessage(e) : 'Your certificate could not be made. Please try again.');
         }
     };
 
@@ -494,7 +493,7 @@ const CoursePlayer = () => {
                                 data-mascot-cta
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center shadow-sm transition-colors disabled:opacity-50"
                             >
-                                {generatingCert ? 'Downloading...' : <>Download Certificate Again <PriceTag action="download_certificate" className="ml-1" /></>}
+                                {generatingCert ? 'Downloading...' : 'Download Certificate Again'}
                             </button>
                         ) : (
                             <button
@@ -503,7 +502,7 @@ const CoursePlayer = () => {
                                 data-mascot-cta
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center shadow-sm transition-colors disabled:opacity-50"
                             >
-                                {generatingCert ? 'Generating...' : <>Get Certificate <PriceTag action="download_certificate" className="ml-1" /></>}
+                                {generatingCert ? 'Generating...' : 'Get Certificate'}
                             </button>
                         )}
                     </div>

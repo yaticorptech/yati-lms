@@ -19,7 +19,7 @@ import { readAiBudgetError } from '../career/utils/aiBudget';
 import { SearchFundingArt } from '../components/ScholarshipArt';
 import YatiLoader from '../components/YatiLoader';
 import useMinimumLoading from '../hooks/useMinimumLoading';
-import PriceTag from '../components/rewards/PriceTag';
+import { isWalletCancel } from '../utils/walletCharge';
 import './scholarships.css';
 
 // A hue per card, round the wheel: the stripe along its top, its cap tile and its Apply button share it.
@@ -84,7 +84,7 @@ export default function Scholarships() {
     } catch (err) {
       const budget = readAiBudgetError(err);
       if (budget) setAiBudget(budget);
-      else setError(err.response?.data?.message || 'Could not find scholarships right now. Please try again.');
+      else if (!isWalletCancel(err)) setError(err.response?.data?.message || 'Could not find scholarships right now. Please try again.');
     } finally {
       setFinding(false);
     }
@@ -253,7 +253,7 @@ export default function Scholarships() {
               style={{ animationDelay: '0.3s' }}
             >
               {finding ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              {finding ? 'Finding scholarships…' : <>Find scholarships for me <PriceTag action="find_scholarship" /></>}
+              {finding ? 'Finding scholarships…' : 'Find scholarships for me'}
             </button>
           ) : (
             <Link

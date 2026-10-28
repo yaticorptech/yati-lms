@@ -15,6 +15,7 @@ import {
 import { applicationApi } from './api';
 import { Tracker, StatusBadge, JobCard, SafetySection, ConfirmDialog } from './parts';
 import { toneFor, statusLabel } from './status';
+import { isWalletCancel } from '../../utils/walletCharge';
 
 const btn = {
     primary: 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none',
@@ -83,11 +84,20 @@ export default function ApplyFlow({ opportunityId, onClose, onContinue }) {
     // message the mail provider refused.
     const [mail, setMail] = useState(null);
 
+    // Read inside the start effect without restarting it when the parent re-renders.
+    const closeRef = useRef(onClose);
+    useEffect(() => { closeRef.current = onClose; }, [onClose]);
+
     useEffect(() => {
         let cancelled = false;
         applicationApi.start(opportunityId)
             .then((d) => !cancelled && setState({ loading: false, application: d.application, error: '' }))
-            .catch((e) => !cancelled && setState({ loading: false, application: null, error: e.message }));
+            .catch((e) => {
+                if (cancelled) return;
+                // Cancelled at the wallet's price: the student chose not to apply, so the flow closes.
+                if (isWalletCancel(e) && closeRef.current) { closeRef.current(); return; }
+                setState({ loading: false, application: null, error: e.message });
+            });
         return () => { cancelled = true; };
     }, [opportunityId]);
 

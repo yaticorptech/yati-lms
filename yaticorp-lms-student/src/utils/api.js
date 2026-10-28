@@ -4,7 +4,7 @@
  */
 import axios from 'axios';
 import { clearCareerCache } from '../career/services/api';
-import { onWalletResponse, onWalletError } from './walletCharge';
+import { onWalletResponse, onWalletError, askWallet } from './walletCharge';
 import { expireSessionOn401 } from './sessionExpiry';
 import { onSaved } from './saveSignal';
 
@@ -29,7 +29,8 @@ api.interceptors.request.use(config => {
     // A save anywhere in the LMS (a finished lesson, a redeemed reward) can
     // change what Career Path shows, so its cached reads are dropped.
     if ((config.method || 'get').toLowerCase() !== 'get') clearCareerCache();
-    return config;
+    // Priced features ask before taking money (utils/walletCharge).
+    return askWallet(config);
 });
 
 const clearAfterSave = (config) => {
@@ -47,7 +48,7 @@ api.interceptors.response.use(
         if (error.response?.status === 423 && error.response.data?.code === 'PLATFORM_CLOSED') {
             window.dispatchEvent(new CustomEvent('yati:platform-closed', { detail: error.response.data }));
         }
-        return onWalletError(error);
+        return onWalletError(error, api);
     }
 );
 

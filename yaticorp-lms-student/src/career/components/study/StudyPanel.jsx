@@ -9,6 +9,7 @@ import EmptyState from '../ui/EmptyState';
 import NotesReader from './NotesReader';
 import VideoList from './VideoList';
 import QuizRunner from './QuizRunner';
+import { isWalletCancel } from '../../../utils/walletCharge';
 
 /**
  * Notes, videos, and quiz for the skill the student picks.
@@ -56,7 +57,8 @@ export default function StudyPanel({ mode, skills = [] }) {
       setMaterials((prev) => [...prev.filter((m) => m.skillName !== activeSkill), data]);
       toast.success(`Notes, videos, and a quiz for ${activeSkill}.`, 'Study pack ready');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not build your study pack.');
+      // Cancelled at the wallet's price: nothing to report.
+      if (!isWalletCancel(err)) toast.error(err.response?.data?.message || 'Could not build your study pack.');
     } finally {
       setGenerating(false);
     }

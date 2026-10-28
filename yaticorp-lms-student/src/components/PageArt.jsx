@@ -75,39 +75,6 @@ export function FirstPostArt({ className = '' }) {
 
 /* ---- Enrolled Courses --------------------------------------------------- */
 
-/** The banner: a stack of courses with a play badge on top. */
-export function CoursesArt({ className = '' }) {
-  return (
-    <svg className={className} viewBox="0 0 200 200" aria-hidden focusable="false">
-      <circle cx="100" cy="104" r="66" fill="#ffffff" opacity="0.14" />
-
-      {/* Three books, the pile a student is working through. */}
-      {[
-        { y: 150, fill: '#a78bfa', w: 96 },
-        { y: 128, fill: '#f472b6', w: 88 },
-        { y: 106, fill: '#38bdf8', w: 80 }
-      ].map((b) => (
-        <g key={b.y}>
-          <rect x={100 - b.w / 2} y={b.y} width={b.w} height="20" rx="5" fill={b.fill} />
-          <rect x={100 - b.w / 2} y={b.y} width="10" height="20" rx="5" fill="#ffffff" opacity="0.45" />
-        </g>
-      ))}
-
-      {/* The lesson itself, sitting on the pile. */}
-      <g>
-        <rect x="62" y="46" width="76" height="52" rx="10" fill="#ffffff" />
-        <circle cx="100" cy="72" r="17" fill="#7c3aed" />
-        <path d="M96 64 l14 8 -14 8 Z" fill="#ffffff" />
-      </g>
-
-      <g fill="#fde68a">
-        <path d="M38 52 l5 11 12 2 -9 8 2 12 -10 -6 -10 6 2 -12 -9 -8 12 -2 Z" />
-        <path d="M168 76 l4 8 9 1 -7 6 2 9 -8 -4 -8 4 2 -9 -7 -6 9 -1 Z" opacity="0.85" />
-      </g>
-    </svg>
-  );
-}
-
 /** Nothing enrolled: an open book waiting to be started. */
 export function NoCoursesArt({ className = '' }) {
   return (

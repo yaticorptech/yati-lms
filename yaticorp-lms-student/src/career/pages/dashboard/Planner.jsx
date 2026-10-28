@@ -24,7 +24,7 @@ import { useMascot } from '../../mascot/useMascot';
 import { useXpRule, useRewards } from '../../../context/useRewards';
 import { usePointLoopAt } from '../../../components/loopGuide';
 import { useLoopHidden } from '../../../components/loopVisibility';
-import PriceTag from '../../../components/rewards/PriceTag';
+import { isWalletCancel } from '../../../utils/walletCharge';
 
 // What a task WILL pay is the admin's 'career_task' rule (useXpRule in the
 // component) — a promise, shown only while there is a rule to promise (it is
@@ -334,7 +334,7 @@ export default function Planner() {
         'One more task'
       );
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not generate another task.');
+      if (!isWalletCancel(err)) toast.error(err.response?.data?.message || 'Could not generate another task.');
     } finally {
       setAddingTask(false);
     }
@@ -1474,7 +1474,6 @@ export default function Planner() {
                 <Lock className="h-4 w-4" />
               )}
               {addingTask ? 'Finding one for you…' : 'Generate another task'}
-              {!addingTask && allDone && <PriceTag action="add_extra_task" />}
               {!addingTask && allDone && <Plus className="fp-btn-arrow h-4 w-4" strokeWidth={3} />}
             </button>
             <p className="text-xs font-semibold text-ink-600">

@@ -17,7 +17,8 @@ const SOURCES = [
   'feature_refund',      // that charge returned because the action failed
   'withdrawal',
   'withdrawal_refund',   // a rejected withdrawal returning to available
-  'admin_adjustment'
+  'admin_adjustment',
+  'wallet_recharge'      // a super admin topping up a student's wallet (admin → Wallet recharge)
 ];
 const STATUSES = ['pending', 'completed', 'failed', 'cancelled'];
 

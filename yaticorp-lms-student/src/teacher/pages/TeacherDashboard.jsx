@@ -2,15 +2,17 @@
  * The teacher's home: a learning guide for doing research — six guides in
  * order, from choosing a design to publishing — with where their own
  * research, thesis and writing stand, and the next thing to do in each.
- * "Add your organization" (or the college's name, once joined) opens a popup.
+ * "Continue where you left off" (asked 2026-10-27) opens the last thing they
+ * worked on in one tap. "Add your organization" (or the college's name, once
+ * joined) opens a popup.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Route, BookMarked, FileText, PenLine, ShieldCheck, FlaskConical, ArrowRight, Target, CheckCircle2, Circle, Building2, Plus } from 'lucide-react';
+import { Route, BookMarked, FileText, PenLine, ShieldCheck, FlaskConical, ArrowRight, Target, CheckCircle2, Circle, Building2, Plus, ClipboardList, RotateCcw } from 'lucide-react';
 import teacherApi, { messageOf } from '../teacherSession';
 import { useTeacher } from '../useTeacher';
 import { Card, CardTitle, StatTile, Progress, Loading, ErrorNote } from '../ui';
-import { btn, fmtNum, colorOf } from '../kit';
+import { btn, fmtNum, fmtAgo, fmtAgoShort, colorOf, WRITING_KINDS } from '../kit';
 import OrganizationDialog from '../OrganizationDialog';
 
 // The learning path: the six guides in the order research needs them; where
@@ -23,6 +25,43 @@ const TOOLS = [
     { to: '/teacher/publications?guide=ready', color: 'violet', label: 'Publish your paper the standard way', hint: 'Publications Map: 12 steps from journal choice to after publication', icon: BookMarked, soft: 'bg-violet-50 text-violet-600' },
     { to: '/teacher/writing', color: 'rose', label: 'Build an academic writing habit', hint: 'Independent Writing: style, structure, editing, daily goal', icon: PenLine, soft: 'bg-rose-50 text-rose-600' }
 ];
+
+// What each kind of recent work is, and where it opens: the chapter itself,
+// the piece, the project, or the questionnaire in its builder.
+const RECENT = {
+    chapter: { icon: FileText, color: 'amber', label: 'Thesis chapter', to: (r) => `/teacher/thesis/${r.parentId}?chapter=${r.id}` },
+    writing: { icon: PenLine, color: 'rose', label: 'Writing', to: (r) => `/teacher/writing/${r.id}` },
+    project: { icon: Route, color: 'emerald', label: 'Research Path', to: (r) => `/teacher/research-path?project=${r.id}` },
+    questionnaire: { icon: ClipboardList, color: 'violet', label: 'Questionnaire', to: (r) => `/teacher/methods?questionnaire=${r.id}` }
+};
+// A short label under the name, so the time always fits: the piece's kind, or what it is.
+const contextOf = (r) => (r.kind === 'writing' ? WRITING_KINDS[r.context] || 'Writing' : RECENT[r.kind].label);
+
+/**
+ * The last thing worked on, on one row: what it is, its name, how long ago,
+ * and a Continue button. Only the one (the user's asks, 2026-10-27: "this
+ * much big one is not needed", "more small", then "only one which is last
+ * done … one button to go"). Not shown until there is something.
+ */
+const ContinueCard = ({ recent }) => {
+    const last = (recent || []).find((r) => RECENT[r.kind]);
+    if (!last) return null;
+    const k = RECENT[last.kind];
+    const what = `${last.title}, ${contextOf(last)}${last.kind === 'chapter' ? ` in “${last.context}”` : ''}, edited ${fmtAgo(last.at)}`;
+    return (
+        <section aria-labelledby="continue-title" className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${colorOf(k.color).soft}`}><k.icon size={15} aria-hidden="true" /></span>
+            <div className="min-w-0 flex-1" title={what}>
+                <h2 id="continue-title" className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Continue where you left off</h2>
+                <p className="truncate text-sm font-medium text-slate-900">{last.title} <span className="text-xs font-normal text-slate-400">· {fmtAgoShort(last.at)}</span></p>
+            </div>
+            <Link to={k.to(last)} aria-label={`Continue: ${what}`}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2">
+                Continue <ArrowRight size={13} aria-hidden="true" />
+            </Link>
+        </section>
+    );
+};
 
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
 
@@ -70,6 +109,8 @@ export default function TeacherDashboard() {
 
             {data && (
                 <>
+                    <ContinueCard recent={data.recent} />
+
                     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                         {tiles.map((t) => (
                             <Link key={t.label} to={t.to} className="rounded-xl transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 [&>div]:hover:border-slate-300">

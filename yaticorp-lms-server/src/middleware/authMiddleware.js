@@ -7,6 +7,7 @@
 const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin');
 const User = require('../models/User');
+const AdminAuditLog = require('../models/AdminAuditLog');
 
 const protectAdmin = async (req, res, next) => {
     let token;
@@ -47,6 +48,8 @@ const protectAdmin = async (req, res, next) => {
                 });
             }
 
+            // Every change made through the admin panel lands in the audit log.
+            AdminAuditLog.watch(req, res);
             next();
         } catch (error) {
             if (error.name === "TokenExpiredError") {
