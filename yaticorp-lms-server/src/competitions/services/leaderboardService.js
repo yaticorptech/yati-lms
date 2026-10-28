@@ -7,6 +7,9 @@
  *   10 / 6 / 4 for finishing 1st / 2nd / 3rd in a competition
  * A college's points are its teams' points added up.
  *
+ * Only competitions whose results the organizer has published count
+ * (asked 2026-10-27): nothing before then.
+ *
  * Inter-college competitions only: a college's own competition (its teams all
  * its own students, and for them alone to see) is left out.
  */
@@ -20,7 +23,7 @@ const board = async () => {
     const [teams, matches, comps] = await Promise.all([
         Team.find({ status: 'approved' }).lean(),
         Match.find({ status: 'completed', decidedBy: { $in: ['game', 'admin', 'walkover'] } }).lean(),
-        Competition.find({ status: { $in: ['live', 'completed'] }, hostOrganizationId: null }).select('name game status').lean()
+        Competition.find({ status: 'completed', resultsPublishedAt: { $ne: null }, hostOrganizationId: null, game: { $nin: ['quiz', 'hackathon'] } }).select('name game status').lean()
     ]);
     const compName = new Map(comps.map((c) => [String(c._id), c]));
     const teamRows = new Map(teams.filter((t) => compName.has(String(t.competitionId))).map((t) => [String(t._id), {

@@ -109,6 +109,8 @@ const competitionSchema = new mongoose.Schema({
         default: []
     },
     completedAt: { type: Date, default: null },
+    // Brain Sprint: students see scores and places only once the organizer publishes them.
+    resultsPublishedAt: { type: Date, default: null },
     awardedAt: { type: Date, default: null },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null }
 }, { timestamps: true });

@@ -5,7 +5,7 @@
 const Quiz = require('../models/Quiz');
 const GlobalQuizAttempt = require('../models/GlobalQuizAttempt');
 const { livePaper } = require('../services/globalQuizService');
-const { chargeFor, refundCharge, sendShort } = require('../rewards/services/walletRuleService');
+const { chargeFor, refundCharge, askFirst, sendShort } = require('../rewards/services/walletRuleService');
 const Setting = require('../models/Setting');
 const { lessonAccess } = require('../services/courseAccess');
 
@@ -321,6 +321,8 @@ const startGlobalQuiz = async (req, res) => {
             // Wallet rules: opening the attempt is the priced moment (once per
             // quiz — the reference is the quiz), refunded if no attempt is made.
             let charge = null;
+            // The student agrees to the price first (walletRuleService.askFirst).
+            if (await askFirst(req, res, { action: 'start_global_quiz', referenceKey: String(live.quiz._id) })) return;
             try {
                 charge = await chargeFor({ userId: req.user._id, action: 'start_global_quiz', referenceKey: String(live.quiz._id) });
             } catch (err) {

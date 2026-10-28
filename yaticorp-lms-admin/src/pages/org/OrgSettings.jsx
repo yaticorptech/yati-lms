@@ -20,10 +20,11 @@ import PasswordStrengthChecker from '../../components/PasswordStrengthChecker';
 import { formatDate } from '../../utils/dates';
 import { useAuth } from '../../context/AuthContext';
 import { getViewedOrganization } from '../../utils/viewOrganization';
+import { INDIA_STATES } from '../../utils/bsg';
 
 /** The fields this page owns. Anything else the server sends is left alone. */
 // The logo is not among them: it has its own card, uploaded as an image.
-const FIELDS = ['name', 'contactPerson', 'email', 'phone', 'address', 'website'];
+const FIELDS = ['name', 'contactPerson', 'email', 'phone', 'address', 'website', 'state'];
 const EMPTY = Object.fromEntries(FIELDS.map((f) => [f, '']));
 const pick = (organization) => Object.fromEntries(FIELDS.map((f) => [f, organization?.[f] ?? '']));
 
@@ -278,6 +279,14 @@ const OrgSettings = () => {
 
                     <Field label="Address" id="set-address">
                         <textarea id="set-address" rows={2} value={form.address} onChange={set('address')} disabled={!editing} className={INPUT} />
+                    </Field>
+
+                    {/* The state decides which BSG state office's exams, camps and events reach its Scouts & Guides. */}
+                    <Field label="State" id="set-state" hint={organization?.bsgOffice ? 'A BSG office\'s state is set when it is made.' : 'Your Scouts & Guides see this state\'s BSG notices, and the national ones.'}>
+                        <select id="set-state" value={form.state} onChange={set('state')} disabled={!editing || !!organization?.bsgOffice} className={INPUT}>
+                            <option value="">Not set</option>
+                            {INDIA_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
                     </Field>
 
                 </div>

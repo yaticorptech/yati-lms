@@ -44,7 +44,7 @@ const VIEW_HEADER = 'x-view-organization';
 const STAFF_ANY = [/^\/api\/organizations\/me\/(nccnss|research-session|password|status)(\/|$)/];
 const STAFF_READ = [
     /^\/api\/organizations\/me\/?$/,
-    /^\/api\/organizations\/me\/(dashboard|students|courses|modules|lessons|course-access|certificate-progress|requests\/count)(\/|$)/,
+    /^\/api\/organizations\/me\/(dashboard|students|courses|modules|lessons|course-access|certificate-progress|requests\/count|bsg\/feed)(\/|$)/,
     /^\/api\/linguistic\//, /^\/api\/competitions\/org(\/|$)/
 ];
 const staffMay = (req) => {
@@ -127,6 +127,15 @@ const protectOrgAdmin = async (req, res, next) => {
 
         req.admin = admin;
         req.organization = organization;
+        // Every change made by the organization's own accounts (its users and
+        // teachers with a panel sign-in) goes in its audit log, once it has
+        // succeeded — so with several people in one panel, each change has a name.
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+            res.on('finish', () => {
+                if (res.statusCode >= 400) return;
+                OrgAuditLog.record({ orgId: organization._id, admin, action: OrgAuditLog.describe(req), req, details: { status: res.statusCode } });
+            });
+        }
         return next();
     } catch (error) {
         if (error.name === 'TokenExpiredError') {

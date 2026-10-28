@@ -146,8 +146,9 @@ describe('Quiz Arena through the API', () => {
     });
 
     test('a contest: created as a draft, published only with enough approved questions, then frozen', async () => {
-        const start = new Date(Date.now() + 3600e3);
-        const base = { title: `Arena Cup ${STAMP}`, startsAt: start, registrationDeadline: new Date(start.getTime() - 60e3), counts: { 1: 2, 2: 1, 3: 2 }, eligibility: { organizationIds: [String(orgA._id), String(orgB._id)] } };
+        // Registration ends today; the quiz is planned for a later day (the admin may start it any time).
+        const start = new Date(Date.now() + 2 * 86400e3);
+        const base = { title: `Arena Cup ${STAMP}`, startsAt: start, registrationDeadline: new Date(Date.now() + 1800e3), counts: { 1: 2, 2: 1, 3: 2 }, eligibility: { organizationIds: [String(orgA._id), String(orgB._id)] } };
         const r = await boss('POST', '/arena/admin', base);
         assert.equal(r.status, 201, JSON.stringify(r.body));
         compId = r.body.competition.id;

@@ -62,6 +62,56 @@ const checkDetails = ({ name, email, phone }) => {
 const approvalRequired = async () => Boolean((await Setting.findOne().select('teacherApprovalRequired').lean())?.teacherApprovalRequired);
 
 /**
+ * The card named by input (CardNumber, CVV, qrCodeNumber), checked as free to
+ * give a teacher: it exists, is unused and active, is verified (unless a
+ * platform admin is adding, which verifies it), and no student or teacher
+ * holds it. Resolves to { card, cardKey }, or throws AccountError.
+ */
+const freeCard = async (input, adminAdding) => {
+    if (!input.CardNumber || !input.CVV || !input.qrCodeNumber) throw new AccountError('The card number, CVV and QR code are all needed.', 'card');
+    // The three card values together, as text: an object from a body must
+    // never reach the query. CVVs are printed in capitals; either case matches.
+    const cvv = String(input.CVV).trim();
+    const cardKey = { CardNumber: String(input.CardNumber).trim(), CVV: { $in: [...new Set([cvv, cvv.toUpperCase()])] }, qrCodeNumber: String(input.qrCodeNumber).trim() };
+    const card = await Card.findOne(cardKey);
+    if (!card) throw new AccountError('Those card details did not match. Check the card number, CVV and QR code.', 'card', 'CARD_INVALID');
+    if (card.status === 'used') throw new AccountError('This card already has an account.', 'card', 'CARD_USED');
+    if (!AVAILABLE_CARD.includes(card.status)) throw new AccountError('This card is inactive and cannot be used.', 'card', 'CARD_INACTIVE');
+    if (!isVerified(card) && !adminAdding) throw new AccountError(NOT_VERIFIED.message, 'card', NOT_VERIFIED.code);
+    // Already a student's or a teacher's, whatever the card's status says.
+    if (await findUserByCardNumber(cardKey.CardNumber) || await findTeacherByCard(cardKey.CardNumber)) {
+        throw new AccountError('This card already has an account.', 'card', 'CARD_USED');
+    }
+    return { card, cardKey };
+};
+
+/**
+ * Give an AI card to a teacher who was added without one: the card is
+ * claimed, and the teacher has the research tools from now on and signs in
+ * with the card (their email no longer does). Resolves to the teacher, or
+ * throws AccountError.
+ */
+const giveCard = async (teacher, input) => {
+    if (teacher.cardNumber) throw new AccountError('This teacher already has a card.', 'card', 'HAS_CARD');
+    const { card, cardKey } = await freeCard(input, false);
+    const claimed = await Card.findOneAndUpdate({ _id: card._id, status: { $in: AVAILABLE_CARD } }, { $set: { status: 'used' } });
+    if (!claimed) throw new AccountError('This card already has an account.', 'card', 'CARD_USED');
+    try {
+        const updated = await Teacher.findOneAndUpdate(
+            { _id: teacher._id, cardNumber: { $in: [null, ''] } },
+            { $set: { cardNumber: normaliseCardNumber(cardKey.CardNumber) || cardKey.CardNumber } },
+            { new: true }
+        );
+        if (!updated) throw new AccountError('This teacher already has a card.', 'card', 'HAS_CARD');
+        return updated;
+    } catch (error) {
+        await Card.updateOne({ _id: card._id, status: 'used' }, { $set: { status: claimed.status } }).catch(() => {});
+        if (error?.code === 11000 && error.keyPattern?.cardNumber) throw new AccountError('This card already has an account.', 'card', 'CARD_USED');
+        throw error;
+    }
+};
+
+/**
  * Make a teacher account. `input` holds name, email, phone, password, the
  * card (CardNumber, CVV, qrCodeNumber) and optionally institution,
  * department and designation. `options.by` is 'self', 'admin' or
@@ -78,22 +128,8 @@ const createTeacher = async (input, options = {}) => {
     if (!password) throw new AccountError('Please choose a password.', 'password');
     const weak = validatePasswordStrength(password);
     if (weak) throw new AccountError(weak, 'password');
-
-    // The three card values together, as text: an object from a body must
-    // never reach the query. CVVs are printed in capitals; either case matches.
-    const cvv = String(input.CVV).trim();
-    const cardKey = { CardNumber: String(input.CardNumber).trim(), CVV: { $in: [...new Set([cvv, cvv.toUpperCase()])] }, qrCodeNumber: String(input.qrCodeNumber).trim() };
-    const card = await Card.findOne(cardKey);
-    if (!card) throw new AccountError('Those card details did not match. Check the card number, CVV and QR code.', 'card', 'CARD_INVALID');
-    if (card.status === 'used') throw new AccountError('This card already has an account.', 'card', 'CARD_USED');
-    if (!AVAILABLE_CARD.includes(card.status)) throw new AccountError('This card is inactive and cannot be used.', 'card', 'CARD_INACTIVE');
     const adminAdding = options.by === 'admin';
-    if (!isVerified(card) && !adminAdding) throw new AccountError(NOT_VERIFIED.message, 'card', NOT_VERIFIED.code);
-
-    // Already a student's or a teacher's, whatever the card's status says.
-    if (await findUserByCardNumber(cardKey.CardNumber) || await findTeacherByCard(cardKey.CardNumber)) {
-        throw new AccountError('This card already has an account.', 'card', 'CARD_USED');
-    }
+    const { card, cardKey } = await freeCard(input, adminAdding);
     if (await emailTaken(email)) throw new AccountError('A teacher account already uses this email address.', 'email', 'EMAIL_TAKEN');
 
     const by = options.by || 'self';
@@ -132,6 +168,32 @@ const createTeacher = async (input, options = {}) => {
  * Password, and optionally Institution, Department, Designation. Resolves to
  * { successCount, failedCount, errors: [{ row, email, message }], created }.
  */
+/**
+ * A teacher with no AI card, added by their organization to lead its clubs or
+ * Scouts & Guides units: email and password to sign in, no research tools.
+ * Throws AccountError, as createTeacher does.
+ */
+const createActivityTeacher = async (input, { organizationId }) => {
+    const { name, email, phone } = checkDetails(input);
+    const password = typeof input.password === 'string' ? input.password : '';
+    if (!password) throw new AccountError('Please choose a password.', 'password');
+    const weak = validatePasswordStrength(password);
+    if (weak) throw new AccountError(weak, 'password');
+    if (await emailTaken(email)) throw new AccountError('A teacher account already uses this email address.', 'email', 'EMAIL_TAKEN');
+    try {
+        return await Teacher.create({
+            name, email, phone, password, status: 'active', createdBy: 'organization',
+            organizationId, organizationJoinedAt: new Date(),
+            institution: String(input.institution || '').trim(),
+            department: String(input.department || '').trim(),
+            designation: String(input.designation || '').trim()
+        });
+    } catch (error) {
+        if (error?.code === 11000 && error.keyPattern?.email) throw new AccountError('A teacher account already uses this email address.', 'email', 'EMAIL_TAKEN');
+        throw error;
+    }
+};
+
 const createFromSheet = async (buffer, options) => {
     const XLSX = require('xlsx');
     let rows;
@@ -186,20 +248,22 @@ const clean = (s) => String(s ?? '').replace(/[<>&"]/g, '');
 const sendWelcome = async (teacher, password, madeBy) => {
     try {
         const url = process.env.FRONTEND_URL || process.env.VITE_STUDENT_URL || 'http://localhost:5173';
+        // With a card: the research side. Without: their clubs and units, signed in by email.
+        const carded = Boolean(teacher.cardNumber);
         await require('../utils/emailService').sendEmail({
             to: teacher.email,
             toName: teacher.name,
             subject: 'Your YATICORP teacher account',
             htmlContent: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                    <h2 style="color: #059669;">Welcome to YATICORP Research</h2>
+                    <h2 style="color: #059669;">${carded ? 'Welcome to YATICORP Research' : 'Welcome to YATICORP'}</h2>
                     <p>Hi <strong>${clean(teacher.name)}</strong>,</p>
-                    <p>${clean(madeBy)} has made a teacher account for you: a step-by-step guide for your research, thesis and publications.</p>
+                    <p>${clean(madeBy)} has made a teacher account for you${carded ? ': a step-by-step guide for your research, thesis and publications' : ', to run the clubs and Scouts &amp; Guides units you lead'}.</p>
                     <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                        <p style="margin: 0 0 10px 0;"><strong>Card number:</strong> ${clean(teacher.cardNumber)}</p>
+                        <p style="margin: 0 0 10px 0;"><strong>${carded ? 'Card number' : 'Email'}:</strong> ${clean(carded ? teacher.cardNumber : teacher.email)}</p>
                         <p style="margin: 0;"><strong>Password:</strong> ${clean(password)}</p>
                     </div>
-                    <p>To sign in, open the link below, choose <strong>Teacher</strong>, and enter your card number and password.</p>
+                    <p>To sign in, open the link below, choose <strong>Teacher</strong>, and enter your ${carded ? 'card number' : 'email'} and password.</p>
                     <p style="color: #d97706; font-size: 0.9em;"><em>Please change your password after you sign in (Profile → Change password).</em></p>
                     <p style="margin-top: 25px;">
                         <a href="${url}/login?as=teacher" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Sign in as a teacher</a>
@@ -211,4 +275,4 @@ const sendWelcome = async (teacher, password, madeBy) => {
     }
 };
 
-module.exports = { AccountError, createTeacher, createFromSheet, sendWelcome, findTeacherByCard, checkDetails, emailTaken, approvalRequired, EMAIL_PATTERN, escapeRegExp };
+module.exports = { AccountError, createTeacher, createActivityTeacher, giveCard, createFromSheet, sendWelcome, findTeacherByCard, checkDetails, emailTaken, approvalRequired, EMAIL_PATTERN, escapeRegExp };

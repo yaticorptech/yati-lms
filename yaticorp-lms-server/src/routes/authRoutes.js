@@ -31,7 +31,8 @@ const { exchangeAdminAccess } = require('../controllers/adminUserController');
 router.post('/admin-access/exchange', authLimiter, exchangeAdminAccess);
 
 // ── Student Password Reset ───────────────────────────────────────────────────
-const { forgotPassword, resetPassword } = require('../controllers/userPasswordController');
+const { forgotPassword, forgotPasswordPreview, resetPassword } = require('../controllers/userPasswordController');
+router.post('/student/forgot-password/preview', cardLookupLimiter, forgotPasswordPreview);
 router.post('/student/forgot-password', authLimiter, forgotPassword);
 router.post('/student/reset-password', authLimiter, resetPassword);
 

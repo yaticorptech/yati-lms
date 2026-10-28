@@ -13,7 +13,7 @@
  */
 const { test, before, after, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { connect, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeAdmin, startApp, cleanup, forgetAudit } = require('../helpers');
 
 const mailer = require('../../src/utils/emailService');
 const sent = [];
@@ -70,6 +70,8 @@ before(async () => {
 after(async () => {
     const ours = await Organization.find({ name: new RegExp(STAMP) }).select('_id').lean();
     const ids = ours.map((o) => o._id);
+    // By email too: an account a test made and removed itself is gone by now.
+    await forgetAudit({ orgs: ids, admins: await Admin.find({ $or: [{ organizationId: { $in: ids } }, { email: new RegExp(STAMP) }] }).distinct('_id'), emails: new RegExp(STAMP, 'i') });
     await Admin.deleteMany({ organizationId: { $in: ids } });
     await Admin.deleteMany({ email: new RegExp(STAMP) });
     await Organization.deleteMany({ _id: { $in: ids } });

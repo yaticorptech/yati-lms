@@ -2,8 +2,9 @@
  * The real games, through the real service: a competition match's game for
  * Chess and each brain game — opened, joined by both players — and a first
  * move made from what the view offers. Ludo and Carrom were retired on
- * 2026-10-24: a game opened before then still plays. (Friendly rooms, and UNO,
- * were removed on 2026-10-23; the last test checks they are gone.)
+ * 2026-10-24: a game opened before then still plays. (The old friendly
+ * rooms, and UNO, were removed on 2026-10-23; the last test checks they are
+ * gone. Group Brain rooms, since 2026-10-27, are tested in groupBrain.test.js.)
  */
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
@@ -171,11 +172,11 @@ describe('joining codes, one per player (asked 2026-10-24)', () => {
     });
 });
 
-describe('playing with friends, and UNO, are gone', () => {
-    test('no rooms to make, join or list; UNO is not offered; a friendly game saved before answers 410', async () => {
-        assert.equal((await a.call('POST', '/rooms', { game: 'chess' })).status, 404);
-        assert.equal((await a.call('POST', '/rooms/join', { code: 'ABCDEF' })).status, 404);
-        assert.equal((await a.call('GET', '/rooms/mine')).status, 404);
+describe('the old friendly games, and UNO, are gone', () => {
+    test('UNO is not offered; a friendly game saved before Group Brain answers 410', async () => {
+        // Group Brain rooms (tests/competitions/groupBrain.test.js) are the way to play with friends now.
+        const unknown = await a.call('POST', '/rooms/join', { code: 'OLD123' });
+        assert.equal(unknown.status, 404, 'an old friendly code is not a room');
         const games = (await a.call('GET', '/games')).body.games.map((g) => g.id);
         assert.deepEqual(games, ['chess', 'rapidfire', 'codeclash', 'brainsprint'], 'Ludo and Carrom gave way to the brain games (a match of theirs made before still plays, above); a quiz and a hackathon are challenges, not games');
         const old = await PlayGame.create({ kind: 'friendly', game: 'uno', code: 'OLD123', hostId: a.user._id, seats: [{ userId: a.user._id, name: 'A', side: 0, joinedAt: new Date() }] });

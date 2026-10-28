@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { opportunitiesApi } from './api';
 import { labelFor, reasonSentence, ageLabel, whereLabel, hoursLabel, dateLabel } from './helpers';
-import PriceTag from '../components/rewards/PriceTag';
 import { statusLabel } from './application/status';
 
 const Fact = ({ icon: Icon, label, children }) => (
@@ -203,7 +202,7 @@ export default function OpportunityDetails({ id, vocab, onClose, onInterested, o
                             <button type="button" onClick={() => onApply(opp)}
                                 className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-md shadow-indigo-200 transition-all hover:bg-indigo-700 active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60">
                                 {/* Applied already: the same dialog opens on where it stands. */}
-                                <Briefcase size={16} aria-hidden="true" /> {opp.application ? 'View my application' : <>Apply for part-time job <PriceTag action="apply_part_time" /></>}
+                                <Briefcase size={16} aria-hidden="true" /> {opp.application ? 'View my application' : 'Apply for part-time job'}
                             </button>
                         )}
                         <button type="button" onClick={() => onReport(opp)}

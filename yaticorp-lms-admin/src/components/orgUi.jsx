@@ -39,7 +39,7 @@ const TONES = {
 // a row share the tallest one's height, and a reversed column had packed the
 // shorter ones to the bottom, so their icon and number floated mid-card.
 export const Stat = ({ icon: Icon, label, value, sub, tone = 'indigo', loading }) => (
-    <div className={`${CARD} flex flex-col gap-2.5 p-4 sm:flex-row-reverse sm:items-start sm:justify-between sm:gap-3 sm:p-5`}>
+    <div className={`${CARD} flex flex-col gap-2.5 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-indigo-50/40 hover:shadow-md sm:flex-row-reverse sm:items-start sm:justify-between sm:gap-3 sm:p-5`}>
         {Icon && <span className={`w-fit shrink-0 rounded-xl p-2 sm:p-2.5 ${TONES[tone]}`}><Icon size={18} /></span>}
         <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 sm:tracking-wider">{label}</p>

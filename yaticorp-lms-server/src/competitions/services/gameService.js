@@ -42,6 +42,8 @@ const commit = async (game, changes) => {
         { $set: { ...changes, version: game.version + 1 } },
         { returnDocument: 'after' }
     );
+    // Every player's screen hears of it at once (realtime.js); each then fetches its own view.
+    if (next) require('../realtime').notify(next);
     return next;
 };
 
@@ -53,11 +55,21 @@ const commit = async (game, changes) => {
 const FRIENDLY_GONE = 'Playing with friends is no longer available. Play in a competition instead.';
 const playable = (game) => {
     if (game.kind === 'friendly') throw new PlayError(FRIENDLY_GONE, 410);
+    // A game since removed (Lost Treasure, 2026-10-28): its old rooms say so rather than fail.
+    if (!require('../games').engine(game.game)) throw new PlayError('This game is no longer available.', 410);
     return game;
 };
 
-/** Called once a game finishes; a competition match moves on from here. */
+/** Called once a game finishes; a competition match moves on from here (a room has nothing more to do). */
 const finished = async (game) => {
+    // A Group Brain room: its results, XP, ratings and awards, written once.
+    if (game.kind === 'room') {
+        try { await require('../groupbrain/results').record(game); }
+        catch (err) { console.error('[group brain] recording a result failed:', err.message); }
+        // An online table: the winner's prize from the pot.
+        try { await require('./onlineService').payOut(game); }
+        catch (err) { console.error('[group brain] paying a prize failed:', err.message); }
+    }
     if (game.kind === 'match') {
         try { await require('./bracketService').recordGame(game); }
         catch (err) { console.error('[competitions] recording a result failed:', err.message); }
@@ -65,9 +77,30 @@ const finished = async (game) => {
 };
 
 /** The fields that change whenever the engine state does. */
+/**
+ * A Group Brain room never ends level (asked 2026-10-28: "only one can win"):
+ * players level on points (and time) are split by more right answers, then
+ * fewer mistakes, then who sat down first — 1st, 2nd, 3rd, 4th, one each.
+ * Chess keeps its draws: a drawn chess game is a result of its own.
+ */
+const oneEach = (game, state, out) => {
+    if (game.kind !== 'room' || game.game === 'chess' || !out?.places?.some((g) => g.length > 1)) return out;
+    const seatOf = (side) => (state.seats || []).findIndex((x) => x.side === side);
+    const right = (i) => state.correct?.[i] ?? state.progress?.[i]?.stage ?? 0;
+    const wrong = (i) => state.progress?.[i]?.mistakes ?? state.mistakes?.[i] ?? 0;
+    const places = out.places.flatMap((g) => [...g]
+        .sort((a, b) => { const x = seatOf(a); const y = seatOf(b); return right(y) - right(x) || wrong(x) - wrong(y) || x - y; })
+        .map((side) => [side]));
+    const first = state.seats?.[seatOf(places[0][0])]?.name;
+    const reason = out.places[0].length > 1 ? 'Level on points — decided by right answers, then mistakes, then who joined first' : out.reason;
+    if (state.result) { state.result.places = places; state.result.reason = reason; }
+    if (first) state.message = `${first} wins.`;
+    return { ...out, places, reason };
+};
+
 const afterState = (game, state, c) => {
     const e = engine(game.game);
-    const out = e.outcome(state);
+    const out = oneEach(game, state, e.outcome(state));
     const deadline = out ? null : e.deadline(state);
     return {
         state,
@@ -128,16 +161,65 @@ const resolveJoin = async (game) => {
     return begin(game, seats, { sideTeams, absentTeams });
 };
 
+/* ── Presence in a room's lobby ─────────────────────────────────────── */
+
+// A player is here while their screen checks in (every poll, at least every
+// few seconds); gone after OFFLINE_MS without. A host gone HOST_GONE_MS hands
+// the room to the next player still here, so the others can still start.
+const OFFLINE_MS = 20000;
+const HOST_GONE_MS = 45000;
+const SEEN_EVERY_MS = 8000;
+
+/** Mark who is here and pass on a vanished host; a change is committed (and pushed to everyone). */
+const presence = async (game) => {
+    const now = Date.now();
+    const seen = (s) => new Date(s.lastSeenAt || s.joinedAt || game.createdAt).getTime();
+    const seats = game.seats.map((s) => ({ ...(s.toObject ? s.toObject() : s), online: now - seen(s) < OFFLINE_MS }));
+    let hostId = game.hostId;
+    const host = seats.find((s) => String(s.userId) === String(hostId));
+    const next = seats.find((s) => s.online && String(s.userId) !== String(hostId));
+    if (host && now - seen(host) > HOST_GONE_MS && next) {
+        hostId = next.userId;
+        next.ready = true;
+    }
+    const changed = String(hostId) !== String(game.hostId) || seats.some((s, i) => s.online !== (game.seats[i].online !== false));
+    return changed ? commit(game, { seats, hostId }) : null;
+};
+
+/** A seated player's screen checked in (not a change to the game: no version, no push). */
+const touch = async (game, userId) => {
+    if (game.kind !== 'room' || !['waiting', 'active'].includes(game.status)) return;
+    const s = game.seats[seatOf(game, userId)];
+    if (!s || (s.lastSeenAt && Date.now() - new Date(s.lastSeenAt).getTime() < SEEN_EVERY_MS)) return;
+    await PlayGame.updateOne({ _id: game._id, 'seats.userId': s.userId }, { $set: { 'seats.$.lastSeenAt': new Date() } });
+};
+
 /** Apply whatever is due now: a join window closing, or a turn timing out. */
 const catchUp = async (game) => {
     for (let tries = 0; tries < 3 && game; tries += 1) {
         const now = Date.now();
+        // An online table whose wait is over starts with who is there (or closes, fees back: ./onlineService.js).
+        if (game.status === 'waiting' && game.kind === 'room' && game.options?.online && game.joinDeadline && game.joinDeadline.getTime() <= now) {
+            const next = await require('./onlineService').settle(game);
+            if (next) return next;
+            game = await PlayGame.findById(game._id);
+            continue;
+        }
+        // A room nobody started in time closes.
+        if (game.status === 'waiting' && game.kind === 'room' && game.joinDeadline && game.joinDeadline.getTime() <= now) {
+            const next = await commit(game, { status: 'abandoned', finishedAt: new Date(), outcome: { places: [], reason: 'The room closed before the game was started.' } });
+            if (next) return next;
+            game = await PlayGame.findById(game._id);
+            continue;
+        }
         if (game.status === 'waiting' && game.kind === 'match' && game.joinDeadline && game.joinDeadline.getTime() <= now) {
             const next = await resolveJoin(game);
             if (next) return next;
             game = await PlayGame.findById(game._id);
             continue;
         }
+        // A room's lobby: who is still here, and a host who has gone.
+        if (game.status === 'waiting' && game.kind === 'room') return (await presence(game)) || game;
         if (game.status !== 'active' || !game.nextDeadline || game.nextDeadline.getTime() > now) return game;
         const c = ctx();
         const state = engine(game.game).tick(game.state, c);
@@ -168,7 +250,7 @@ const present = (game, userId, extras = {}) => {
     const seat = seatOf(game, userId);
     const e = engine(game.game);
     const c = ctx();
-    return {
+    const out = {
         id: String(game._id),
         kind: game.kind,
         game: game.game,
@@ -178,39 +260,99 @@ const present = (game, userId, extras = {}) => {
         version: game.version,
         you: seat >= 0 ? seat : null,
         // My own joining code, and whether I have taken my seat.
-        code: game.kind === 'match' && seat >= 0 ? (game.seats[seat].code && !game.seats[seat].code.startsWith('~') ? game.seats[seat].code : null) || game.code || null : null,
+        // A room's code, to share, for everyone in it.
+        code: seat < 0 ? null
+            : game.kind === 'room' ? game.code
+                : game.kind === 'match' ? (game.seats[seat].code && !game.seats[seat].code.startsWith('~') ? game.seats[seat].code : null) || game.code || null : null,
         joined: seat >= 0 ? !!game.seats[seat].joinedAt : null,
-        seats: game.seats.map((s) => ({ name: s.name, side: s.side, joined: !!s.joinedAt })),
+        seats: game.seats.map((s) => ({ name: s.name, side: s.side, joined: !!s.joinedAt, ...(game.kind === 'room' ? { ready: !!s.ready, host: String(s.userId) === String(game.hostId), online: s.online !== false } : {}) })),
+        host: game.kind === 'room' ? seat >= 0 && String(game.hostId) === String(userId) : undefined,
+        options: game.kind === 'room' ? game.options || {} : undefined,
         minSeats: e.minSeats,
-        maxSeats: e.maxSeats,
+        // A room holds what its maker picked (2, 4 or 6).
+        maxSeats: game.kind === 'room' && game.options?.players ? Math.min(e.maxSeats, Number(game.options.players)) : e.maxSeats,
         joinDeadline: game.joinDeadline,
+        // An online table: its fee, pot and prize (./onlineService.js).
+        online: game.kind === 'room' ? require('./onlineService').tableInfo(game) : undefined,
         outcome: game.outcome || null,
         view: game.state ? e.view(game.state, seat >= 0 ? seat : null, c) : null,
         ...extras
     };
+    return extras.resultsHidden ? hideResults(out) : out;
+};
+
+/**
+ * A competition match before its results are published: no winner, and in
+ * the quiz games no scores — my own answers only. Chess keeps its board.
+ */
+const hideResults = (g) => {
+    const outcome = g.status === 'finished' ? { places: [], reason: 'The match is over. Results are shown once the organizer publishes them.', hidden: true } : null;
+    if (g.game === 'chess') return { ...g, outcome, view: g.view && { ...g.view, outcome: null, message: g.status === 'finished' ? outcome.reason : g.view.message } };
+    const v = g.view && {
+        ...g.view,
+        scores: null, correct: null, answer: null, outcome: null, recap: null,
+        message: g.status === 'finished' ? 'Your answers are in. Results are shown once the organizer publishes them.' : g.view.message,
+        answers: (g.view.answers || []).map((a, i) => (!a ? null : i === g.you ? { choice: a.choice } : { answered: true }))
+    };
+    return { ...g, outcome, view: v };
 };
 
 /** One poll. `since` lets a caller hear "nothing new" without the body. */
 const poll = async (gameId, userId, since) => {
     const game = await catchUp(playable(await load(gameId)));
+    // A room is for the players in it: anyone else joins with its code first.
+    if (game.kind === 'room' && seatOf(game, userId) < 0) throw new PlayError('This room is private. Join it with its room code.', 403);
+    await touch(game, userId);
     if (since != null && Number(since) === game.version) return { unchanged: true, version: game.version };
-    return { game: present(game, userId, await context(game)) };
+    return { game: present(game, userId, { ...(await context(game)), ...(await myResult(game, userId)) }) };
+};
+
+/** A finished room's own result for this player: score, XP, rating change. */
+const myResult = async (game, userId) => {
+    if (game.kind !== 'room' || game.status !== 'finished') return {};
+    const { GroupBrainResult } = require('../groupbrain/models');
+    const read = () => GroupBrainResult.find({ gameId: game._id }).select('userId name place won draw score xp xpStatus resigned reason').sort({ place: 1 }).lean();
+    let rows = await read();
+    // The game has only just ended (every screen is told at once): its
+    // results may still be being written by the request that ended it.
+    // Write them here if nobody has started, else wait a moment for them.
+    if (!rows.length) {
+        await require('../groupbrain/results').record(game).catch(() => {});
+        for (let i = 0; i < 30 && !rows.length; i += 1) {
+            rows = await read();
+            if (!rows.length) await new Promise((r) => setTimeout(r, 100));
+        }
+    }
+    // Every player's place and XP, for the podium at the end (the same for everyone).
+    const standings = rows.map((r) => ({ name: r.name, place: r.place, won: r.won, draw: r.draw, score: r.score, xp: r.xpStatus === 'paid' ? r.xp : 0, resigned: r.resigned, you: String(r.userId) === String(userId), seat: game.seats.findIndex((s) => String(s.userId) === String(r.userId)) }));
+    // Won because the others left: say who left (the recorded reason), not the engine's "The others left".
+    const left = rows.find((r) => /left the game/.test(r.reason || ''))?.reason;
+    return { result: await require('../groupbrain/results').mine(game._id, userId), standings, ...(left ? { outcome: { ...(game.outcome || {}), reason: left } } : {}) };
 };
 
 /** The competition and match a game belongs to, for the page's header. */
 const context = async (game) => {
+    if (game.kind === 'room') {
+        // Each player's picture, for the lobby and the scoreboard.
+        const User = require('../../models/User');
+        const users = await User.find({ _id: { $in: game.seats.map((s) => s.userId) } }).select('profilePicture').lean();
+        const pic = new Map(users.map((u) => [String(u._id), u.profilePicture || '']));
+        return { avatars: game.seats.map((s) => pic.get(String(s.userId)) || null) };
+    }
     if (game.kind !== 'match') return {};
     const Competition = require('../models/Competition');
     const Match = require('../models/Match');
     const Team = require('../models/Team');
     const [comp, match, teams] = await Promise.all([
-        Competition.findById(game.competitionId).select('name').lean(),
+        Competition.findById(game.competitionId).select('name game resultsPublishedAt').lean(),
         Match.findById(game.matchId).select('roundName kind').lean(),
         Team.find({ _id: { $in: [...game.sideTeams, ...game.absentTeams] } }).select('teamName collegeName').lean()
     ]);
     const name = (id) => teams.find((t) => String(t._id) === String(id));
     return {
         competition: comp ? { id: String(comp._id), name: comp.name } : null,
+        // No match result (or scores) for the players until the organizer publishes the competition's results.
+        resultsHidden: !!comp && require('./views').resultsHidden(comp),
         match: match ? { id: String(match._id), roundName: match.kind === 'third-place' ? 'Third place' : match.roundName } : null,
         sides: game.sideTeams.map((id) => ({ teamName: name(id)?.teamName || '', collegeName: name(id)?.collegeName || '' }))
     };
@@ -235,7 +377,7 @@ const act = async (gameId, userId, action) => {
         const saved = await commit(game, afterState(game, state, c));
         if (saved) {
             if (saved.status === 'finished') await finished(saved);
-            return { game: present(saved, userId, await context(saved)) };
+            return { game: present(saved, userId, { ...(await context(saved)), ...(await myResult(saved, userId)) }) };
         }
         game = await catchUp(await PlayGame.findById(game._id));
     }
@@ -393,4 +535,4 @@ const openMatchGame = async ({ competition, match, teams }) => {
     }
 };
 
-module.exports = { PlayError, JOIN_MINUTES, FRIENDLY_GONE, poll, act, join, catchUp, present, openMatchGame, gameOptions, withCodes, joinByCode };
+module.exports = { PlayError, JOIN_MINUTES, FRIENDLY_GONE, poll, act, join, catchUp, present, context, openMatchGame, gameOptions, withCodes, joinByCode, begin, commit, load, seatOf, newCode, normal };

@@ -143,9 +143,11 @@ export default function Teachers() {
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             {error && !loadFailed && <Banner onClose={() => setError('')}>{error}</Banner>}
 
-            {/* Approval: who may sign in straight after registering a card. */}
+            {/* Approval: who may sign in straight after registering a card. The
+                switch stays beside the title on a phone too: stacked under the
+                words it sat alone at the bottom left (2026-10-28). */}
             {data && (
-                <div className={`${CARD} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
+                <div className={`${CARD} flex items-start justify-between gap-3 p-4 sm:items-center sm:gap-4 sm:p-5`}>
                     <div className="flex min-w-0 items-start gap-3">
                         <span className="shrink-0 rounded-xl bg-emerald-50 p-2.5 text-emerald-600"><ShieldCheck size={20} aria-hidden /></span>
                         <div className="min-w-0">
@@ -159,7 +161,7 @@ export default function Teachers() {
                     </div>
                     <button type="button" role="switch" aria-checked={Boolean(data.approvalRequired)} aria-labelledby="approval-label" disabled={savingSwitch}
                         onClick={() => setApproval(!data.approvalRequired)}
-                        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${data.approvalRequired ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+                        className={`relative mt-1 inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 sm:mt-0 ${data.approvalRequired ? 'bg-emerald-600' : 'bg-slate-300'}`}>
                         <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${data.approvalRequired ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                 </div>

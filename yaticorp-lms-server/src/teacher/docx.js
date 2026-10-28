@@ -36,7 +36,8 @@ const run = (r) => {
  * A paragraph. `runs` is a string or a list of runs; options: style
  * ('Title', 'Heading1', 'Heading2', 'ListBullet', 'Subtle'…), align
  * ('center', 'both', 'left', 'right'), pageBreakBefore, keepNext,
- * hanging (twips, for a reference list), spaceAfter (twips).
+ * hanging (twips, for a reference list), spaceAfter (twips), line (240ths
+ * of a line: 240 is single spacing, for text in a table).
  */
 const paragraph = (runs, o = {}) => {
     const list = Array.isArray(runs) ? runs : [runs];
@@ -45,7 +46,7 @@ const paragraph = (runs, o = {}) => {
         o.keepNext ? '<w:keepNext/>' : '',
         o.pageBreakBefore ? '<w:pageBreakBefore/>' : '',
         o.style === 'ListBullet' ? '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>' : '',
-        o.spaceAfter !== undefined || o.spaceBefore !== undefined ? `<w:spacing${o.spaceBefore !== undefined ? ` w:before="${o.spaceBefore}"` : ''}${o.spaceAfter !== undefined ? ` w:after="${o.spaceAfter}"` : ''}/>` : '',
+        o.spaceAfter !== undefined || o.spaceBefore !== undefined || o.line ? `<w:spacing${o.spaceBefore !== undefined ? ` w:before="${o.spaceBefore}"` : ''}${o.spaceAfter !== undefined ? ` w:after="${o.spaceAfter}"` : ''}${o.line ? ` w:line="${o.line}" w:lineRule="auto"` : ''}/>` : '',
         o.hanging ? `<w:ind w:left="${o.hanging}" w:hanging="${o.hanging}"/>` : '',
         o.align ? `<w:jc w:val="${o.align}"/>` : ''
     ].join('');
@@ -53,6 +54,19 @@ const paragraph = (runs, o = {}) => {
 };
 
 const pageBreak = () => '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+
+/**
+ * A table with thin borders: `widths` in twips (the page holds 8306), `rows`
+ * a list of rows, each a list of cells, each cell a list of paragraph XML.
+ * The first row is the header: shaded, and repeated on every page the table
+ * runs onto. No row breaks across a page.
+ */
+const table = ({ widths, rows }) => {
+    const border = (side) => `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="9CA3AF"/>`;
+    const cell = (paras, i, header) => `<w:tc><w:tcPr><w:tcW w:w="${widths[i]}" w:type="dxa"/>${header ? '<w:shd w:val="clear" w:color="auto" w:fill="F3F4F6"/>' : ''}<w:vAlign w:val="center"/></w:tcPr>${(paras.length ? paras : ['<w:p/>']).join('')}</w:tc>`;
+    const row = (cells, r) => `<w:tr><w:trPr><w:cantSplit/>${r === 0 ? '<w:tblHeader/>' : ''}</w:trPr>${cells.map((c, i) => cell(c, i, r === 0)).join('')}</w:tr>`;
+    return `<w:tbl><w:tblPr><w:tblW w:w="${widths.reduce((a, b) => a + b, 0)}" w:type="dxa"/><w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(border).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map((w) => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>${rows.map(row).join('')}</w:tbl>`;
+};
 
 /**
  * A table of contents Word fills in: right-click → Update Field adds the
@@ -136,4 +150,4 @@ const buildDocx = ({ title = '', author = '', body = [], pageNumbers = true, fir
     return zip(files);
 };
 
-module.exports = { buildDocx, paragraph, run, pageBreak, contentsField, xml };
+module.exports = { buildDocx, paragraph, run, pageBreak, contentsField, table, xml };

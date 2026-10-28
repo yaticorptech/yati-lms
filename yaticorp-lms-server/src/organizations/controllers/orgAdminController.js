@@ -22,6 +22,7 @@ const { validatePasswordStrength } = require('../../middleware/validatePassword'
 const { withSummaries, summariseStudents, studentDetail } = require('../services/studentProgress');
 const { checkEmailChange, applyEmailChange } = require('../services/orgEmail');
 const generateToken = require('../../utils/generateToken');
+const { closeMemberships } = require('../../nccnss/membership');
 
 /**
  * Fields an organization admin may change about itself.
@@ -31,7 +32,8 @@ const generateToken = require('../../utils/generateToken');
  * satisfied requireLogo and was shown to every student on the organization's
  * courses. The admin app never sent it through this route.
  */
-const EDITABLE = ['name', 'contactPerson', 'email', 'phone', 'address', 'website'];
+const EDITABLE = ['name', 'contactPerson', 'email', 'phone', 'address', 'website', 'state'];
+const { INDIA_STATES } = require('../../nccnss/bsg');
 
 /** "Active" everywhere in the organization views: something done in the last 30 days. */
 const ACTIVE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -93,6 +95,8 @@ const shape = (organization) => ({
     phone: organization.phone || '',
     address: organization.address || '',
     website: organization.website || '',
+    state: organization.state || '',
+    bsgOffice: organization.bsgOffice || '',
     contactPerson: organization.contactPerson || '',
     expectedStudents: organization.expectedStudents ?? null,
     status: organization.status,
@@ -131,6 +135,11 @@ const updateMyOrganization = async (req, res) => {
             }
 
             const value = String(req.body[field]).trim();
+            if (field === 'state') {
+                // An office's state is what it is for: set when it was made, not here.
+                if (organization.bsgOffice) continue;
+                if (value && !INDIA_STATES.includes(value)) return res.status(400).json({ message: 'Choose a state from the list.' });
+            }
             if (field === 'name' && value.length < 2) {
                 return res.status(400).json({ message: 'Enter the organization name.' });
             }
@@ -578,6 +587,8 @@ const removeStudent = async (req, res) => {
         student.organizationId = null;
         student.organizationJoinedAt = null;
         await student.save();
+        // Their NCC/NSS/Scouts/club places here end, kept as history.
+        await closeMemberships({ userId: student._id, organizationId: req.organization._id, reason: 'Removed from the organization' });
 
         // The old decision stays on the record; this marks that the membership
         // it granted has ended, so the student may apply again.

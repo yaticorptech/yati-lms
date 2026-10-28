@@ -11,6 +11,7 @@
  * The correct answer arrives only once a question has closed. Keys 1–4 or
  * A–D answer too.
  */
+import CompetitionGuard from '../CompetitionGuard';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, X, Timer, Trophy, Sparkles, Image as ImageIcon, WifiOff } from 'lucide-react';
@@ -172,6 +173,8 @@ export default function ArenaPlay() {
 
     return (
         <div className="mx-auto max-w-5xl space-y-4 pb-10 -mt-4 sidebar:-mt-8" data-arena-play={s.stage}>
+            {/* While the quiz is on: no copying, no screenshots, no leaving. */}
+            <CompetitionGuard active={s.stage !== 'finished'} />
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <Link to={`/competitions/arena/${id}`} onClick={goBack} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} /> Back</Link>
                 <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white"><Trophy size={13} /> {s.answered} of {s.total} answered</span>

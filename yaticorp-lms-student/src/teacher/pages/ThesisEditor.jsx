@@ -3,11 +3,12 @@
  * text in the middle — saved as it is typed — and a guide to writing that
  * kind of chapter (its purpose, sections, what to include, mistakes and
  * phrases). Each chapter has a version history and a full-screen focus mode;
- * the whole thesis downloads as a PDF or a Word file. Everything is in the
+ * the whole thesis downloads as a PDF or a Word file, after a check of what
+ * a university would send back (ThesisCheckDialog). Everything is in the
  * app: no outside service.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, FileDown, FileType2, Settings2, Plus, ArrowUp, ArrowDown, Trash2, ListTree, ShieldCheck, Loader2, CheckCircle2, XCircle, Quote, ChevronDown, BookOpenText, Maximize2, History, Eraser } from 'lucide-react';
 import { guideForChapter, headingsText } from '../content/chapterGuides';
 import teacherApi, { messageOf } from '../teacherSession';
@@ -17,6 +18,7 @@ import useAutosave from '../useAutosave';
 import useFocusTimer from '../useFocusTimer';
 import FocusWriter from '../FocusWriter';
 import VersionHistory from '../VersionHistory';
+import ThesisCheckDialog from '../ThesisCheckDialog';
 import { ThesisDetailsForm } from './ThesisList';
 import useConfirmDialog from '../../components/useConfirmDialog';
 import { saveBlob } from '../../native/saveFile';
@@ -28,6 +30,9 @@ const STATUS_OF = Object.fromEntries(STATUSES.map(([k, l, t]) => [k, { label: l,
 export default function ThesisEditor() {
     const { id } = useParams();
     const navigate = useNavigate();
+    // ?chapter= opens that chapter (the dashboard's "Continue where you left off").
+    const [params] = useSearchParams();
+    const wantedChapter = params.get('chapter');
     const [thesis, setThesis] = useState(null);
     const [error, setError] = useState('');
     const [activeId, setActiveId] = useState(null);
@@ -37,6 +42,7 @@ export default function ThesisEditor() {
     const [detailsError, setDetailsError] = useState('');
     const [newChapter, setNewChapter] = useState('');
     const [downloading, setDownloading] = useState('');     // 'pdf' | 'docx' while one is being made
+    const [checkFor, setCheckFor] = useState('');           // 'pdf' | 'docx' while its check is open
     const [focus, setFocus] = useState(false);
     const [history, setHistory] = useState(false);
     const timer = useFocusTimer();
@@ -56,8 +62,9 @@ export default function ThesisEditor() {
     const load = useCallback(() => teacherApi.get(`/theses/${id}`).then((r) => {
         setThesis(r.data);
         setError('');
-        openChapter(r.data.chapters, r.data.chapters.find((c) => c.status !== 'done')?._id || r.data.chapters[0]?._id || null);
-    }).catch((e) => setError(e.response?.status === 404 ? 'That thesis was not found.' : messageOf(e, 'The thesis could not be loaded.'))), [id]);
+        const wanted = r.data.chapters.find((c) => c._id === wantedChapter);
+        openChapter(r.data.chapters, wanted?._id || r.data.chapters.find((c) => c.status !== 'done')?._id || r.data.chapters[0]?._id || null);
+    }).catch((e) => setError(e.response?.status === 404 ? 'That thesis was not found.' : messageOf(e, 'The thesis could not be loaded.'))), [id, wantedChapter]);
     useEffect(() => { load(); }, [load]);
 
     const chapter = thesis?.chapters.find((c) => c._id === activeId) || null;
@@ -149,8 +156,8 @@ export default function ThesisEditor() {
                 {/* Icons only on a phone, so the bar stays on one line; the names are their labels. */}
                 <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={() => { setDetailsError(''); setShowDetails(true); }} aria-label="Details" className={btn.secondary}><Settings2 size={15} /> <span className="hidden sm:inline">Details</span></button>
-                    <button type="button" onClick={() => download('pdf')} disabled={Boolean(downloading)} aria-label="Download PDF" className={btn.secondary}>{downloading === 'pdf' ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />} <span className="hidden sm:inline">PDF</span></button>
-                    <button type="button" onClick={() => download('docx')} disabled={Boolean(downloading)} aria-label="Download Word" className={btn.secondary} title="Download as a Word document (.docx)">{downloading === 'docx' ? <Loader2 size={15} className="animate-spin" /> : <FileType2 size={15} />} <span className="hidden sm:inline">Word</span></button>
+                    <button type="button" onClick={() => setCheckFor('pdf')} disabled={Boolean(downloading)} aria-label="Download PDF" className={btn.secondary}>{downloading === 'pdf' ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />} <span className="hidden sm:inline">PDF</span></button>
+                    <button type="button" onClick={() => setCheckFor('docx')} disabled={Boolean(downloading)} aria-label="Download Word" className={btn.secondary} title="Download as a Word document (.docx)">{downloading === 'docx' ? <Loader2 size={15} className="animate-spin" /> : <FileType2 size={15} />} <span className="hidden sm:inline">Word</span></button>
                     <button type="button" onClick={removeThesis} aria-label="Delete thesis" className={`${btn.danger} px-3`} title="Delete this whole thesis"><Trash2 size={16} /></button>
                 </div>
             </div>
@@ -308,6 +315,15 @@ export default function ThesisEditor() {
                 <VersionHistory base={`/theses/${id}/chapters/${chapter._id}/versions`} title={chapter.title} current={content} beforeSave={flush}
                     onRestored={(r) => { setContent(r.chapter.content || ''); patchChapter(chapter._id, { content: r.chapter.content, words: r.chapter.words }); setThesis((t) => ({ ...t, words: r.words })); }}
                     onClose={() => setHistory(false)} />
+            )}
+            {checkFor && (
+                <ThesisCheckDialog kind={checkFor}
+                    // The open chapter as it is on screen, not as last saved.
+                    thesis={{ ...thesis, chapters: thesis.chapters.map((c) => (c._id === activeId ? { ...c, content } : c)) }}
+                    onDownload={() => { const kind = checkFor; setCheckFor(''); download(kind); }}
+                    onGoTo={(cid) => { setCheckFor(''); switchTo(cid); }}
+                    onDetails={() => { setCheckFor(''); setDetailsError(''); setShowDetails(true); }}
+                    onClose={() => setCheckFor('')} />
             )}
             {confirmDialog}
         </div>

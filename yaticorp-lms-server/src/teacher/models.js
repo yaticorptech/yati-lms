@@ -16,13 +16,44 @@ const hashPassword = async (plain) => bcrypt.hash(String(plain), await bcrypt.ge
 
 const TEACHER_STATUSES = ['active', 'inactive', 'pending'];
 
+/* ── Questionnaires (Research Methodologies → Questionnaire builder) ──── */
+
+// Kept inside the teacher's own record, not a collection of their own: the
+// database cluster is at its limit of collections (asked 2026-10-27; a new
+// collection was refused). The limits in questionnaire.js keep 20 of them
+// well inside one record.
+
+// 'section' is a heading that groups the questions after it; it is not asked.
+const QUESTION_TYPES = ['likert', 'single', 'multiple', 'yesno', 'short', 'long', 'section'];
+const LIKERT_SCALES = ['agreement', 'frequency', 'satisfaction', 'importance', 'likelihood'];
+
+const questionSchema = new Schema({
+    type: { type: String, enum: QUESTION_TYPES, default: 'likert' },
+    text: { type: String, default: '', maxlength: 500 },
+    options: { type: [String], default: [] },          // 'single' and 'multiple' only
+    scale: { type: String, enum: LIKERT_SCALES, default: 'agreement' },
+    points: { type: Number, enum: [5, 7], default: 5 }
+});
+
+const questionnaireSchema = new Schema({
+    title: { type: String, required: true, trim: true, maxlength: 200 },
+    intro: { type: String, default: '', maxlength: 2000 },
+    questions: [questionSchema],
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
+});
+
 /* ── Teacher ───────────────────────────────────────────────────────────── */
 
 const teacherSchema = new Schema({
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
     phone: { type: String, required: true, trim: true },
-    cardNumber: { type: String, required: true, unique: true, set: (v) => (v == null ? v : String(v).trim()) },
+    // The AI card the teacher signs in with; it opens the research tools. An
+    // organization can also add a teacher with no card — a club or Scouts &
+    // Guides leader — who signs in with email and password and sees only their
+    // clubs and units. Unique among the teachers that have one (index below).
+    cardNumber: { type: String, set: (v) => (v == null || v === '' ? undefined : String(v).trim()) },
     password: { type: String, required: true },
     // 'pending' while the admin's approval is switched on and not yet given
     // (Setting.teacherApprovalRequired); 'inactive' is blocked or turned down.
@@ -45,8 +76,16 @@ const teacherSchema = new Schema({
     lastLoginAt: Date,
     passwordChangedAt: Date,
     resetPasswordToken: { type: String, select: false },
-    resetPasswordExpiry: { type: Date, select: false }
+    resetPasswordExpiry: { type: Date, select: false },
+    // Not read with the account (every request loads it): only the
+    // questionnaire routes ask for them.
+    questionnaires: { type: [questionnaireSchema], select: false, default: undefined }
 }, { timestamps: true });
+
+teacherSchema.index({ cardNumber: 1 }, { unique: true, name: 'card_unique', partialFilterExpression: { cardNumber: { $type: 'string' } } });
+
+/** Whether this teacher has an AI card, and with it the research tools. */
+teacherSchema.methods.hasResearch = function () { return Boolean(this.cardNumber); };
 
 teacherSchema.pre('save', async function () {
     if (!this.isModified('password') || BCRYPT_HASH.test(this.password || '')) return;
@@ -253,8 +292,17 @@ teacherOrgRequestSchema.index({ teacherId: 1 }, { unique: true, partialFilterExp
 teacherOrgRequestSchema.index({ organizationId: 1, status: 1, createdAt: 1 });
 teacherOrgRequestSchema.index({ teacherId: 1, createdAt: -1 });
 
+const Teacher = mongoose.models.Teacher || mongoose.model('Teacher', teacherSchema);
+// cardNumber_1 was unique over every teacher, so only one could ever be
+// without a card. Replaced by card_unique (unique where there is a card). No
+// teacher is touched; only the old index goes, then the new one is built.
+Teacher.init().catch(() => {})
+    .then(() => Teacher.collection.dropIndex('cardNumber_1'))
+    .then(() => Teacher.createIndexes())
+    .catch(() => {});
+
 module.exports = {
-    Teacher: mongoose.models.Teacher || mongoose.model('Teacher', teacherSchema),
+    Teacher,
     ResearchProject: mongoose.models.ResearchProject || mongoose.model('ResearchProject', researchProjectSchema),
     Publication: mongoose.models.Publication || mongoose.model('Publication', publicationSchema),
     Thesis: mongoose.models.Thesis || mongoose.model('Thesis', thesisSchema),
@@ -264,5 +312,6 @@ module.exports = {
     TextVersion: mongoose.models.TextVersion || mongoose.model('TextVersion', textVersionSchema),
     PlagiarismSource: mongoose.models.PlagiarismSource || mongoose.model('PlagiarismSource', plagiarismSourceSchema),
     TeacherOrgRequest: mongoose.models.TeacherOrgRequest || mongoose.model('TeacherOrgRequest', teacherOrgRequestSchema, 'teacher_org_requests'),
-    PUBLICATION_TYPES, PUBLICATION_STATUSES, INDEXING, CHAPTER_STATUSES, WRITING_KINDS, TEACHER_STATUSES, TEACHER_REQUEST_STATUSES
+    PUBLICATION_TYPES, PUBLICATION_STATUSES, INDEXING, CHAPTER_STATUSES, WRITING_KINDS, TEACHER_STATUSES, TEACHER_REQUEST_STATUSES,
+    QUESTION_TYPES, LIKERT_SCALES
 };

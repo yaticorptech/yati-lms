@@ -8,13 +8,45 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, LogOut, BookOpenCheck,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, CreditCard } from 'lucide-react';
+    Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, CreditCard, HandCoins, ChevronDown, ChartNoAxesCombined, ScrollText } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 import useCenterTabs from '../hooks/useCenterTabs';
 import ErrorBoundary from '../components/ErrorBoundary';
 import PageLoading from '../components/PageLoading';
 import PullToRefresh from '../components/PullToRefresh';
+
+// A heading in the sidebar that opens its pages beneath it (2026-10-28: the
+// list had grown too long). It opens by itself while one of its pages is on
+// screen; a tap on the heading opens or closes it.
+const NavGroup = ({ icon: Icon, label, items, isActive }) => {
+    const current = items.some((i) => isActive(i.to));
+    const [open, setOpen] = useState(current);
+    // Arriving on one of its pages from elsewhere opens it.
+    const [wasCurrent, setWasCurrent] = useState(current);
+    if (current !== wasCurrent) {
+        setWasCurrent(current);
+        if (current) setOpen(true);
+    }
+    if (!items.length) return null;
+    return (
+        <div>
+            <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={`flex w-full items-center gap-3 p-3 rounded-xl transition-all duration-200 ${current ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
+                <Icon size={20} /> <span className="flex-1 text-left font-medium">{label}</span>
+                <ChevronDown size={16} className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+            </button>
+            {open && (
+                <div className="mt-1 ml-5 space-y-1 border-l border-slate-200 pl-3">
+                    {items.map((i) => (
+                        <Link key={i.to} to={i.to} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 ${isActive(i.to) ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
+                            <i.icon size={18} /> <span className="font-medium">{i.label}</span>
+                        </Link>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 const AdminLayout = () => {
     // Tapping a tab in a sideways-scrolling strip centres it (phones).
@@ -156,44 +188,34 @@ const AdminLayout = () => {
                     <Link to="/" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <LayoutDashboard size={20} /> <span className="font-medium">Dashboard</span>
                     </Link>
-                    {/* Super admins only: a card can be registered once it is verified here. */}
-                    {superAdmin && (
-                        <Link to="/verify-cards" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/verify-cards') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                            <CreditCard size={20} /> <span className="font-medium">Verify cards</span>
-                        </Link>
-                    )}
-                    <Link to="/users" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/users') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <Users size={20} /> <span className="font-medium">Users</span>
+                    <Link to="/overall-analytics" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/overall-analytics') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
+                        <ChartNoAxesCombined size={20} /> <span className="font-medium">Overall analytics</span>
                     </Link>
-                    <Link to="/teachers" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/teachers') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <BookOpenCheck size={20} /> <span className="font-medium">Teachers</span>
-                    </Link>
-                    <Link to="/courses" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/courses') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <BookOpen size={20} /> <span className="font-medium">Courses</span>
-                    </Link>
-                    <Link to="/enrollments" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/enrollments') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <Network size={20} /> <span className="font-medium">Enrollments</span>
-                    </Link>
-                    {/* Organizations and Competitions are a super admin's alone: the
-                        server refuses anyone else, so they are not offered (see
-                        SuperAdminRoute in App.jsx). */}
-                    {superAdmin && (
-                    <Link to="/organizations" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/organizations') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <Building2 size={20} /> <span className="font-medium">Organizations</span>
-                    </Link>
-                    )}
-                    <Link to="/tickets" className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${isActive('/tickets') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <div className="flex items-center space-x-3">
-                            <MessageCircleQuestion size={20} /> <span className="font-medium">Support</span>
-                        </div>
-                        {openTickets > 0 && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isActive('/tickets') ? 'bg-white/20 text-white' : 'bg-red-500 text-white animate-pulse'}`}>{openTickets}</span>}
-                    </Link>
-                    <Link to="/global-quiz" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/global-quiz') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <Globe size={20} /> <span className="font-medium">Global Quiz</span>
-                    </Link>
-                    <Link to="/analytics" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/analytics') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <BarChart2 size={20} /> <span className="font-medium">Analytics</span>
-                    </Link>
+                    {/* Verify cards and Wallet recharge are a super admin's alone, so
+                        the whole heading is left out for anyone else. */}
+                    <NavGroup icon={CreditCard} label="Manage cards" isActive={isActive} items={superAdmin ? [
+                        { to: '/verify-cards', label: 'Verify cards', icon: CreditCard },
+                        { to: '/wallet-recharge', label: 'Wallet recharge', icon: HandCoins }
+                    ] : []} />
+                    {/* Organizations is a super admin's alone: the server refuses
+                        anyone else, so it is not offered (see SuperAdminRoute in App.jsx). */}
+                    <NavGroup icon={Users} label="Users" isActive={isActive} items={[
+                        { to: '/users', label: 'Users', icon: Users },
+                        { to: '/teachers', label: 'Teachers', icon: BookOpenCheck },
+                        ...(superAdmin ? [{ to: '/organizations', label: 'Organizations', icon: Building2 }] : [])
+                    ]} />
+                    <NavGroup icon={BookOpen} label="Courses" isActive={isActive} items={[
+                        { to: '/courses', label: 'Courses', icon: BookOpen },
+                        { to: '/enrollments', label: 'Enrollments', icon: Network },
+                        { to: '/analytics', label: 'Course analytics', icon: BarChart2 }
+                    ]} />
+                    {/* Global Quiz and the inter-college competitions (Chess, the brain
+                        games, Quiz and Hackathon) under one heading. Competitions
+                        are run by the super admin, so only they see that page. */}
+                    <NavGroup icon={Trophy} label="Competition" isActive={isActive} items={[
+                        { to: '/global-quiz', label: 'Global Quiz', icon: Globe },
+                        ...(superAdmin ? [{ to: '/competitions', label: 'Competitions', icon: Trophy }] : [])
+                    ]} />
                     <Link to="/career-path" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/career-path') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Compass size={20} /> <span className="font-medium">Career Path</span>
                     </Link>
@@ -206,10 +228,16 @@ const AdminLayout = () => {
                     <Link to="/announcements" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/announcements') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
                         <Megaphone size={20} /> <span className="font-medium">Announcements</span>
                     </Link>
-                    {/* Inter-college competitions (Chess, the brain games, Quiz and Hackathon). The super admin runs them. */}
+                    <Link to="/tickets" className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${isActive('/tickets') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
+                        <div className="flex items-center space-x-3">
+                            <MessageCircleQuestion size={20} /> <span className="font-medium">Support</span>
+                        </div>
+                        {openTickets > 0 && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isActive('/tickets') ? 'bg-white/20 text-white' : 'bg-red-500 text-white animate-pulse'}`}>{openTickets}</span>}
+                    </Link>
+                    {/* Who did what in this panel: a super admin's alone. */}
                     {superAdmin && (
-                    <Link to="/competitions" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/competitions') || location.pathname.startsWith('/competitions/') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
-                        <Trophy size={20} /> <span className="font-medium">Competitions</span>
+                    <Link to="/audit-log" className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${isActive('/audit-log') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}>
+                        <ScrollText size={20} /> <span className="font-medium">Admin audit log</span>
                     </Link>
                     )}
                 </nav>
@@ -306,7 +334,7 @@ const AdminLayout = () => {
                 {/* Page Content Area */}
                 <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-y-contain p-4 sm:p-6 lg:p-8 custom-scrollbar">
                     {/* The question bank uses the full width. */}
-                    <div className={`mx-auto w-full ${location.pathname.endsWith('/competitions/question-bank') ? 'max-w-none' : 'max-w-7xl'}`}>
+                    <div className={`mx-auto w-full ${location.pathname.includes('/competitions') ? 'max-w-none' : 'max-w-7xl'}`}>
                         <ErrorBoundary resetKey={`${location.pathname}#${pageKey}`}><Suspense fallback={<PageLoading />}><Outlet key={pageKey} /></Suspense></ErrorBoundary>
                     </div>
                 </div>

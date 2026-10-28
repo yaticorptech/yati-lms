@@ -11,7 +11,7 @@
 const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
-const { connect, makeUser, makeAdmin, startApp, cleanup } = require('../helpers');
+const { connect, makeUser, makeAdmin, startApp, cleanup, forgetAudit } = require('../helpers');
 const games = require('../../src/competitions/games');
 const { GameError } = require('../../src/competitions/games/contract');
 const bracket = require('../../src/competitions/services/bracketService');
@@ -82,7 +82,7 @@ after(async () => {
         Team.deleteMany({ competitionId: { $in: ids } }),
         Competition.deleteMany({ _id: { $in: ids } }),
         Organization.deleteMany({ _id: { $in: made.orgs } }),
-        Admin.deleteMany({ _id: { $in: made.admins } }),
+        Admin.deleteMany({ _id: { $in: made.admins } }), forgetAudit({ orgs: made.orgs, admins: made.admins }),
         Notification.deleteMany({ userId: { $in: made.users.map((u) => u._id) } })
     ]);
     await cleanup(made.users, app.server);
@@ -96,7 +96,7 @@ describe('competition notices', () => {
         assert.equal(r.status, 201, JSON.stringify(r.body));
         comp = r.body.competition;
         for (const [i, c] of colleges.entries()) {
-            const t = await c.call('PUT', `/org/${comp.id}/team`, { teamName: `Team ${i}`, players: [String(c.student.user._id)] });
+            const t = await c.call('PUT', `/org/${comp.id}/team`, { coordinatorPhone: '9876543210', teamName: `Team ${i}`, players: [String(c.student.user._id)] });
             assert.ok([200, 201].includes(t.status), JSON.stringify(t.body));
         }
         teams = (await boss('GET', `/admin/${comp.id}`)).body.teams;
@@ -133,7 +133,7 @@ describe('competition notices', () => {
         assert.equal((await titled(colleges[1].student, /Match time changed/)).length, 1);
     });
 
-    test('a match opening and its result reach both teams', async () => {
+    test('a match opening reaches both teams; its result waits for the published results', async () => {
         const match = (await Match.find({ competitionId: comp.id }).lean())[0];
         assert.equal((await boss('POST', `/admin/${comp.id}/matches/${match._id}/start`)).status, 200);
         await bracket.settled();
@@ -146,15 +146,16 @@ describe('competition notices', () => {
         const teamOf = async (c) => String((await Team.findOne({ competitionId: comp.id, 'players.userId': c.student.user._id }).lean())._id);
         const winnerCollege = (await teamOf(colleges[0])) === winner ? colleges[0] : colleges[1];
         const loserCollege = winnerCollege === colleges[0] ? colleges[1] : colleges[0];
-        assert.equal((await titled(winnerCollege.student, /^You won your/)).length, 1, 'the winners hear they won');
-        assert.equal((await titled(loserCollege.student, / lost$/)).length, 1, 'and the others that they lost');
+        // Who won waits for the published results: no "you won" or "lost" yet.
+        assert.equal((await titled(winnerCollege.student, /^You won your/)).length, 0, 'the winners are not told before the results are published');
+        assert.equal((await titled(loserCollege.student, / lost$/)).length, 0, 'nor the others');
         assert.equal((await titled(colleges[2].student, /won|lost|open/)).length, 0, 'a team not in the match hears nothing');
     });
 
     test('a cancelled competition, and a withdrawn team, are told', async () => {
         const r = await boss('POST', '/admin', { name: `Called Off ${STAMP}`, game: 'chess', startsAt: inDays(3), registrationDeadline: inDays(2), playersPerTeam: 1, maxTeams: 8, open: true });
         const id = r.body.competition.id;
-        await colleges[0].call('PUT', `/org/${id}/team`, { teamName: 'Stays', players: [String(colleges[0].student.user._id)] });
+        await colleges[0].call('PUT', `/org/${id}/team`, { coordinatorPhone: '9876543210', teamName: 'Stays', players: [String(colleges[0].student.user._id)] });
         assert.equal((await boss('POST', `/admin/${id}/status`, { status: 'cancelled' })).status, 200);
         const [gone] = await titled(colleges[0].student, /Competition cancelled/);
         assert.ok(gone && gone.message.includes(`Called Off ${STAMP}`));

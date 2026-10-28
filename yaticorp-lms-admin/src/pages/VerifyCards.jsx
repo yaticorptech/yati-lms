@@ -13,7 +13,8 @@ import api from '../utils/api';
 import { useQrReader } from '../utils/qrReader';
 import { INPUT, LABEL, BTN, BTN2, CARD } from '../components/orgUi';
 
-const STATES = [['waiting', 'Waiting'], ['verified', 'Verified'], ['registered', 'Registered'], ['inactive', 'Inactive'], ['all', 'All']];
+// All first, then the cards in the order they move through (2026-10-28).
+const STATES = [['all', 'All'], ['waiting', 'Waiting'], ['verified', 'Verified'], ['registered', 'Registered'], ['inactive', 'Inactive']];
 const BADGE = {
     waiting: 'bg-amber-100 text-amber-800',
     verified: 'bg-emerald-100 text-emerald-800',
@@ -326,7 +327,7 @@ export default function VerifyCards() {
                 </section>
             </div>
 
-            <section className={`${CARD} p-5`} aria-labelledby="cards-title">
+            <section className={`${CARD} p-4 sm:p-5`} aria-labelledby="cards-title">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <h2 id="cards-title" className="font-bold text-slate-800">Cards</h2>
                     <div className="relative w-full sm:w-72">
@@ -334,10 +335,12 @@ export default function VerifyCards() {
                         <input type="search" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search card, serial or QR number" aria-label="Search cards" className={`${INPUT} pl-9`} />
                     </div>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1 sm:inline-flex" role="group" aria-label="Show">
+                {/* One line on a phone too (2026-10-28): each choice takes the width
+                    its word needs plus an even share of the rest, in smaller type. */}
+                <div className="mt-3 flex gap-0.5 rounded-2xl bg-slate-100 p-1 sm:inline-flex sm:gap-1" role="group" aria-label="Show">
                     {STATES.map(([key, label]) => (
                         <button key={key} type="button" aria-pressed={state === key} onClick={() => { setState(key); setPage(1); setConfirmAll(false); }}
-                            className={`min-w-0 truncate rounded-xl px-3 py-2 text-xs font-bold ${state === key ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>
+                            className={`min-w-0 flex-auto truncate rounded-xl px-1 py-2 text-[11px] font-bold sm:flex-none sm:px-3 sm:text-xs ${state === key ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>
                     ))}
                 </div>
                 {bulk && allCount > 0 && (

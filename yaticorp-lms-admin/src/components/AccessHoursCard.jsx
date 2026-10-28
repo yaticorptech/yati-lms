@@ -42,7 +42,7 @@ export default function AccessHoursCard() {
     if (!form) return error ? <Banner onClose={() => setError('')}>{error}</Banner> : null;
 
     return (
-        <form onSubmit={save} className={`${CARD} p-5 lg:p-6`} noValidate>
+        <form onSubmit={save} className={`${CARD} p-5 transition-all duration-200 hover:border-indigo-200 hover:shadow-md lg:p-6`} noValidate>
             <div className="mb-5 flex items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Clock size={20} /></span>
                 <div className="min-w-0 flex-1">

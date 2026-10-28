@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import usePhaseClock from './usePhaseClock';
 import { Check, X, Lock, Timer, Zap, Sparkles, ChevronDown, Crown, LogOut } from 'lucide-react';
 
 /**
- * The table for the brain games — Rapid Fire, Code Clash and Brain Sprint —
- * which the server plays with one engine
+ * The table for the brain games — Rapid Fire, Code Clash and Brain Sprint,
+ * and the Group Brain quiz games (Pattern Master, Number Logic, Word Logic,
+ * Deduction Detective and Spatial IQ) — which the server plays with one engine
  * (competitions/games/quizCore.js). The page around it draws the title, the
  * colleges, Resign and the result; this draws the scores, the question and
  * its clock, the answers, the reveal, and once it is over a review of every
@@ -21,28 +23,21 @@ const LETTERS = ['A', 'B', 'C', 'D'];
 const THEMES = {
     rapidfire: { from: 'from-orange-500', to: 'to-rose-600', ring: 'ring-rose-200', text: 'text-rose-700', soft: 'bg-rose-50', bar: 'bg-rose-500' },
     codeclash: { from: 'from-slate-900', to: 'to-emerald-700', ring: 'ring-emerald-200', text: 'text-emerald-700', soft: 'bg-emerald-50', bar: 'bg-emerald-500' },
-    brainsprint: { from: 'from-cyan-600', to: 'to-indigo-600', ring: 'ring-sky-200', text: 'text-sky-700', soft: 'bg-sky-50', bar: 'bg-sky-500' }
+    brainsprint: { from: 'from-cyan-600', to: 'to-indigo-600', ring: 'ring-sky-200', text: 'text-sky-700', soft: 'bg-sky-50', bar: 'bg-sky-500' },
+    // Group Brain.
+    patternmaster: { from: 'from-fuchsia-600', to: 'to-violet-600', ring: 'ring-violet-200', text: 'text-violet-700', soft: 'bg-violet-50', bar: 'bg-violet-500' },
+    numberlogic: { from: 'from-blue-600', to: 'to-cyan-600', ring: 'ring-blue-200', text: 'text-blue-700', soft: 'bg-blue-50', bar: 'bg-blue-500' },
+    wordlogic: { from: 'from-emerald-600', to: 'to-teal-600', ring: 'ring-emerald-200', text: 'text-emerald-700', soft: 'bg-emerald-50', bar: 'bg-emerald-500' },
+    deduction: { from: 'from-slate-800', to: 'to-indigo-700', ring: 'ring-indigo-200', text: 'text-indigo-700', soft: 'bg-indigo-50', bar: 'bg-indigo-500' },
+    spatialiq: { from: 'from-amber-500', to: 'to-orange-600', ring: 'ring-amber-200', text: 'text-amber-800', soft: 'bg-amber-50', bar: 'bg-amber-500' }
 };
+// A picture drawn in squares (Spatial IQ): shown on light ground, not as code.
+const isPicture = (t) => /[⬛⬜]/.test(t || '');
+const Picture = ({ text, small }) => (
+    <pre aria-label="Picture" className={`inline-block whitespace-pre font-sans leading-none ${small ? 'text-base' : 'rounded-2xl bg-slate-50 p-3 text-2xl ring-1 ring-slate-200 sm:text-3xl'}`}>{text}</pre>
+);
 
-/** Milliseconds left in the current phase, ticking, on the server's clock. */
-const usePhaseClock = (view) => {
-    const skew = useRef(0);
-    const [now, setNow] = useState(() => Date.now());
-    // The server's time when it made this view, against ours on arrival.
-    useEffect(() => { if (view.serverNow) skew.current = view.serverNow - Date.now(); }, [view.serverNow]);
-    const running = view.status === 'active' && view.phaseEndsAt;
-    useEffect(() => {
-        if (!running) return undefined;
-        const t = setInterval(() => setNow(Date.now()), 100);
-        return () => clearInterval(t);
-    }, [running]);
-    if (!running) return { left: 0, share: 0 };
-    const total = Math.max(1, view.phaseEndsAt - view.phaseStartedAt);
-    const left = Math.max(0, view.phaseEndsAt - (now + skew.current));
-    return { left, share: left / total };
-};
-
-const Scoreboard = ({ view, theme }) => {
+export const Scoreboard = ({ view, theme }) => {
     // Rapid Fire keeps the scores (null) to itself until the game is over.
     const secret = !view.scores;
     const leader = secret ? 0 : Math.max(...view.scores);
@@ -51,9 +46,9 @@ const Scoreboard = ({ view, theme }) => {
             {view.seats.map((s, i) => {
                 const a = view.answers[i];
                 const out = view.out.includes(i);
-                const open = view.phase === 'question';
+                const open = view.phase === 'question' || view.phase === 'answer';
                 const state = out ? 'out' : open ? (a?.locked ? 'locked' : a ? 'answered' : 'thinking') : null;
-                const lead = view.status === 'finished' && view.scores[i] === leader && leader > 0;
+                const lead = !secret && view.status === 'finished' && view.scores[i] === leader && leader > 0;
                 return (
                     <li key={i} data-score-seat={i} data-state={state || undefined}
                         className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl border bg-white px-3 py-2 shadow-sm sm:min-w-[11rem] ${view.you === i ? `border-transparent ring-2 ${theme.ring}` : 'border-slate-200'} ${out ? 'opacity-50' : ''}`}>
@@ -111,7 +106,7 @@ const Option = ({ index, text, mark, mono, disabled, onPick }) => {
             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-black ${badge}`} aria-hidden="true">
                 {mark === 'right' ? <Check size={16} /> : mark === 'wrong' ? <X size={16} /> : LETTERS[index]}
             </span>
-            <span className={`min-w-0 flex-1 break-words ${mono ? 'font-mono text-[13px] sm:text-sm' : ''}`}>{text}</span>
+            {isPicture(text) ? <Picture text={text} small /> : <span className={`min-w-0 flex-1 break-words ${mono ? 'font-mono text-[13px] sm:text-sm' : ''}`}>{text}</span>}
         </button>
     );
 };
@@ -136,11 +131,11 @@ const Recap = ({ view }) => {
                             <li key={n} className="rounded-2xl bg-slate-50 p-3" data-recap-item={n}>
                                 <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Q{n + 1} · {q.topic}</p>
                                 <p className="mt-0.5 font-semibold text-slate-900">{q.prompt}</p>
-                                {q.code && <div className="mt-2"><Code code={q.code} lang={q.lang} /></div>}
-                                <p className="mt-2 text-sm text-emerald-700"><Check size={14} className="mr-1 inline" aria-hidden="true" />{q.options[q.answer]}</p>
+                                {q.code && <div className="mt-2">{isPicture(q.code) ? <Picture text={q.code} small /> : <Code code={q.code} lang={q.lang} />}</div>}
+                                <p className="mt-2 text-sm text-emerald-700"><Check size={14} className="mr-1 inline" aria-hidden="true" />{isPicture(q.options[q.answer]) ? <Picture text={q.options[q.answer]} small /> : q.options[q.answer]}</p>
                                 {mine != null && (
                                     <p className={`text-sm ${a?.correct ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                        You: {a ? `${q.options[a.choice]} (${a.points > 0 ? '+' : ''}${a.points})` : 'no answer'}
+                                        You: {a ? (isPicture(q.options[a.choice]) ? `option ${LETTERS[a.choice]} (${a.points > 0 ? '+' : ''}${a.points})` : `${q.options[a.choice]} (${a.points > 0 ? '+' : ''}${a.points})`) : 'no answer'}
                                     </p>
                                 )}
                                 {q.explain && <p className="mt-1 text-xs text-slate-500">{q.explain}</p>}
@@ -153,7 +148,7 @@ const Recap = ({ view }) => {
     );
 };
 
-export default function QuizTable({ view, onAction, busy }) {
+export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
     const theme = THEMES[view.game] || THEMES.brainsprint;
     const { left, share } = usePhaseClock(view);
     const [picked, setPicked] = useState(null);
@@ -207,6 +202,8 @@ export default function QuizTable({ view, onAction, busy }) {
     const seconds = Math.ceil(left / 1000);
     const segments = useMemo(() => Array.from({ length: view.total || 0 }, (_, i) => i), [view.total]);
 
+    // A finished Group Brain room shows its own standings above: here, only the answers to review.
+    if (recapOnly && view.status === 'finished') return <div className="mx-auto w-full max-w-3xl"><Recap view={view} /></div>;
     return (
         <div className="mx-auto w-full max-w-3xl space-y-4" data-quiz-table={view.game} data-phase={view.phase}>
             <Scoreboard view={view} theme={theme} />
@@ -253,7 +250,7 @@ export default function QuizTable({ view, onAction, busy }) {
 
                     <div className="space-y-4 p-4 sm:p-6">
                         <h2 className="text-lg font-black leading-snug text-slate-900 sm:text-xl" data-prompt>{q.prompt}</h2>
-                        {q.code && <Code code={q.code} lang={q.lang} />}
+                        {q.code && (isPicture(q.code) ? <div className="flex justify-center"><Picture text={q.code} /></div> : <Code code={q.code} lang={q.lang} />)}
                         <div className="grid gap-2.5 sm:grid-cols-2" role="group" aria-label="Answers">
                             {q.options.map((text, i) => (
                                 <Option key={i} index={i} text={text} mark={markOf(i)} mono={!!q.code && q.topic === 'Predict the output'} disabled={!canPick} onPick={pick} />
@@ -276,7 +273,7 @@ export default function QuizTable({ view, onAction, busy }) {
                                     </p>
                                 )}
                                 {view.you != null && !myAnswer && <p className="mb-1 font-black text-slate-500">No answer this time.</p>}
-                                <p><span className="font-bold text-slate-900">Answer: {q.options[view.answer.index]}.</span> {view.answer.explain}</p>
+                                <p><span className="font-bold text-slate-900">Answer: {isPicture(q.options[view.answer.index]) ? `option ${LETTERS[view.answer.index]}` : q.options[view.answer.index]}.</span> {view.answer.explain}</p>
                             </div>
                         )}
                     </div>

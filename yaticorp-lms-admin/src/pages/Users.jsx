@@ -432,7 +432,9 @@ const Users = () => {
             _id: user._id,
             name: user.name || '',
             email: user.email || '',
-            phone: user.phone || '',
+            // Imported accounts held the phone as a number, which crashed the
+            // form on open (phone.replace is not a function, 2026-10-28).
+            phone: user.phone == null ? '' : String(user.phone),
             password: '', // Keep empty, only send if they want to change it
             // Rewards: money eligibility and leaderboard cohorts
             accountType: user.accountType || 'school_student',
@@ -1445,7 +1447,7 @@ const Users = () => {
                                             type="tel"
                                             required
                                             placeholder="Phone number"
-                                            value={editUserForm.phone.replace(/^\+\d+\s?/, '')}
+                                            value={String(editUserForm.phone ?? '').replace(/^\+\d+\s?/, '')}
                                             onChange={(e) => {
                                                 const digits = e.target.value.replace(/\D/g, '');
                                                 setEditUserForm({ ...editUserForm, phone: digits });

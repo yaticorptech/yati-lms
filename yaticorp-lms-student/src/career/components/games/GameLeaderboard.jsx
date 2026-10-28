@@ -4,6 +4,7 @@ import { Trophy, Star, Layers, Gamepad2, RefreshCw, Crown, ArrowRight, ChevronDo
 import api from '../../services/api';
 import { GAMES_SYNCED } from './levels';
 import ProfileImage from '../../../components/ProfileImage';
+import useLive from '../../../live/useLive';
 
 /**
  * Who has earned the most stars across the brain games.
@@ -362,6 +363,8 @@ export default function GameLeaderboard({ dense = false, limit }) {
     window.addEventListener(GAMES_SYNCED, bump);
     return () => window.removeEventListener(GAMES_SYNCED, bump);
   }, []);
+  // Another player's stars moving the standings: drawn again live.
+  useLive(['games', 'leaderboard'], useCallback(() => setTick((t) => t + 1), []));
 
   useEffect(() => {
     let cancelled = false;

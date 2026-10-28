@@ -1,11 +1,11 @@
 /**
  * The wallet popup on a phone.
  *
- * Two things were wrong at 390px and both were measurable: the three tabs
- * needed 401px in one row, so the strip scrolled sideways and drew a scrollbar
- * across the popup; and the two figures in the header were right-aligned in a
- * loose row, which left them ragged — no label lining up with the one beside
- * it. So this test measures widths and edges rather than reading text.
+ * Measured at 390px rather than read: the tabs share one row evenly and
+ * never scroll sideways, and the header's balance fits. (Since 2026-10-26 the
+ * wallet has two tabs, Overview and Transactions, and the header shows the
+ * balance alone: XP is not wallet money. Since 2026-10-27 the header is the
+ * violet band of the Wallet & Rewards card, with the balance shown once.)
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -42,7 +42,7 @@ const measure = `
   const strip = tabs[0].parentElement;`;
 
 describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
-    test('all three tabs fit, so the strip never scrolls sideways', async () => {
+    test('both tabs fit, so the strip never scrolls sideways', async () => {
         const { result, errors } = await screen({
             entry, api, styles: true, width: 500, script: `
                 await sleep(800); ${measure}
@@ -54,38 +54,38 @@ describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
                     labels: tabs.map((b) => b.innerText.replace(/[\\n\\t ]+/g, ' ').trim())
                 };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.count, 3);
+        assert.equal(result.count, 2);
         assert.equal(result.scrollW, result.clientW, 'nothing to scroll to, so no scrollbar');
         assert.deepEqual(result.clipped, [], 'and no tab has its name cut off');
-        assert.equal(new Set(result.widths).size, 1, `the three share the width evenly, got ${result.widths}`);
-        assert.deepEqual(result.labels, ['Overview', 'Transactions', 'XP']);
+        assert.equal(new Set(result.widths).size, 1, `the two share the width evenly, got ${result.widths}`);
+        assert.deepEqual(result.labels, ['Overview', 'Transactions'], 'no XP tab');
     });
 
-    test('the two figures in the header line up as a pair', async () => {
+    test('the header shows the balance once, what was spent, and no XP', async () => {
         const { result, errors } = await screen({
             entry, api, styles: true, width: 500, script: `
                 await sleep(800); ${measure}
-                // The Overview body has a BALANCE tile of its own, so stay
-                // inside the header — the band the heading sits in.
-                const head = $$('h2').find((h) => /Wallet/.test(h.innerText)).parentElement.parentElement;
-                const cells = Array.from(head.querySelectorAll('p'))
-                    .filter((p) => /^(BALANCE|XP)$/i.test(p.innerText.trim()))
-                    .map((p) => p.parentElement);
-                const values = cells.map((c) => c.querySelector('p:last-child'));
+                const head = $$('h2').find((h) => /Wallet/.test(h.innerText)).parentElement;
+                const labels = Array.from(document.querySelectorAll('#wallet-sheet p'))
+                    .filter((p) => /^(WALLET BALANCE|BALANCE|XP)$/i.test(p.innerText.trim()));
+                const value = labels[0].nextElementSibling;
                 return {
-                    cells: cells.map(r),
-                    valueClipped: values.filter((v) => v.scrollWidth > v.clientWidth + 1).map((v) => v.innerText),
-                    values: values.map((v) => v.innerText.trim()),
+                    labels: labels.map((p) => p.innerText.trim()),
+                    inHeader: head.contains(labels[0]),
+                    cell: r(value),
+                    valueClipped: value.scrollWidth > value.clientWidth + 1,
+                    value: value.innerText.trim(),
+                    head: head.innerText.replace(/\\s+/g, ' '),
                     phone: r($('#phone'))
                 };` });
         assert.deepEqual(errors, []);
-        assert.equal(result.cells.length, 2);
-        const [a, b] = result.cells;
-        assert.equal(a.w, b.w, 'the two cells are the same width');
-        assert.ok(b.l > a.r, 'side by side, not overlapping');
-        assert.ok(a.l >= result.phone.l && b.r <= result.phone.r, 'both inside the popup');
-        assert.deepEqual(result.valueClipped, [], 'and neither figure is cut off');
-        assert.deepEqual(result.values, ['₹1,50,000', '1,250'], 'the balance, and the student\'s XP in place of reward points');
+        assert.deepEqual(result.labels, ['WALLET BALANCE'], 'the balance once: no second Balance tile below');
+        assert.equal(result.inHeader, true);
+        assert.ok(result.cell.l >= result.phone.l && result.cell.r <= result.phone.r, 'inside the popup');
+        assert.equal(result.valueClipped, false, 'and the figure is not cut off');
+        assert.equal(result.value, '₹1,50,000');
+        assert.match(result.head, /Spent so far ₹0/);
+        assert.doesNotMatch(result.head, /\bXP\b/);
     });
 
     test('the type is scaled down for a phone, not shrunk for everyone', async () => {
@@ -96,10 +96,10 @@ describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
         const read = `
             await sleep(800);
             const fs = (sel, re) => { const el = $$(sel).find((e) => re.test(e.innerText)); return el ? Math.round(parseFloat(getComputedStyle(el).fontSize)) : null; };
-            const tile = $$('#wallet-sheet div').find((d) => /TOTAL EARNED/.test(d.innerText) && d.className.includes('rounded-2xl'));
+            const head = $$('h2').find((h) => /Wallet/.test(h.innerText)).parentElement;
             return { height: Math.round($('#wallet-sheet').getBoundingClientRect().height),
-                     heading: fs('h2', /Wallet/), balance: fs('p', /1,50,000/),
-                     tilePad: Math.round(parseFloat(getComputedStyle(tile).paddingTop)) };`;
+                     heading: fs('h2', /Wallet/), balance: fs('p', /^₹1,50,000$/),
+                     headPad: Math.round(parseFloat(getComputedStyle(head).paddingTop)) };`;
 
         const phone = await screen({ entry, api, styles: true, width: 500, script: read });
         const desk = await screen({ entry, api, styles: true, width: 1400, script: read });
@@ -109,15 +109,15 @@ describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
         assert.ok(phone.result.balance < desk.result.balance,
             `the balance is smaller on a phone: ${phone.result.balance}px vs ${desk.result.balance}px`);
         assert.ok(phone.result.heading <= desk.result.heading, 'and so is the heading');
-        assert.ok(phone.result.tilePad < desk.result.tilePad, 'the tiles are tighter too');
-        assert.ok(phone.result.height < desk.result.height,
-            `the whole card is shorter: ${phone.result.height}px vs ${desk.result.height}px`);
+        assert.ok(phone.result.headPad < desk.result.headPad, 'the header is tighter too');
+        // (No phone-vs-desktop height comparison any more: without the XP
+        // parts the desktop card is short too. The cap below still holds.)
         assert.ok(phone.result.height <= 780, `and it stays under 780px, was ${phone.result.height}px`);
 
-        // The desktop sizes are the ones that were already right.
-        assert.equal(desk.result.balance, 24);
+        // The desktop sizes of the violet header (2026-10-27).
+        assert.equal(desk.result.balance, 36);
         assert.equal(desk.result.heading, 18);
-        assert.equal(desk.result.tilePad, 16);
+        assert.equal(desk.result.headPad, 24);
     });
 
     test('nothing pushes the popup wider than the phone', async () => {
@@ -131,5 +131,45 @@ describe('the wallet popup on a phone', { skip: skipWithoutStyles }, () => {
         assert.deepEqual(errors, []);
         assert.deepEqual(result.wide, [], 'no element reaches past the right edge');
         assert.ok(result.overflow <= 0, `nothing to scroll sideways, had ${result.overflow}px`);
+    });
+});
+
+describe('the wallet card on My Courses', { skip: skipWithoutStyles }, () => {
+    // The card in the My Courses banner (HeroWallet): no "View all" button;
+    // the whole card opens the wallet (asked 2026-10-27).
+    const hero = `
+import { createRoot } from 'react-dom/client';
+import { RewardsContext } from '${srcFile('context/useRewards.js')}';
+import HeroWallet from '${srcFile('components/rewards/HeroWallet.jsx')}';
+const value = { enabled: true, summary: { wallet: { available: 147210, totalSpent: 2800, currency: 'INR' } }, refresh: () => {}, celebrate: () => {}, pullEvents: () => {}, markEventsSeen: () => Promise.resolve() };
+createRoot(document.getElementById('root')).render(
+  <RewardsContext.Provider value={value}><div style={{ width: 360, padding: 24 }}><HeroWallet /></div></RewardsContext.Provider>);`;
+
+    test('there is no View all; a tap anywhere on the card, or Enter, opens the wallet', async () => {
+        const { result, errors } = await screen({
+            entry: hero, api, styles: true, width: 500, script: `
+            await sleep(300);
+            const card = $('#wallet button');
+            const before = { text: card.innerText.replace(/\\s+/g, ' ').trim(), viewAll: $$('button').some((b) => /View all/i.test(b.innerText)), buttons: $$('#wallet button').length, label: card.getAttribute('aria-label') };
+            // A tap on the "Spent so far" figure, not the middle of the card.
+            [...card.querySelectorAll('span')].find((s) => /^₹2,800$/.test(s.innerText.trim())).click();
+            await sleep(400);
+            const opened = !!$('#wallet-sheet');
+            window.dispatchEvent(new Event('yati:back', { cancelable: true }));
+            await sleep(300);
+            const closed = !$('#wallet-sheet');
+            card.focus();
+            card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+            card.click();
+            await sleep(400);
+            return { before, opened, closed, reopened: !!$('#wallet-sheet') };` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.before.viewAll, false, 'no View all button');
+        assert.equal(result.before.buttons, 1, 'the card itself is the one button');
+        assert.match(result.before.text, /Wallet & Rewards Wallet balance ₹1,47,210 Spend it on courses and features SPENT SO FAR ₹2,800/);
+        assert.equal(result.before.label, 'Wallet & Rewards: ₹1,47,210 to spend. Open the wallet and its transactions.');
+        assert.equal(result.opened, true, 'a tap anywhere opens the wallet popup');
+        assert.equal(result.closed, true, 'back closes it');
+        assert.equal(result.reopened, true);
     });
 });

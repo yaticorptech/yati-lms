@@ -4,7 +4,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const { protectAdmin } = require('../../middleware/authMiddleware');
+const { protectAdmin, superAdminOnly } = require('../../middleware/authMiddleware');
 const c = require('../controllers/adminController');
 
 router.use(protectAdmin);
@@ -19,6 +19,10 @@ router.get('/withdrawals', c.listWithdrawals);
 router.put('/withdrawals/:id', c.decideWithdrawal);
 router.get('/users/:id', c.getUserHistory);
 router.post('/users/:id/adjust', c.adjustUser);
+// Wallet recharge (its own page in the admin panel): super admins only.
+router.get('/recharge/students', superAdminOnly, c.findStudents);
+router.get('/recharge/recent', superAdminOnly, c.recentRecharges);
+router.post('/recharge/:id', superAdminOnly, c.rechargeWallet);
 router.get('/audit', c.runAudit);
 router.post('/jobs/run', c.runJobsNow);
 

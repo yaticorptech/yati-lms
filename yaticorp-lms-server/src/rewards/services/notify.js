@@ -15,7 +15,7 @@ const { RewardEvent } = require('../models');
  * is only used while Career Path is open (see linkFor and noticeLink).
  */
 const LINKS = {
-  wallet: '/#wallet',
+  wallet: '/enrolled-courses#wallet',   // Wallet & Rewards is at the top of My Courses
   leaderboard: '/#leaderboard',
   progress: '/profile',
   competitions: '/competitions',
@@ -69,4 +69,10 @@ const celebrate = async (userId, kind, title, message, payload = {}) => {
   try { return await RewardEvent.create({ userId, kind, title, message, payload }); } catch (e) { console.error('[rewards] event failed:', e.message); return null; }
 };
 
-module.exports = { notify, celebrate, linkFor, noticeLink, LINKS };
+/** An amount as the student reads it: "₹1,500" for rupees, "USD 20" otherwise. */
+const formatMoney = (amount, currency = 'INR') => {
+  const n = Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  return (currency || 'INR') === 'INR' ? `₹${n}` : `${currency} ${n}`;
+};
+
+module.exports = { notify, celebrate, linkFor, noticeLink, LINKS, formatMoney };

@@ -182,7 +182,7 @@ export const ActivityCalendar = ({ memberId, canAdd = false, title = 'Calendar' 
 };
 
 /** On the dashboard: what the student is in, with their posts, and the next few events. Nothing until they are in something. */
-export const MyClubsCard = () => {
+export const MyClubsCard = ({ className = '' }) => {
     const [memberships, setMemberships] = useState(null);
     // The next two months, fixed when the card first shows.
     const [[from, to]] = useState(() => [new Date(), new Date(Date.now() + 60 * 86400000)]);
@@ -194,7 +194,7 @@ export const MyClubsCard = () => {
     }, []);
     if (!memberships?.length) return null;
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
             <div className="flex items-center justify-between gap-3">
                 <h2 className="flex items-center gap-2 font-black text-slate-900"><Users size={18} className="text-indigo-600" /> My clubs & activities</h2>
                 <Link to="/extracurricular" className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700">Open <ArrowRight size={13} /></Link>
