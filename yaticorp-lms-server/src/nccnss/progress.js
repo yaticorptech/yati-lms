@@ -42,7 +42,7 @@ const summarise = async (members, organizationId, targets) => {
     const [activities, events] = await Promise.all([
         NccNssActivity.find({ memberId: { $in: ids }, status: { $in: ['approved', 'pending'] } })
             .select('memberId kind hours status').lean(),
-        NccNssEvent.find({ organizationId, attendanceTaken: true }).select('scheme clubId unit kind hours date presentMemberIds').lean()
+        NccNssEvent.find({ organizationId, attendanceTaken: true }).select('scheme clubId unit kind hours date attendanceTaken presentMemberIds').lean()
     ]);
 
     return members.map((m) => {

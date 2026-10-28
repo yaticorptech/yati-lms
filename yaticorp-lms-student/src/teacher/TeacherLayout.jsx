@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users
+    LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users, Compass
 } from 'lucide-react';
 import { useTeacher } from './useTeacher';
 import useBackClose from '../native/useBackClose';
@@ -32,8 +32,12 @@ const NAV = [
             { to: '/teacher/plagiarism', label: 'Plagiarism Check', short: 'Check', icon: ShieldCheck, color: 'indigo' }
         ]
     },
-    // The clubs the organization put this teacher in charge of (pages/Clubs.jsx).
-    { title: 'Activities', items: [{ to: '/teacher/clubs', label: 'My Clubs', short: 'Clubs', icon: Users }] }
+    // The clubs the organization put this teacher in charge of (pages/Clubs.jsx),
+    // and the Scouts & Guides units it made them a leader of (pages/ScoutUnits.jsx).
+    { title: 'Activities', items: [
+        { to: '/teacher/clubs', label: 'My Clubs', short: 'Clubs', icon: Users },
+        { to: '/teacher/scout-units', label: 'My Units', short: 'Units', icon: Compass }
+    ] }
 ];
 const BOTTOM = ['/teacher', '/teacher/research-path', '/teacher/publications', '/teacher/thesis', '/teacher/writing'];
 const ALL = NAV.flatMap((g) => g.items);

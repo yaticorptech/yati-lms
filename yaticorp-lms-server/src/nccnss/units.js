@@ -9,7 +9,8 @@
  *   DELETE /:id              delete one that never had members
  *
  * Leaders are teachers of this organization; any other id is dropped. As in
- * the rest of the panel, the organization is req.organization.
+ * the rest of the panel, the organization is req.organization. A staff
+ * sign-in (Admin.staff) may only read them.
  */
 const express = require('express');
 const mongoose = require('mongoose');
@@ -23,6 +24,10 @@ const fail = (res, error, what) => {
     console.error(`[nccnss] units ${what} failed:`, error.message);
     res.status(500).json({ message: `Could not ${what}. Please try again.` });
 };
+// Units and their leaders are the organization's to set, not a staff sign-in's.
+router.use((req, res, next) => (req.admin?.staff && req.method !== 'GET'
+    ? res.status(403).json({ code: 'STAFF_LIMITED', message: 'Only your organization\'s administrator can change units.' })
+    : next()));
 const duplicate = (res) => res.status(409).json({ message: 'You already have a unit with that name.' });
 
 /** The fields an admin may set; leaders narrowed to this organization's teachers. */

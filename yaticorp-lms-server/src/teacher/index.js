@@ -11,6 +11,7 @@
  *   plagiarism          the similarity check, its reports, and the teacher's uploaded sources
  *   organization        joining a college or school (organization.js)
  *   clubs               the organization's clubs this teacher is in charge of: their events (../nccnss/teacher.js)
+ *   scout-units         the Scouts & Guides units this teacher leads: requests, events, attendance (../nccnss/leader.js)
  *
  * Every route past auth/ reads req.teacher only: a teacher can never reach
  * another's records (the plagiarism check compares against other documents,
@@ -168,6 +169,10 @@ router.use('/organization', require('./organization'));
 /* ── Clubs in my charge (src/nccnss/teacher.js) ───────────────────────── */
 
 router.use('/clubs', require('../nccnss/teacher'));
+
+/* ── Scouts & Guides units I lead (src/nccnss/leader.js) ──────────────── */
+
+router.use('/scout-units', require('../nccnss/leader'));
 
 /* ── Research Path ─────────────────────────────────────────────────────── */
 

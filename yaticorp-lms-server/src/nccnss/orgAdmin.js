@@ -29,22 +29,48 @@
  *
  * As everywhere in the organization panel, the organization is
  * req.organization; an id from another organization answers 404.
+ *
+ * A teacher with the organization dashboard (Admin.staff) reads everything
+ * here, but changes Scouts & Guides only in the units they lead (and never
+ * the units themselves or the Scouts targets). NCC, NSS and clubs are as before.
  */
 const express = require('express');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const { Teacher } = require('../teacher/models');
-const { NccNssClub, NccNssMember, NccNssActivity, NccNssEvent, NccNssSetting, SCHEMES, CLUB_CATEGORIES, CLUB_ROLES, ACTIVITY_KINDS, EVENT_KINDS, schemeName, eventKind, scoutUnitFor } = require('./models');
+const { NccNssClub, NccNssMember, NccNssActivity, NccNssEvent, NccNssSetting, ScoutUnit, SCHEMES, CLUB_CATEGORIES, CLUB_ROLES, ACTIVITY_KINDS, EVENT_KINDS, schemeName, eventKind, scoutUnitFor } = require('./models');
 const { targetsFor, summarise } = require('./progress');
 
 const router = express.Router();
-router.use('/units', require('./units'));
 const STUDENT_FIELDS = 'name email cardNumber profilePicture phone';
 const notFound = (res, what = 'member') => res.status(404).json({ message: `No such ${what} in your organization.` });
 const fail = (res, error, what) => {
     console.error(`[nccnss] ${what} failed:`, error.message);
     res.status(500).json({ message: `Could not ${what}. Please try again.` });
 };
+
+// The Scouts units a staff sign-in leads (through its teacher account), as
+// strings; null for the organization's own sign-in and a viewing superadmin.
+router.use(async (req, res, next) => {
+    try {
+        const teacherId = req.admin?.staff ? req.admin.staffTeacherId : null;
+        req.staffUnitIds = !req.admin?.staff ? null : teacherId
+            ? (await ScoutUnit.find({ organizationId: req.organization._id, leaderTeacherIds: teacherId }).distinct('_id')).map(String)
+            : [];
+        next();
+    } catch (error) { fail(res, error, 'check your access'); }
+});
+/** Whether this sign-in may change a row of `scheme` in `unitId` (see req.staffUnitIds). */
+const mayUnit = (req, scheme, unitId) => scheme !== 'SCOUTS' || !req.staffUnitIds || (!!unitId && req.staffUnitIds.includes(String(unitId)));
+const forbidden = (res) => res.status(403).json({ code: 'STAFF_LIMITED', message: 'You can change Scouts & Guides only in the units you lead. Ask your organization\'s administrator.' });
+/** The same for an activity, which carries its scheme but not its unit. */
+const mayActivity = async (req, activity) => {
+    if (activity.scheme !== 'SCOUTS' || !req.staffUnitIds) return true;
+    const member = await NccNssMember.findById(activity.memberId).select('unitId').lean();
+    return mayUnit(req, 'SCOUTS', member?.unitId);
+};
+
+router.use('/units', require('./units'));
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const validId = (id) => mongoose.isValidObjectId(id);
 const toNumber = (v, fallback = 0) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
@@ -281,6 +307,7 @@ router.post('/members', async (req, res) => {
         }
         const chosen = await unitChoice(req, scheme);
         if (chosen.error) return res.status(400).json({ message: chosen.error });
+        if (!mayUnit(req, scheme, chosen.fields?.unitId)) return forbidden(res);
         const fields = { ...memberFields(req.body), ...chosen.fields, status: 'active', addedBy: 'organization', organizationId: req.organization._id };
         const member = existing
             ? await Object.assign(existing, fields).save()
@@ -323,6 +350,7 @@ router.put('/members/:id', async (req, res) => {
         if (!member) return notFound(res);
         const chosen = await unitChoice(req, member.scheme, member.unitId);
         if (chosen.error) return res.status(400).json({ message: chosen.error });
+        if (!mayUnit(req, member.scheme, member.unitId) || (chosen.fields && !mayUnit(req, member.scheme, chosen.fields.unitId))) return forbidden(res);
         Object.assign(member, memberFields(req.body), chosen.fields);
         if (['active', 'rejected', 'completed'].includes(req.body?.status)) member.status = req.body.status;
         await member.save();
@@ -334,6 +362,8 @@ router.put('/members/:id', async (req, res) => {
 router.delete('/members/:id', async (req, res) => {
     try {
         if (!validId(req.params.id)) return notFound(res);
+        const target = await NccNssMember.findOne({ _id: req.params.id, organizationId: req.organization._id }).select('scheme unitId').lean();
+        if (target && !mayUnit(req, target.scheme, target.unitId)) return forbidden(res);
         const member = await NccNssMember.findOneAndDelete({ _id: req.params.id, organizationId: req.organization._id }).populate('clubId', 'name');
         if (!member) return notFound(res);
         await Promise.all([
@@ -366,6 +396,7 @@ router.post('/activities', async (req, res) => {
         if (!validId(b.memberId)) return res.status(400).json({ message: 'Choose a member.' });
         const member = await NccNssMember.findOne({ _id: b.memberId, organizationId: req.organization._id }).lean();
         if (!member) return notFound(res);
+        if (!mayUnit(req, member.scheme, member.unitId)) return forbidden(res);
         if (!String(b.title || '').trim()) return res.status(400).json({ message: 'Give the activity a title.' });
         const activity = await NccNssActivity.create({
             organizationId: req.organization._id, memberId: member._id, userId: member.userId, scheme: member.scheme,
@@ -386,6 +417,7 @@ router.put('/activities/:id', async (req, res) => {
         const { decision, reason = '' } = req.body || {};
         const activity = await NccNssActivity.findOne({ _id: req.params.id, organizationId: req.organization._id });
         if (!activity) return notFound(res, 'activity');
+        if (!await mayActivity(req, activity)) return forbidden(res);
         // No decision: an edit of the details. Its approval stands as it was.
         if (decision === undefined) {
             const b = req.body || {};
@@ -417,6 +449,8 @@ router.put('/activities/:id', async (req, res) => {
 router.delete('/activities/:id', async (req, res) => {
     try {
         if (!validId(req.params.id)) return notFound(res, 'activity');
+        const target = await NccNssActivity.findOne({ _id: req.params.id, organizationId: req.organization._id }).select('scheme memberId').lean();
+        if (target && !await mayActivity(req, target)) return forbidden(res);
         const gone = await NccNssActivity.findOneAndDelete({ _id: req.params.id, organizationId: req.organization._id });
         if (!gone) return notFound(res, 'activity');
         res.json({ message: 'Activity deleted.' });
@@ -441,6 +475,7 @@ router.post('/events', async (req, res) => {
         if (!b.date || Number.isNaN(new Date(b.date).getTime())) return res.status(400).json({ message: 'Choose a date.' });
         const { unit, error: unitError } = await scoutUnitFor(req.organization._id, b.scheme, b.unitId);
         if (unitError) return res.status(400).json({ message: unitError });
+        if (!mayUnit(req, b.scheme, unit?._id)) return forbidden(res);
         const event = await NccNssEvent.create({
             organizationId: req.organization._id, scheme: b.scheme, clubId: club?._id || null,
             unit: unit ? unit.name : String(b.unit || '').trim().slice(0, 80),
@@ -460,6 +495,7 @@ router.put('/events/:id/attendance', async (req, res) => {
         if (!validId(req.params.id)) return notFound(res, 'event');
         const event = await NccNssEvent.findOne({ _id: req.params.id, organizationId: req.organization._id });
         if (!event) return notFound(res, 'event');
+        if (!mayUnit(req, event.scheme, event.unitId)) return forbidden(res);
         const asked = (Array.isArray(req.body?.presentMemberIds) ? req.body.presentMemberIds : []).filter(validId);
         // Only this organization's members of the event's scheme (and club) can be marked.
         const valid = await NccNssMember.find({ _id: { $in: asked }, organizationId: req.organization._id, scheme: event.scheme, clubId: event.clubId || null }).distinct('_id');
@@ -473,6 +509,8 @@ router.put('/events/:id/attendance', async (req, res) => {
 router.delete('/events/:id', async (req, res) => {
     try {
         if (!validId(req.params.id)) return notFound(res, 'event');
+        const target = await NccNssEvent.findOne({ _id: req.params.id, organizationId: req.organization._id }).select('scheme unitId').lean();
+        if (target && !mayUnit(req, target.scheme, target.unitId)) return forbidden(res);
         const event = await NccNssEvent.findOneAndDelete({ _id: req.params.id, organizationId: req.organization._id });
         if (!event) return notFound(res, 'event');
         res.json({ message: 'Event deleted.' });
@@ -483,6 +521,7 @@ router.put('/settings', async (req, res) => {
     try {
         const b = req.body || {};
         if (!SCHEMES.includes(b.scheme)) return res.status(400).json({ message: CHOOSE });
+        if (!mayUnit(req, b.scheme, null)) return forbidden(res);
         await NccNssSetting.findOneAndUpdate(
             { organizationId: req.organization._id, scheme: b.scheme },
             {

@@ -102,6 +102,7 @@ const TeacherThesisList = React.lazy(() => import('./teacher/pages/ThesisList'))
 const TeacherThesisEditor = React.lazy(() => import('./teacher/pages/ThesisEditor'));
 const TeacherWriting = React.lazy(() => import('./teacher/pages/Writing'));
 const TeacherClubs = React.lazy(() => import('./teacher/pages/Clubs'));
+const TeacherScoutUnits = React.lazy(() => import('./teacher/pages/ScoutUnits'));
 const TeacherWritingEditor = React.lazy(() => import('./teacher/pages/WritingEditor'));
 const TeacherPlagiarism = React.lazy(() => import('./teacher/pages/Plagiarism'));
 const TeacherProfile = React.lazy(() => import('./teacher/pages/TeacherProfile'));
@@ -486,6 +487,7 @@ function App() {
         <Route path="writing/:id" element={teacherPage(TeacherWritingEditor)} />
         <Route path="plagiarism" element={teacherPage(TeacherPlagiarism)} />
         <Route path="clubs" element={teacherPage(TeacherClubs)} />
+        <Route path="scout-units" element={teacherPage(TeacherScoutUnits)} />
         <Route path="profile" element={teacherPage(TeacherProfile)} />
         <Route path="*" element={<Navigate to="/teacher" replace />} />
       </Route>
