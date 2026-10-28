@@ -12,7 +12,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Presentation, UserPlus, Upload, Eye, UserMinus, Copy, Check, CheckCircle2, XCircle, Mail, Phone, Clock, Loader2, Pencil } from 'lucide-react';
+import { Presentation, UserPlus, Upload, Eye, UserMinus, Copy, Check, CheckCircle2, XCircle, Mail, Phone, Clock, Loader2, Pencil, Compass, Users } from 'lucide-react';
 import PasswordStrengthChecker from '../../components/PasswordStrengthChecker';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
@@ -108,7 +108,7 @@ const TeachersTab = ({ onNotice, onPending }) => {
                 <div className="min-w-0">
                     <p className="font-bold text-slate-800">Add teachers</p>
                     <p className="mt-1 text-sm text-slate-500">
-                        Add a teacher with their YATICORP card, or upload a spreadsheet of them. Teachers who already have an account can ask to join:
+                        Add a teacher with their YATICORP card (or without one, for clubs and Scouts units), or upload a spreadsheet of them. Teachers who already have an account can ask to join:
                         they open their teacher dashboard, tap <strong>Add your organization</strong> and enter this Organization ID.
                     </p>
                     {data?.orgCode && (
@@ -150,15 +150,17 @@ const TeachersTab = ({ onNotice, onPending }) => {
                                         <div className="flex flex-wrap items-center gap-2">
                                             <p className="truncate font-semibold text-slate-800">{t.name}</p>
                                             {t.status !== 'active' && <TeacherStatus status={t.status} />}
-                                            <AccessBadges teacher />{t.orgAccess && <AccessBadges organization />}
+                                            <AccessBadges teacher />{t.research !== false && <AiCardBadge />}{t.orgAccess && <AccessBadges organization />}
                                         </div>
                                         <p className="break-all text-xs text-slate-500">{[t.designation, t.department].filter(Boolean).join(' · ') || 'Teacher'} · {t.email}</p>
-                                        <TeacherSummary summary={t.summary} />
+                                        {/* Research progress only for a teacher with an AI card; a club or Scouts leader shows what they lead. */}
+                                        {t.research !== false && <TeacherSummary summary={t.summary} />}
+                                        <TeacherLeads leads={t.leads} empty={t.research === false} />
                                         <p className="text-[11px] text-slate-400">Member since {formatDate(t.organizationJoinedAt || t.createdAt)} · last sign-in {t.lastLoginAt ? relativeDay(t.lastLoginAt).toLowerCase() : 'never'}</p>
                                     </div>
                                 </div>
-                                <div className="grid shrink-0 grid-cols-3 gap-2 sm:flex">
-                                    <button type="button" onClick={() => setOpen({ kind: 'view', teacher: t })} className={BTN2}><Eye size={15} />View</button>
+                                <div className={`grid shrink-0 gap-2 sm:flex ${t.research === false ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                                    {t.research !== false && <button type="button" onClick={() => setOpen({ kind: 'view', teacher: t })} className={BTN2}><Eye size={15} />View</button>}
                                     <button type="button" onClick={() => setOpen({ kind: 'edit', teacher: t })} className={BTN2}><Pencil size={15} />Edit</button>
                                     <button type="button" onClick={() => setOpen({ kind: 'remove', teacher: t })}
                                         className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-bold text-red-600 transition-colors hover:bg-red-50">
@@ -244,17 +246,25 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [field, setField] = useState('');
+    // A teacher added without a card can be given one here: research access from then on.
+    const [giveResearch, setGiveResearch] = useState(false);
     const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setError(''); setField(''); };
     const submit = async (e) => {
         e.preventDefault();
         if (teacher && !form.teacher && !window.confirm(`Take the teacher dashboard away? ${teacher.name} leaves your organization (their account and research stay theirs).`)) return;
         if (staff && form.teacher && !card) { setError('Check their card first.'); return; }
+        if (giveResearch && form.teacher && !card) { setError('Check their AI card first, or untick Research access.'); return; }
         if (staff && !form.organization && !form.teacher && !window.confirm(`Take ${staff.name}'s access away? They can no longer sign in to this panel.`)) return;
         setBusy(true);
         try {
             const r = teacher
                 ? await api.put(`/organizations/me/teachers/${teacher._id}`, form)
                 : await api.put(`/organizations/me/teachers/staff/${staff._id}`, { ...form, ...(form.teacher ? card : {}) });
+            if (teacher && giveResearch && form.teacher && card) {
+                const c = await api.put(`/organizations/me/teachers/${teacher._id}/card`, card);
+                onSaved(c.data.message);
+                return;
+            }
             onSaved(r.data.message);
         } catch (err) {
             setError(err.response?.data?.message || 'Could not save.');
@@ -280,7 +290,7 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
                                     <label className="block"><span className={LABEL}>Designation</span>{input('designation')}</label>
                                 </div>
                                 <label className="block"><span className={LABEL}>Department</span>{input('department')}</label>
-                                <p className="text-xs text-slate-500">Their teacher sign-in email ({teacher.email}) and card stay as they are.</p>
+                                <p className="text-xs text-slate-500">{teacher.research === false ? `Their sign-in email (${teacher.email}) stays as it is.` : `Their teacher sign-in email (${teacher.email}) and card stay as they are.`}</p>
                             </>
                         ) : (
                             <>
@@ -295,10 +305,13 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
                         <p className={LABEL}>What can they open?</p>
                         {teacher ? (
                             <>
-                                <label className={box(form.organization)}>
-                                    <input type="checkbox" checked={form.organization} onChange={() => set('organization', !form.organization)} className="mt-1 h-4 w-4 accent-indigo-600" />
-                                    <span><span className="block text-sm font-bold text-slate-800">Organisation dashboard</span><span className="text-xs text-slate-500">A limited sign-in to this panel, with Research.</span></span>
-                                </label>
+                                {/* Teachers no longer get this panel (that is Users); one who already has it can only have it taken away. */}
+                                {teacher.orgAccess && (
+                                    <label className={box(form.organization)}>
+                                        <input type="checkbox" checked={form.organization} onChange={() => set('organization', !form.organization)} className="mt-1 h-4 w-4 accent-indigo-600" />
+                                        <span><span className="block text-sm font-bold text-slate-800">Organisation dashboard</span><span className="text-xs text-slate-500">{form.organization ? 'A limited sign-in to this panel. Untick to take it away; give dashboard access under Users instead.' : 'Unticked: they can no longer sign in to this panel.'}</span></span>
+                                    </label>
+                                )}
                                 {form.organization && (
                                     <div className="grid gap-3 pl-1 sm:grid-cols-2">
                                         <label className="block"><span className={LABEL}>Panel email</span>{input('panelEmail', { type: 'email' })}</label>
@@ -308,8 +321,33 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
                                 )}
                                 <label className={box(form.teacher)}>
                                     <input type="checkbox" checked={form.teacher} onChange={() => set('teacher', !form.teacher)} className="mt-1 h-4 w-4 accent-indigo-600" />
-                                    <span><span className="block text-sm font-bold text-slate-800">Teacher dashboard</span><span className="text-xs text-slate-500">{form.teacher ? 'Their research and writing tools, with their card.' : 'Unticked: they leave your organization; their account stays theirs.'}</span></span>
+                                    <span><span className="block text-sm font-bold text-slate-800">Teacher dashboard</span><span className="text-xs text-slate-500">{!form.teacher ? 'Unticked: they leave your organization; their account stays theirs.' : teacher?.research === false ? 'Their clubs and Scouts & Guides units, signed in with email.' : 'Their research and writing tools, with their card.'}</span></span>
                                 </label>
+                                {teacher?.research === false && form.teacher && (
+                                    <>
+                                        <label className={`${box(giveResearch)} ml-6`}>
+                                            <input type="checkbox" checked={giveResearch} onChange={() => { setGiveResearch(!giveResearch); setError(''); }} className="mt-1 h-4 w-4 accent-indigo-600" />
+                                            <span><span className="block text-sm font-bold text-slate-800">Research access (AI card)</span><span className="text-xs text-slate-500">Link a YATICORP card: research, publications, thesis, writing and plagiarism tools, alongside their clubs and units.</span></span>
+                                        </label>
+                                        {giveResearch && (
+                                            <div className="ml-6 space-y-2 rounded-xl border border-slate-200 p-3">
+                                                {card ? (
+                                                    <div className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                                                        <span>Card <strong className="font-mono">{card.CardNumber}</strong> is free to use</span>
+                                                        <button type="button" onClick={() => { setCard(null); setCode(''); }} className="text-xs font-bold hover:underline">Change</button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex gap-2">
+                                                        <input value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); checkCard(); } }}
+                                                            placeholder="QR code or 12-digit card number" aria-label="QR code or card number" className={`${INPUT} min-w-0 flex-1 font-mono`} />
+                                                        <button type="button" onClick={checkCard} disabled={checking || !code.trim()} className={`${BTN} shrink-0`}>{checking && <Loader2 size={15} className="animate-spin" />}Check card</button>
+                                                    </div>
+                                                )}
+                                                <p className="text-xs text-slate-500">From then on they sign in with this card and their same password, not their email.</p>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </>
                         ) : (
                             <>
@@ -360,6 +398,23 @@ const EditTeacherDialog = ({ teacher, staff, onClose, onSaved }) => {
 };
 
 /** What a teacher can open: the organisation dashboard, the teacher dashboard. */
+/** A teacher with an AI card: their dashboard has the research tools. */
+const AiCardBadge = () => <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">AI card</span>;
+
+/** The clubs and Scouts & Guides units a teacher leads; `empty` says so when there are none. */
+const TeacherLeads = ({ leads = [], empty }) => {
+    if (!leads.length) return empty ? <p className="text-xs text-slate-400">Not leading a club or unit yet. Choose them as a unit leader or club in-charge in Extra-curricular.</p> : null;
+    return (
+        <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+            {leads.map((l) => (
+                <span key={`${l.kind}-${l.name}`} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${l.kind === 'unit' ? 'bg-amber-50 text-amber-800' : 'bg-violet-50 text-violet-700'}`}>
+                    {l.kind === 'unit' ? <Compass size={12} /> : <Users size={12} />}{l.name}{l.section ? ` · ${l.section}` : ''}
+                </span>
+            ))}
+        </p>
+    );
+};
+
 const AccessBadges = ({ organization }) => (organization
     ? <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700">Organisation dashboard</span>
     : <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Teacher dashboard</span>);

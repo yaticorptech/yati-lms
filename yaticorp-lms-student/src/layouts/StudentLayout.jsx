@@ -7,15 +7,16 @@ import { Outlet, Link, useLocation, useNavigate, useNavigationType } from 'react
 import { AuthContext } from '../context/AuthContext';
 import ContinuePanel from '../components/ContinuePanel';
 import WalletShortDialog from '../components/rewards/WalletShortDialog';
-import { WalletSheet } from '../components/rewards/WalletCard';
 import MobileBottomNav from '../components/MobileBottomNav';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
 import LanguageToggle from '../components/LanguageToggle';
 import InstallAppButton from '../components/InstallAppButton';
-import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, GraduationCap, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Languages, Shield } from 'lucide-react';
+import { LayoutDashboard, User, LogOut, Menu, X, MessageCircleQuestion, Send, CheckCircle2, BookOpen, Award, Bell, Megaphone, Compass, Briefcase, ChevronDown, ChevronRight, Wallet, Mic, Trophy, Gamepad2, Globe, Shield } from 'lucide-react';
 import api from '../utils/api';
 import { useRewards } from '../context/useRewards';
 import { money, balance } from '../components/rewards/format';
+// The wallet popup is fetched when it is first opened.
+const WalletSheet = React.lazy(() => import('../components/rewards/WalletCard').then((m) => ({ default: m.WalletSheet })));
 import PullToRefresh from '../components/PullToRefresh';
 import { ADMIN_VIEW_KEY } from '../utils/sessionExpiry';
 import ProfilePictureGate from '../components/ProfilePictureGate';
@@ -216,8 +217,6 @@ const StudentLayout = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [showContact, setShowContact] = useState(false);
-    // The full wallet popup, opened by the wallet button in the top bar.
-    const [walletOpen, setWalletOpen] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
     const profileDropdownRef = useRef(null);
@@ -575,12 +574,18 @@ const StudentLayout = () => {
     const mobileMenuOpen = menuOpenOn === location.pathname;
     const menuButtonRef = useRef(null);
     const drawerCloseRef = useRef(null);
-    const openMenu = () => setMenuOpenOn(location.pathname);
+    // While closing, the drawer stays a moment so it can slide back out.
+    const [menuClosing, setMenuClosing] = useState(false);
+    const openMenu = () => { setMenuClosing(false); setMenuOpenOn(location.pathname); };
     // Closed from the drawer itself (its X, the dim, Escape, back): the focus
     // goes back to the menu button that opened it.
     const closeMenu = () => {
-        setMenuOpenOn(null);
-        menuButtonRef.current?.focus({ preventScroll: true });
+        setMenuClosing(true);
+        setTimeout(() => {
+            setMenuOpenOn(null);
+            setMenuClosing(false);
+            menuButtonRef.current?.focus({ preventScroll: true });
+        }, 240);
     };
     useBackClose(closeMenu, mobileMenuOpen);
     useEffect(() => {
@@ -604,8 +609,9 @@ const StudentLayout = () => {
     const isActive = (path) => location.pathname === path;
     // Competitions is laid out to fill the window, edge to edge,
     // rather than sit in the centred column the other pages use.
-    // So are Job Preparation (/interview, /jobs), Extra Curricular and Career Path.
-    const wide = ['/competitions', '/interview', '/jobs', '/extracurricular', '/career'].some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
+    // So are Job Preparation (/interview, /jobs), Extra Curricular, Career Path and Scholarships.
+    // The Dashboard (/) too, since 2026-10-27 — matched exactly, or every page would count.
+    const wide = location.pathname === '/' || ['/competitions', '/interview', '/jobs', '/extracurricular', '/career'].some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
     // Career Path is the one nav entry with screens beneath it, so it stays lit
     // on /career/planner, /career/roadmap and the rest — not just on /career.
     const isSectionActive = (path) =>
@@ -627,16 +633,16 @@ const StudentLayout = () => {
             { to: '/enrolled-courses', label: 'My Courses', icon: BookOpen, exact: true },
             // English learning; withdrawn like the others when an admin locks it.
             // Opens on its dashboard (2026-10-26), and stays lit on every page of the section.
-            isLinguisticEnabled && { to: '/linguistic/dashboard', section: '/linguistic', label: 'Language Learning', icon: Languages }
+            isLinguisticEnabled && { to: '/linguistic/dashboard', section: '/linguistic', label: 'Multilingo', icon: Globe }
         ].filter(Boolean) },
         { title: 'Career', items: [
             isCareerPathEnabled && { to: '/career', label: 'Career Path', icon: Compass },
             // Job Preparation holds the mock interviews, aptitude tests and Jobs (/jobs) as tabs.
-            { to: '/interview', label: 'Job Preparation', icon: Mic, also: '/jobs' },
-            isCareerPathEnabled && { to: '/scholarships', label: 'Scholarships', icon: GraduationCap }
+            // Scholarships is inside Career Path, after Skills, since 2026-10-27.
+            { to: '/interview', label: 'Job Preparation', icon: Mic, also: '/jobs' }
         ].filter(Boolean) },
         // Games (the brain games) and Competitions (Chess, Rapid Fire, Code Clash, Brain Sprint, Quiz and Hackathon): two sections since 2026-10-23.
-        { title: 'Activities', items: [{ to: '/games', label: 'Games', icon: Gamepad2 }, { to: '/competitions', label: 'Competitions', icon: Trophy }, { to: '/extracurricular', label: 'Extra Curricular', icon: Shield }] }
+        { title: 'Activities', items: [{ to: '/extracurricular', label: 'Extra Curricular', icon: Shield }, { to: '/competitions', label: 'Competitions', icon: Trophy }, { to: '/games', label: 'Games', icon: Gamepad2 }] }
     ];
     const isLit = (item) => (item.exact ? isActive(item.to) : isSectionActive(item.section || item.to) || (item.also && isSectionActive(item.also)));
 
@@ -658,6 +664,20 @@ const StudentLayout = () => {
 
     // `where` is 'mobile' or 'desktop': which of the two bells this is, for
     // its own box (see notifMobileRef) and its own element ids.
+    // The wallet in the top bar: the balance and its history, in a popup over any page.
+    const [walletOpen, setWalletOpen] = useState(false);
+    const closeWallet = useCallback(() => setWalletOpen(false), []);
+    const renderWalletButton = (where) => rw?.wallet && (
+        <button type="button" onClick={() => setWalletOpen(true)} aria-haspopup="dialog"
+            aria-label={`Wallet, ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}`}
+            className={where === 'mobile'
+                ? 'rounded-full p-2 text-emerald-600 transition-colors hover:bg-slate-100'
+                : 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-700 tabular-nums transition-colors hover:bg-emerald-100'}>
+            <Wallet size={where === 'mobile' ? 22 : 16} aria-hidden="true" />
+            {where !== 'mobile' && money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}
+        </button>
+    );
+
     const renderNotificationBell = (where) => (
     <div ref={where === 'mobile' ? notifMobileRef : notifDesktopRef} className="relative">
         <button
@@ -802,11 +822,15 @@ const StudentLayout = () => {
                 Google account. Mounted once so the explanation they read is
                 written in exactly one place. */}
             <GoogleConsentDialog />
+            {walletOpen && <React.Suspense fallback={null}><WalletSheet onClose={closeWallet} /></React.Suspense>}
 
             {/* The six sections under the thumb, mirroring the sidebar. */}
             <MobileBottomNav
                 isJobsEnabled={isJobsEnabled}
                 isCareerPathEnabled={isCareerPathEnabled}
+                user={user}
+                rewards={rw}
+                onOpenWallet={() => setWalletOpen(true)}
             />
 
             {showContact && <ContactModal onClose={() => setShowContact(false)} user={user} page={location.pathname} />}
@@ -848,36 +872,16 @@ const StudentLayout = () => {
             <aside data-loop-skip className="hidden sidebar:flex w-64 bg-white text-slate-700 border-r border-slate-200 flex-col z-10">
                 <div className="flex items-center justify-center border-b border-slate-100 bg-white px-6 py-4">
                     {/* Dark-lettered logo: the original is white artwork for a dark ground. */}
-                    <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" />
+                    <Link to="/" aria-label="Yaticorp LMS, go to Dashboard" className="block w-full rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"><img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-10 object-contain w-full" /></Link>
                 </div>
 
                 <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
                     {renderNavLinks()}
                 </nav>
 
-                {/* Sidebar footer — the student's own row, then contact
-                    support. My Profile lives here rather than in the nav, the
-                    way ChatGPT and most apps keep the account at the foot. */}
+                {/* Sidebar footer — contact support. My Profile opens from the
+                    photo menu in the top bar (and the mobile drawer). */}
                 <div className="p-4 border-t border-slate-100 bg-slate-50/60 space-y-2">
-                    {/* Drawn as a button — a white card with an edge, a shadow and
-                        an arrow — because as a bare row it read as a label, not as
-                        something that opens My Profile. */}
-                    <Link
-                        to="/profile"
-                        aria-label="My Profile"
-                        className={`group flex items-center gap-3 rounded-xl border p-2.5 shadow-sm transition-all duration-200 ${isActive('/profile') ? 'border-indigo-600 bg-indigo-600 text-white shadow-indigo-200' : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md'}`}
-                    >
-                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-sm font-bold text-indigo-700 ring-2 ${isActive('/profile') ? 'ring-white/60' : 'ring-indigo-100'}`}>
-                            <ProfileImage src={user?.profilePicture} className="h-full w-full object-cover" fallback={getInitials(user?.name)} />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-bold">{user?.name}</span>
-                            <span className={`block text-xs ${isActive('/profile') ? 'text-indigo-100' : 'text-slate-500'}`}>My Profile</span>
-                        </span>
-                        <span aria-hidden="true" className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 ${isActive('/profile') ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-600 group-hover:text-white'}`}>
-                            <ChevronRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
-                        </span>
-                    </Link>
                     <button
                         onClick={() => setShowContact(true)}
                         className="flex items-center justify-center space-x-2 bg-indigo-50 border border-indigo-100 text-indigo-600 hover:bg-indigo-600 hover:text-white w-full py-2.5 rounded-lg transition-all duration-200 font-medium"
@@ -896,36 +900,16 @@ const StudentLayout = () => {
                 className="sidebar:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-50 flex items-center justify-between px-4"
             >
                 <div className="flex min-w-0 shrink items-center">
-                    <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 max-w-full object-contain" />
+                    <Link to="/" aria-label="Yaticorp LMS, go to Dashboard" className="flex min-w-0 rounded-lg active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"><img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 max-w-full object-contain" /></Link>
                 </div>
                 <div className="flex min-w-0 items-center gap-1.5">
-                    {/* The wallet, as a bare icon — no tile behind it, matching
-                        the bell beside it. The desktop bar has room to print the
-                        figure; a phone bar does not, and the balance is the first
-                        thing on the card this opens. Emerald-400 rather than the
-                        card's emerald-600: on this navy bar the darker green is
-                        almost invisible. The amount still reaches a screen reader
-                        through the label. */}
-                    {/* Opens the full wallet — all transactions — over this page,
-                        rather than taking the student to the dashboard's card. */}
-                    {rw?.wallet && (
-                        <button
-                            type="button"
-                            onClick={() => setWalletOpen(true)}
-                            aria-haspopup="dialog"
-                            aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}. View all transactions.`}
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-emerald-600 transition-colors hover:text-emerald-700"
-                        >
-                            <Wallet size={20} />
-                        </button>
-                    )}
                     {/* The bell sets its own slate colour, so a colour on this
                         wrapper alone never reaches it — these descendant rules
                         do. Emerald to match the wallet beside it; the unread
                         badge keeps its own red. Scoped to the bell button
                         itself ([data-bell]): the panel it opens is inside this
                         wrapper too, and its rows and icons turned emerald with it. */}
-                    <div className="shrink-0 [&_[data-bell]]:text-emerald-600 [&_[data-bell]:hover]:bg-slate-100 [&_[data-bell]_svg]:text-emerald-600">
+                    <div className="flex shrink-0 items-center gap-1 [&_[data-bell]]:text-emerald-600 [&_[data-bell]:hover]:bg-slate-100 [&_[data-bell]_svg]:text-emerald-600">
                         <LanguageToggle />
                         {renderNotificationBell('mobile')}
                     </div>
@@ -942,25 +926,24 @@ const StudentLayout = () => {
                 Renders nothing on a first sign-in, or without a Career Path goal. */}
             <ContinuePanel />
             <WalletShortDialog />
-            {walletOpen && <WalletSheet onClose={() => setWalletOpen(false)} />}
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
-                <div id="mobile-menu" data-loop-skip className="sidebar:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Menu">
-                    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={closeMenu}></div>
+                <div id="mobile-menu" data-loop-skip className={`sidebar:hidden fixed inset-0 z-50 flex ${menuClosing ? 'drawer-closing' : ''}`} role="dialog" aria-modal="true" aria-label="Menu">
+                    <div className="drawer-dim fixed inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={closeMenu}></div>
                     {/* The whole drawer scrolls, not the menu inside it. On a phone
                         turned sideways — 384px tall — the logo above and the card,
                         Contact Support and Logout below left the menu its own
                         scrolling strip about two items high. The close button stays
                         pinned at the top while the rest moves. */}
-                    <div className="relative w-4/5 max-w-sm bg-white text-slate-700 h-full flex flex-col overflow-y-auto shadow-2xl animate-fade-in border-r border-slate-200">
+                    <div className="drawer-panel relative w-4/5 max-w-sm bg-white text-slate-700 h-full flex flex-col overflow-y-auto shadow-2xl border-r border-slate-200">
                         <div className="sticky top-0 z-10 p-4 flex items-center justify-between border-b border-slate-100 bg-white">
-                            <img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 object-contain" />
+                            <Link to="/" onClick={() => setMenuOpenOn(null)} aria-label="Yaticorp LMS, go to Dashboard" className="flex rounded-lg active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"><img src="/assets/YATICORP-dark.png" alt="Yaticorp LMS" className="h-8 object-contain" /></Link>
                             <button ref={drawerCloseRef} type="button" onClick={closeMenu} aria-label="Close menu" data-loop-quiet className="p-2 text-slate-400 hover:text-slate-700">
                                 <X size={24} aria-hidden="true" />
                             </button>
                         </div>
-                        <nav className="flex-1 p-4">
+                        <nav className="drawer-nav flex-1 p-4">
                             {renderNavLinks(() => setMenuOpenOn(null))}
                         </nav>
                         <div className="p-4 border-t border-slate-100 bg-slate-50/60 space-y-3">
@@ -969,21 +952,42 @@ const StudentLayout = () => {
                             <Link
                                 to="/profile"
                                 onClick={() => setMenuOpenOn(null)}
-                                className={`block bg-white p-4 rounded-xl border transition-colors ${isActive('/profile') ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200 hover:border-indigo-200'}`}
+                                aria-label="My Profile"
+                                className={`group relative block overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-4 text-white shadow-lg shadow-indigo-500/25 transition-transform active:scale-[0.98] ${isActive('/profile') ? 'ring-2 ring-indigo-300 ring-offset-2' : ''}`}
                             >
-                                <div className="flex justify-between items-start mb-1">
-                                    <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">Student</p>
+                                {/* Soft light and a ring of glass behind, like a member card. */}
+                                <span aria-hidden="true" className="pointer-events-none absolute -top-10 -right-8 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
+                                <span aria-hidden="true" className="pointer-events-none absolute -bottom-12 -left-6 h-28 w-28 rounded-full border-[14px] border-white/10" />
+
+                                <div className="relative flex items-center gap-3">
+                                    <span className="relative shrink-0">
+                                        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white/20 text-sm font-bold ring-2 ring-white/70">
+                                            <ProfileImage src={user?.profilePicture} alt={user?.name} className="h-full w-full object-cover" fallback={getInitials(user?.name)} />
+                                        </span>
+                                        {rw?.level && (
+                                            <span className="absolute -right-1.5 -bottom-1 rounded-full bg-amber-300 px-1.5 text-[10px] leading-4 font-black text-amber-950 ring-2 ring-violet-600">Lv {rw.level.level}</span>
+                                        )}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-[10px] font-bold tracking-[0.18em] text-white/70 uppercase">Student</span>
+                                        <span className="block truncate text-base leading-tight font-bold">{user?.name}</span>
+                                        {user?.cardNumber && <span className="mt-0.5 block truncate font-mono text-[11px] tracking-wider text-white/75" translate="no">{user.cardNumber}</span>}
+                                    </span>
+                                    <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/25 transition-transform group-hover:translate-x-0.5">
+                                        <ChevronRight size={16} />
+                                    </span>
+                                </div>
+
+                                <div className="relative mt-3.5 flex items-center justify-between gap-2 rounded-xl bg-white/12 px-3 py-2 ring-1 ring-white/15 backdrop-blur-sm">
+                                    <span className="flex items-center gap-1.5 text-xs font-semibold text-white/85"><User size={13} aria-hidden="true" /> My Profile</span>
                                     {/* The wallet balance, where credits used to be shown. */}
                                     {rw?.wallet && (
-                                        <div className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold flex items-center tabular-nums">
-                                            <Wallet size={12} className="mr-1" />
+                                        <span className="flex items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-xs font-black text-emerald-700 tabular-nums shadow-sm">
+                                            <Wallet size={12} aria-hidden="true" />
                                             {money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}
-                                        </div>
+                                        </span>
                                     )}
                                 </div>
-                                <p className="font-bold text-slate-900 truncate">{user?.name}</p>
-                                <p className="text-xs text-slate-500 font-mono mt-1">{user?.cardNumber}</p>
-                                <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-indigo-600"><User size={12} /> My Profile</p>
                             </Link>
                             {/* Renders nothing inside the native app or once installed. */}
                             <InstallAppButton
@@ -1068,26 +1072,7 @@ const StudentLayout = () => {
                             </>
                         )}
 
-                        {/* The wallet balance, always in view at the top of the
-                            page. It opens the full wallet — every transaction,
-                            reward points and XP — in its popup, over this page. */}
-                        {rw?.wallet && (
-                            <button
-                                type="button"
-                                onClick={() => setWalletOpen(true)}
-                                aria-haspopup="dialog"
-                                aria-label={`Wallet balance ${money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}. View all transactions.`}
-                                className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
-                            >
-                                <Wallet size={16} />
-                                {/* The label waits for xl: at 1024 the header beside the
-                                    sidebar is 768px, and with the streak and XP pills
-                                    beside it every pill wrapped onto two lines. */}
-                                <span className="hidden xl:inline text-xs font-semibold text-emerald-600">Wallet Balance</span>
-                                <span className="tabular-nums">{money(balance(rw.wallet.available), rw.wallet.currency || 'INR')}</span>
-                            </button>
-                        )}
-
+                        {renderWalletButton('desktop')}
                         <LanguageToggle />
                         {renderNotificationBell('desktop')}
                         <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
@@ -1101,16 +1086,13 @@ const StudentLayout = () => {
                                 aria-haspopup="true"
                                 aria-expanded={profileDropdownOpen}
                                 aria-controls={profileDropdownOpen ? 'account-menu' : undefined}
-                                className="flex items-center gap-2.5 rounded-full py-0.5 pr-1 transition-colors hover:bg-slate-50"
+                                aria-label="Account menu"
+                                className="flex items-center gap-1.5 rounded-full py-0.5 pr-1.5 transition-colors hover:bg-slate-50"
                             >
                                 <span className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm ring-2 ring-indigo-100 hover:ring-indigo-300 transition-all duration-200 overflow-hidden">
                                     <ProfileImage src={user?.profilePicture} alt={user?.name} className="w-full h-full object-cover" fallback={getInitials(user?.name)} />
                                 </span>
-                                <span className="hidden lg:block text-left leading-tight">
-                                    <span className="block max-w-[140px] truncate text-sm font-bold text-slate-800">{user?.name}</span>
-                                    {rw && <span className="block text-[11px] font-semibold text-slate-500">Level {rw.level.level}</span>}
-                                </span>
-                                <ChevronDown size={14} className="hidden lg:block text-slate-400" aria-hidden="true" />
+                                <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${profileDropdownOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                             </button>
 
                             {/* Dropdown panel */}

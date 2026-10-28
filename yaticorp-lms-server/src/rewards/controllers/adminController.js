@@ -236,8 +236,8 @@ const adjustUser = async (req, res) => {
       const result = amount > 0
         ? await S.wallet.credit({ userId, amount, source, referenceKey: ref, description: reason, createdBy: by })
         : await S.wallet.debit({ userId, amount: -amount, source: source === 'admin_adjustment' ? 'admin_adjustment' : 'purchase', referenceKey: ref, description: reason, createdBy: by });
-      if (amount > 0) await S.notify.celebrate(userId, 'wallet', `${result.wallet.currency} ${amount} added to your wallet`, reason, { amount, source });
-      await S.notify.notify(userId, amount > 0 ? 'Wallet credited' : 'Wallet debited', `${result.wallet.currency} ${Math.abs(amount)} — ${reason}`, S.notify.LINKS.wallet);
+      if (amount > 0) await S.notify.celebrate(userId, 'wallet', `${S.notify.formatMoney(amount, result.wallet.currency)} added to your wallet`, reason, { amount, source });
+      await S.notify.notify(userId, amount > 0 ? 'Wallet credited' : 'Wallet debited', `${S.notify.formatMoney(Math.abs(amount), result.wallet.currency)} — ${reason}`, S.notify.LINKS.wallet);
       return res.json({ ok: true, wallet: result.wallet });
     }
     if (kind === 'xp') {

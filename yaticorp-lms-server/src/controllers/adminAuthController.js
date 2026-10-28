@@ -36,6 +36,12 @@ const organizationContext = async (admin) => {
 // @desc    Auth admin & get 2FA prompt or token
 // @route   POST /api/admin/login
 // @access  Public
+/** An organization's sign-in goes in its audit log (organizations/users.js reads it). Never throws. */
+const recordOrgSignIn = (admin, req) => {
+    if (admin.role !== 'orgadmin' || !admin.organizationId) return;
+    require('../organizations/models/OrgAuditLog').record({ orgId: admin.organizationId, admin, action: 'Signed in', req });
+};
+
 const loginAdmin = async (req, res) => {
     const { email, password } = req.body;
 
@@ -54,6 +60,7 @@ const loginAdmin = async (req, res) => {
                 });
             }
 
+            recordOrgSignIn(admin, req);
             res.json({
                 _id: admin._id,
                 name: admin.name,
@@ -64,6 +71,21 @@ const loginAdmin = async (req, res) => {
                 token: generateToken(admin._id, admin.role)
             });
         } else {
+            // A teacher at this sign-in, with their own right password: say where
+            // they sign in. Only on a matching password, so it never tells anyone
+            // which emails have teacher accounts.
+            if (!admin && typeof password === 'string' && password) {
+                const { Teacher } = require('../teacher/models');
+                const teacher = await Teacher.findOne({ email: String(email || '').trim().toLowerCase() });
+                if (teacher && await teacher.matchPassword(password)) {
+                    return res.status(401).json({
+                        code: 'TEACHER_ACCOUNT',
+                        message: teacher.cardNumber
+                            ? 'This is a teacher account. Sign in on the LMS: choose Teacher, then use your card.'
+                            : 'This is a teacher account. Sign in on the LMS: choose Teacher, then Email.'
+                    });
+                }
+            }
             res.status(401).json({ message: 'Invalid email or password' });
         }
     } catch (error) {
@@ -91,6 +113,7 @@ const verify2FA = async (req, res) => {
         });
 
         if (verified) {
+            recordOrgSignIn(admin, req);
             res.json({
                 _id: admin._id,
                 name: admin.name,

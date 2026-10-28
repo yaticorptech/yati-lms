@@ -10,7 +10,7 @@ const { runInTransaction, isDuplicate } = require('./tx');
 const { getConfig } = require('./configService');
 const { monetaryEnabledFor } = require('./eligibility');
 const { getOrCreateWallet } = require('./rewardPointsService');
-const { notify, celebrate, LINKS } = require('./notify');
+const { notify, celebrate, LINKS, formatMoney } = require('./notify');
 const { periodWindow } = require('../config/constants');
 
 const fail = (message, status = 400, code = 'WALLET_ERROR') => { const e = new Error(message); e.status = status; e.code = code; return e; };
@@ -136,14 +136,14 @@ const decideWithdrawal = async ({ requestId, decision, adminId, note = '', payou
     if (decision === 'paid') {
       await Wallet.updateOne({ userId, pending: { $gte: amount } }, { $inc: { pending: -amount, totalWithdrawn: amount } }, { session });
       await WalletTransaction.updateOne({ _id: request.walletTransactionId }, { $set: { status: 'completed', 'meta.payoutReference': payoutReference } }, { session });
-      await notify(userId, 'Withdrawal paid', `${request.currency} ${amount} has been sent to your ${request.method.type === 'upi' ? 'UPI id' : 'bank account'}.`, LINKS.wallet);
+      await notify(userId, 'Withdrawal paid', `${formatMoney(amount, request.currency)} has been sent to your ${request.method.type === 'upi' ? 'UPI id' : 'bank account'}.`, LINKS.wallet);
     } else if (decision === 'rejected') {
       const w = await Wallet.findOneAndUpdate({ userId, pending: { $gte: amount } }, { $inc: { pending: -amount, available: amount } }, { returnDocument: 'after', session });
       await WalletTransaction.updateOne({ _id: request.walletTransactionId }, { $set: { status: 'cancelled', 'meta.rejectedNote': note } }, { session });
       await WalletTransaction.create([{ userId, type: 'credit', amount, source: 'withdrawal_refund', status: 'completed', referenceKey: `withdrawal-refund:${request._id}`, description: `Withdrawal request returned${note ? `: ${note}` : ''}`, createdBy: String(adminId || 'admin'), balanceAfter: w ? w.available : null }], { session });
       await notify(userId, 'Withdrawal not approved', note ? `Reason: ${note}. The amount is back in your wallet.` : 'The amount is back in your wallet.', LINKS.wallet);
     } else {
-      await notify(userId, 'Withdrawal approved', `${request.currency} ${amount} is being processed.`, LINKS.wallet);
+      await notify(userId, 'Withdrawal approved', `${formatMoney(amount, request.currency)} is being processed.`, LINKS.wallet);
     }
     request.status = decision;
     request.adminNote = note;

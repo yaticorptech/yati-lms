@@ -1,53 +1,54 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Brain, Puzzle, Type, Zap, Play, Layers, Star, Sparkles, History, Timer, Moon } from 'lucide-react';
 import api from '../../services/api';
 import useBackClose from '../../../native/useBackClose';
 import { useToast } from '../../components/ui/Toast';
 import GameThumb from '../../components/games/GameThumb';
 import { GameTokensArt, HeroScene, PlayLearnGrow } from '../../components/games/GamesHeroArt';
-import MemoryMatch from '../../components/games/MemoryMatch';
-import SequenceRecall from '../../components/games/SequenceRecall';
-import NumberRecall from '../../components/games/NumberRecall';
-import CodeBreaker from '../../components/games/CodeBreaker';
-import NextInSequence from '../../components/games/NextInSequence';
-import OddOneOut from '../../components/games/OddOneOut';
-import WordScramble from '../../components/games/WordScramble';
-import SynonymMatch from '../../components/games/SynonymMatch';
-import SentenceGap from '../../components/games/SentenceGap';
-import MathSprint from '../../components/games/MathSprint';
-import QuickCompare from '../../components/games/QuickCompare';
-import MissingOperator from '../../components/games/MissingOperator';
-import ColourMatch from '../../components/games/ColourMatch';
-import SpotTheChange from '../../components/games/SpotTheChange';
-import Deduction from '../../components/games/Deduction';
-import LightsOut from '../../components/games/LightsOut';
-import SpellingFix from '../../components/games/SpellingFix';
-import WordRoots from '../../components/games/WordRoots';
-import PercentSnap from '../../components/games/PercentSnap';
-import RunningTotal from '../../components/games/RunningTotal';
-import GridRecall from '../../components/games/GridRecall';
-import TicTacToe from '../../components/games/TicTacToe';
-import MiniSudoku from '../../components/games/MiniSudoku';
-import TypingSprint from '../../components/games/TypingSprint';
-import BinaryBlitz from '../../components/games/BinaryBlitz';
-import SpeedSort from '../../components/games/SpeedSort';
+// Each game is downloaded when it is first opened, not with the hub: most visits play one or two.
+const MemoryMatch = lazy(() => import('../../components/games/MemoryMatch'));
+const SequenceRecall = lazy(() => import('../../components/games/SequenceRecall'));
+const NumberRecall = lazy(() => import('../../components/games/NumberRecall'));
+const CodeBreaker = lazy(() => import('../../components/games/CodeBreaker'));
+const NextInSequence = lazy(() => import('../../components/games/NextInSequence'));
+const OddOneOut = lazy(() => import('../../components/games/OddOneOut'));
+const WordScramble = lazy(() => import('../../components/games/WordScramble'));
+const SynonymMatch = lazy(() => import('../../components/games/SynonymMatch'));
+const SentenceGap = lazy(() => import('../../components/games/SentenceGap'));
+const MathSprint = lazy(() => import('../../components/games/MathSprint'));
+const QuickCompare = lazy(() => import('../../components/games/QuickCompare'));
+const MissingOperator = lazy(() => import('../../components/games/MissingOperator'));
+const ColourMatch = lazy(() => import('../../components/games/ColourMatch'));
+const SpotTheChange = lazy(() => import('../../components/games/SpotTheChange'));
+const Deduction = lazy(() => import('../../components/games/Deduction'));
+const LightsOut = lazy(() => import('../../components/games/LightsOut'));
+const SpellingFix = lazy(() => import('../../components/games/SpellingFix'));
+const WordRoots = lazy(() => import('../../components/games/WordRoots'));
+const PercentSnap = lazy(() => import('../../components/games/PercentSnap'));
+const RunningTotal = lazy(() => import('../../components/games/RunningTotal'));
+const GridRecall = lazy(() => import('../../components/games/GridRecall'));
+const TicTacToe = lazy(() => import('../../components/games/TicTacToe'));
+const MiniSudoku = lazy(() => import('../../components/games/MiniSudoku'));
+const TypingSprint = lazy(() => import('../../components/games/TypingSprint'));
+const BinaryBlitz = lazy(() => import('../../components/games/BinaryBlitz'));
+const SpeedSort = lazy(() => import('../../components/games/SpeedSort'));
 // The second wave.
-import ReverseRecall from '../../components/games/ReverseRecall';
-import SeenBefore from '../../components/games/SeenBefore';
-import ScaleBalance from '../../components/games/ScaleBalance';
-import ShapeMatrix from '../../components/games/ShapeMatrix';
-import AntonymMatch from '../../components/games/AntonymMatch';
-import IdiomSense from '../../components/games/IdiomSense';
-import NumberBonds from '../../components/games/NumberBonds';
-import RoundingRush from '../../components/games/RoundingRush';
-import DotCount from '../../components/games/DotCount';
-import MatchBack from '../../components/games/MatchBack';
-import SpinMatch from '../../components/games/SpinMatch';
-import LastStone from '../../components/games/LastStone';
-import TensePick from '../../components/games/TensePick';
-import SoundAlike from '../../components/games/SoundAlike';
-import FractionMatch from '../../components/games/FractionMatch';
-import ClockRead from '../../components/games/ClockRead';
+const ReverseRecall = lazy(() => import('../../components/games/ReverseRecall'));
+const SeenBefore = lazy(() => import('../../components/games/SeenBefore'));
+const ScaleBalance = lazy(() => import('../../components/games/ScaleBalance'));
+const ShapeMatrix = lazy(() => import('../../components/games/ShapeMatrix'));
+const AntonymMatch = lazy(() => import('../../components/games/AntonymMatch'));
+const IdiomSense = lazy(() => import('../../components/games/IdiomSense'));
+const NumberBonds = lazy(() => import('../../components/games/NumberBonds'));
+const RoundingRush = lazy(() => import('../../components/games/RoundingRush'));
+const DotCount = lazy(() => import('../../components/games/DotCount'));
+const MatchBack = lazy(() => import('../../components/games/MatchBack'));
+const SpinMatch = lazy(() => import('../../components/games/SpinMatch'));
+const LastStone = lazy(() => import('../../components/games/LastStone'));
+const TensePick = lazy(() => import('../../components/games/TensePick'));
+const SoundAlike = lazy(() => import('../../components/games/SoundAlike'));
+const FractionMatch = lazy(() => import('../../components/games/FractionMatch'));
+const ClockRead = lazy(() => import('../../components/games/ClockRead'));
 import GameLeaderboard from '../../components/games/GameLeaderboard';
 import { starsForGame, levelReached, pullProgress, markPlayed, lastPlayed, setGameXpTable, GAME_XP } from '../../components/games/levels';
 import { useHideLoop } from '../../../components/loopVisibility';
@@ -571,7 +572,9 @@ export default function Games() {
             </p>
           )}
           <PlayClockContext.Provider value={playClock}>
-            <Game onExit={() => setActive(null)} />
+            <Suspense fallback={<div className="flex min-h-[40vh] items-center justify-center"><span className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" aria-label="Loading the game" /></div>}>
+              <Game onExit={() => setActive(null)} />
+            </Suspense>
           </PlayClockContext.Provider>
         </div>
       )}

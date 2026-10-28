@@ -5,14 +5,21 @@
  * translation. The choice is remembered on this device.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Languages, Check } from 'lucide-react';
+import { Check, Languages } from 'lucide-react';
 import { startTranslating } from '../i18n/translator';
+import './languageToggle.css';
 
 const LANGS = [
     ['en', 'English', 'English'],
     ['hi', 'हिन्दी', 'Hindi'],
     ['kn', 'ಕನ್ನಡ', 'Kannada']
 ];
+// Each language's own letter and colour, for its tile in the menu.
+const LOOK = {
+    en: { glyph: 'Aa', tile: 'from-sky-400 to-indigo-500', soft: 'bg-indigo-50' },
+    hi: { glyph: 'अ', tile: 'from-amber-400 to-orange-500', soft: 'bg-orange-50' },
+    kn: { glyph: 'ಕ', tile: 'from-rose-400 to-fuchsia-500', soft: 'bg-rose-50' }
+};
 const KEY = 'yati-language';
 
 const read = () => { try { return localStorage.getItem(KEY) || 'en'; } catch { return 'en'; } };
@@ -58,18 +65,36 @@ export default function LanguageToggle({ className = '' }) {
         <div ref={box} className={`relative ${className}`} translate="no">
             <button type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label={`Language: ${current[2]}`} title="Language"
                 className="relative flex h-10 items-center gap-1.5 rounded-full px-2.5 text-slate-600 transition-colors hover:bg-slate-100 hover:text-indigo-700">
-                <Languages size={20} aria-hidden="true" />
-                <span className="text-xs font-bold uppercase">{current[0]}</span>
+                {/* A badge of two scripts, English and Hindi, rather than a stock icon: it says "language" at a glance. */}
+                <span aria-hidden="true" className="relative flex h-6 w-7 items-center justify-center" translate="no">
+                    <span className="absolute top-0 left-0 flex h-[1.1rem] w-[1.1rem] items-center justify-center rounded-md bg-indigo-600 text-[0.62rem] font-black leading-none text-white">A</span>
+                    <span className="absolute right-0 bottom-0 flex h-[1.1rem] w-[1.1rem] items-center justify-center rounded-md bg-white text-[0.7rem] font-black leading-none text-indigo-600 ring-1 ring-indigo-200">अ</span>
+                </span>
             </button>
             {open && (
-                <div role="menu" className="absolute right-0 top-12 z-[70] w-48 overflow-hidden rounded-2xl border border-slate-100 bg-white py-1.5 shadow-2xl">
-                    {LANGS.map(([code, native, english]) => (
-                        <button key={code} type="button" role="menuitemradio" aria-checked={lang === code} onClick={() => choose(code)}
-                            className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-slate-50 ${lang === code ? 'font-bold text-indigo-700' : 'text-slate-700'}`}>
-                            <span><span className="block">{native}</span>{native !== english && <span className="block text-[11px] font-normal text-slate-400">{english}</span>}</span>
-                            {lang === code && <Check size={16} aria-hidden="true" />}
-                        </button>
-                    ))}
+                <div role="menu" aria-label="Choose language"
+                    className="lt-pop absolute right-0 top-12 z-[70] w-52 origin-top-right rounded-2xl bg-white p-1.5 shadow-[0_16px_40px_-12px_rgba(30,27,75,0.35)] ring-1 ring-slate-900/5">
+                    <p className="flex items-center gap-1.5 px-2.5 pt-1.5 pb-1 text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase">
+                        <Languages size={12} aria-hidden="true" /> Language
+                    </p>
+                    {LANGS.map(([code, native, english], i) => {
+                        const look = LOOK[code];
+                        const on = lang === code;
+                        return (
+                            <button key={code} type="button" role="menuitemradio" aria-checked={on} onClick={() => choose(code)}
+                                className={`lt-item group flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors ${on ? look.soft : 'hover:bg-slate-50'}`}
+                                style={{ animationDelay: `${0.03 + i * 0.04}s` }}>
+                                <span aria-hidden="true" className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${look.tile} text-sm font-black text-white shadow-sm transition-transform group-hover:scale-105`}>
+                                    {look.glyph}
+                                </span>
+                                <span className="min-w-0 flex-1 leading-tight">
+                                    <span className="block text-sm font-bold text-slate-800">{native}</span>
+                                    {native !== english && <span className="block text-[11px] text-slate-400">{english}</span>}
+                                </span>
+                                {on && <Check size={15} strokeWidth={3} className="shrink-0 text-indigo-600" aria-hidden="true" />}
+                            </button>
+                        );
+                    })}
                 </div>
             )}
             {error && <p role="alert" className="absolute right-0 top-12 z-[70] w-56 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow">{error}</p>}

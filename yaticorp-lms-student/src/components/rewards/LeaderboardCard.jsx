@@ -15,6 +15,7 @@ import { num } from './format';
 import LeaderboardCelebration from './LeaderboardCelebration';
 import LeaderboardPodium, { Avatar } from './LeaderboardPodium';
 import Dropdown from '../Dropdown';
+import useLive from '../../live/useLive';
 
 const PERIODS = [['daily', 'Today'], ['weekly', 'This Week'], ['monthly', 'This Month'], ['all', 'All Time']];
 // How many students the card asks for: the server's own most.
@@ -31,6 +32,8 @@ export default function LeaderboardCard() {
         window.addEventListener('yati:progress-changed', bump);
         return () => window.removeEventListener('yati:progress-changed', bump);
     }, []);
+    // Anyone's XP moving the standings: drawn again live.
+    useLive('leaderboard', useCallback(() => setTick((t) => t + 1), []));
     useEffect(() => {
         let cancelled = false;
         api.get('/rewards/leaderboard', { params: { period, scope: 'global', limit: ALL } })

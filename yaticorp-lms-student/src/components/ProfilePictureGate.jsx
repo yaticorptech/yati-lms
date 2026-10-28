@@ -14,10 +14,11 @@
  * is the student's to choose, and the gate stood between the administrator
  * and the page they came to look at.
  */
-import { useContext, useEffect, useState } from 'react';
+import { lazy, Suspense, useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/api';
-import PhotoPicker from './PhotoPicker';
+// Fetched only for a student who still has to choose a photo — with its cropper, it is not small.
+const PhotoPicker = lazy(() => import('./PhotoPicker'));
 import { ADMIN_VIEW_KEY } from '../utils/sessionExpiry';
 
 const adminIsViewing = () => {
@@ -46,5 +47,5 @@ export default function ProfilePictureGate() {
         return () => { alive = false; };
     }, [user, has, setUser, viewing]);
 
-    return needed && user && !has && !viewing ? <PhotoPicker required /> : null;
+    return needed && user && !has && !viewing ? <Suspense fallback={null}><PhotoPicker required /></Suspense> : null;
 }

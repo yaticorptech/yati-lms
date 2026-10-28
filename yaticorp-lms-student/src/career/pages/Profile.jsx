@@ -11,8 +11,6 @@ import Button from '../components/ui/Button';
 import Card, { CardHeader } from '../components/ui/Card';
 import ProgressArt from '../components/progress/ProgressArt';
 import { SkillsArt } from '../components/ui/PanelArt';
-import ProgressStats from '../components/progress/ProgressStats';
-import { completedDay, shiftKey, todayKey } from '../utils/progress';
 import useLevelProgress from '../context/useLevelProgress';
 import LoadError from '../components/ui/LoadError';
 import { phaseStates, journeyPercent, phaseTitle, parseChoices } from '../utils/roadmap';
@@ -524,10 +522,6 @@ export default function Profile() {
   // distance. "Day 12 of your plan" does not tell a student whether they are
   // near the end of school or halfway through a master's.
   const [roadmap, setRoadmap] = useState(null);
-  // Completion history, for the seven-day line and bars in the stat cards.
-  // /profile/summary carries totals only, and a sparkline drawn from a total
-  // would be a decoration rather than a reading.
-  const [history, setHistory] = useState([]);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [redoingId, setRedoingId] = useState(null);
   // Above the early return below: hooks must run on every render.
@@ -580,7 +574,6 @@ export default function Profile() {
     // Each on its own failure: a student with a summary but no roadmap keeps
     // the rest of the page.
     api.get('/roadmap').then(({ data }) => setRoadmap(data)).catch(() => setRoadmap(null));
-    api.get('/tasks/history').then(({ data }) => setHistory(data || [])).catch(() => setHistory([]));
   }, [userId, loadSummary]);
 
   const retrySummary = async () => {
@@ -626,28 +619,10 @@ export default function Profile() {
     ? parseChoices(currentPhaseTitle)?.lead || currentPhaseTitle
     : null;
 
-  // Completions per day for the last seven days, counted from history — on
-  // the platform's calendar (the server's `completedDay`), so a phone on
-  // another timezone does not shift a late finish onto the next day's bar.
-  const today = todayKey();
-  const series = Array.from({ length: 7 }, (_, i) => {
-    const key = shiftKey(today, -(6 - i));
-    return history.filter(
-      (t) => t.status === 'Completed' && t.completedAt && completedDay(t) === key
-    ).length;
-  });
-
-  // Distinct days a task was actually finished. daysPlanned counts how long
-  // the plan has existed, which is a different thing — pairing it with the
-  // completed total printed "13 tasks across 0 days".
-  const activeDays = new Set(
-    history
-      .filter((t) => t.status === 'Completed' && t.completedAt)
-      .map((t) => completedDay(t))
-  ).size;
 
   return (
-    <div className="fp-enter grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_16rem]">
+    <div className="fp-enter space-y-5">
+      {/* Full width since 2026-10-27: one column. */}
       <div className="min-w-0 space-y-5">
         {/* ---- Identity, level, and what it is all pointed at ----------- */}
         <Card data-mascot-target="progress-summary" padded={false} className="overflow-hidden">
@@ -773,58 +748,7 @@ export default function Profile() {
 
         {summary && (
           <>
-            {summary.skills?.length > 0 && (
-              <Card>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <CardHeader
-                    icon={TrendingUp}
-                    title="Skills"
-                    accent="brand"
-                  />
-                  <Link
-                    to="/career/skills"
-                    className="group inline-flex shrink-0 items-center gap-1 text-xs font-black text-journey-700 hover:underline"
-                  >
-                    Open skills
-                    <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-                  </Link>
-                </div>
-                <SkillsPanel skills={summary.skills} />
-              </Card>
-            )}
-
-            {summary.achievements?.length > 0 && (
-              <Card>
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <CardHeader icon={Trophy} title="Achievements" accent="pink" />
-                  <Link
-                    to="/career/badges"
-                    className="group inline-flex shrink-0 items-center gap-1 text-xs font-black text-journey-700 hover:underline"
-                  >
-                    See all rewards
-                    <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-                  </Link>
-                </div>
-                <ul className="grid gap-3 sm:grid-cols-2">
-                  {summary.achievements.map((item, i) => (
-                    <li
-                      key={item._id}
-                      className="fp-lift animate-fade-in-up flex items-start gap-3 rounded-2xl bg-gradient-to-br from-fuchsia-50 to-pink-50 p-3.5 ring-1 ring-pink-200 ring-inset"
-                      style={{ animationDelay: `${i * 0.05}s` }}
-                    >
-                      <span className="fp-reward-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-md shadow-pink-500/30">
-                        <Trophy className="h-5 w-5" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-black text-ink-900">{item.title}</p>
-                        <p className="mt-0.5 text-sm text-ink-500">{item.description}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            )}
-
+            {/* The Skills and Achievements cards went on 2026-10-27: Skills and Rewards are their own tabs. */}
             <Card
               id="still-to-do"
               className="scroll-mt-4"
@@ -856,7 +780,7 @@ export default function Profile() {
         )}
       </div>
 
-      {summary && <ProgressStats stats={stats} series={series} activeDays={activeDays} />}
+      {/* The stats row (streak, tasks done, completion rate, still to do) went on 2026-10-27. */}
     </div>
   );
 }

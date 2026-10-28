@@ -90,18 +90,109 @@
   100% { transform: translateY(0) scaleY(1); }
 }
 
-/* ---- The goal's waves (JourneyStairs) -------------------------------------
- * Rings that grow out from the trophy and fade, three of them a beat apart.
+/* ---- The current step's sheen (JourneyStairs) -----------------------------
+ * A band of light crosses the plaque every few seconds, then rests.
  */
-.ch-hero .ch-wave {
-  opacity: 0;
-  animation: ch-wave 2.4s ease-out infinite;
+.ch-hero .ch-sheen {
+  transform: translateX(-150%) skewX(-15deg);
+  animation: ch-sheen 3.2s ease-in-out 1s infinite;
 }
-@keyframes ch-wave {
-  0%   { transform: scale(0.55); opacity: 0.9; }
-  70%  { opacity: 0.25; }
-  100% { transform: scale(2.1); opacity: 0; }
+@keyframes ch-sheen {
+  0%        { transform: translateX(-150%) skewX(-15deg); }
+  40%, 100% { transform: translateX(420%) skewX(-15deg); }
 }
+
+/* ---- The steps, the summit and the climber settle in (JourneyStairs) ------
+ * The plaques rise into place from the foot up, a beat apart (delay set per
+ * plaque); the step being worked on then breathes; the golden summit settles
+ * in once; the climber shifts its weight while it waits.
+ */
+.ch-hero .ch-step { animation: ch-step-in 0.6s var(--ch-ease) both; }
+@keyframes ch-step-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+.ch-hero .ch-now { animation: ch-step-in 0.6s var(--ch-ease) both, ch-now 2.6s ease-in-out 1.2s infinite; }
+@keyframes ch-now {
+  0%, 100% { box-shadow: 0 0 0 5px rgba(251, 191, 36, 0.22), 0 14px 30px -10px rgba(217, 119, 6, 0.45); }
+  50%      { box-shadow: 0 0 0 10px rgba(251, 191, 36, 0.08), 0 14px 30px -10px rgba(217, 119, 6, 0.65); }
+}
+/* The golden summit eases in once and then holds still. */
+.ch-hero .ch-summit { animation: ch-summit-in 0.7s var(--ch-ease) 0.5s both; transform-origin: 50% 85%; }
+@keyframes ch-summit-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
+.ch-hero .ch-bob { animation: ch-bob 3.2s ease-in-out 1.5s infinite; }
+@keyframes ch-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+/* ---- The summit celebration (JourneyStairs) -----------------------------
+ * In order: the summit brightens, waves radiate, paper bursts and falls, the
+ * goal pill catches a golden highlight, a light sweeps the final step; then a
+ * quiet aura and one slow wave stay. Each one-shot class runs once and holds
+ * its last frame; the ambient ones loop gently.
+ */
+.ch-hero .ch-summit-flare { animation: ch-summit-flare 1.9s ease-out both; }
+@keyframes ch-summit-flare {
+  0%   { opacity: 0; transform: scale(0.7); }
+  30%  { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+.ch-hero .ch-aura-burst { animation: ch-aura-burst 1.8s ease-out both; }
+@keyframes ch-aura-burst {
+  0%   { opacity: 0.6; transform: scale(1); }
+  35%  { opacity: 1; transform: scale(1.35); }
+  100% { opacity: 0.75; transform: scale(1.1); }
+}
+.ch-hero .ch-aura { animation: ch-aura 4.5s ease-in-out infinite; }
+@keyframes ch-aura {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.12); }
+}
+.ch-hero .ch-wave-once { opacity: 0; animation: ch-wave-once 1.9s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+@keyframes ch-wave-once {
+  0%   { opacity: 0.95; transform: scale(0.9); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
+.ch-hero .ch-wave-soft { opacity: 0; animation: ch-wave-soft 5s ease-out 0.4s infinite; }
+@keyframes ch-wave-soft {
+  0%   { opacity: 0.5; transform: scale(0.95); }
+  60%  { opacity: 0; transform: scale(1.8); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+.ch-hero .ch-paper { opacity: 0; margin: -3px 0 0 -2px; animation: ch-paper 2.5s cubic-bezier(0.16, 0.7, 0.3, 1) both; }
+@keyframes ch-paper {
+  0%   { opacity: 0; transform: translate(0, 0) rotate(0deg) scale(0.4); }
+  8%   { opacity: 1; }
+  38%  { opacity: 1; transform: translate(var(--dx), var(--dy)) rotate(calc(var(--spin) * 0.45)) scale(1); }
+  100% { opacity: 0; transform: translate(calc(var(--dx) * 1.15), calc(var(--dy) + var(--fall))) rotate(var(--spin)) scale(0.85); }
+}
+.ch-hero .ch-gold-mote { opacity: 0; animation: ch-gold-mote 3.8s ease-out infinite; }
+@keyframes ch-gold-mote {
+  0%   { opacity: 0; transform: translateY(0) scale(0.6); }
+  20%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(var(--rise)) scale(1); }
+}
+.ch-hero .ch-goal-glow { animation: ch-goal-glow 1.9s ease-out both; }
+@keyframes ch-goal-glow {
+  0%   { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+  30%  { box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.55), 0 0 22px 2px rgba(251, 191, 36, 0.75); }
+  100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0), 0 6px 18px -8px rgba(30, 27, 75, 0.45); }
+}
+.ch-hero .ch-gold-sheen { transform: translateX(-120%) skewX(-15deg); animation: ch-gold-sheen 1.4s ease-in-out both; }
+@keyframes ch-gold-sheen {
+  0%   { transform: translateX(-120%) skewX(-15deg); opacity: 1; }
+  100% { transform: translateX(260%) skewX(-15deg); opacity: 1; }
+}
+
+/* ---- The climbing robot (JourneyStairs, with the clean scene) -------------
+ * Glides from ledge to ledge when the current step changes; the hop as it
+ * lands is .ch-hop above.
+ */
+.ch-hero .ch-climber { transition: left 1.2s cubic-bezier(0.22, 1, 0.36, 1), top 1.2s cubic-bezier(0.22, 1, 0.36, 1), height 1.2s cubic-bezier(0.22, 1, 0.36, 1); }
 
 /* ---- Accessibility ------------------------------------------------------
  * Asked to reduce motion, everything above stops and anything an entrance had
@@ -119,7 +210,28 @@
     opacity: 1 !important;
     transform: none !important;
   }
-  .ch-hero .ch-wave {
+  /* The robot moves to its new ledge at once (its position is a transform, so it is kept). */
+  .ch-hero .ch-climber { transition: none; }
+  .ch-hero .ch-trail,
+  .ch-hero .ch-sheen,
+  .ch-hero .ch-wave-once,
+  .ch-hero .ch-wave-soft,
+  .ch-hero .ch-paper,
+  .ch-hero .ch-gold-mote,
+  .ch-hero .ch-gold-sheen {
     display: none;
+  }
+  /* The celebration, still: a brighter glow and the pill's golden ring, without movement. */
+  .ch-hero .ch-aura-burst,
+  .ch-hero .ch-aura { animation: none !important; opacity: 0.85; }
+  .ch-hero .ch-summit-flare { animation: none !important; opacity: 0.6; }
+  .ch-hero .ch-goal-glow { animation: none !important; box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.5), 0 0 16px rgba(251, 191, 36, 0.6); }
+  .ch-hero .ch-step,
+  .ch-hero .ch-now,
+  .ch-hero .ch-summit,
+  .ch-hero .ch-bob {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
