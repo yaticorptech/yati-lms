@@ -1,12 +1,13 @@
 /**
  * My Units: the Scouts & Guides units of the teacher's organization they lead
  * (the organization chooses). The leader approves students asking to join,
- * adds the unit's events — they go on the members' calendar — and marks who
- * came. Creating units, choosing leaders and moving members stay with the
+ * adds the unit's events — they go on the members' calendar — marks who
+ * came, and records ranks passed, badges and trainings, which the
+ * organization approves. Creating units, choosing leaders and moving members stay with the
  * organization. Server: src/nccnss/leader.js.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Compass, Plus, CalendarDays, Trash2, ArrowLeft, Users, MapPin } from 'lucide-react';
+import { Compass, Plus, CalendarDays, Trash2, ArrowLeft, Users, MapPin, Award } from 'lucide-react';
 import teacherApi, { messageOf } from '../teacherSession';
 import { PageHeader, Card, CardTitle, EmptyState, Loading, ErrorNote, OkNote, Field, Modal, Badge } from '../ui';
 import { btn, inputClass, fmtDate } from '../kit';
@@ -82,6 +83,52 @@ const AttendanceModal = ({ unitId, event, members, onClose, onDone }) => {
     );
 };
 
+const AWARD_TYPES = [['rank', 'Rank'], ['badge', 'Proficiency badge'], ['training', 'Training']];
+
+/** Propose a rank, badge or training for a member; the organization approves it. */
+const AwardModal = ({ unitId, member, ranks, onClose, onDone }) => {
+    const [form, setForm] = useState({ type: ranks.length ? 'rank' : 'badge', name: '', date: today(), examiner: '', certificateNo: '', note: '' });
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const set = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'type' ? { name: '' } : {}) }));
+    const submit = async (e) => {
+        e.preventDefault();
+        setBusy(true); setError('');
+        try { onDone((await teacherApi.post(`/scout-units/${unitId}/members/${member._id}/awards`, form)).data.message); }
+        catch (err) { setError(messageOf(err, 'Could not record it.')); setBusy(false); }
+    };
+    return (
+        <Modal title={`Record for ${member.student.name}`} onClose={onClose}>
+            <form onSubmit={submit} className="space-y-3">
+                <Field id="aw-type" label="What">
+                    <select id="aw-type" className={inputClass} value={form.type} onChange={(e) => set('type', e.target.value)}>
+                        {AWARD_TYPES.filter(([v]) => v !== 'rank' || ranks.length).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                </Field>
+                <Field id="aw-name" label={form.type === 'rank' ? 'Rank passed' : form.type === 'badge' ? 'Badge' : 'Training'}>
+                    {form.type === 'rank' ? (
+                        <select id="aw-name" className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} required>
+                            <option value="">Choose…</option>
+                            {ranks.map((r) => <option key={r} value={r}>{r}{member.rank === r ? ' (current)' : ''}</option>)}
+                        </select>
+                    ) : <input id="aw-name" className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={form.type === 'badge' ? 'e.g. First Aid, Camper' : 'e.g. District camp'} required />}
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                    <Field id="aw-date" label="Date"><input id="aw-date" type="date" className={inputClass} value={form.date} max={today()} onChange={(e) => set('date', e.target.value)} required /></Field>
+                    <Field id="aw-cert" label="Certificate no." optional><input id="aw-cert" className={inputClass} value={form.certificateNo} onChange={(e) => set('certificateNo', e.target.value)} /></Field>
+                </div>
+                <Field id="aw-exam" label="Tested / awarded by" optional><input id="aw-exam" className={inputClass} value={form.examiner} onChange={(e) => set('examiner', e.target.value)} /></Field>
+                <p className="text-xs text-slate-500">Your organization approves it before it shows on their record.</p>
+                <ErrorNote>{error}</ErrorNote>
+                <div className="flex justify-end gap-2 pt-1">
+                    <button type="button" onClick={onClose} className={btn.secondary}>Cancel</button>
+                    <button type="submit" disabled={busy} className={btn.primary}>{busy ? 'Sending…' : 'Send for approval'}</button>
+                </div>
+            </form>
+        </Modal>
+    );
+};
+
 const UnitDetail = ({ id, onBack }) => {
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
@@ -89,11 +136,15 @@ const UnitDetail = ({ id, onBack }) => {
     const [adding, setAdding] = useState(false);
     const [marking, setMarking] = useState(null);
     const [busyId, setBusyId] = useState(null);
+    const [recording, setRecording] = useState(null);
     const [now] = useState(() => Date.now());
 
     const load = useCallback(() => teacherApi.get(`/scout-units/${id}`).then((r) => { setData(r.data); setError(''); }).catch((err) => setError(messageOf(err, 'Could not load the unit.'))), [id]);
     useEffect(() => { load(); }, [load]);
-    const done = (msg) => { setAdding(false); setMarking(null); setOk(msg); load(); };
+    const done = (msg) => { setAdding(false); setMarking(null); setRecording(null); setOk(msg); load(); };
+    const withdraw = async (a) => {
+        try { done((await teacherApi.delete(`/scout-units/${id}/awards/${a._id}`)).data.message); } catch (err) { setError(messageOf(err, 'Could not withdraw.')); }
+    };
     const remove = async (e) => {
         if (!window.confirm(`Delete "${e.title}"?`)) return;
         try { done((await teacherApi.delete(`/scout-units/${id}/events/${e._id}`)).data.message); } catch (err) { setError(messageOf(err, 'Could not delete.')); }
@@ -168,7 +219,14 @@ const UnitDetail = ({ id, onBack }) => {
                                         <span className="truncate font-semibold text-slate-800">{m.student.name}</span>
                                         {m.summary?.attendance != null && <Badge tone={m.summary.attendance < m.summary.minAttendance ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-800'}>{m.summary.attendance}%</Badge>}
                                     </div>
-                                    {m.summary && <p className="text-xs text-slate-500">{m.summary.hours} h · {m.summary.camps} camp{m.summary.camps === 1 ? '' : 's'}</p>}
+                                    <p className="text-xs text-slate-500">
+                                        {m.rank ? <span className="font-semibold text-amber-700">{m.rank}</span> : 'No rank yet'}
+                                        {m.summary && ` · ${m.summary.hours} h · ${m.summary.camps} camp${m.summary.camps === 1 ? '' : 's'}`}
+                                    </p>
+                                    {(m.awards || []).filter((a) => a.mine).map((a) => (
+                                        <p key={a._id} className="text-xs text-amber-700">Waiting for approval: {a.name} <button type="button" onClick={() => withdraw(a)} className="font-semibold underline">Withdraw</button></p>
+                                    ))}
+                                    <button type="button" onClick={() => setRecording(m)} className="mt-0.5 inline-flex items-center gap-1 text-xs font-bold text-emerald-700"><Award size={12} /> Record rank / badge</button>
                                 </li>
                             ))}
                         </ul>
@@ -176,17 +234,39 @@ const UnitDetail = ({ id, onBack }) => {
                 </Card>
             </div>
             {adding && <EventModal unitId={id} onClose={() => setAdding(false)} onDone={done} />}
+            {recording && <AwardModal unitId={id} member={recording} ranks={data.ranks || []} onClose={() => setRecording(null)} onDone={done} />}
             {marking && <AttendanceModal unitId={id} event={marking} members={members} onClose={() => setMarking(null)} onDone={done} />}
         </div>
     );
 };
 
+const NOTICE_KIND = { exam: 'Exam / test', camp: 'Camp', training: 'Training', event: 'Event', rules: 'Rules & regulations', notice: 'Notice' };
+
+/** The exams, camps and events BSG published for my units' Scouts & Guides, with their rules. */
+const Notices = ({ notices }) => (notices?.length ? (
+    <Card>
+        <CardTitle icon={CalendarDays}>BSG exams, camps &amp; events</CardTitle>
+        <ul className="divide-y divide-slate-100">
+            {notices.map((n) => (
+                <li key={n._id} className="py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{NOTICE_KIND[n.kind] || 'Notice'} · {n.from}</p>
+                    <p className="font-semibold text-slate-800">{n.title}</p>
+                    <p className="text-xs text-slate-500">{fmtDate(n.date)}{n.endDate ? ` – ${fmtDate(n.endDate)}` : ''}{n.place ? ` · ${n.place}` : ''}{n.minRank ? ` · Rank needed: ${n.minRank}` : ''}{n.sections?.length ? ` · ${n.sections.join(', ')}` : ''}</p>
+                    {n.rules?.length > 0 && <ul className="mt-1 list-disc pl-5 text-sm text-slate-600">{n.rules.map((r, i) => <li key={i}>{r}</li>)}</ul>}
+                    {n.details && <p className="mt-1 whitespace-pre-line text-sm text-slate-600">{n.details}</p>}
+                </li>
+            ))}
+        </ul>
+    </Card>
+) : null);
+
 export default function TeacherScoutUnits() {
     const [units, setUnits] = useState(null);
+    const [notices, setNotices] = useState([]);
     const [error, setError] = useState('');
     const [open, setOpen] = useState(null);
 
-    const load = useCallback(() => teacherApi.get('/scout-units').then((r) => { setUnits(r.data.units); setError(''); }).catch((err) => setError(messageOf(err, 'Could not load your units.'))), []);
+    const load = useCallback(() => teacherApi.get('/scout-units').then((r) => { setUnits(r.data.units); setNotices(r.data.notices || []); setError(''); }).catch((err) => setError(messageOf(err, 'Could not load your units.'))), []);
     useEffect(() => { load(); }, [load]);
 
     if (open) return <UnitDetail id={open} onBack={() => { setOpen(null); load(); }} />;
@@ -214,6 +294,7 @@ export default function TeacherScoutUnits() {
                     ))}
                 </div>
             )}
+            <Notices notices={notices} />
         </div>
     );
 }

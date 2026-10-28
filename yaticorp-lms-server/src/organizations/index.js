@@ -37,6 +37,8 @@
  *     PUT    /me/requests/:requestId     approve or reject
  *     *      /me/teachers/…              its teachers and their join requests (src/teacher/orgAdmin.js)
  *     *      /me/nccnss/…                NCC/NSS members, activities, events (src/nccnss/orgAdmin.js)
+ *     *      /me/users, /me/audit        its users with full rights, and who did what (./users.js)
+ *     *      /me/bsg/…                   BSG notices: an office publishes, everyone reads the feed (src/nccnss/notices.js)
  *
  *   Organization admin, before approval (protectOrgAdmin only)
  *     GET    /me/status                  where my application stands
@@ -119,7 +121,10 @@ router.get('/me/status', (req, res) => {
             status: req.organization.status,
             statusReason: req.organization.statusReason || '',
             typeLabel: Organization.TYPE_LABELS[req.organization.organizationType] || 'Other',
-            registeredAt: req.organization.createdAt
+            registeredAt: req.organization.createdAt,
+            // A Bharat Scouts & Guides office: the app shows its own menu (notices first).
+            bsgOffice: req.organization.bsgOffice || '',
+            state: req.organization.state || ''
         },
         // A teacher signed in to the organization panel: the app shows them
         // only what they may use, and Research when they have the teacher dashboard too.
@@ -140,6 +145,7 @@ router.get('/me/research-session', async (req, res) => {
         const { Teacher } = require('../teacher/models');
         const teacher = await Teacher.findOne({ _id: req.admin.staffTeacherId, organizationId: req.organization._id, status: 'active' });
         if (!teacher) return res.status(403).json({ message: 'Your teacher account is not active in this organization.' });
+        if (!teacher.cardNumber) return res.status(403).json({ code: 'NO_RESEARCH', message: 'Research comes with an AI card. This teacher account runs clubs and Scouts units only.' });
         res.json({ token: generateToken(teacher._id, 'teacher'), teacher: require('../teacher/auth').view(teacher) });
     } catch (error) {
         console.error('[organizations] research session failed:', error.message);
@@ -190,6 +196,10 @@ router.put('/me/requests/:requestId', orgCtrl.decideRequest);
 router.use('/me/teachers', require('../teacher/orgAdmin'));
 // NCC and NSS: members, activities to approve, events and attendance (src/nccnss/).
 router.use('/me/nccnss', require('../nccnss/orgAdmin'));
+// Its users (full-rights sign-ins to this panel) and its audit log (./users.js).
+router.use('/me', require('./users'));
+// Bharat Scouts & Guides notices: an office publishes, every organization reads its feed (src/nccnss/notices.js).
+router.use('/me/bsg', require('../nccnss/notices'));
 
 // ── Organization admin: its own courses ─────────────────────────────────────
 // The platform's course-building code, fenced: courses must be switched on by

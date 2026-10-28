@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useTeacher, hasResearch } from './teacher/useTeacher';
 import useJobsAccess from './hooks/useJobsAccess';
 import JobsLockedNotice from './jobs/JobsLockedNotice';
 import { useContext } from 'react';
@@ -107,6 +108,9 @@ const TeacherWritingEditor = React.lazy(() => import('./teacher/pages/WritingEdi
 const TeacherPlagiarism = React.lazy(() => import('./teacher/pages/Plagiarism'));
 const TeacherProfile = React.lazy(() => import('./teacher/pages/TeacherProfile'));
 const teacherPage = (Page) => <React.Suspense fallback={<YatiLoader label="Loading this page" />}><Page /></React.Suspense>;
+// The research pages need an AI card; a teacher without one (a club or Scouts leader) is sent to their units.
+const ResearchOnly = ({ children }) => (hasResearch(useTeacher().teacher) ? children : <Navigate to="/teacher/scout-units" replace />);
+const researchPage = (Page) => <ResearchOnly>{teacherPage(Page)}</ResearchOnly>;
 
 // Only the sign-in page is in the first download. Everything else — the
 // dashboard too — is fetched when it is first opened, so a page brings only
@@ -476,16 +480,16 @@ function App() {
       </Route>
       <Route path="/teacher/sso" element={<TeacherSso />} />
       <Route path="/teacher" element={<TeacherRoute><React.Suspense fallback={<YatiLoader fullScreen label="Opening your dashboard" />}><TeacherProvider><TeacherLayout /></TeacherProvider></React.Suspense></TeacherRoute>}>
-        <Route index element={teacherPage(TeacherDashboard)} />
-        <Route path="methods" element={teacherPage(TeacherMethodologies)} />
-        <Route path="methods/:key" element={teacherPage(TeacherMethodologies)} />
-        <Route path="research-path" element={teacherPage(TeacherResearchPath)} />
-        <Route path="publications" element={teacherPage(TeacherPublications)} />
-        <Route path="thesis" element={teacherPage(TeacherThesisList)} />
-        <Route path="thesis/:id" element={teacherPage(TeacherThesisEditor)} />
-        <Route path="writing" element={teacherPage(TeacherWriting)} />
-        <Route path="writing/:id" element={teacherPage(TeacherWritingEditor)} />
-        <Route path="plagiarism" element={teacherPage(TeacherPlagiarism)} />
+        <Route index element={researchPage(TeacherDashboard)} />
+        <Route path="methods" element={researchPage(TeacherMethodologies)} />
+        <Route path="methods/:key" element={researchPage(TeacherMethodologies)} />
+        <Route path="research-path" element={researchPage(TeacherResearchPath)} />
+        <Route path="publications" element={researchPage(TeacherPublications)} />
+        <Route path="thesis" element={researchPage(TeacherThesisList)} />
+        <Route path="thesis/:id" element={researchPage(TeacherThesisEditor)} />
+        <Route path="writing" element={researchPage(TeacherWriting)} />
+        <Route path="writing/:id" element={researchPage(TeacherWritingEditor)} />
+        <Route path="plagiarism" element={researchPage(TeacherPlagiarism)} />
         <Route path="clubs" element={teacherPage(TeacherClubs)} />
         <Route path="scout-units" element={teacherPage(TeacherScoutUnits)} />
         <Route path="profile" element={teacherPage(TeacherProfile)} />

@@ -9,7 +9,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, FlaskConical, Route, BookMarked, FileText, ShieldCheck, PenLine, LogOut, Menu, X, Users, Compass
 } from 'lucide-react';
-import { useTeacher } from './useTeacher';
+import { useTeacher, hasResearch } from './useTeacher';
 import useBackClose from '../native/useBackClose';
 import TeacherBottomNav from './TeacherBottomNav';
 import { colorOf } from './kit';
@@ -41,13 +41,19 @@ const NAV = [
 ];
 const BOTTOM = ['/teacher', '/teacher/research-path', '/teacher/publications', '/teacher/thesis', '/teacher/writing'];
 const ALL = NAV.flatMap((g) => g.items);
+// A teacher without an AI card (a club or Scouts leader) has only their units and clubs.
+const ACTIVITIES_NAV = [{ title: 'Activities', items: [
+    { to: '/teacher/scout-units', label: 'My Units', short: 'Units', icon: Compass, color: 'amber' },
+    { to: '/teacher/clubs', label: 'My Clubs', short: 'Clubs', icon: Users, color: 'violet' }
+] }];
+
 
 // Every item's icon in its section's colour; the current page's row tinted with it.
 const navClass = (color) => ({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive ? colorOf(color).nav : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`;
 
-const NavList = ({ onPick }) => (
+const NavList = ({ onPick, nav }) => (
     <nav aria-label="Teacher" className="space-y-6">
-        {NAV.map((group, i) => (
+        {nav.map((group, i) => (
             <div key={group.title || i}>
                 {group.title && <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{group.title}</p>}
                 <div className="space-y-0.5">
@@ -87,6 +93,8 @@ const SignOut = ({ onClick }) => (
 
 export default function TeacherLayout() {
     const { teacher, signOut } = useTeacher();
+    const research = hasResearch(teacher);
+    const nav = research ? NAV : ACTIVITIES_NAV;
     const [menuOpen, setMenuOpen] = useState(false);
     const location = useLocation();
     useBackClose(() => setMenuOpen(false), menuOpen);
@@ -105,7 +113,7 @@ export default function TeacherLayout() {
             {/* Sidebar */}
             <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-slate-200 bg-white sidebar:flex">
                 <div className="flex h-16 items-center border-b border-slate-200 px-5"><Brand /></div>
-                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5"><NavList /></div>
+                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5"><NavList nav={nav} /></div>
                 <div className="space-y-1 border-t border-slate-200 p-3">
                     <Me teacher={teacher} />
                     <SignOut onClick={signOut} />
@@ -129,7 +137,7 @@ export default function TeacherLayout() {
                             <span className="text-sm font-semibold text-slate-900">Menu</span>
                             <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu" className="rounded-full p-2 text-slate-500 hover:bg-slate-100"><X size={20} /></button>
                         </div>
-                        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4"><NavList onPick={() => setMenuOpen(false)} /></div>
+                        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4"><NavList nav={nav} onPick={() => setMenuOpen(false)} /></div>
                         <div className="space-y-1 border-t border-slate-200 p-3" onClick={(e) => { if (e.target.closest('a')) setMenuOpen(false); }}>
                             <Me teacher={teacher} />
                             <SignOut onClick={signOut} />
@@ -145,7 +153,7 @@ export default function TeacherLayout() {
             </main>
 
             {/* Phone bottom bar, in the students' style */}
-            <TeacherBottomNav items={BOTTOM.map((to) => ALL.find((x) => x.to === to))} />
+            <TeacherBottomNav items={research ? BOTTOM.map((to) => ALL.find((x) => x.to === to)) : ACTIVITIES_NAV[0].items} />
         </div>
     );
 }

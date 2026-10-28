@@ -115,6 +115,10 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
     const [mode, setMode] = useState('scan');          // 'scan' | 'manual'
     const [scanning, setScanning] = useState(false);
     const [cardNumber, setCardNumber] = useState('');
+    // A teacher with no AI card (a club or Scouts leader) is found by email instead.
+    const [email, setEmail] = useState('');
+    const byEmail = role === 'teacher' && mode === 'email';
+    const who = () => (byEmail ? { email: email.trim() } : { cardNumber });
     const [account, setAccount] = useState(null);      // { name, email }
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
@@ -135,7 +139,7 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
         setLoading(true);
         setError('');
         try {
-            const res = await client.post(`${base}/preview`, { cardNumber: number });
+            const res = await client.post(`${base}/preview`, byEmail ? { email: email.trim() } : { cardNumber: number });
             setCardNumber(number);
             setAccount(res.data);
             setStep('confirm');
@@ -186,7 +190,7 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
         setLoading(true);
         setError('');
         try {
-            const res = await client.post(base, { cardNumber });
+            const res = await client.post(base, who());
             setMessage(res.data.message);
             setStep('sent');
         } catch (err) {
@@ -244,8 +248,8 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
                         <div className="space-y-4">
                             <p className="text-sm text-slate-500">Scan your card or type its number. We'll show you the account before sending a reset link to its email.</p>
 
-                            <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
-                                {[['scan', 'Scan Card', ScanLine], ['manual', 'Type Instead', Keyboard]].map(([id, label, Icon]) => (
+                            <div className={`grid overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1 ${role === 'teacher' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                                {[['scan', 'Scan Card', ScanLine], ['manual', 'Type Instead', Keyboard], ...(role === 'teacher' ? [['email', 'Email', Mail]] : [])].map(([id, label, Icon]) => (
                                     <button key={id} type="button" onClick={() => { setError(''); setScanning(false); setMode(id); }}
                                         className={`inline-flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-bold transition-all ${mode === id ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
                                         <Icon size={15} /> {label}
@@ -255,7 +259,23 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
 
                             {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
 
-                            {mode === 'scan' ? (
+                            {byEmail ? (
+                                <form onSubmit={(e) => { e.preventDefault(); lookUp(''); }} className="space-y-4">
+                                    <div>
+                                        <label htmlFor="forgot-email" className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
+                                        <input id="forgot-email" type="email" required autoComplete="username" value={email} onChange={e => setEmail(e.target.value)}
+                                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800"
+                                            placeholder="The email you sign in with" />
+                                        <p className="mt-1 text-xs text-slate-500">For a teacher account without a card.</p>
+                                    </div>
+                                    <div className="flex justify-end space-x-3">
+                                        <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm">Cancel</button>
+                                        <button type="submit" disabled={loading} className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm disabled:opacity-50">
+                                            {loading ? <><Loader2 size={15} className="animate-spin" /> Checking…</> : <>Continue <ArrowRight size={15} /></>}
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : mode === 'scan' ? (
                                 <div className="rounded-2xl border-2 border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/70 p-5 text-center">
                                     {/* html5-qrcode needs this element present before it starts. */}
                                     <div id={FORGOT_SCANNER_ID} className={`overflow-hidden rounded-xl bg-slate-900 ${scanning ? 'block' : 'hidden'}`} />
@@ -385,8 +405,10 @@ const Login = () => {
        tedious thing to copy correctly on a phone. The camera reads the card's
        QR instead and the server turns it into the number, so the student only
        has their password left to type. Typing the number by hand is still
-       there for a broken camera or a worn card. */
-    const [mode, setMode] = useState('scan');          // 'scan' | 'manual'
+       there for a broken camera or a worn card. A teacher with no AI card (a
+       club or Scouts leader) signs in with email instead ('email'). */
+    const [mode, setMode] = useState('scan');          // 'scan' | 'manual' | 'email' (teachers)
+    const [teacherEmail, setTeacherEmail] = useState('');
     const [scanning, setScanning] = useState(false);
     const [scanError, setScanError] = useState('');
     const [scannedCard, setScannedCard] = useState(false);
@@ -470,6 +492,10 @@ const Login = () => {
         if (error) errorRef.current?.scrollIntoView?.({ block: 'nearest' });
     }, [error]);
 
+    // Email sign-in is the teacher side's only; a student on 'email' is shown the typed card.
+    const emailMode = isTeacher && mode === 'email';
+    const cardMode = mode === 'email' ? 'manual' : mode;
+
     if (user) return <Navigate to={next} replace />;
     // A teacher is signed in on this device: their dashboard.
     if (hasTeacherSession()) return <Navigate to="/teacher" replace />;
@@ -477,6 +503,19 @@ const Login = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
+        if (emailMode) {
+            if (!teacherEmail.trim()) { setError('Enter your email first.'); document.getElementById('login-teacher-email')?.focus(); return; }
+            setLoading(true);
+            setOtherKind(null);
+            try {
+                enterTeacher((await teacherApi.post('/auth/login', { email: teacherEmail.trim(), password })).data);
+            } catch (err) {
+                setError(err.response?.data?.message || (!err.response ? 'Check your connection and try again.' : 'Sign-in failed'));
+                setLoading(false);
+                passwordRef.current?.focus();
+            }
+            return;
+        }
         // In scan mode there is no number box for the browser to insist on,
         // so an empty card went to the server and came back as "Invalid card
         // number or password" — about a password the student had typed right.
@@ -627,17 +666,24 @@ const Login = () => {
                             )}
 
                             {/* Scan / type, as one bordered switch */}
-                            <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
-                                {[['scan', 'Scan Card', ScanLine], ['manual', 'Type Instead', Keyboard]].map(([id, label, Icon]) => (
+                            <div className={`grid overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1 ${isTeacher ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                                {[['scan', 'Scan Card', ScanLine], ['manual', isTeacher ? 'Type' : 'Type Instead', Keyboard], ...(isTeacher ? [['email', 'Email', Mail]] : [])].map(([id, label, Icon]) => (
                                     <button key={id} type="button"
                                         onClick={() => { setScanError(''); setScanning(false); setMode(id); }}
-                                        className={`inline-flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold transition-all ${mode === id ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
+                                        className={`inline-flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold transition-all ${(id === 'email' ? emailMode : cardMode === id && !emailMode) ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
                                         <Icon size={16} /> {label}
                                     </button>
                                 ))}
                             </div>
 
-                            {scannedCard ? (
+                            {emailMode ? (
+                                <div>
+                                    <label htmlFor="login-teacher-email" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Mail size={15} className="text-slate-500" /> Email</label>
+                                    <input id="login-teacher-email" type="email" autoComplete="username" value={teacherEmail} onChange={e => setTeacherEmail(e.target.value)}
+                                        className="block w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-800 shadow-sm placeholder-slate-400 transition duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="For a teacher account without a card" />
+                                </div>
+                            ) : scannedCard ? (
                                 <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                                     <CheckCircle2 size={22} className="shrink-0 text-emerald-600" />
                                     <div className="min-w-0 flex-1">
@@ -647,7 +693,7 @@ const Login = () => {
                                     <button type="button" onClick={() => { setScannedCard(false); setCardNumber(''); setMode('scan'); }}
                                         className="shrink-0 text-xs font-bold text-emerald-700 hover:underline">Change</button>
                                 </div>
-                            ) : mode === 'scan' ? (
+                            ) : cardMode === 'scan' ? (
                                 <div className="rounded-2xl border-2 border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/70 p-6 text-center">
                                     {/* html5-qrcode needs this element present before it starts. */}
                                     <div id={SCANNER_ID} className={`overflow-hidden rounded-xl bg-slate-900 ${scanning ? 'block' : 'hidden'}`} />

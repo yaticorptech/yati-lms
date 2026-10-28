@@ -228,6 +228,8 @@ const Header = ({ m, organization }) => {
                             {m.name}
                             {/* A club member's post, given by the organization. */}
                             {ROLE_LABEL[m.role] && <span className={`rounded-full bg-white px-2.5 py-0.5 text-xs font-black ring-1 ${look.ring} ${look.ink}`}>{ROLE_LABEL[m.role]}</span>}
+                            {/* Scouts & Guides: the rank passed most recently in their section. */}
+                            {m.rank && <span className={`rounded-full bg-white px-2.5 py-0.5 text-xs font-black ring-1 ${look.ring} ${look.ink}`}>{m.rank}</span>}
                         </h1>
                         <p className="truncate text-sm text-slate-500">{organization.name}{m.unit ? ` · ${m.unit}` : ''}{m.clubId?.description ? ` · ${m.clubId.description}` : ''}</p>
                     </div>
@@ -261,6 +263,65 @@ const Header = ({ m, organization }) => {
                 </>
             )}
         </section>
+    );
+};
+
+const AWARD_LABEL = { rank: 'Rank', badge: 'Badge', training: 'Training' };
+
+/** Scouts & Guides: my ranks, badges and trainings, from every unit I have been in. */
+const ScoutRecord = ({ m }) => (
+    <div className={`${CARD} p-5`}>
+        <h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><Award size={16} className="text-amber-600" /> Ranks, badges &amp; training</h2>
+        {!(m.awards || []).length ? (
+            <p className="mt-2 text-sm text-slate-500">Nothing yet. Your unit leader records the ranks you pass, your badges and trainings, and your organization confirms them.</p>
+        ) : (
+            <ul className="mt-2 divide-y divide-slate-100">
+                {m.awards.map((a) => (
+                    <li key={a._id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                        <span className="min-w-0">
+                            <span className="block font-semibold text-slate-800">{a.name} <span className="font-normal text-slate-500">· {AWARD_LABEL[a.type]}</span></span>
+                            <span className="text-xs text-slate-500">{fmt(a.date)}{a.certificateNo ? ` · Certificate ${a.certificateNo}` : ''}</span>
+                        </span>
+                        {a.status === 'pending'
+                            ? <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">Waiting</span>
+                            : <CheckCircle2 size={17} className="shrink-0 text-emerald-600" />}
+                    </li>
+                ))}
+            </ul>
+        )}
+    </div>
+);
+
+const NOTICE_KIND = { exam: 'Exam / test', camp: 'Camp', training: 'Training', event: 'Event', rules: 'Rules & regulations', notice: 'Notice' };
+
+/**
+ * Scouts & Guides: the exams, camps and events BSG published (national, and my
+ * institution's state), for my section — with the rules: what I should know.
+ */
+const BsgNotices = ({ notices = [], section }) => {
+    const mine = notices.filter((n) => !n.sections?.length || !section || n.sections.includes(section));
+    if (!mine.length) return null;
+    return (
+        <div className={`${CARD} p-5`}>
+            <h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><CalendarCheck size={16} className="text-indigo-600" /> BSG exams, camps, training &amp; rules</h2>
+            <ul className="mt-2 space-y-3">
+                {mine.map((n) => (
+                    <li key={n._id} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{NOTICE_KIND[n.kind] || 'Notice'} · {n.from}</p>
+                        <p className="flex flex-wrap items-center gap-2 font-bold text-slate-900">
+                            {n.title}
+                            {n.attended === true && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800"><CheckCircle2 size={12} /> Attended</span>}
+                            {n.attended === false && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">Not marked present</span>}
+                        </p>
+                        <p className="text-xs text-slate-600">{n.kind === 'rules' ? `In force since ${fmt(n.date)}` : `${fmt(n.date)}${n.endDate ? ` – ${fmt(n.endDate)}` : ''}`}{n.place ? ` · ${n.place}` : ''}{n.minRank ? ` · Rank needed: ${n.minRank}` : ''}</p>
+                        {n.rules?.length > 0 && (
+                            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-sm text-slate-700">{n.rules.map((r, i) => <li key={i}>{r}</li>)}</ul>
+                        )}
+                        {n.details && <p className="mt-1.5 whitespace-pre-line text-sm text-slate-600">{n.details}</p>}
+                    </li>
+                ))}
+            </ul>
+        </div>
     );
 };
 
@@ -345,6 +406,24 @@ const Membership = ({ m, reload, say }) => {
     );
 };
 
+/** Memberships that have ended — left, or moved to another unit or organization — kept as my record. */
+const PastMemberships = ({ rows }) => (
+    <div className={`${CARD} p-5`}>
+        <h2 className="text-sm font-black text-slate-900">Past memberships</h2>
+        <ul className="mt-2 divide-y divide-slate-100">
+            {rows.map((h) => (
+                <li key={h._id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                    <span className="min-w-0">
+                        <span className="block font-semibold text-slate-800">{h.name}{h.unit ? ` · ${h.unit}` : ''}</span>
+                        <span className="text-xs text-slate-500">{h.organization} · {fmt(h.startedAt)} – {h.endedAt ? fmt(h.endedAt) : ''}{h.endReason ? ` · ${h.endReason}` : ''}</span>
+                    </span>
+                    <span className="text-xs text-slate-600">{h.hours} h · {h.camps} camp{h.camps === 1 ? '' : 's'}{h.attendance !== null ? ` · ${h.attendance}%` : ''}</span>
+                </li>
+            ))}
+        </ul>
+    </div>
+);
+
 const ExtraCurricular = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -393,6 +472,8 @@ const ExtraCurricular = () => {
             ) : m ? (
                 <>
                     <Header m={m} organization={data.organization} />
+                    {m.scheme === 'SCOUTS' && m.status === 'active' && <ScoutRecord m={m} />}
+                    {m.scheme === 'SCOUTS' && m.status === 'active' && <BsgNotices notices={data.bsgNotices} section={m.section} />}
                     {/* The club's (or unit's) own calendar; a club's president adds events on it. */}
                     {m.status === 'active' && <ActivityCalendar key={`cal-${m._id}`} memberId={m._id} canAdd={m.scheme === 'CLUB' && m.role === 'president'} title={m.name} />}
                     <Membership key={m._id} m={m} reload={load} say={setNotice} />
@@ -405,6 +486,7 @@ const ExtraCurricular = () => {
                     <Link to="/extracurricular/join" className={`${BTN} mt-6 !rounded-2xl !px-5 !py-3`}><Plus size={17} /> Request to enroll</Link>
                 </div>
             )}
+            {!joining && data?.history?.length > 0 && <PastMemberships rows={data.history} />}
         </div>
     );
 };

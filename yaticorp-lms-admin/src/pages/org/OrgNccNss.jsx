@@ -7,7 +7,12 @@
  *                        with attendance; the targets themselves. Scouts &
  *                        Guides also has its units (Cub pack, Guide company…),
  *                        each with a section and its leaders, which members
- *                        and events are put in.
+ *                        and events are put in. A member who leaves or is
+ *                        moved to another unit is kept under Former, with
+ *                        their record (Transfer moves them between units).
+ *                        Ranks & badges: ranks passed, proficiency badges and
+ *                        trainings, which leaders propose and the
+ *                        organization approves (or records itself).
  *   Clubs                the organization's clubs (cultural, sports…). Create
  *                        one, then manage it: its members and their posts
  *                        (president, secretary…), the teacher in charge, its
@@ -19,11 +24,13 @@
  * src/nccnss/orgAdmin.js.
  */
 import React, { useEffect, useMemo, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Shield, Users, CheckCircle2, XCircle, CalendarDays, Plus, Download, Clock, AlertTriangle, Award, Trash2, Loader2, Pencil, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Search, GraduationCap, Check } from 'lucide-react';
 import api from '../../utils/api';
 import useAutoRefresh from '../../hooks/useAutoRefresh';
 import { CARD, LABEL, INPUT, BTN, BTN2, Stat, Empty, Banner, Rows, Pill, PageHeader, Segmented, Avatar, LoadFailed, Dialog, DialogTitle, SearchInput, Bar } from '../../components/orgUi';
 import { formatDate } from '../../utils/dates';
+import BsgNoticeCard from '../../components/BsgNoticeCard';
 
 const BASE = '/organizations/me/nccnss';
 const SECTIONS = [['NSS', 'NSS'], ['NCC', 'NCC'], ['SCOUTS', 'Scouts & Guides'], ['CLUB', 'Clubs']];
@@ -140,7 +147,7 @@ const ScoutUnitSelect = ({ value, onChange, noneLabel = 'No unit yet', label = '
 };
 
 /** Shared by the add-member and edit-member dialogs. */
-const MemberFields = ({ form, set, scheme }) => (
+const MemberFields = ({ form, set, scheme, lockUnit }) => (
     <>
         {scheme === 'CLUB' && (
             <Field label="Post in the club">
@@ -150,7 +157,9 @@ const MemberFields = ({ form, set, scheme }) => (
             </Field>
         )}
         <div className="grid grid-cols-2 gap-3">
-            {scheme === 'SCOUTS' && <ScoutUnitSelect value={form.unitId} onChange={(v) => set('unitId', v)} />}
+            {scheme === 'SCOUTS' && (lockUnit
+                ? <Field label="Unit"><input className={INPUT} value={form.unit || '—'} disabled /></Field>
+                : <ScoutUnitSelect value={form.unitId} onChange={(v) => set('unitId', v)} />)}
             {scheme !== 'CLUB' && scheme !== 'SCOUTS' && <Field label="Unit / company"><input className={INPUT} value={form.unit} onChange={(e) => set('unit', e.target.value)} placeholder="e.g. 5 KAR BN / Unit 2" /></Field>}
             <Field label={scheme === 'CLUB' ? 'Membership no.' : 'Enrolment no.'}><input className={INPUT} value={form.enrolmentNo} onChange={(e) => set('enrolmentNo', e.target.value)} /></Field>
         </div>
@@ -240,12 +249,32 @@ const MiniStat = ({ label, value }) => (
     </div>
 );
 
+/** Move an active Scouts member to another unit: their record in this one is kept. */
+const TransferDialog = ({ member, onClose, onDone }) => {
+    const [unitId, setUnitId] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const submit = async () => {
+        if (!unitId) { setError('Choose the unit to move them to.'); return; }
+        setBusy(true); setError('');
+        try { onDone((await api.post(`${BASE}/members/${member._id}/transfer`, { unitId })).data.message); }
+        catch (err) { setError(errorOf(err, 'Could not transfer.')); setBusy(false); }
+    };
+    return (
+        <DialogShell title={`Transfer ${member.student.name}`} onClose={onClose} onSubmit={submit} busy={busy} error={error} submitLabel="Transfer">
+            <p className="text-sm text-slate-600">Now in <span className="font-semibold">{member.unit || 'no unit'}</span>. Their activities and attendance there stay on that record; the new unit continues it.</p>
+            <ScoutUnitSelect value={unitId} onChange={setUnitId} noneLabel="Choose a unit" label="Move to" />
+        </DialogShell>
+    );
+};
+
 const MemberDialog = ({ memberId, onClose, onChanged }) => {
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
     const [form, setForm] = useState(null);
     const [busy, setBusy] = useState(false);
     const [logging, setLogging] = useState(null);   // 'new', or the activity being edited
+    const [moving, setMoving] = useState(false);
 
     const load = async ({ isCurrent = () => true } = {}) => {
         try {
@@ -266,7 +295,8 @@ const MemberDialog = ({ memberId, onClose, onChanged }) => {
         finally { setBusy(false); }
     };
     const remove = async () => {
-        if (!window.confirm('Remove this student? Their logged activities are deleted too.')) return;
+        const keeps = m.scheme === 'SCOUTS' && ['active', 'completed'].includes(m.status);
+        if (!window.confirm(keeps ? 'Remove this student from Scouts & Guides? Their record is kept under Former.' : 'Remove this student? Their logged activities are deleted too.')) return;
         setBusy(true);
         try { await api.delete(`${BASE}/members/${memberId}`); onChanged(); onClose(); }
         catch (err) { setError(errorOf(err, 'Could not remove.')); setBusy(false); }
@@ -279,11 +309,17 @@ const MemberDialog = ({ memberId, onClose, onChanged }) => {
 
     const m = data?.member;
     const s = data?.summary;
+    const ended = m && ['left', 'transferred'].includes(m.status);
     return (
         <>
         <DialogShell title={m ? `${m.student.name} · ${m.name}` : 'Member'} onClose={onClose} onSubmit={m ? () => save() : null} busy={busy} error={error} size="max-w-2xl">
             {!data ? <Rows count={3} /> : (
                 <>
+                    {ended && (
+                        <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                            {m.status === 'transferred' ? 'Moved on' : 'Left'} on {formatDate(m.endedAt)}{m.endReason ? ` — ${m.endReason}` : ''}. This record is kept as their history.
+                        </p>
+                    )}
                     {m.status === 'pending' && (
                         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                             <span>Asked to join {m.name}. Check the details below, then decide.{m.note ? <span className="mt-1 block italic">&ldquo;{m.note}&rdquo;</span> : null}</span>
@@ -302,7 +338,26 @@ const MemberDialog = ({ memberId, onClose, onChanged }) => {
                         </div>
                     )}
                     {s && <p className={`rounded-xl px-3 py-2 text-sm font-medium ${s.eligible ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-50 text-slate-700'}`}>Next: {s.next}</p>}
-                    <MemberFields form={form} set={set} scheme={m.scheme} />
+                    <MemberFields form={form} set={set} scheme={m.scheme} lockUnit={ended || (!!m.unitId && ['active', 'completed'].includes(m.status))} />
+                    {m.scheme === 'SCOUTS' && m.status === 'active' && (
+                        <button type="button" onClick={() => setMoving(true)} className="-mt-1 inline-flex items-center gap-1 text-xs font-bold text-indigo-700"><ArrowLeft size={13} className="rotate-180" /> Transfer to another unit</button>
+                    )}
+                    {data.history?.length > 0 && (
+                        <>
+                            <h3 className="pt-2 text-sm font-bold text-slate-800">Earlier memberships</h3>
+                            <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                                {data.history.map((h) => (
+                                    <li key={h._id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                                        <span className="min-w-0">
+                                            <span className="block font-semibold text-slate-800">{h.unit || 'No unit'}{h.section ? ` · ${SECTION_LABEL[h.section]}` : ''}</span>
+                                            <span className="text-xs text-slate-500">{h.organization} · {formatDate(h.startedAt)} – {h.endedAt ? formatDate(h.endedAt) : 'now'}{h.endReason ? ` · ${h.endReason}` : ''}</span>
+                                        </span>
+                                        <span className="text-xs text-slate-600">{h.hours} h · {h.camps} camps · {h.attendance === null ? '—' : `${h.attendance}%`}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </>
+                    )}
 
                     <div className="flex items-center justify-between pt-2">
                         <h3 className="text-sm font-bold text-slate-800">Activities</h3>
@@ -327,6 +382,8 @@ const MemberDialog = ({ memberId, onClose, onChanged }) => {
                         </ul>
                     )}
 
+                    {m.scheme === 'SCOUTS' && <AwardsSection data={data} onChanged={() => { reload(); onChanged(); }} setError={setError} />}
+
                     <h3 className="pt-2 text-sm font-bold text-slate-800">Attendance</h3>
                     {data.attendance.length === 0 ? <p className="text-sm text-slate-500">No attendance taken yet.</p> : (
                         <div className="flex flex-wrap gap-1.5">
@@ -337,12 +394,13 @@ const MemberDialog = ({ memberId, onClose, onChanged }) => {
                             ))}
                         </div>
                     )}
-                    <button type="button" onClick={remove} disabled={busy} className="inline-flex items-center gap-1.5 pt-2 text-xs font-bold text-red-600"><Trash2 size={14} /> Remove from {m.name}</button>
+                    {!ended && <button type="button" onClick={remove} disabled={busy} className="inline-flex items-center gap-1.5 pt-2 text-xs font-bold text-red-600"><Trash2 size={14} /> Remove from {m.name}</button>}
                 </>
             )}
         </DialogShell>
         {/* Outside the member dialog's <form>: a form inside a form is invalid,
             and its submit was not reliably the activity's own. */}
+        {moving && m && <TransferDialog member={m} onClose={() => setMoving(false)} onDone={() => { setMoving(false); onChanged(); onClose(); }} />}
         {logging && m && <LogActivityDialog member={m} activity={logging === 'new' ? null : logging} onClose={() => setLogging(null)} onDone={() => { setLogging(null); reload(); onChanged(); }} />}
         </>
     );
@@ -373,7 +431,7 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
     const [notice, setNotice] = useState('');
     const [unitId, setUnitId] = useState('');
 
-    const params = { ...scope, unitId: unitId || undefined, filter: ['atRisk', 'eligible'].includes(filter) ? filter : undefined, status: filter === 'pending' ? 'pending' : undefined, search: search || undefined };
+    const params = { ...scope, unitId: unitId || undefined, filter: ['atRisk', 'eligible'].includes(filter) ? filter : undefined, status: ['pending', 'former'].includes(filter) ? filter : undefined, search: search || undefined };
     const load = async ({ signal, isCurrent = () => true, fresh = true } = {}) => {
         if (fresh) setLoading(true);
         try {
@@ -403,7 +461,7 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
         <div className="space-y-3">
             {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                <Segmented options={club ? [['', 'Everyone'], ['pending', 'Asked to join']] : [['', 'Everyone'], ['pending', 'Asked to join'], ['atRisk', 'Behind'], ['eligible', 'Eligible']]}
+                <Segmented options={club ? [['', 'Everyone'], ['pending', 'Asked to join']] : [['', 'Everyone'], ['pending', 'Asked to join'], ['atRisk', 'Behind'], ['eligible', 'Eligible'], ...(scope.scheme === 'SCOUTS' ? [['former', 'Former']] : [])]}
                     value={filter} onChange={setFilter} counts={{ pending: overview?.totals.pendingMembers, atRisk: overview?.totals.atRisk }} />
                 <div className="flex gap-2">
                     {scope.scheme === 'SCOUTS' && <UnitFilter value={unitId} onChange={setUnitId} />}
@@ -470,7 +528,11 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2.5">
                                                 <Avatar name={r.student.name} src={r.student.profilePicture} size="h-8 w-8 text-xs" />
-                                                <span className="min-w-0"><span className="block truncate font-semibold text-slate-800">{r.student.name}</span><span className="text-xs text-slate-500">{r.enrolmentNo || r.student.cardNumber}</span></span>
+                                                <span className="min-w-0">
+                                                    <span className="block truncate font-semibold text-slate-800">{r.student.name}</span>
+                                                    <span className="text-xs text-slate-500">{r.enrolmentNo || r.student.cardNumber}</span>
+                                                    {r.rank && <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">{r.rank}</span>}
+                                                </span>
                                             </div>
                                         </td>
                                         <td className="px-3 py-3 text-slate-700">
@@ -488,12 +550,12 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
                                         </td>
                                         <td className="px-3 py-3 tabular-nums text-slate-700">{s.awards}</td>
                                         <td className="px-3 py-3">
-                                            {r.status === 'pending' ? <Pill status="pending" /> : s.eligible ? <Pill status="approved" /> : s.atRisk
+                                            {['left', 'transferred'].includes(r.status) ? <Pill status={r.status === 'left' ? 'left' : 'moved'} /> : r.status === 'pending' ? <Pill status="pending" /> : s.eligible ? <Pill status="approved" /> : s.atRisk
                                                 ? <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700"><AlertTriangle size={12} /> Behind</span>
                                                 : <Pill status="active" />}
                                         </td>
                                         <td className="px-4 py-3 text-xs text-slate-600">
-                                            {r.status === 'pending' ? 'Waiting for your approval' : s.next}
+                                            {['left', 'transferred'].includes(r.status) ? `${r.endReason || 'Ended'} · ${formatDate(r.endedAt)}` : r.status === 'pending' ? 'Waiting for your approval' : s.next}
                                             {s.pendingActivities > 0 && <span className="block text-amber-700">{s.pendingActivities} to approve</span>}
                                         </td>
                                     </tr>
@@ -505,6 +567,144 @@ const MembersTab = ({ scope, title, overview, onChanged }) => {
             </div>
             {adding && <AddMemberDialog scope={{ ...scope, unitId: unitId || undefined }} title={title} onClose={() => setAdding(false)} onDone={(msg) => { setAdding(false); setNotice(msg); changed(); }} />}
             {open && <MemberDialog memberId={open} onClose={() => setOpen(null)} onChanged={changed} />}
+        </div>
+    );
+};
+
+const AWARD_TYPES = [['rank', 'Rank'], ['badge', 'Proficiency badge'], ['training', 'Training']];
+const AWARD_LABEL = Object.fromEntries(AWARD_TYPES);
+
+/** Record a rank, badge or training for a Scouts member; `ranks` are their section's. */
+const AwardDialog = ({ member, ranks, onClose, onDone }) => {
+    const [form, setForm] = useState({ type: ranks.length ? 'rank' : 'badge', name: '', date: today(), examiner: '', certificateNo: '', note: '' });
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const set = (k, v) => setForm((f) => ({ ...f, [k]: v, ...(k === 'type' ? { name: '' } : {}) }));
+    const submit = async () => {
+        setBusy(true); setError('');
+        try { onDone((await api.post(`${BASE}/members/${member._id}/awards`, form)).data.message); }
+        catch (err) { setError(errorOf(err, 'Could not record it.')); setBusy(false); }
+    };
+    return (
+        <DialogShell title={`Record for ${member.student.name}`} onClose={onClose} onSubmit={submit} busy={busy} error={error} submitLabel="Record">
+            <Field label="What">
+                <select className={INPUT} value={form.type} onChange={(e) => set('type', e.target.value)}>
+                    {AWARD_TYPES.filter(([v]) => v !== 'rank' || ranks.length).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+            </Field>
+            <Field label={form.type === 'rank' ? 'Rank' : form.type === 'badge' ? 'Badge' : 'Training'}>
+                {form.type === 'rank' ? (
+                    <select className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} required>
+                        <option value="">Choose…</option>
+                        {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                ) : <input className={INPUT} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder={form.type === 'badge' ? 'e.g. First Aid, Camper' : 'e.g. District camp, Basic course'} required />}
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+                <Field label="Date"><input type="date" className={INPUT} value={form.date} max={today()} onChange={(e) => set('date', e.target.value)} /></Field>
+                <Field label="Certificate no."><input className={INPUT} value={form.certificateNo} onChange={(e) => set('certificateNo', e.target.value)} /></Field>
+            </div>
+            <Field label="Tested / awarded by"><input className={INPUT} value={form.examiner} onChange={(e) => set('examiner', e.target.value)} /></Field>
+            <Field label="Note"><input className={INPUT} value={form.note} onChange={(e) => set('note', e.target.value)} /></Field>
+        </DialogShell>
+    );
+};
+
+/** A Scouts member's rank and record, in their member dialog. */
+const AwardsSection = ({ data, onChanged, setError }) => {
+    const m = data.member;
+    const [adding, setAdding] = useState(false);
+    const remove = async (a) => {
+        if (!window.confirm(`Remove ${a.name} from their record?`)) return;
+        try { await api.delete(`${BASE}/awards/${a._id}`); onChanged(); }
+        catch (err) { setError(errorOf(err, 'Could not remove it.')); }
+    };
+    const awards = data.awards || [];
+    return (
+        <>
+            <div className="flex items-center justify-between pt-2">
+                <h3 className="text-sm font-bold text-slate-800">Ranks, badges &amp; training {data.rank && <span className="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-800">Now: {data.rank}</span>}</h3>
+                {['active', 'completed'].includes(m.status) && <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-1 text-xs font-bold text-indigo-700"><Plus size={14} /> Record</button>}
+            </div>
+            {awards.length === 0 ? <p className="text-sm text-slate-500">Nothing recorded yet.</p> : (
+                <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                    {awards.map((a) => (
+                        <li key={a._id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                            <span className="min-w-0">
+                                <span className="block truncate font-semibold text-slate-800">{a.name} <span className="font-normal text-slate-500">· {AWARD_LABEL[a.type]}</span></span>
+                                <span className="text-xs text-slate-500">{formatDate(a.date)}{a.examiner ? ` · ${a.examiner}` : ''}{a.certificateNo ? ` · Cert. ${a.certificateNo}` : ''}</span>
+                            </span>
+                            <span className="flex shrink-0 items-center gap-2">
+                                <Pill status={a.status} />
+                                {String(a.organizationId) === String(m.organizationId) && <button type="button" onClick={() => remove(a)} className="p-1 text-slate-400 hover:text-red-600" aria-label={`Remove ${a.name}`}><Trash2 size={15} /></button>}
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {adding && <AwardDialog member={m} ranks={data.ranks || []} onClose={() => setAdding(false)} onDone={() => { setAdding(false); onChanged(); }} />}
+        </>
+    );
+};
+
+/** Ranks, badges and trainings to approve (leaders propose them), and the decided ones. */
+const AwardsTab = ({ onChanged }) => {
+    const [status, setStatus] = useState('pending');
+    const [rows, setRows] = useState([]);
+    const [pendingCount, setPendingCount] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [failed, setFailed] = useState(false);
+    const [notice, setNotice] = useState('');
+    const [busyId, setBusyId] = useState(null);
+    const load = async ({ signal, isCurrent = () => true, fresh = true } = {}) => {
+        if (fresh) setLoading(true);
+        try {
+            const res = await api.get(`${BASE}/awards`, { params: { status }, signal });
+            if (!isCurrent()) return;
+            setRows(res.data.awards || []); setPendingCount(res.data.pendingCount || 0); setFailed(false);
+        } catch { if (isCurrent() && fresh) setFailed(true); }
+        finally { if (isCurrent()) setLoading(false); }
+    };
+    const reload = useAutoRefresh(load, 30000, [status]);
+    const decide = async (a, decision) => {
+        const reason = decision === 'reject' ? window.prompt('Why? (they see this)') : '';
+        if (reason === null) return;
+        setBusyId(a._id);
+        try { setNotice((await api.put(`${BASE}/awards/${a._id}`, { decision, reason })).data.message); reload(); onChanged(); }
+        catch (err) { setNotice(errorOf(err, 'That did not go through.')); }
+        finally { setBusyId(null); }
+    };
+    return (
+        <div className="space-y-3">
+            {notice && <Banner kind="ok" onClose={() => setNotice('')}>{notice}</Banner>}
+            <Segmented options={[['pending', 'To approve'], ['approved', 'Approved'], ['rejected', 'Rejected']]} value={status} onChange={setStatus} counts={{ pending: pendingCount }} />
+            <div className={`${CARD} overflow-x-auto`}>
+                {loading ? <Rows count={3} /> : failed ? <LoadFailed what="the ranks and badges" onRetry={reload} /> : rows.length === 0 ? (
+                    <Empty icon={Award}>{status === 'pending' ? 'Nothing to approve. Unit leaders propose ranks, badges and trainings from their teacher dashboard.' : 'Nothing here yet.'}</Empty>
+                ) : (
+                    <ul className="divide-y divide-slate-100">
+                        {rows.map((a) => (
+                            <li key={a._id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    <Avatar name={a.userId.name} src={a.userId.profilePicture} size="h-9 w-9 text-xs" />
+                                    <span className="min-w-0">
+                                        <span className="block font-semibold text-slate-800">{a.userId.name} · <span className="text-amber-800">{a.name}</span> <span className="text-xs font-normal text-slate-500">({AWARD_LABEL[a.type]})</span></span>
+                                        <span className="text-xs text-slate-500">
+                                            {a.unitId?.name || 'No unit'} · {formatDate(a.date)}{a.examiner ? ` · tested by ${a.examiner}` : ''}{a.proposedByTeacherId ? ` · proposed by ${a.proposedByTeacherId.name}` : ''}{a.reason ? ` · ${a.reason}` : ''}
+                                        </span>
+                                    </span>
+                                </div>
+                                {a.status === 'pending' ? (
+                                    <span className="flex shrink-0 gap-2">
+                                        <button onClick={() => decide(a, 'reject')} disabled={busyId === a._id} className={BTN2}><XCircle size={15} /> Reject</button>
+                                        <button onClick={() => decide(a, 'approve')} disabled={busyId === a._id} className={BTN}><CheckCircle2 size={15} /> Approve</button>
+                                    </span>
+                                ) : <Pill status={a.status} />}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
         </div>
     );
 };
@@ -948,8 +1148,24 @@ const UnitsTab = () => {
     );
 };
 
+/** The exams, camps and events BSG (national, and this organization's state) published for its Scouts & Guides. */
+const NoticesTab = () => {
+    const [notices, setNotices] = useState(null);
+    const [failed, setFailed] = useState(false);
+    const load = async ({ signal, isCurrent = () => true } = {}) => {
+        try {
+            const res = await api.get('/organizations/me/bsg/feed', { signal });
+            if (isCurrent()) { setNotices(res.data.notices || []); setFailed(false); }
+        } catch { if (isCurrent()) setFailed(true); }
+    };
+    const reload = useAutoRefresh(load, 60000, []);
+    if (!notices) return failed ? <div className={CARD}><LoadFailed what="the notices" onRetry={reload} /></div> : <Rows count={2} height="h-24" />;
+    if (!notices.length) return <div className={CARD}><Empty icon={CalendarDays}>No BSG notices right now. Set your state in Settings to see your state office&apos;s exams and camps as well as the national ones.</Empty></div>;
+    return <div className="space-y-3">{notices.map((n) => <BsgNoticeCard key={n._id} notice={n} />)}</div>;
+};
+
 /** NSS, NCC or Scouts & Guides: its numbers, then members, approvals, events and targets. */
-const SchemeView = ({ scheme }) => {
+const SchemeView = ({ scheme, office }) => {
     const scope = useMemo(() => ({ scheme }), [scheme]);
     const title = SCHEME_LABEL[scheme];
     const [tab, setTab] = useState('members');
@@ -964,10 +1180,12 @@ const SchemeView = ({ scheme }) => {
                 <Stat icon={AlertTriangle} tone="violet" label="Behind" value={t?.atRisk} sub={t && `Avg attendance ${t.avgAttendance ?? '—'}${t.avgAttendance !== null ? '%' : ''}`} loading={!overview} />
                 <Stat icon={Award} tone="emerald" label="Eligible" value={t?.eligible} sub={t && `${t.totalHours} hours logged`} loading={!overview} />
             </div>
-            <Segmented options={[['members', 'Members'], ...(scheme === 'SCOUTS' ? [['units', 'Units']] : []), ['approvals', 'Approvals'], ['events', 'Calendar'], ['targets', 'Targets']]} value={tab} onChange={setTab}
-                counts={{ approvals: t?.pendingActivities, members: t?.pendingMembers }} />
+            <Segmented options={[['members', 'Members'], ...(scheme === 'SCOUTS' ? [['units', 'Units'], ['awards', 'Ranks & badges'], ...(office ? [] : [['notices', 'BSG notices']])] : []), ['approvals', 'Approvals'], ['events', 'Calendar'], ['targets', 'Targets']]} value={tab} onChange={setTab}
+                counts={{ approvals: t?.pendingActivities, members: t?.pendingMembers, awards: t?.pendingAwards }} />
             {tab === 'members' && <MembersTab scope={scope} title={title} overview={overview} onChanged={reload} />}
             {tab === 'units' && <UnitsTab />}
+            {tab === 'awards' && <AwardsTab onChanged={reload} />}
+            {tab === 'notices' && <NoticesTab />}
             {tab === 'approvals' && <ApprovalsTab scope={scope} onChanged={reload} />}
             {tab === 'events' && <EventsTab scope={scope} title={title} onChanged={reload} />}
             {tab === 'targets' && (overview ? <TargetsTab scheme={scheme} targets={overview.targets} onChanged={reload} /> : <Rows count={2} />)}
@@ -1113,7 +1331,17 @@ const ClubsView = () => {
 };
 
 const OrgNccNss = () => {
-    const [section, setSection] = useState('NSS');
+    // A BSG office handles Scouts & Guides only: no NCC, NSS or clubs.
+    const office = Boolean(useOutletContext()?.organization?.bsgOffice);
+    const [section, setSection] = useState(office ? 'SCOUTS' : 'NSS');
+    if (office) {
+        return (
+            <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
+                <PageHeader icon={Shield} title="Scouts & Guides" subtitle="Your direct members — Scouts & Guides with no institution: their units, attendance, ranks and badges." />
+                <SchemeView scheme="SCOUTS" office />
+            </div>
+        );
+    }
     return (
         <div className="space-y-4 lg:space-y-6 animate-fade-in pb-10">
             <PageHeader icon={Shield} title="Extra-curricular"

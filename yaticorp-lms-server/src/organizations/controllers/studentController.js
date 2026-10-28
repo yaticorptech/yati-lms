@@ -20,6 +20,7 @@ const Organization = require('../models/Organization');
 const JoinRequest = require('../models/JoinRequest');
 const User = require('../../models/User');
 const { normalizeOrgCode, isValidOrgCodeFormat } = require('../services/orgCode');
+const { closeMemberships } = require('../../nccnss/membership');
 
 /** The little an organization shows to someone who is not in it yet. */
 const publicShape = (organization) => ({
@@ -287,6 +288,7 @@ const leaveOrganization = async (req, res) => {
         if (result.modifiedCount !== 1) {
             return res.status(409).json({ message: 'Your membership changed just now. Refresh and try again.' });
         }
+        await closeMemberships({ userId: req.user._id, organizationId: student.organizationId, reason: 'Left the organization' });
 
         await JoinRequest.updateMany(
             { userId: req.user._id, organizationId: student.organizationId, status: 'approved' },
