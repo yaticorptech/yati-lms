@@ -97,31 +97,35 @@ describe('what a player may see', () => {
         for (const k of ['game', 'status', 'you', 'turn', 'deadline', 'seats', 'message', 'outcome']) assert.ok(k in v, k);
     });
 
-    test('others see that you answered, not what', () => {
+    test('others see that you answered, not what; points wait for the reveal', () => {
         let s = started(brainsprint, 3);
         s = play(brainsprint, s, 0, { type: 'answer', choice: wrong(s) }, T0 + READY_MS + 1000);
         const theirs = brainsprint.view(s, 1, at(T0 + READY_MS + 1000));
         assert.deepEqual(theirs.answers[0], { answered: true });
+        assert.deepEqual(theirs.scores, [0, 0, 0], 'the open question\'s points are not shown yet');
         const mine = brainsprint.view(s, 0, at(T0 + READY_MS + 1000));
-        assert.equal(mine.answers[0].choice, wrong(s));
+        assert.deepEqual(mine.answers[0], { choice: wrong(s) });
+        assert.deepEqual(mine.scores, [0, 0, 0]);
         assert.equal(mine.canAnswer, false);
         assert.equal(mine.answer, null, 'even after answering, the right one waits for the reveal');
     });
 });
 
 describe('scoring when all answer at once (Brain Sprint, Code Clash)', () => {
-    test('right and fast scores more than right and slow; wrong scores nothing', () => {
+    test('right +100, wrong −20; once everyone answered the reveal shows', () => {
         let s = started(brainsprint, 3, { questionSeconds: 20 });
         const open = T0 + READY_MS;
         s = play(brainsprint, s, 0, { type: 'answer', choice: right(s) }, open);             // instantly
         s = play(brainsprint, s, 1, { type: 'answer', choice: right(s) }, open + 10_000);    // half the time
         assert.equal(s.phase, 'question', 'still waiting for the third player');
         s = play(brainsprint, s, 2, { type: 'answer', choice: wrong(s) }, open + 12_000);
-        assert.equal(s.phase, 'reveal', 'everyone answered: the answer shows at once');
-        assert.deepEqual(s.scores, [150, 125, 0]);
+        assert.equal(s.phase, 'reveal', 'everyone answered: the answers show at once');
+        assert.deepEqual(s.scores, [100, 100, -20]);
         const v = brainsprint.view(s, 2, at(open + 12_000));
         assert.equal(v.answer.index, s.questions[0].answer);
+        assert.deepEqual(v.scores, [100, 100, -20]);
         assert.equal(v.answers[0].correct, true);
+        assert.equal(v.answers[2].points, -20);
     });
 
     test('one answer each; nothing after time is up; not before the question opens', () => {
@@ -160,8 +164,8 @@ describe('scoring when all answer at once (Brain Sprint, Code Clash)', () => {
             return engine.outcome(s);
         };
         assert.deepEqual(run(brainsprint, 500, 500).places, [[0, 1]]);
-        // 150 points each when both answer within 0.1 s of the opening, so
-        // only the time on right answers can separate them.
+        // 100 points each for every right answer, so only the time on
+        // right answers can separate them.
         const close = run(brainsprint, 10, 30);
         assert.deepEqual(close.places, [[0], [1]]);
         assert.match(run(brainsprint, 6000, 2000).reason, /Most points/);

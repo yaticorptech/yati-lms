@@ -39,8 +39,21 @@ const DEMO_CARDS = new Set([
     '240100024637'  // Demo10
 ]);
 
+// The cards an administrator added on the Demo cards page (Card.demo), kept here so the check
+// below stays synchronous; refreshed by services/demoCards.js on start and on every change.
+const SCANNED_DEMO_CARDS = new Set();
+const setScannedDemoCards = (numbers) => {
+    SCANNED_DEMO_CARDS.clear();
+    for (const n of numbers) SCANNED_DEMO_CARDS.add(normaliseCardNumber(n));
+};
+/** A card number on either list. */
+const isDemoCard = (cardNumber) => {
+    const n = normaliseCardNumber(cardNumber);
+    return DEMO_CARDS.has(n) || SCANNED_DEMO_CARDS.has(n);
+};
+
 /** Is this account one of the demo cards? @param {{cardNumber?: string|number}} user */
-const hasFullAccess = (user) => !!user && DEMO_CARDS.has(normaliseCardNumber(user.cardNumber));
+const hasFullAccess = (user) => !!user && isDemoCard(user.cardNumber);
 
 /**
  * The same question for a request that has not been through the student
@@ -81,4 +94,4 @@ const fullAccessForUserId = async (userId) => {
     return value;
 };
 
-module.exports = { DEMO_CARDS, hasFullAccess, fullAccessFromRequest, fullAccessForUserId };
+module.exports = { DEMO_CARDS, isDemoCard, setScannedDemoCards, hasFullAccess, fullAccessFromRequest, fullAccessForUserId };

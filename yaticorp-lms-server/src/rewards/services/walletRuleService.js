@@ -193,6 +193,8 @@ const sendShort = (res, err) => res.status(402).json({ message: err.message, err
 const chargeWallet = (action, { when = null, ref = null } = {}) => async (req, res, next) => {
   try {
     if (!req.user?._id) return next();
+    // The demo (presentation) cards use every priced feature free (services/fullAccess.js).
+    if (require('../../services/fullAccess').hasFullAccess(req.user)) return next();
     if (when && !(await when(req))) return next();
     if (await askFirst(req, res, { action, referenceKey: ref ? ref(req) : null })) return;
     const charge = await chargeFor({ userId: req.user._id, action, referenceKey: ref ? ref(req) : null });

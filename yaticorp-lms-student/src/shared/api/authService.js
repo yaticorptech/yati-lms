@@ -14,6 +14,12 @@ export const getAuthServices = (apiClient) => ({
         return res.data;
     },
 
+    /** A 3rd device: remove one of the student's devices (once a year) and sign in here instead. */
+    replaceDevice: async (ticket, removeDeviceId) => {
+        const res = await apiClient.post('/auth/student/login/replace-device', { ticket, removeDeviceId });
+        return res.data;
+    },
+
     /**
      * Signup student
      */

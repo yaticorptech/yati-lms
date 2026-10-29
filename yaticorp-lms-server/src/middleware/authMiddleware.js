@@ -81,7 +81,7 @@ const protectUser = async (req, res, next) => {
             token = req.headers.authorization.split(' ')[1];
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-            req.user = await User.findById(decoded.id).select('-password');
+            req.user = await User.findById(decoded.id).select('-password +activeSessionId');
             if (!req.user || req.user.status !== 'active') {
                 return res.status(401).json({ message: 'Not authorized or account inactive' });
             }
@@ -94,11 +94,26 @@ const protectUser = async (req, res, next) => {
             // the superadmin behind it. Kept on the request so the few things
             // only the student may do (changing their password) can refuse it.
             req.impersonatedBy = decoded.impersonatedBy || null;
+            // Only on the devices the student is allowed (services/deviceGuard.js): a device removed
+            // in favour of another, or a 3rd one, is signed out here and meets the choice at sign-in.
+            // The device is the one the token was issued to (did); a token from before this check uses the
+            // device the request names, and is registered on first use.
+            const guard = require('../services/deviceGuard');
+            const here = guard.deviceOf(req);
+            const admitted = await guard.admitDevice(req.user, decoded.did ? { ...here, deviceId: decoded.did } : here, { impersonatedBy: req.impersonatedBy });
+            if (!admitted.ok) {
+                return res.status(401).json({ code: 'DEVICE_NOT_ALLOWED', message: 'This device is no longer signed in to your account. Sign in again to choose your devices.' });
+            }
+            // One active sign-in at a time: a newer sign-in elsewhere ended this one.
+            if (!(await guard.sessionCurrent(req.user, decoded.sid, req.impersonatedBy))) {
+                return res.status(401).json({ code: 'SESSION_REPLACED', message: 'Your account was signed in on another device, so you were signed out here.' });
+            }
             // The student's organization may open the platform only at set
             // hours (organizations/services/accessSchedule.js). Outside them
             // everything but the closed screen's own needs answers 423. An
             // administrator viewing as the student is let through.
-            if (!req.impersonatedBy && req.user.organizationId) {
+            // The demo (presentation) cards are never shut out by an organization's hours.
+            if (!req.impersonatedBy && req.user.organizationId && !require('../services/fullAccess').hasFullAccess(req.user)) {
                 const path = req.originalUrl.split('?')[0];
                 if (!OPEN_WHEN_CLOSED.some((p) => path.startsWith(p))) {
                     const access = await require('../organizations/services/accessSchedule').studentAccess(req.user);

@@ -17,6 +17,7 @@ import api from '../../services/api';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
 import { isWalletCancel } from '../../../utils/walletCharge';
+import GeminiCreditTip from '../../../components/GeminiCreditTip';
 
 /**
  * `value` must stay byte-identical to the Goal schema's enum — it is what gets
@@ -702,7 +703,7 @@ export default function SettingsPage() {
                 every task on your planner, your skill progress and your recommendations</strong>.
                 Change it only when your course or your goal has genuinely changed.
               </p>
-              <Button
+              <span className="inline-flex items-center gap-2"><Button
                 type="button"
                 variant="secondary"
                 size="sm"
@@ -714,7 +715,7 @@ export default function SettingsPage() {
                 className="mt-3.5"
               >
                 Save &amp; rebuild roadmap
-              </Button>
+              </Button><GeminiCreditTip /></span>
             </div>
           </div>
         </section>

@@ -7,11 +7,12 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Clock, CheckCircle2, MessageSquare, ChevronDown, PenLine } from 'lucide-react';
+import { Clock, CheckCircle2, MessageSquare, ChevronDown, PenLine, NotebookPen } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS, MODULES } from './meta';
 import { LevelChip, Loading, Mascot, Panel, Problem } from './ui';
 import { Corrections } from './session/exercises';
+import Notepad from './Notepad';
 
 function Row({ s }) {
     const [open, setOpen] = useState(false);
@@ -48,16 +49,25 @@ function Row({ s }) {
 export default function MyWriting() {
     const [data, setData] = useState(undefined);
     const [error, setError] = useState(null);
+    const [notes, setNotes] = useState(false);
     const load = useCallback(() => linguisticApi.submissions().then((d) => { setData(d); setError(null); }).catch((e) => { setError(e); setData(null); }), []);
     useEffect(() => { load(); }, [load]);
     if (data === undefined) return <Loading label="Loading your writing…" />;
     if (!data) return <Problem error={error} onRetry={load} />;
     return (
         <div className="space-y-4" data-writing-page>
-            <div>
-                <h1 className="text-2xl font-extrabold text-[#3c3c3c]">Your writing</h1>
-                <p className="mt-1 text-[15px] font-semibold text-[#777]">Paragraphs, emails, letters and passage translations you wrote, each sentence checked and corrected.</p>
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <h1 className="text-2xl font-extrabold text-[#3c3c3c]">Your writing</h1>
+                    <p className="mt-1 text-[15px] font-semibold text-[#777]">Paragraphs, emails, letters and passage translations you wrote, each sentence checked and corrected.</p>
+                </div>
+                {/* The notepad (2026-10-29): the student's own notes, whatever they want to keep. */}
+                <button type="button" onClick={() => setNotes(true)} title="My notes" aria-label="Open my notes"
+                    className="group flex shrink-0 items-center gap-2 rounded-2xl bg-gradient-to-b from-sky-500 to-sky-600 px-3.5 py-2.5 text-sm font-extrabold text-white shadow-[0_4px_0_#0369a1,0_8px_18px_rgba(2,132,199,.3)] transition-all hover:brightness-105 active:translate-y-[3px] active:shadow-[0_1px_0_#0369a1]" data-open-notepad>
+                    <NotebookPen size={20} className="transition-transform group-hover:-rotate-12" /> <span className="hidden sm:inline">My notes</span>
+                </button>
             </div>
+            {notes && <Notepad onClose={() => setNotes(false)} />}
             {data.submissions.length
                 ? <ul className="space-y-3">{data.submissions.map((s) => <Row key={s.id} s={s} />)}</ul>
                 : (

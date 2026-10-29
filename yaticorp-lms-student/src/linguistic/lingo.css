@@ -51,3 +51,16 @@ body:has([data-lingo-session]) [data-loop-avoid].mascot-clear[role="status"] {
     top: calc(5.5rem + env(safe-area-inset-top)) !important;
     bottom: auto !important;
 }
+/* The roadmap's landscape on a phone (Dashboard.jsx): a thin scrollbar under it. */
+.lingo-road-scroll { scrollbar-width: thin; scrollbar-color: #a78bfa #ede9fe; }
+.lingo-road-scroll::-webkit-scrollbar { height: 6px; }
+.lingo-road-scroll::-webkit-scrollbar-track { background: #ede9fe; border-radius: 9999px; }
+.lingo-road-scroll::-webkit-scrollbar-thumb { background: #a78bfa; border-radius: 9999px; }
+/* The roadmap's trophy (Dashboard.jsx): a warm glow breathing, and sparks twinkling round it. */
+@keyframes lingo-cup-glow { 0%, 100% { opacity: .55; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.15); } }
+.lingo-cup-glow { animation: lingo-cup-glow 2.2s ease-in-out infinite; mix-blend-mode: screen; }
+@keyframes lingo-cup-rays { to { transform: rotate(360deg); } }
+.lingo-cup-rays { animation: lingo-cup-rays 14s linear infinite; mix-blend-mode: screen; }
+@keyframes lingo-spark { 0%, 100% { opacity: 0; transform: scale(.3) rotate(0deg); } 45%, 55% { opacity: 1; transform: scale(1.1) rotate(45deg); } }
+.lingo-spark { animation: lingo-spark 1.8s ease-in-out infinite; text-shadow: 0 0 6px #ffd54a, 0 0 12px #ffb300; }
+@media (prefers-reduced-motion: reduce) { .lingo-cup-glow, .lingo-cup-rays, .lingo-spark { animation: none; opacity: .9; } }

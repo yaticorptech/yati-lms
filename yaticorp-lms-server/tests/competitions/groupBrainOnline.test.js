@@ -38,7 +38,7 @@ describe('Play online', () => {
     test('the fees on offer', async () => {
         const r = await p[0].call('GET', '/rooms/online');
         assert.deepEqual(r.body.fees, [0, 10, 25, 50]);
-        assert.deepEqual(r.body.sizes, [2, 4]);
+        assert.deepEqual(r.body.sizes, [2, 4, 6, 8, 10, 12, 16, 20]);
     });
 
     test('a fee not on offer, or more than the wallet holds, is refused', async () => {

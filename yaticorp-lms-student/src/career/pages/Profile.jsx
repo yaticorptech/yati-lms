@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Flame, CheckCircle2, TrendingUp, Award, RotateCcw, GraduationCap, Compass, CalendarDays, MapPin, ArrowRight, Zap, Check, Lock, Flag, Sparkles, Trophy,
+  Flame, CheckCircle2, TrendingUp, Award, RotateCcw, GraduationCap, Compass, CalendarDays, MapPin, ArrowRight, Target, Zap, Check, Lock, Flag, Sparkles, Trophy,
   ChevronDown, ChevronUp
 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
@@ -9,7 +9,6 @@ import api from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import Button from '../components/ui/Button';
 import Card, { CardHeader } from '../components/ui/Card';
-import ProgressArt from '../components/progress/ProgressArt';
 import { SkillsArt } from '../components/ui/PanelArt';
 import useLevelProgress from '../context/useLevelProgress';
 import LoadError from '../components/ui/LoadError';
@@ -95,8 +94,7 @@ const describeStart = (goal) => {
 
 /** One labelled fact in the band under the header. */
 /** The level as a ring filled towards the next one, with the number inside. */
-function LevelRing({ level, percent }) {
-  const size = 92;
+function LevelRing({ level, percent, size = 92, dark = false }) {
   const stroke = 7;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -104,7 +102,7 @@ function LevelRing({ level, percent }) {
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90" aria-hidden>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-journey-100" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className={dark ? 'stroke-white/20' : 'stroke-journey-100'} />
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -118,24 +116,35 @@ function LevelRing({ level, percent }) {
           style={{ transition: 'stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1)' }}
         />
       </svg>
-      <span className="absolute inset-[12px] flex flex-col items-center justify-center rounded-full bg-gradient-to-br from-journey-500 to-indigo-600 text-white shadow-lg shadow-journey-500/30">
+      <span className={`absolute inset-[12px] flex flex-col items-center justify-center rounded-full text-white shadow-lg ${dark ? 'bg-gradient-to-br from-amber-300 to-orange-500 text-amber-950 shadow-orange-900/40' : 'bg-gradient-to-br from-journey-500 to-indigo-600 shadow-journey-500/30'}`}>
         <span className="text-[0.52rem] font-black tracking-[0.14em] opacity-80 uppercase">Level</span>
-        <span className="text-xl leading-none font-black tabular-nums">{level}</span>
+        <span className={`leading-none font-black tabular-nums ${size > 100 ? 'text-3xl' : 'text-xl'}`}>{level}</span>
       </span>
     </div>
   );
 }
 
-const Fact = ({ icon: Icon, label, value, detail }) => (
-  <div className="min-w-0">
-    <p className="flex items-center gap-1.5 text-[0.68rem] font-black tracking-[0.11em] text-ink-400 uppercase">
-      <Icon className="h-3.5 w-3.5 shrink-0" />
-      {label}
-    </p>
-    <p className="mt-1 font-black break-words text-ink-900">{value || '—'}</p>
-    {detail && <p className="mt-0.5 text-sm text-ink-500">{detail}</p>}
-  </div>
-);
+// Each fact its own tint, written out whole so Tailwind keeps the classes.
+const FACT_TONES = {
+  sky: { card: 'from-sky-50 to-indigo-50/60 ring-sky-100', disc: 'bg-sky-100 text-sky-600' },
+  amber: { card: 'from-amber-50 to-orange-50/50 ring-amber-100', disc: 'bg-amber-100 text-rose-500' },
+  violet: { card: 'from-violet-50 to-fuchsia-50/50 ring-violet-100', disc: 'bg-violet-100 text-violet-600' }
+};
+const Fact = ({ icon: Icon, label, value, detail, tone = 'sky' }) => {
+  const t = FACT_TONES[tone];
+  return (
+    <div className={`flex min-w-0 items-center gap-4 rounded-2xl bg-gradient-to-br p-4 ring-1 ring-inset sm:p-5 ${t.card}`}>
+      <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-inner ${t.disc}`}>
+        <Icon className="h-7 w-7" strokeWidth={2.2} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[0.68rem] font-black tracking-[0.12em] text-ink-500 uppercase">{label}</p>
+        <p className="mt-0.5 text-xl leading-tight font-black break-words text-ink-900">{value || '—'}</p>
+        {detail && <p className="mt-0.5 text-sm text-ink-500">{detail}</p>}
+      </div>
+    </div>
+  );
+};
 
 /**
  * The roadmap as a slim track: where the student has been, where they stand,
@@ -149,13 +158,13 @@ function RoadmapTrack({ phases, completedPhases, percent }) {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="flex items-center gap-1.5 text-[0.68rem] font-black tracking-[0.11em] text-ink-400 uppercase">
-          <MapPin className="h-3.5 w-3.5" />
+        <p className="flex items-center gap-2 text-xs font-black tracking-[0.12em] text-ink-500 uppercase">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-journey-500 text-white"><MapPin className="h-3.5 w-3.5" /></span>
           Roadmap progress
         </p>
-        <p className="text-sm font-black text-ink-900 tabular-nums">
+        <p className="text-base font-black text-ink-900 tabular-nums">
           {currentIndex >= 0 ? `Phase ${currentIndex + 1} of ${phases.length}` : 'Every phase complete'}
-          <span className="text-ink-400"> · {percent}%</span>
+          <span className="text-journey-600"> · {percent}%</span>
         </p>
       </div>
 
@@ -175,28 +184,28 @@ function RoadmapTrack({ phases, completedPhases, percent }) {
               {index > 0 && (
                 <span
                   aria-hidden
-                  className={`mt-[1.05rem] h-1 min-w-4 flex-1 rounded-full ${
-                    states[index - 1] === 'done' ? 'bg-emerald-400' : 'bg-line-200'
+                  className={`mx-1.5 mt-[1.3rem] min-w-4 flex-1 rounded-full ${
+                    states[index - 1] === 'done' ? 'h-1 bg-emerald-400' : 'h-0 border-t-[3px] border-dashed border-line-200'
                   }`}
                 />
               )}
               <div className="flex w-20 shrink-0 flex-col items-center px-1 text-center">
                 <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black ${
                     done
-                      ? 'fp-done-gradient text-white'
+                      ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-md shadow-emerald-500/30'
                       : current
-                        ? 'fp-journey-gradient text-white shadow-lg shadow-journey-600/30'
+                        ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-violet-500/40 ring-4 ring-violet-100'
                         : 'bg-surface-100 text-ink-400 ring-1 ring-line-200 ring-inset'
                   }`}
                 >
-                  {done ? <Check className="h-4 w-4" strokeWidth={3} /> : current ? index + 1 : <Lock className="h-3.5 w-3.5" />}
+                  {done ? <Check className="h-5 w-5" strokeWidth={3} /> : current ? index + 1 : <Lock className="h-4 w-4" />}
                 </span>
-                <span className={`mt-1.5 text-[0.68rem] font-black ${current ? 'text-ink-900' : 'text-ink-400'}`}>
+                <span className={`mt-2 text-xs font-black ${current ? 'text-ink-900' : 'text-ink-600'}`}>
                   Phase {index + 1}
                 </span>
                 <span
-                  className="mt-0.5 w-full overflow-hidden text-[0.66rem] leading-tight text-ink-400 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]"
+                  className="mt-0.5 w-full overflow-hidden text-[0.68rem] leading-tight text-ink-500 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]"
                   title={lead}
                 >
                   {lead}
@@ -206,9 +215,9 @@ function RoadmapTrack({ phases, completedPhases, percent }) {
           );
         })}
         <li className="flex min-w-16 flex-1 items-start">
-          <span aria-hidden className="mt-[1.05rem] h-1 min-w-4 flex-1 rounded-full bg-line-200" />
-          <span className="mt-0 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white">
-            <Flag className="h-4 w-4" />
+          <span aria-hidden className="mx-1.5 mt-[1.3rem] h-1 min-w-4 flex-1 rounded-full bg-line-200" />
+          <span className="mt-0 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-orange-500/30">
+            <Flag className="h-5 w-5" />
           </span>
         </li>
       </ol>
@@ -626,78 +635,59 @@ export default function Profile() {
       <div className="min-w-0 space-y-5">
         {/* ---- Identity, level, and what it is all pointed at ----------- */}
         <Card data-mascot-target="progress-summary" padded={false} className="overflow-hidden">
-          <div className="relative overflow-hidden bg-gradient-to-r from-journey-50 via-surface to-amber-50/70 p-5 sm:p-6">
-            <div
+          {/* The banner: who they are, a desk of books for the picture, and their level. */}
+          <div className="relative overflow-hidden bg-gradient-to-r from-violet-100/80 via-indigo-50 to-violet-100/70 px-5 py-6 sm:px-7">
+            <span aria-hidden className="pointer-events-none absolute top-5 left-8 h-6 w-6 rounded-full bg-orange-200/80" />
+            <span aria-hidden className="pointer-events-none absolute bottom-6 left-3 h-4 w-4 rounded-full bg-violet-300/70" />
+            <img
+              src="/illustrations/progress-hero-art.png"
+              alt=""
               aria-hidden
-              className="fp-float pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-journey-200/40 blur-3xl"
-            />
-            <div
-              aria-hidden
-              className="fp-float-slow pointer-events-none absolute right-1/4 -bottom-24 h-56 w-56 rounded-full bg-pink-200/40 blur-3xl"
-            />
-            <ProgressArt
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 right-4 hidden h-40 w-56 -translate-y-1/2 xl:block"
+              className="pointer-events-none absolute bottom-0 left-[33%] hidden h-[105%] w-[36%] object-contain object-bottom mix-blend-multiply [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)] lg:block"
             />
 
-            {/* A grid on a phone — the avatar beside the name and email, the
-                boost and the level card full width beneath — because as one
-                wrapping row the name dropped under the avatar on a 360px screen
-                and left it alone over a blank band. From sm it is the wrapping
-                row it was, with the text back together as one column. */}
-            <div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 sm:flex sm:flex-wrap sm:gap-5 xl:pr-60">
-              <span className="relative row-span-3 flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-journey-500 to-indigo-600 text-2xl font-black text-white shadow-lg shadow-journey-500/30">
-                {user.name?.charAt(0)?.toUpperCase() || '?'}
-                <span className="absolute -right-1.5 -bottom-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-[0.6rem] font-black text-amber-950 ring-2 ring-surface">
-                  {level}
+            <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+              <div className="flex min-w-0 items-center gap-5">
+                <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-violet-600 text-3xl font-black text-white shadow-[0_14px_30px_-10px_rgba(109,40,217,0.6)] ring-4 ring-white sm:h-24 sm:w-24 sm:text-4xl">
+                  {user.name?.charAt(0)?.toUpperCase() || '?'}
                 </span>
-              </span>
-              {/* `contents` on a phone: the lines inside place themselves on
-                  the grid, so the boost can span both columns while the name
-                  and email sit beside the avatar. */}
-              <div className="contents sm:block sm:min-w-0 sm:flex-1 sm:basis-56">
-                <p className="text-[0.68rem] font-black tracking-[0.16em] text-journey-600 uppercase">
-                  My progress
-                </p>
-                <h1 className="mt-0.5 text-2xl leading-tight font-black break-words text-ink-900 sm:text-3xl">
-                  {user.name}
-                </h1>
-                {/* Smaller beside the avatar: at 14px a plain Gmail address
-                    broke mid-word on a 344px phone. */}
-                <p className="mt-0.5 text-xs break-all text-ink-500 sm:text-sm">{user.email}</p>
-                <p className="col-span-2 mt-3 inline-flex items-center gap-1.5 justify-self-start rounded-lg bg-journey-100/60 px-2.5 py-1 text-xs font-bold text-journey-700 sm:mt-2.5">
-                  <span aria-hidden>💪</span>
-                  {dailyBoost()}
-                </p>
+                <div className="min-w-0 lg:max-w-[16rem] xl:max-w-[20rem]">
+                  <span className="inline-flex rounded-full bg-violet-200/70 px-3 py-1 text-[0.68rem] font-black tracking-[0.12em] text-violet-700 uppercase">
+                    My progress
+                  </span>
+                  <h1 className="mt-2 text-2xl leading-tight font-black break-words text-ink-900 sm:text-3xl">{user.name}</h1>
+                  <p className="mt-0.5 text-xs break-all text-ink-500 sm:text-sm">{user.email}</p>
+                  <p className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/70 px-3 py-1.5 text-xs font-bold text-ink-700 ring-1 ring-violet-200 ring-inset">
+                    <span aria-hidden>💪</span>
+                    {dailyBoost()}
+                  </p>
+                </div>
               </div>
 
-              {/* Level, stated once, from the same helper every other surface
-                  on the site reads. */}
-              <div className="col-span-2 mt-4 flex w-full shrink-0 items-center gap-4 rounded-2xl bg-surface/90 p-3.5 shadow-card ring-1 ring-line-200/80 ring-inset backdrop-blur sm:mt-0 sm:w-auto">
-                <LevelRing level={level} percent={levelInfo.percent} />
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-xs font-black text-amber-600">
-                    <Zap className="h-3.5 w-3.5 fill-amber-200" />
-                    {shownXp} XP
+              {/* Level, stated once, from the same helper every other surface on the site reads. */}
+              <div className="relative flex items-center gap-5 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-indigo-700 p-5 text-white shadow-[0_20px_40px_-18px_rgba(79,70,229,0.7)]">
+                <span aria-hidden className="pointer-events-none absolute inset-0 opacity-15 [background-image:radial-gradient(white_1px,transparent_1px)] [background-size:14px_14px] [mask-image:linear-gradient(to_left,black,transparent_60%)]" />
+                <LevelRing level={level} percent={levelInfo.percent} size={116} dark />
+                <div className="relative min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 text-sm font-black text-amber-300">
+                    <Zap className="h-4 w-4 fill-amber-300" />
+                    <span className="tabular-nums">{shownXp}</span> XP
                   </p>
-                  <p className="mt-0.5 text-sm font-black text-ink-900 tabular-nums">
+                  <p className="mt-1 text-lg leading-tight font-black tabular-nums">
                     {levelInfo.known ? `${levelInfo.remaining} XP to Level ${levelInfo.nextLevel}` : `Level ${level}`}
                   </p>
-                  <div className="mt-2 h-1.5 w-40 overflow-hidden rounded-full bg-surface-100">
-                    <div
-                      className="fp-effort-gradient fp-stripes h-full rounded-full transition-[width] duration-1000 ease-out"
-                      style={{ width: `${levelInfo.percent}%` }}
-                    />
+                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/20">
+                    <div className="h-full rounded-full bg-gradient-to-r from-amber-300 to-orange-400 transition-[width] duration-1000 ease-out" style={{ width: `${levelInfo.percent}%` }} />
                   </div>
                   <Link
                     to="/career/planner"
                     data-mascot-target="pending-task"
-                    className="group mt-2.5 inline-flex items-center gap-1 text-xs font-black text-journey-700 hover:underline"
+                    className="group mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-sm font-black text-violet-700 shadow-lg shadow-violet-900/30 transition-transform hover:-translate-y-0.5"
                   >
-                    {/* A figure only while the rule pays one (null while
-                        Rewards is locked, 0 when the rule pays nothing). */}
+                    {/* A figure only while the rule pays one (null while Rewards is locked, 0 when it pays nothing). */}
+                    <Zap className="h-4 w-4 fill-amber-400 text-amber-400" />
                     {TASK_XP > 0 ? `Earn ${TASK_XP} XP now` : "Go to today's plan"}
-                    <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 </div>
               </div>
@@ -706,10 +696,11 @@ export default function Profile() {
 
           {/* Where they started, where they are going, how long they have been
               at it — the three facts the header band exists to carry. */}
-          <div className="grid gap-5 border-t border-line-200 p-5 sm:grid-cols-3">
-            <Fact icon={GraduationCap} label="Starting from" value={startedAt.title} detail={startedAt.detail} />
-            <Fact icon={Compass} label="Working towards" value={goal?.careerGoal} detail={goal?.dreamCompany} />
+          <div className="grid gap-4 p-5 sm:grid-cols-3">
+            <Fact tone="sky" icon={GraduationCap} label="Starting from" value={startedAt.title} detail={startedAt.detail} />
+            <Fact tone="amber" icon={Target} label="Working towards" value={goal?.careerGoal} detail={goal?.dreamCompany} />
             <Fact
+              tone="violet"
               icon={CalendarDays}
               label="Progress"
               value={stats ? `Day ${stats.daysPlanned}` : '—'}

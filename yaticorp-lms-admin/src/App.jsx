@@ -79,6 +79,7 @@ const OrgRoute = ({ children }) => {
 const Users = React.lazy(() => import('./pages/Users'));
 const Teachers = React.lazy(() => import('./pages/Teachers'));
 const VerifyCards = React.lazy(() => import('./pages/VerifyCards'));
+const DemoCards = React.lazy(() => import('./pages/DemoCards'));
 const WalletRecharge = React.lazy(() => import('./pages/WalletRecharge'));
 const OverallAnalytics = React.lazy(() => import('./pages/OverallAnalytics'));
 const AuditLog = React.lazy(() => import('./pages/AuditLog'));
@@ -171,6 +172,7 @@ function App() {
       <Route path="/" element={<PlatformRoute><AdminLayout /></PlatformRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="verify-cards" element={<SuperAdminRoute what="card verification"><VerifyCards /></SuperAdminRoute>} />
+        <Route path="demo-cards" element={<SuperAdminRoute what="demo cards"><DemoCards /></SuperAdminRoute>} />
         <Route path="wallet-recharge" element={<SuperAdminRoute what="wallet recharges"><WalletRecharge /></SuperAdminRoute>} />
         <Route path="overall-analytics" element={<OverallAnalytics />} />
         <Route path="audit-log" element={<SuperAdminRoute what="the admin audit log"><AuditLog /></SuperAdminRoute>} />

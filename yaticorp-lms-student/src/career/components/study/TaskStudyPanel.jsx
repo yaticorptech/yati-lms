@@ -15,6 +15,7 @@ import { useCelebrate } from '../ui/Celebration';
 import { useMascot } from '../../mascot/useMascot';
 import LoadError from '../ui/LoadError';
 import { isWalletCancel } from '../../../utils/walletCharge';
+import GeminiCreditTip from '../../../components/GeminiCreditTip';
 
 // How often the seconds watched are saved while a video plays. Often enough
 // that a reload loses little; rare enough to be a trickle, not a stream.
@@ -352,14 +353,14 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
               This one does not need a video. You&apos;ll get an explanation with worked examples,
               then a 5-question quiz.
             </p>
-            <Button
+            <span className="inline-flex items-center gap-2"><Button
               icon={BookOpen}
               loading={generating === 'read'}
               loadingText="Writing your lesson…"
               onClick={() => handleGenerate('read')}
             >
               Build this lesson
-            </Button>
+            </Button><GeminiCreditTip /></span>
           </div>
         </div>
       );
@@ -427,7 +428,7 @@ export default function TaskStudyPanel({ task, onCompleted, onLessonReady }) {
             <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-link">
               <Sparkles className="h-5 w-5" />
             </span>
-            <h4 className="font-bold text-ink-900">How do you want to learn this?</h4>
+            <h4 className="inline-flex items-center gap-2 font-bold text-ink-900">How do you want to learn this? <GeminiCreditTip /></h4>
             <p className="mx-auto mt-1 mb-5 max-w-md text-sm leading-relaxed text-ink-500">
               Either way you finish with revision notes and a 5-question quiz.
             </p>

@@ -35,7 +35,7 @@ const seatSchema = new mongoose.Schema({
 
 const playGameSchema = new mongoose.Schema({
     kind: { type: String, enum: ['match', 'room', 'friendly'], required: true },
-    game: { type: String, enum: ['chess', 'rapidfire', 'codeclash', 'brainsprint', 'memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'losttreasure', 'finalvault', 'lostkingdom', 'ludo', 'carrom', 'uno'], required: true },
+    game: { type: String, enum: ['chess', 'rapidfire', 'codeclash', 'brainsprint', 'memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'losttreasure', 'finalvault', 'lostkingdom', 'ludo', 'carrom', 'uno', ...require('../games/soloquiz').SOLO_QUIZ, ...require('../games/race').RACE, ...require('../games/turns').TURNS], required: true },
     competitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Competition', default: null, index: true },
     matchId: { type: mongoose.Schema.Types.ObjectId, ref: 'CompetitionMatch', default: null, index: true },
     // Rooms: the code other students type to join, and who made it (who starts it).

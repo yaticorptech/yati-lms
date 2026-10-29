@@ -53,6 +53,11 @@ export const linguisticApi = {
     answerReview: (id, given) => post(`/review/${id}`, { given }),
     submissions: () => get('/submissions'),
     history: () => get('/history'),
+    /** The notepad on the Writing tab: the student's notes, each { id, title, html }. */
+    notes: () => get('/notes'),
+    addNote: (note) => post('/notes', note),
+    saveNote: (id, note) => post(`/notes/${id}`, note),
+    deleteNote: (id) => del(`/notes/${id}`),
     certificates: () => get('/certificates'),
     /** The certificate PDF, as a Blob. */
     certificatePdf: (level, course = null) => client.get(`/linguistic/certificates/${level}/pdf${course ? `?course=${encodeURIComponent(course)}` : ''}`, { responseType: 'blob' }).then((r) => r.data).catch(unwrap),

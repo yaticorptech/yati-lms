@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useTrackTrail } from './hooks/useGoBack';
 import { useTeacher, hasResearch } from './teacher/useTeacher';
 import useJobsAccess from './hooks/useJobsAccess';
 import JobsLockedNotice from './jobs/JobsLockedNotice';
@@ -145,8 +146,9 @@ const CareerPlanner = React.lazy(() => import('./career/pages/dashboard/Planner'
 const CareerCalendar = React.lazy(() => import('./career/pages/dashboard/Calendar'));
 const CareerRoadmap = React.lazy(() => import('./career/pages/dashboard/RoadmapPage'));
 // Skills and Ideas & Resources are one tab since 2026-10-27 (SkillsHub: My skills / What to learn).
-const CareerSkills = React.lazy(() => import('./career/pages/dashboard/SkillsHub'));
-const CareerProfile = React.lazy(() => import('./career/pages/Profile'));
+// /career/skills (and ?view=learn) is My Progress's skills view now.
+const SkillsRedirect = () => <Navigate to={`/career/profile?view=${new URLSearchParams(window.location.search).get('view') === 'learn' ? 'learn' : 'skills'}`} replace />;
+const CareerProfile = React.lazy(() => import('./career/pages/ProgressHub'));
 const CareerBadges = React.lazy(() => import('./career/pages/dashboard/Badges'));
 const CareerGames = React.lazy(() => import('./career/pages/dashboard/Games'));
 // Games and competitions (brain games, matches, quizzes, hackathons) always stay in English,
@@ -351,6 +353,8 @@ const LOOP_TABS = {
 
 function App() {
   const { pathname, search } = useLocation();
+  // The pages visited, for every Back button (hooks/useGoBack.js).
+  useTrackTrail();
   const here = pathname.replace(/\/+$/, '') || '/';
   useSayPageOnNav(here, new URLSearchParams(search).get('tab'), LOOP_PAGES, LOOP_TABS);
   // Yati is the students' companion: not on the teacher dashboard either.
@@ -472,9 +476,9 @@ function App() {
           <Route path="planner" element={<React.Suspense fallback={<CareerFallback />}><CareerPlanner /></React.Suspense>} />
           <Route path="calendar" element={<React.Suspense fallback={<CareerFallback />}><CareerCalendar /></React.Suspense>} />
           <Route path="roadmap" element={<React.Suspense fallback={<CareerFallback />}><CareerRoadmap /></React.Suspense>} />
-          <Route path="skills" element={<React.Suspense fallback={<CareerFallback />}><CareerSkills /></React.Suspense>} />
-          {/* Ideas & Resources is the Skills tab's "What to learn" view since 2026-10-27. */}
-          <Route path="recommendations" element={<Navigate to="/career/skills?view=learn" replace />} />
+          {/* Skills and What to learn are views of My Progress since 2026-10-29; old links land there. */}
+          <Route path="skills" element={<SkillsRedirect />} />
+          <Route path="recommendations" element={<Navigate to="/career/profile?view=learn" replace />} />
           <Route path="scholarships" element={<React.Suspense fallback={<CareerFallback />}><Scholarships /></React.Suspense>} />
           <Route path="profile" element={<React.Suspense fallback={<CareerFallback />}><CareerProfile /></React.Suspense>} />
           <Route path="badges" element={<React.Suspense fallback={<CareerFallback />}><CareerBadges /></React.Suspense>} />
