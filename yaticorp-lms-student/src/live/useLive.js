@@ -9,6 +9,7 @@
  */
 import { useEffect, useRef } from 'react';
 import api from '../utils/api';
+import { deviceHeaders } from '../utils/deviceId';
 
 const listeners = new Set();
 let ctrl = null;
@@ -20,7 +21,7 @@ const connect = async () => {
     const mine = ctrl;
     try {
         const res = await fetch(`${api.defaults.baseURL}/live/stream`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('studentToken') || ''}`, Accept: 'text/event-stream' },
+            headers: { Authorization: `Bearer ${localStorage.getItem('studentToken') || ''}`, Accept: 'text/event-stream', ...deviceHeaders() },
             signal: mine.signal
         });
         if (!res.ok || !res.body) throw new Error(`live ${res.status}`);

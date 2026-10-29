@@ -49,6 +49,30 @@ const { NccNssClub, NccNssMember, NccNssActivity, NccNssEvent, NccNssSetting, Sc
 const { targetsFor, summarise } = require('./progress');
 const { closeMemberships, lastClosed } = require('./membership');
 const { awardFields, newAward, awardsByUser, withRanks } = require('./awards');
+const { pushEvent, removeEvent } = require('../integrations/google/calendar');
+
+/**
+ * An approved activity goes on the student's Google Calendar (when they
+ * connected it) as done, on the day it happened; a rejected one comes off.
+ * Best effort: their calendar never blocks the decision.
+ */
+const syncCompleted = async (activity) => {
+    try {
+        if (activity.status === 'approved') {
+            const r = await pushEvent(activity.userId, {
+                title: `✅ Completed: ${activity.title}`,
+                date: activity.date.toISOString().slice(0, 10),
+                type: `${schemeName(activity)} · ${activity.hours || 0} h — verified by your organization`,
+                notes: [activity.place, activity.proofUrl].filter(Boolean).join('\n'),
+                googleEventId: activity.googleEventId
+            });
+            if (r.ok && r.id !== activity.googleEventId) await NccNssActivity.updateOne({ _id: activity._id }, { googleEventId: r.id });
+        } else if (activity.googleEventId) {
+            await removeEvent(activity.userId, activity.googleEventId);
+            await NccNssActivity.updateOne({ _id: activity._id }, { googleEventId: '' });
+        }
+    } catch (error) { console.error('[nccnss] calendar sync', error.message); }
+};
 const { RANKS, AWARD_TYPE_LABELS } = require('./bsg');
 const Organization = require('../organizations/models/Organization');
 
@@ -532,6 +556,7 @@ router.put('/activities/:id', async (req, res) => {
         activity.decidedBy = req.admin._id;
         activity.decidedAt = new Date();
         await activity.save();
+        await syncCompleted(activity);
         res.json({ message: decision === 'approve' ? 'Approved — the hours now count.' : 'Rejected.', activity });
     } catch (error) { fail(res, error, 'save the decision'); }
 });
@@ -543,6 +568,7 @@ router.delete('/activities/:id', async (req, res) => {
         if (target && !await mayActivity(req, target)) return forbidden(res);
         const gone = await NccNssActivity.findOneAndDelete({ _id: req.params.id, organizationId: req.organization._id });
         if (!gone) return notFound(res, 'activity');
+        if (gone.googleEventId) await syncCompleted({ ...gone.toObject(), status: 'deleted' });
         res.json({ message: 'Activity deleted.' });
     } catch (error) { fail(res, error, 'delete the activity'); }
 });

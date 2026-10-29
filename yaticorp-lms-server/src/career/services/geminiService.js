@@ -155,10 +155,15 @@ const generateWithRetry = async (
           // Typed so it surfaces as 429 rather than 500: the service is fine,
           // the day's allowance is not. The provider's day ends at midnight
           // Pacific, so that is when it comes back.
+          // On the student's own key it is their Google allowance that ran out: the app offers
+          // to paste another key ('own-key-quota'). Otherwise it is the platform's.
+          const own = await require('../../utils/userAiKey').usingOwnKey().catch(() => false);
           throw new aiQuota.AiBudgetError(
-            "Career Path's AI has used up its allowance for today. " +
-            'Everything already generated is still here.',
-            'provider-daily-quota',
+            own
+              ? 'Your Gemini API key has used up its free credits for today. Paste a new key to keep going.'
+              : "Career Path's AI has used up its allowance for today. " +
+                'Everything already generated is still here.',
+            own ? 'own-key-quota' : 'provider-daily-quota',
             aiQuota.nextMidnightIn('America/Los_Angeles')
           );
         }

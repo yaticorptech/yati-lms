@@ -16,9 +16,19 @@ const LEVELS = ['beginner', 'intermediate', 'advanced'];
 const finishBelow = async (userId, level, course = null) => {
     const progress = await svc.progressOf(userId);
     let changed = false;
-    for (const l of LEVELS.slice(0, LEVELS.indexOf(level))) {
+    const below = LEVELS.slice(0, LEVELS.indexOf(level));
+    for (const l of below) {
         if (progress.levelsCompleted.some((x) => x.level === l && (x.course || null) === (course || null))) continue;
         progress.levelsCompleted.push({ level: l, completedAt: new Date(), average: 100, course });
+        changed = true;
+    }
+    // Since 2026-10-29 a section opens only when the assessment of the one before is passed: passed too.
+    const gates = below.length ? await LinguisticLesson.find({ review: 'assessment', level: { $in: below }, course: course || null }).select('_id module level').lean() : [];
+    for (const g of gates) {
+        const e = progress.lessons.find((x) => String(x.lessonId) === String(g._id));
+        if (e?.status === 'completed') continue;
+        if (e) Object.assign(e, { status: 'completed', bestScore: 100, completedAt: new Date() });
+        else progress.lessons.push({ lessonId: g._id, module: g.module, level: g.level, status: 'completed', step: 'done', bestScore: 100, completedAt: new Date() });
         changed = true;
     }
     if (changed) await progress.save();

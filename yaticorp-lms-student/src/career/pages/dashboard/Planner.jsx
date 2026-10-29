@@ -25,6 +25,8 @@ import { useXpRule, useRewards } from '../../../context/useRewards';
 import { usePointLoopAt } from '../../../components/loopGuide';
 import { useLoopHidden } from '../../../components/loopVisibility';
 import { isWalletCancel } from '../../../utils/walletCharge';
+import GeminiCreditTip from '../../../components/GeminiCreditTip';
+import useJobsAccess from '../../../hooks/useJobsAccess';
 
 // What a task WILL pay is the admin's 'career_task' rule (useXpRule in the
 // component) — a promise, shown only while there is a rule to promise (it is
@@ -190,6 +192,8 @@ export default function Planner() {
       return next;
     });
   const toast = useToast();
+  // A demo (presentation) card: no waiting on today's tasks (server: services/fullAccess.js).
+  const { fullAccess } = useJobsAccess();
   const celebrate = useCelebrate();
   const mascot = useMascot();
   // The date and the sign-off, live rather than frozen at module load.
@@ -319,7 +323,7 @@ export default function Planner() {
   const handleAddAnother = async () => {
     // One more only once today's plan is cleared; the button is disabled
     // before then, this just makes sure a stray call cannot get past it.
-    if (!allDone) return;
+    if (!canAddAnother) return;
     setAddingTask(true);
     try {
       const { data } = await api.post('/tasks/another');
@@ -592,6 +596,9 @@ export default function Planner() {
   const examEve = day?.status === 'exam-eve';
   const exams = day?.exams || [];
   const allDone = tasks.length > 0 && remaining === 0;
+  // "Generate another task" opens once today's are done — or at any time on a demo (presentation)
+  // card, which shows the product without waiting (server: services/fullAccess.js).
+  const canAddAnother = allDone || fullAccess;
 
   // The one task to pick up now. Marking it removes the smallest possible
   // decision between arriving on this page and starting work.
@@ -1038,9 +1045,9 @@ export default function Planner() {
                 title="No tasks for today"
                 description="Today's task is generated from your roadmap and what you've already finished."
                 action={
-                  <Button onClick={handleGenerate} loading={generating} loadingText="Generating..." icon={Sparkles}>
+                  <span className="inline-flex items-center gap-2"><Button onClick={handleGenerate} loading={generating} loadingText="Generating..." icon={Sparkles}>
                     Generate today's task
-                  </Button>
+                  </Button><GeminiCreditTip /></span>
                 }
               />
             )}
@@ -1447,18 +1454,18 @@ export default function Planner() {
                 sits greyed with a lock, so the student can see the door but
                 knows what opens it. The beacon animation runs only when it
                 can actually be pressed. */}
-            <button
+            <span className="inline-flex items-center gap-2"><button
               type="button"
               onClick={handleAddAnother}
-              disabled={addingTask || !allDone}
-              data-mascot-locked={allDone ? undefined : "today's tasks"}
-              data-explain={allDone && !addingTask ? 'another-task' : undefined}
+              disabled={addingTask || !canAddAnother}
+              data-mascot-locked={canAddAnother ? undefined : "today's tasks"}
+              data-explain={canAddAnother && !addingTask ? 'another-task' : undefined}
               data-mascot-prerequisite="start-task"
               aria-busy={addingTask || undefined}
-              aria-disabled={!allDone || undefined}
-              title={allDone ? undefined : 'Finish today’s tasks first'}
+              aria-disabled={!canAddAnother || undefined}
+              title={canAddAnother ? undefined : 'Finish today’s tasks first'}
               className={`group relative inline-flex min-h-11 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-400 via-pink-500 to-journey-600 px-5 py-2.5 text-sm font-black text-white shadow-md ${
-                allDone
+                canAddAnother
                   ? 'fp-btn fp-btn-warm fp-beacon fp-sweep disabled:cursor-not-allowed disabled:opacity-70'
                   : // Locked: still in colour so it reads as a reward waiting,
                     // but dimmed, still, and with a lock — not a button that
@@ -1468,14 +1475,14 @@ export default function Planner() {
             >
               {addingTask ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : allDone ? (
+              ) : canAddAnother ? (
                 <Sparkles className="fp-bolt h-4 w-4 fill-white/30" />
               ) : (
                 <Lock className="h-4 w-4" />
               )}
               {addingTask ? 'Finding one for you…' : 'Generate another task'}
-              {!addingTask && allDone && <Plus className="fp-btn-arrow h-4 w-4" strokeWidth={3} />}
-            </button>
+              {!addingTask && canAddAnother && <Plus className="fp-btn-arrow h-4 w-4" strokeWidth={3} />}
+            </button><GeminiCreditTip /></span>
             <p className="text-xs font-semibold text-ink-600">
               {allDone
                 ? 'Finished early? Got time — add one more for today.'

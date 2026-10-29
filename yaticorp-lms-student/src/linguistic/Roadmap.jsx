@@ -57,6 +57,7 @@ export default function Roadmap() {
     };
     const p = data.plan;
     const header = (
+        // No back arrow (2026-10-29, "remove this"): the ✕ above opens the dashboard.
         <div className="flex items-center gap-2">
             <h1 className="text-2xl font-extrabold text-[#3c3c3c]">Your {course} roadmap</h1>
         </div>

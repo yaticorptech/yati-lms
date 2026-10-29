@@ -22,6 +22,7 @@ import { pictureUrl } from '../native/pictures';
 import CourseOutlineDialog from '../components/course/CourseOutlineDialog';
 import ProfileImage from '../components/ProfileImage';
 import { isWalletCancel } from '../utils/walletCharge';
+import GeminiCreditTip from '../components/GeminiCreditTip';
 
 export default function LearningBioPage() {
     const [data, setData] = useState(undefined);
@@ -82,7 +83,7 @@ export default function LearningBioPage() {
             {/* ── A. About Me: photo on the left, a first-person story on the right ── */}
             <Section id="about" icon={Sparkles} title="About Me"
                 hint={bio.source === 'custom' ? `Your own wording · edited ${new Date(bio.custom.editedAt).toLocaleDateString('en-IN')}` : bio.ai.generatedAt ? `${bio.ai.isMock ? 'Written from your learning data' : `Written by AI (${data.ai.model}) from your learning data`} · ${new Date(bio.ai.generatedAt).toLocaleDateString('en-IN')}${bio.ai.stale ? ' · data has changed since' : ''}` : ''}
-                action={<div className="flex flex-wrap gap-2"><Btn icon={Sparkles} onClick={regenerate} loading={generating}>Regenerate Bio</Btn><Btn icon={PenLine} onClick={() => setModal('edit')}>Edit Bio</Btn></div>}>
+                action={<div className="flex flex-wrap gap-2"><span className="inline-flex items-center gap-2"><Btn icon={Sparkles} onClick={regenerate} loading={generating}>Regenerate Bio</Btn><GeminiCreditTip /></span><Btn icon={PenLine} onClick={() => setModal('edit')}>Edit Bio</Btn></div>}>
                 {(
                     <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
                         <div className="mx-auto w-full max-w-[260px] md:mx-0">

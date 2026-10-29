@@ -30,6 +30,8 @@ export default function Review() {
         : { key: m.id, part: 'review', kind: 'question', mistake: m, q: m.question, language: data.language })) : []), [data]);
 
     const back = backOr(navigate, '/linguistic/dashboard?tab=practice');
+    // The ✕ opens the section's dashboard, wherever it is pressed (2026-10-29, "directly show the dashboard only").
+    const toDashboard = () => navigate('/linguistic/dashboard');
     if (data === undefined) return <SessionFrame label="Fix your mistakes"><Loading label="Finding your mistakes…" /></SessionFrame>;
     if (!data) return <SessionFrame label="Fix your mistakes"><div className="flex flex-1 flex-col justify-center"><Problem error={error} onRetry={load} /><div className="text-center"><Chunky variant="ghost" color="blue" onClick={back}>Back</Chunky></div></div></SessionFrame>;
 
@@ -51,7 +53,7 @@ export default function Review() {
     }
     return (
         <SessionFrame label="Fix your mistakes">
-            <Session key={round} steps={steps} label="Fix your mistakes" onQuit={back} onComplete={(s) => setSummary(s)}
+            <Session key={round} steps={steps} label="Fix your mistakes" onQuit={toDashboard} onComplete={(s) => setSummary(s)}
                 check={(step, given) => linguisticApi.answerReview(step.mistake.id, given)} />
         </SessionFrame>
     );

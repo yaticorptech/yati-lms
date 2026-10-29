@@ -54,6 +54,8 @@ const idOf = (x) => String(x?._id ?? x);
 const bad = (res, message, status = 400) => res.status(status).json({ message });
 
 router.use(async (_req, _res, next) => { await ensureSeeded(); next(); });
+// The account allowed every section and unit, for testing (service.js `noteOpenAll`, 2026-10-29).
+router.use((req, _res, next) => { svc.noteOpenAll(req.user); next(); });
 
 /** A published lesson the student may open — in their own language — or a reply saying why not. */
 const openLesson = async (req, res) => {

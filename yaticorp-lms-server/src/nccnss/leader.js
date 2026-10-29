@@ -9,23 +9,34 @@
  *                                          (national, and my organization's state) for them
  *   GET    /:id                             one unit: its members (with progress) and requests, and its events
  *   PUT    /:id/members/:memberId           { status: 'active' | 'rejected' } for a student asking to join
+ *   GET    /:id/members/:memberId           one member's profile: contact, progress, rank, awards, attendance and activities
+ *   DELETE /:id/members/:memberId           take them out of the unit (closed as left, their record kept)
+ *   GET    /:id/candidates?search=          my organization's students, marked when already in a Scouts unit
+ *   POST   /:id/members                     add one of them { userId }: in at once, and told so
  *   POST   /:id/events                      schedule one { kind, title, date, hours, place }
  *   PUT    /:id/events/:eventId/attendance  { presentMemberIds: [] }
  *   DELETE /:id/events/:eventId
- *   POST   /:id/members/:memberId/awards   propose a rank, badge or training { type, name, date, examiner, certificateNo, note }:
- *                                          the organization approves it before it is on their record
+ *   POST   /:id/members/:memberId/awards   record a rank (a promotion), badge or training { type, name, date, examiner, certificateNo, note }
+ *                                          (multipart, optional "certificate" image): on their record at once, and they are told
+ *   PUT    /:id/awards/:awardId             { decision: 'approve' | 'reject', reason? } for one a student asked for, after checking
+ *                                          their certificate: approved, a rank is their new rank
  *   DELETE /:id/awards/:awardId             withdraw a proposal of mine not decided yet
  *
  * A unit is mine only while I lead it, it is active, and I am still in its organization.
  */
 const express = require('express');
 const mongoose = require('mongoose');
-const { ScoutUnit, ScoutAward, NccNssMember, NccNssEvent, SCOUT_SECTION_LABELS, CLOSED_STATUSES, eventKind } = require('./models');
+const { ScoutUnit, ScoutAward, NccNssMember, NccNssEvent, NccNssActivity, SCOUT_SECTION_LABELS, CLOSED_STATUSES, eventKind } = require('./models');
 const { summarise } = require('./progress');
 const { awardFields, newAward, withRanks } = require('./awards');
 const { RANKS } = require('./bsg');
 const { noticesFor } = require('./notices');
 const Organization = require('../organizations/models/Organization');
+const User = require('../models/User');
+const Notification = require('../career/models/Notification');
+const { closeMemberships, lastClosed } = require('./membership');
+const { upload } = require('../middleware/uploadMiddleware');
+const { isRasterImage } = require('../organizations/controllers/orgAdminController');
 
 const router = express.Router();
 const validId = (id) => mongoose.isValidObjectId(id);
@@ -41,6 +52,31 @@ const myUnit = (req) => (validId(req.params.id) && req.teacher.organizationId
     ? ScoutUnit.findOne({ _id: req.params.id, ...mine(req) }).lean()
     : null);
 const inUnit = (unit) => ({ organizationId: unit.organizationId, scheme: 'SCOUTS', unitId: unit._id });
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// What a member of each section is called: "joined … as a Bulbul".
+const ONE_OF = { cubs: 'Cub', bulbuls: 'Bulbul', scouts: 'Scout', guides: 'Guide', rovers: 'Rover', rangers: 'Ranger' };
+
+/** Tell the student they are in, on the bell. Never blocks the change itself. */
+const tellJoined = (req, unit, member) => Notification.create({
+    userId: member.userId,
+    type: 'system',
+    title: `You joined ${unit.name}`,
+    message: `${req.teacher.name || 'Your unit leader'} added you to ${unit.name} as a ${ONE_OF[unit.section] || 'member'} (Scouts & Guides). See its events and your progress on your Extra Curricular page.`,
+    link: `/extracurricular/${member._id}`
+}).catch((e) => console.error('[nccnss] leader notify failed:', e.message));
+
+/** Tell the student a rank, badge or training is on their record — or why a request of theirs was not. */
+const tellAward = (req, award, member, approved, reason = '') => Notification.create({
+    userId: award.userId,
+    type: 'system',
+    title: !approved ? `${award.name} not approved` : award.type === 'rank' ? `Promoted to ${award.name}` : `${award.name} added to your record`,
+    message: !approved
+        ? `${req.teacher.name || 'Your unit leader'} could not approve your ${award.name} request${reason ? `: ${reason}` : '.'}`
+        : award.type === 'rank'
+            ? `Congratulations! ${req.teacher.name || 'Your unit leader'} verified it — your rank is now ${award.name}.`
+            : `${req.teacher.name || 'Your unit leader'} added ${award.name} to your Scouts & Guides record.`,
+    link: `/extracurricular/${member._id}`
+}).catch((e) => console.error('[nccnss] leader notify failed:', e.message));
 
 router.get('/', async (req, res) => {
     try {
@@ -104,8 +140,108 @@ router.put('/:id/members/:memberId', async (req, res) => {
         // Only a request: removing or moving a member is the organization's.
         const member = await NccNssMember.findOneAndUpdate({ _id: req.params.memberId, ...inUnit(unit), status: 'pending' }, { $set: { status } }, { new: true });
         if (!member) return notFound(res, 'request');
+        if (status === 'active') tellJoined(req, unit, member);
         res.json({ message: status === 'active' ? 'Approved — they are in the unit.' : 'Rejected.' });
     } catch (error) { fail(res, error, 'save the decision'); }
+});
+
+router.get('/:id/members/:memberId', async (req, res) => {
+    try {
+        const unit = await myUnit(req);
+        if (!unit || !validId(req.params.memberId)) return notFound(res);
+        const member = await NccNssMember.findOne({ _id: req.params.memberId, ...inUnit(unit), status: { $in: ['active', 'pending'] } })
+            .populate('userId', 'name email phone cardNumber profilePicture className createdAt').lean();
+        if (!member?.userId) return notFound(res, 'member');
+        const [[ranked], events, activities] = await Promise.all([
+            withRanks([member], { full: true }),
+            NccNssEvent.find({ ...inUnit(unit), attendanceTaken: true, date: { $gte: member.createdAt } }).sort({ date: -1 }).limit(50).lean(),
+            NccNssActivity.find({ memberId: member._id }).sort({ date: -1 }).limit(50).lean()
+        ]);
+        const [summary] = member.status === 'active' ? await summarise([member], unit.organizationId) : [null];
+        res.json({
+            member: {
+                _id: member._id, status: member.status, year: member.year, enrolmentNo: member.enrolmentNo, joinedAt: member.createdAt,
+                section: member.section || unit.section, sectionLabel: SCOUT_SECTION_LABELS[member.section || unit.section],
+                student: member.userId, rank: ranked.rank, awards: ranked.awards || [], summary
+            },
+            ranks: RANKS[member.section || unit.section] || [],
+            attendance: events.map((e) => ({ _id: e._id, title: e.title, kind: e.kind, date: e.date, present: e.presentMemberIds.some((x) => String(x) === String(member._id)) })),
+            activities: activities.map((a) => ({ _id: a._id, title: a.title, kind: a.kind, date: a.date, hours: a.hours, status: a.status, proofUrl: a.proofUrl }))
+        });
+    } catch (error) { fail(res, error, 'load the member'); }
+});
+
+router.delete('/:id/members/:memberId', async (req, res) => {
+    try {
+        const unit = await myUnit(req);
+        if (!unit || !validId(req.params.memberId)) return notFound(res);
+        const member = await NccNssMember.findOneAndUpdate(
+            { _id: req.params.memberId, ...inUnit(unit), status: 'active' },
+            { $set: { status: 'left', endedAt: new Date(), endReason: `Removed from ${unit.name} by the unit leader` } },
+            { new: true }
+        ).populate('userId', 'name');
+        if (!member) return notFound(res, 'member');
+        Notification.create({
+            userId: member.userId._id, type: 'system', title: `You left ${unit.name}`,
+            message: `${req.teacher.name || 'Your unit leader'} took you out of ${unit.name}. Your ranks, badges and record are kept.`,
+            link: '/extracurricular'
+        }).catch(() => {});
+        res.json({ message: `${member.userId.name} removed from ${unit.name} — their record is kept.` });
+    } catch (error) { fail(res, error, 'remove the member'); }
+});
+
+router.get('/:id/candidates', async (req, res) => {
+    try {
+        const unit = await myUnit(req);
+        if (!unit) return notFound(res);
+        const filter = { organizationId: unit.organizationId };
+        const search = String(req.query.search || '').trim().slice(0, 100);
+        if (search) filter.$or = ['name', 'email', 'cardNumber'].map((k) => ({ [k]: new RegExp(escapeRegExp(search), 'i') }));
+        const students = await User.find(filter).select('name email cardNumber').sort({ name: 1 }).limit(500).lean();
+        // One Scouts unit at a time: show where each already is.
+        const live = await NccNssMember.find({ userId: { $in: students.map((s) => s._id) }, organizationId: unit.organizationId, scheme: 'SCOUTS', status: { $in: ['active', 'pending'] } })
+            .select('userId unit unitId status').lean();
+        res.json({
+            students: students.map((s) => {
+                const m = live.find((x) => String(x.userId) === String(s._id));
+                return { ...s, inUnit: m ? (String(m.unitId) === String(unit._id) ? 'this' : m.unit || 'another unit') : null, pending: m?.status === 'pending' };
+            })
+        });
+    } catch (error) { fail(res, error, 'search your students'); }
+});
+
+router.post('/:id/members', async (req, res) => {
+    try {
+        const unit = await myUnit(req);
+        if (!unit) return notFound(res);
+        const { userId } = req.body || {};
+        if (!validId(userId)) return res.status(400).json({ message: 'Choose a student.' });
+        const student = await User.findOne({ _id: userId, organizationId: unit.organizationId }).select('_id name').lean();
+        if (!student) return res.status(404).json({ message: 'That student is not in your organization.' });
+        await closeMemberships({ userId, notIn: unit.organizationId, reason: 'No longer in that organization' });
+        const rows = await NccNssMember.find({ userId, scheme: 'SCOUTS', clubId: null, organizationId: unit.organizationId, status: { $in: ['active', 'pending', 'completed', 'rejected'] } }).sort({ createdAt: -1 });
+        const open = rows.find((r) => r.status !== 'rejected');
+        // Their own request to this unit: adding them is approving it.
+        if (open && open.status === 'pending' && String(open.unitId) === String(unit._id)) {
+            open.status = 'active';
+            await open.save();
+            tellJoined(req, unit, open);
+            return res.json({ message: `${student.name} is in ${unit.name} — they have been told.` });
+        }
+        if (open) return res.status(409).json({ message: String(open.unitId) === String(unit._id) ? `${student.name} is already in this unit.` : `${student.name} is already in ${open.unit || 'another Scouts unit'}. Ask your organization to transfer them.` });
+        const fields = {
+            organizationId: unit.organizationId, unit: unit.name, unitId: unit._id, section: unit.section,
+            status: 'active', addedBy: 'organization', endedAt: null, endReason: '', note: ''
+        };
+        const member = rows[0]
+            ? await Object.assign(rows[0], fields).save()
+            : await NccNssMember.create({ ...fields, userId, scheme: 'SCOUTS', clubId: null, transferredFrom: (await lastClosed(userId, 'SCOUTS', null))?._id || null });
+        tellJoined(req, unit, member);
+        res.status(201).json({ message: `${student.name} added to ${unit.name} as a ${ONE_OF[unit.section] || 'member'} — they have been told.` });
+    } catch (error) {
+        if (error.code === 11000) return res.status(409).json({ message: 'That student is already in a Scouts unit.' });
+        fail(res, error, 'add the student');
+    }
 });
 
 router.post('/:id/events', async (req, res) => {
@@ -154,7 +290,7 @@ router.delete('/:id/events/:eventId', async (req, res) => {
     } catch (error) { fail(res, error, 'delete the event'); }
 });
 
-router.post('/:id/members/:memberId/awards', async (req, res) => {
+router.post('/:id/members/:memberId/awards', upload.single('certificate'), async (req, res) => {
     try {
         const unit = await myUnit(req);
         if (!unit || !validId(req.params.memberId)) return notFound(res);
@@ -162,9 +298,39 @@ router.post('/:id/members/:memberId/awards', async (req, res) => {
         if (!member) return notFound(res, 'member');
         const { fields, error } = awardFields(req.body, member.section || unit.section);
         if (error) return res.status(400).json({ message: error });
-        const award = await newAward({ ...member, section: member.section || unit.section }, fields, { status: 'pending', proposedByTeacherId: req.teacher._id });
-        res.status(201).json({ message: `${fields.name} sent to your organization to approve.`, award });
+        if (req.file) {
+            if (!isRasterImage(req.file.buffer)) return res.status(400).json({ message: 'Upload the certificate as a PNG, JPEG or WebP image.' });
+            const { uploadToBunny } = require('../utils/bunnyStorage');
+            fields.certificateUrl = await uploadToBunny(req.file.buffer, 'certificate', 'nccnss-proofs');
+        }
+        // The leader tested them: it counts now.
+        const award = await newAward({ ...member, section: member.section || unit.section }, fields, {
+            status: 'approved', proposedByTeacherId: req.teacher._id, decidedByTeacherId: req.teacher._id, decidedAt: new Date()
+        });
+        tellAward(req, award, member, true);
+        res.status(201).json({ message: fields.type === 'rank' ? `Promoted to ${fields.name} — they have been told.` : `${fields.name} recorded — they have been told.`, award });
     } catch (error) { fail(res, error, 'record it'); }
+});
+
+router.put('/:id/awards/:awardId', async (req, res) => {
+    try {
+        const unit = await myUnit(req);
+        if (!unit || !validId(req.params.awardId)) return notFound(res);
+        const { decision, reason = '' } = req.body || {};
+        if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ message: 'Approve or reject.' });
+        const award = await ScoutAward.findOne({ _id: req.params.awardId, status: 'pending' });
+        if (!award) return notFound(res, 'request');
+        // Theirs to decide while the student is in this unit.
+        const member = await NccNssMember.findOne({ userId: award.userId, ...inUnit(unit), status: 'active' }).lean();
+        if (!member) return notFound(res, 'request');
+        award.status = decision === 'approve' ? 'approved' : 'rejected';
+        award.reason = decision === 'reject' ? String(reason).trim().slice(0, 300) : '';
+        award.decidedByTeacherId = req.teacher._id;
+        award.decidedAt = new Date();
+        await award.save();
+        tellAward(req, award, member, decision === 'approve', award.reason);
+        res.json({ message: decision === 'approve' ? (award.type === 'rank' ? `Approved — their rank is now ${award.name}.` : 'Approved — on their record.') : 'Rejected — they have been told.' });
+    } catch (error) { fail(res, error, 'save the decision'); }
 });
 
 router.delete('/:id/awards/:awardId', async (req, res) => {

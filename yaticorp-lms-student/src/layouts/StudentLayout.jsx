@@ -9,6 +9,8 @@ import ContinuePanel from '../components/ContinuePanel';
 import WalletShortDialog from '../components/rewards/WalletShortDialog';
 import WalletConfirmDialog from '../components/rewards/WalletConfirmDialog';
 import MobileBottomNav from '../components/MobileBottomNav';
+import GeminiExhaustedDialog from '../components/GeminiExhaustedDialog';
+import useLive from '../live/useLive';
 import GoogleConsentDialog from '../integrations/google/GoogleConsentDialog';
 import LanguageToggle from '../components/LanguageToggle';
 import InstallAppButton from '../components/InstallAppButton';
@@ -207,6 +209,10 @@ const StudentLayout = () => {
     // The organization's access hours: outside them, the closed screen (components/PlatformClosed).
     const accessHours = useAccessHours(Boolean(user));
     const [adminView] = useState(readAdminView);
+    // One active sign-in at a time: a sign-in on another device ('session' on the live stream)
+    // makes this page check its own; if it was the older one the server answers 401 and the app
+    // signs out here with the reason (utils/sessionExpiry).
+    useLive('session', useCallback(() => { api.get('/user/devices').catch(() => {}); }, []), { enabled: Boolean(user) && !adminView });
     // Signs out of the student and closes the tab the admin panel opened; if
     // the browser will not close it, the sign-in page is left showing.
     const exitAdminView = () => { window.close(); logout(); };
@@ -827,10 +833,14 @@ const StudentLayout = () => {
             <GoogleConsentDialog />
             {walletOpen && <React.Suspense fallback={null}><WalletSheet onClose={closeWallet} /></React.Suspense>}
 
+            {/* Gemini credits spent: three steps to a new key (utils/aiExhausted). */}
+            <GeminiExhaustedDialog />
+
             {/* The six sections under the thumb, mirroring the sidebar. */}
             <MobileBottomNav
                 isJobsEnabled={isJobsEnabled}
                 isCareerPathEnabled={isCareerPathEnabled}
+                isLinguisticEnabled={isLinguisticEnabled}
                 user={user}
                 rewards={rw}
                 onOpenWallet={() => setWalletOpen(true)}

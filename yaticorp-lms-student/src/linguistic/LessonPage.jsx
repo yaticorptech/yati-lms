@@ -49,6 +49,8 @@ function LessonPage() {
 
     const steps = useMemo(() => (lesson ? buildLesson(lesson) : []), [lesson]);
     const toPath = backOr(navigate, '/linguistic');
+    // The ✕ opens the section's dashboard, wherever it is pressed (2026-10-29, "directly show the dashboard only").
+    const toDashboard = () => navigate('/linguistic/dashboard');
 
     if (lesson === undefined) return <SessionFrame label="Lesson"><Loading label="Opening your lesson…" /></SessionFrame>;
     // A lesson not in the course they are on (another course's, or one their plan leaves out, 2026-10-27):
@@ -132,7 +134,7 @@ function LessonPage() {
 
     return (
         <SessionFrame label={lesson.title}>
-            <Session key={run.n} steps={runSteps} hearts={lesson.quiz?.length ? heartsFor(lesson.quiz.length, lesson.passingScore) : null} check={check} onComplete={complete} onQuit={toPath}
+            <Session key={run.n} steps={runSteps} hearts={lesson.quiz?.length ? heartsFor(lesson.quiz.length, lesson.passingScore) : null} check={check} onComplete={complete} onQuit={toDashboard}
                 onEnterPart={(part) => { if (part === 'practice' || part === 'quiz') linguisticApi.step(id, part).catch(() => {}); }}
                 label={lesson.title} />
         </SessionFrame>

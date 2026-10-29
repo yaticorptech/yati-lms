@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Check, Lock, Trophy } from 'lucide-react';
 import { linguisticApi } from './api';
-import { COLORS, levelOf } from './meta';
+import { COLORS, levelOf, hasAssessment } from './meta';
 import { Bar, Loading, Mascot, Problem, Panel } from './ui';
 
 const POSES = ['wave-hi', 'presenting', 'star-celebrate'];
@@ -31,7 +31,8 @@ export default function Sections() {
             {path.levels.map((s, i) => {
                 const lv = levelOf(s.level);
                 const c = COLORS[s.open ? TONES[i % TONES.length] : 'grey'];
-                const units = s.units.filter((u) => u.kind === 'topic');
+                // Topic units, or (Advanced, 2026-10-29) a track for each skill.
+                const units = s.units.filter((u) => u.kind === 'topic' || u.kind === 'track');
                 const here = s.level === path.level;
                 const go = () => navigate(`/linguistic?section=${s.level}`);
                 return (
@@ -44,7 +45,7 @@ export default function Sections() {
                                 <h2 className="text-xl font-extrabold text-[#3c3c3c] sm:text-2xl">{lv.section}</h2>
                                 <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm font-bold text-[#777]">
                                     <span className="rounded-lg px-2 py-0.5 text-xs font-extrabold text-white" style={{ background: s.open ? c.face : '#AFAFAF' }} data-cefr>{lv.cefr}</span>
-                                    {lv.label} · {units.length} unit{units.length === 1 ? '' : 's'} · {s.total} lessons
+                                    {lv.label} · {units.length} {units.some((u) => u.kind === 'track') ? `skill${units.length === 1 ? '' : 's'}` : `unit${units.length === 1 ? '' : 's'}`} · {s.total} lessons
                                 </p>
                                 <p className="mt-2 text-sm font-semibold text-[#4b4b4b] sm:text-[15px]">You will learn: {units.map((u) => u.title).join(' · ')}.</p>
                             </div>
@@ -67,14 +68,14 @@ export default function Sections() {
                                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: done ? COLORS.green.face : '#F2F2F2', color: done ? '#fff' : '#AFAFAF' }}>
                                                 {done ? <Check size={15} strokeWidth={3.5} /> : u.kind === 'review' ? <Trophy size={14} /> : !u.open ? <Lock size={14} /> : <span className="text-xs font-black">{u.index}</span>}
                                             </span>
-                                            <span className="min-w-0 truncate">{u.kind === 'review' ? 'Section review' : `Unit ${u.index} · ${u.title}`}</span>
+                                            <span className="min-w-0 truncate">{u.kind === 'review' ? 'Section review' : u.kind === 'track' ? u.title : `Unit ${u.index} · ${u.title}`}</span>
                                         </li>
                                     );
                                 })}
                             </ol>
                             {s.open
                                 ? <button type="button" onClick={go} className="lingo-btn h-12 w-full transition-[filter] hover:brightness-105" style={{ background: s.complete ? '#fff' : c.face, borderColor: s.complete ? '#E5E5E5' : c.edge, color: s.complete ? c.ink : '#fff' }} data-section-go>{s.complete ? 'Review' : here || s.completed ? 'Continue' : 'Start'}</button>
-                                : <p className="flex items-center justify-center gap-2 text-sm font-extrabold uppercase tracking-wide text-[#AFAFAF]" data-section-locked><Lock size={15} /> Finish Section {i} to open it</p>}
+                                : <p className="flex items-center justify-center gap-2 text-sm font-extrabold uppercase tracking-wide text-[#AFAFAF]" data-section-locked><Lock size={15} /> {hasAssessment(path.levels[i - 1]) ? `Finish Section ${i} and pass its assessment to open it` : `Finish Section ${i} to open it`}</p>}
                         </div>
                     </Panel>
                 );

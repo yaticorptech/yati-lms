@@ -76,4 +76,20 @@ const saveFile = async (userId, { name, mimeType, content, description = '' }) =
   return { ok: true, id: file.id, name: file.name, link: file.webViewLink, folderId };
 };
 
-module.exports = { saveFile, ensureFolder };
+/**
+ * Let anyone holding the link view one file this app put there — how an
+ * organization's teacher opens a proof without a Google account of the
+ * student's. Only files we made: `drive.file` reaches nothing else.
+ */
+const shareByLink = async (userId, fileId) => {
+  const token = await accessTokenFor(userId);
+  if (!token) return { ok: false, reason: 'not-connected' };
+  await call(`${FILES}/${fileId}/permissions`, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' })
+  });
+  return { ok: true };
+};
+
+module.exports = { saveFile, ensureFolder, shareByLink };

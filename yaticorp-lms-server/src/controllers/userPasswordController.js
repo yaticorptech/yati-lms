@@ -192,7 +192,7 @@ const updatePassword = async (req, res) => {
         // token comes back for the device the student is using right now.
         await User.updateOne({ _id: user._id }, { $set: { password: newPassword, passwordChangedAt: new Date() } });
 
-        res.json({ message: 'Password updated successfully', token: generateToken(user._id, 'student') });
+        res.json({ message: 'Password updated successfully', token: generateToken(user._id, 'student', { did: require('../services/deviceGuard').deviceOf(req).deviceId, sid: await require('../services/deviceGuard').startSession(user) }) });
     } catch (error) {
         console.error('Update Password Error:', error);
         res.status(500).json({ message: 'Failed to update password' });

@@ -25,6 +25,39 @@ const indic = (base, { skip = [], extras = [], marks = [] } = {}) => [
 
 const hiragana = ['あいうえお', 'かきくけこ', 'がぎぐげご', 'さしすせそ', 'ざじずぜぞ', 'たちつてと', 'だぢづでど', 'なにぬねの', 'はひふへほ', 'ばびぶべぼ', 'ぱぴぷぺぽ', 'まみむめも', 'やゆよ', 'らりるれろ', 'わをん', 'ぁぃぅぇぉゃゅょっ'];
 const toKatakana = (s) => s.replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60));
+// Each kana's sound in English letters, shown under its key (2026-10-29: "add the English under the Japanese").
+const ROMAJI = ['a i u e o', 'ka ki ku ke ko', 'ga gi gu ge go', 'sa shi su se so', 'za ji zu ze zo', 'ta chi tsu te to', 'da ji zu de do',
+    'na ni nu ne no', 'ha hi fu he ho', 'ba bi bu be bo', 'pa pi pu pe po', 'ma mi mu me mo', 'ya yu yo', 'ra ri ru re ro', 'wa wo n', 'a i u e o ya yu yo tsu'];
+const KANA_SAY = Object.fromEntries(hiragana.flatMap((r, i) => [...r].flatMap((k, j) => { const say = ROMAJI[i].split(' ')[j]; return [[k, say], [toKatakana(k), say]]; })));
+KANA_SAY['ー'] = 'long';
+/** How a key's letter sounds, in English letters (Japanese kana), or null. */
+export const keySay = (code, k) => (code === 'ja' ? KANA_SAY[k] || null : null);
+
+/**
+ * The kana as their chart (2026-10-29, "show the keyboard correctly"): a column for each consonant — a, ka, sa, ta,
+ * na, ha, ma, ya, ra, wa, n — its five vowels down it ('' where the chart has none). The voiced, half-voiced and
+ * small kana come from the ゛ ゜ 小 keys, as a Japanese phone keyboard has them (`modifyKana`).
+ */
+export const KANA_CHART = ['あいうえお', 'かきくけこ', 'さしすせそ', 'たちつてと', 'なにぬねの', 'はひふへほ', 'まみむめも', ['や', '', 'ゆ', '', 'よ'], 'らりるれろ', ['わ', '', '', '', 'を'], ['ん', '', '', '', '']]
+    .map((col) => [...col]);
+export const katakanaOf = (k) => (k ? toKatakana(k) : k);
+const cp = (c) => c.codePointAt(0);
+const at = (n) => String.fromCodePoint(n);
+// Hiragana and katakana sit 0x60 apart, in the same order: the rules are the hiragana's, shifted.
+const base = (c) => (cp(c) >= 0x30a1 && cp(c) <= 0x30f6 ? { h: at(cp(c) - 0x60), kata: true } : { h: c, kata: false });
+const VOICE = [...'かきくけこさしすせそたちつてとはひふへほ'], VOICED = VOICE.map((c) => at(cp(c) + 1));
+const HALF = [...'はひふへほ'], HALFED = HALF.map((c) => at(cp(c) + 2));
+const SMALL = [...'あいうえおつやゆよわ'], SMALLED = SMALL.map((c) => at(cp(c) - 1));
+/** The kana before the cursor with ゛ (voiced), ゜ (half-voiced) or 小 (small) — tapped again, back as it was. */
+export const modifyKana = (c, mark) => {
+    if (!c) return c;
+    const { h, kata } = base(c);
+    let out = h;
+    if (mark === '゛') out = VOICE.includes(h) ? at(cp(h) + 1) : VOICED.includes(h) ? at(cp(h) - 1) : HALFED.includes(h) ? at(cp(h) - 1) : h === 'う' ? 'ゔ' : h === 'ゔ' ? 'う' : h;
+    if (mark === '゜') out = HALF.includes(h) ? at(cp(h) + 2) : HALFED.includes(h) ? at(cp(h) - 2) : VOICED.includes(h) && HALF.includes(at(cp(h) - 1)) ? at(cp(h) + 1) : h;
+    if (mark === '小') out = SMALL.includes(h) ? at(cp(h) - 1) : SMALLED.includes(h) ? at(cp(h) + 1) : h;
+    return kata && out !== h ? toKatakana(out) : kata ? c : out;
+};
 
 /** Each language's keys: groups of letters, with a label; `sign` marks vowel signs, shown on a dotted circle. */
 export const LAYOUTS = {
