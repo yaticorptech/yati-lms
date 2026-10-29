@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, Check, Lock, CalendarDays, ChevronDown, Target } from 'lucide-react';
+import { Check, Lock, CalendarDays, ChevronDown, Target } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS } from './meta';
 import { Bar, Chunky, Loading, Mascot, Panel, Problem } from './ui';
@@ -57,8 +57,8 @@ export default function Roadmap() {
     };
     const p = data.plan;
     const header = (
+        // No back arrow (2026-10-29, "remove this"): the ✕ above opens the dashboard.
         <div className="flex items-center gap-2">
-            <Link to="/linguistic" aria-label="Back to the path" className="flex h-10 w-10 items-center justify-center rounded-xl text-[#AFAFAF] hover:bg-[#F2F2F2]"><ArrowLeft size={24} strokeWidth={3} /></Link>
             <h1 className="text-2xl font-extrabold text-[#3c3c3c]">Your {course} roadmap</h1>
         </div>
     );

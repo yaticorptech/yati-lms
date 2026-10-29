@@ -18,7 +18,9 @@
  * request never pays twice.
  */
 const mongoose = require('mongoose');
-const { LinguisticLesson, LinguisticProgress, LinguisticAttempt, LinguisticSubmission, MODULES, LEVELS } = require('./models');
+const { LinguisticLesson, LinguisticProgress, LinguisticAttempt, LinguisticSubmission, MODULES } = require('./models');
+// The sections shown (levels.js, 2026-10-29: Intermediate hidden) — the path, the roadmap, the dashboard and the level.
+const { SHOWN: LEVELS } = require('./levels');
 const { getConfig } = require('./config');
 const { gradeQuestion, checkTranslation, normalize } = require('./check');
 const { lessonQuiz, reviewQuiz, hearQuiz, unitQuiz, sentenceQuestion, questionById, questionFor, shuffle, seeded } = require('./vocabQuiz');
@@ -35,13 +37,14 @@ const { normaliseCardNumber } = require('../utils/cardNumber');
 const { checkTalk, checkWritten } = require('./talkCheck');
 // The feedback on English in the student's own language (2026-10-27, all 20 languages).
 const { localizeFeedback } = require('./content/feedback');
-const { unitsOf, pathOrder, warmupFor, typeOf } = require('./units');
-const { CODES: SOUND_CODES, sayOf, tileSay, saysFor, wordHints } = require('./content/sounds');
+const { unitsOf, pathOrder, warmupFor, typeOf, isTracked } = require('./units');
+const { CODES: SOUND_CODES, sayOf, tileSay, saysFor, wordHints, spellingsOf } = require('./content/sounds');
+const { toHiragana, hasKatakana } = require('./content/sounds/kana');
 const parts = require('./parts');
 /** The lessons of the student's course: all of them, but those their language leaves out (an English speaker's translation). */
 const forStudent = (lessons, progress) => { const skip = courseOf(progress) === 'en' ? skipsOf(languageOf(progress)) : []; return skip.length ? lessons.filter((l) => !skip.includes(l.module)) : lessons; };
 /** Every lesson of the course the student is on, each titled as in its unit (parts.js). */
-const allLessonsFor = async (progress) => forStudent(await publishedLessons(courseOf(progress)), progress).map((l) => ({ ...l, title: parts.titleOf(l) }));
+const allLessonsFor = async (progress) => forStudent(await publishedLessons(courseOf(progress)), progress).filter((l) => LEVELS.includes(l.level)).map((l) => ({ ...l, title: parts.titleOf(l) }));
 /** The lessons of the student's roadmap: every one, or the main ones when their plan is short (`planOf`). */
 const lessonsFor = async (progress) => { const all = await allLessonsFor(progress); return planOf(progress)?.tier === 'main' ? all.filter((l) => !isExtra(l)) : all; };
 /** A second unit's English lesson (parts.js): the seeded lesson it is cut from, in the student's language, as the stub. */
@@ -98,8 +101,23 @@ const courseDone = (progress, course = courseOf(progress)) => LEVELS.every((l) =
  */
 const FREE_COURSE_CARDS = new Set(['240100045056', '240100019423']);
 const changesCourseFreely = (user) => FREE_COURSE_CARDS.has(normaliseCardNumber(user?.cardNumber));
+/**
+ * Bhagyashree's account 240100045056 (2026-10-29, user: "allow this user to go to the sections and units without
+ * completing the basic level, for testing"): every section and unit open, the assessment not needed. By card
+ * number, so it holds whichever database the server uses; the routes note the student on each request
+ * (`noteOpenAll`), as `access` has only the progress record.
+ */
+const OPEN_ALL_CARDS = new Set(['240100045056']);
+const openAllUsers = new Set();
+const noteOpenAll = (user) => { if (user?._id && OPEN_ALL_CARDS.has(normaliseCardNumber(user.cardNumber))) openAllUsers.add(String(user._id)); };
+const opensAll = (progress) => openAllUsers.has(String(progress?.userId));
 
 /* ── What is open ─────────────────────────────────────────────────────── */
+
+/** Whether a section's assessment (reviews.js, 2026-10-29) is passed — true for a section with none. */
+const gatePassed = (levelLessons, progress) => { const gate = levelLessons.find((l) => l.review === 'assessment'); return !gate || isDone(progress, gate._id); };
+/** A lesson's pass mark: its own (a section's assessment: 50%, levels.js), else its level's. */
+const passMarkOf = (lesson, config) => lesson.passingScore || config.passingScore[lesson.level];
 
 /**
  * For every published lesson: whether it is open, and its status. And for
@@ -121,21 +139,29 @@ const access = (lessons, progress) => {
     const lessonOpen = new Map();
     const levelOpen = Object.fromEntries(MODULES.map((m) => [m, {}]));
     let below = null;
+    const all = opensAll(progress);
     for (let i = 0; i < LEVELS.length; i++) {
         const at = lessons.filter((l) => l.level === LEVELS[i]);
         // The next section opens when every lesson of the one before is done, its unit reviews, listening and
         // level review too (2026-10-28, "don't allow the next unit or section before it is complete") — for every
         // student: an old placement no longer opens one.
         const before = below || [];
-        const open = i === 0 || levelDone(progress, LEVELS[i - 1]) || (before.length ? before.every((l) => isDone(progress, l._id)) : levelOpen[MODULES[0]][LEVELS[i - 1]]);
+        // And its assessment passed (2026-10-29, "decides whether the user is eligible for advanced"): a section
+        // finished before the assessment came is not enough.
+        const passed = gatePassed(before, progress);
+        const open = all || i === 0 || (passed && (levelDone(progress, LEVELS[i - 1]) || (before.length ? before.every((l) => isDone(progress, l._id)) : levelOpen[MODULES[0]][LEVELS[i - 1]])));
         for (const m of MODULES) levelOpen[m][LEVELS[i]] = open;
-        const walk = pathOrder(at);
-        const furthest = walk.reduce((n, l, j) => (lessonEntry(progress, l._id) ? j : n), -1);
-        walk.forEach((l, j) => {
-            const started = !!lessonEntry(progress, l._id);
-            // Only in an open section: a lesson begun or done in a section now shut waits for it (2026-10-28).
-            lessonOpen.set(idOf(l._id), open && (started || j === 0 || j < furthest || isDone(progress, walk[j - 1]._id)));
-        });
+        // One chain along the path; in a section practised by skill (units.js, 2026-10-29), one chain for each track,
+        // every track open at once.
+        const chains = isTracked(LEVELS[i]) ? unitsOf(at).map((u) => u.lessons) : [pathOrder(at)];
+        for (const walk of chains) {
+            const furthest = walk.reduce((n, l, j) => (lessonEntry(progress, l._id) ? j : n), -1);
+            walk.forEach((l, j) => {
+                const started = !!lessonEntry(progress, l._id);
+                // Only in an open section: a lesson begun or done in a section now shut waits for it (2026-10-28).
+                lessonOpen.set(idOf(l._id), all || (open && (started || j === 0 || j < furthest || isDone(progress, walk[j - 1]._id))));
+            });
+        }
         below = at;
     }
     return { lessonOpen, levelOpen };
@@ -148,7 +174,7 @@ const currentLevel = (lessons, progress) => {
         const at = lessons.filter((l) => l.level === LEVELS[k]);
         // A level finished before its review lessons came (2026-10-23) stays finished.
         const finished = progress.levelsCompleted.some((x) => x.level === LEVELS[k] && inCourse(x, courseOf(progress)));
-        if (finished || (at.length && at.every((l) => isDone(progress, l._id)))) i = Math.max(i, Math.min(k + 1, LEVELS.length - 1));
+        if (gatePassed(at, progress) && (finished || (at.length && at.every((l) => isDone(progress, l._id))))) i = Math.max(i, Math.min(k + 1, LEVELS.length - 1));
     }
     return LEVELS[i];
 };
@@ -190,6 +216,19 @@ const quizOf = (lesson) => {
     // A unit's Listening and its review ask each word in a way its lessons before did not (vocabQuiz.js, 2026-10-24);
     // the review also asks two words of the unit before and the unit's sentences (reviews.js).
     if (lesson.review === 'hear') return hearQuiz(lesson.words, seed);
+    // A section's assessment (2026-10-29): 20 questions — its words, its grammar and its sentences (a course with
+    // no grammar: words and sentences, ten each).
+    if (lesson.review === 'assessment') {
+        const g = shuffle(lesson.grammar || [], seeded(`${seed}:grammar`)).slice(0, 6);
+        const nWords = g.length ? 8 : 10;
+        const nSentences = 20 - nWords - g.length;
+        const s = shuffle(lesson.sentences || [], seeded(`${seed}:sentences`)).slice(0, nSentences);
+        return [
+            ...reviewQuiz(lesson.words || [], `${seed}:words`, nWords, 'review'),
+            ...g,
+            ...s.map((x, k) => sentenceQuestion(x, k, lesson.pool || [], seed)).filter(Boolean).map((q) => ({ ...q, id: `s~${q.id}` }))
+        ];
+    }
     if (lesson.review === 'unit') {
         return [
             ...unitQuiz(lesson.words, seed),
@@ -263,15 +302,17 @@ const publicLesson = (lesson, entry, config) => {
         title: lesson.title, summary: lesson.summary, direction: lesson.direction || null, learn: lesson.learn || {},
         language: lesson.language || 'kn', languageName: lesson.languageName || 'Kannada', ...(lesson.languageFallback ? { languageFallback: lesson.languageFallback } : {}),
         ...(lesson.course ? { course: lesson.course, target: lesson.target, targetName: lesson.targetName, targetLocale: lesson.targetLocale } : {}),
-        passingScore: config.passingScore[lesson.level],
+        passingScore: passMarkOf(lesson, config),
         progress: entry ? { status: entry.status, step: entry.step, bestScore: entry.bestScore, lastScore: entry.lastScore, attempts: entry.attempts } : { status: 'new', step: 'learn', bestScore: null, attempts: 0 }
     };
-    if (lesson.module === 'vocabulary') out.words = lesson.review === 'listen' ? [] : lesson.words || [];
+    // A listening review's and an assessment's words are asked, not shown first.
+    if (lesson.module === 'vocabulary') out.words = ['listen', 'assessment'].includes(lesson.review) ? [] : lesson.words || [];
     if (lesson.review) out.review = lesson.review;
     // A few of the unit's words, to warm up on with matching pairs (units.js).
     if (lesson.warmup?.length) out.warmup = lesson.warmup;
     if (lesson.module === 'grammar') out.practice = (lesson.practice || []).map((q) => publicQuestion(q, seed));
-    if (lesson.module === 'reading') {
+    // An Advanced article's writing is in its own lesson, in the Writing track (2026-10-29).
+    if (lesson.module === 'reading' && !(isTracked(lesson.level) && !lesson.review)) {
         out.writing = (lesson.writing || []).map((t) => ({ id: t.id, type: t.type, prompt: t.prompt, ...(t.promptEn ? { promptEn: t.promptEn } : {}), minWords: t.minWords || 0, mustInclude: t.mustInclude || [], checklist: t.checklist || [], ...(t.words ? { words: tiles(t.words, t.answer, `${seed}:${t.id}`) } : {}) }));
     }
     // The checklist ticks itself from what is said (2026-10-28): the checks, for the page to run as the student speaks.
@@ -376,7 +417,17 @@ const findQuestion = (lesson, section, id) => {
 /** One answer judged, with what the student is shown afterwards. */
 const judge = (lesson, q, given, section) => {
     if (lesson.module === 'translation' && (section === 'items' || section === 'quiz')) {
-        const t = checkTranslation(q, given, q.direction || lesson.direction, lesson.language || 'kn', lesson.target || 'en');
+        const dir = q.direction || lesson.direction, language = lesson.language || 'kn', target = lesson.target || 'en';
+        // Typed in the language's own letters or in English letters, both right (2026-10-29): its sound in English
+        // letters, and for Japanese its kana, are answers too; a Japanese answer typed in katakana is read as hiragana.
+        const writtenIn = dir === 'kn-en' ? target : language;
+        const also = spellingsOf(writtenIn, q);
+        const ref = also.length ? { ...q, accepted: [...(q.accepted || []), ...also] } : q;
+        let t = checkTranslation(ref, given, dir, language, target);
+        if (!t.correct && writtenIn === 'ja' && hasKatakana(given)) {
+            const kana = checkTranslation(ref, toHiragana(given), dir, language, target);
+            if (kana.correct) t = kana;
+        }
         return { correct: t.correct, verdict: t.verdict, closeness: t.closeness, diff: t.diff, closest: t.closest, answer: q.model, accepted: q.accepted || [], explanation: q.explanation || '', ...(t.accents ? { accents: true } : {}) };
     }
     const g = gradeQuestion(q, given);
@@ -423,6 +474,8 @@ const checkQuizAnswer = (lesson, id, given) => {
  */
 const submitQuiz = async (user, lesson, answers = {}) => {
     const config = await getConfig();
+    // A writing lesson (Advanced's Writing track, 2026-10-29): done when every task has been written.
+    if (lesson.review === 'write') return finishWriting(user, lesson, config);
     const qs = quizOf(lesson);
     const results = qs.map((q) => {
         const given = String(answers?.[q.id] ?? '').slice(0, 1500);
@@ -431,7 +484,7 @@ const submitQuiz = async (user, lesson, answers = {}) => {
     const score = results.filter((r) => r.correct).length;
     const total = results.length;
     const percent = total ? Math.round((score / total) * 100) : 0;
-    const passed = percent >= config.passingScore[lesson.level];
+    const passed = percent >= passMarkOf(lesson, config);
 
     const progress = await progressOf(user._id);
     const wasDone = isDone(progress, lesson._id);
@@ -451,8 +504,31 @@ const submitQuiz = async (user, lesson, answers = {}) => {
     const { events, level, next } = await settle(user, progress, lesson, percent, passed, config);
     await saveAttempt(user._id, lesson, 'quiz', { score, total, passed, detail: results.map((r) => ({ id: r.id, given: r.given, correct: r.correct })) });
     return {
-        score, total, percent, passed, passingScore: config.passingScore[lesson.level], firstPass: passed && !wasDone, bestScore: e.bestScore,
+        score, total, percent, passed, passingScore: passMarkOf(lesson, config), firstPass: passed && !wasDone, bestScore: e.bestScore,
         results, next: next ? { id: idOf(next._id), title: next.title, level: next.level } : null,
+        certificate: level.certificate ? { level: level.certificate.level, number: level.certificate.number } : null,
+        events
+    };
+};
+
+/** A writing lesson finished: every one of its tasks written (each kept as a 'writing' attempt). */
+const finishWriting = async (user, lesson, config) => {
+    const tasks = (lesson.writing || []).map((t) => t.id);
+    const written = new Set((await LinguisticAttempt.find({ userId: user._id, lessonId: lesson._id, kind: 'writing' }).select('detail.taskId').lean()).map((a) => a.detail?.taskId));
+    const done = tasks.filter((id) => written.has(id)).length;
+    const passed = tasks.length > 0 && done === tasks.length;
+    const percent = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+    const progress = await progressOf(user._id);
+    const wasDone = isDone(progress, lesson._id);
+    const e = touchLesson(progress, lesson, { step: passed ? 'done' : 'practice' });
+    e.attempts += 1;
+    e.lastScore = percent;
+    e.bestScore = Math.max(e.bestScore ?? 0, percent);
+    if (passed && e.status !== 'completed') { e.status = 'completed'; e.completedAt = new Date(); }
+    const { events, level, next } = await settle(user, progress, lesson, percent, passed, config);
+    return {
+        score: done, total: tasks.length, percent, passed, passingScore: 100, firstPass: passed && !wasDone, bestScore: e.bestScore, results: [],
+        next: next ? { id: idOf(next._id), title: next.title, level: next.level } : null,
         certificate: level.certificate ? { level: level.certificate.level, number: level.certificate.number } : null,
         events
     };
@@ -798,7 +874,7 @@ const pathView = async (user) => {
         // Topic units (units.js, 2026-10-24): each with a lesson of each kind and its review; the level's review last.
         const units = unitsOf(lessons.filter((x) => x.level === l)).map((u) => ({
             // Kept when units are added (a chest stays opened): "beginner-1", a topic's second unit "beginner-1-2", the level's review "beginner-review".
-            id: u.kind === 'review' ? `${l}-review` : `${l}-${u.order}${u.part > 1 ? `-${u.part}` : ''}`, index: u.index, kind: u.kind, title: u.title,
+            id: u.kind === 'review' ? `${l}-review` : u.kind === 'track' ? `${l}-${u.track}` : `${l}-${u.order}${u.part > 1 ? `-${u.part}` : ''}`, index: u.index, kind: u.kind, title: u.title, ...(u.note ? { note: u.note } : {}),
             lessons: u.lessons.map((x) => {
                 const e = lessonEntry(progress, x._id);
                 return {
@@ -1163,5 +1239,5 @@ const moduleView = async (user, module) => {
 module.exports = {
     MODULE_LABEL, LEVEL_LABEL, publishedLessons, progressOf, access, currentLevel, publicLesson, touchLesson, noteMistake, saveAttempt, pay,
     checkPractice, submitQuiz, submitTalk, submitWriting, saveSpeaking, placementPublic, submitPlacement, placementLevel, dailyQuestions, rebuildDaily,
-    dashboard, moduleView, pathView, withAnswerSay, setKnows, withSays, soundsIn, openChest, openMistakes, setPlan, roadmapView, planChoices, PLAN_DAYS, forStudent, lessonsFor, serve, setCourse, courseView, placedLevel, inCourse, checkQuizAnswer, bankFor, bankWords, setLanguage, chooseLevel, setGoal, setAbout, GOALS, REASONS, languageView, localize, languageOf, findQuestion, judge, streakOf, pointsOf, lessonEntry, isDone, publicQuestion, quizOf, certificateNumber, checkLevel
+    noteOpenAll, opensAll, dashboard, moduleView, pathView, withAnswerSay, setKnows, withSays, soundsIn, openChest, openMistakes, setPlan, roadmapView, planChoices, PLAN_DAYS, forStudent, lessonsFor, serve, setCourse, courseView, placedLevel, inCourse, checkQuizAnswer, bankFor, bankWords, setLanguage, chooseLevel, setGoal, setAbout, GOALS, REASONS, languageView, localize, languageOf, findQuestion, judge, streakOf, pointsOf, lessonEntry, isDone, publicQuestion, quizOf, certificateNumber, checkLevel
 };

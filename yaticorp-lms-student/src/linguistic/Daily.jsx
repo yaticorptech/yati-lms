@@ -29,6 +29,8 @@ export default function Daily() {
     ].map((st) => ({ language: data.language, ...st })) : []), [data]);
 
     const back = () => navigate('/linguistic/practice');
+    // The ✕ opens the section's dashboard, wherever it is pressed (2026-10-29, "directly show the dashboard only").
+    const toDashboard = () => navigate('/linguistic/dashboard');
     if (data === undefined) return <SessionFrame label="Daily challenge"><Loading label="Picking today’s words…" /></SessionFrame>;
     if (!data) return <SessionFrame label="Daily challenge"><div className="flex flex-1 flex-col justify-center"><Problem error={error} onRetry={load} /><div className="text-center"><Chunky variant="ghost" color="blue" onClick={back}>Back</Chunky></div></div></SessionFrame>;
 
@@ -49,7 +51,7 @@ export default function Daily() {
     }
     return (
         <SessionFrame label="Daily challenge">
-            <Session steps={steps} mode="end" label="Daily challenge" onQuit={back}
+            <Session steps={steps} mode="end" label="Daily challenge" onQuit={toDashboard}
                 onComplete={(s) => linguisticApi.submitDaily(s.answers).then((r) => { announceRewards(r.events); setResult(r); })} />
         </SessionFrame>
     );
