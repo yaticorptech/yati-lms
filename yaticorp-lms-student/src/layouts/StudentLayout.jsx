@@ -620,7 +620,7 @@ const StudentLayout = () => {
     // rather than sit in the centred column the other pages use.
     // So are Job Preparation (/interview, /jobs), Extra Curricular, Career Path and Scholarships.
     // The Dashboard (/) too, since 2026-10-27 — matched exactly, or every page would count.
-    const wide = location.pathname === '/' || ['/competitions', '/interview', '/jobs', '/extracurricular', '/career'].some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
+    const wide = location.pathname === '/' || ['/competitions', '/interview', '/jobs', '/extracurricular', '/career', '/linguistic'].some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`));
     // Career Path is the one nav entry with screens beneath it, so it stays lit
     // on /career/planner, /career/roadmap and the rest — not just on /career.
     const isSectionActive = (path) =>

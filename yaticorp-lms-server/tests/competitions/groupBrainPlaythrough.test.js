@@ -59,7 +59,8 @@ const answers = (g) => {
     const s = g.state;
     if (Array.isArray(s.questions)) {
         const right = s.questions[s.index].answer;
-        return { a: { type: 'answer', choice: right }, b: { type: 'answer', choice: s.index === 0 ? right : (right + 1) % 4 } };
+        // B right on every other question: ahead of C (no answers) under +100 / −20 (2026-10-29), behind A.
+        return { a: { type: 'answer', choice: right }, b: { type: 'answer', choice: s.index % 2 === 0 ? right : (right + 1) % s.questions[s.index].options.length } };
     }
     const r = s.current; const first = s.index === 0;
     if (g.game === 'memorymatrix') {

@@ -3,6 +3,7 @@
  * colours (one per module, as units on the path), the levels, sound, and
  * playback of recordings.
  */
+import { previousPage } from '../hooks/useGoBack';
 import { BookA, PenLine, BookOpen, Mic, Languages } from 'lucide-react';
 import { mediaUrl } from './api';
 
@@ -193,3 +194,6 @@ export const canSpeak = (src) => !!src || (typeof window !== 'undefined' && !!wi
 
 /** Words of praise for a right answer, chosen by its place so they vary. */
 export const PRAISE = ['Nicely done!', 'Great job!', 'Excellent!', 'You got it!', 'Amazing!', 'Correct!', 'Well done!', 'Brilliant!'];
+
+/** Back to the page before (2026-10-29: "always where they were"); opened straight here, `fallback`. */
+export const backOr = (navigate, fallback) => () => { const prev = previousPage(); return prev ? navigate(prev) : navigate(fallback, { replace: true }); };

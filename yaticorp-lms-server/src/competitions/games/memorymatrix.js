@@ -7,9 +7,9 @@
  * A round scores 10 for each right cell, −5 for each wrong one (never below
  * 0), and 50 more for getting them all. The rounds are roundCore.js's.
  *
- * Played in the open (asked 2026-10-28): every cell a player taps is sent
- * at once (`pick`) and every player sees everyone's grid live, the cells
- * each one has picked so far.
+ * Every cell a player taps is sent at once (`pick`); the others see only
+ * how many they have picked until the round closes, then everyone's grid
+ * (asked 2026-10-29: answers shown together once the time is up).
  */
 const { makeRoundEngine } = require('./roundCore');
 const { GameError } = require('./contract');
@@ -31,14 +31,19 @@ module.exports = makeRoundEngine({
     label: 'Memory Matrix',
     emoji: '🟦',
     summary: 'Cells light up, then go dark: pick the same ones. The grid grows as you go.',
-    maxSeats: 6,
+    maxSeats: 20,
     setup: (o) => ({ rounds: 8, startSize: START[o.difficulty] }),
     round: (g, index, rng) => {
         const size = Math.min(7, g.startSize + Math.floor(index / 3));
         const count = Math.min(size * size - 2, size + 1 + (index % 3));
         return { size, count, cells: pickCells(rng, size, count), showMs: 1500 + 250 * count, answerMs: 8000 + 1000 * count };
     },
-    publicRound: (r, phase, g) => ({ size: r.size, count: r.count, cells: phase === 'show' || phase === 'reveal' || phase === 'over' ? r.cells : null, picks: g.seats.map((_, i) => r.picks?.[i] || []) }),
+    // Others' taps stay hidden while answering (only how many): everyone's show at the reveal (asked 2026-10-29).
+    publicRound: (r, phase, g, you) => ({
+        size: r.size, count: r.count, cells: phase === 'show' || phase === 'reveal' || phase === 'over' ? r.cells : null,
+        picks: g.seats.map((_, i) => (phase === 'answer' && i !== you ? [] : r.picks?.[i] || [])),
+        pickCounts: g.seats.map((_, i) => (r.picks?.[i] || []).length)
+    }),
     // A tap on a cell: picked, or unpicked; never more than the round's count.
     actions: {
         pick: (g, seat, action) => {

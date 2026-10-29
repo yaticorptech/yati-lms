@@ -33,15 +33,17 @@ const CHESS_CLOCK = { easy: 15, medium: 10, hard: 5 };
 const sameId = (a, b) => String(a) === String(b);
 const isId = (id) => mongoose.isValidObjectId(id);
 
-// How many players a room is for: its maker picks 2, 4 or 6 (Chess is always 2).
-const SIZES = [2, 4, 6];
+// How many players a room is for: its maker picks 2 to 20 (Chess and the other games for two are always 2).
+const SIZES = [2, 4, 6, 8, 10, 12, 16, 20];
 
 /** The options a room is made with: its difficulty (and Chess's clock from it), and its size. */
 const roomOptions = (game, raw = {}) => {
     const difficulty = LEVELS.includes(raw.difficulty) ? raw.difficulty : 'medium';
     if (game === 'chess') return { difficulty, clockMinutes: CHESS_CLOCK[difficulty], players: 2 };
+    // A game for two (Tic-Tac-Toe, Last Stone): always 2.
+    if (engine(game).maxSeats === 2) return { difficulty, players: 2 };
     const players = Number(raw.players ?? 4);
-    if (!SIZES.includes(players) || players > engine(game).maxSeats) throw new PlayError('A room is for 2, 4 or 6 players.');
+    if (!SIZES.includes(players) || players > engine(game).maxSeats) throw new PlayError(`A room is for ${SIZES.join(', ')} players.`);
     return { difficulty, players };
 };
 
@@ -74,6 +76,8 @@ const presentRoom = async (game, userId) => ({ game: games.present(game, userId,
 /** Make a room for `gameId`; its maker sits in it, ready, as host. */
 const createRoom = async (user, gameId, rawOptions) => {
     if (!ROOM_GAMES.includes(gameId)) throw new PlayError('Pick one of the Group Brain games.');
+    // Group games: 30 minutes of play a day (career/controllers/gameController.js), then closed until midnight.
+    if (await require('../../career/controllers/gameController').groupTimeUp(user._id)) throw new PlayError("Today's 30 minutes of Group games are used up. Come back after midnight.", 403);
     // The admin's settings: the game switched on, the difficulty allowed.
     const settings = (await getSettings()).games[gameId];
     if (!settings.enabled) throw new PlayError(`${engine(gameId).label} is switched off for now.`, 403);
@@ -105,6 +109,8 @@ const createRoom = async (user, gameId, rawOptions) => {
  */
 const joinRoom = async (user, rawCode) => {
     const code = games.normal(rawCode);
+    // Group games: 30 minutes of play a day (career/controllers/gameController.js), then closed until midnight.
+    if (await require('../../career/controllers/gameController').groupTimeUp(user._id)) throw new PlayError("Today's 30 minutes of Group games are used up. Come back after midnight.", 403);
     if (!/^[A-Z0-9]{6}$/.test(code)) throw new PlayError('Enter the 6-character room code.');
     let game = await PlayGame.findOne({ code, kind: 'room' });
     if (!game) throw new PlayError('No room has that code. Check it with the person who made the room.', 404);

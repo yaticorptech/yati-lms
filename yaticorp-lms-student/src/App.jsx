@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useTrackTrail } from './hooks/useGoBack';
 import { useTeacher, hasResearch } from './teacher/useTeacher';
 import useJobsAccess from './hooks/useJobsAccess';
 import JobsLockedNotice from './jobs/JobsLockedNotice';
@@ -352,6 +353,8 @@ const LOOP_TABS = {
 
 function App() {
   const { pathname, search } = useLocation();
+  // The pages visited, for every Back button (hooks/useGoBack.js).
+  useTrackTrail();
   const here = pathname.replace(/\/+$/, '') || '/';
   useSayPageOnNav(here, new URLSearchParams(search).get('tab'), LOOP_PAGES, LOOP_TABS);
   // Yati is the students' companion: not on the teacher dashboard either.
