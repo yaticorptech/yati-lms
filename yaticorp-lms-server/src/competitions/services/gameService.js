@@ -269,7 +269,7 @@ const present = (game, userId, extras = {}) => {
         host: game.kind === 'room' ? seat >= 0 && String(game.hostId) === String(userId) : undefined,
         options: game.kind === 'room' ? game.options || {} : undefined,
         minSeats: e.minSeats,
-        // A room holds what its maker picked (2, 4 or 6).
+        // A room holds what its maker picked (2 to 20).
         maxSeats: game.kind === 'room' && game.options?.players ? Math.min(e.maxSeats, Number(game.options.players)) : e.maxSeats,
         joinDeadline: game.joinDeadline,
         // An online table: its fee, pot and prize (./onlineService.js).
@@ -382,6 +382,22 @@ const act = async (gameId, userId, action) => {
         game = await catchUp(await PlayGame.findById(game._id));
     }
     throw new PlayError('The game moved on while you were acting. Try again.', 409);
+};
+
+/** TEMPORARY (online test players, ./testBots.js): a move the server makes for a seat. Null if refused. */
+const actForSeat = async (game, seat, action) => {
+    if (game.status !== 'active') return null;
+    const c = { ...ctx(), bot: true };
+    let state;
+    try {
+        state = engine(game.game).act(game.state, seat, action, c);
+    } catch (err) {
+        if (err instanceof GameError || err?.name === 'GameError') return null;
+        throw err;
+    }
+    const saved = await commit(game, afterState(game, state, c));
+    if (saved?.status === 'finished') await finished(saved);
+    return saved;
 };
 
 const normal = (code) => String(code || '').trim().toUpperCase();
@@ -535,4 +551,4 @@ const openMatchGame = async ({ competition, match, teams }) => {
     }
 };
 
-module.exports = { PlayError, JOIN_MINUTES, FRIENDLY_GONE, poll, act, join, catchUp, present, context, openMatchGame, gameOptions, withCodes, joinByCode, begin, commit, load, seatOf, newCode, normal };
+module.exports = { PlayError, JOIN_MINUTES, FRIENDLY_GONE, poll, act, actForSeat, join, catchUp, present, context, openMatchGame, gameOptions, withCodes, joinByCode, begin, commit, load, seatOf, newCode, normal };

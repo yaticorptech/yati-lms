@@ -192,6 +192,32 @@ function TrophyNode({ section, certificateMinAverage, courseName = 'English' }) 
     );
 }
 
+/** A section's header: its name, where you are, and its lessons done; `small` as one of the three cards at the top. */
+function SectionHead({ section, si, path, small = false }) {
+    return (
+        <Panel className={small ? 'flex min-h-[4.5rem] flex-col justify-center px-4 py-2.5' : 'mb-6 p-4'} data-section-head>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <p className={`font-extrabold uppercase tracking-wider text-[#AFAFAF] ${small ? 'text-[10px]' : 'text-xs'}`}>Section {si + 1} · {levelOf(section.level).cefr} · {section.label}</p>
+                    <h2 id={`sec-${section.level}`} className={`font-extrabold text-[#3c3c3c] ${small ? 'text-[15px] leading-tight' : 'text-xl'}`} data-section-name>{levelOf(section.level).section}{section.level === path.level && <span className={`ml-2 align-middle font-extrabold uppercase tracking-wider ${small ? 'text-[10px]' : 'text-xs'}`} style={{ color: COLORS.blue.ink }}>· You are here</span>}</h2>
+                </div>
+                {/* No "Jump here?" (2026-10-28): a section opens only when the one before is finished. */}
+                {section.complete
+                    ? <span className="inline-flex items-center gap-1 text-sm font-extrabold uppercase" style={{ color: COLORS.green.ink }}><Check size={18} strokeWidth={3.5} /> Completed</span>
+                    : !section.open ? <span className="inline-flex items-center gap-1 text-sm font-extrabold uppercase text-[#AFAFAF]" data-section-lock><Lock size={18} strokeWidth={3} /> Locked</span> : null}
+            </div>
+            {/* The lessons done here, of the section's: not for a section still shut (2026-10-28) — it waits, whatever was done in it before. */}
+            {section.open && (
+                <div className={`flex items-center gap-3 ${small ? 'mt-1.5' : 'mt-3'}`}>
+                    <Bar value={section.total ? (section.completed / section.total) * 100 : 0} color={section.complete ? 'gold' : 'green'} className={`flex-1 ${small ? 'h-2' : 'h-3'}`} label={`${section.label}: ${section.completed} of ${section.total} lessons`} />
+                    <span className="text-sm font-extrabold tabular-nums text-[#AFAFAF]">{section.completed}/{section.total}</span>
+                </div>
+            )}
+            {!section.open && <p className="mt-2 text-sm font-semibold text-[#777]" data-section-locked>Finish every unit of {levelOf(path.levels[si - 1]?.level).section || levelOf(path.levels[si - 1]?.level).label} to open these lessons.</p>}
+        </Panel>
+    );
+}
+
 export default function LinguisticHome() {
     const { dash } = useOutletContext();
     const [params] = useSearchParams();
@@ -231,39 +257,24 @@ export default function LinguisticHome() {
     const starts = unitStarts(path.levels);
     return (
         <div className="space-y-10" data-path>
-            {/* The learning plan (2026-10-24): today's share of the roadmap, or making one. */}
-            <Link to="/linguistic/roadmap" className="lingo-tile mb-4 flex min-h-12 items-center gap-2 px-4 text-[15px] text-[#4b4b4b]" data-roadmap-link>
-                <CalendarDays size={20} style={{ color: COLORS.purple.face }} />
-                {dash.plan
-                    ? <><span className="flex-1">Your roadmap · Day {Math.min(dash.plan.day, dash.plan.days)} of {dash.plan.days}</span><span className="text-sm font-extrabold text-[#AFAFAF]">{(dash.plan.today?.lessons || []).filter((l) => l.status !== 'completed').length} today</span></>
-                    : <span className="flex-1">How much time do you have? Make your roadmap</span>}
-            </Link>
-            <Link to="/linguistic/sections" className="lingo-tile mb-4 flex min-h-12 items-center gap-2 px-4 text-[15px] text-[#4b4b4b]" data-all-sections>
-                <LayoutList size={20} style={{ color: COLORS.blue.face }} /> <span className="flex-1">All sections</span>
-                <span className="text-sm font-extrabold text-[#AFAFAF]">{path.levels.length} sections</span>
-            </Link>
+            {/* At the top, three small cards in a row (asked 2026-10-29): the roadmap, all sections, and the first
+                section's progress (its own header, moved up here). One under another on a phone. */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-path-top>
+                <Link to="/linguistic/roadmap" className="lingo-tile flex min-h-[4.5rem] flex-col justify-center gap-1 px-4 py-2.5 text-[#4b4b4b]" data-roadmap-link>
+                    <span className="flex items-center gap-2 text-[15px]"><CalendarDays size={18} style={{ color: COLORS.purple.face }} /> Your roadmap</span>
+                    <span className="text-xs font-extrabold text-[#AFAFAF]">
+                        {dash.plan ? `Day ${Math.min(dash.plan.day, dash.plan.days)} of ${dash.plan.days} · ${(dash.plan.today?.lessons || []).filter((l) => l.status !== 'completed').length} today` : 'Make your roadmap'}
+                    </span>
+                </Link>
+                <Link to="/linguistic/sections" className="lingo-tile flex min-h-[4.5rem] flex-col justify-center gap-1 px-4 py-2.5 text-[#4b4b4b]" data-all-sections>
+                    <span className="flex items-center gap-2 text-[15px]"><LayoutList size={18} style={{ color: COLORS.blue.face }} /> All sections</span>
+                    <span className="text-xs font-extrabold text-[#AFAFAF]">{path.levels.length} sections</span>
+                </Link>
+                {path.levels[0] && <SectionHead section={path.levels[0]} si={0} path={path} small />}
+            </div>
             {path.levels.map((section, si) => (
                 <section key={section.level} data-section={section.level} aria-labelledby={`sec-${section.level}`}>
-                    <Panel className="mb-6 p-4" data-section-head>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                                <p className="text-xs font-extrabold uppercase tracking-wider text-[#AFAFAF]">Section {si + 1} · {levelOf(section.level).cefr} · {section.label}</p>
-                                <h2 id={`sec-${section.level}`} className="text-xl font-extrabold text-[#3c3c3c]" data-section-name>{levelOf(section.level).section}{section.level === path.level && <span className="ml-2 align-middle text-xs font-extrabold uppercase tracking-wider" style={{ color: COLORS.blue.ink }}>· You are here</span>}</h2>
-                            </div>
-                            {/* No "Jump here?" (2026-10-28): a section opens only when the one before is finished. */}
-                            {section.complete
-                                ? <span className="inline-flex items-center gap-1 text-sm font-extrabold uppercase" style={{ color: COLORS.green.ink }}><Check size={18} strokeWidth={3.5} /> Completed</span>
-                                : !section.open ? <span className="inline-flex items-center gap-1 text-sm font-extrabold uppercase text-[#AFAFAF]" data-section-lock><Lock size={18} strokeWidth={3} /> Locked</span> : null}
-                        </div>
-                        {/* The lessons done here, of the section's: not for a section still shut (2026-10-28) — it waits, whatever was done in it before. */}
-                        {section.open && (
-                            <div className="mt-3 flex items-center gap-3">
-                                <Bar value={section.total ? (section.completed / section.total) * 100 : 0} color={section.complete ? 'gold' : 'green'} className="h-3 flex-1" label={`${section.label}: ${section.completed} of ${section.total} lessons`} />
-                                <span className="text-sm font-extrabold tabular-nums text-[#AFAFAF]">{section.completed}/{section.total}</span>
-                            </div>
-                        )}
-                        {!section.open && <p className="mt-2 text-sm font-semibold text-[#777]" data-section-locked>Finish every unit of {levelOf(path.levels[si - 1]?.level).section || levelOf(path.levels[si - 1]?.level).label} to open these lessons.</p>}
-                    </Panel>
+                    {si > 0 && <SectionHead section={section} si={si} path={path} />}
 
                     {section.units.map((u, ui) => {
                         const [tone, pose] = lookOf(u);

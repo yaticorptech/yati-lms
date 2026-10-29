@@ -18,13 +18,17 @@ import ChessTable from './games/ChessTable';
 import LudoTable from './games/LudoTable';
 import CarromTable from './games/CarromTable';
 import QuizTable from './games/QuizTable';
+import RaceTable from './games/RaceTable';
+import TurnTable from './games/TurnTable';
 import MemoryMatrixTable from './games/MemoryMatrixTable';
 import SequenceTable from './games/SequenceTable';
 import SudokuTable from './games/SudokuTable';
 import FinalVaultTable from './games/vault/FinalVaultTable';
 import KingdomTable from './games/kingdom/KingdomTable';
 import RoomLobby from './RoomLobby';
-import { OnlineSearch, PlayersBoard, PointsRule } from './OnlineTable';
+import { OnlineSearch, PlayersBoard, PointsRule, MatchIntro } from './OnlineTable';
+import useGroupTime from './useGroupTime';
+import { clock as playClock } from '../career/components/games/playClock';
 import CompetitionGuard from './CompetitionGuard';
 import useLiveGame from './useLiveGame';
 import Portal from '../components/Portal';
@@ -32,6 +36,7 @@ import { useHideLoop } from '../components/loopVisibility';
 import GameCelebration from '../components/GameCelebration';
 import { PlaySkeleton } from './Skeletons';
 import useGoBack from '../hooks/useGoBack';
+import { pictureUrl } from '../native/pictures';
 
 // Ludo and Carrom stay for a match played before they were retired (2026-10-24).
 // The Group Brain games: the question games on the quiz board, the rest on their own.
@@ -40,7 +45,10 @@ const TABLES = {
     chess: ChessTable, ludo: LudoTable, carrom: CarromTable,
     ...Object.fromEntries([...BRAIN_GAMES, ...GROUP_QUIZ].map((id) => [id, QuizTable])),
     memorymatrix: MemoryMatrixTable, sequence: SequenceTable, sudoku: SudokuTable,
-    finalvault: FinalVaultTable, lostkingdom: KingdomTable
+    finalvault: FinalVaultTable, lostkingdom: KingdomTable,
+    // The solo games played as races, and in turns for two (2026-10-29).
+    ...Object.fromEntries(Object.keys(GROUP_GAMES).filter((id) => GROUP_GAMES[id].table === 'race').map((id) => [id, RaceTable])),
+    ...Object.fromEntries(Object.keys(GROUP_GAMES).filter((id) => GROUP_GAMES[id].table === 'turns').map((id) => [id, TurnTable]))
 };
 // Games whose table draws its own players and clock: the page leaves both out.
 const GROUP_IDS = Object.keys(GROUP_GAMES).filter((id) => id !== 'chess');
@@ -197,7 +205,6 @@ export default function GamePage() {
     const [error, setError] = useState('');
     const [fatal, setFatal] = useState('');
     const [busy, setBusy] = useState('');
-    const [confirmResign, setConfirmResign] = useState(false);
     const versionRef = useRef(null);
     const statusRef = useRef('waiting');
 
@@ -205,14 +212,26 @@ export default function GamePage() {
     // see the game end: not when they open a game that finished earlier.
     const [cheer, setCheer] = useState(false);
     const [seenStatus, setSeenStatus] = useState(null);
+    // An online table that has just filled: "Match found" for a few seconds (MatchIntro).
+    const [matched, setMatched] = useState(false);
     if (game && game.status !== seenStatus) {
         setSeenStatus(game.status);
         if (seenStatus === 'active' && game.status === 'finished') setCheer(true);
+        if (seenStatus === 'waiting' && game.status === 'active' && game.online) setMatched(true);
     }
+    useEffect(() => {
+        if (!matched) return undefined;
+        const t = setTimeout(() => setMatched(false), 4500);
+        return () => clearTimeout(t);
+    }, [matched]);
 
     const kindRef = useRef(null);
     const resultTries = useRef(0);
-    const accept = useCallback((g) => { versionRef.current = g.version; statusRef.current = g.status; kindRef.current = g.kind; setGame(g); }, []);
+    // Players' pictures as the app shows them elsewhere (pictureUrl): the saved link alone does not always load.
+    const accept = useCallback((g) => {
+        versionRef.current = g.version; statusRef.current = g.status; kindRef.current = g.kind;
+        setGame(g.avatars ? { ...g, avatars: g.avatars.map((a) => (a ? pictureUrl(a) : null)) } : g);
+    }, []);
 
     // Live: the server pushes "changed" the moment the game moves (useLiveGame);
     // then we fetch our own view at once. The poll is the fallback: quickly
@@ -261,6 +280,17 @@ export default function GamePage() {
         tick();
         return () => { alive = false; clearTimeout(timer); pollNow.current = () => {}; };
     }, [gameId, accept]);
+
+    // The moment a phase's time runs out, ask again: the server moves the game
+    // on as it answers, so the next question shows without waiting for a poll.
+    const phaseEndsAt = game?.status === 'active' ? game?.view?.phaseEndsAt : null;
+    const serverNow = game?.view?.serverNow;
+    useEffect(() => {
+        if (!phaseEndsAt) return undefined;
+        const skew = serverNow ? serverNow - Date.now() : 0;
+        const t = setTimeout(() => pollNow.current(), Math.max(0, phaseEndsAt - (Date.now() + skew)) + 150);
+        return () => clearTimeout(t);
+    }, [phaseEndsAt, serverNow]);
 
     // A seated player takes their seat by typing their own joining code (sent
     // to them when the match opened; it is also in My Games). Nobody else's
@@ -323,6 +353,15 @@ export default function GamePage() {
         onAction({ type: 'resign' }).catch(() => {});
     };
     const leftGame = game?.kind === 'room' && game?.status === 'active' && game?.you != null && (view?.out || []).includes(game.you);
+    // Group games' 30 minutes a day (2026-10-29): the clock runs only while you are playing a group game here;
+    // at zero you leave the game at once and the section locks until midnight.
+    const [timesUp, setTimesUp] = useState(false);
+    const groupPlaying = game?.kind === 'room' && game?.status === 'active' && game?.you != null && !leftGame && !timesUp;
+    const { left: groupLeft } = useGroupTime(groupPlaying, () => {
+        if (!groupPlaying) return;
+        setTimesUp(true);
+        onAction({ type: 'resign' }).catch(() => {});
+    });
 
     if (fatal) {
         return (
@@ -337,6 +376,8 @@ export default function GamePage() {
 
     const Table = TABLES[game.game];
     const room = game.kind === 'room';
+    // Every group game but Chess and the games for two: the live scores over your own game, which then hides its own.
+    const liveBoard = room && game.status === 'active' && !leftGame && game.game !== 'chess' && GROUP_GAMES[game.game]?.table !== 'turns' && !!GROUP_GAMES[game.game];
     const back = room ? GROUP_HOME : game.competition ? `/competitions/${game.competition.id}` : '/competitions';
     const backLabel = room ? 'Back to Group games' : game.competition ? 'Back to the competition' : 'Back to games';
     // After a room's game: a new room for the same game and difficulty.
@@ -357,29 +398,47 @@ export default function GamePage() {
     const winnerNames = winnerList.map((p) => p.name).join(' & ');
     const winnerCount = winnerList.length;
 
+    // An online table still looking for players: the dark page of the reference picture (2026-10-29),
+    // edge to edge under the top bar; every other state keeps the light page.
+    const searching = room && game.online && game.status === 'waiting';
     return (
-        <div className="space-y-4 pb-10 -mt-4 sidebar:-mt-8" data-game-page={game.game}>
+        <div className={`space-y-4 pb-10 -mt-4 sidebar:-mt-8 ${searching ? '-mx-4 min-h-[calc(100vh-4rem)] bg-[radial-gradient(ellipse_at_50%_35%,#1b1f5c_0%,#0d0f2e_55%,#080a1f_100%)] px-4 pt-4 sidebar:-mx-8 sidebar:px-8 sidebar:pt-8' : ''}`} data-game-page={game.game} data-searching={searching || undefined}>
+            {timesUp && (
+                <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Group games time is up" data-group-time-up>
+                    <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+                        <Clock size={34} className="mx-auto rounded-full bg-sky-100 p-1.5 text-sky-700" aria-hidden="true" />
+                        <p className="mt-3 text-lg font-black text-slate-900">Today&apos;s 30 minutes are up</p>
+                        <p className="mt-1 text-sm text-slate-600">Group games are locked until midnight. Your solo games are still open.</p>
+                        <button type="button" onClick={() => navigate(GROUP_HOME, { replace: true })} className="mt-5 w-full rounded-full bg-indigo-600 py-2.5 text-sm font-black text-white hover:bg-indigo-700">Back to Group games</button>
+                    </div>
+                </div>
+            )}
             {/* A competition match, on for me: no copying, no screenshots, no leaving until it is over. */}
             <CompetitionGuard active={game.kind === 'match' && game.you != null && (game.status === 'active' || (game.status === 'waiting' && !!game.joined))} />
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <Link to={back} onClick={goBack} className="-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold text-slate-500 hover:text-indigo-700"><ArrowLeft size={16} aria-hidden="true" /> Back</Link>
+                <Link to={back} onClick={goBack} className={`-my-2.5 inline-flex min-h-10 items-center gap-1.5 py-2.5 text-sm font-semibold ${searching ? 'text-[#a5a9da] hover:text-white' : 'text-slate-500 hover:text-indigo-700'}`}><ArrowLeft size={16} aria-hidden="true" /> Back</Link>
                 {game.you == null && <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600"><Eye size={13} aria-hidden="true" /> Watching</span>}
             </div>
 
             {/* The game's name with what kind of game it is as a small badge
                 beside it, not a phrase after it: "Ludo · friendly game" broke
                 over two lines on a phone (2026-10-17, "make the ui better"). */}
-            <header className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-2xl sm:h-12 sm:w-12" aria-hidden="true">{game.emoji}</span>
+            <header className={`flex items-center gap-3 rounded-3xl border p-3 shadow-sm sm:p-4 ${searching ? 'border-[#4b46b8]/70 bg-[#141845]/85 shadow-[0_0_30px_rgba(99,102,241,.18)]' : 'border-slate-200 bg-white'}`}>
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-2xl sm:h-12 sm:w-12 ${searching ? 'bg-white shadow-md' : 'bg-indigo-50'}`} aria-hidden="true">{game.emoji}</span>
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <h1 className="text-lg font-black leading-tight text-slate-900 sm:text-xl">{game.label}</h1>
+                        <h1 className={`text-lg font-black leading-tight sm:text-xl ${searching ? 'text-white' : 'text-slate-900'}`}>{game.label}</h1>
                         {game.match && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-200">{game.match.roundName}</span>}
                         {room && (game.online
-                            ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-200">Online · {game.online.fee ? `₹${game.online.fee} entry` : 'Free'}</span>
+                            ? <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ring-1 ring-inset ${searching ? 'bg-emerald-400/10 text-emerald-300 ring-emerald-400/60' : 'bg-emerald-50 text-emerald-700 ring-emerald-200'}`}>Online · {game.online.fee ? `₹${game.online.fee} entry` : 'Free'}</span>
                             : <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-indigo-700 ring-1 ring-inset ring-indigo-200">Group Brain · {game.options?.difficulty || 'medium'}</span>)}
+                        {room && groupLeft != null && (
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ring-1 ring-inset ${groupLeft <= 60 ? 'bg-rose-50 text-rose-700 ring-rose-200' : searching ? 'bg-white/10 text-white ring-white/30' : 'bg-sky-50 text-sky-800 ring-sky-200'}`} title="Group games play left today (it runs only while you play)" data-group-time>
+                                <Clock size={12} aria-hidden="true" /> {playClock(groupLeft)} left today
+                            </span>
+                        )}
                     </div>
-                    <p className="break-words text-sm text-slate-500">{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
+                    <p className={`break-words text-sm ${searching ? 'text-[#c7c9e4]' : 'text-slate-500'}`}>{view?.message || (game.status === 'waiting' ? 'Waiting for players' : '')}</p>
                 </div>
                 {game.status === 'active' && turnLeft != null && (
                     <span className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-sm font-black tabular-nums ${turnLeft <= 10 ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-700'}`} aria-label="Time left this turn">
@@ -435,8 +494,10 @@ export default function GamePage() {
             {room && game.status === 'waiting' && (game.online
                 ? <OnlineSearch game={game} onLeft={() => navigate(GROUP_HOME, { replace: true })} />
                 : <RoomLobby game={game} live={live} onUpdate={accept} onLeft={() => navigate(GROUP_HOME, { replace: true })} />)}
+            {room && game.online && game.status === 'active' && (matched || view?.phase === 'ready') && <MatchIntro game={game} view={view} />}
             {/* A room's game on: every player at a corner, the time left between them (Chess draws its own two). */}
-            {room && game.status === 'active' && !['chess', 'memorymatrix'].includes(game.game) && !leftGame && <PlayersBoard game={game} view={view} />}
+            {/* The live scores (2026-10-29): your own game below, the others only as names, ✓ right, ✗ wrong and points. */}
+            {liveBoard && <PlayersBoard game={game} view={view} />}
 
             {/* ── Waiting room ──────────────────────────────────────── */}
             {!room && game.status === 'waiting' && (
@@ -568,48 +629,113 @@ export default function GamePage() {
             {/* Under a room's finish: the board only where it still says something
                 (Chess, Sudoku), and a quiz game's answers to review. */}
             {/* Left a game the others are still playing: their live scores, and the final results here when they finish. */}
-            {leftGame && (
-                <section className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-sm" data-left-game>
-                    <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-500"><Flag size={24} aria-hidden="true" /></span>
-                    <h2 className="mt-3 text-xl font-black text-slate-900">You left the game</h2>
-                    <p className="mt-1 text-sm text-slate-600">You lost this one. The others are still playing — the final results appear here as soon as they finish.</p>
-                    <ul className="mt-4 space-y-1.5 text-left">
-                        {(view?.seats || []).map((s, i) => ({ ...s, i, score: view.scores?.[i] ?? 0, out: (view.out || []).includes(i) }))
-                            .sort((a, b) => (a.out - b.out) || b.score - a.score)
-                            .map((s) => (
-                                <li key={s.i} className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm ${s.out ? 'bg-slate-50 text-slate-400' : 'bg-indigo-50/60'}`}>
-                                    <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: s.color }} aria-hidden="true" />
-                                    <span className="min-w-0 flex-1 truncate font-bold">{s.name}{game.you === s.i ? ' (you)' : ''}</span>
-                                    <span className="text-xs font-semibold">{s.out ? 'left' : 'playing'}</span>
-                                    <span className="w-12 text-right font-black tabular-nums">{s.score}</span>
-                                </li>
-                            ))}
-                    </ul>
-                    <Link to={GROUP_HOME} className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-slate-900 px-5 text-sm font-bold text-white hover:bg-slate-800">Back to Group games</Link>
-                </section>
-            )}
+            {leftGame && (() => {
+                const rows = (view?.seats || []).map((x, i) => ({ ...x, i, score: view.scores?.[i] ?? 0, out: (view.out || []).includes(i) }))
+                    .sort((x, y) => (x.out - y.out) || y.score - x.score);
+                const inPlay = rows.filter((r) => !r.out);
+                const podium = inPlay.slice(0, 3);
+                const rest = [...inPlay.slice(3), ...rows.filter((r) => r.out)];
+                const top = Math.max(1, ...inPlay.map((r) => r.score));
+                // Podium order on the stage: 2nd, 1st, 3rd.
+                const stage = [podium[1], podium[0], podium[2]].filter(Boolean);
+                const METAL = [
+                    { face: 'from-[#ffe58a] via-[#f5b301] to-[#b77900]', lid: '#ffe9a3', ring: '#fbbf24', h: 'h-20 sm:h-24' },
+                    { face: 'from-[#f1f5f9] via-[#a8b3c4] to-[#64748b]', lid: '#f8fafc', ring: '#cbd5e1', h: 'h-14 sm:h-[4.5rem]' },
+                    { face: 'from-[#f6c39b] via-[#cd7f32] to-[#7c4a1e]', lid: '#fbd5b5', ring: '#d6955b', h: 'h-10 sm:h-12' }
+                ];
+                const Pic = ({ r, size }) => (
+                    <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full font-black text-white ${size}`} style={{ background: r.color, boxShadow: `0 0 0 3px #fff2, 0 6px 14px rgba(0,0,0,.45), inset 0 -4px 8px rgba(0,0,0,.25)` }}>
+                        {game.avatars?.[r.i] ? <img src={game.avatars[r.i]} alt="" className="h-full w-full object-cover" /> : (r.name || '?').slice(0, 1).toUpperCase()}
+                    </span>
+                );
+                return (
+                    // Out of a game the others play on (asked 2026-10-29: "attractive, a 3D feel"):
+                    // a stage with a podium for the leaders, live until the game ends.
+                    <section className="relative mx-auto max-w-md overflow-hidden rounded-[24px] bg-[radial-gradient(ellipse_at_50%_0%,#5b21b6_0%,#1e1b4b_55%,#0a0820_100%)] px-4 pt-5 pb-5 text-white shadow-[0_30px_60px_rgba(15,10,50,.5)] ring-1 ring-white/10 sm:px-6" data-left-game>
+                        <style>{`
+                            @keyframes lg-rise { from { transform: translateY(40px); opacity: 0 } to { transform: none; opacity: 1 } }
+                            @keyframes lg-glow { 50% { opacity: .55 } }
+                            @keyframes lg-shine { from { transform: translateX(-120%) skewX(-20deg) } to { transform: translateX(260%) skewX(-20deg) } }
+                        `}</style>
+                        {/* The stage: a spotlight and a floor running away from you. */}
+                        <span aria-hidden="true" className="pointer-events-none absolute -top-10 left-1/2 h-80 w-[28rem] -translate-x-1/2 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,.22),transparent_65%)]" style={{ animation: 'lg-glow 4s ease-in-out infinite' }} />
+                        <span aria-hidden="true" className="pointer-events-none absolute inset-x-[-30%] bottom-0 h-72 opacity-40"
+                            style={{ backgroundImage: 'linear-gradient(rgba(167,139,250,.5) 1px, transparent 1px), linear-gradient(90deg, rgba(167,139,250,.5) 1px, transparent 1px)', backgroundSize: '44px 44px', transform: 'perspective(420px) rotateX(62deg)', transformOrigin: 'bottom', maskImage: 'linear-gradient(to top, #000 10%, transparent 90%)', WebkitMaskImage: 'linear-gradient(to top, #000 10%, transparent 90%)' }} />
+
+                        <div className="relative text-center">
+                            {/* A 3D ribbon: you are out. */}
+                            <div className="relative mx-auto inline-block">
+                                <span aria-hidden="true" className="absolute top-2 -left-5 h-full w-8 bg-rose-900" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 35% 50%)' }} />
+                                <span aria-hidden="true" className="absolute top-2 -right-5 h-full w-8 bg-rose-900" style={{ clipPath: 'polygon(0 0, 100% 0, 65% 50%, 100% 100%, 0 100%)' }} />
+                                <span className="relative block rounded-md bg-gradient-to-b from-rose-400 to-rose-600 px-4 py-1 text-[11px] font-black tracking-[0.3em] uppercase shadow-[0_3px_0_#9f1239,0_8px_16px_rgba(244,63,94,.4)]">Eliminated</span>
+                            </div>
+                            <h2 className="mt-3 text-2xl font-black [text-shadow:0_2px_0_rgba(0,0,0,.35)] sm:text-[1.7rem]">You left the match</h2>
+                            <p className="mx-auto mt-1 max-w-sm text-xs text-white/70 sm:text-[13px]">
+                                The match goes on without you{game.online?.fee ? ` — your ₹${game.online.fee} entry stays in the pot` : ''}. Final results show here when it ends.
+                            </p>
+                            <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/30 px-2.5 py-0.5 text-[10px] font-black text-emerald-300 ring-1 ring-emerald-400/30">
+                                <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" /></span>
+                                LIVE{view?.total ? ` · ${view.number > 0 ? `round ${view.number} of ${view.total}` : 'starting'}` : ''}
+                            </span>
+                        </div>
+
+                        {/* The podium. */}
+                        {stage.length > 0 && (
+                            <div className="relative mt-5 flex items-end justify-center gap-1.5 sm:gap-2.5" data-podium>
+                                {stage.map((r) => {
+                                    const place = podium.indexOf(r);
+                                    const m = METAL[place];
+                                    return (
+                                        <div key={r.i} className="flex w-[30%] max-w-[7.5rem] min-w-0 flex-col items-center" style={{ animation: `lg-rise .6s cubic-bezier(.2,1.2,.4,1) ${0.15 + (2 - place) * 0.15}s both` }} data-podium-seat={r.i}>
+                                            {place === 0 && <span aria-hidden="true" className="mb-0.5 text-xl drop-shadow-[0_3px_4px_rgba(0,0,0,.4)]">👑</span>}
+                                            <span className="relative rounded-full p-1" style={{ background: `conic-gradient(${m.ring}, #fff8, ${m.ring})` }}><Pic r={r} size={place === 0 ? 'h-11 w-11 text-base' : 'h-9 w-9 text-sm'} /></span>
+                                            <span className="mt-1 max-w-full truncate text-xs font-black sm:text-[13px]">{r.name}</span>
+                                            <span className="text-base leading-none font-black tabular-nums text-amber-200 [text-shadow:0_2px_0_rgba(0,0,0,.4)]">{r.score}<span className="ml-1 text-[10px] text-white/50">PTS</span></span>
+                                            {/* The block: a lit top, a shaded front. */}
+                                            <div className="relative mt-2 w-full">
+                                                <span aria-hidden="true" className="block h-2 w-full" style={{ background: m.lid, clipPath: 'polygon(7% 0, 93% 0, 100% 100%, 0 100%)' }} />
+                                                <div className={`relative flex ${m.h} w-full items-start justify-center overflow-hidden bg-gradient-to-b ${m.face} pt-1.5 shadow-[inset_8px_0_12px_rgba(255,255,255,.25),inset_-10px_0_14px_rgba(0,0,0,.3)]`}>
+                                                    <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1/3 bg-white/25" style={{ animation: 'lg-shine 3.5s ease-in-out infinite' }} />
+                                                    <span className="relative text-2xl font-black text-white/90 [text-shadow:0_2px_0_rgba(0,0,0,.3)] sm:text-3xl">{place + 1}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        <span aria-hidden="true" className="relative mx-auto -mt-2 block h-5 w-4/5 rounded-[100%] bg-black/50 blur-md" />
+
+                        {/* Everyone else: raised tiles; you, out. */}
+                        {rest.length > 0 && (
+                            <ol className="relative mt-3 space-y-2">
+                                {rest.map((r) => (
+                                    <li key={r.i} className={`relative flex items-center gap-2.5 rounded-xl px-3 py-2 ${r.out ? 'bg-gradient-to-b from-slate-600/40 to-slate-800/60 shadow-[0_5px_0_rgba(15,23,42,.8)]' : 'bg-gradient-to-b from-indigo-500/40 to-indigo-800/60 shadow-[0_5px_0_rgba(30,27,75,.9)]'} ring-1 ring-white/10`} data-left-row={r.i}>
+                                        <span className={`text-sm font-black ${r.out ? 'text-rose-300' : 'text-white/70'}`}>{r.out ? 'OUT' : `#${rows.indexOf(r) + 1}`}</span>
+                                        <span className={r.out ? 'opacity-50 grayscale' : ''}><Pic r={r} size="h-8 w-8 text-xs" /></span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className={`block truncate text-sm font-black ${r.out ? 'text-white/60' : ''}`}>{r.name}{game.you === r.i && <span className="ml-1.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-black">YOU</span>}</span>
+                                            {!r.out && <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-black/30"><span className="block h-full rounded-full transition-[width] duration-700" style={{ width: `${(r.score / top) * 100}%`, background: r.color }} /></span>}
+                                            {r.out && <span className="block text-[11px] font-bold text-white/40">Left the match</span>}
+                                        </span>
+                                        <span className={`text-base font-black tabular-nums ${r.out ? 'text-white/40' : ''}`}>{r.score}</span>
+                                    </li>
+                                ))}
+                            </ol>
+                        )}
+
+                        <Link to={GROUP_HOME} className="relative mt-5 flex min-h-11 w-full items-center justify-center rounded-xl bg-gradient-to-b from-[#4ade80] to-[#16a34a] text-sm font-black tracking-wide uppercase [text-shadow:0_2px_0_rgba(0,0,0,.25)] shadow-[0_7px_0_#14532d,0_14px_28px_rgba(22,163,74,.45),inset_0_2px_0_rgba(255,255,255,.4)] transition-[transform,box-shadow] duration-100 hover:brightness-110 active:translate-y-[5px] active:shadow-[0_2px_0_#14532d,0_6px_12px_rgba(22,163,74,.4),inset_0_2px_0_rgba(255,255,255,.4)]">
+                            Find a new match
+                        </Link>
+                    </section>
+                );
+            })()}
 
             {view && Table && !leftGame && !(room && game.status === 'finished' && ['memorymatrix', 'sequence'].includes(game.game)) && (
-                <Table view={{ ...view, you: game.you, avatars: game.avatars }} onAction={onAction} busy={!!busy || game.status !== 'active'} recapOnly={room && game.status === 'finished'} />
+                <Table view={{ ...view, you: game.you, avatars: game.avatars, liveBoard }} onAction={onAction} busy={!!busy || game.status !== 'active'} recapOnly={room && game.status === 'finished'} />
             )}
 
             {error && <p role="alert" className="sticky bottom-24 z-10 mx-auto max-w-xl rounded-xl bg-rose-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-lg sidebar:bottom-6">{error}</p>}
-
-            {game.status === 'active' && game.you != null && (
-                <div className="flex justify-end">
-                    {confirmResign ? (
-                        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2">
-                            <span className="text-sm font-semibold text-rose-800">Resign this game?</span>
-                            <button type="button" onClick={() => setConfirmResign(false)} className="rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-white">Keep playing</button>
-                            <button type="button" onClick={() => { setConfirmResign(false); onAction({ type: 'resign' }).catch(() => {}); }} className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-rose-700">Resign</button>
-                        </div>
-                    ) : (
-                        <button type="button" onClick={() => setConfirmResign(true)} className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-rose-50 hover:text-rose-700">
-                            <Flag size={15} aria-hidden="true" /> Resign
-                        </button>
-                    )}
-                </div>
-            )}
         </div>
     );
 }

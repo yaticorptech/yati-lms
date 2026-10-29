@@ -26,16 +26,19 @@ const { getSettings } = require('../groupbrain/settings');
 
 const { PlayError } = games;
 const FEES = [0, 10, 25, 50];
-const SIZES = [2, 4];
+// Tables of 2 to 20 (asked 2026-10-29: 8, 10 and more as well; Chess, Tic-Tac-Toe and Last Stone stay 2, their engines' maxSeats).
+const SIZES = [2, 4, 6, 8, 10, 12, 16, 20];
 const WAIT_MS = 30000;
 const PRIZE_SHARE = 0.9;
 // TEMPORARY, for trying it out (asked 2026-10-28, "until I say stop"): an
-// online table of any game (Chess 2, the rest 4) is filled at once with test players (the
-// seeded test.ten*@yaticorp-test.invalid accounts, scripts/seedTenPlayers.js)
-// up to this many, so it starts straight away. They pay nothing and do not
-// play. Remove the entry to stop.
+// online table of any of these games fills up with test players (the seeded
+// test.ten*@yaticorp-test.invalid accounts, scripts/seedTenPlayers.js), one
+// at a time a few seconds apart like players found online (asked
+// 2026-10-29), while real players who pick the same game, size and fee join
+// the same table. They pay nothing, and play by themselves (./testBots.js,
+// from options.testers). Remove the entry to stop.
 // Off under the test suite, which checks the real search.
-const TEST_FILL = process.env.NODE_ENV === 'test' ? {} : Object.fromEntries(ROOM_GAMES.map((id) => [id, id === 'chess' ? 2 : 4]));
+const TEST_FILL = process.env.NODE_ENV === 'test' ? {} : Object.fromEntries(ROOM_GAMES.map((id) => [id, engine(id).maxSeats === 2 ? 2 : 4]));
 const TEST_EMAILS = /^test\.ten\d+@yaticorp-test\.invalid$/;
 
 const wallet = () => require('../../rewards/services/walletService');
@@ -82,11 +85,14 @@ const settle = async (game) => {
 /** Sit me at a table: one waiting for this game, size and fee, or a new one. */
 const findTable = async (user, gameId, raw = {}) => {
     if (!ROOM_GAMES.includes(gameId)) throw new PlayError('Pick one of the Group Brain games.');
+    // Group games: 30 minutes of play a day (career/controllers/gameController.js), then closed until midnight.
+    if (await require('../../career/controllers/gameController').groupTimeUp(user._id)) throw new PlayError("Today's 30 minutes of Group games are used up. Come back after midnight.", 403);
     const e = engine(gameId);
     const settings = (await getSettings()).games[gameId];
     if (!settings.enabled) throw new PlayError(`${e.label} is switched off for now.`, 403);
-    const players = TEST_FILL[gameId] || (gameId === 'chess' ? 2 : Number(raw.players));
-    if (!SIZES.includes(players) || players > e.maxSeats) throw new PlayError('Pick a table of 2 or 4 players.');
+    // A game for two (Chess, Tic-Tac-Toe, Last Stone): a table of 2, whatever was asked.
+    const players = e.maxSeats === 2 ? 2 : Number(raw.players);
+    if (!SIZES.includes(players) || players > e.maxSeats) throw new PlayError(`Pick a table of ${SIZES.join(', ')} players.`);
     const fee = Number(raw.fee ?? 0);
     if (!FEES.includes(fee)) throw new PlayError(`The entry fee is one of ${FEES.map((f) => (f ? `₹${f}` : 'Free')).join(', ')}.`);
     const difficulty = settings.difficulties.includes('medium') ? 'medium' : settings.difficulties[0];
@@ -131,23 +137,40 @@ const findTable = async (user, gameId, raw = {}) => {
         }
         // Full: it starts now.
         if (saved.seats.length >= players) await start(saved);
-        else if (TEST_FILL[gameId]) await fillWithTesters(saved, players);
         return { game: { id: String(saved._id) } };
     }
     throw new PlayError('Could not find a table just now. Try again.', 503);
 };
 
-/** TEMPORARY (TEST_FILL): seat test players in the empty seats, then start. */
-const fillWithTesters = async (table, players) => {
+/**
+ * TEMPORARY (TEST_FILL, from ./testBots.js every second): a waiting table
+ * gets its next test player once a few seconds have passed since the last
+ * one sat down (4–7 s for the first, then 2–5 s), and starts when it is full.
+ * A table with only test players left closes.
+ */
+const addTester = async (table) => {
+    if (table.status !== 'waiting' || !isOnline(table) || !TEST_FILL[table.game]) return;
+    const testers = table.options.testers || [];
+    const humans = table.seats.filter((_, i) => !testers.includes(i));
+    if (!humans.length) {
+        await games.commit(table, { status: 'abandoned', finishedAt: new Date(), outcome: { places: [], reason: 'Everyone left the table.' } });
+        return;
+    }
+    if (table.seats.length >= table.options.players) return;
+    const last = Math.max(...table.seats.map((s) => new Date(s.joinedAt || table.createdAt).getTime()));
+    const wait = testers.length ? 2000 + ((table.seats.length * 1543) % 3000) : 4000 + ((String(table._id).charCodeAt(23) * 97) % 3000);
+    if (Date.now() - last < wait) return;
     const User = require('../../models/User');
     const taken = new Set(table.seats.map((s) => String(s.userId)));
     const { hasLeft } = require('./roomService');
     const busy = new Set((await PlayGame.find({ kind: 'room', status: { $in: ['waiting', 'active'] } }).select('status seats.userId state.out').lean()).flatMap((g) => g.seats.filter((s) => !hasLeft(g, s.userId)).map((s) => String(s.userId))));
-    const testers = (await User.find({ email: TEST_EMAILS }).select('name').lean()).filter((u) => !taken.has(String(u._id)) && !busy.has(String(u._id)));
-    const extra = testers.slice(0, players - table.seats.length).map((u, k) => ({ userId: u._id, name: u.name || 'Test player', side: table.seats.length + k, joinedAt: new Date(), lastSeenAt: new Date(), ready: true }));
-    if (!extra.length) return;
-    const saved = await games.commit(table, { seats: [...table.seats.map((s) => s.toObject()), ...extra] });
-    if (saved) await start(saved);
+    const free = (await User.find({ email: TEST_EMAILS }).select('name').lean()).filter((u) => !taken.has(String(u._id)) && !busy.has(String(u._id)));
+    if (!free.length) return;
+    const u = free[Math.floor(Math.random() * free.length)];
+    const side = table.seats.length;
+    const seat = { userId: u._id, name: u.name || 'Test player', side, joinedAt: new Date(), lastSeenAt: new Date(), ready: true };
+    const saved = await games.commit(table, { seats: [...table.seats.map((x) => (x.toObject ? x.toObject() : x)), seat], options: { ...table.options, testers: [...testers, side] } });
+    if (saved && saved.seats.length >= saved.options.players) await start(saved);
 };
 
 /** Stop searching: my seat and my fee back. The last one out closes the table. */
@@ -159,11 +182,14 @@ const cancel = async (gameId, userId) => {
         if (seat < 0) return { left: true };
         if (game.status !== 'waiting') throw new PlayError('The game has already started: leaving now is resigning.', 409);
         const rest = game.seats.filter((_, i) => i !== seat).map((s, i) => ({ ...s.toObject(), side: i }));
+        // The test players' seat numbers move up with everyone else's (TEST_FILL).
+        const wasTester = new Set((game.options.testers || []).map((i) => String(game.seats[i]?.userId)));
+        const testers = rest.map((s, i) => (wasTester.has(String(s.userId)) ? i : -1)).filter((i) => i >= 0);
         const paid = { ...(game.options.paid || {}) };
         const key = paid[String(userId)];
         delete paid[String(userId)];
         const fields = rest.length
-            ? { seats: rest, options: { ...game.options, paid }, ...(sameId(game.hostId, userId) ? { hostId: rest[0].userId } : {}) }
+            ? { seats: rest, options: { ...game.options, paid, testers }, ...(sameId(game.hostId, userId) ? { hostId: rest[0].userId } : {}) }
             : { seats: [], options: { ...game.options, paid }, status: 'abandoned', finishedAt: new Date(), outcome: { places: [], reason: 'Everyone left the table.' } };
         const saved = await games.commit(game, fields);
         if (!saved) continue;
@@ -199,4 +225,4 @@ const tableInfo = (game) => {
     return { fee, players: size, pot: fee * (game.status === 'waiting' ? size : paid), prize: prizeOf(fee, game.status === 'waiting' ? size : paid), prizeShare: PRIZE_SHARE, startsBy: game.status === 'waiting' ? game.joinDeadline : null };
 };
 
-module.exports = { FEES, SIZES, WAIT_MS, PRIZE_SHARE, prizeOf, isOnline, findTable, cancel, settle, payOut, refundAll, tableInfo };
+module.exports = { FEES, SIZES, WAIT_MS, PRIZE_SHARE, prizeOf, isOnline, findTable, cancel, settle, payOut, refundAll, tableInfo, addTester };

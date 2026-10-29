@@ -1,6 +1,6 @@
 /**
  * Spatial IQ, a Group Brain game: rotations, mirror images, paper folding and cube nets, drawn and worked out fresh every game.
- * Two to six players answer the same question at once; a right answer
+ * Two to twenty players answer the same question at once; a right answer
  * scores 100 plus up to 50 for speed, and after each question everyone sees
  * the answer and why. The rules are quizCore.js's.
  */
@@ -14,7 +14,7 @@ module.exports = makeEngine({
     emoji: '🧊',
     summary: 'Turn it, mirror it, fold it, build the cube: picture puzzles for the mind’s eye.',
     mode: 'simultaneous',
-    maxSeats: 6,
+    maxSeats: 20,
     questions: { min: 5, max: 20, fallback: 10 },
     seconds: { min: 10, max: 60, fallback: 30 },
     revealMs: 5000,

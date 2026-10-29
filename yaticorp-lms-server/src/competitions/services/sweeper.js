@@ -48,6 +48,8 @@ const start = (seconds = 5) => {
     };
     timer = setInterval(run, seconds * 1000);
     timer.unref?.();
+    // TEMPORARY: the online tables' test players play (./testBots.js).
+    require('./testBots').start();
     return true;
 };
 const stop = () => { if (timer) clearInterval(timer); timer = null; };
