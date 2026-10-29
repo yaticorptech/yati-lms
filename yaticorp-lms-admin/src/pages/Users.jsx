@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../utils/api';
+import StudentDevicesCard from '../components/StudentDevicesCard';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { UserCheck, UserSearch, Upload, Download, QrCode, Lock, Camera, Keyboard, Eye, EyeOff, Copy } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -889,6 +890,9 @@ const Users = () => {
                                     </button>
 
                                 </div>
+
+                                {/* Devices: where they sign in, residential card, reset (services/deviceRoutes.js). */}
+                                <StudentDevicesCard key={selectedUser._id} base={`/admin/users/${selectedUser._id}/devices`} />
 
                                 <div>
                                     <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Current Active Enrollments</h3>

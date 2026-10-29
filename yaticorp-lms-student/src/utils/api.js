@@ -7,6 +7,8 @@ import { clearCareerCache } from '../career/services/api';
 import { onWalletResponse, onWalletError, askWallet } from './walletCharge';
 import { expireSessionOn401 } from './sessionExpiry';
 import { onSaved } from './saveSignal';
+import { flagAiExhausted } from './aiExhausted';
+import { deviceHeaders } from './deviceId';
 
 const apiBaseURL = import.meta.env.VITE_API_URL;
 
@@ -26,6 +28,7 @@ api.interceptors.request.use(config => {
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
+    Object.assign(config.headers, deviceHeaders());
     // A save anywhere in the LMS (a finished lesson, a redeemed reward) can
     // change what Career Path shows, so its cached reads are dropped.
     if ((config.method || 'get').toLowerCase() !== 'get') clearCareerCache();
@@ -39,11 +42,11 @@ const clearAfterSave = (config) => {
 // No default timeout on purpose: AI answers and uploads can take minutes.
 // A request that needs a limit (the start-up settings read) sets its own.
 api.interceptors.response.use(
-    (response) => { clearAfterSave(response.config); return onSaved(onWalletResponse(response)); },
+    (response) => { clearAfterSave(response.config); flagAiExhausted(response); return onSaved(onWalletResponse(response)); },
     // A 401 means the session is over (sessionExpiry.js): signed out, back to
     // the sign-in page. The error still reaches the caller.
     (error) => {
-        clearAfterSave(error.config); expireSessionOn401(error);
+        clearAfterSave(error.config); expireSessionOn401(error); flagAiExhausted(error);
         // Outside the organization's access hours: the layout shows when it opens (components/PlatformClosed).
         if (error.response?.status === 423 && error.response.data?.code === 'PLATFORM_CLOSED') {
             window.dispatchEvent(new CustomEvent('yati:platform-closed', { detail: error.response.data }));

@@ -128,9 +128,9 @@ const login = async (req, res) => {
             if (await findUserByCardNumber(cardNumber)) {
                 return res.status(401).json({ code: 'STUDENT_CARD', message: 'This card is registered to a student account. Choose Student to sign in.' });
             }
-            return res.status(401).json({ message: 'Invalid card number or password' });
+            return res.status(401).json({ code: 'NO_ACCOUNT', message: 'No teacher account found with this card number.' });
         }
-        if (!(await teacher.matchPassword(password))) return res.status(401).json({ message: 'Invalid card number or password' });
+        if (!(await teacher.matchPassword(password))) return res.status(401).json({ code: 'WRONG_PASSWORD', message: 'Wrong password. Try again, or use Forgot password.' });
         if (teacher.status !== 'active') return res.status(403).json(notActive(teacher));
 
         await Teacher.updateOne({ _id: teacher._id }, { $inc: { loginCount: 1 }, $set: { lastLoginAt: new Date() } });

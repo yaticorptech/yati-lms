@@ -6,6 +6,7 @@
  * on the student's behalf.
  */
 import axios from 'axios';
+import { deviceHeaders } from '../../utils/deviceId';
 import { expireSessionOn401 } from '../../utils/sessionExpiry';
 
 const base = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/integrations/google`;
@@ -14,6 +15,7 @@ const client = axios.create({ baseURL: base });
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('studentToken');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  Object.assign(config.headers, deviceHeaders());
   return config;
 });
 

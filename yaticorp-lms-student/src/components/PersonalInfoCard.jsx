@@ -8,7 +8,8 @@
  * While editing, the tiles give way to the form passed in as children.
  */
 import { Link } from 'react-router-dom';
-import { User, Phone, Landmark, Mail, ChartNoAxesColumnIncreasing, Pencil, Camera, Loader2, Crown } from 'lucide-react';
+import { useState } from 'react';
+import { User, Phone, Landmark, Mail, ChartNoAxesColumnIncreasing, Pencil, Camera, Loader2, Crown, Copy, Check, Sparkles, QrCode } from 'lucide-react';
 import OrganizationButton from '../organization/OrganizationButton';
 import ProfileImage from './ProfileImage';
 
@@ -44,15 +45,18 @@ const STRETCH = 'absolute inset-0 rounded-2xl focus:outline-none focus-visible:r
  *  On a phone (the card under 34rem) it is a row of one grouped list, at a
  *  smaller size — six separate cards there made a column longer than the
  *  screen. From 34rem up it is its own card. */
-const Tile = ({ icon, tone, label, children, control, opens = !!control }) => (
-    <div className={`group relative grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 px-3.5 py-3 transition-[border-color,box-shadow,background-color] @[34rem]:rounded-2xl @[34rem]:border @[34rem]:border-slate-100 @[34rem]:bg-white @[34rem]:py-3.5 @[34rem]:shadow-[0_8px_24px_-14px_rgba(67,56,202,0.35)] ${opens ? 'active:bg-slate-50 @[34rem]:hover:border-indigo-200 @[34rem]:hover:shadow-[0_12px_28px_-12px_rgba(67,56,202,0.45)]' : ''}`}>
-        <span aria-hidden="true" className={`col-start-1 row-span-2 row-start-1 flex h-9 w-9 items-center justify-center rounded-xl [&>svg]:size-[18px] @[34rem]:h-11 @[34rem]:w-11 @[34rem]:rounded-2xl @[34rem]:[&>svg]:size-[22px] ${TONES[tone]}`}>
+const Tile = ({ icon, tone, label, children, control, opens = !!control, action }) => (
+    <div className={`group relative flex min-w-0 items-center gap-3.5 rounded-2xl px-3 py-3 transition-colors ${opens ? 'hover:bg-indigo-50/60' : ''}`}>
+        <span aria-hidden="true" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl [&>svg]:size-[20px] ${TONES[tone]}`}>
             {icon}
         </span>
-        <dt className="col-start-2 row-start-1 min-w-0 text-xs text-slate-500">{label}</dt>
-        {/* An email has no spaces to break at; the address breaks before its
-            @ (see breakable) and only anywhere as the very last resort. */}
-        <dd className="col-start-2 row-start-2 mt-0.5 min-w-0 text-sm font-bold text-indigo-950 [overflow-wrap:anywhere]">{children}{control}</dd>
+        <div className="min-w-0 flex-1">
+            <dt className="text-[11px] font-bold tracking-[0.1em] text-slate-400 uppercase">{label}</dt>
+            {/* An email has no spaces to break at; the address breaks before its
+                @ (see breakable) and only anywhere as the very last resort. */}
+            <dd className="mt-0.5 min-w-0 text-[15px] font-bold text-indigo-950 [overflow-wrap:anywhere]">{children}{control}</dd>
+        </div>
+        {action}
     </div>
 );
 
@@ -62,156 +66,136 @@ const breakable = (email) => {
     return at > 0 ? <>{email.slice(0, at)}<wbr />{email.slice(at)}</> : email;
 };
 
-/** A profile page on a lavender rise, with a gear, a plant and two sparkles. */
-const ProfileArt = ({ className = '' }) => (
-    <svg viewBox="0 0 260 300" className={className} aria-hidden="true" focusable="false">
-        <defs>
-            <linearGradient id="pi-wave" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#eef0ff" />
-                <stop offset="1" stopColor="#d9dcfb" />
-            </linearGradient>
-        </defs>
-        <path d="M0 300 C 40 290, 56 214, 118 176 C 170 144, 214 150, 260 96 L 260 300 Z" fill="url(#pi-wave)" />
+/** "240100018860" as it is printed on the card: 2401 0001 8860. */
+const spaced = (n = '') => String(n).replace(/\s+/g, '').replace(/(.{4})(?=.)/g, '$1 ');
 
-        {/* the violet sparkle, high on the right */}
-        <path d="M224 44 L229 58 L243 63 L229 68 L224 82 L219 68 L205 63 L219 58 Z" fill="#6d5dfc" />
+/** Copy the card number, with a tick for a moment. */
+const CopyId = ({ value }) => {
+    const [done, setDone] = useState(false);
+    if (!value) return null;
+    const copy = async () => {
+        try { await navigator.clipboard.writeText(String(value)); setDone(true); setTimeout(() => setDone(false), 1600); } catch { /* clipboard blocked */ }
+    };
+    return (
+        <button type="button" onClick={copy} aria-label={done ? 'Copied' : 'Copy your User ID'} title={done ? 'Copied' : 'Copy'}
+            className="relative z-10 shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-white hover:text-indigo-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+            {done ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+        </button>
+    );
+};
 
-        {/* the profile page, tilted */}
-        <g transform="rotate(10 160 170)">
-            <rect x="96" y="80" width="130" height="176" rx="14" fill="#e3e7fb" />
-            <rect x="90" y="74" width="130" height="176" rx="14" fill="#ffffff" />
-            <circle cx="122" cy="106" r="10" fill="#8b7cf6" />
-            <path d="M104 134 C 104 120, 140 120, 140 134 Z" fill="#8b7cf6" />
-            <g fill="#dfe3f5">
-                <rect x="150" y="100" width="54" height="8" rx="4" />
-                <rect x="150" y="118" width="40" height="8" rx="4" />
-                <rect x="104" y="152" width="96" height="8" rx="4" />
-                <rect x="104" y="172" width="80" height="8" rx="4" />
-                <rect x="104" y="192" width="90" height="8" rx="4" />
-            </g>
-        </g>
-
-        {/* the gear */}
-        <g transform="translate(96 160)">
-            <g fill="#4f7df3">
-                {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => (
-                    <rect key={a} x="-5" y="-26" width="10" height="12" rx="2" transform={`rotate(${a})`} />
-                ))}
-                <circle r="19" />
-            </g>
-            <circle r="8" fill="#dbe6ff" />
-        </g>
-
-        {/* the amber sparkle, low on the left. Everything on this side is
-            kept clear of the tiles that end just beside the picture. */}
-        <path d="M92 214 L97 228 L111 233 L97 238 L92 252 L87 238 L73 233 L87 228 Z" fill="#fbbf6a" />
-
-        {/* the plant, in front */}
-        <g fill="#3f9d4c">
-            <path d="M210 250 C 190 214, 186 180, 196 144 C 210 180, 214 214, 210 250 Z" />
-            <path d="M210 250 C 222 208, 236 180, 258 160 C 250 196, 232 226, 210 250 Z" />
-        </g>
-        <g fill="#5cb85c">
-            <path d="M210 250 C 202 206, 208 164, 226 128 C 230 172, 222 212, 210 250 Z" />
-            <path d="M210 250 C 190 236, 172 222, 160 196 C 184 206, 200 226, 210 250 Z" />
-        </g>
-        <path d="M188 246 L232 246 L226 298 L194 298 Z" fill="#ffffff" />
-        <rect x="184" y="240" width="52" height="10" rx="4" fill="#f7f7fb" stroke="#e8e8f4" />
-    </svg>
+/**
+ * The student's YATICORP card, drawn: the same number they scan to sign in, their name, their
+ * organization and level — the profile's signature, and the thing they recognise.
+ */
+const LearnerPass = ({ user, level }) => (
+    <div className="relative aspect-[1.586] w-full max-w-[22rem] overflow-hidden rounded-[1.4rem] bg-gradient-to-br from-white via-indigo-50 to-fuchsia-100 p-5 shadow-[0_30px_60px_-28px_rgba(79,70,229,0.55)] ring-1 ring-indigo-100 transition-transform duration-500 [transform:perspective(900px)_rotateY(-8deg)_rotateX(4deg)] group-hover/pi:[transform:perspective(900px)_rotateY(0deg)_rotateX(0deg)]">
+        <span className="pointer-events-none absolute -top-16 -right-10 h-44 w-44 rounded-full bg-fuchsia-300/40 blur-3xl" />
+        <span className="pointer-events-none absolute -bottom-20 -left-10 h-44 w-44 rounded-full bg-sky-300/40 blur-3xl" />
+        <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,transparent_35%,rgba(255,255,255,0.7)_50%,transparent_65%)]" />
+        <div className="relative flex h-full flex-col justify-between">
+            <div className="flex items-start justify-between">
+                <div>
+                    <p className="text-[10px] font-black tracking-[0.3em] text-indigo-400">YATICORP</p>
+                    <p className="text-[11px] font-bold tracking-[0.18em] text-indigo-950">LEARNER PASS</p>
+                </div>
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-300 px-2 py-0.5 text-[10px] font-black text-amber-950"><Crown size={10} fill="currentColor" /> LV {level}</span>
+            </div>
+            {/* the chip */}
+            <span className="h-7 w-10 rounded-md bg-gradient-to-br from-amber-200 via-amber-300 to-amber-500 shadow-inner ring-1 ring-amber-100/60 [background-image:linear-gradient(90deg,transparent_45%,rgba(120,72,10,0.35)_46%,rgba(120,72,10,0.35)_54%,transparent_55%),linear-gradient(to_bottom_right,#fde68a,#f59e0b)]" />
+            <div>
+                <div className="flex items-center gap-1">
+                    <p className="font-mono text-lg font-bold tracking-[0.14em] text-indigo-950 tabular-nums"><span className="sr-only">User ID </span>{spaced(user?.cardNumber) || '•••• •••• ••••'}</p>
+                    <CopyId value={user?.cardNumber} />
+                </div>
+                <div className="mt-1 flex items-end justify-between gap-3">
+                    <p className="min-w-0 truncate text-xs font-bold tracking-wide text-slate-600 uppercase">{user?.name || 'Your name'}</p>
+                    {user?.createdAt && <p className="shrink-0 text-[10px] font-semibold text-slate-400">Since {new Date(user.createdAt).getFullYear()}</p>}
+                </div>
+            </div>
+        </div>
+    </div>
 );
 
 export default function PersonalInfoCard({ user, level, levelTo, editing, onEdit, onViewPhoto, onChangePhoto, uploadingPhoto, children }) {
     const photo = user?.profilePicture;
     const initials = (user?.name || '').trim().split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+    const firstName = String(user?.name || '').trim().split(/\s+/)[0];
 
-    // Laid out by the card's own width, not the window's: the sidebar comes and
-    // goes, and the page stops growing at 80rem. Three tiles to a row need about
-    // 16rem each ("+ Add organization", a 12-digit ID); the picture needs about
-    // 6rem more beside them, which the card has only at its full width (75rem
-    // inside its border).
     return (
-        <section data-personal-info aria-labelledby="personal-info-title"
-            className="@container relative overflow-hidden rounded-3xl border border-slate-100 bg-gradient-to-br from-white via-white to-indigo-50/80 shadow-sm">
-            {/* The profile page and plant, when the card has room for them */}
-            {!editing && <ProfileArt className="pointer-events-none absolute bottom-0 right-0 hidden w-[175px] @[75rem]:block" />}
+        <section data-personal-info aria-labelledby="personal-info-title" className="group/pi overflow-hidden rounded-3xl bg-white shadow-[0_24px_60px_-34px_rgba(30,22,80,0.55)] ring-1 ring-slate-200/70">
+            {/* ── The pass: who they are, on a light pearl-lavender field ─────────── */}
+            <div className="relative isolate overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-fuchsia-50 px-5 pt-5 pb-6 text-indigo-950 sm:px-8 sm:pt-7 sm:pb-8">
+                <span aria-hidden className="pointer-events-none absolute -top-32 -left-24 -z-10 h-80 w-80 rounded-full bg-indigo-200/50 blur-3xl" />
+                <span aria-hidden className="pointer-events-none absolute -right-20 -bottom-40 -z-10 h-96 w-96 rounded-full bg-fuchsia-200/50 blur-3xl" />
+                <span aria-hidden className="pointer-events-none absolute top-10 right-1/3 -z-10 h-40 w-40 rounded-full bg-sky-200/40 blur-3xl" />
+                <span aria-hidden className="pointer-events-none absolute inset-0 -z-10 opacity-[0.35] [background-image:linear-gradient(#e0e7ff_1px,transparent_1px),linear-gradient(90deg,#e0e7ff_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_30%_40%,black,transparent_75%)]" />
 
-            {/* Edit Profile beside the heading at every size. On a phone it is
-                the pencil alone, at the top right (its name is still there for
-                a screen reader); from 34rem up it carries its label. */}
-            <div className="relative flex items-center justify-between gap-3 px-4 pt-4 sm:px-8 sm:pt-7">
-                <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-4">
-                    <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100/80 text-violet-500 sm:h-14 sm:w-14 sm:rounded-2xl">
-                        <User size={24} fill="currentColor" strokeWidth={1.5} className="size-5 sm:size-6" />
-                    </span>
-                    <div className="min-w-0">
-                        <h2 id="personal-info-title" className="text-[17px] font-extrabold leading-tight tracking-tight text-indigo-950 sm:text-2xl">Personal Information</h2>
-                        <p className="mt-0.5 text-xs text-slate-500 sm:text-base">Manage your profile information</p>
-                    </div>
+                <div className="flex items-start justify-between gap-3">
+                    <p className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-black tracking-[0.16em] text-indigo-700 uppercase shadow-sm ring-1 ring-indigo-100">
+                        <Sparkles size={12} className="text-amber-500" /> My profile
+                    </p>
+                    {!editing && (
+                        <button type="button" onClick={onEdit} title="Edit Profile"
+                            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 px-3.5 py-2 text-[13px] font-black text-white shadow-lg shadow-indigo-500/30 transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2">
+                            <Pencil size={14} aria-hidden="true" /> <span className="max-sm:sr-only">Edit Profile</span>
+                        </button>
+                    )}
                 </div>
-                {!editing && (
-                    <button type="button" onClick={onEdit} title="Edit Profile"
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-500 text-[13px] font-semibold text-white shadow-sm shadow-indigo-200 transition-colors hover:from-violet-700 hover:to-indigo-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 @[34rem]:h-auto @[34rem]:w-auto @[34rem]:rounded-lg @[34rem]:px-3 @[34rem]:py-1.5">
-                        <Pencil size={13} aria-hidden="true" className="size-4 @[34rem]:size-[13px]" />
-                        <span className="sr-only @[34rem]:not-sr-only">Edit Profile</span>
-                    </button>
-                )}
-            </div>
 
-            <div className="relative px-4 pb-4 pt-4 sm:px-8 sm:pb-8 sm:pt-6">
-                {editing ? children : (
-                    <div className="flex flex-col items-center gap-4 @[48rem]:flex-row @[48rem]:items-stretch @[48rem]:gap-6 @[75rem]:pr-[100px]">
-                        {/* Level, photo, name — the student at a glance. On a phone
-                            and a narrow card: the photo with the name, the line and
-                            the level beside it, in one row. From 48rem: a column,
-                            the level over the photo, with a rule between it and
-                            the details. */}
-                        <div className="flex w-full min-w-0 items-center gap-4 @[48rem]:w-52 @[48rem]:shrink-0 @[48rem]:flex-col @[48rem]:justify-center @[48rem]:gap-0 @[48rem]:border-r @[48rem]:border-slate-200/80 @[48rem]:pr-7 @[48rem]:text-center">
-                            <span className="relative z-10 -mb-2 hidden items-center gap-1 rounded-full bg-gradient-to-r from-pink-50 to-violet-50 px-3 py-0.5 text-sm font-bold text-indigo-600 shadow-sm ring-1 ring-violet-100 @[48rem]:inline-flex">
-                                <Crown size={14} fill="currentColor" className="text-amber-400" aria-hidden="true" /> Level {level}
-                            </span>
-                            <div className="relative shrink-0">
-                                <button type="button" onClick={photo ? onViewPhoto : undefined} disabled={!photo}
-                                    aria-label={photo ? 'View your photo' : undefined}
-                                    className="block h-20 w-20 overflow-hidden rounded-full border-[3px] border-white bg-gradient-to-br from-violet-100 via-fuchsia-100 to-violet-200 shadow-lg shadow-indigo-100 ring-2 ring-indigo-200 focus:outline-none focus-visible:ring-indigo-400 disabled:cursor-default @[34rem]:h-24 @[34rem]:w-24 @[48rem]:h-36 @[48rem]:w-36 @[48rem]:border-4">
-                                    <ProfileImage src={photo} alt={user?.name || ''} className="h-full w-full object-cover"
-                                        fallback={<span className="flex h-full w-full items-center justify-center text-3xl font-black text-violet-600 @[48rem]:text-5xl">{initials}</span>} />
-                                </button>
-                                <button type="button" onClick={onChangePhoto} disabled={uploadingPhoto}
-                                    className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-white text-indigo-500 shadow-lg ring-1 ring-slate-100 transition-transform hover:scale-110 disabled:opacity-60 @[48rem]:bottom-0.5 @[48rem]:right-0.5 @[48rem]:h-11 @[48rem]:w-11"
-                                    title="Change photo or avatar" aria-label="Change photo or avatar">
-                                    {uploadingPhoto
-                                        ? <Loader2 size={20} className="size-4 animate-spin @[48rem]:size-5" />
-                                        : <Camera size={19} fill="currentColor" stroke="#ffffff" strokeWidth={1.6} className="size-[15px] @[48rem]:size-[19px]" />}
-                                </button>
-                            </div>
-                            <div className="min-w-0 flex-1 @[48rem]:w-full @[48rem]:flex-none">
-                                <p className="max-w-full text-lg font-bold leading-tight text-indigo-950 [overflow-wrap:anywhere] @[48rem]:mt-3 @[48rem]:text-xl">{user?.name || 'Your name'}</p>
-                                {/* In the column, one line, the sprout included: centred,
-                                    it may run a little past the column on either side
-                                    rather than wrap. */}
-                                <p className="mt-1 text-xs text-slate-600 @[48rem]:mt-0.5 @[48rem]:whitespace-nowrap @[48rem]:text-sm">Learning to grow every day <span aria-hidden="true">🌱</span></p>
-                                <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-pink-50 to-violet-50 px-2.5 py-0.5 text-xs font-bold text-indigo-600 ring-1 ring-violet-100 @[48rem]:hidden">
-                                    <Crown size={12} fill="currentColor" className="text-amber-400" aria-hidden="true" /> Level {level}
-                                </span>
+                <div className="mt-5 grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="flex min-w-0 flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
+                        {/* The photo in a lit ring, with its camera */}
+                        <div className="relative shrink-0">
+                            <span aria-hidden className="absolute -inset-1.5 rounded-full bg-[conic-gradient(from_200deg,#f0abfc,#818cf8,#38bdf8,#fcd34d,#f0abfc)] opacity-90 blur-[1px]" />
+                            <button type="button" onClick={photo ? onViewPhoto : undefined} disabled={!photo}
+                                aria-label={photo ? 'View your photo' : undefined}
+                                className="relative block h-28 w-28 overflow-hidden rounded-full border-4 border-white bg-gradient-to-br from-violet-200 to-fuchsia-200 focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-300 disabled:cursor-default sm:h-32 sm:w-32">
+                                <ProfileImage src={photo} alt={user?.name || ''} className="h-full w-full object-cover"
+                                    fallback={<span className="flex h-full w-full items-center justify-center text-4xl font-black text-violet-700">{initials}</span>} />
+                            </button>
+                            <button type="button" onClick={onChangePhoto} disabled={uploadingPhoto}
+                                className="absolute right-0 bottom-0 flex h-10 w-10 items-center justify-center rounded-full bg-white text-indigo-600 shadow-xl ring-4 ring-white transition-transform hover:scale-110 disabled:opacity-60"
+                                title="Change photo or avatar" aria-label="Change photo or avatar">
+                                {uploadingPhoto ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} fill="currentColor" stroke="#ffffff" strokeWidth={1.6} />}
+                            </button>
+                        </div>
+                        <div className="min-w-0">
+                            <h2 id="personal-info-title" className="sr-only">Personal Information</h2>
+                            <p className="text-sm font-semibold text-slate-500">Hello{firstName ? `, ${firstName}` : ''} 👋</p>
+                            <p className="mt-0.5 text-3xl leading-tight font-black tracking-tight [overflow-wrap:anywhere] sm:text-4xl">{user?.name || 'Your name'}</p>
+                            <p className="mt-1 text-sm text-slate-500">Learning to grow every day <span aria-hidden="true">🌱</span></p>
+                            <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
+                                {levelTo ? (
+                                    <Link to={levelTo} className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-300 to-orange-400 px-3 py-1 text-xs font-black text-amber-950 shadow-md shadow-orange-300/50 transition-transform hover:-translate-y-0.5" aria-label={`Level ${level}: open Career Path`}>
+                                        <Crown size={13} fill="currentColor" /> Level {level}
+                                    </Link>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-300 to-orange-400 px-3 py-1 text-xs font-black text-amber-950"><Crown size={13} fill="currentColor" /> Level {level}</span>
+                                )}
                             </div>
                         </div>
-
-                        {/* Across the rows: Name, Phone, Email | ID, Organization, Level */}
-                        {/* A phone: one grouped list, rows split by hairlines. From 34rem:
-                            separate tiles, two to a row, three from 68rem. */}
-                        <dl className="grid w-full min-w-0 flex-1 grid-cols-1 content-center divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[0_8px_24px_-14px_rgba(67,56,202,0.35)] @[34rem]:grid-cols-2 @[34rem]:gap-3.5 @[34rem]:divide-y-0 @[34rem]:overflow-visible @[34rem]:rounded-none @[34rem]:border-0 @[34rem]:bg-transparent @[34rem]:shadow-none @[68rem]:grid-cols-3">
-                            <Tile icon={<User size={22} fill="currentColor" strokeWidth={1.5} />} tone="blue" label="Full Name">{user?.name || '—'}</Tile>
-                            <Tile icon={<Phone size={20} fill="currentColor" strokeWidth={1.5} />} tone="green" label="Phone Number">{user?.phone || 'Not added yet'}</Tile>
-                            <Tile icon={<Mail size={22} strokeWidth={2.2} />} tone="pink" label="Email">{user?.email ? breakable(user.email) : 'Not added yet'}</Tile>
-                            <Tile icon={<ShieldDot size={22} />} tone="violet" label="User ID">{user?.cardNumber || '—'}</Tile>
-                            {/* The same control as before, drawn as a value: it
-                                still opens the popup for linking an organization,
-                                and stretches over the tile itself. */}
-                            <Tile icon={<Landmark size={22} strokeWidth={2.4} />} tone="amber" label="Organization/College" opens><OrganizationButton variant="plain" /></Tile>
-                            <Tile icon={<ChartNoAxesColumnIncreasing size={22} strokeWidth={3.2} />} tone="chart" label="Level"
-                                control={levelTo ? <Link to={levelTo} aria-label="Level: open Career Path" className={STRETCH} /> : undefined}>Level {level}</Tile>
-                        </dl>
                     </div>
+                    <div className="hidden justify-end lg:flex"><LearnerPass user={user} level={level} /></div>
+                </div>
+            </div>
+
+            {/* ── The details, or the form while editing ──────────────────────── */}
+            <div className="p-3 sm:p-5">
+                {editing ? <div className="p-2 sm:p-3">{children}</div> : (
+                    <dl className="grid grid-cols-1 gap-x-2 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
+                        <Tile icon={<User size={22} fill="currentColor" strokeWidth={1.5} />} tone="blue" label="Full name">{user?.name || '—'}</Tile>
+                        <Tile icon={<Phone size={20} fill="currentColor" strokeWidth={1.5} />} tone="green" label="Phone">{user?.phone || 'Not added yet'}</Tile>
+                        <Tile icon={<Mail size={22} strokeWidth={2.2} />} tone="pink" label="Email">{user?.email ? breakable(user.email) : 'Not added yet'}</Tile>
+                        {/* Below lg only: from lg the Learner Pass above shows the number, with its own copy. */}
+                        <div className="lg:hidden"><Tile icon={<ShieldDot size={22} />} tone="violet" label="User ID" action={<CopyId value={user?.cardNumber} />}><span className="font-mono tracking-wide">{user?.cardNumber || '—'}</span></Tile></div>
+                        {/* The same control as before, drawn as a value: it still opens the popup for linking an organization. */}
+                        <Tile icon={<Landmark size={22} strokeWidth={2.4} />} tone="amber" label="Organization / college" opens><OrganizationButton variant="plain" /></Tile>
+                        {/* The number in the card's QR code (what the scanner reads at sign-in). */}
+                        <Tile icon={<QrCode size={22} strokeWidth={2.2} />} tone="violet" label="QR code number" action={<CopyId value={user?.qrNumber} />}><span className="font-mono tracking-wide">{user?.qrNumber || 'Not linked yet'}</span></Tile>
+                        <Tile icon={<ChartNoAxesColumnIncreasing size={22} strokeWidth={3.2} />} tone="chart" label="Level"
+                            control={levelTo ? <Link to={levelTo} aria-label="Level: open Career Path" className={STRETCH} /> : undefined}>Level {level}</Tile>
+                    </dl>
                 )}
             </div>
         </section>

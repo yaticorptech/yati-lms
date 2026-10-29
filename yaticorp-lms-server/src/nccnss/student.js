@@ -7,6 +7,9 @@
  *   POST   /join              ask to join { scheme, clubId?, unitId? (Scouts), unit, enrolmentNo, year, certStage, note } — the organization approves
  *   POST   /activities        log an activity { memberId, … } (multipart, optional "proof" photo) — the organization approves
  *   DELETE /activities/:id    withdraw one that has not been decided yet
+ *   POST   /awards            Scouts: "I passed this" { memberId, type, name, date, examiner, certificateNo, note } (multipart,
+ *                              "certificate" image required) — the unit leader checks the certificate and promotes
+ *   DELETE /awards/:id        withdraw such a request not decided yet
  *   GET    /calendar?from=&to=&memberId=  the events of everything I am an active member of (or of one), between two dates
  *   POST   /calendar           a club president adds an event { memberId, kind, title, date, hours, place }
  *   DELETE /calendar/:id       …and takes back one they added
@@ -25,6 +28,10 @@ const { closeMemberships, lastClosed } = require('./membership');
 const { awardsByUser } = require('./awards');
 const { currentRank } = require('./bsg');
 const { noticesFor } = require('./notices');
+const { storeProof } = require('./proofStore');
+const { awardFields, newAward } = require('./awards');
+const { ranksFor } = require('./bsg');
+const { ScoutAward } = require('./models');
 
 const router = express.Router();
 const fail = (res, error, what) => {
@@ -82,7 +89,7 @@ router.get('/', async (req, res) => {
                 ...m,
                 name: schemeName(m),
                 summary: i >= 0 ? summaries[i] : null,
-                ...(m.scheme === 'SCOUTS' ? { rank: currentRank(scoutAwards, m.section), awards: scoutAwards } : {}),
+                ...(m.scheme === 'SCOUTS' ? { rank: currentRank(scoutAwards, m.section), awards: scoutAwards, ranks: ranksFor(m.section) } : {}),
                 activities,
                 upcoming: upcoming.map(({ presentMemberIds, ...e }) => e),
                 attendance: past.map((e) => ({
@@ -116,8 +123,12 @@ router.get('/calendar', async (req, res) => {
             organizationId: organization._id, date: { $gte: from, $lte: to },
             $or: members.map((m) => ({ scheme: m.scheme, clubId: m.clubId?._id || null, unit: { $in: ['', m.unit] } }))
         }).populate('clubId', 'name').sort({ date: 1 }).limit(300).lean();
+        // What they did and the organization verified, on the day it happened.
+        const done = await NccNssActivity.find({
+            userId: req.user._id, memberId: { $in: members.map((m) => m._id) }, status: 'approved', date: { $gte: from, $lte: to }
+        }).sort({ date: 1 }).limit(100).lean();
         res.json({
-            events: events.map((e) => {
+            events: [...events.map((e) => {
                 const m = members.find((x) => x.scheme === e.scheme && String(x.clubId?._id || '') === String(e.clubId?._id || ''));
                 return {
                     _id: e._id, title: e.title, kind: e.kind, date: e.date, hours: e.hours, place: e.place,
@@ -125,7 +136,14 @@ router.get('/calendar', async (req, res) => {
                     mine: String(e.addedByUserId || '') === String(req.user._id),
                     present: e.attendanceTaken ? e.presentMemberIds.some((id) => String(id) === String(m?._id)) : null
                 };
-            })
+            }), ...done.map((a) => {
+                const m = members.find((x) => String(x._id) === String(a.memberId));
+                return {
+                    _id: a._id, title: a.title, kind: a.kind, date: a.date, hours: a.hours, place: a.place,
+                    scheme: a.scheme, name: m ? schemeName(m) : '', memberId: a.memberId,
+                    mine: false, present: null, completed: true
+                };
+            })].sort((x, y) => new Date(x.date) - new Date(y.date))
         });
     } catch (error) { fail(res, error, 'load your calendar'); }
 });
@@ -222,10 +240,14 @@ router.post('/activities', upload.single('proof'), async (req, res) => {
         }
 
         let proofUrl = '';
+        let proofDriveId = '';
         if (req.file) {
             if (!isRasterImage(req.file.buffer)) return res.status(400).json({ message: 'Upload the photo as a PNG, JPEG or WebP image.' });
-            const { uploadToBunny } = require('../utils/bunnyStorage');
-            proofUrl = await uploadToBunny(req.file.buffer, `proof${rasterExtension(req.file.buffer)}`, 'nccnss-proofs');
+            // The student's own Drive when connected (shared by link for their teacher), else our storage.
+            ({ url: proofUrl, driveId: proofDriveId } = await storeProof(req.user._id, req.file.buffer, {
+                name: `${String(b.title).trim().slice(0, 80)} — ${date.toISOString().slice(0, 10)}`,
+                description: `Proof of an activity logged in YATICORP Learning (${schemeName(member)}).`
+            }));
         }
 
         await NccNssActivity.create({
@@ -236,10 +258,43 @@ router.post('/activities', upload.single('proof'), async (req, res) => {
             hours: Math.min(240, Math.max(0, Number(b.hours) || 0)),
             place: String(b.place || '').trim().slice(0, 120),
             proofUrl,
+            proofDriveId,
             source: 'student'
         });
         res.status(201).json({ message: 'Logged — your officer will approve it, then the hours count.' });
     } catch (error) { fail(res, error, 'log the activity'); }
+});
+
+router.post('/awards', upload.single('certificate'), async (req, res) => {
+    try {
+        const b = req.body || {};
+        const member = mongoose.isValidObjectId(b.memberId)
+            ? await NccNssMember.findOne({ _id: b.memberId, userId: req.user._id, scheme: 'SCOUTS', status: 'active' }).lean()
+            : null;
+        if (!member) return res.status(403).json({ message: 'You are not an active member of a Scouts & Guides unit.' });
+        const { fields, error } = awardFields(b, member.section);
+        if (error) return res.status(400).json({ message: error });
+        if (!req.file) return res.status(400).json({ message: 'Upload a photo of your certificate.' });
+        if (!isRasterImage(req.file.buffer)) return res.status(400).json({ message: 'Upload the certificate as a PNG, JPEG or WebP image.' });
+        if (await ScoutAward.exists({ userId: req.user._id, type: fields.type, name: fields.name, status: { $in: ['pending', 'approved'] }, section: member.section || '' })) {
+            return res.status(409).json({ message: `${fields.name} is already on your record or waiting.` });
+        }
+        const { url } = await storeProof(req.user._id, req.file.buffer, {
+            name: `${fields.name} certificate — ${fields.date.toISOString().slice(0, 10)}`,
+            description: `Scouts & Guides ${fields.type} certificate, sent to your unit leader in YATICORP Learning.`
+        });
+        await newAward(member, { ...fields, certificateUrl: url }, { status: 'pending', requestedByUserId: req.user._id });
+        res.status(201).json({ message: 'Sent — your unit leader will check the certificate, then your record is updated.' });
+    } catch (error) { fail(res, error, 'send your request'); }
+});
+
+router.delete('/awards/:id', async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'No such request.' });
+        const gone = await ScoutAward.findOneAndDelete({ _id: req.params.id, requestedByUserId: req.user._id, status: 'pending' });
+        if (!gone) return res.status(404).json({ message: 'Only a request still waiting can be withdrawn.' });
+        res.json({ message: 'Request withdrawn.' });
+    } catch (error) { fail(res, error, 'withdraw it'); }
 });
 
 router.delete('/activities/:id', async (req, res) => {

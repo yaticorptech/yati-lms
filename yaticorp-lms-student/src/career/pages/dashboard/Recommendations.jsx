@@ -15,6 +15,7 @@ import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
 import useBackClose from '../../../native/useBackClose';
 import { isWalletCancel } from '../../../utils/walletCharge';
+import GeminiCreditTip from '../../../components/GeminiCreditTip';
 
 /*
  * Tile palettes. Written out in full because Tailwind scans source for literal
@@ -414,9 +415,9 @@ export default function Recommendations() {
                 ? 'Let your AI mentor put together internships, courses, books and scholarships that fit your goal.'
                 : 'Build your roadmap first, then let your AI mentor put together internships, courses, books and scholarships that fit your goal.'}
               action={
-                <Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
+                <span className="inline-flex items-center gap-2"><Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
                   Get recommendations
-                </Button>
+                </Button><GeminiCreditTip /></span>
               }
             />
           )}
@@ -437,9 +438,9 @@ export default function Recommendations() {
                   Your mentor can add real internships, courses, books and scholarships with links.
                 </p>
               </div>
-              <Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
+              <span className="inline-flex items-center gap-2"><Button icon={Sparkles} loading={generating} loadingText="Curating…" onClick={handleGenerate}>
                 Get recommendations
-              </Button>
+              </Button><GeminiCreditTip /></span>
             </Card>
           )}
 

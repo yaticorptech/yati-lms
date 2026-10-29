@@ -4,14 +4,11 @@ import { AuthContext } from '../../context/AuthContext';
 import ShareBadgeDialog from '../../components/roadmap/ShareBadgeDialog';
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, Award, Trophy, Zap, Share2, Medal, Sparkles, Flag, Lock, Gift
+  ArrowRight, Award, Trophy, Zap, Share2, Medal, Flag, Lock, Gift
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import LoadError from '../../components/ui/LoadError';
-import useLevelProgress from '../../context/useLevelProgress';
 import BadgeMedallion from '../../components/rewards/BadgeMedallion';
-import RewardsHeroArt from '../../components/rewards/RewardsHeroArt';
-import useCountUp from '../../../hooks/useCountUp';
 import { BADGE_ICONS, tierFor } from '../../components/rewards/badgeTiers';
 import YatiLoader from '../../../components/YatiLoader';
 import useMinimumLoading from '../../../hooks/useMinimumLoading';
@@ -27,163 +24,28 @@ const earnedOn = (value) => {
     : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 };
 
-// Level, XP-to-next and the bar all come from useLevelProgress: the admin's
-// ladder, the one the server levels students with. This page used to carry
-// its own copy of an older ladder and named the wrong next level the moment
-// the two differed.
+// Level and XP are on My Progress (2026-10-29); this page shows what has been won.
 
 // XP one finished task pays: the admin's 'career_task' rule (useXpRule below).
 
-/**
- * The four figures in the rail, and the colour each one owns.
- *
- * Written out as whole class names rather than assembled from a hue, because
- * Tailwind generates classes by scanning source text: a name built at runtime
- * is a name it never emits, and the style would simply be missing from the
- * build.
- */
-const STAT_TONES = {
-  badge: {
-    chip: 'from-amber-300 to-amber-500 shadow-amber-500/40',
-    lip: 'bg-amber-600/70',
-    card: 'from-amber-100/80 ring-amber-100',
-    glow: 'bg-amber-200/50',
-    figure: 'from-amber-500 to-orange-600'
-  },
-  achievement: {
-    chip: 'from-pink-300 to-rose-500 shadow-rose-500/40',
-    lip: 'bg-rose-600/70',
-    card: 'from-pink-100/70 ring-pink-100',
-    glow: 'bg-pink-200/50',
-    figure: 'from-pink-500 to-rose-600'
-  },
-  xp: {
-    chip: 'from-journey-400 to-journey-600 shadow-journey-500/40',
-    lip: 'bg-journey-700/70',
-    card: 'from-journey-100/70 ring-journey-100',
-    glow: 'bg-journey-200/50',
-    figure: 'from-journey-600 to-indigo-600'
-  },
-  milestone: {
-    chip: 'from-emerald-300 to-emerald-500 shadow-emerald-500/40',
-    lip: 'bg-emerald-600/70',
-    card: 'from-emerald-100/70 ring-emerald-100',
-    glow: 'bg-emerald-200/50',
-    figure: 'from-emerald-500 to-teal-600'
-  }
-};
+/** One figure on the banner: glass tile, big number, what it counts. */
+const Stat = ({ icon: Icon, value, label, tone }) => (
+  <div className="group flex items-center gap-3 rounded-2xl bg-white/10 px-3.5 py-3 ring-1 ring-white/20 ring-inset backdrop-blur-sm transition-colors hover:bg-white/15">
+    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-lg transition-transform group-hover:scale-110 ${tone}`}>
+      <Icon className="h-5 w-5" strokeWidth={2.4} />
+    </span>
+    <span className="min-w-0 leading-tight">
+      <span className="block text-2xl font-black text-white tabular-nums">{value}</span>
+      <span className="block truncate text-[11px] font-bold tracking-wide text-white/70 uppercase">{label}</span>
+    </span>
+  </div>
+);
 
-/**
- * One figure in the rail beside the badges.
- *
- * The icon is built the way the solids in the heroes are: a darker copy of
- * the shape behind it standing in for its thickness, a gradient across the
- * face, and a crown along the top where the light lands. One light source,
- * from above — the same one the illustrations use, so the rail and the
- * picture beside it belong to each other.
- *
- * The figure itself is what the card is for, so it is the largest thing on
- * it and carries the colour; the label above it is only a name.
- */
-const RewardStat = ({ icon: Icon, label, value, detail, tone = 'xp' }) => {
-  const t = STAT_TONES[tone] || STAT_TONES.xp;
-  return (
-    <section
-      /* Lit from the top-right corner and nowhere else: the tint, the glow
-         and the icon all sit there, and the figure below is left on plain
-         white where it reads hardest. An earlier pass ran the tint up from
-         the bottom-left while the glow sat top-right, which gave one small
-         card two light sources pointing at each other. */
-      className={`group relative min-w-0 overflow-hidden rounded-2xl bg-gradient-to-bl via-surface to-surface p-3.5 lg:p-4 shadow-card ring-1 ring-inset transition-transform duration-300 hover:-translate-y-0.5 ${t.card}`}
-    >
-      {/* The card's own light, off in the corner and well behind the words. */}
-      <span
-        aria-hidden
-        className={`pointer-events-none absolute -top-12 -right-12 h-28 w-28 rounded-full blur-2xl ${t.glow}`}
-      />
-
-      {/* Phones and tablets: compact, the icon beside the words rather than
-          above a tall, mostly empty card — two sit side by side. */}
-      <div className="relative flex items-start gap-3 lg:hidden">
-        <span aria-hidden className="relative h-10 w-10 shrink-0">
-          <span className={`absolute inset-x-0 top-1.5 bottom-0 rounded-2xl ${t.lip}`} />
-          <span
-            className={`absolute inset-x-0 top-0 bottom-1.5 flex items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br text-white shadow-md ${t.chip}`}
-          >
-            <Icon className="h-4 w-4" strokeWidth={2.5} />
-            <span className="absolute inset-x-1.5 top-1 h-1.5 rounded-full bg-white/45" />
-          </span>
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold leading-snug text-ink-700">{label}</p>
-          <p
-            className={`mt-0.5 bg-gradient-to-br bg-clip-text text-2xl leading-tight font-black text-transparent tabular-nums ${t.figure}`}
-          >
-            {value}
-          </p>
-          {detail && <p className="mt-0.5 text-[11px] font-semibold leading-snug text-ink-500">{detail}</p>}
-        </div>
-      </div>
-
-      {/* Laptop and desktop: the card as it was designed. */}
-      <div className="relative hidden lg:block">
-        <div className="relative flex items-start justify-between gap-3">
-          <p className="pt-1 text-sm font-bold text-ink-900">{label}</p>
-
-          <span aria-hidden className="relative h-10 w-10 shrink-0">
-            <span className={`absolute inset-x-0 top-1.5 bottom-0 rounded-2xl ${t.lip}`} />
-            <span
-              className={`absolute inset-x-0 top-0 bottom-1.5 flex items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br text-white shadow-md ${t.chip}`}
-            >
-              <Icon className="h-4 w-4" strokeWidth={2.5} />
-              <span className="absolute inset-x-1.5 top-1 h-1.5 rounded-full bg-white/45" />
-            </span>
-          </span>
-        </div>
-
-        <p
-          className={`relative mt-2.5 bg-gradient-to-br bg-clip-text text-[2.1rem] leading-none font-black text-transparent tabular-nums ${t.figure}`}
-        >
-          {value}
-        </p>
-        {detail && <p className="relative mt-1.5 text-xs font-semibold text-ink-500">{detail}</p>}
-      </div>
-    </section>
-  );
-};
-
-/** The level, as a ring filled to the next one. */
-function LevelBadge({ level, percent }) {
-  const size = 104;
-  const stroke = 8;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const offset = c - (Math.max(0, Math.min(100, percent)) / 100) * c;
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90" aria-hidden>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-journey-100" />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          stroke="#ffb800"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          style={{ transition: 'stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1)' }}
-        />
-      </svg>
-      <span className="absolute inset-[14px] flex flex-col items-center justify-center rounded-full bg-gradient-to-br from-journey-500 to-indigo-600 text-white shadow-lg shadow-journey-500/30">
-        <span className="text-[0.58rem] font-black tracking-[0.14em] opacity-80 uppercase">Level</span>
-        <span className="text-2xl leading-none font-black tabular-nums">{level}</span>
-      </span>
-    </div>
-  );
-}
+const TABS = [
+  { id: 'badges', label: 'Badges', icon: Medal },
+  { id: 'achievements', label: 'Achievements', icon: Trophy },
+  { id: 'milestones', label: 'Milestones', icon: Flag }
+];
 
 export default function Badges() {
   // The admin's 'career_task' rule (Rewards → Reward rules), not a number of our own.
@@ -195,6 +57,7 @@ export default function Badges() {
   const [badges, setBadges] = useState([]);
   const [milestones, setMilestones] = useState([]);
   const [sharingBadge, setSharingBadge] = useState(null);
+  const [tab, setTab] = useState('badges');
   const [loading, setLoading] = useState(true);
   // A failed load, kept apart from "no badges yet" so a dropped connection
   // does not tell a student they have earned nothing.
@@ -202,9 +65,6 @@ export default function Badges() {
   const [retrying, setRetrying] = useState(false);
 
   const xp = user?.xp || 0;
-  const progress = useLevelProgress(xp, user?.level);
-  const level = progress.level;
-  const animatedXp = useCountUp(xp);
 
   const fetchData = useCallback(async () => {
     try {
@@ -240,12 +100,8 @@ export default function Badges() {
   if (showLoader) return <YatiLoader label="Loading your rewards" />;
   if (failed) return <LoadError title="We couldn't load your rewards" onRetry={retry} retrying={retrying} />;
 
-  const { ceiling, percent, remaining: xpToLevel, known: ladderKnown } = progress;
-  // How many tasks the next level is, at what a task pays now. Only while a
-  // task pays something: with Rewards locked the rule is null, and a rule of 0
-  // used to come out as "Infinity tasks". Then the XP distance stands alone.
+  // Only while a task pays something: with Rewards locked the rule is null.
   const promisesXp = TASK_XP > 0;
-  const tasksToLevel = promisesXp ? Math.max(1, Math.ceil(xpToLevel / TASK_XP)) : 0;
   const unlockedCount = badges.filter((b) => b.unlocked).length;
 
   // Earned badges first, then whichever locked one is closest. A student who is
@@ -257,6 +113,8 @@ export default function Badges() {
   });
   const earned = ordered.filter((b) => b.unlocked);
   const nextBadge = ordered.find((b) => !b.unlocked);
+  // Newest earned first, for the podium.
+  const showcase = [...earned].sort((a, b) => new Date(b.unlockedAt || 0) - new Date(a.unlockedAt || 0));
   const nextTier = nextBadge ? tierFor(nextBadge.xpRequired) : null;
   const nextToGo = nextBadge ? Math.max(0, (nextBadge.xpRequired || 0) - xp) : 0;
   // "First Task Completed" is earned by finishing a task, not by XP (the
@@ -273,378 +131,224 @@ export default function Badges() {
     .slice()
     .sort((a, b) => new Date(b.unlockedAt || 0) - new Date(a.unlockedAt || 0));
 
+  const counts = { badges: unlockedCount, achievements: achievements.length, milestones: milestones.length };
+
   return (
-    <div className="fp-enter grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
-      <div className="min-w-0 space-y-5">
-        {/* ---- Level and the medal shelf -------------------------------- */}
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-journey-50 via-surface to-amber-50/70 shadow-card ring-1 ring-journey-100 ring-inset">
-          <div
-            aria-hidden
-            className="fp-float pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full bg-journey-200/40 blur-3xl"
-          />
-          <div
-            aria-hidden
-            className="fp-float-slow pointer-events-none absolute -right-10 -bottom-24 h-56 w-56 rounded-full bg-amber-200/50 blur-3xl"
-          />
+    <div className="fp-enter space-y-5">
+      {/* ---- 1. The trophy room: totals, and the latest badges on a podium ---- */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-violet-700 to-fuchsia-600 text-white shadow-[0_24px_60px_-24px_rgba(91,33,182,0.65)]">
+        {/* Light: two soft glows and a faint dot grid, nothing that competes with the badges. */}
+        <div aria-hidden className="pointer-events-none absolute -top-24 -left-20 h-72 w-72 rounded-full bg-sky-400/30 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-28 h-80 w-80 rounded-full bg-amber-300/30 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:radial-gradient(white_1px,transparent_1px)] [background-size:18px_18px]" />
 
-          {/* The cup bleeds to the right edge rather than sitting in a column
-              of its own: boxed, it reads as a picture pasted onto the banner
-              instead of as the banner itself. It counts the same badges the
-              shelf below does, so it is `aria-hidden` and costs a screen
-              reader nothing it is not already told in words. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 hidden w-[38%] max-w-[380px] [mask-image:linear-gradient(to_right,transparent,black_10%)] lg:block"
-          >
-            <RewardsHeroArt earned={unlockedCount} className="h-full w-full" />
-          </div>
-
-          {/* On a phone the ring sits beside the title rather than on a row of
-              its own, which left it alone in the top-left corner over a blank
-              band; the bar and the button then take the full width underneath.
-              From sm the ring is one column beside all of it. */}
-          <div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-4 p-5 sm:gap-x-5 sm:p-6 lg:max-w-[64%]">
-            <div className="sm:row-span-3">
-              <LevelBadge level={level} percent={percent} />
-            </div>
-
-            <div className="min-w-0">
-              <p className="text-[0.7rem] font-black tracking-[0.16em] text-journey-600 uppercase">
-                Rewards
-              </p>
-              <h1 className="mt-1 text-2xl leading-tight font-black text-ink-900 sm:text-3xl">
-                Level {level} Learner
-              </h1>
-              {/* One figure a line on a phone, where the pair wrapped mid-way and left
-                  the dot dangling at the end of the first line. */}
-              <p className="mt-1.5 flex flex-col gap-y-1 text-sm font-semibold text-ink-500 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
-                <span className="inline-flex items-center gap-1.5">
-                  <Zap className="h-4 w-4 fill-amber-200 text-amber-500" />
-                  <span className="tabular-nums text-ink-900">{animatedXp}</span> total XP
-                </span>
-                <span aria-hidden className="hidden text-ink-300 sm:inline">·</span>
-                {/* Not "X of Y": the catalogue is revealed one badge at a time,
-                    so Y is only what happens to be visible today. */}
-                <span className="inline-flex items-center gap-1.5">
-                  <Medal className="h-4 w-4 text-journey-500" />
-                  <span className="tabular-nums text-ink-900">{unlockedCount}</span>{' '}
-                  {unlockedCount === 1 ? 'badge' : 'badges'} earned
-                </span>
-              </p>
-            </div>
-
-            <div className="col-span-2 max-w-md sm:col-span-1 sm:col-start-2">
-              <div className="mb-1.5 flex flex-wrap justify-between gap-x-3 text-xs font-bold text-ink-600">
-                <span className="whitespace-nowrap">Progress to Level {level + 1}</span>
-                {ladderKnown && (
-                  <span className="whitespace-nowrap tabular-nums">
-                    {xp} / {ceiling} XP
-                  </span>
-                )}
-              </div>
-              <div
-                role="progressbar"
-                aria-valuenow={percent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={`Progress to Level ${level + 1}`}
-                className="h-2.5 overflow-hidden rounded-full bg-surface-100 ring-1 ring-line-200/60 ring-inset"
-              >
-                <div
-                  className="fp-effort-gradient fp-stripes h-full rounded-full transition-[width] duration-1000 ease-out"
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="col-span-2 flex flex-wrap items-center gap-2.5 sm:col-span-1 sm:col-start-2">
-              <Link
-                to="/career/planner"
-                data-mascot-target="earn"
-                className="fp-press group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-4 py-2.5 text-sm font-black text-white shadow-md shadow-journey-500/30 transition-all hover:from-journey-700 hover:to-indigo-700"
-              >
-                <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
-                {promisesXp ? `Earn ${TASK_XP} XP now` : "Go to today's plan"}
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Link>
-              <span className="text-xs font-bold text-ink-500">
-                {!ladderKnown ? null : xpToLevel > 0 ? (
-                  <>
-                    <span className="text-ink-900 tabular-nums">
-                      {promisesXp
-                        ? `${tasksToLevel} ${tasksToLevel === 1 ? 'task' : 'tasks'}`
-                        : `${xpToLevel} XP`}
-                    </span>{' '}
-                    to Level {level + 1}
-                  </>
-                ) : (
-                  'Level target hit — new ground from here.'
-                )}
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* ---- Badges --------------------------------------------------- */}
-        <Card>
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="flex items-center gap-2 text-lg font-black text-ink-900">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-100 ring-inset">
-                  <Medal className="h-[1.1rem] w-[1.1rem]" strokeWidth={2.2} />
-                </span>
-                Your badges
-              </h2>
-            </div>
-            <span className="rounded-full bg-surface-100 px-3 py-1 text-xs font-bold text-ink-600 tabular-nums">
-              {unlockedCount} earned
+        <div className="relative grid items-center gap-6 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[0.68rem] font-black tracking-[0.14em] uppercase ring-1 ring-white/25 ring-inset">
+              <Trophy className="h-3.5 w-3.5 text-amber-300" /> Your trophy room
             </span>
+            <h1 className="mt-3 text-3xl leading-[1.1] font-black sm:text-4xl">
+              {unlockedCount ? (
+                <>
+                  <span className="bg-gradient-to-r from-amber-200 via-amber-300 to-orange-300 bg-clip-text text-transparent">
+                    {unlockedCount} {unlockedCount === 1 ? 'badge' : 'badges'}
+                  </span>{' '}
+                  won so far
+                </>
+              ) : 'Your first badge is close'}
+            </h1>
+            <p className="mt-2 max-w-md text-sm text-white/75">
+              {earned.length
+                ? <>Latest: <span className="font-bold text-white">{showcase[0].title}</span>{earnedOn(showcase[0].unlockedAt) ? `, earned ${earnedOn(showcase[0].unlockedAt)}` : ''}. Keep the streak going.</>
+                : 'Finish your first task and your shelf starts filling up.'}
+            </p>
+
+            <div className="mt-6 grid grid-cols-3 gap-2.5 sm:max-w-lg">
+              <Stat icon={Medal} value={unlockedCount} label={unlockedCount === 1 ? 'Badge' : 'Badges'} tone="bg-gradient-to-br from-amber-400 to-orange-500 shadow-orange-900/30" />
+              <Stat icon={Trophy} value={achievements.length} label="Achievements" tone="bg-gradient-to-br from-pink-400 to-rose-500 shadow-rose-900/30" />
+              <Stat icon={Flag} value={milestones.length} label="Milestones" tone="bg-gradient-to-br from-emerald-400 to-teal-500 shadow-teal-900/30" />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {earned.map((badge, index) => {
-              const Icon = iconMap[badge.icon] || Award;
-              const tier = tierFor(badge.xpRequired);
-              const on = earnedOn(badge.unlockedAt);
-
+          {/* The podium: the newest badge in the middle and raised, the two before it either side. */}
+          <div aria-hidden className="relative mx-auto flex h-56 w-full max-w-[22rem] items-end justify-center">
+            <div className="absolute top-2 left-1/2 h-44 w-44 -translate-x-1/2 rounded-full bg-[conic-gradient(from_0deg,transparent,rgba(253,224,71,0.55),transparent_40%,rgba(255,255,255,0.35),transparent_70%)] opacity-70 blur-md motion-safe:animate-[spin_14s_linear_infinite]" />
+            {[showcase[1], showcase[0], showcase[2]].map((b, i) => {
+              const centre = i === 1;
+              const tier = b ? tierFor(b.xpRequired) : nextTier || tierFor(0);
+              const Icon = b ? iconMap[b.icon] || Award : NextIcon;
               return (
-                <div
-                  key={badge._id}
-                  className={`fp-lift group flex flex-col items-center rounded-2xl p-5 text-center ring-1 transition-all ring-inset ${tier.card}`}
-                >
-                  <BadgeMedallion icon={Icon} tier={tier} unlocked size={88} delay={0.06 * index} />
-                  <span className={`mt-3 rounded-full px-2 py-0.5 text-[0.6rem] font-black tracking-[0.12em] uppercase ${tier.chip}`}>
-                    {tier.name}
-                  </span>
-                  <h3 className="mt-1.5 text-sm font-black text-ink-900">{badge.title}</h3>
-                  <p className="mt-1.5 mb-4 flex-1 text-xs leading-relaxed text-ink-500">
-                    {badge.description}
-                  </p>
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${tier.chip}`}
-                  >
-                    <Sparkles className="h-3 w-3" />
-                    {on ? `Earned ${on}` : 'Unlocked'}
-                  </span>
+                <div key={i} className={`relative flex flex-col items-center ${centre ? 'z-10 mx-1' : 'opacity-90'}`}>
+                  <div className={centre ? 'motion-safe:animate-[bounce_3s_ease-in-out_infinite]' : ''}>
+                    <BadgeMedallion icon={Icon} tier={tier} unlocked={Boolean(b)} size={centre ? 104 : 72} delay={0.1 * i} />
+                  </div>
+                  <div className={`mt-2 w-full rounded-t-xl bg-gradient-to-b from-white/30 to-white/5 ring-1 ring-white/25 ring-inset ${centre ? 'h-16 w-28' : 'h-9 w-20'}`}>
+                    <p className="truncate px-1.5 pt-1.5 text-center text-[0.62rem] font-black tracking-wide text-white/90">
+                      {b ? b.title : 'Next'}
+                    </p>
+                  </div>
                 </div>
               );
             })}
-
-            {/* The one to earn next, in the same row as the ones already earned
-                so the shelf reads as a ladder with the next rung in view. It
-                says how close, not what the threshold is: "100 XP to unlock"
-                once told a student on 80 XP they needed 100 more. */}
-            {nextBadge && (
-              <div data-mascot-target="rewards" className="fp-lift relative flex flex-col items-center overflow-hidden rounded-2xl border-2 border-dashed border-journey-200 bg-journey-50/40 p-5 text-center">
-                <div
-                  aria-hidden
-                  className={`pointer-events-none absolute -top-12 -right-10 h-32 w-32 rounded-full blur-2xl ${nextTier.halo}`}
-                />
-                <BadgeMedallion icon={NextIcon} tier={nextTier} unlocked={false} size={88} />
-                <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-0.5 text-[0.62rem] font-black tracking-[0.11em] text-journey-700 uppercase ring-1 ring-journey-200 ring-inset">
-                  <Lock className="h-3 w-3" />
-                  Next badge
-                </span>
-                <h3 className="mt-2 text-sm font-black text-ink-900">{nextBadge.title}</h3>
-                <p className="mt-1.5 mb-4 flex-1 text-xs leading-relaxed text-ink-500">
-                  {nextBadge.description}
-                </p>
-
-                <div className="w-full">
-                  <div className="mb-1.5 flex items-center justify-between text-[0.68rem] font-bold text-ink-500">
-                    <span className="tabular-nums">{nextPct}%</span>
-                    <span className="tabular-nums">
-                      {nextByTask ? (
-                        <span className="font-black text-ink-900">Finish 1 task</span>
-                      ) : (
-                        <>
-                          <span className="font-black text-ink-900">{nextToGo} XP</span> to go
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  <div
-                    role="progressbar"
-                    aria-valuenow={nextPct}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={`${nextBadge.title} progress`}
-                    className="h-2 w-full overflow-hidden rounded-full bg-surface-200"
-                  >
-                    <div
-                      className={`h-full rounded-full transition-[width] duration-1000 ease-out ${nextTier.bar}`}
-                      style={{ width: `${nextPct}%` }}
-                    />
-                  </div>
-                  <Link
-                    to="/career/planner"
-                    data-mascot-target="rewards-task"
-                    className="fp-press group mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-journey-600 to-indigo-600 px-3 py-2 text-xs font-black text-white shadow-md shadow-journey-500/25 transition-all hover:from-journey-700 hover:to-indigo-700"
-                  >
-                    <Zap className="h-3.5 w-3.5 fill-amber-300 text-amber-300" />
-                    {promisesXp ? `+${TASK_XP} XP with today's task` : "Do today's task"}
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                  </Link>
-                </div>
-              </div>
-            )}
-
-            {earned.length === 0 && !nextBadge && (
-              <div className="rounded-2xl border border-dashed border-line-300 bg-surface-50/70 p-6 text-center sm:col-span-2 lg:col-span-3">
-                <Gift className="mx-auto mb-3 h-8 w-8 text-journey-300" />
-                <p className="text-sm font-semibold text-ink-700">Your first badge is one task away.</p>
-                <p className="mt-1 text-xs text-ink-500">Finish today&apos;s task and it lands here.</p>
-              </div>
-            )}
           </div>
-        </Card>
+        </div>
+      </section>
 
-        {/* ---- Achievements --------------------------------------------- */}
-        <Card>
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="flex items-center gap-2 text-lg font-black text-ink-900">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-50 text-pink-600 ring-1 ring-pink-100 ring-inset">
-                  <Trophy className="h-[1.1rem] w-[1.1rem]" strokeWidth={2.2} />
-                </span>
-                Achievements
-              </h2>
-              <p className="mt-1 text-sm text-ink-500">Moments that happened along the way.</p>
+      {/* ---- 2. The quest: the one badge in reach, its ring filling up ---- */}
+      {nextBadge && (
+        <section data-mascot-target="rewards" className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400 p-[1.5px] shadow-[0_20px_50px_-24px_rgba(139,92,246,0.6)]">
+          <div className="relative flex flex-col items-center gap-6 overflow-hidden rounded-[calc(1.5rem-1.5px)] bg-white p-5 sm:flex-row sm:p-6">
+            <div aria-hidden className={`pointer-events-none absolute -top-20 -left-16 h-56 w-56 rounded-full blur-3xl ${nextTier.halo}`} />
+            <div aria-hidden className="pointer-events-none absolute -right-10 -bottom-20 h-48 w-48 rounded-full bg-violet-200/50 blur-3xl" />
+
+            {/* The locked medal inside a ring that is the progress itself. */}
+            <div className="relative h-32 w-32 shrink-0">
+              <svg viewBox="0 0 128 128" className="absolute inset-0 -rotate-90" aria-hidden>
+                <defs>
+                  <linearGradient id="quest-ring" x1="0" x2="1" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#8b5cf6" /><stop offset="55%" stopColor="#d946ef" /><stop offset="100%" stopColor="#f59e0b" />
+                  </linearGradient>
+                </defs>
+                <circle cx="64" cy="64" r="58" fill="none" stroke="#f1f0fb" strokeWidth="8" />
+                <circle cx="64" cy="64" r="58" fill="none" stroke="url(#quest-ring)" strokeWidth="8" strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 58} strokeDashoffset={2 * Math.PI * 58 * (1 - nextPct / 100)}
+                  style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1)' }} />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center"><BadgeMedallion icon={NextIcon} tier={nextTier} unlocked={false} size={78} /></div>
+              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-ink-900 px-2.5 py-0.5 text-xs font-black text-white tabular-nums shadow-lg">{nextPct}%</span>
             </div>
-            {achievements.length > 0 && (
-              <span className="rounded-full bg-surface-100 px-3 py-1 text-xs font-bold text-ink-600 tabular-nums">
-                {achievements.length} unlocked
+
+            <div className="relative min-w-0 flex-1 text-center sm:text-left">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-1 text-[0.62rem] font-black tracking-[0.14em] text-violet-700 uppercase ring-1 ring-violet-200 ring-inset">
+                <Lock className="h-3 w-3" /> Next badge to unlock
               </span>
-            )}
+              <h2 className="mt-2 text-2xl font-black text-ink-900">{nextBadge.title}</h2>
+              <p className="text-sm text-ink-500">{nextBadge.description}</p>
+              <p className="mt-3 text-sm font-semibold text-ink-600">
+                {nextByTask
+                  ? <>Just <span className="font-black text-violet-700">1 task</span> away.</>
+                  : <>Only <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-lg font-black text-transparent tabular-nums">{nextToGo} XP</span> to go{promisesXp ? <> — about <span className="font-black text-ink-900">{Math.max(1, Math.ceil(nextToGo / TASK_XP))} tasks</span></> : null}.</>}
+              </p>
+            </div>
+
+            <Link to="/career/planner" data-mascot-target="earn"
+              className="fp-press group relative inline-flex shrink-0 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-500 px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-fuchsia-500/30 transition-transform hover:-translate-y-0.5">
+              <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-white/30 blur-sm transition-transform duration-700 group-hover:translate-x-[300%]" />
+              <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
+              {promisesXp ? `Earn ${TASK_XP} XP now` : "Do today's task"}
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </Link>
           </div>
-          {achievements.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-line-300 bg-surface-50/70 p-6 text-center">
-              <Trophy className="mx-auto mb-3 h-8 w-8 text-pink-300" />
-              <p className="text-sm font-semibold text-ink-700">Nothing here yet — and that is fine.</p>
-              <p className="mt-1 text-xs text-ink-500">Your first finished task unlocks the first one.</p>
+        </section>
+      )}
+
+      {/* ---- 3. The collection: one shelf at a time ---------------------- */}
+      <Card>
+        <div role="tablist" aria-label="Your rewards" className="relative mb-6 grid grid-cols-3 rounded-2xl bg-surface-100 p-1.5">
+          {/* The pill that slides under the chosen tab. */}
+          <span aria-hidden className="absolute inset-y-1.5 left-1.5 w-[calc((100%-0.75rem)/3)] rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 shadow-lg shadow-violet-500/30 transition-transform duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)]"
+            style={{ transform: `translateX(${TABS.findIndex((t) => t.id === tab) * 100}%)` }} />
+          {TABS.map(({ id, label, icon: Icon }) => {
+            const on = tab === id;
+            return (
+              <button key={id} type="button" role="tab" aria-selected={on} onClick={() => setTab(id)}
+                className={`relative z-10 flex items-center justify-center gap-2 rounded-xl px-2 py-2.5 text-sm font-black whitespace-nowrap transition-colors duration-300 ${on ? 'text-white' : 'text-ink-500 hover:text-ink-800'}`}>
+                <Icon className="h-4 w-4" strokeWidth={2.3} />
+                <span className="hidden sm:inline">{label}</span>
+                <span className={`rounded-full px-1.5 text-[0.68rem] tabular-nums ${on ? 'bg-white/25 text-white' : 'bg-white text-ink-500'}`}>{counts[id]}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div key={tab} className="animate-fade-in-up">
+          {tab === 'badges' && (earned.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-line-300 bg-surface-50/70 p-8 text-center">
+              <Gift className="mx-auto mb-3 h-9 w-9 text-journey-300" />
+              <p className="text-sm font-bold text-ink-700">Your first badge is one task away.</p>
+              <p className="mt-1 text-xs text-ink-500">Finish today&apos;s task and it lands here.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {latest.map((ach) => {
-                const on = earnedOn(ach.unlockedAt);
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              {earned.map((badge, index) => {
+                const Icon = iconMap[badge.icon] || Award;
+                const tier = tierFor(badge.xpRequired);
+                const on = earnedOn(badge.unlockedAt);
                 return (
-                  <div
-                    key={ach._id}
-                    className="fp-lift flex items-start gap-3.5 rounded-2xl bg-gradient-to-br from-fuchsia-50 to-pink-50 p-4 ring-1 ring-pink-200 ring-inset"
-                  >
-                    {/* Pink, so achievements are not mistaken for a fifth tier of
-                        badge. They are a different kind of thing: a moment that
-                        happened, not a threshold that was crossed. */}
-                    <span className="fp-reward-gradient flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-md shadow-pink-500/30">
-                      <Trophy className="h-6 w-6" />
-                    </span>
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-black text-ink-900">{ach.title}</h3>
-                      <p className="mt-0.5 text-xs leading-relaxed text-ink-500">{ach.description}</p>
-                      {on && (
-                        <p className="mt-1.5 text-[0.68rem] font-black text-pink-600">{on}</p>
-                      )}
+                  /* A collectible card: the tier's colour on top with the medal, a sheen on hover, the facts below. */
+                  <div key={badge._id} className="group relative overflow-hidden rounded-2xl bg-white shadow-[0_10px_30px_-18px_rgba(30,27,75,0.45)] ring-1 ring-line-200/70 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_22px_40px_-20px_rgba(91,33,182,0.55)]">
+                    <div className={`relative flex h-28 items-center justify-center overflow-hidden ${tier.outer}`}>
+                      <span aria-hidden className="absolute inset-0 opacity-25 [background-image:radial-gradient(white_1px,transparent_1px)] [background-size:12px_12px]" />
+                      <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 bg-white/40 blur-md transition-transform duration-700 group-hover:translate-x-[450%]" />
+                      <span className="absolute top-2 left-2 rounded-full bg-white/25 px-2 py-0.5 text-[0.58rem] font-black tracking-[0.12em] text-white uppercase ring-1 ring-white/40 ring-inset backdrop-blur-sm">{tier.name}</span>
+                      <div className="relative translate-y-5 transition-transform duration-300 group-hover:translate-y-4 group-hover:scale-105">
+                        <BadgeMedallion icon={Icon} tier={tier} unlocked size={72} delay={0.05 * index} />
+                      </div>
+                    </div>
+                    <div className="px-3 pt-7 pb-4 text-center">
+                      <h3 className="text-sm leading-tight font-black text-ink-900">{badge.title}</h3>
+                      <p className="mt-1 line-clamp-1 text-[0.7rem] text-ink-500">{badge.description}</p>
+                      {on && <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-surface-100 px-2 py-0.5 text-[0.65rem] font-bold text-ink-500">✓ {on}</p>}
                     </div>
                   </div>
                 );
               })}
             </div>
-          )}
-        </Card>
+          ))}
 
-        {/* ---- Milestones ----------------------------------------------- */}
-        {milestones.length > 0 && (
-          <Card>
-            <div className="mb-5">
-              <h2 className="flex items-center gap-2 text-lg font-black text-ink-900">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100 ring-inset">
-                  <Flag className="h-[1.1rem] w-[1.1rem]" strokeWidth={2.2} />
-                </span>
-                Milestones
-              </h2>
-              <p className="mt-1 text-sm text-ink-500">
-                Roadmap phases you have finished. These are yours to share.
-              </p>
+          {tab === 'achievements' && (achievements.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-line-300 bg-surface-50/70 p-8 text-center">
+              <Trophy className="mx-auto mb-3 h-9 w-9 text-pink-300" />
+              <p className="text-sm font-bold text-ink-700">Nothing here yet — and that is fine.</p>
+              <p className="mt-1 text-xs text-ink-500">Your first finished task unlocks the first one.</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+          ) : (
+            <ul className="divide-y divide-line-200/70">
+              {latest.map((ach) => (
+                <li key={ach._id} className="flex items-center gap-3.5 py-3">
+                  {/* Pink, so achievements are not mistaken for a tier of badge: a moment, not a threshold. */}
+                  <span className="fp-reward-gradient flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-md shadow-pink-500/30">
+                    <Trophy className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-black text-ink-900">{ach.title}</span>
+                    <span className="block text-xs text-ink-500">{ach.description}</span>
+                  </span>
+                  {earnedOn(ach.unlockedAt) && <span className="shrink-0 text-xs font-bold text-pink-600">{earnedOn(ach.unlockedAt)}</span>}
+                </li>
+              ))}
+            </ul>
+          ))}
+
+          {tab === 'milestones' && (milestones.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-line-300 bg-surface-50/70 p-8 text-center">
+              <Flag className="mx-auto mb-3 h-9 w-9 text-emerald-300" />
+              <p className="text-sm font-bold text-ink-700">Finish a roadmap phase to get your first milestone.</p>
+              <p className="mt-1 text-xs text-ink-500">Each one is a card you can share.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {milestones.map((m) => (
-                <button
-                  key={m._id}
-                  type="button"
-                  onClick={() => setSharingBadge(m)}
-                  className="fp-lift group overflow-hidden rounded-2xl border border-line-200 bg-surface text-left transition-all hover:border-journey-300"
-                >
-                  <img
-                    src={m.imageUrl}
-                    alt={`${m.phaseTitle} milestone badge`}
-                    width={1200}
-                    height={630}
-                    loading="lazy"
-                    className="w-full"
-                  />
+                <button key={m._id} type="button" onClick={() => setSharingBadge(m)}
+                  className="fp-lift group overflow-hidden rounded-2xl border border-line-200 bg-surface text-left transition-all hover:border-journey-300">
+                  <img src={m.imageUrl} alt={`${m.phaseTitle} milestone badge`} width={1200} height={630} loading="lazy" className="w-full" />
                   <span className="flex items-center justify-between gap-3 px-4 py-3">
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-black text-ink-900">
-                        {m.phaseTitle}
-                      </span>
-                      <span className="block text-xs text-ink-500">
-                        {new Date(m.issuedAt).toLocaleDateString(undefined, {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </span>
+                      <span className="block truncate text-sm font-black text-ink-900">{m.phaseTitle}</span>
+                      <span className="block text-xs text-ink-500">{new Date(m.issuedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                     </span>
-                    <span className="flex shrink-0 items-center gap-1.5 rounded-lg bg-journey-50 px-3 py-1.5 text-xs font-black text-journey-700 transition-colors group-hover:bg-journey-100">
-                      <Share2 className="h-3.5 w-3.5" />
-                      Share
+                    <span className="flex shrink-0 items-center gap-1.5 rounded-lg bg-journey-50 px-3 py-1.5 text-xs font-black text-journey-700 group-hover:bg-journey-100">
+                      <Share2 className="h-3.5 w-3.5" /> Share
                     </span>
                   </span>
                 </button>
               ))}
             </div>
-          </Card>
-        )}
-      </div>
+          ))}
+        </div>
+      </Card>
 
-      {/* ---- The rail ---------------------------------------------------- */}
-      {/* Two across on a phone and tablet; from lg up, exactly as before. */}
-      <aside className="grid grid-cols-2 gap-3 lg:gap-4 xl:sticky xl:top-4 xl:grid-cols-1 [&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1">
-        <RewardStat
-          icon={Medal}
-          label="Badges earned"
-          value={unlockedCount}
-          detail={nextBadge ? `Next: ${nextBadge.title}` : 'Every badge so far is yours'}
-          tone="badge"
-        />
-        <RewardStat
-          icon={Trophy}
-          label="Achievements"
-          value={achievements.length}
-          detail={achievements.length ? 'Moments worth keeping' : 'Finish a task to start'}
-          tone="achievement"
-        />
-        <RewardStat
-          icon={Zap}
-          label="Total XP"
-          value={animatedXp}
-          detail={ladderKnown ? `${xpToLevel} XP to Level ${level + 1}` : null}
-          tone="xp"
-        />
-        {milestones.length > 0 && (
-          <RewardStat
-            icon={Flag}
-            label="Milestones"
-            value={milestones.length}
-            detail="Phases finished"
-            tone="milestone"
-          />
-        )}
-      </aside>
-
-      {sharingBadge && (
-        <ShareBadgeDialog badge={sharingBadge} onClose={() => setSharingBadge(null)} />
-      )}
+      {sharingBadge && <ShareBadgeDialog badge={sharingBadge} onClose={() => setSharingBadge(null)} />}
     </div>
   );
 }

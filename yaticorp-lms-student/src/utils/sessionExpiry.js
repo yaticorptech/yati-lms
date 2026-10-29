@@ -97,7 +97,8 @@ export function expireSessionOn401(error) {
     if (typeof window === 'undefined') return;
 
     forgetStudent();
-    try { sessionStorage.setItem(SESSION_ENDED_KEY, '1'); } catch { /* storage off: the sign-in page just won't say why */ }
+    // 'device': this device was taken off the account (the device limit); the sign-in page says so.
+    try { sessionStorage.setItem(SESSION_ENDED_KEY, error.response?.data?.code === 'DEVICE_NOT_ALLOWED' ? 'device' : error.response?.data?.code === 'SESSION_REPLACED' ? 'replaced' : '1'); } catch { /* storage off: the sign-in page just won't say why */ }
 
     if (ending) return;
     ending = true;

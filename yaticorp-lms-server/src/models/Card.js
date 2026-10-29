@@ -51,7 +51,11 @@ const cardSchema = new mongoose.Schema({
     // An organization's card (Students → Scan cards): whoever registers with
     // it joins that organization at once (organizations/services/cardLink.js).
     organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null, index: true },
-    organizationLinkedAt: { type: Date, default: null }
+    organizationLinkedAt: { type: Date, default: null },
+    // A presentation (demo) card an administrator scanned in (Admin → Demo cards): its scan opens
+    // the student dashboard with no password, and it sees everything (services/fullAccess.js).
+    demo: { type: Boolean, default: false, index: true },
+    demoAddedAt: { type: Date, default: null }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Card', cardSchema);

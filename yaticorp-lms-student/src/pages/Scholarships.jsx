@@ -21,6 +21,7 @@ import YatiLoader from '../components/YatiLoader';
 import useMinimumLoading from '../hooks/useMinimumLoading';
 import { isWalletCancel } from '../utils/walletCharge';
 import './scholarships.css';
+import GeminiCreditTip from '../components/GeminiCreditTip';
 
 // A hue per card, round the wheel: the stripe along its top, its cap tile and its Apply button share it.
 const HUES = [
@@ -245,7 +246,7 @@ export default function Scholarships() {
               : 'Scholarships are matched to your stage and career goal. Set up your Career Path and this page fills itself.'}
           </p>
           {data.hasGoal ? (
-            <button
+            <span className="inline-flex items-center gap-2"><button
               type="button"
               onClick={find}
               disabled={finding}
@@ -254,7 +255,7 @@ export default function Scholarships() {
             >
               {finding ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
               {finding ? 'Finding scholarships…' : 'Find scholarships for me'}
-            </button>
+            </button><GeminiCreditTip /></span>
           ) : (
             <Link
               to="/career"
