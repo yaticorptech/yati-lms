@@ -22,6 +22,15 @@ const { localize } = require('./languages');
 const courses = require('./courses');
 const parts = require('./parts');
 const NOTES = require('./content/asks/notes');
+const { nextShown, ASSESSMENT_PASS } = require('./levels');
+
+/**
+ * Advanced's Writing track (2026-10-29, units.js TRACKS): each Advanced article's writing tasks (a letter, an email,
+ * a paragraph, sentences) as a lesson of their own; the article itself, in Stories, is read and asked about. English
+ * only: the other courses have no articles. Done when every task is written (service.js submitQuiz).
+ */
+const writeLevels = () => require('./units').TRACK_LEVELS;
+const readingAt = (level) => CONTENT.filter((l) => l.level === level && l.module === 'reading' && (l.writing || []).length);
 
 const LEVEL_LABEL = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
 const KINDS = [
@@ -42,12 +51,23 @@ const UNIT = { review: 'unit', module: 'vocabulary', title: 'Unit review', summa
 const HEAR = { review: 'hear', module: 'vocabulary', title: 'Listening', summary: 'Hear this unit’s words and pick each one.' };
 const unitOrders = (level) => [...new Set(CONTENT.filter((l) => l.level === level && l.module === 'vocabulary').map((l) => Number(l.order) || 1))];
 
+/**
+ * A section's assessment (2026-10-29, user: "after finishing the basics, conduct one assessment that decides
+ * whether the user is eligible for advanced"): the last stop of the section, 20 questions on the section's own
+ * words, grammar and sentences; 50% or more (levels.js) opens the next section. Taken again as often as the student likes.
+ * Only in a section with one shown after it (levels.js).
+ */
+const ASSESSMENT = { review: 'assessment', module: 'vocabulary', order: 103, summary: 'A test on this section. Pass it to open the next one.' };
+const assessmentTitle = (level) => `${LEVEL_LABEL[level]} assessment`;
+
 /** Every review's stub: four per level and one of each per unit, in the English course and in every other course. */
 const stubs = () => courses.courseCodes().flatMap((code) => LEVELS.flatMap((level) => {
     const prefix = code === 'en' ? '' : `${code}:`;
     const base = { course: code === 'en' ? null : code, level, status: 'published', updatedBy: 'Course content', direction: null, learn: {} };
     return [
         ...KINDS.map((k) => ({ ...base, seedKey: `${prefix}review-${k.review}-${level}`, review: k.review, module: k.module, order: k.order, title: k.title, summary: k.summary })),
+        ...(nextShown(level) ? [{ ...base, seedKey: `${prefix}review-assessment-${level}`, review: 'assessment', module: ASSESSMENT.module, order: ASSESSMENT.order, title: assessmentTitle(level), summary: ASSESSMENT.summary }] : []),
+        ...(code === 'en' && writeLevels().includes(level) ? readingAt(level).map((r) => ({ ...base, seedKey: `review-write-${level}-${Number(r.order) || 1}`, review: 'write', module: 'reading', order: Number(r.order) || 1, part: 2, title: `Writing: ${r.title}`, summary: 'Write the letter, email or paragraph; it is checked here.' })) : []),
         // One of each per unit: a topic's two units (parts.js), the second's seedKey ending "~2".
         ...unitOrders(level).flatMap((order) => parts.PARTS.flatMap((part) => [UNIT, HEAR].map((k) => ({
             ...base, seedKey: `${prefix}review-${k.review}-${level}-${order}${parts.keyOf(part)}`, review: k.review, module: k.module, order, ...(part > 1 ? { part } : {}), title: k.title, summary: k.summary
@@ -110,6 +130,15 @@ const build = (stub, helper) => {
         ...(sources.some((s) => s.languageFallback) ? { languageFallback: sources.find((s) => s.languageFallback).languageFallback } : {})
     };
     const level = LEVEL_LABEL[stub.level];
+    if (stub.review === 'assessment') return assessmentOf(stub, helper, out, level);
+    if (stub.review === 'write') {
+        const src = readingAt(stub.level).find((l) => (Number(l.order) || 1) === stub.order);
+        const own = src && localize(src, helper);
+        out.writing = own?.writing || [];
+        out.quiz = [];
+        out.learn = { intro: `Write about “${src?.title || ''}”. A long piece needs three sentences or more, each ending with a full stop; your grammar is checked here, sentence by sentence.` };
+        return out;
+    }
     if (stub.module === 'vocabulary') {
         out.words = sources.flatMap((s) => (s.words || []).map((w) => ({ locale: s.targetLocale || 'en-IN', ...w })));
         // A unit's review and listening: the words of its own unit of the topic.
@@ -141,4 +170,34 @@ const build = (stub, helper) => {
     return out;
 };
 
-module.exports = { KINDS, UNIT, HEAR, stubs, build };
+/**
+ * The assessment made whole: the section's words (asked in the quiz, not shown first), its grammar questions
+ * (those that stand alone, with no passage or conversation to read), and its sentences, each in the language learnt
+ * and the student's, with the section's other sentences to choose from. The quiz is put together from these
+ * (service.js quizOf).
+ */
+function assessmentOf(stub, helper, out, level) {
+    const make = (l) => (stub.course ? courses.build(courses.stubOf(stub.course, l), helper) : localize(l, helper));
+    const at = (module) => CONTENT.filter((l) => l.level === stub.level && l.module === module);
+    out.words = at('vocabulary').map(make).filter((l) => !l.notForLanguage).flatMap((l) => (l.words || []).map((w) => ({ locale: l.targetLocale || 'en-IN', ...w })));
+    const ALONE = ['mcq', 'fill', 'rearrange', 'correction', 'truefalse'];
+    out.grammar = stub.course ? [] : at('grammar').map(make).flatMap((l) => (l.quiz || []).filter((q) => ALONE.includes(q.type)).map((q) => ({ ...q, id: `g~${l.seedKey}~${q.id}` })));
+    const pairs = [];
+    const pool = [];
+    for (const t of at('translation').map(make)) {
+        if (!t || t.notForLanguage || t.languageFallback) continue;
+        const pair = (it) => (t.direction === 'kn-en' ? { target: it.model, helper: it.source } : { target: it.source, helper: it.model });
+        for (const it of [...(t.items || []), ...(t.quiz || [])].filter((x) => !x.open && x.source && x.model)) {
+            const p = pair(it);
+            pool.push(p.target);
+            pairs.push({ ...p, lang: t.languageName });
+        }
+    }
+    out.sentences = pairs;
+    out.pool = [...new Set(pool)];
+    out.passingScore = ASSESSMENT_PASS;
+    out.learn = { intro: `The ${level} assessment: 20 questions on the words, grammar and sentences of ${level}. Get ${ASSESSMENT_PASS}% or more to open the next section. You can take it again as many times as you like.` };
+    return out;
+}
+
+module.exports = { KINDS, UNIT, HEAR, ASSESSMENT, stubs, build };

@@ -3,12 +3,13 @@
  * eye button: loaded as soon as it is on screen, with Download and Full
  * screen. Only for certificates that cost nothing to fetch (Quiz Arena's);
  * a competition certificate charged to the wallet keeps CertificateView.
+ * With `onClose` (shown in a popup) it has a close button too.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Download, Maximize2, Minimize2, Loader2, X } from 'lucide-react';
 import { saveBlob } from '../native/saveFile';
 
-export default function CertificateInline({ load, fileName, className = '' }) {
+export default function CertificateInline({ load, fileName, className = '', onClose }) {
     const [state, setState] = useState({ url: null, blob: null, error: '' });
     const [full, setFull] = useState(false);
     const loadRef = useRef(load);
@@ -43,7 +44,7 @@ export default function CertificateInline({ load, fileName, className = '' }) {
                     <button type="button" onClick={toggleFull} disabled={!state.url} aria-label={full ? 'Exit full screen' : 'Full screen'} title={full ? 'Exit full screen' : 'Full screen'} className={`${btn} border border-slate-200 text-slate-700 hover:border-indigo-300 disabled:opacity-50`} data-cert-fullscreen>
                         {full ? <Minimize2 size={15} aria-hidden="true" /> : <Maximize2 size={15} aria-hidden="true" />}
                     </button>
-                    {full && <button type="button" onClick={toggleFull} aria-label="Close" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"><X size={18} /></button>}
+                    {(full || onClose) && <button type="button" onClick={full ? toggleFull : onClose} aria-label="Close" title="Close" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" data-cert-close><X size={18} /></button>}
                 </span>
             </div>
             {/* The page is A4 across (1.414:1): the frame keeps that shape, so the

@@ -3,6 +3,7 @@
  * student's level, new every day, judged at the end. Once a day; done, it
  * shows today's result.
  */
+import { backOr } from './meta';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Target } from 'lucide-react';
@@ -28,7 +29,9 @@ export default function Daily() {
         // Each screen in the student's language (say.js).
     ].map((st) => ({ language: data.language, ...st })) : []), [data]);
 
-    const back = () => navigate('/linguistic/practice');
+    const back = backOr(navigate, '/linguistic/dashboard?tab=practice');
+    // The ✕ opens the section's dashboard, wherever it is pressed (2026-10-29, "directly show the dashboard only").
+    const toDashboard = () => navigate('/linguistic/dashboard');
     if (data === undefined) return <SessionFrame label="Daily challenge"><Loading label="Picking today’s words…" /></SessionFrame>;
     if (!data) return <SessionFrame label="Daily challenge"><div className="flex flex-1 flex-col justify-center"><Problem error={error} onRetry={load} /><div className="text-center"><Chunky variant="ghost" color="blue" onClick={back}>Back</Chunky></div></div></SessionFrame>;
 
@@ -49,7 +52,7 @@ export default function Daily() {
     }
     return (
         <SessionFrame label="Daily challenge">
-            <Session steps={steps} mode="end" label="Daily challenge" onQuit={back}
+            <Session steps={steps} mode="end" label="Daily challenge" onQuit={toDashboard}
                 onComplete={(s) => linguisticApi.submitDaily(s.answers).then((r) => { announceRewards(r.events); setResult(r); })} />
         </SessionFrame>
     );

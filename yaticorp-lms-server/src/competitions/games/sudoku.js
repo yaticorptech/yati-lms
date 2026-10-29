@@ -146,7 +146,7 @@ const engine = {
     emoji: '🔢',
     summary: 'Race to solve the same 9×9 Sudoku. Every number is checked: mistakes cost, hints cost more, finishing first scores most.',
     minSeats: 2,
-    maxSeats: 6,
+    maxSeats: 20,
     seatsPerSide: { min: 1, max: 1 },
 
     create(seats, options, ctx) {

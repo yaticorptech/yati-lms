@@ -3,6 +3,7 @@
  * colours (one per module, as units on the path), the levels, sound, and
  * playback of recordings.
  */
+import { previousPage } from '../hooks/useGoBack';
 import { BookA, PenLine, BookOpen, Mic, Languages } from 'lucide-react';
 import { mediaUrl } from './api';
 
@@ -28,10 +29,15 @@ export const MODULE_ORDER = ['vocabulary', 'grammar', 'reading', 'speaking', 'tr
 // Each level is a section of the path, named the Duolingo way with its CEFR level (asked 2026-10-24).
 export const LEVELS = [
     { id: 'beginner', label: 'Beginner', section: 'Rookie', cefr: 'A1', chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-    { id: 'intermediate', label: 'Intermediate', section: 'Explorer', cefr: 'A2–B1', chip: 'bg-amber-50 text-amber-700 ring-amber-200' },
+    // Hidden (2026-10-29, the server's levels.js): its lessons and old certificates are still named by it.
+    { id: 'intermediate', label: 'Intermediate', section: 'Explorer', cefr: 'A2–B1', chip: 'bg-amber-50 text-amber-700 ring-amber-200', hidden: true },
     { id: 'advanced', label: 'Advanced', section: 'Achiever', cefr: 'B2', chip: 'bg-rose-50 text-rose-700 ring-rose-200' }
 ];
 export const levelOf = (id) => LEVELS.find((l) => l.id === id) || LEVELS[0];
+/** The sections a course shows: Beginner and Advanced (Intermediate hidden, 2026-10-29). */
+export const SHOWN_LEVELS = LEVELS.filter((l) => !l.hidden);
+/** Whether a section of the path ends with an assessment that opens the next (2026-10-29). */
+export const hasAssessment = (section) => !!section?.units?.some((u) => u.lessons?.some((l) => l.review === 'assessment'));
 /* ── The student's own language ───────────────────────────────────────── */
 
 /**
@@ -188,3 +194,6 @@ export const canSpeak = (src) => !!src || (typeof window !== 'undefined' && !!wi
 
 /** Words of praise for a right answer, chosen by its place so they vary. */
 export const PRAISE = ['Nicely done!', 'Great job!', 'Excellent!', 'You got it!', 'Amazing!', 'Correct!', 'Well done!', 'Brilliant!'];
+
+/** Back to the page before (2026-10-29: "always where they were"); opened straight here, `fallback`. */
+export const backOr = (navigate, fallback) => () => { const prev = previousPage(); return prev ? navigate(prev) : navigate(fallback, { replace: true }); };

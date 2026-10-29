@@ -10,7 +10,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Zap, Target, Timer, Award, Download, MessageSquareText } from 'lucide-react';
 import { saveBlob } from '../native/saveFile';
 import { linguisticApi, announceRewards } from './api';
-import { COLORS, levelOf } from './meta';
+import { COLORS, levelOf, backOr } from './meta';
 import { Chunky, Loading, Problem } from './ui';
 import Session, { SessionFrame } from './session/Session';
 import { Finish } from './session/Finish';
@@ -48,7 +48,9 @@ function LessonPage() {
     useEffect(() => { load(); }, [load]);
 
     const steps = useMemo(() => (lesson ? buildLesson(lesson) : []), [lesson]);
-    const toPath = () => navigate('/linguistic');
+    const toPath = backOr(navigate, '/linguistic');
+    // The ✕ opens the section's dashboard, wherever it is pressed (2026-10-29, "directly show the dashboard only").
+    const toDashboard = () => navigate('/linguistic/dashboard');
 
     if (lesson === undefined) return <SessionFrame label="Lesson"><Loading label="Opening your lesson…" /></SessionFrame>;
     // A lesson not in the course they are on (another course's, or one their plan leaves out, 2026-10-27):
@@ -60,7 +62,7 @@ function LessonPage() {
             <SessionFrame label="Lesson">
                 {locked
                     ? <Finish tone="info" pose="worried" title="This lesson is locked" text={error.message} primary={{ label: 'Back to the path', onClick: () => navigate(`/linguistic?unit=${module}`) }} />
-                    : <div className="flex flex-1 flex-col justify-center"><Problem error={error} onRetry={load} /><div className="text-center"><Chunky variant="ghost" color="blue" onClick={toPath}>Back to the path</Chunky></div></div>}
+                    : <div className="flex flex-1 flex-col justify-center"><Problem error={error} onRetry={load} /><div className="text-center"><Chunky variant="ghost" color="blue" onClick={toPath}>Back</Chunky></div></div>}
             </SessionFrame>
         );
     }
@@ -106,7 +108,7 @@ function LessonPage() {
                         <Finish tone="fail" pose="sad" title={r.short ? 'Say a little more' : 'Fix these, then speak again'}
                             text={r.short ? `You said ${r.words} words. Speak for at least ${r.minWords} words to finish this lesson.` : `${r.clean} of ${r.total} sentences had no mistakes (${r.percent}%). You need ${r.passingScore}%. Look at the corrections, then speak again.`}
                             stats={[{ label: 'Sentences right', value: `${r.percent}%`, color: 'red', icon: Target }, words]}
-                            results={r.results} primary={{ label: 'Speak again', onClick: retry }} secondary={{ label: 'Back to the path', onClick: toPath }} />
+                            results={r.results} primary={{ label: 'Speak again', onClick: retry }} secondary={{ label: 'Back', onClick: toPath }} />
                     )}
                 </SessionFrame>
             );
@@ -124,7 +126,7 @@ function LessonPage() {
                         title={summary.outOfHearts ? 'Out of hearts!' : r.percent >= r.passingScore - 20 ? 'So close!' : 'Keep practising!'}
                         text={`You scored ${r.percent}%. You need ${r.passingScore}% to finish this lesson. Look at the answers, then try the quiz again.`}
                         stats={[{ label: 'Score', value: `${r.percent}%`, color: 'red', icon: Target }, time]}
-                        results={r.results} primary={{ label: 'Try again', onClick: retry }} secondary={{ label: 'Back to the path', onClick: toPath }} />
+                        results={r.results} primary={{ label: 'Try again', onClick: retry }} secondary={{ label: 'Back', onClick: toPath }} />
                 )}
             </SessionFrame>
         );
@@ -132,7 +134,7 @@ function LessonPage() {
 
     return (
         <SessionFrame label={lesson.title}>
-            <Session key={run.n} steps={runSteps} hearts={lesson.quiz?.length ? heartsFor(lesson.quiz.length, lesson.passingScore) : null} check={check} onComplete={complete} onQuit={toPath}
+            <Session key={run.n} steps={runSteps} hearts={lesson.quiz?.length ? heartsFor(lesson.quiz.length, lesson.passingScore) : null} check={check} onComplete={complete} onQuit={toDashboard}
                 onEnterPart={(part) => { if (part === 'practice' || part === 'quiz') linguisticApi.step(id, part).catch(() => {}); }}
                 label={lesson.title} />
         </SessionFrame>

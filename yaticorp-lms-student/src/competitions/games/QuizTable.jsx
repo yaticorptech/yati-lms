@@ -37,6 +37,67 @@ const Picture = ({ text, small }) => (
     <pre aria-label="Picture" className={`inline-block whitespace-pre font-sans leading-none ${small ? 'text-base' : 'rounded-2xl bg-slate-50 p-3 text-2xl ring-1 ring-slate-200 sm:text-3xl'}`}>{text}</pre>
 );
 
+
+/*
+ * Pictures for the questions that have one (2026-10-29, the solo picture and memory games): a word in coloured
+ * ink, dots, a clock, a grid of marks, coloured tiles, a number, a set of symbols, or a sequence shown one item
+ * at a time (`elapsed`: ms since it started).
+ */
+const INK = { red: '#ef4444', blue: '#0ea5e9', green: '#10b981', yellow: '#f59e0b', purple: '#8b5cf6', orange: '#f97316' };
+const Clock = ({ h, m }) => {
+    const ha = ((h % 12) * 30 + m * 0.5) * (Math.PI / 180); const ma = m * 6 * (Math.PI / 180);
+    return (
+        <svg viewBox="0 0 120 120" className="h-40 w-40 sm:h-48 sm:w-48" role="img" aria-label="A clock">
+            <circle cx="60" cy="60" r="56" fill="#fff" stroke="#c7d2fe" strokeWidth="4" />
+            {Array.from({ length: 12 }, (_, i) => { const a = (i * Math.PI) / 6; const big = i % 3 === 0; return <line key={i} x1={60 + Math.sin(a) * (big ? 44 : 48)} y1={60 - Math.cos(a) * (big ? 44 : 48)} x2={60 + Math.sin(a) * 52} y2={60 - Math.cos(a) * 52} stroke="#334155" strokeWidth={big ? 3 : 1.5} strokeLinecap="round" />; })}
+            <line x1="60" y1="60" x2={60 + Math.sin(ha) * 28} y2={60 - Math.cos(ha) * 28} stroke="#0f172a" strokeWidth="5" strokeLinecap="round" />
+            <line x1="60" y1="60" x2={60 + Math.sin(ma) * 42} y2={60 - Math.cos(ma) * 42} stroke="#6366f1" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="60" cy="60" r="4" fill="#0f172a" />
+        </svg>
+    );
+};
+const Visual = ({ v, elapsed = 0 }) => {
+    if (!v) return null;
+    const box = 'flex justify-center';
+    if (v.kind === 'ink') return <div className={box}><p className="text-5xl font-black tracking-wider sm:text-6xl" style={{ color: INK[v.ink] }} data-visual="ink">{v.word}</p></div>;
+    if (v.kind === 'clock') return <div className={box} data-visual="clock"><Clock h={v.h} m={v.m} /></div>;
+    if (v.kind === 'digits') return <div className={box}><p className="rounded-2xl bg-slate-900 px-6 py-3 font-mono text-4xl font-black tracking-[0.3em] text-white sm:text-5xl" data-visual="digits">{v.text}</p></div>;
+    if (v.kind === 'symbols') return <div className={`${box} flex-wrap gap-2 text-4xl sm:text-5xl`} data-visual="symbols">{v.items.map((x, i) => <span key={i}>{x}</span>)}</div>;
+    if (v.kind === 'dots' || v.kind === 'tiles') {
+        const dot = v.kind === 'dots';
+        return (
+            <div className={box}>
+                <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${v.cols}, minmax(0, 1fr))` }} data-visual={v.kind}>
+                    {(dot ? v.dots : v.tiles).map((c, i) => (
+                        <span key={i} className={`relative flex items-center justify-center ${dot ? 'h-7 w-7 rounded-full sm:h-8 sm:w-8' : 'h-11 w-11 rounded-lg sm:h-12 sm:w-12'}`} style={{ background: INK[c] }}>
+                            {v.numbered && <span className="text-xs font-black text-white drop-shadow">{i + 1}</span>}
+                        </span>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+    if (v.kind === 'matrix') {
+        return (
+            <div className={box}>
+                <div className="grid grid-cols-3 gap-1.5" data-visual="matrix">
+                    {v.cells.map((c, i) => <span key={i} className={`flex h-16 w-16 flex-wrap content-center items-center justify-center gap-0.5 rounded-xl p-1 text-[13px] leading-none sm:h-20 sm:w-20 sm:text-base ${c ? 'bg-slate-50 ring-1 ring-slate-200' : 'bg-indigo-50 text-2xl font-black text-indigo-500 ring-2 ring-indigo-300 ring-dashed'}`}>{c || '?'}</span>)}
+                </div>
+            </div>
+        );
+    }
+    if (v.kind === 'sequence') {
+        const at = Math.min(v.items.length - 1, Math.floor(elapsed / v.stepMs));
+        return (
+            <div className="flex flex-col items-center gap-2" data-visual="sequence">
+                <p key={at} className="flex h-24 min-w-24 items-center justify-center rounded-2xl bg-slate-900 px-5 text-5xl font-black text-white">{v.items[at]}</p>
+                <p className="text-xs font-bold text-slate-400">{at + 1} of {v.items.length}</p>
+            </div>
+        );
+    }
+    return null;
+};
+
 export const Scoreboard = ({ view, theme }) => {
     // Rapid Fire keeps the scores (null) to itself until the game is over.
     const secret = !view.scores;
@@ -67,7 +128,7 @@ export const Scoreboard = ({ view, theme }) => {
                         </span>
                         {!secret && <span className="text-right">
                             <span className="block text-lg font-black tabular-nums leading-none text-slate-900" data-score={view.scores[i]}>{view.scores[i]}</span>
-                            {view.phase === 'reveal' && a && Number.isFinite(a.points) && (
+                            {a && Number.isFinite(a.points) && (view.phase === 'reveal' || view.mode === 'simultaneous') && (
                                 <span className={`block text-[11px] font-black tabular-nums ${a.points > 0 ? 'text-emerald-600' : a.points < 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                                     {a.points > 0 ? `+${a.points}` : a.points}
                                 </span>
@@ -91,7 +152,7 @@ const Code = ({ code, lang }) => (
 );
 
 /** One answer button, coloured by what the reveal says about it. */
-const Option = ({ index, text, mark, mono, disabled, onPick }) => {
+const Option = ({ index, text, mark, mono, disabled, onPick, square }) => {
     const tone = {
         right: 'border-emerald-400 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-300',
         wrong: 'border-rose-300 bg-rose-50 text-rose-900 ring-2 ring-rose-200',
@@ -102,11 +163,11 @@ const Option = ({ index, text, mark, mono, disabled, onPick }) => {
     const badge = { right: 'bg-emerald-500 text-white', wrong: 'bg-rose-500 text-white', mine: 'bg-indigo-600 text-white' }[mark] || 'bg-slate-100 text-slate-600';
     return (
         <button type="button" data-option={index} data-mark={mark} disabled={disabled} onClick={() => onPick(index)}
-            className={`group flex min-h-14 w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left text-sm font-semibold shadow-sm transition-[transform,box-shadow,border-color,background-color] duration-150 disabled:cursor-default motion-reduce:transition-none sm:text-[15px] ${tone}`}>
+            className={`group flex w-full rounded-2xl border font-semibold shadow-sm transition-[transform,box-shadow,border-color,background-color] duration-150 disabled:cursor-default motion-reduce:transition-none ${square ? 'min-h-[4.75rem] flex-col items-center justify-center gap-1.5 px-2 py-2.5 text-center text-sm sm:min-h-[5.5rem] sm:text-[15px]' : 'min-h-14 items-center gap-3 px-3 py-2.5 text-left text-sm sm:text-[15px]'} ${tone}`}>
             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-black ${badge}`} aria-hidden="true">
                 {mark === 'right' ? <Check size={16} /> : mark === 'wrong' ? <X size={16} /> : LETTERS[index]}
             </span>
-            {isPicture(text) ? <Picture text={text} small /> : <span className={`min-w-0 flex-1 break-words ${mono ? 'font-mono text-[13px] sm:text-sm' : ''}`}>{text}</span>}
+            {isPicture(text) ? <Picture text={text} small /> : <span className={`min-w-0 break-words ${square ? '' : 'flex-1'} ${mono ? 'font-mono text-[13px] sm:text-sm' : ''}`}>{text}</span>}
         </button>
     );
 };
@@ -186,7 +247,7 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
 
     const markOf = (i) => {
         const chosen = myAnswer && Number.isInteger(myAnswer.choice) ? myAnswer.choice : picked;
-        if (reveal && view.answer) {
+        if (view.answer) {
             if (i === view.answer.index) return 'right';
             if (i === chosen) return 'wrong';
             return 'dim';
@@ -204,9 +265,22 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
 
     // A finished Group Brain room shows its own standings above: here, only the answers to review.
     if (recapOnly && view.status === 'finished') return <div className="mx-auto w-full max-w-3xl"><Recap view={view} /></div>;
-    return (
-        <div className="mx-auto w-full max-w-3xl space-y-4" data-quiz-table={view.game} data-phase={view.phase}>
-            <Scoreboard view={view} theme={theme} />
+    // The question and its answers: the page's middle, or the table in the ring.
+    const middle = (
+        <>
+
+            {/* Something to memorise: shown, then taken away before the question. */}
+            {view.phase === 'show' && view.show && (
+                <section className={`overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm`} data-show>
+                    <div className={`flex items-center justify-between gap-3 bg-gradient-to-r ${theme.from} ${theme.to} px-5 py-3 text-white`}>
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/85">Question {view.number} of {view.total} · Remember this!</p>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-sm font-black tabular-nums"><Timer size={14} aria-hidden="true" /> {seconds}s</span>
+                    </div>
+                    <div className="flex min-h-52 flex-col items-center justify-center gap-4 p-6">
+                        <Visual v={view.show.content} elapsed={(view.show.showMs || 0) - left} />
+                    </div>
+                </section>
+            )}
 
             {view.phase === 'ready' && view.status === 'active' && (
                 <section className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.from} ${theme.to} p-8 text-center text-white shadow-lg`} data-ready>
@@ -215,7 +289,7 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
                     <p className="mt-1 text-7xl font-black tabular-nums" aria-live="polite">{Math.max(1, seconds)}</p>
                     <p className="mt-2 text-sm text-white/85">
                         {view.total} {view.game === 'codeclash' ? 'challenges' : view.game === 'brainsprint' ? 'puzzles' : 'questions'} · {Math.round(view.questionMs / 1000)} s each
-                        {hidden ? ' · answers and scores are shown at the end' : buzzer ? ' · first right answer scores +10, a wrong one −5' : ' · up to 150 points each, faster scores more'}
+                        {hidden ? ' · answers and scores are shown at the end' : buzzer ? ' · first right answer scores +10, a wrong one −5' : ' · right +100, wrong −20'}
                     </p>
                 </section>
             )}
@@ -251,6 +325,7 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
                     <div className="space-y-4 p-4 sm:p-6">
                         <h2 className="text-lg font-black leading-snug text-slate-900 sm:text-xl" data-prompt>{q.prompt}</h2>
                         {q.code && (isPicture(q.code) ? <div className="flex justify-center"><Picture text={q.code} /></div> : <Code code={q.code} lang={q.lang} />)}
+                        <Visual v={q.visual} />
                         <div className="grid gap-2.5 sm:grid-cols-2" role="group" aria-label="Answers">
                             {q.options.map((text, i) => (
                                 <Option key={i} index={i} text={text} mark={markOf(i)} mono={!!q.code && q.topic === 'Predict the output'} disabled={!canPick} onPick={pick} />
@@ -261,8 +336,9 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
                             <p className={`rounded-2xl px-4 py-2.5 text-center text-sm font-semibold ${theme.soft} ${theme.text}`} data-status>
                                 {view.out.includes(view.you) ? 'You have left this game.'
                                     : buzzer && myAnswer?.correct === false ? 'Wrong — you are locked out of this one. −5'
+                                    : myAnswer && Number.isFinite(myAnswer.points) && !buzzer ? (myAnswer.correct ? `Correct! +${myAnswer.points}` : `Wrong (${myAnswer.points}). Answer: ${view.answer ? (isPicture(q.options[view.answer.index]) ? `option ${LETTERS[view.answer.index]}` : q.options[view.answer.index]) : '—'}`)
                                     : myAnswer || picked !== null ? (hidden ? 'Answer saved. The next question opens soon.' : buzzer ? 'Buzzed in! Waiting for the result…' : 'Locked in. Waiting for the others…')
-                                    : <>{hidden ? 'Pick your answer.' : buzzer ? 'Buzz in with the right answer first.' : 'Pick your answer. Faster right answers score more.'}<span className="max-sm:hidden"> Keys 1–4 work too.</span></>}
+                                    : <>{hidden ? 'Pick your answer.' : buzzer ? 'Buzz in with the right answer first.' : 'Pick your answer. Right +100, wrong −20.'}<span className="max-sm:hidden"> Keys 1–4 work too.</span></>}
                             </p>
                         )}
                         {reveal && view.answer && (
@@ -280,6 +356,12 @@ export default function QuizTable({ view, onAction, busy, recapOnly = false }) {
                 </section>
             )}
 
+        </>
+    );
+    return (
+        <div className="mx-auto w-full max-w-3xl space-y-4" data-quiz-table={view.game} data-phase={view.phase}>
+            {!(view.liveBoard && view.status === 'active') && <Scoreboard view={view} theme={theme} />}
+            {middle}
             {view.status === 'finished' && <Recap view={view} />}
         </div>
     );

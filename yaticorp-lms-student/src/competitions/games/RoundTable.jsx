@@ -41,7 +41,7 @@ export default function RoundFrame({ view, title, intro, children, detail, wide 
     return (
         // `wide`: every player's board is drawn inside (Memory Matrix), each with its points, so no scoreboard row.
         <div className={`mx-auto w-full space-y-4 ${wide ? 'max-w-6xl' : 'max-w-3xl'}`} data-round-table={view.game} data-phase={view.phase}>
-            {!wide && <Scoreboard view={view} theme={theme} />}
+            {!wide && !(view.liveBoard && view.status === 'active') && <Scoreboard view={view} theme={theme} />}
 
             {view.phase === 'ready' && view.status === 'active' && (
                 <section className={`overflow-hidden rounded-3xl bg-gradient-to-br ${theme.from} ${theme.to} p-8 text-center text-white shadow-lg`} data-ready>

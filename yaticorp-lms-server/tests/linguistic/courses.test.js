@@ -103,7 +103,7 @@ describe('courses', () => {
         const unitEnd = path.levels[0].units[0].lessons.at(-1);
         assert.deepEqual([unitEnd.title, unitEnd.open], ['Unit review', false], 'each unit ends with its review');
         const levelReview = path.levels[0].units.at(-1);
-        assert.deepEqual(levelReview.lessons.map((l) => [l.title, l.open]), [['Word review', false], ['Listen and pick', false], ['Sentence review', false], ['Level checkpoint', false]]);
+        assert.deepEqual(levelReview.lessons.map((l) => [l.title, l.open]), [['Word review', false], ['Listen and pick', false], ['Sentence review', false], ['Level checkpoint', false], ['Beginner assessment', false]], 'and the assessment that opens Advanced (2026-10-29)');
         const listen = svc.serve(await LinguisticLesson.findById(levelReview.lessons[1].id).lean(), { language: 'hi' });
         const q = svc.quizOf(listen)[0];
         assert.match(q.say, KANNADA); assert.equal(q.sayLang, 'kn-IN'); assert.ok(q.options.includes(q.answer));
@@ -125,7 +125,7 @@ describe('courses', () => {
         const beginner = path.levels.find((l) => l.level === 'beginner');
         assert.equal(beginner.complete, true);
         assert.ok(beginner.certificate?.number.startsWith('YATI-KN-'), 'the certificate names the course');
-        assert.equal(path.levels.find((l) => l.level === 'intermediate').open, true);
+        assert.equal(path.levels.find((l) => l.level === 'advanced').open, true, 'its assessment passed with the rest: Advanced opens (Intermediate hidden, 2026-10-29)');
 
         const certs = (await api('GET', '/certificates')).body.certificates;
         assert.deepEqual(certs.map((c) => [c.level, c.course, c.courseName]), [['beginner', 'kn', 'Kannada']]);
@@ -152,7 +152,7 @@ describe('courses', () => {
         assert.equal(r.status, 200, JSON.stringify(r.body));
         assert.equal(r.body.opened, true); assert.ok(r.body.xp > 0, 'bonus XP');
         assert.equal((await api('POST', '/chest/beginner-1')).status, 409, 'once');
-        assert.equal((await api('POST', '/chest/intermediate-1')).status, 409, 'not before the lesson before it');
+        assert.equal((await api('POST', '/chest/advanced-1')).status, 404, 'Advanced has tracks, no chests (2026-10-29)');
         assert.equal((await api('POST', '/chest/nowhere-9')).status, 404);
         const after = (await api('GET', '/path')).body.levels[0].units[0].lessons.find((n) => n.stop === 'chest');
         assert.equal(after.status, 'completed');

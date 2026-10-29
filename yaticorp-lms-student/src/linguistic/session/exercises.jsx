@@ -13,7 +13,7 @@ import { tr, line } from '../say';
 import Dialogue from '../parts/Dialogue';
 import TalkRecorder from '../parts/TalkRecorder';
 import { ticksOf, needOf, canTranscribe } from '../parts/speakTicks';
-import LetterKeys from '../parts/LetterKeys';
+import { KeysPopup } from '../parts/LetterKeys';
 import { hasLetters } from '../parts/letters';
 
 /* ── Shared pieces ────────────────────────────────────────────────────── */
@@ -479,9 +479,13 @@ export function TranslateStep({ step, value, onChange, locked, result, correctio
     const target = step.target || 'en';
     const T = langOf(target);
     const writeIn = toHelper ? code : target;
+    // The letters on screen: the answer's language's; and where the answer is English, the course language's too
+    // (2026-10-29: "don't give only English typing, give the keyboard of the Japanese letters on screen").
+    const keysIn = writeIn !== 'en' ? writeIn : target !== 'en' && hasLetters(target) ? target : null;
     const Tr = tr(code);
     const bank = usesTiles(step);
     const ref = useRef(null);
+    // The language's letters as a keyboard that pops up when the keyboard icon is tapped (2026-10-29).
     const [keys, setKeys] = useState(false);
     const typing = !Array.isArray(value);
     const tone = result ? (result.correct ? 'right' : 'wrong') : null;
@@ -501,7 +505,7 @@ export function TranslateStep({ step, value, onChange, locked, result, correctio
             {!typing
                 ? <Tiles words={tilesOf(step)} value={value} onChange={onChange} locked={locked} tone={tone} language={writeIn} correction={correction} says={it.bankSays} correctionSay={result?.answerSay} />
                 : <AnswerBox inputRef={ref} value={value} onChange={onChange} locked={locked} rows={it.open ? 7 : 3} multiline={!!it.open} lang={writeIn} wrong={tone === 'wrong'}
-                    placeholder={writeIn === 'en' ? Tr('Type in English') : langOf(writeIn).placeholder} label={`Your translation of: ${it.source}`} />}
+                    placeholder={writeIn === 'en' ? (keysIn ? `${Tr('Type in English')} · ${langOf(keysIn).placeholder}` : Tr('Type in English')) : langOf(writeIn).placeholder} label={`Your translation of: ${it.source}`} />}
             {!locked && (
                 <div className="flex flex-wrap gap-2">
                     {bank && (
@@ -509,14 +513,16 @@ export function TranslateStep({ step, value, onChange, locked, result, correctio
                             {typing ? <><LayoutGrid size={15} /> {Tr('Use word bank')}</> : <><Keyboard size={15} /> {Tr('Use keyboard')}</>}
                         </button>
                     )}
-                    {typing && writeIn !== 'en' && hasLetters(writeIn) && (
+                    {typing && keysIn && hasLetters(keysIn) && (
                         <button type="button" onClick={() => setKeys((k) => !k)} aria-expanded={keys} className="lingo-btn inline-flex h-10 items-center gap-2 px-3 text-xs" style={{ background: '#fff', borderColor: '#E5E5E5', color: COLORS.red.ink }} data-letters-toggle>
-                            <Keyboard size={15} /> {line(code, 'letters', langOf(writeIn).name, keys)}
+                            <Keyboard size={15} /> {line(code, 'letters', langOf(keysIn).name, keys)}
                         </button>
                     )}
                 </div>
             )}
-            {typing && keys && !locked && writeIn !== 'en' && <LetterKeys code={writeIn} inputRef={ref} value={value} onChange={onChange} />}
+            {typing && keys && !locked && keysIn && <KeysPopup code={keysIn} title={line(code, 'letters', langOf(keysIn).name, false)} onClose={() => setKeys(false)} inputRef={ref} value={value} onChange={onChange} />}
+            {/* Its sound in English letters is an answer too (the server's spellingsOf, 2026-10-29). */}
+            {typing && !locked && writeIn !== 'en' && it.bankSays && <p className="text-sm font-bold text-[#777]" data-both-letters>{line(code, 'bothLetters', langOf(writeIn).name)}</p>}
             {it.open && !locked && <p className="text-sm font-bold text-[#AFAFAF]">A passage is not marked by the computer: you will see the model{writeIn === 'en' ? ', and your English is checked sentence by sentence' : ''}.</p>}
         </div>
     );

@@ -86,20 +86,57 @@ export const SKILL_LABELS = { memory: 'Memory', reasoning: 'Reasoning', spatial:
  */
 export const GROUP_GAMES = {
     chess: { label: 'Chess', emoji: '♟️', blurb: 'Full chess rules — castling, promotion, checkmate — with a clock each and the move list.', players: '2 players', tone: 'from-slate-700 to-slate-900', table: 'chess' },
-    memorymatrix: { label: 'Memory Matrix', emoji: '🟦', blurb: 'Cells light up, then go dark: pick the same ones. The grid grows as you go.', players: '2, 4 or 6 players', tone: 'from-sky-500 to-indigo-600', table: 'memorymatrix' },
-    patternmaster: { label: 'Pattern Master', emoji: '🔷', blurb: 'Find the missing shape, arrow or number in each sequence.', players: '2, 4 or 6 players', tone: 'from-fuchsia-500 to-violet-600', table: 'quiz' },
-    numberlogic: { label: 'Number Logic', emoji: '🔣', blurb: 'Number series, missing numbers and signs, and number puzzles.', players: '2, 4 or 6 players', tone: 'from-blue-500 to-cyan-600', table: 'quiz' },
-    wordlogic: { label: 'Word Logic', emoji: '📚', blurb: 'Anagrams, analogies, odd one out, opposites and spelling.', players: '2, 4 or 6 players', tone: 'from-emerald-500 to-teal-600', table: 'quiz' },
-    sudoku: { label: 'Sudoku Challenge', emoji: '🔢', blurb: 'Race to solve the same 9×9 Sudoku. Hints, mistakes and the clock all count.', players: '2, 4 or 6 players', tone: 'from-indigo-500 to-blue-700', table: 'sudoku' },
-    deduction: { label: 'Deduction Detective', emoji: '🕵️', blurb: 'Read the clues, rule things out, name the answer: logic grids and more.', players: '2, 4 or 6 players', tone: 'from-slate-700 to-indigo-700', table: 'quiz' },
-    spatialiq: { label: 'Spatial IQ', emoji: '🧊', blurb: 'Rotations, mirror images, paper folding and cube nets.', players: '2, 4 or 6 players', tone: 'from-amber-500 to-orange-600', table: 'quiz' },
-    sequence: { label: 'Sequence & Reaction', emoji: '🎯', blurb: 'Watch a sequence and tap it back, longer each round — and reaction rounds.', players: '2, 4 or 6 players', tone: 'from-pink-500 to-rose-600', table: 'sequence' },
-    lostkingdom: { label: 'The Lost Kingdom', emoji: '🧭', blurb: 'Five trials to the treasure of Aurelia — numbers, knowledge and logic, new every game.', players: '2, 4 or 6 players', tone: 'from-amber-700 to-emerald-800', table: 'kingdom' },
-    finalvault: { label: 'The Final Vault', emoji: '🏛️', blurb: 'Five temple chambers, the same puzzles for everyone — open the treasure vault first.', players: '2, 4 or 6 players', tone: 'from-amber-600 to-yellow-800', table: 'vault' }
+    memorymatrix: { label: 'Memory Matrix', emoji: '🟦', blurb: 'Cells light up, then go dark: pick the same ones. The grid grows as you go.', players: '2 to 20 players', tone: 'from-sky-500 to-indigo-600', table: 'memorymatrix' },
+    patternmaster: { label: 'Pattern Master', emoji: '🔷', blurb: 'Find the missing shape, arrow or number in each sequence.', players: '2 to 20 players', tone: 'from-fuchsia-500 to-violet-600', table: 'quiz' },
+    numberlogic: { label: 'Number Logic', emoji: '🔣', blurb: 'Number series, missing numbers and signs, and number puzzles.', players: '2 to 20 players', tone: 'from-blue-500 to-cyan-600', table: 'quiz' },
+    wordlogic: { label: 'Word Logic', emoji: '📚', blurb: 'Anagrams, analogies, odd one out, opposites and spelling.', players: '2 to 20 players', tone: 'from-emerald-500 to-teal-600', table: 'quiz' },
+    sudoku: { label: 'Sudoku Challenge', emoji: '🔢', blurb: 'Race to solve the same 9×9 Sudoku. Hints, mistakes and the clock all count.', players: '2 to 20 players', tone: 'from-indigo-500 to-blue-700', table: 'sudoku' },
+    deduction: { label: 'Deduction Detective', emoji: '🕵️', blurb: 'Read the clues, rule things out, name the answer: logic grids and more.', players: '2 to 20 players', tone: 'from-slate-700 to-indigo-700', table: 'quiz' },
+    spatialiq: { label: 'Spatial IQ', emoji: '🧊', blurb: 'Rotations, mirror images, paper folding and cube nets.', players: '2 to 20 players', tone: 'from-amber-500 to-orange-600', table: 'quiz' },
+    sequence: { label: 'Sequence & Reaction', emoji: '🎯', blurb: 'Watch a sequence and tap it back, longer each round — and reaction rounds.', players: '2 to 20 players', tone: 'from-pink-500 to-rose-600', table: 'sequence' },
+    lostkingdom: { label: 'The Lost Kingdom', emoji: '🧭', blurb: 'Five trials to the treasure of Aurelia — numbers, knowledge and logic, new every game.', players: '2 to 20 players', tone: 'from-amber-700 to-emerald-800', table: 'kingdom' },
+    finalvault: { label: 'The Final Vault', emoji: '🏛️', blurb: 'Five temple chambers, the same puzzles for everyone — open the treasure vault first.', players: '2 to 20 players', tone: 'from-amber-600 to-yellow-800', table: 'vault' },
+    // The solo games that are questions and answers, as group games (2026-10-29): played like Word Logic.
+    synonymmatch: { label: 'Synonym Match', emoji: '🔤', blurb: 'Pick the word that means the same.', players: '2 to 20 players', tone: 'from-fuchsia-500 to-purple-700', table: 'quiz' },
+    antonymmatch: { label: 'Antonym Match', emoji: '↔️', blurb: 'Pick the word that means the opposite.', players: '2 to 20 players', tone: 'from-rose-500 to-pink-600', table: 'quiz' },
+    idiomsense: { label: 'Idiom Sense', emoji: '💬', blurb: 'What does the phrase really mean?', players: '2 to 20 players', tone: 'from-amber-500 to-orange-600', table: 'quiz' },
+    sentencegap: { label: 'Sentence Gap', emoji: '✏️', blurb: 'Choose the word that fits the sentence.', players: '2 to 20 players', tone: 'from-sky-500 to-blue-600', table: 'quiz' },
+    soundalike: { label: 'Sound Alike', emoji: '👂', blurb: 'Their, there or they’re? Only one fits.', players: '2 to 20 players', tone: 'from-teal-500 to-cyan-600', table: 'quiz' },
+    wordroots: { label: 'Word Roots', emoji: '🌱', blurb: 'What does this prefix or root mean?', players: '2 to 20 players', tone: 'from-lime-500 to-green-600', table: 'quiz' },
+    spellingfix: { label: 'Spelling Fix', emoji: '🔍', blurb: 'One of these four is spelled correctly.', players: '2 to 20 players', tone: 'from-indigo-500 to-violet-600', table: 'quiz' },
+    tensepick: { label: 'Tense Pick', emoji: '⏪', blurb: 'Go, went, gone — pick the right past tense.', players: '2 to 20 players', tone: 'from-orange-500 to-red-500', table: 'quiz' },
+    oddoneout: { label: 'Odd One Out', emoji: '🧩', blurb: 'Three belong together. One does not.', players: '2 to 20 players', tone: 'from-emerald-500 to-teal-600', table: 'quiz' },
+    percentsnap: { label: 'Percent Snap', emoji: '📊', blurb: 'Percentages, in your head, against the clock.', players: '2 to 20 players', tone: 'from-blue-500 to-indigo-600', table: 'quiz' },
+    binaryblitz: { label: 'Binary Blitz', emoji: '💻', blurb: 'Read binary as fast as you read decimal.', players: '2 to 20 players', tone: 'from-slate-700 to-emerald-700', table: 'quiz' },
+    roundingrush: { label: 'Rounding Rush', emoji: '🎯', blurb: 'Round it to the nearest ten, hundred or thousand.', players: '2 to 20 players', tone: 'from-pink-500 to-rose-600', table: 'quiz' },
+    fractionmatch: { label: 'Fraction Match', emoji: '🍕', blurb: 'Which fraction is worth the same amount?', players: '2 to 20 players', tone: 'from-yellow-500 to-amber-600', table: 'quiz' },
+    quickcompare: { label: 'Quick Compare', emoji: '⚡', blurb: 'Pick the side with the larger value.', players: '2 to 20 players', tone: 'from-cyan-500 to-sky-600', table: 'quiz' },
+    scalebalance: { label: 'Scale Balance', emoji: '⚖️', blurb: 'Read the scales and find the heaviest — or the lightest.', players: '2 to 20 players', tone: 'from-violet-500 to-purple-700', table: 'quiz' },
+    colourmatch: { label: 'Colour Match', emoji: '🎨', blurb: 'Name the ink colour, not the word.', players: '2 to 20 players', tone: 'from-rose-500 to-amber-500', table: 'quiz' },
+    dotcount: { label: 'Dot Count', emoji: '🔵', blurb: 'How many dots of one colour? Count fast.', players: '2 to 20 players', tone: 'from-sky-500 to-indigo-600', table: 'quiz' },
+    clockread: { label: 'Clock Read', emoji: '🕰️', blurb: 'Read the hands and pick the time.', players: '2 to 20 players', tone: 'from-slate-600 to-indigo-700', table: 'quiz' },
+    shapematrix: { label: 'Shape Matrix', emoji: '🧮', blurb: 'Spot the rule and finish the grid.', players: '2 to 20 players', tone: 'from-violet-500 to-fuchsia-600', table: 'quiz' },
+    numberrecall: { label: 'Number Recall', emoji: '🔢', blurb: 'Memorise a number, then pick it out.', players: '2 to 20 players', tone: 'from-blue-500 to-cyan-600', table: 'quiz' },
+    reverserecall: { label: 'Reverse Recall', emoji: '🔁', blurb: 'Memorise a number, then find it backwards.', players: '2 to 20 players', tone: 'from-indigo-500 to-blue-700', table: 'quiz' },
+    seenbefore: { label: 'Seen Before', emoji: '👀', blurb: 'A set flashes up. Which one did you see?', players: '2 to 20 players', tone: 'from-emerald-500 to-lime-600', table: 'quiz' },
+    spotthechange: { label: 'Spot the Change', emoji: '👁️', blurb: 'One tile changes. Which one was it?', players: '2 to 20 players', tone: 'from-orange-500 to-rose-500', table: 'quiz' },
+    matchback: { label: 'Match Back', emoji: '🔂', blurb: 'Letters flash by: was the last the same as the one before?', players: '2 to 20 players', tone: 'from-teal-500 to-emerald-600', table: 'quiz' },
+    runningtotal: { label: 'Running Total', emoji: '➕', blurb: 'Numbers arrive one at a time. Keep the total.', players: '2 to 20 players', tone: 'from-amber-500 to-orange-600', table: 'quiz' },
+    memorymatch: { label: 'Memory Match', emoji: '🃏', blurb: 'The same deck for everyone: turn two cards at a time and pair them all.', players: '2 to 20 players', tone: 'from-pink-500 to-fuchsia-600', table: 'race' },
+    lightsout: { label: 'Lights Out', emoji: '💡', blurb: 'Turn every light off — a tap flips its neighbours too.', players: '2 to 20 players', tone: 'from-amber-400 to-yellow-600', table: 'race' },
+    codebreaker: { label: 'Code Breaker', emoji: '🔐', blurb: 'Crack the same colour codes from the clues — fewer guesses, more points.', players: '2 to 20 players', tone: 'from-slate-700 to-violet-700', table: 'race' },
+    typingsprint: { label: 'Typing Sprint', emoji: '⌨️', blurb: 'Type the same words, exactly and fast.', players: '2 to 20 players', tone: 'from-sky-500 to-blue-700', table: 'race' },
+    speedsort: { label: 'Speed Sort', emoji: '🔢', blurb: 'Tap the numbers from smallest to largest.', players: '2 to 20 players', tone: 'from-emerald-500 to-teal-600', table: 'race' },
+    numberbonds: { label: 'Number Bonds', emoji: '🧷', blurb: 'Tap the two tiles that make the target.', players: '2 to 20 players', tone: 'from-orange-500 to-amber-600', table: 'race' },
+    mathsprint: { label: 'Math Sprint', emoji: '🧮', blurb: 'The same sums for everyone, typed against the clock.', players: '2 to 20 players', tone: 'from-indigo-500 to-blue-600', table: 'race' },
+    tictactoe: { label: 'Tic-Tac-Toe', emoji: '❌', blurb: 'Three in a row, one against one — best of five rounds.', players: '2 players', tone: 'from-rose-500 to-indigo-600', table: 'turns' },
+    laststone: { label: 'Last Stone', emoji: '🪨', blurb: 'Take one, two or three. Take the last and win — best of five.', players: '2 players', tone: 'from-stone-500 to-slate-700', table: 'turns' }
 };
+/** The group games for two only (one against one): Chess, and the turn games. */
+export const isTwo = (id) => id === 'chess' || GROUP_GAMES[id]?.table === 'turns';
 export const DIFFICULTIES = [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']];
 // How many players a room is for (Chess: always 2).
-export const ROOM_SIZES = [2, 4, 6];
+export const ROOM_SIZES = [2, 4, 6, 8, 10, 12, 16, 20];
 
 /**
  * The games, as the lobby shows them before the server answers: Chess and the

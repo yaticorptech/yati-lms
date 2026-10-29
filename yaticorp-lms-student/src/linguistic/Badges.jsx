@@ -28,6 +28,27 @@ export default function Badges() {
 
     return (
         <div className="space-y-8" data-badges-page>
+            {/* The certificates first (asked 2026-10-29), then the achievements. */}
+            <section aria-labelledby="ling-certs">
+                <h2 id="ling-certs" className="mb-1 text-2xl font-extrabold text-[#3c3c3c]">{dash.course && dash.course.code !== 'en' ? `${dash.course.name} certificates` : 'Certificates'}</h2>
+                <p className="mb-3 text-[15px] font-semibold text-[#777]">Finish every lesson of a level with an average quiz score of {dash.certificateMinAverage}% or more.</p>
+                {error && <p className="mb-2 text-sm font-bold" style={{ color: COLORS.red.ink }} role="alert">{error}</p>}
+                <div className="grid gap-3 sm:grid-cols-3">
+                    {dash.levels.map((l) => {
+                        return (
+                            <Panel key={l.level} className="flex flex-col items-center gap-2 p-4 text-center" data-level={l.level}>
+                                {/* The level's badge: bronze, silver, gold. */}
+                                <GemBadge look={BADGE_LOOK[`level_${l.level}`]} earned={!!l.certificate} size={72} />
+                                <p className="text-[17px] font-extrabold text-[#3c3c3c]">{l.label}</p>
+                                <p className="text-sm font-semibold text-[#777]">{l.completed}/{l.total} lessons</p>
+                                {l.certificate
+                                    ? <Chunky color="gold" onClick={() => download(l.level)} disabled={busy === l.level} className="!min-h-10 w-full !text-xs" data-certificate={l.level}><Download size={15} /> {busy === l.level ? 'Preparing…' : 'Download'}</Chunky>
+                                    : <p className="text-xs font-extrabold uppercase tracking-wide text-[#AFAFAF]">{l.complete ? `Lift your average to ${dash.certificateMinAverage}%` : 'Not yet'}</p>}
+                            </Panel>
+                        );
+                    })}
+                </div>
+            </section>
             <section aria-labelledby="ling-badges">
                 <div className="mb-3 flex items-baseline justify-between gap-2">
                     <h1 id="ling-badges" className="text-2xl font-extrabold text-[#3c3c3c]">Achievements</h1>
@@ -64,26 +85,6 @@ export default function Badges() {
                 </ul>
             </section>
 
-            <section aria-labelledby="ling-certs">
-                <h2 id="ling-certs" className="mb-1 text-2xl font-extrabold text-[#3c3c3c]">{dash.course && dash.course.code !== 'en' ? `${dash.course.name} certificates` : 'Certificates'}</h2>
-                <p className="mb-3 text-[15px] font-semibold text-[#777]">Finish every lesson of a level with an average quiz score of {dash.certificateMinAverage}% or more.</p>
-                {error && <p className="mb-2 text-sm font-bold" style={{ color: COLORS.red.ink }} role="alert">{error}</p>}
-                <div className="grid gap-3 sm:grid-cols-3">
-                    {dash.levels.map((l) => {
-                        return (
-                            <Panel key={l.level} className="flex flex-col items-center gap-2 p-4 text-center" data-level={l.level}>
-                                {/* The level's badge: bronze, silver, gold. */}
-                                <GemBadge look={BADGE_LOOK[`level_${l.level}`]} earned={!!l.certificate} size={72} />
-                                <p className="text-[17px] font-extrabold text-[#3c3c3c]">{l.label}</p>
-                                <p className="text-sm font-semibold text-[#777]">{l.completed}/{l.total} lessons</p>
-                                {l.certificate
-                                    ? <Chunky color="gold" onClick={() => download(l.level)} disabled={busy === l.level} className="!min-h-10 w-full !text-xs" data-certificate={l.level}><Download size={15} /> {busy === l.level ? 'Preparing…' : 'Download'}</Chunky>
-                                    : <p className="text-xs font-extrabold uppercase tracking-wide text-[#AFAFAF]">{l.complete ? `Lift your average to ${dash.certificateMinAverage}%` : 'Not yet'}</p>}
-                            </Panel>
-                        );
-                    })}
-                </div>
-            </section>
 
             {history.length > 0 && (
                 <section aria-labelledby="ling-history">

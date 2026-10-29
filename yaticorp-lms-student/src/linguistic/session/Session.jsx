@@ -125,8 +125,9 @@ function GrammarPopup({ sheet, result, correction, said, onContinue, onClose, T 
 
 function QuitDialog({ onStay, onQuit, T }) {
     return (
-        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/40 sm:items-center" onClick={onStay}>
-            <div className="lingo-sheet w-full max-w-md rounded-t-3xl bg-white p-6 text-center sm:rounded-3xl" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-labelledby="lingo-quit" data-quit>
+        // A popup in the middle of the screen on a phone too (2026-10-29), not a sheet from the bottom.
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/40 p-4" onClick={onStay}>
+            <div className="lingo-pop max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-5 text-center shadow-2xl sm:max-w-md sm:p-6" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true" aria-labelledby="lingo-quit" data-quit>
                 <Mascot pose="sad" className="mx-auto h-28 w-28" />
                 <p id="lingo-quit" className="mt-2 text-xl font-extrabold text-[#3c3c3c]">{T("Wait, don't go!")}</p>
                 <p className="mt-1 text-[15px] font-semibold text-[#777]">{T("You'll lose your progress in this session if you quit now.")}</p>

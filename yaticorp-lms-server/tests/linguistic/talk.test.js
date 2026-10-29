@@ -131,14 +131,13 @@ describe('in the path and as a lesson', () => {
     });
     after(async () => { await cleanup([asha.user, kavya.user], app.server); });
 
-    test('each Advanced unit has a "Speak on a topic" stop, after its speaking; the other sections none', async () => {
+    test('Advanced, practised by skill (2026-10-29): its Speaking track has the eight "Speak on a topic" talks; the other sections none', async () => {
         const p = (await api('GET', '/path')).body;
         const adv = p.levels.find((l) => l.level === 'advanced');
-        const topical = adv.units.filter((u) => u.kind === 'topic');
-        assert.equal(topical.length, 8, 'four topics, two units each (the fourth 2026-10-28)');
-        for (const u of topical) assert.equal(u.lessons.filter((x) => x.type === 'talk').length, 1, u.title);
-        const second = topical[1].lessons.map((x) => x.type);
-        assert.ok(second.indexOf('talk') === second.indexOf('speaking') + 1, 'right after the conversation');
+        const speaking = adv.units.find((u) => u.id === 'advanced-speaking');
+        assert.equal(speaking.lessons.length, 8, 'four topics, two talks each (the fourth 2026-10-28)');
+        assert.ok(speaking.lessons.every((x) => x.type === 'talk'));
+        assert.ok(adv.units.filter((u) => u !== speaking).every((u) => !u.lessons.some((x) => x.type === 'talk')), 'only there');
         assert.ok(p.levels.filter((l) => l.level !== 'advanced').every((l) => l.units.every((u) => !u.lessons.some((x) => x.type === 'talk'))));
     });
 
@@ -165,13 +164,14 @@ describe('in the path and as a lesson', () => {
         assert.equal(fixed.corrected, 'We discussed the plan every week.');
         assert.match(fixed.mistakes[0].why, /"about" नहीं लगता/, 'why, in the student\'s language (Hindi; 2026-10-27)');
         assert.ok(bad.sample.length > 100, 'the model answer comes with the corrections');
-        assert.notEqual((await api('GET', '/path')).body.levels[2].units[0].lessons.find((x) => x.type === 'talk').status, 'completed');
+        const talkIn = async () => (await api('GET', '/path')).body.levels.find((x) => x.level === 'advanced').units.find((u) => u.id === 'advanced-speaking').lessons.find((x) => x.id === String(l._id));
+        assert.notEqual((await talkIn()).status, 'completed');
 
         const good = (await api('POST', `/lessons/${l._id}/talk`, { text: talks.TOPICS[0].sample })).body;
         assert.deepEqual([good.passed, good.percent, good.firstPass], [true, 100, true]);
         assert.ok(good.events.some((e) => e.kind === 'xp'), 'points for the lesson');
         assert.ok(good.next, 'the next lesson on the path');
-        assert.equal((await api('GET', '/path')).body.levels[2].units[0].lessons.find((x) => x.type === 'talk').status, 'completed');
+        assert.equal((await talkIn()).status, 'completed');
     });
 
     test('a Kannada speaker reads the topic and the points in Kannada', async () => {
