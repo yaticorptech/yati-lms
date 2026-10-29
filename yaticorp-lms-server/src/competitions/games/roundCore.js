@@ -99,6 +99,7 @@ const makeRoundEngine = (config) => {
             if (s.out.includes(i)) return;
             s.scores[i] += r.points;
             if (r.correct) s.correct[i] += 1;
+            else if (s.answers[i]) { s.wrong = s.wrong || s.seats.map(() => 0); s.wrong[i] += 1; }
             if (s.answers[i]) s.timeMs[i] += s.answers[i].ms;
         });
         s.results = results;
@@ -170,7 +171,7 @@ const makeRoundEngine = (config) => {
                 phaseEndsAt: s.phaseEndsAt,
                 number: s.index + 1,
                 total: s.rounds,
-                round: s.current && s.phase !== 'over' ? config.publicRound(s.current, s.phase, s) : null,
+                round: s.current && s.phase !== 'over' ? config.publicRound(s.current, s.phase, s, you) : null,
                 // While a round is open: your own answer, and of the others only that they have answered.
                 answers: s.seats.map((_, i) => {
                     const a = s.answers?.[i];
@@ -181,6 +182,8 @@ const makeRoundEngine = (config) => {
                 results: revealed ? s.results : null,
                 scores: [...s.scores],
                 correct: [...s.correct],
+                // Answered and not right, round by round (the scoreboard's ✗).
+                wrong: s.wrong ? [...s.wrong] : s.seats.map(() => 0),
                 out: [...s.out],
                 canAnswer: active && you !== null && !s.out.includes(you) && !s.answers?.[you]
                     && (s.phase === 'answer' || (s.phase === 'show' && !!s.current?.early)),

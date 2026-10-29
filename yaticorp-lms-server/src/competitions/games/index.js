@@ -11,13 +11,18 @@ const RETIRED = ['uno', 'ludo', 'carrom'];
 // Group Brain (asked 2026-10-27): the games students play in rooms of their
 // own — Chess, and the ones played only in rooms. Their order is the
 // order the Games page shows them in.
-const ROOM_ONLY = ['memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'finalvault', 'lostkingdom'];
+// And the solo games that are questions and answers (2026-10-29), on the quiz engine: ./soloquiz.js.
+const { SOLO_QUIZ, soloEngine } = require('./soloquiz');
+// The solo games played by hand, as races (./race.js), and in turns for two (./turns.js).
+const { RACE, raceEngine } = require('./race');
+const { TURNS, turnEngine } = require('./turns');
+const ROOM_ONLY = ['memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'finalvault', 'lostkingdom', ...SOLO_QUIZ, ...RACE, ...TURNS];
 const ROOM_GAMES = ['chess', ...ROOM_ONLY];
 
 const cache = {};
 const engine = (id) => {
     if (!IDS.includes(id) && !RETIRED.includes(id) && !ROOM_ONLY.includes(id)) return null;
-    if (!cache[id]) cache[id] = require(`./${id}`);
+    if (!cache[id]) cache[id] = soloEngine(id) || raceEngine(id) || turnEngine(id) || require(`./${id}`);
     return cache[id];
 };
 

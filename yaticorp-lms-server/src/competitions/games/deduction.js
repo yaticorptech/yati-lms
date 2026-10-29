@@ -1,6 +1,6 @@
 /**
  * Deduction Detective, a Group Brain game: logic grids, orderings, calendars, directions and letter codes, made fresh every game. Every logic grid is checked to have exactly one answer.
- * Two to six players answer the same question at once; a right answer
+ * Two to twenty players answer the same question at once; a right answer
  * scores 100 plus up to 50 for speed, and after each question everyone sees
  * the answer and why. The rules are quizCore.js's.
  */
@@ -14,7 +14,7 @@ module.exports = makeEngine({
     emoji: '🕵️',
     summary: 'Read the clues, rule things out, and name the answer: logic grids, orderings and codes.',
     mode: 'simultaneous',
-    maxSeats: 6,
+    maxSeats: 20,
     questions: { min: 5, max: 15, fallback: 8 },
     seconds: { min: 20, max: 120, fallback: 60 },
     revealMs: 5000,

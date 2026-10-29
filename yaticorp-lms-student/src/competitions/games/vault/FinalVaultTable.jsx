@@ -208,6 +208,8 @@ export default function FinalVaultTable({ view, onAction, busy }) {
 
     // Looking around (the stick).
     const [look, setLook] = useState({ x: 0, y: 0 });
+    // Finished: the camera comes to rest.
+    useEffect(() => { if (me?.done) setLook({ x: 0, y: 0 }); }, [me?.done]);
 
     const submit = (value) => {
         if (!view.canPlay || busy || jammed) return;
@@ -321,7 +323,7 @@ export default function FinalVaultTable({ view, onAction, busy }) {
                     )}
 
                     {/* Looking around. */}
-                    {ch.joystick && <div className="hidden md:block"><Stick at={ch.joystick} onMove={setLook} /></div>}
+                    {ch.joystick && !me?.done && <div className="hidden md:block"><Stick at={ch.joystick} onMove={setLook} /></div>}
 
                     {/* The briefing, while the countdown runs. */}
                     {view.phase === 'ready' && !over && (
@@ -353,8 +355,16 @@ export default function FinalVaultTable({ view, onAction, busy }) {
                             ))}
                             <div className="absolute inset-x-0 top-[28%] text-center">
                                 <p className="font-extrabold text-[#ffe9a8] [text-shadow:0_3px_12px_rgba(0,0,0,.8)]" style={{ ...cinzel, fontSize: fs(22, 4.4, 84) }}>The vault is open!</p>
-                                {myTime != null && <p className="mt-2 font-bold text-white [text-shadow:0_2px_8px_rgba(0,0,0,.8)]" style={{ fontSize: fs(13, 1.6, 28) }}>Your time {fmt(myTime)}{me.penaltyMs ? ` (with +${Math.round(me.penaltyMs / 1000)}s penalties)` : ''}{!over ? ' · waiting for the others…' : ''}</p>}
+                                {myTime != null && <p className="mt-2 font-bold text-white [text-shadow:0_2px_8px_rgba(0,0,0,.8)]" style={{ fontSize: fs(13, 1.6, 28) }}>Your time {fmt(myTime)}{me.penaltyMs ? ` (with +${Math.round(me.penaltyMs / 1000)}s penalties)` : ''}</p>}
                             </div>
+                        </div>
+                    )}
+                    {/* Finished, the others still playing: everything stops here until the time is up, then the results. */}
+                    {me?.done && !over && (
+                        <div className="absolute inset-0 z-50 flex items-end justify-center pb-[5%]" data-waiting>
+                            <p className="rounded-2xl bg-black/80 px-5 py-3 text-center font-black text-[#ffe9a8] shadow-xl" style={{ fontSize: fs(12, 1.4, 24) }}>
+                                Waiting for the others to finish…<span className="block text-white/80" style={{ fontSize: fs(10, 1, 18) }}>Results in {fmt(left)}</span>
+                            </p>
                         </div>
                     )}
                 </div>

@@ -67,7 +67,7 @@ const makeStageEngine = (config) => {
 
     const engine = {
         id: config.id, label: config.label, emoji: config.emoji, summary: config.summary,
-        minSeats: config.minSeats || 2, maxSeats: config.maxSeats || 6,
+        minSeats: config.minSeats || 2, maxSeats: config.maxSeats || 20,
         seatsPerSide: { min: 1, max: 1 },
 
         create(seats, options, ctx) {
@@ -117,7 +117,7 @@ const makeStageEngine = (config) => {
                 s.message = `${s.seats[seat].name} left.`;
                 return maybeOver(s, ctx.now);
             }
-            const run = config.actions[type];
+            const run = config.actions[type] || (type === 'bot-step' && ctx.bot ? () => {} : null);
             if (!run) throw new GameError(`That is not something you can do in ${config.label}.`);
             if (s.phase !== 'play') throw new GameError('Get ready — it starts in a moment.');
             if (ctx.now >= s.phaseEndsAt) throw new GameError('Time is up.');
@@ -126,6 +126,20 @@ const makeStageEngine = (config) => {
             if (p.failed) throw new GameError('Your run is over.');
             // A move for another stage than the current one: a double click, or a screen behind.
             if (action.stage != null && Number(action.stage) !== p.stage) throw new GameError('That stage is already behind you.');
+            // TEMPORARY (online test players, services/testBots.js): a stage solved, or a wrong try, made by the server.
+            if (type === 'bot-step' && ctx.bot) {
+                if (ctx.now < (p.jamUntil || 0)) throw new GameError('Still resetting.');
+                if (action.right) {
+                    p.stage += 1;
+                    if (p.stage >= s.shared.stages.length) p.done = true;
+                } else {
+                    p.mistakes += 1;
+                    p.penaltyMs = (p.penaltyMs || 0) + (s.shared.penalty || 0) * 1000;
+                    p.jamUntil = ctx.now + 2500;
+                }
+                if (p.done && p.doneMs == null) p.doneMs = ctx.now - s.phaseStartedAt;
+                return maybeOver(s, ctx.now);
+            }
             run(s, seat, action, ctx);
             if (p.done && p.doneMs == null) p.doneMs = ctx.now - s.phaseStartedAt;
             return maybeOver(s, ctx.now);

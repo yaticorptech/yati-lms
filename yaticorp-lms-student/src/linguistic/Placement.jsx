@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { linguisticApi, announceRewards } from './api';
-import { LEVELS, levelOf } from './meta';
+import { LEVELS, levelOf, backOr } from './meta';
 import { tr, line } from './say';
 import { Loading, Problem, Chunky } from './ui';
 import Session, { SessionFrame } from './session/Session';
@@ -36,7 +36,7 @@ export default function Placement() {
         // Each screen in the student's language (say.js).
     ].map((st) => ({ language: data.language, ...st })) : []), [data]);
 
-    const toPath = () => navigate('/linguistic');
+    const toPath = backOr(navigate, '/linguistic');
     // The ✕ opens the section's dashboard, wherever it is pressed (2026-10-29, "directly show the dashboard only").
     const toDashboard = () => navigate('/linguistic/dashboard');
     if (data === undefined) return <SessionFrame label="Placement test"><Loading label="Getting the questions ready…" /></SessionFrame>;

@@ -37,10 +37,13 @@ const leaveAll = async (id) => { for (const x of p) await x.call('POST', `/play/
 describe('Group Brain rooms', () => {
     test('the ten games are offered', async () => {
         const r = await p[0].call('GET', '/rooms/games');
-        assert.deepEqual(r.body.games.map((g) => g.id), ['chess', 'memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'finalvault', 'lostkingdom']);
+        // The eleven, then the solo quiz games added 2026-10-29.
+        assert.deepEqual(r.body.games.map((g) => g.id), ['chess', 'memorymatrix', 'patternmaster', 'numberlogic', 'wordlogic', 'sudoku', 'deduction', 'spatialiq', 'sequence', 'finalvault', 'lostkingdom', ...require('../../src/competitions/games/soloquiz').SOLO_QUIZ, ...require('../../src/competitions/games/race').RACE, ...require('../../src/competitions/games/turns').TURNS]);
         const chess = r.body.games.find((g) => g.id === 'chess');
         assert.deepEqual([chess.minSeats, chess.maxSeats], [2, 2]);
-        assert.ok(r.body.games.filter((g) => g.id !== 'chess').every((g) => g.maxSeats === 6));
+        // Every game for 2 to 6, but the ones for two (Chess, Tic-Tac-Toe, Last Stone).
+        assert.ok(r.body.games.filter((g) => !['chess', 'tictactoe', 'laststone'].includes(g.id)).every((g) => g.maxSeats === 20));
+        assert.ok(r.body.games.filter((g) => ['tictactoe', 'laststone'].includes(g.id)).every((g) => g.maxSeats === 2));
     });
 
     test('make, join with the code, ready, start: a 4-player Memory Matrix', async () => {
@@ -118,11 +121,11 @@ describe('Group Brain rooms', () => {
         assert.ok(me && me.wins >= 1 && me.points >= 3);
         const prof = await p[0].call('GET', '/rooms/profile');
         assert.ok(prof.body.played >= 1 && prof.body.wins >= 1);
-        assert.equal(prof.body.games.length, 11);
+        assert.equal(prof.body.games.length, require('../../src/competitions/games').ROOM_GAMES.length);
         assert.equal((await p[0].call('GET', '/rooms/leaderboard?game=nope')).status, 400);
     });
 
-    test('a room is for 2, 4 or 6 players, as its maker picks; only that many join', async () => {
+    test('a room is for 2 to 20 players, as its maker picks; only that many join', async () => {
         assert.equal((await p[0].call('POST', '/rooms', { game: 'wordlogic', options: { players: 3 } })).status, 400, '3 is not a size');
         const two = (await p[0].call('POST', '/rooms', { game: 'wordlogic', options: { players: 2 } })).body.game;
         assert.equal(two.maxSeats, 2);
@@ -135,6 +138,10 @@ describe('Group Brain rooms', () => {
         assert.equal(six.maxSeats, 6);
         for (const x of p.slice(1)) assert.equal((await x.call('POST', '/rooms/join', { code: six.code })).status, 200, 'a 5th player fits in a room for 6');
         for (const x of p) await x.call('POST', `/play/${six.id}/leave`);
+        const ten = (await p[0].call('POST', '/rooms', { game: 'synonymmatch', options: { players: 10 } })).body.game;
+        assert.equal(ten.maxSeats, 10, 'a room for 10');
+        await p[0].call('POST', `/play/${ten.id}/leave`);
+        assert.equal((await p[0].call('POST', '/rooms', { game: 'synonymmatch', options: { players: 24 } })).status, 400, '24 is too many');
     });
 
     test('leaving a game on: the rest play on, and the last one still in wins', async () => {

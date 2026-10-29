@@ -139,7 +139,7 @@ const secretCode = (rng) => {
         const code = `${sun}${moon}${triangle}`;
         return {
             title: 'The Secret Code', kind: 'code',
-            pub: { prompt: 'Work out the 3 numbers and enter the code.', lines, figures, order: ['sun', 'moon', 'triangle'], note },
+            pub: { prompt: 'Find each symbol\'s number. Enter them in the wall\'s order: ☀ then ☾ then △.', lines, figures, order: ['sun', 'moon', 'triangle'], note },
             answer: code, pattern: `${way}/${tri}`,
             solution: `${why.join(', ')}: ${code}.`,
             numbers: { sun, moon, triangle },

@@ -15,9 +15,11 @@
  * ('hidden' games have no reveal: the next question follows at once.)
  *
  * Two ways to answer, `mode`:
- *   'simultaneous'  each seat answers once. Right: 100 points plus up to 50
- *                   for speed. The question closes when every seat still
- *                   playing has answered, or its time runs out.
+ *   'simultaneous'  each seat answers once. Right +100, wrong −20. Nobody's
+ *                   pick, result or points show while the question is open
+ *                   (asked 2026-10-29); the question closes when every seat
+ *                   still playing has answered, or its time runs out, and the
+ *                   reveal shows everyone's answers and points together.
  *   'buzzer'        the first right answer takes the point (+10) and closes
  *                   the question; a wrong answer costs 5 and locks that seat
  *                   out of the question.
@@ -37,8 +39,8 @@
  */
 const { GameError, clone } = require('./contract');
 
-// One colour a seat (up to six in a Group Brain room).
-const PALETTE = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#0ea5e9', '#a855f7', '#ec4899', '#84cc16'];
+// One colour a seat (up to twenty in a Group Brain room).
+const PALETTE = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#0ea5e9', '#a855f7', '#ec4899', '#84cc16', '#14b8a6', '#f97316', '#3b82f6', '#e11d48', '#22c55e', '#eab308', '#8b5cf6', '#06b6d4', '#d946ef', '#65a30d', '#0f766e', '#b45309'];
 const READY_MS = 4000;
 const LEVELS = ['easy', 'medium', 'hard'];
 const LEVEL_TIME = { easy: 1.5, medium: 1, hard: 0.7 };
@@ -77,7 +79,11 @@ const prepare = (q, rng) => {
         lang: q.lang || null,
         options: order.map((i) => String(q.options[i])),
         answer: order.indexOf(q.answer),
-        explain: q.explain || ''
+        explain: q.explain || '',
+        // A picture with the question (a clock, dots, a grid…), and something to memorise before it, shown for
+        // showMs and then taken away (2026-10-29, the solo memory games): both optional.
+        ...(q.visual ? { visual: q.visual } : {}),
+        ...(q.show ? { show: q.show, showMs: q.showMs || 2500 } : {})
     };
 };
 
@@ -125,6 +131,7 @@ const placesOf = (state) => {
 const makeEngine = (config) => {
     const buzzer = config.mode === 'buzzer';
     const hidden = config.mode === 'hidden';
+    const simultaneous = !buzzer && !hidden;
 
     const finish = (state, now) => {
         state.status = 'finished';
@@ -146,9 +153,11 @@ const makeEngine = (config) => {
     /** Open question `index`. */
     const open = (state, index, now) => {
         state.index = index;
-        state.phase = 'question';
+        const q = state.questions[index];
+        // Something to memorise first: shown, then the question.
+        state.phase = q.show ? 'show' : 'question';
         state.phaseStartedAt = now;
-        state.phaseEndsAt = now + state.questionMs;
+        state.phaseEndsAt = now + (q.show ? q.showMs : state.questionMs);
         state.answers[index] = state.seats.map(() => []);
         state.winner = null;
         state.message = `Question ${index + 1} of ${state.questions.length}.`;
@@ -199,7 +208,7 @@ const makeEngine = (config) => {
         const correct = choice === q.answer;
         let points;
         if (buzzer || hidden) points = correct ? 10 : -5;
-        else points = correct ? 100 + Math.round(50 * Math.max(0, 1 - ms / state.questionMs)) : 0;
+        else points = correct ? 100 : -20;
         tries.push({ choice, ms, correct, points });
         state.scores[seat] += points;
         if (correct) {
@@ -219,7 +228,7 @@ const makeEngine = (config) => {
         emoji: config.emoji,
         summary: config.summary,
         minSeats: 2,
-        // Four in a competition match; a Group Brain game takes up to six (config.maxSeats).
+        // Four in a competition match; a Group Brain game takes up to twenty (config.maxSeats).
         maxSeats: config.maxSeats || 4,
         seatsPerSide: { min: 1, max: 1 },
 
@@ -285,6 +294,7 @@ const makeEngine = (config) => {
                 return { answered: true };
             };
             const mine = you !== null ? tries[you] || [] : [];
+            const pending = simultaneous && active && state.phase === 'question';
             return {
                 game: state.game,
                 status: state.status,
@@ -304,11 +314,20 @@ const makeEngine = (config) => {
                 questionMs: state.questionMs,
                 number: state.index + 1,
                 total: state.questions.length,
-                question: q && state.phase !== 'over' ? { topic: q.topic, prompt: q.prompt, code: q.code, lang: q.lang, options: [...q.options] } : null,
+                question: q && state.phase !== 'over' && state.phase !== 'show' ? { topic: q.topic, prompt: q.prompt, code: q.code, lang: q.lang, options: [...q.options], visual: q.visual || null } : null,
+                // What to memorise: only while it is shown.
+                show: q && state.phase === 'show' ? { topic: q.topic, content: q.show, showMs: q.showMs } : null,
                 answer: q && showAnswer && state.phase !== 'over' ? { index: q.answer, explain: q.explain } : null,
                 answers: state.seats.map((_, i) => seatAnswer(i)),
-                scores: secret ? null : [...state.scores],
-                correct: secret ? null : [...state.correct],
+                // All at once: the open question's points wait for the reveal.
+                scores: secret ? null : state.scores.map((n, i) => n - (pending ? tries[i]?.reduce((t, x) => t + x.points, 0) || 0 : 0)),
+                correct: secret ? null : state.correct.map((n, i) => n - (pending && tries[i]?.some((x) => x.correct) ? 1 : 0)),
+                // The questions answered wrong (the scoreboard's ✗); the open one waits for the reveal.
+                wrong: secret ? null : state.seats.map((_, i) => state.answers.reduce((t, qa, n) => {
+                    if (n > state.index || (pending && n === state.index)) return t;
+                    const last = qa?.[i]?.[qa[i].length - 1];
+                    return t + (last && !last.correct ? 1 : 0);
+                }, 0)),
                 out: [...state.out],
                 canAnswer: active && you !== null && state.phase === 'question' && !state.out.includes(you) && mine.length === 0,
                 // The whole game, question by question, once it is over.
@@ -351,6 +370,12 @@ const makeEngine = (config) => {
             if (input.status !== 'active' || input.phaseEndsAt > ctx.now) return null;
             const state = clone(input);
             if (state.phase === 'ready') return open(state, 0, ctx.now);
+            if (state.phase === 'show') {
+                state.phase = 'question';
+                state.phaseStartedAt = ctx.now;
+                state.phaseEndsAt = ctx.now + state.questionMs;
+                return state;
+            }
             if (state.phase === 'question') return close(state, ctx.now);
             return next(state, ctx.now);
         },

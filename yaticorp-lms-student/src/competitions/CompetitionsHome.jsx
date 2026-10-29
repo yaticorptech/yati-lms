@@ -21,6 +21,7 @@
  * The tab lives in the address (?tab=) so a link can open the right one.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import useLive from '../live/useLive';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -290,20 +291,22 @@ const ChipIcon = ({ game, className }) => {
 const GoldCard = ({ game, gameLabel, bannerUrl, name, organizedBy, stats, extra, to, linkData }) => {
     const [broken, setBroken] = useState(false);
     return (
-        // Built like the Results cards (asked 2026-10-28): one size, a short
-        // cropped picture, the game and status, a two-line name, the
-        // organizer, three facts one under another, and View at the bottom.
+        // Built like the Results cards (asked 2026-10-28): one size, the
+        // picture, the game and status, the name, the organizer, three facts
+        // one under another, and View at the bottom. The picture is tall
+        // enough to see clearly and takes any height left over, so a card
+        // with a one-line name has no blank gap (asked 2026-10-29).
         <article {...linkData} className="group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-[0_14px_30px_rgba(59,47,192,0.14)] motion-reduce:hover:translate-y-0">
-            <div className="relative w-full overflow-hidden bg-[#16123f]">
-                <span aria-hidden="true" className="block pb-[30%]" />
+            <div className="relative w-full flex-1 overflow-hidden bg-[#16123f]">
+                <span aria-hidden="true" className="block pb-[50%]" />
                 {!bannerUrl && ART[game] ? (
                     <span aria-hidden="true" className={`absolute inset-0 flex items-center bg-gradient-to-br pl-[8%] ${GAMES[game].tone}`}>{(() => { const Art = ART[game]; return <Art className="h-[60%] w-auto text-white/90" strokeWidth={1.6} />; })()}</span>
                 ) : !broken && <img src={bannerUrl || cardImage(game)} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 h-full w-full object-cover" style={bannerUrl ? undefined : { objectPosition: FOCUS[game] || 'center' }} />}
             </div>
-            <div className="flex flex-1 flex-col p-5">
+            <div className="flex flex-col p-5">
                 <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold text-slate-600"><ChipIcon game={game} className="h-4 w-4 shrink-0" /> {gameLabel}</span>
-                {/* The name (up to two lines) with the organizer right under it; the block keeps one height so every card lines up. */}
-                <div className="mt-2 min-h-[4.75rem]">
+                {/* The name (up to two lines) with the organizer right under it. */}
+                <div className="mt-2">
                     <h3 className="line-clamp-2 text-lg font-bold leading-snug text-slate-900 transition-colors group-hover:text-indigo-700">{name}</h3>
                     <p className="mt-0.5 truncate text-sm text-slate-500">Organized by {organizedBy}</p>
                 </div>
@@ -681,9 +684,16 @@ const ResultsTab = () => {
 
 /* ── Certificates (mine) — the History tab, as asked 2026-10-27 ─────── */
 
-/** One certificate: what it is for, and the certificate itself, opened on the page. */
+/** One certificate: what it is for, and the certificate itself, opened in a popup (asked 2026-10-29). */
 const CertificateCard = ({ title, sub, badge, load, fileName, to }) => {
     const [open, setOpen] = useState(false);
+    // Escape closes the popup (unless the certificate is in the browser's full screen, which Escape leaves first).
+    useEffect(() => {
+        if (!open) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape' && !document.fullscreenElement) setOpen(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [open]);
     return (
         <li className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" data-certificate-card>
             <div className="flex flex-wrap items-center gap-3">
@@ -692,11 +702,17 @@ const CertificateCard = ({ title, sub, badge, load, fileName, to }) => {
                     <Link to={to} className="block break-words text-sm font-black text-slate-900 hover:text-indigo-700">{title}</Link>
                     <span className="block text-xs text-slate-500">{sub}</span>
                 </span>
-                <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-bold text-white hover:bg-indigo-700">
-                    <Award size={14} aria-hidden="true" /> {open ? 'Hide certificate' : 'Show certificate'}
+                <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 text-xs font-bold text-white hover:bg-indigo-700">
+                    <Award size={14} aria-hidden="true" /> Show certificate
                 </button>
             </div>
-            {open && <CertificateInline className="mt-3" load={load} fileName={fileName} />}
+            {open && createPortal(
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Your certificate"
+                    onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }} data-certificate-popup>
+                    <CertificateInline className="!max-w-3xl shadow-2xl" load={load} fileName={fileName} onClose={() => setOpen(false)} />
+                </div>,
+                document.body
+            )}
         </li>
     );
 };
