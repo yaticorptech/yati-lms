@@ -128,7 +128,7 @@ export default function JobsLockedNotice({
                                 )}
 
                                 {careerPathEnabled ? (
-                                    <Link to="/career/skills" className={action}>
+                                    <Link to="/career/profile?view=skills" className={action}>
                                         <Sparkles size={22} /> <span>Grow my skills</span> <ArrowRight size={22} />
                                     </Link>
                                 ) : (

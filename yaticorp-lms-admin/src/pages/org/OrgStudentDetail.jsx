@@ -19,6 +19,7 @@ import {
     CheckCircle2, UserMinus, AlertTriangle, Mail, Phone, Clock, ListChecks, CalendarDays, Trophy, Medal, UserPlus
 } from 'lucide-react';
 import api from '../../utils/api';
+import StudentDevicesCard from '../../components/StudentDevicesCard';
 import { CARD, Stat, Bar, Pill, Empty, Avatar, RemoveStudentDialog } from '../../components/orgUi';
 import { formatDate, relativeDay } from '../../utils/dates';
 
@@ -252,6 +253,9 @@ const OrgStudentDetail = () => {
                     </button>
                 </div>
             </div>
+
+            {/* ── Devices: where they sign in, residential card, reset ──────── */}
+            <StudentDevicesCard base={`/organizations/me/students/${studentId}/devices`} />
 
             {/* ── Overview ─────────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">

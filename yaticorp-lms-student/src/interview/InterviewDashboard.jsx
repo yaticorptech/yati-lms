@@ -114,8 +114,9 @@ export default function InterviewDashboard() {
         } catch { return undefined; }   // a bad or missing cache is simply no cache
     });
     const [error, setError] = useState(null);
-    const [type, setType] = useState('full');
-    const [role, setRole] = useState(() => data?.student?.goal || '');
+    // Nothing chosen by default: the student picks the type and role (asked 2026-10-29).
+    const [type, setType] = useState('');
+    const [role, setRole] = useState('');
     const [customRole, setCustomRole] = useState('');
     const [starting, setStarting] = useState(false);
     const [tipOpen, setTipOpen] = useState(() => { try { return localStorage.getItem(TIP_DISMISS_KEY) !== new Date().toDateString(); } catch { return true; } });
@@ -123,7 +124,7 @@ export default function InterviewDashboard() {
     const [tip] = useState(() => TIPS[Math.floor(Date.now() / 86_400_000) % TIPS.length]);
 
     const load = useCallback(() => interviewApi.dashboard().then((d) => {
-        setData(d); setRole((r) => r || d.student?.goal || ROLES[0]); setError(null);
+        setData(d); setError(null);
         try { localStorage.setItem(cacheKey, JSON.stringify(d)); } catch { /* private mode */ }
     }).catch((e) => { setError(e); setData((cur) => cur || null); }), [cacheKey]);
     useEffect(() => { load(); }, [load]);
@@ -137,7 +138,14 @@ export default function InterviewDashboard() {
     const chosenRole = role === OTHER ? customRole.trim() : role;
 
     // The interview itself starts on the introduction screen, where the microphone is explained and asked for.
-    const start = (which = type) => { setStarting(true); navigate(`/interview/mock/new?type=${encodeURIComponent(which)}&role=${encodeURIComponent(chosenRole)}`); };
+    const start = (which = type) => {
+        setStarting(true);
+        // Only what was chosen goes along; the introduction asks for the rest.
+        const q = new URLSearchParams();
+        if (which) q.set('type', which);
+        if (chosenRole) q.set('role', chosenRole);
+        navigate(`/interview/mock/new${q.toString() ? `?${q}` : ''}`);
+    };
     const dismissTip = () => { setTipOpen(false); try { localStorage.setItem(TIP_DISMISS_KEY, new Date().toDateString()); } catch { /* private mode */ } };
 
     if (data === undefined) return <div className="w-full pb-12"><Analyzing label="Checking your interview readiness…" /></div>;
@@ -296,7 +304,7 @@ export default function InterviewDashboard() {
                         <div className="relative mt-1.5">
                             <Dropdown
                                 label="Job role" icon={Briefcase}
-                                value={roleOptions.includes(role) ? role : OTHER} onChange={setRole}
+                                value={!role ? '' : roleOptions.includes(role) ? role : OTHER} onChange={setRole} placeholder="Choose a job role"
                                 options={[...roleOptions.map((x) => ({ value: x, label: x })), { value: OTHER, label: 'Other role…' }]}
                                 className="relative w-full appearance-none rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-9 text-sm font-semibold text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
                         </div>

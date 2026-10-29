@@ -16,7 +16,7 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, CalendarCheck, Calendar, Map, Target, GraduationCap,
+  LayoutDashboard, CalendarCheck, Calendar, Map, GraduationCap,
   UserCircle, Award, Flag, Sparkles
 } from 'lucide-react';
 
@@ -26,48 +26,47 @@ import CareerProviders from './CareerProviders';
 import WhatsNew from './components/WhatsNew';
 
 /**
- * The section's ten screens, in the order the standalone app grouped them:
- * today's work first, the long view next, then progress and support. The group
- * labels survive as separators in the tab strip — nine peers competing as
- * equals was the problem the grouping originally solved.
+ * The section's screens in the order a student moves through them, one step
+ * flowing into the next (2026-10-29): see where you stand, see the road, do
+ * today's part, keep the dates, watch it grow, collect the rewards, then the
+ * scholarships that fund it; Edit Goal last. The group labels survive as
+ * separators in the tab strip.
  */
 const NAV_GROUPS = [
   {
-    label: 'Today',
+    label: 'Start',
     items: [
       { name: 'Overview', path: '/career', icon: LayoutDashboard, exact: true, tone: 'from-violet-500 to-indigo-600 shadow-violet-500/40' },
+      { name: 'Roadmap', path: '/career/roadmap', icon: Map, tone: 'from-emerald-400 to-teal-600 shadow-emerald-500/40' }
+    ]
+  },
+  {
+    label: 'Every day',
+    items: [
       { name: "Today's Plan", path: '/career/planner', icon: CalendarCheck, tone: 'from-amber-400 to-orange-500 shadow-orange-500/40' },
       { name: 'Calendar', path: '/career/calendar', icon: Calendar, tone: 'from-sky-400 to-blue-600 shadow-sky-500/40' }
     ]
   },
   {
-    label: 'Your path',
+    label: 'Growth',
     items: [
-      { name: 'Roadmap', path: '/career/roadmap', icon: Map, tone: 'from-emerald-400 to-teal-600 shadow-emerald-500/40' },
-      // Skills holds what was "Ideas & Resources" too, as its "What to learn" view (2026-10-27).
-      { name: 'Skills', path: '/career/skills', icon: Target, tone: 'from-pink-400 to-rose-600 shadow-pink-500/40' },
-      // Scholarships moved here from the sidebar the same day.
-      { name: 'Scholarships', path: '/career/scholarships', icon: GraduationCap, tone: 'from-fuchsia-500 to-violet-600 shadow-fuchsia-500/40' }
-    ]
-  },
-  {
-    label: 'Progress',
-    items: [
+      // Skills (with "What to learn") is inside My Progress since 2026-10-29.
       { name: 'My Progress', path: '/career/profile', icon: UserCircle, tone: 'from-indigo-400 to-violet-600 shadow-indigo-500/40' },
       // The brain games (Brain Boosters) left this strip on 2026-10-23: they are the Games section (/games).
-      { name: 'Rewards', path: '/career/badges', icon: Award, tone: 'from-orange-400 to-red-500 shadow-orange-500/40' }
+      { name: 'Rewards', path: '/career/badges', icon: Award, tone: 'from-orange-400 to-red-500 shadow-orange-500/40' },
+      { name: 'Scholarships', path: '/career/scholarships', icon: GraduationCap, tone: 'from-fuchsia-500 to-violet-600 shadow-fuchsia-500/40' }
     ]
   },
   {
     label: 'Support',
     // Not "Settings": the page holds the student's studies and their goal,
-    // what the roadmap is built from.
+    // what the roadmap is built from. Last, as a place to come back to.
     items: [{ name: 'Edit Goal', path: '/career/settings', icon: Flag, tone: 'from-slate-400 to-slate-600 shadow-slate-500/40' }]
   }
 ];
 
 // Tabs the guide walks to by name; the rest keep a plain `tab-<name>`.
-const GUIDE_TARGETS = { skills: 'skills', roadmap: 'view-roadmap' };
+const GUIDE_TARGETS = { roadmap: 'view-roadmap' };
 
 function CareerFrame() {
   const { refresh } = useContext(AuthContext);

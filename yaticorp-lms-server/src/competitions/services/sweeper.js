@@ -32,7 +32,7 @@ const sweepOnce = async () => {
     // Group Brain: results any restart left unwritten, and tournaments that have closed.
     try { await require('../groupbrain/results').backfill(); await require('../groupbrain/tournaments').finalizeDue(); } catch (err) { console.warn('[group brain] sweep failed:', err.message); }
     // Competitions finished before results needed publishing (2026-10-27): theirs count as published.
-    try { await require('../models/Competition').updateMany({ status: 'completed', resultsPublishedAt: null, completedAt: { $ne: null, $lt: PUBLISHING_FROM } }, [{ $set: { resultsPublishedAt: '$completedAt' } }]); } catch (err) { console.warn('[competitions] publishing past results failed:', err.message); }
+    try { await require('../models/Competition').updateMany({ status: 'completed', resultsPublishedAt: null, completedAt: { $ne: null, $lt: PUBLISHING_FROM } }, [{ $set: { resultsPublishedAt: '$completedAt' } }], { updatePipeline: true }); } catch (err) { console.warn('[competitions] publishing past results failed:', err.message); }
     // A scheduled match waits for the admin's Start: it never opens by itself.
     // A rematch after a draw does, 5 minutes on.
     await require('./bracketService').openDueReplays();

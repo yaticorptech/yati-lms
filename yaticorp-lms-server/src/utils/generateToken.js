@@ -4,8 +4,9 @@
  */
 const jwt = require('jsonwebtoken');
 
-const generateToken = (id, role = 'user') => {
-    return jwt.sign({ id, role }, process.env.JWT_SECRET, {
+// `extra` carries a student's device (did) so a removed device's token stops working (services/deviceGuard.js).
+const generateToken = (id, role = 'user', extra = {}) => {
+    return jwt.sign({ id, role, ...extra }, process.env.JWT_SECRET, {
         expiresIn: '30d',
     });
 };

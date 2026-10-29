@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, BookOpen, LogOut, BookOpenCheck,
     Network, Shield, MessageCircleQuestion, RefreshCw,
-    Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, CreditCard, HandCoins, ChevronDown, ChartNoAxesCombined, ScrollText } from 'lucide-react';
+    Menu, X, BarChart2, Megaphone, Settings, User, Compass, Briefcase, Gift, Globe, Building2, Trophy, CreditCard, HandCoins, ChevronDown, ChartNoAxesCombined, ScrollText, Presentation } from 'lucide-react';
 import api from '../utils/api';
 import useAutoLogout from "../utils/useAutoLogout";
 import useCenterTabs from '../hooks/useCenterTabs';
@@ -195,6 +195,8 @@ const AdminLayout = () => {
                         the whole heading is left out for anyone else. */}
                     <NavGroup icon={CreditCard} label="Manage cards" isActive={isActive} items={superAdmin ? [
                         { to: '/verify-cards', label: 'Verify cards', icon: CreditCard },
+                        // Presentation cards: scan to open with no password, reset to a fresh card.
+                        { to: '/demo-cards', label: 'Demo cards', icon: Presentation },
                         { to: '/wallet-recharge', label: 'Wallet recharge', icon: HandCoins }
                     ] : []} />
                     {/* Organizations is a super admin's alone: the server refuses

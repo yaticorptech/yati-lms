@@ -195,6 +195,13 @@ const scanCard = async (req, res) => {
             return res.status(403).json({ message: 'This account is not active. Contact your administrator.' });
         }
 
+        // A demo (presentation) card: its scan is the sign-in — no password (services/demoCards.js).
+        // Only a scan: typing the number still asks for the password.
+        if (require('../services/fullAccess').hasFullAccess(user)) {
+            const full = await User.findById(user._id);
+            return require('./userAuthController').finishLogin(req, res, full);
+        }
+
         // The number as the account knows it, as text, which is what login reads.
         res.json({ cardNumber: String(user.cardNumber || card.CardNumber) });
     } catch (error) {
@@ -382,7 +389,7 @@ const registerStudent = async (req, res) => {
             loginCount: user.loginCount || 0,
             role: 'student',
             organization,
-            token: generateToken(user._id, 'student')
+            token: generateToken(user._id, 'student', { did: require('../services/deviceGuard').deviceOf(req).deviceId, sid: await require('../services/deviceGuard').startSession(user) })
         });
 
     } catch (error) {

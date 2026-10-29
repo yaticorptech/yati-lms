@@ -219,6 +219,8 @@ const ensurePrep = async (userId, context) => {
 // gets the IQ tests and the rest, and this lock instead of the dashboard.
 const BELOW_PUC = new Set(['primary', 'middle', 'high']);
 const mockLock = async (userId) => {
+    // The demo (presentation) cards open mock interviews at any level.
+    if (await require('../services/fullAccess').fullAccessForUserId(userId)) return null;
     const level = await levelOf(userId);
     return BELOW_PUC.has(level.key) ? { classNo: level.classNo, message: 'Mock interviews unlock when you reach PUC (Class 11).' } : null;
 };
@@ -296,7 +298,7 @@ router.post('/questions/:id/practice', async (req, res, next) => {
  * back instead, for the caller to put to the candidate.
  * @returns {Promise<{turn: object|null, redirect?: string}>} turn null = closing time
  */
-const askNext = async (session, context, userId, { judge = false } = {}) => {
+const askNext = async (session, context, userId, { judge = false, allowRetry = false } = {}) => {
     const turns = session.turns;
     const lastTurn = turns[turns.length - 1] || null;
     const cursor = turns.filter((t) => !t.isFollowUp).length;
@@ -307,6 +309,12 @@ const askNext = async (session, context, userId, { judge = false } = {}) => {
     const q = await ai.nextQuestion({ session, context, nextStage, canFollowUp, lastTurn, userId, judge });
     if (!session.interviewer) session.interviewer = q.interviewer || 'template';
     if (q.addressed === false && q.redirect) return { turn: null, redirect: q.redirect };
+    // A wrong or unsatisfying answer: said plainly, and the same question put again to improve it (once).
+    if (allowRetry && (q.quality === 'incorrect' || q.quality === 'weak')) {
+        const lead = q.quality === 'incorrect' ? 'That answer is not correct.' : 'That answer is not quite enough.';
+        return { turn: null, retry: { quality: q.quality, message: `${q.feedback || lead} Improve your answer and try again.` } };
+    }
+    if (lastTurn && q.quality) lastTurn.quality = q.quality;
     session.turns.push({ index: turns.length, stage: q.stage, question: q.question, isFollowUp: q.isFollowUp, difficulty: q.difficulty, askedAt: new Date() });
     return { turn: session.turns[session.turns.length - 1] };
 };
@@ -357,7 +365,14 @@ router.post('/sessions/:id/answer', async (req, res, next) => {
         // The interviewer reads the answer as it decides what to ask next. If
         // it says that answered something else entirely, the answer is not
         // kept and the question is put again.
-        const { turn: nextTurn, redirect } = await askNext(session, context, req.user._id, { judge: asked < MAX_CLARIFICATIONS });
+        const { turn: nextTurn, redirect, retry } = await askNext(session, context, req.user._id, { judge: asked < MAX_CLARIFICATIONS, allowRetry: !current.improved });
+        if (retry) {
+            // Not kept: they try once more with the interviewer's note in hand.
+            current.answer = ''; current.answeredAt = null; current.inputMode = 'text'; current.voice = null;
+            current.improved = true;
+            await session.save();
+            return res.json({ ...publicSession(session), done: false, clarification: retry.message, clarificationKind: retry.quality, verdict: retry.quality });
+        }
         if (redirect) {
             current.answer = ''; current.answeredAt = null; current.inputMode = 'text'; current.voice = null;
             current.clarifications = asked + 1;
@@ -368,7 +383,8 @@ router.post('/sessions/:id/answer', async (req, res, next) => {
             session.closingMessage = `Thank you, ${context.firstName}. That concludes our interview — I'll put your evaluation together now.`;
         }
         await session.save();
-        res.json({ ...publicSession(session), done: !nextTurn });
+        // How the kept answer was judged, for the interviewer's face ('' when it was not).
+        res.json({ ...publicSession(session), done: !nextTurn, verdict: current.quality || '' });
     } catch (err) { next(err); }
 });
 

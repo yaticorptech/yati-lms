@@ -255,6 +255,8 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
     const [enrollModal, setEnrollModal] = useState(null); // { _id, title }
     // The available course whose Preview (what is inside it) is open.
     const [previewCourse, setPreviewCourse] = useState(null);
+    // Available Courses shows three rows at a time; See more adds three more.
+    const [visibleCount, setVisibleCount] = useState(9);
     // Learning Bio's Preview sends a student here to enrol (?enroll=<course>):
     // the confirmation opens on that course once the list has it. A course
     // that is not on the list (already theirs) just drops the request.
@@ -478,8 +480,9 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
                     )
                 ) : activeTab === 'available' ? (
                     catalogue.length > 0 ? (
+                        <>
                         <div data-explain="pricing" className="stagger grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {catalogue.map(course => (
+                            {catalogue.slice(0, visibleCount).map(course => (
                                 <div key={course._id} className={`group relative flex flex-col overflow-hidden rounded-3xl border bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${course.enrolled ? 'border-emerald-200 hover:shadow-emerald-100' : 'border-slate-200 hover:border-indigo-200 hover:shadow-indigo-100'}`}>
                                     {/* cover */}
                                     <div className="relative h-44 overflow-hidden">
@@ -567,6 +570,18 @@ const DashboardCourses = ({ courses, availableCourses, loading, error, buyingCou
                                 </div>
                             ))}
                         </div>
+                        {catalogue.length > visibleCount && (
+                            <div className="mt-8 flex justify-center">
+                                <button
+                                    type="button"
+                                    onClick={() => setVisibleCount((n) => n + 9)}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-6 py-3 font-semibold text-indigo-600 transition-colors hover:bg-indigo-50"
+                                >
+                                    See more courses ({catalogue.length - visibleCount})
+                                </button>
+                            </div>
+                        )}
+                        </>
                     ) : (
                         <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-white">
                             <CompletedScene />

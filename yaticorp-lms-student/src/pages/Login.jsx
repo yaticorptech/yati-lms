@@ -2,10 +2,10 @@
  * @author Preethesh Kulal
  * @description Student login page with card number, password and forgot password support
  */
-import Mascot from '../components/Mascot';
 import ProfileImage from '../components/ProfileImage';
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
+import DeviceLimitDialog from '../components/DeviceLimitDialog';
 import { Navigate, Link, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
 import { isNative } from '../native/platform';
@@ -39,59 +39,59 @@ const ContactAdminModal = ({ onClose, page = 'login' }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div role="dialog" aria-modal="true" aria-labelledby="contact-admin-title" className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
+            <div role="dialog" aria-modal="true" aria-labelledby="contact-admin-title" className="bg-[#2a2f45] rounded-2xl shadow-2xl ring-1 ring-white/10 w-full max-w-md overflow-hidden">
+                <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.04]">
                     <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-100 rounded-lg"><MessageCircleQuestion size={20} className="text-indigo-600" /></div>
+                        <div className="p-2 bg-indigo-500/20 rounded-lg"><MessageCircleQuestion size={20} className="text-indigo-300" /></div>
                         <div>
-                            <h2 id="contact-admin-title" className="text-lg font-bold text-slate-800">Contact Admin</h2>
-                            <a href="tel:9535440195" className="text-sm text-indigo-600 font-semibold hover:underline">📞 9535440195</a>
+                            <h2 id="contact-admin-title" className="text-lg font-bold text-slate-100">Contact Admin</h2>
+                            <a href="tel:9535440195" className="text-sm text-indigo-300 font-semibold hover:underline">📞 9535440195</a>
                         </div>
                     </div>
-                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-200 transition-colors"><X size={20} /></button>
                 </div>
 
                 {done ? (
                     <div className="p-8 text-center">
                         <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle2 size={28} className="text-emerald-600" />
+                            <CheckCircle2 size={28} className="text-emerald-400" />
                         </div>
-                        <h3 className="font-bold text-slate-800 text-lg mb-1">Message Sent!</h3>
-                        <p className="text-slate-500 text-sm mb-4">We've received your request and will get back to you soon.</p>
+                        <h3 className="font-bold text-slate-100 text-lg mb-1">Message Sent!</h3>
+                        <p className="text-slate-400 text-sm mb-4">We've received your request and will get back to you soon.</p>
                         <button onClick={onClose} className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors">Close</button>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                        {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
+                        {error && <div role="alert" className="bg-red-500/10 border border-red-400/30 text-red-300 p-3 rounded-lg text-sm">{error}</div>}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label htmlFor="contact-name" className="block text-xs font-semibold text-slate-700 mb-1">Name *</label>
+                                <label htmlFor="contact-name" className="block text-xs font-semibold text-slate-200 mb-1">Name *</label>
                                 <input id="contact-name" required autoComplete="name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Your name" />
+                                    className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Your name" />
                             </div>
                             <div>
-                                <label htmlFor="contact-email" className="block text-xs font-semibold text-slate-700 mb-1">Email *</label>
+                                <label htmlFor="contact-email" className="block text-xs font-semibold text-slate-200 mb-1">Email *</label>
                                 <input id="contact-email" required type="email" autoComplete="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="your@email.com" />
+                                    className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="your@email.com" />
                             </div>
                         </div>
                         <div>
-                            <label htmlFor="contact-card" className="block text-xs font-semibold text-slate-700 mb-1">Card Number (optional)</label>
+                            <label htmlFor="contact-card" className="block text-xs font-semibold text-slate-200 mb-1">Card Number (optional)</label>
                             <input id="contact-card" autoComplete="off" value={form.cardNumber} onChange={e => setForm({ ...form, cardNumber: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="If you have one" />
+                                className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="If you have one" />
                         </div>
                         <div>
-                            <label htmlFor="contact-subject" className="block text-xs font-semibold text-slate-700 mb-1">Subject *</label>
+                            <label htmlFor="contact-subject" className="block text-xs font-semibold text-slate-200 mb-1">Subject *</label>
                             <input id="contact-subject" required value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Brief description of your issue" />
+                                className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Brief description of your issue" />
                         </div>
                         <div>
-                            <label htmlFor="contact-message" className="block text-xs font-semibold text-slate-700 mb-1">Message *</label>
+                            <label htmlFor="contact-message" className="block text-xs font-semibold text-slate-200 mb-1">Message *</label>
                             <textarea id="contact-message" required rows="4" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue in detail..." />
+                                className="w-full px-3 py-2 border border-white/15 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="Describe your issue in detail..." />
                         </div>
                         <div className="flex justify-end space-x-3 pt-1">
-                            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm">Cancel</button>
+                            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-300 font-medium hover:bg-white/10 rounded-lg transition-colors text-sm">Cancel</button>
                             <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm flex items-center disabled:opacity-50">
                                 <Send size={14} className="mr-1.5" />{loading ? 'Sending...' : 'Send Message'}
                             </button>
@@ -204,41 +204,41 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-            <div role="dialog" aria-modal="true" aria-labelledby="forgot-password-title" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-                <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
+            <div role="dialog" aria-modal="true" aria-labelledby="forgot-password-title" className="bg-[#2a2f45] rounded-2xl shadow-2xl ring-1 ring-white/10 w-full max-w-sm overflow-hidden">
+                <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.04]">
                     <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-100 rounded-lg"><KeyRound size={18} className="text-indigo-600" /></div>
-                        <h2 id="forgot-password-title" className="text-lg font-bold text-slate-800">Forgot Password</h2>
+                        <div className="p-2 bg-indigo-500/20 rounded-lg"><KeyRound size={18} className="text-indigo-300" /></div>
+                        <h2 id="forgot-password-title" className="text-lg font-bold text-slate-100">Forgot Password</h2>
                     </div>
-                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+                    <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-200 transition-colors"><X size={20} /></button>
                 </div>
                 <div className="p-6">
                     {step === 'sent' ? (
                         <div className="text-center">
                             <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <Mail size={24} className="text-emerald-600" />
+                                <Mail size={24} className="text-emerald-400" />
                             </div>
-                            <p className="text-slate-800 font-bold">Check your email</p>
-                            <p className="mt-1 text-slate-600 text-sm">We sent a reset link to <span className="font-semibold text-slate-800">{account?.email}</span>. It works for 1 hour.</p>
+                            <p className="text-slate-100 font-bold">Check your email</p>
+                            <p className="mt-1 text-slate-300 text-sm">We sent a reset link to <span className="font-semibold text-slate-100">{account?.email}</span>. It works for 1 hour.</p>
                             {message && <p className="sr-only">{message}</p>}
                             <button onClick={onClose} className="mt-5 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors text-sm">Close</button>
                         </div>
                     ) : step === 'confirm' ? (
                         <div className="space-y-4">
-                            <p className="text-sm text-slate-500">Is this your account? The reset link will go to this email.</p>
-                            <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-violet-50 p-4">
+                            <p className="text-sm text-slate-400">Is this your account? The reset link will go to this email.</p>
+                            <div className="flex items-center gap-3 rounded-2xl border border-indigo-400/20 bg-gradient-to-br from-indigo-50 to-violet-50 p-4">
                                 <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-lg font-black text-white shadow-md ring-2 ring-white">
                                     <ProfileImage src={account?.photo} alt="" className="h-full w-full object-cover" fallback={(account?.name || '?').trim()[0]?.toUpperCase()} />
                                 </span>
                                 <div className="min-w-0">
-                                    <p className="truncate font-bold text-slate-900">{account?.name}</p>
-                                    <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-slate-600"><Mail size={13} className="shrink-0 text-indigo-500" /> {account?.email}</p>
+                                    <p className="truncate font-bold text-white">{account?.name}</p>
+                                    <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-slate-300"><Mail size={13} className="shrink-0 text-indigo-300" /> {account?.email}</p>
                                     <p className="mt-0.5 font-mono text-xs tracking-wider text-slate-400">{cardNumber}</p>
                                 </div>
                             </div>
-                            {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
+                            {error && <div role="alert" className="bg-red-500/10 border border-red-400/30 text-red-300 p-3 rounded-lg text-sm">{error}</div>}
                             <div className="flex justify-end gap-3">
-                                <button type="button" onClick={startOver} disabled={loading} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm">Not me</button>
+                                <button type="button" onClick={startOver} disabled={loading} className="px-4 py-2 text-slate-300 font-medium hover:bg-white/10 rounded-lg transition-colors text-sm">Not me</button>
                                 <button type="button" onClick={send} disabled={loading} className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm disabled:opacity-50">
                                     {loading ? <><Loader2 size={15} className="animate-spin" /> Sending…</> : <><Send size={15} /> Yes, send link</>}
                                 </button>
@@ -246,51 +246,51 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            <p className="text-sm text-slate-500">Scan your card or type its number. We'll show you the account before sending a reset link to its email.</p>
+                            <p className="text-sm text-slate-400">Scan your card or type its number. We'll show you the account before sending a reset link to its email.</p>
 
-                            <div className={`grid overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1 ${role === 'teacher' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                            <div className={`grid overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] p-1 ${role === 'teacher' ? 'grid-cols-3' : 'grid-cols-2'}`}>
                                 {[['scan', 'Scan Card', ScanLine], ['manual', 'Type Instead', Keyboard], ...(role === 'teacher' ? [['email', 'Email', Mail]] : [])].map(([id, label, Icon]) => (
                                     <button key={id} type="button" onClick={() => { setError(''); setScanning(false); setMode(id); }}
-                                        className={`inline-flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-bold transition-all ${mode === id ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
+                                        className={`inline-flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-bold transition-all ${mode === id ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/15' : 'text-slate-400 hover:text-white'}`}>
                                         <Icon size={15} /> {label}
                                     </button>
                                 ))}
                             </div>
 
-                            {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm">{error}</div>}
+                            {error && <div role="alert" className="bg-red-500/10 border border-red-400/30 text-red-300 p-3 rounded-lg text-sm">{error}</div>}
 
                             {byEmail ? (
                                 <form onSubmit={(e) => { e.preventDefault(); lookUp(''); }} className="space-y-4">
                                     <div>
-                                        <label htmlFor="forgot-email" className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
+                                        <label htmlFor="forgot-email" className="block text-sm font-semibold text-slate-200 mb-1">Email</label>
                                         <input id="forgot-email" type="email" required autoComplete="username" value={email} onChange={e => setEmail(e.target.value)}
-                                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-800"
+                                            className="w-full px-4 py-3 border border-white/15 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-100"
                                             placeholder="The email you sign in with" />
-                                        <p className="mt-1 text-xs text-slate-500">For a teacher account without a card.</p>
+                                        <p className="mt-1 text-xs text-slate-400">For a teacher account without a card.</p>
                                     </div>
                                     <div className="flex justify-end space-x-3">
-                                        <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm">Cancel</button>
+                                        <button type="button" onClick={onClose} className="px-4 py-2 text-slate-300 font-medium hover:bg-white/10 rounded-lg transition-colors text-sm">Cancel</button>
                                         <button type="submit" disabled={loading} className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm disabled:opacity-50">
                                             {loading ? <><Loader2 size={15} className="animate-spin" /> Checking…</> : <>Continue <ArrowRight size={15} /></>}
                                         </button>
                                     </div>
                                 </form>
                             ) : mode === 'scan' ? (
-                                <div className="rounded-2xl border-2 border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/70 p-5 text-center">
+                                <div className="rounded-2xl border-2 border-dashed border-indigo-400/40 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/70 p-5 text-center">
                                     {/* html5-qrcode needs this element present before it starts. */}
                                     <div id={FORGOT_SCANNER_ID} className={`overflow-hidden rounded-xl bg-slate-900 ${scanning ? 'block' : 'hidden'}`} />
                                     {!scanning ? (
                                         <>
                                             <button type="button" onClick={() => { setError(''); setScanning(true); }} disabled={loading} aria-label="Scan your card"
-                                                className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white text-indigo-500 shadow-lg shadow-indigo-200 transition-transform hover:scale-105 disabled:opacity-60">
+                                                className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-200 shadow-lg shadow-black/40 ring-1 ring-indigo-400/30 transition-transform hover:scale-105 disabled:opacity-60">
                                                 {loading ? <Loader2 size={34} className="animate-spin" /> : <ScanLine size={38} strokeWidth={1.8} />}
                                             </button>
-                                            <p className="mt-3 font-bold text-slate-900">{loading ? 'Finding your account…' : 'Scan your card'}</p>
-                                            <p className="mt-0.5 text-xs text-slate-500">Hold the QR code on your card up to the camera</p>
+                                            <p className="mt-3 font-bold text-white">{loading ? 'Finding your account…' : 'Scan your card'}</p>
+                                            <p className="mt-0.5 text-xs text-slate-400">Hold the QR code on your card up to the camera</p>
                                         </>
                                     ) : (
                                         <button type="button" onClick={() => setScanning(false)}
-                                            className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                                            className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-[#2a2f45] py-2 text-xs font-bold text-slate-300 hover:bg-white/5">
                                             <X size={13} /> Stop the camera
                                         </button>
                                     )}
@@ -298,13 +298,13 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
                             ) : (
                                 <form onSubmit={(e) => { e.preventDefault(); lookUp(cardNumber); }} className="space-y-4">
                                     <div>
-                                        <label htmlFor="forgot-card-number" className="block text-sm font-semibold text-slate-700 mb-1">Card Number</label>
+                                        <label htmlFor="forgot-card-number" className="block text-sm font-semibold text-slate-200 mb-1">Card Number</label>
                                         <input id="forgot-card-number" required maxLength={12} inputMode="numeric" pattern="[0-9]*" autoComplete="username" value={cardNumber} onChange={e => setCardNumber(e.target.value.replace(/\D/g, ''))}
-                                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono tracking-wider text-slate-800"
+                                            className="w-full px-4 py-3 border border-white/15 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono tracking-wider text-slate-100"
                                             placeholder="12-Digit Card Number" />
                                     </div>
                                     <div className="flex justify-end space-x-3">
-                                        <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm">Cancel</button>
+                                        <button type="button" onClick={onClose} className="px-4 py-2 text-slate-300 font-medium hover:bg-white/10 rounded-lg transition-colors text-sm">Cancel</button>
                                         <button type="submit" disabled={loading} className="inline-flex items-center gap-1.5 px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors text-sm disabled:opacity-50">
                                             {loading ? <><Loader2 size={15} className="animate-spin" /> Checking…</> : <>Continue <ArrowRight size={15} /></>}
                                         </button>
@@ -327,10 +327,10 @@ const ForgotPasswordModal = ({ onClose, role = 'student' }) => {
  */
 const RoleChooser = ({ onChoose }) => (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-        <div role="dialog" aria-modal="true" aria-labelledby="role-chooser-title" className="lg-rise w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
-            <div className="border-b border-slate-100 bg-gradient-to-br from-indigo-50 to-violet-50 px-6 py-5 text-center">
-                <h2 id="role-chooser-title" className="text-xl font-black tracking-tight text-slate-900">Who&apos;s signing in?</h2>
-                <p className="mt-1 text-sm text-slate-500">Choose once — you can switch any time at the top of the form.</p>
+        <div role="dialog" aria-modal="true" aria-labelledby="role-chooser-title" className="lg-rise w-full max-w-lg overflow-hidden rounded-3xl bg-[#2a2f45] shadow-2xl ring-1 ring-white/10">
+            <div className="border-b border-white/5 bg-gradient-to-br from-indigo-50 to-violet-50 px-6 py-5 text-center">
+                <h2 id="role-chooser-title" className="text-xl font-black tracking-tight text-white">Who&apos;s signing in?</h2>
+                <p className="mt-1 text-sm text-slate-400">Choose once — you can switch any time at the top of the form.</p>
             </div>
             <div className="grid gap-3 p-5 sm:grid-cols-2">
                 {[
@@ -338,13 +338,13 @@ const RoleChooser = ({ onChoose }) => (
                     ['teacher', 'Teacher', 'Research path, publications, thesis writing and plagiarism checks.', BookOpenCheck, 'from-emerald-500 to-teal-600']
                 ].map(([id, label, hint, Icon, tone]) => (
                     <button key={id} type="button" onClick={() => onChoose(id)}
-                        className="group flex flex-col items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                        className="group flex flex-col items-start gap-3 rounded-2xl border border-white/10 bg-[#2a2f45] p-4 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-400/50 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                         <span className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${tone} text-white shadow-md`}><Icon size={24} aria-hidden="true" /></span>
                         <span>
-                            <span className="block text-base font-black text-slate-900">I&apos;m a {label.toLowerCase()}</span>
-                            <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{hint}</span>
+                            <span className="block text-base font-black text-white">I&apos;m a {label.toLowerCase()}</span>
+                            <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">{hint}</span>
                         </span>
-                        <span className="mt-auto inline-flex items-center gap-1 text-xs font-bold text-indigo-600">Continue <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" /></span>
+                        <span className="mt-auto inline-flex items-center gap-1 text-xs font-bold text-indigo-300">Continue <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" /></span>
                     </button>
                 ))}
             </div>
@@ -354,13 +354,11 @@ const RoleChooser = ({ onChoose }) => (
 
 // A twinkling star. Module-level so the page's re-renders (every keystroke
 // in the password box) do not remount it and restart its animation.
-const Sparkle = ({ className, delay = 0, size = 'text-base' }) => (
-    <span aria-hidden="true" className={`lg-twinkle pointer-events-none absolute ${size} ${className}`} style={{ animationDelay: `${delay}s` }}>✦</span>
-);
-
 // --- Main Login Page ---
 const Login = () => {
-    const { user, login } = useContext(AuthContext);
+    const { user, login, replaceDevice, enterApp } = useContext(AuthContext);
+    // A 3rd device: the popup to swap it in (components/DeviceLimitDialog).
+    const [deviceConflict, setDeviceConflict] = useState(null);
     // Where the student was heading when they were asked to sign in (a link
     // to a lesson, a page left when the session ended). Only a path in this
     // app is taken; anything else means the dashboard.
@@ -378,7 +376,7 @@ const Login = () => {
     // Sent here because the server no longer accepted the saved login
     // (utils/sessionExpiry): said once, so it is not a mystery why they are
     // signing in again. Read on the first render; cleared below.
-    const [sessionEnded] = useState(() => { try { return sessionStorage.getItem(SESSION_ENDED_KEY) === '1' || sessionStorage.getItem(TEACHER_SESSION_ENDED) === '1'; } catch { return false; } });
+    const [sessionEnded] = useState(() => { try { return ['device', 'replaced'].includes(sessionStorage.getItem(SESSION_ENDED_KEY)) ? sessionStorage.getItem(SESSION_ENDED_KEY) : sessionStorage.getItem(SESSION_ENDED_KEY) === '1' || sessionStorage.getItem(TEACHER_SESSION_ENDED) === '1'; } catch { return false; } });
     useEffect(() => { try { sessionStorage.removeItem(SESSION_ENDED_KEY); sessionStorage.removeItem(TEACHER_SESSION_ENDED); } catch { /* storage off */ } }, []);
 
     /* Student or teacher. ?as= decides when a link carries it (a teacher's
@@ -407,7 +405,7 @@ const Login = () => {
        has their password left to type. Typing the number by hand is still
        there for a broken camera or a worn card. A teacher with no AI card (a
        club or Scouts leader) signs in with email instead ('email'). */
-    const [mode, setMode] = useState('scan');          // 'scan' | 'manual' | 'email' (teachers)
+    const [mode, setMode] = useState('manual');        // 'manual' (the card number, scan inside it) | 'email' (teachers)
     const [teacherEmail, setTeacherEmail] = useState('');
     const [scanning, setScanning] = useState(false);
     const [scanError, setScanError] = useState('');
@@ -438,6 +436,8 @@ const Login = () => {
             const res = isTeacher
                 ? await teacherApi.post('/auth/card-scan', { code: decodedText })
                 : await api.post('/auth/card-scan', { code: decodedText });
+            // A demo (presentation) card signs in by its scan alone: straight to the dashboard.
+            if (!isTeacher && res.data?.token) { enterApp(res.data, next); return; }
             setCardNumber(res.data.cardNumber);
             setScannedCard(true);
             setError('');
@@ -494,7 +494,6 @@ const Login = () => {
 
     // Email sign-in is the teacher side's only; a student on 'email' is shown the typed card.
     const emailMode = isTeacher && mode === 'email';
-    const cardMode = mode === 'email' ? 'manual' : mode;
 
     if (user) return <Navigate to={next} replace />;
     // A teacher is signed in on this device: their dashboard.
@@ -520,8 +519,8 @@ const Login = () => {
         // so an empty card went to the server and came back as "Invalid card
         // number or password" — about a password the student had typed right.
         if (!cardNumber) {
-            setError('Scan your card or type your card number first.');
-            (mode === 'scan' ? scanButtonRef.current : document.getElementById('login-card-number'))?.focus();
+            setError('Enter your card number, or scan your card.');
+            document.getElementById('login-card-number')?.focus();
             return;
         }
         setLoading(true);
@@ -543,6 +542,7 @@ const Login = () => {
         // button keeps saying so until it gets there.
         if (!res.success) {
             if (res.code === 'TEACHER_CARD') setOtherKind('teacher');
+            if (res.code === 'DEVICE_LIMIT' && res.device) { setDeviceConflict(res.device); setLoading(false); return; }
             setError(res.error);
             setLoading(false);
             passwordRef.current?.focus();
@@ -550,16 +550,23 @@ const Login = () => {
     };
 
     return (
-        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-3 sm:p-6">
+        <div className="relative isolate flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#232840] via-[#1f2336] to-[#272240] p-4 text-slate-100 sm:p-6">
+            {/* A soft dark backdrop with two quiet glows — nothing to compete with the form. */}
+            <span aria-hidden className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[30rem] w-[44rem] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
+            <span aria-hidden className="pointer-events-none absolute -right-40 -bottom-48 -z-10 h-[28rem] w-[28rem] rounded-full bg-violet-500/10 blur-[120px]" />
             {!role && <RoleChooser onChoose={chooseRole} />}
             {showForgot && <ForgotPasswordModal role={isTeacher ? 'teacher' : 'student'} onClose={() => setShowForgot(false)} />}
             {showContact && <ContactAdminModal onClose={() => setShowContact(false)} page="login" />}
+            {deviceConflict && (
+                <DeviceLimitDialog conflict={deviceConflict} onClose={() => setDeviceConflict(null)}
+                    onReplace={(removeId) => replaceDevice(deviceConflict.ticket, removeId, next)} />
+            )}
             {showHow && (
                 <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onClick={() => setShowHow(false)}>
-                    <div role="dialog" aria-modal="true" aria-labelledby="how-title" onClick={(e) => e.stopPropagation()} className="lg-rise w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
-                        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
-                            <h3 id="how-title" className="flex items-center gap-2 font-bold text-slate-800"><QrCode size={17} className="text-indigo-600" /> Signing in with your card</h3>
-                            <button type="button" onClick={() => setShowHow(false)} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"><X size={16} /></button>
+                    <div role="dialog" aria-modal="true" aria-labelledby="how-title" onClick={(e) => e.stopPropagation()} className="lg-rise w-full max-w-md overflow-hidden rounded-3xl bg-[#2a2f45] shadow-2xl ring-1 ring-white/10">
+                        <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.04] px-5 py-4">
+                            <h3 id="how-title" className="flex items-center gap-2 font-bold text-slate-100"><QrCode size={17} className="text-indigo-300" /> Signing in with your card</h3>
+                            <button type="button" onClick={() => setShowHow(false)} aria-label="Close" className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"><X size={16} /></button>
                         </div>
                         <ol className="space-y-4 p-5">
                             {[
@@ -569,174 +576,105 @@ const Login = () => {
                             ].map(([t, d], i) => (
                                 <li key={t} className="flex gap-3">
                                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-black text-white">{i + 1}</span>
-                                    <div><p className="font-bold text-slate-800">{t}</p><p className="text-sm text-slate-500">{d}</p></div>
+                                    <div><p className="font-bold text-slate-100">{t}</p><p className="text-sm text-slate-400">{d}</p></div>
                                 </li>
                             ))}
                         </ol>
-                        <div className="border-t border-slate-100 px-5 py-4 text-right">
+                        <div className="border-t border-white/5 px-5 py-4 text-right">
                             <button type="button" onClick={() => setShowHow(false)} className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">Got it</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            <div className="lg-rise grid w-full max-w-5xl overflow-hidden rounded-[28px] bg-white shadow-2xl shadow-indigo-200/70 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-
-                {/* ── Left: the welcome panel ──────────────────────────── */}
-                {/* Below lg the form comes first and this panel follows it: on a
-                    phone it is about a screen tall, and a student opening the
-                    page to sign in had to scroll past it to find the form. */}
-                <aside className="relative order-2 overflow-hidden bg-gradient-to-b from-indigo-600 via-violet-600 to-violet-200 p-7 text-white sm:p-9 lg:order-1 lg:min-h-[640px]">
-                    <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-                        <div className="lg-blob absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-                        <div className="absolute right-10 top-24 h-12 w-12 rounded-full bg-white/15" />
-                        <div className="absolute right-24 top-64 h-7 w-7 rounded-full bg-white/15" />
-                        <div className="absolute left-8 top-1/2 h-4 w-4 rounded-full bg-white/20" />
-                        <Sparkle className="left-[46%] top-[9%] text-white" delay={0.3} size="text-xs" />
-                        <Sparkle className="left-[70%] top-[22%] text-white" delay={1.4} size="text-sm" />
-                        <Sparkle className="left-[16%] top-[40%] text-white" delay={0.9} size="text-xs" />
-                        <Sparkle className="left-[58%] top-[45%] text-white" delay={2.1} size="text-base" />
-                        <Sparkle className="left-[30%] top-[52%] text-white" delay={1.8} size="text-xs" />
-                        <Sparkle className="left-[80%] top-[58%] text-white" delay={0.6} size="text-sm" />
-                        {/* The pale foreground wave the illustration stands on. */}
-                        <div className="absolute -bottom-24 -left-10 h-56 w-[140%] rounded-[50%] bg-white/70 blur-md" />
-                    </div>
-
-                    <div className="relative mt-4 max-w-sm sm:mt-6">
-                        <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-[2.6rem]">
-                            Welcome back<br />to <span className="text-cyan-300">LearnHub</span>
-                        </h1>
-                        <p className="mt-4 max-w-[240px] text-sm leading-relaxed text-indigo-100">
-                            Your smart learning journey starts here. Let&apos;s achieve great things together!
-                        </p>
-                    </div>
-
-                    {/* The mascot with the floating tiles. */}
-                    <div aria-hidden="true" className="relative mt-8 h-72 sm:h-80 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:h-[52%]">
-                        <span className="lg-float absolute right-8 top-2 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 text-3xl shadow-lg ring-1 ring-white/40 backdrop-blur">🏆</span>
-                        <span className="lg-float absolute left-4 top-16 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-2xl shadow-lg ring-1 ring-white/40 backdrop-blur" style={{ animationDelay: '-2.4s' }}>📈</span>
-                        <span className="mascot-tag absolute right-4 top-[38%] z-10 whitespace-nowrap rounded-2xl rounded-bl-sm bg-white px-3.5 py-2 text-sm font-black leading-tight text-indigo-700 shadow-lg">
-                            Hi! Let&apos;s learn<br />together 👋
-                        </span>
-                        {/* A box capped by both height and width, so the character is
-                            never wider than the panel and never cut off. */}
-                        <div className="mascot-enter absolute bottom-0 left-1/2 aspect-[16/17] h-[92%] max-w-[70%] -translate-x-1/2">
-                            <div className="lg-float h-full w-full" style={{ animationDelay: '-1.2s' }}>
-                                <Mascot className="h-full w-full object-contain drop-shadow-2xl" />
-                            </div>
-                        </div>
-                    </div>
-                </aside>
+            <div className="lg-rise w-full max-w-[28rem] overflow-hidden rounded-3xl bg-[#2a2f45] shadow-[0_30px_70px_-30px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
 
                 {/* ── Right: the sign-in card ──────────────────────────── */}
-                <section className="relative order-1 bg-white px-5 py-8 sm:px-10 sm:py-10 lg:order-2">
+                <section className="relative px-6 py-8 sm:px-9 sm:py-9">
                     <div className="mx-auto max-w-md">
                         <div className="lg-rise flex flex-col items-center text-center" style={{ animationDelay: '0.1s' }}>
-                            {/* The compact header a phone gets, with the welcome panel below the form. */}
-                            <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-indigo-500 lg:hidden">Welcome back to LearnHub</p>
+                            <img src="/assets/YATICORP.png" alt="YATICORP" className="mb-6 h-8 w-auto object-contain" />
                             {/* Student or teacher, as one switch: the chooser's answer, changeable. */}
-                            <div role="radiogroup" aria-label="Signing in as" className="mb-5 grid w-full max-w-xs grid-cols-2 overflow-hidden rounded-full border border-slate-200 bg-slate-50 p-1">
+                            <div role="radiogroup" aria-label="Signing in as" className="mb-6 grid w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/15 p-1">
                                 {[['student', 'Student', GraduationCap], ['teacher', 'Teacher', BookOpenCheck]].map(([id, label, Icon]) => (
                                     <button key={id} type="button" role="radio" aria-checked={role === id} onClick={() => chooseRole(id)}
-                                        className={`inline-flex items-center justify-center gap-1.5 rounded-full py-2 text-sm font-bold transition-all ${role === id ? (id === 'teacher' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-indigo-600 text-white shadow-sm') : 'text-slate-500 hover:text-slate-800'}`}>
+                                        className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-all ${role === id ? (id === 'teacher' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-indigo-600 text-white shadow-sm') : 'text-slate-400 hover:text-white'}`}>
                                         <Icon size={15} aria-hidden="true" /> {label}
                                     </button>
                                 ))}
                             </div>
-                            <span className="lg-float flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50 ring-1 ring-indigo-100">
-                                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-300"><Lock size={18} /></span>
-                            </span>
-                            <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">{isTeacher ? 'Teacher sign in' : <>Let&apos;s get you signed in</>}</h2>
-                            <p className="mt-1.5 text-sm text-slate-500">{isTeacher ? 'Scan your card or type its number, then your password, to open your teacher dashboard.' : 'Scan your card or use your password to access your account.'}</p>
+                            <h2 className="mt-1 text-2xl font-bold tracking-tight text-white">{isTeacher ? 'Teacher sign in' : 'Welcome back'}</h2>
+                            <p className="mt-1.5 text-sm text-slate-400">{isTeacher ? 'Sign in to your teacher dashboard.' : 'Sign in to continue learning.'}</p>
                         </div>
 
                         <form className="lg-rise mt-6 space-y-5" onSubmit={handleLogin} style={{ animationDelay: '0.2s' }}>
                             {sessionEnded && !error && (
-                                <p role="status" className="flex items-start gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm font-medium text-indigo-800">
-                                    <Info size={16} className="mt-0.5 shrink-0" /> Your session has ended — please sign in again.
+                                <p role="status" className="flex items-start gap-2 rounded-xl border border-indigo-400/30 bg-indigo-500/15 p-3 text-sm font-medium text-indigo-200">
+                                    <Info size={16} className="mt-0.5 shrink-0" /> {sessionEnded === 'device' ? 'This device was removed from your account (you can use only 2 devices). Sign in to choose your devices.' : sessionEnded === 'replaced' ? 'Your account was signed in on another device, so you were signed out here. Only one sign-in at a time is allowed.' : 'Your session has ended — please sign in again.'}
                                 </p>
                             )}
                             {error && (
-                                <div ref={errorRef} role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-center text-sm font-medium text-red-600">
+                                <div ref={errorRef} role="alert" className="rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-center text-sm font-medium text-red-300">
                                     {error}
                                     {otherKind && (
-                                        <> <button type="button" onClick={() => chooseRole(otherKind)} className="font-bold text-indigo-600 underline">Switch to {otherKind === 'teacher' ? 'Teacher' : 'Student'}</button></>
+                                        <> <button type="button" onClick={() => chooseRole(otherKind)} className="font-bold text-indigo-300 underline">Switch to {otherKind === 'teacher' ? 'Teacher' : 'Student'}</button></>
                                     )}
                                 </div>
                             )}
 
-                            {/* Scan / type, as one bordered switch */}
-                            <div className={`grid overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1 ${isTeacher ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                                {[['scan', 'Scan Card', ScanLine], ['manual', isTeacher ? 'Type' : 'Type Instead', Keyboard], ...(isTeacher ? [['email', 'Email', Mail]] : [])].map(([id, label, Icon]) => (
-                                    <button key={id} type="button"
-                                        onClick={() => { setScanError(''); setScanning(false); setMode(id); }}
-                                        className={`inline-flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold transition-all ${(id === 'email' ? emailMode : cardMode === id && !emailMode) ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
-                                        <Icon size={16} /> {label}
-                                    </button>
-                                ))}
-                            </div>
-
+                            {/* One standard form: the card number, with the scanner inside the field
+                                (asked 2026-10-29) — no separate Scan / Type step. Teachers without a card
+                                can switch to their email below it. */}
                             {emailMode ? (
                                 <div>
-                                    <label htmlFor="login-teacher-email" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Mail size={15} className="text-slate-500" /> Email</label>
+                                    <label htmlFor="login-teacher-email" className="mb-2 block text-sm font-semibold text-slate-200">Email address</label>
                                     <input id="login-teacher-email" type="email" autoComplete="username" value={teacherEmail} onChange={e => setTeacherEmail(e.target.value)}
-                                        className="block w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-800 shadow-sm placeholder-slate-400 transition duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="For a teacher account without a card" />
-                                </div>
-                            ) : scannedCard ? (
-                                <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                                    <CheckCircle2 size={22} className="shrink-0 text-emerald-600" />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-xs font-semibold text-emerald-700">Card read</p>
-                                        <p className="font-mono text-lg tracking-wider text-slate-800">{cardNumber}</p>
-                                    </div>
-                                    <button type="button" onClick={() => { setScannedCard(false); setCardNumber(''); setMode('scan'); }}
-                                        className="shrink-0 text-xs font-bold text-emerald-700 hover:underline">Change</button>
-                                </div>
-                            ) : cardMode === 'scan' ? (
-                                <div className="rounded-2xl border-2 border-dashed border-indigo-300 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/70 p-6 text-center">
-                                    {/* html5-qrcode needs this element present before it starts. */}
-                                    <div id={SCANNER_ID} className={`overflow-hidden rounded-xl bg-slate-900 ${scanning ? 'block' : 'hidden'}`} />
-                                    {!scanning ? (
-                                        <>
-                                            <button ref={scanButtonRef} type="button" onClick={() => { setScanError(''); setError(''); setScanning(true); }} disabled={loading} aria-label="Scan your card"
-                                                className="lg-scan-ring mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-white text-indigo-500 shadow-lg shadow-indigo-200 transition-transform hover:scale-105 disabled:opacity-60">
-                                                {loading ? <Loader2 size={40} className="animate-spin" /> : <ScanLine size={44} strokeWidth={1.8} />}
-                                            </button>
-                                            <p className="mt-4 text-lg font-bold text-slate-900">{loading ? 'Reading your card…' : 'Scan your card'}</p>
-                                            <p className="mt-1 text-sm text-slate-500">Hold the QR code on your card up to the camera</p>
-                                            <button type="button" onClick={() => setShowHow(true)}
-                                                className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-4 py-1.5 text-xs font-bold text-indigo-600 transition-colors hover:bg-indigo-50">
-                                                <PlayCircle size={14} /> How it works?
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <button type="button" onClick={() => setScanning(false)}
-                                            className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
-                                            <X size={13} /> Stop the camera
-                                        </button>
-                                    )}
+                                        className="block w-full appearance-none rounded-xl border border-white/10 bg-black/15 px-4 py-3.5 text-slate-100 shadow-sm placeholder-slate-500 transition duration-200 focus:border-transparent focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="name@school.edu" />
+                                    <button type="button" onClick={() => { setError(''); setMode('manual'); }} className="mt-2 text-xs font-semibold text-indigo-300 hover:text-indigo-100 hover:underline">Sign in with your card instead</button>
                                 </div>
                             ) : (
                                 <div>
-                                    <label htmlFor="login-card-number" className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700"><CreditCard size={15} className="text-slate-500" /> Card Number</label>
-                                    <input id="login-card-number" type="text" required maxLength="12" inputMode="numeric" pattern="[0-9]*" autoComplete="username" value={cardNumber} onChange={e => setCardNumber(e.target.value.replace(/\D/g, ''))}
-                                        className="block w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 font-mono tracking-wider text-slate-800 shadow-sm placeholder-slate-400 transition duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="12-Digit Card Number" />
+                                    <label htmlFor="login-card-number" className="mb-2 block text-sm font-semibold text-slate-200">Card number</label>
+                                    <div className="relative">
+                                        <input id="login-card-number" type="text" maxLength="12" inputMode="numeric" pattern="[0-9]*" autoComplete="username" value={cardNumber}
+                                            onChange={e => { setCardNumber(e.target.value.replace(/\D/g, '')); setScannedCard(false); }}
+                                            className={`block w-full appearance-none rounded-xl border bg-black/15 py-3.5 pr-14 pl-4 font-mono tracking-[0.12em] text-slate-100 shadow-sm placeholder:font-sans placeholder:tracking-normal placeholder-slate-500 transition duration-200 focus:border-transparent focus:bg-white/[0.07] focus:outline-none focus:ring-2 focus:ring-indigo-500 ${scannedCard ? 'border-emerald-400/40' : 'border-white/10'}`}
+                                            placeholder="12-digit card number" />
+                                        {/* Scan, inside the field: the camera opens below and fills the number in. */}
+                                        <button ref={scanButtonRef} type="button" disabled={loading}
+                                            onClick={() => { setScanError(''); setError(''); setScanning((on) => !on); }}
+                                            aria-label={scanning ? 'Stop scanning' : 'Scan your card'} aria-pressed={scanning} title={scanning ? 'Stop scanning' : 'Scan your card'}
+                                            className={`absolute top-1/2 right-1.5 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:opacity-60 ${scanning ? 'bg-indigo-500 text-white' : 'bg-indigo-500/15 text-indigo-200 ring-1 ring-indigo-400/30 hover:bg-indigo-500/25'}`}>
+                                            {loading && !cardNumber ? <Loader2 size={18} className="animate-spin" /> : scanning ? <X size={18} /> : <ScanLine size={19} />}
+                                        </button>
+                                    </div>
+                                    {scannedCard && <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-300"><CheckCircle2 size={13} /> Card read from the scan</p>}
+                                    {/* html5-qrcode needs this element present before it starts. */}
+                                    <div className={scanning ? 'mt-3' : 'hidden'}>
+                                        <div id={SCANNER_ID} className="overflow-hidden rounded-xl bg-black ring-1 ring-white/10" />
+                                        <div className="mt-2 flex items-center justify-between gap-3 text-xs">
+                                            <span className="text-slate-400">Hold the QR code on your card up to the camera.</span>
+                                            <button type="button" onClick={() => setShowHow(true)} className="inline-flex shrink-0 items-center gap-1 font-semibold text-indigo-300 hover:text-indigo-100"><PlayCircle size={13} /> How it works</button>
+                                        </div>
+                                    </div>
+                                    {isTeacher && !scanning && (
+                                        <button type="button" onClick={() => { setError(''); setScanning(false); setMode('email'); }} className="mt-2 text-xs font-semibold text-indigo-300 hover:text-indigo-100 hover:underline">No card? Sign in with your email</button>
+                                    )}
                                 </div>
                             )}
 
                             {scanError && (
-                                <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                                <p className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200">
                                     <CameraOff size={14} className="mt-0.5 shrink-0" />
-                                    <span>{scanError}{otherKind && !error && <> <button type="button" onClick={() => chooseRole(otherKind)} className="font-bold text-indigo-700 underline">Switch to {otherKind === 'teacher' ? 'Teacher' : 'Student'}</button></>}</span>
+                                    <span>{scanError}{otherKind && !error && <> <button type="button" onClick={() => chooseRole(otherKind)} className="font-bold text-indigo-300 underline">Switch to {otherKind === 'teacher' ? 'Teacher' : 'Student'}</button></>}</span>
                                 </p>
                             )}
 
                             <div>
                                 <div className="flex items-center justify-between">
-                                    <label htmlFor="login-password" className="flex items-center gap-1.5 text-sm font-semibold text-slate-700"><Lock size={15} className="text-slate-500" /> Password</label>
-                                    <button type="button" onClick={() => setShowForgot(true)} className="text-xs font-semibold text-indigo-600 transition-colors hover:text-indigo-800 hover:underline">
+                                    <label htmlFor="login-password" className="text-sm font-semibold text-slate-200">Password</label>
+                                    <button type="button" onClick={() => setShowForgot(true)} className="text-xs font-semibold text-indigo-300 transition-colors hover:text-indigo-100 hover:underline">
                                         Forgot password?
                                     </button>
                                 </div>
@@ -749,12 +687,12 @@ const Login = () => {
                                         autoComplete="current-password"
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
-                                        className="block w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3.5 pr-12 text-slate-800 shadow-sm placeholder-slate-400 transition duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="block w-full appearance-none rounded-xl border border-white/10 bg-white/5 focus:bg-white/[0.07] px-4 py-3.5 pr-12 text-slate-100 shadow-sm placeholder-slate-500 transition duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                         placeholder="Enter your password"
                                     />
                                     <button type="button" onClick={() => setShowPassword(v => !v)}
                                         aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition-colors hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
                                 </div>
@@ -768,25 +706,25 @@ const Login = () => {
                         </form>
 
                         <button type="button" onClick={() => setShowContact(true)}
-                            className="lg-rise mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50" style={{ animationDelay: '0.3s' }}>
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600"><MessageCircleQuestion size={16} /></span>
-                            <span className="flex-1">Having trouble? <span className="font-bold text-indigo-600">Contact Admin</span></span>
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white ring-1 ring-slate-200"><ChevronRight size={15} className="text-slate-500" /></span>
+                            className="lg-rise mt-4 flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm text-slate-300 transition-colors hover:border-indigo-200 hover:bg-indigo-500/15" style={{ animationDelay: '0.3s' }}>
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-300"><MessageCircleQuestion size={16} /></span>
+                            <span className="flex-1">Having trouble? <span className="font-bold text-indigo-300">Contact Admin</span></span>
+                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2a2f45] ring-1 ring-white/10"><ChevronRight size={15} className="text-slate-400" /></span>
                         </button>
 
-                        <p className="mt-5 text-center text-xs text-slate-500">
+                        <p className="mt-5 text-center text-xs text-slate-400">
                             {isTeacher
-                                ? <>New teacher? <Link to="/signup?as=teacher" className="font-bold text-emerald-700 hover:underline">Register your card</Link></>
-                                : <>Don&apos;t have an account? <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-600 hover:underline">Sign up here</Link></>}
+                                ? <>New teacher? <Link to="/signup?as=teacher" className="font-bold text-emerald-300 hover:underline">Register your card</Link></>
+                                : <>Don&apos;t have an account? <Link to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`} className="font-bold text-indigo-300 hover:underline">Sign up here</Link></>}
                         </p>
                         <p className="mt-3 text-center text-[11px] text-slate-400">
-                            <Link to="/terms" className="hover:text-indigo-600 hover:underline">Terms and Conditions</Link> · <Link to="/privacy" className="hover:text-indigo-600 hover:underline">Privacy Policy</Link>
+                            <Link to="/terms" className="hover:text-indigo-200 hover:underline">Terms and Conditions</Link> · <Link to="/privacy" className="hover:text-indigo-200 hover:underline">Privacy Policy</Link>
                         </p>
                         {/* Inside the app the admin console travels in the same bundle, under
                             /admin/. On the website it is its own site, so no link here. */}
                         {isNative() && (
-                            <p className="mt-3 text-center text-xs text-slate-500">
-                                Staff? <a href="/admin/index.html" className="font-bold text-indigo-600 hover:underline">Admin sign in</a>
+                            <p className="mt-3 text-center text-xs text-slate-400">
+                                Staff? <a href="/admin/index.html" className="font-bold text-indigo-300 hover:underline">Admin sign in</a>
                             </p>
                         )}
                     </div>

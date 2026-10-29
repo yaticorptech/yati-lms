@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams, Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Mic, MicOff, Volume2, VolumeX, Square, Check, RotateCcw, Keyboard, Bot, User, ArrowLeft, ArrowRight, Sparkles, Clock, MessageSquareText, ChevronDown, ChevronUp, ShieldCheck, Send, Loader2, AlertTriangle, Briefcase, Code2 } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, Square, Check, RotateCcw, Keyboard, Bot, User, ArrowLeft, ArrowRight, Sparkles, Clock, MessageSquareText, ChevronDown, ChevronUp, ShieldCheck, Send, Loader2, AlertTriangle, Briefcase, Code2, XCircle } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
 import { interviewApi, TYPE_META, DURATION, STAGE_LABEL, ROLES, ROLE_OTHER, announceProgress } from './api';
 import { BotScene, FeatureRow } from './IntroArt';
@@ -21,7 +21,10 @@ import { markReturn } from './scrollMemory';
 import { Room, Bubble } from './InterviewRoom';
 import { useHideLoop } from '../components/loopVisibility';
 import { isWalletCancel } from '../utils/walletCharge';
+import GeminiCreditTip from '../components/GeminiCreditTip';
 
+// How long the interviewer's reaction shows before it speaks (a wrong or weak answer).
+const REACT_MS = 1800;
 const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 
 /* ── Small pieces ─────────────────────────────────────────────────────── */
@@ -29,7 +32,8 @@ const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${S
 /* ── Introduction ─────────────────────────────────────────────────────── */
 function Intro({ session, onStart, starting, error }) {
     const [params] = useSearchParams();
-    const [type, setType] = useState(session?.type || params.get('type') || 'full');
+    // Nothing chosen until the student picks (a retake or a card's own button still arrives with its type).
+    const [type, setType] = useState(session?.type || params.get('type') || '');
     const incoming = session?.role || params.get('role') || '';
     // The list holds whatever role they arrived with, so it is never lost off
     // the end of it; anything else goes in the box behind "Other role…".
@@ -37,12 +41,14 @@ function Intro({ session, onStart, starting, error }) {
         () => (incoming && !ROLES.some((x) => x.toLowerCase() === incoming.toLowerCase()) ? [incoming, ...ROLES] : ROLES),
         [incoming]
     );
-    const [role, setRole] = useState(incoming || ROLES[0]);
+    const [role, setRole] = useState(incoming || '');
     const [customRole, setCustomRole] = useState('');
     const chosenRole = role === ROLE_OTHER ? customRole.trim() : role;
 
     const listenerSupported = useMemo(() => createListener().supported, []);
     const resuming = !!session;
+    // Both chosen before it can start.
+    const ready = resuming || (!!type && !!chosenRole);
     const answered = session ? session.turns.filter((t) => t.answer).length : 0;
     const meta = TYPE_META[type] || TYPE_META.full;
 
@@ -91,7 +97,7 @@ function Intro({ session, onStart, starting, error }) {
                             <Briefcase size={17} className={leading} />
                             <Dropdown
                                 label="Interview type" icon={Briefcase} disabled={resuming} className={field}
-                                value={type} onChange={setType}
+                                value={type} onChange={setType} placeholder="Choose an interview type"
                                 options={Object.entries(TYPE_META).map(([id, m]) => ({ value: id, label: m.label, hint: DURATION[id]?.replace('minutes', 'min') }))} />
                         </div>
                     </label>
@@ -101,7 +107,7 @@ function Intro({ session, onStart, starting, error }) {
                             <Code2 size={17} className={leading} />
                             <Dropdown
                                 label="Job role" icon={Code2} disabled={resuming} className={field}
-                                value={roleOptions.includes(role) ? role : ROLE_OTHER} onChange={setRole}
+                                value={!role ? '' : roleOptions.includes(role) ? role : ROLE_OTHER} onChange={setRole} placeholder="Choose a job role"
                                 options={[...roleOptions.map((x) => ({ value: x, label: x })), { value: ROLE_OTHER, label: 'Other role…' }]} />
                         </div>
                     </label>
@@ -148,12 +154,13 @@ function Intro({ session, onStart, starting, error }) {
 
                 {error && <div className="mt-4"><ErrorBox error={error} /></div>}
 
-                <Btn tone="primary" icon={Mic} onClick={() => onStart({ type, role: chosenRole })} loading={starting}
+                <Btn tone="primary" icon={Mic} onClick={() => onStart({ type, role: chosenRole })} loading={starting} disabled={!ready}
                     className="mt-6 w-full !rounded-2xl !py-4 !text-base">
                     {starting ? 'Preparing your interviewer…' : resuming ? `Continue interview (${answered} answered)` : 'Start Interview'}
                     {!starting && <ArrowRight size={18} className="ml-1" />}
                 </Btn>
-                <p className="mt-3 text-center text-xs text-slate-500">{meta.hint}</p>
+                <p className="mt-2 flex justify-center"><GeminiCreditTip /></p>
+                <p className="mt-3 text-center text-xs text-slate-500">{ready ? meta.hint : 'Choose an interview type and a job role to start.'}</p>
             </div>
         </div>
     );
@@ -179,6 +186,9 @@ export default function MockInterview() {
     // typing mode with no word of why.
     const [voiceOff, setVoiceOff] = useState('');
     const [clarify, setClarify] = useState('');      // the interviewer could not use the last answer
+    const [clarifyKind, setClarifyKind] = useState('');   // why: 'incorrect' | 'weak' | off-topic and the rest
+    // The interviewer's face after an answer: 'wrong' | 'unsure' | 'happy' (InterviewRoom.jsx).
+    const [mood, setMood] = useState(null);
     const [muted, setMuted] = useState(false);
     const [showTranscript, setShowTranscript] = useState(false);
     const [finishing, setFinishing] = useState(false);
@@ -276,7 +286,7 @@ export default function MockInterview() {
         const text = draft.trim();
         if (!text || !waiting || phase === 'analyzing') return;
         if (text.split(/\s+/).length < 2) { setVoiceNote('That answer is very short. Say a little more, or try again.'); return; }
-        speaker.stop(); listener.stop(); setPhase('analyzing'); setError(null); setVoiceNote('');
+        speaker.stop(); listener.stop(); setPhase('analyzing'); setError(null); setVoiceNote(''); setMood(null);
         try {
             const usedVoice = !!metricsRef.current;
             const next = await interviewApi.answer(session.id, text, usedVoice ? 'voice' : 'text', usedVoice ? metricsRef.current : undefined);
@@ -286,12 +296,22 @@ export default function MockInterview() {
             // question stays open, rather than the interview moving on.
             if (next.clarification) {
                 setClarify(next.clarification);
+                setClarifyKind(next.clarificationKind || '');
+                // Wrong: a frown and a shake; anything else it could not use: a doubtful look.
+                setMood(next.clarificationKind === 'incorrect' ? 'wrong' : 'unsure');
+                // The face first: it reacts, holds the look for a moment, then says why.
+                setPhase('reacting');
+                await new Promise((r) => setTimeout(r, REACT_MS));
+                if (!mountedRef.current) return;
                 await speaker.speak(next.clarification, { onStart: () => mountedRef.current && setPhase('speaking'), onError: (why) => mountedRef.current && setVoiceNote(`The voice could not play on this phone: ${why}`) });
                 if (!mountedRef.current) return;
                 if (voiceMode && listener.supported) listen(); else { setPhase('review'); setTimeout(() => inputRef.current?.focus(), 50); }
                 return;
             }
-            setClarify('');
+            setClarify(''); setClarifyKind('');
+            // Kept: a smile for a good answer, a doubtful look for one it still found wanting.
+            setMood(next.verdict === 'good' ? 'happy' : next.verdict === 'incorrect' ? 'wrong' : next.verdict === 'weak' ? 'unsure' : null);
+            if (next.verdict === 'good') setTimeout(() => mountedRef.current && setMood((m) => (m === 'happy' ? null : m)), 3500);
             setPhase(next.done ? 'done' : 'next');
             if (next.done) speaker.speak(next.closingMessage || '');
         } catch (e) { setError(e); setPhase('review'); }
@@ -347,7 +367,7 @@ export default function MockInterview() {
 
             {/* ── The room on the left; the question, your answer and the mic on the right ── */}
             <div className="mt-3 grid gap-3 sm:mt-4 sm:gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-center">
-                <div><Room phase={done ? 'done' : phase} /></div>
+                <div><Room phase={done ? 'done' : phase} mood={done ? null : mood} /></div>
                 <div className="min-w-0 space-y-4">
                     <Bubble talking={phase === 'speaking'}>
                     <div key={current?.index ?? 'end'} className="animate-fade-in-up">
@@ -358,9 +378,14 @@ export default function MockInterview() {
                         )}
                     </div>
                     {!done && clarify && (
-                        <div role="status" className="mt-4 flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left animate-fade-in-up">
-                            <AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-600" />
-                            <p className="text-sm font-semibold text-amber-900">{clarify}</p>
+                        <div role="status" className={`mt-4 flex items-start gap-2.5 rounded-2xl border px-4 py-3 text-left animate-fade-in-up ${clarifyKind === 'incorrect' ? 'border-rose-200 bg-rose-50' : 'border-amber-200 bg-amber-50'}`}>
+                            {clarifyKind === 'incorrect' ? <XCircle size={17} className="mt-0.5 shrink-0 text-rose-600" /> : <AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-600" />}
+                            <div className="min-w-0">
+                                {(clarifyKind === 'incorrect' || clarifyKind === 'weak') && (
+                                    <p className={`text-[11px] font-black tracking-[0.12em] uppercase ${clarifyKind === 'incorrect' ? 'text-rose-600' : 'text-amber-700'}`}>{clarifyKind === 'incorrect' ? 'Incorrect answer' : 'Not satisfied'} · improve your answer</p>
+                                )}
+                                <p className={`text-sm font-semibold ${clarifyKind === 'incorrect' ? 'text-rose-900' : 'text-amber-900'}`}>{clarify}</p>
+                            </div>
                         </div>
                     )}
                     {!done && phase === 'speaking' && <button type="button" onClick={() => { speaker.stop(); if (voiceMode && listener.supported) listen(); else setPhase('review'); }} className="mt-3 text-[0.7rem] font-bold text-indigo-600 hover:underline sm:mt-4 sm:text-xs">Skip to answering →</button>}

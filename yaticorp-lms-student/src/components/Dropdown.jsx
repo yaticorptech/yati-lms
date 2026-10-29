@@ -63,7 +63,7 @@ const usePhone = () => {
 export default function Dropdown({
     value, options, onChange, disabled = false,
     label, icon: Icon, className = '', panelClassName = '',
-    accent = 'violet', placement = 'popup'
+    accent = 'violet', placement = 'popup', placeholder = ''
 }) {
     const tone = ACCENTS[accent] || ACCENTS.violet;
     const [open, setOpen] = useState(false);
@@ -220,7 +220,7 @@ export default function Dropdown({
             >
                 {Icon && <Icon size={17} className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 ${tone.icon}`} aria-hidden="true" />}
                 <span className="block truncate text-left">
-                    {selected ? selected.label : ''}
+                    {selected ? selected.label : <span className="font-medium text-slate-400">{placeholder}</span>}
                     {selected?.hint && <span className="ml-1.5 text-xs font-medium text-slate-400">· {selected.hint}</span>}
                 </span>
                 <ChevronDown size={17} aria-hidden="true"
