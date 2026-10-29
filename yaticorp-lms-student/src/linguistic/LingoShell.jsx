@@ -7,24 +7,27 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Route as PathIcon, Dumbbell, Medal, PenLine, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { linguisticApi } from './api';
 import { COLORS, deviceLanguage, languageAsked, markLanguageAsked } from './meta';
 import { Loading, Problem } from './ui';
 import { Stats } from './Rail';
+import { ArtTile, LearnArt, PracticeArt, WritingArt, BadgesArt } from './parts/TabArt';
 import LanguagePicker from './LanguagePicker';
 import Onboarding from './Onboarding';
 import PlanQuestion from './PlanQuestion';
-import useGoBack from '../hooks/useGoBack';
 import './lingo.css';
 
 // The Dashboard (/linguistic/dashboard, 2026-10-26) is where the section opens, from the menu; it has no tab of its own.
+// The tabs as a flow (2026-10-29, from a learning app's): learn, practise, write, then the badges earned — each a
+// picture in a white tile with an orange edge, the tiles joined by an orange line, each named in a coloured pill.
 const TABS = [
-    { to: '/linguistic', end: true, label: 'Learn', icon: PathIcon },
-    { to: '/linguistic/practice', label: 'Practice', icon: Dumbbell },
-    { to: '/linguistic/badges', label: 'Badges', icon: Medal },
-    { to: '/linguistic/writing', label: 'Writing', icon: PenLine }
+    { to: '/linguistic', end: true, label: 'Learn', art: LearnArt, pill: '#5B9BE6' },
+    { to: '/linguistic/practice', label: 'Practice', art: PracticeArt, pill: '#F08A34' },
+    { to: '/linguistic/writing', label: 'Writing', art: WritingArt, pill: '#7E4DBF' },
+    { to: '/linguistic/badges', label: 'Badges', art: BadgesArt, pill: '#E8605E' }
 ];
+const FLOW = '#F5A524';
 
 /**
  * Whether a click landed on the empty page around the content, inside the layout's <main>: not on a button,
@@ -53,7 +56,6 @@ export default function LingoShell() {
     // panel that stood beside every tab (level, roadmap, quests, mistakes) is on the dashboard only (2026-10-26).
     const wide = useLocation().pathname === '/linguistic/dashboard';
     const navigate = useNavigate();
-    const goBack = useGoBack();
     const load = useCallback(() => linguisticApi.dashboard().then((d) => {
         setDash(d); setError(null);
         // A device set to Hindi, Japanese, French or Korean is offered that language, once.
@@ -91,21 +93,27 @@ export default function LingoShell() {
                 {/* On the dashboard: ✕, the tabs, then the language, level, streak and XP — one row on a wide
                     screen; on a narrower one the tabs go to a second row under the ✕ and the rest. */}
                 <div className={`mb-5 flex items-center gap-2 ${wide ? 'flex-wrap justify-between lg:flex-nowrap lg:gap-6' : ''}`}>
-                    {/* The ✕ on every page (2026-10-26): the dashboard's goes back to where the student came from
-                        (the app's Dashboard when it was opened directly); a page inside goes back to the dashboard. */}
-                    <Link to={wide ? '/' : '/linguistic/dashboard'} onClick={wide ? goBack : undefined} data-lingo-close={wide ? 'section' : 'dashboard'}
+                    {/* The ✕ on every page (2026-10-26): a page inside opens the dashboard; the dashboard's leaves the
+                        section for the app's Dashboard (2026-10-29: straight there, never back through the pages inside). */}
+                    <Link to={wide ? '/' : '/linguistic/dashboard'} data-lingo-close={wide ? 'section' : 'dashboard'}
                         aria-label={wide ? 'Close Language Learning' : 'Back to the Language Learning dashboard'} title={wide ? 'Close' : 'Back to the dashboard'}
                         className="-ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#AFAFAF] transition-colors hover:bg-[#F2F2F2] hover:text-[#777]">
                         <X size={26} strokeWidth={3} aria-hidden="true" />
                     </Link>
                     {/* The language, level, streak and XP: on the dashboard only (2026-10-26, "not inside"). */}
                     {wide && <Stats dash={dash} onLanguage={() => setPicking('learn')} className="order-2 min-w-0 flex-1 sm:flex-none sm:gap-3 lg:order-3" />}
-                    {wide && <nav aria-label="Language Learning" className="order-3 grid min-w-0 flex-1 basis-full grid-cols-4 gap-1.5 sm:gap-2 lg:order-2 lg:max-w-2xl lg:basis-auto">
-                        {TABS.map(({ to, end, label, icon: Icon }) => (
+                    {wide && <nav aria-label="Language Learning" className="relative order-3 grid min-w-0 flex-1 basis-full grid-cols-4 lg:order-2 lg:max-w-2xl lg:basis-auto" data-tab-flow>
+                        {/* The line that joins the tiles, from the first one's middle to the last one's. */}
+                        <span aria-hidden="true" className="absolute left-[12.5%] right-[12.5%] top-[30px] h-2 -translate-y-1/2 rounded-full sm:top-[38px]" style={{ background: FLOW }} />
+                        {TABS.map(({ to, end, label, art: Art, pill }) => (
                             <NavLink key={to} to={to} end={end} data-tab={label}
-                                className={({ isActive }) => `flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-1 text-[11px] font-extrabold uppercase tracking-wide transition-colors sm:flex-row sm:gap-2 sm:text-[13px] ${isActive ? '' : 'border-transparent text-[#777] hover:bg-[#F2F2F2]'}`}
-                                style={({ isActive }) => (isActive ? { borderColor: '#84D8FF', background: COLORS.blue.light, color: COLORS.blue.ink } : undefined)}>
-                                <Icon size={20} strokeWidth={2.5} /> {label}
+                                className="group relative flex flex-col items-center gap-2 rounded-2xl py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500">
+                                {({ isActive }) => (
+                                    <>
+                                        <ArtTile active={isActive} data-tab-node><Art /></ArtTile>
+                                        <span className="whitespace-nowrap rounded-xl px-2.5 py-1 text-xs font-extrabold text-white shadow-sm sm:rounded-2xl sm:px-4 sm:py-1.5 sm:text-sm" style={{ background: pill }}>{label}</span>
+                                    </>
+                                )}
                             </NavLink>
                         ))}
                     </nav>}

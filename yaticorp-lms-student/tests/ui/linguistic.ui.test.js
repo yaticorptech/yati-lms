@@ -292,23 +292,32 @@ describe('Linguistic Ability', { skip: skipWithoutStyles }, () => {
             await sleep(1200);
             return {
                 tab: $('nav[aria-label="Language Learning"] a[aria-current="page"]')?.dataset.tab || null, tabs: $$('nav[aria-label="Language Learning"] a').map((a) => a.dataset.tab),
-                welcome: !!$('[data-lingo-welcome]'), message: text($('[data-lingo-welcome-line]')), pictures: $$('[data-lingo-welcome] img').map((i) => i.getAttribute('src').split('/').pop()), tiles: $$('[data-lingo-dashboard] .lift').length, road: $$('[data-roadmap-day]').map((x) => x.dataset.roadmapDay + ':' + x.dataset.state), cheer: $('[data-plan-cheer]')?.dataset.planCheer, side: ['[data-plan-card]', '[data-quests]', '[data-mistakes]'].filter((q) => $('[data-lingo-dashboard-cards] ' + q)).length, removed: ['[data-lingo-plan-card]', '[data-lingo-week]', '[data-lingo-badges-strip]'].filter((q) => $(q)),
+                tabTiles: $$('nav[aria-label="Language Learning"] [data-tab-node]').map((x) => !!x.querySelector('svg') && x.getBoundingClientRect().bottom <= x.nextElementSibling.getBoundingClientRect().top + 1),
+                flowLine: (() => { const nodes = $$('[data-tab-node]').map((x) => x.getBoundingClientRect()); const line = $('[data-tab-flow] > span').getBoundingClientRect(); const mid = (r) => (r.top + r.bottom) / 2; return nodes.every((n) => Math.abs(mid(n) - mid(line)) < 3) && line.left >= nodes[0].left && line.right <= nodes[3].right; })(),
+                welcome: !!$('[data-lingo-welcome]'), message: text($('[data-lingo-welcome-line]')), pictures: $$('[data-lingo-welcome] img').map((i) => i.getAttribute('src').split('/').pop()), tiles: $$('[data-lingo-dashboard] .lift').length, road: $$('[data-roadmap-day]').map((x) => x.dataset.roadmapDay + ':' + x.dataset.state), cheer: $('[data-plan-cheer]')?.dataset.planCheer, side: ['[data-plan-card]', '[data-quests]'].filter((q) => $('[data-lingo-dashboard-cards] ' + q)).length, quick: $$('[data-lingo-quick] > a, [data-lingo-quick] > div').map((x) => [Object.keys(x.dataset)[0], !!x.querySelector('svg'), text(x.querySelector('.rounded-xl'))]), quickLine: !!$('[data-lingo-quick] > span'), removed: ['[data-lingo-plan-card]', '[data-lingo-week]', '[data-lingo-badges-strip]'].filter((q) => $(q)),
                 stats: [$('[data-xp]')?.dataset.xp, !!$('[data-course-chip]')], cont: text($('[data-lingo-continue]')), href: $('[data-lingo-continue]')?.getAttribute('href'),
-                skills: $$('[data-skill]').length, levels: $$('[data-level-row]').length,
+                skills: $$('[data-skill]').length, levels: $$('[data-level-row]').length, skillIcons: $$('[data-skill]').map((x) => [!!x.querySelector('[data-skill] a svg'), x.querySelector('a')?.getAttribute('href')]), levelIcons: $$('[data-level-row] svg').length, skillRow: new Set($$('[data-skill]').map((x) => Math.round(x.getBoundingClientRect().top))).size,
                 wide: (() => { ${WIDE} })()
             };` });
         assert.deepEqual(errors, []);
         assert.equal(result.__error, undefined, result.__error);
-        assert.deepEqual([result.tab, result.tabs], [null, ['Learn', 'Practice', 'Badges', 'Writing']], 'the tabs on the dashboard too (2026-10-27), none lit');
+        assert.deepEqual([result.tab, result.tabs], [null, ['Learn', 'Practice', 'Writing', 'Badges']], 'the tabs on the dashboard too (2026-10-27), none lit; as a flow, the badges last (2026-10-29)');
+        assert.deepEqual(result.tabTiles, [true, true, true, true], 'each tab a tile with its picture, its name in a pill under it (2026-10-29)');
+        assert.equal(result.flowLine, true, 'one line through the middle of the tiles, first to last');
         assert.equal(result.href, '/linguistic?lesson=r4', 'Continue opens the path at that lesson');
         assert.deepEqual(result.stats, ['340', true], 'the language, level, streak and XP bar, on the dashboard');
-        assert.equal(result.side, 3, 'the side panel\'s roadmap, daily quests and mistakes, on the dashboard');
+        assert.equal(result.side, 2, 'the side panel\'s roadmap and daily quests, on the dashboard');
+        assert.deepEqual(result.quick.map(([k, art]) => [k, art]), [['lingoContinue', true], ['placementCta', true], ['mistakes', true]], 'continue, the level and the mistakes as three icons in a row (2026-10-29)');
+        assert.equal(result.quickLine, false, 'no line joining them (2026-10-29, "remove that")');
         assert.deepEqual([result.road, result.cheer], [['1:today', '8:ahead', '15:ahead', '22:ahead', '30:ahead'], 'orange'], 'the roadmap\'s road: day 3 of 30, past Day 1; one lesson behind, "Catch up!" (2026-10-27)');
         assert.deepEqual([result.welcome, result.tiles, result.removed, result.levels], [true, 0, [], DASH.levels.length], 'no number tiles, roadmap or week (taken off)');
         assert.match(result.cont, /Articles: a, an and the|Continue/);
         assert.equal(result.message, 'Welcome to Language Learning!', 'only the welcome, no other text');
         assert.ok(result.pictures.every((p) => /wave-hi/.test(p)), `the mascot only, no profile photo (${result.pictures})`);
         assert.equal(result.skills, 2);
+        assert.ok(result.skillIcons.every(([art, href]) => art && href.startsWith('/linguistic')), 'each skill an icon that opens it (2026-10-29)');
+        assert.equal(result.skillRow, 1, 'the skills in one row');
+        assert.ok(result.levelIcons >= DASH.levels.length, 'a medal for each level');
         assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
     });
 
@@ -418,7 +427,7 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.deepEqual(result.spoken, [['परिवार', 'hi-IN', 'Lekha']], 'Hindi read by the Hindi voice; nothing sent for Kannada');
     });
 
-    test('an ✕ on every page: the dashboard\'s closes the section, a page inside goes back to the dashboard (2026-10-26)', async () => {
+    test('an ✕ on every page: the dashboard\'s closes the section (straight to the app\'s Dashboard, 2026-10-29), a page inside goes back to the dashboard (2026-10-26)', async () => {
         const { result, errors } = await screen({ entry: app('/linguistic/practice'), api: apiModule(SHELL_API), styles: true, device: DEVICES.galaxyZFold6Folded, script: `
             await sleep(1000);
             const inside = $('[data-lingo-close]');
@@ -699,6 +708,25 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.equal(w.result.letters, true);
         assert.equal(w.result.keys, true, 'Kannada letters to type with');
         assert.ok(w.result.wide <= 1, `nothing wider than the phone (${w.result.wide}px)`);
+    });
+
+    test('the ✕ in a lesson, the placement test and the mistakes opens the dashboard, not the path or Practice (2026-10-29)', async () => {
+        const MISTAKES = { fixed: 0, mistakes: [{ id: 'm1', module: 'grammar', moduleLabel: 'Grammar Practice', level: 'beginner', lessonTitle: 'Articles', kind: 'question', count: 1, given: 'a', question: { id: 'q1', type: 'fill', prompt: 'This is ___ easy question.' } }] };
+        const TEST = { last: null, questions: [{ id: 'pl1', band: 'beginner', type: 'mcq', prompt: 'She ___ a doctor.', options: ['is', 'are'] }] };
+        for (const [at, api] of [['/linguistic/grammar/g1', { '/linguistic/lessons/g1': GRAMMAR, ...SHELL_API }], ['/linguistic/placement', { '/linguistic/placement': TEST, ...SHELL_API }], ['/linguistic/review', { '/linguistic/review': MISTAKES, ...SHELL_API }]]) {
+            const { result, errors } = await screen({ entry: app(at), api: apiModule(api, GRAMMAR_POST), styles: true, device: DEVICES.galaxyA55, script: `
+                await sleep(1200);
+                const found = !!$('[data-lingo-session] button[aria-label="Quit"]');
+                if (!found) return { found };
+                $('[data-lingo-session] button[aria-label="Quit"]').click(); await sleep(400);
+                const r = $('[data-quit]').getBoundingClientRect();
+                const middle = Math.abs((r.top + r.bottom) / 2 - innerHeight / 2) < 40 && r.bottom < innerHeight - 8 && r.left >= 8;
+                $('[data-end-session]').click(); await sleep(800);
+                return { found, middle, session: !!$('[data-lingo-session]'), dashboard: !!$('[data-lingo-dashboard]') };` });
+            assert.deepEqual(errors, [], at);
+            assert.equal(result.__error, undefined, result.__error);
+            assert.deepEqual(result, { found: true, middle: true, session: false, dashboard: true }, `${at}: ✕, a popup in the middle of the phone (2026-10-29), End session → the dashboard`);
+        }
     });
 
     test('the tabs: Practice (daily, mistakes, placement; the quests are on the dashboard), Badges, Writing', async () => {
@@ -1146,6 +1174,53 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
         assert.equal(result.second, 'English → German');
     });
 
+    test('a Japanese passage to put in English (2026-10-29): the Japanese letters too, as a keyboard that pops up, to type in either', async () => {
+        const LESSON = { id: 'tp', module: 'translation', moduleLabel: 'Translation Practice', level: 'advanced', title: 'Passages', direction: 'en-kn', passingScore: 75, language: 'en', languageName: 'English',
+            course: 'ja', target: 'ja', targetName: 'Japanese', targetLocale: 'ja-JP',
+            learn: { intro: 'Translate.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 },
+            items: [{ id: 'i5', kind: 'passage', topic: 'work', source: '私は去年、学位を取得しました。', open: true, bank: [] }],
+            quiz: [{ id: 'q1', type: 'translation', source: '家', bank: ['house', 'water'] }] };
+        const post = `(url, body) => url.endsWith('/check') ? { correct: null, verdict: 'review', answer: 'I finished my degree last year.', accepted: [], explanation: '', diff: [], events: [] } : { step: body.step }`;
+        const { result, errors } = await screen({ entry: app('/linguistic/translation/tp'), api: apiModule({ '/linguistic/lessons/tp': LESSON }, post), styles: true, device: DEVICES.galaxyA55, script: `
+            ${DRIVE}
+            await sleep(1000);
+            await press();
+            const box = $('[data-answer-area] textarea');
+            const out = { placeholder: box?.placeholder, shut: !$('[data-letter-keys="ja"]'), toggle: text($('[data-letters-toggle]')) };
+            $('[data-letters-toggle]').click(); await sleep(150);
+            out.keys = !!$('[data-keys-popup="ja"] [data-letter-keys="ja"]');
+            for (const k of ['わ', 'た', 'し']) { $$('[data-letter-keys="ja"] button').find((b) => b.getAttribute('aria-label') === 'Letter ' + k).click(); await sleep(40); }
+            out.typed = $('[data-answer-area] textarea').value;
+            const tap = async (label) => { $$('[data-keys-popup] button').find((b) => b.getAttribute('aria-label') === label).click(); await sleep(40); };
+            await tap('Letter か'); await tap('Voiced: か to が'); await tap('Letter つ'); await tap('Small: つ to っ');
+            out.marked = $('[data-answer-area] textarea').value;
+            out.preview = text($('[data-keys-typed]'));
+            const keys = $$('[data-keys-popup] [data-letter-keys] button[aria-label^="Letter "]').slice(0, 7).map((b) => b.getBoundingClientRect());
+            out.chart = { downFirst: keys[1].top > keys[0].top && Math.abs(keys[1].left - keys[0].left) < 2, nextColumn: keys[5].left > keys[0].left && Math.abs(keys[5].top - keys[0].top) < 2 };
+            const pop = $('[data-keys-popup] > div').getBoundingClientRect();
+            out.fits = pop.height <= innerHeight * 0.85;
+            $$('[data-kana-tab]')[1].click(); await sleep(80);
+            out.katakana = text($$('[data-keys-popup] [data-letter-keys] button[aria-label^="Letter "]')[5]);
+            out.wide = (() => { ${SESSION_WIDE} })();
+            $('[data-keys-close]').click(); await sleep(150);
+            out.closed = !$('[data-keys-popup]');
+            return out;` });
+        assert.deepEqual(errors, []);
+        assert.equal(result.__error, undefined, result.__error);
+        assert.match(result.placeholder, /Type in English/); assert.match(result.placeholder, /日本語/);
+        assert.equal(result.shut, true, 'shut until the keyboard icon is tapped');
+        assert.equal(result.keys, true, 'the Japanese letters pop up, though the answer is English');
+        assert.equal(result.closed, true, 'Done closes them');
+        assert.match(result.toggle, /Japanese letters/i);
+        assert.equal(result.typed, 'わたし', 'tapped in');
+        assert.equal(result.marked, 'わたしがっ', '゛ and 小 change the kana just typed, as a Japanese keyboard does');
+        assert.match(result.preview, /わたしがっ/, 'what is typed, in view on the keyboard');
+        assert.deepEqual(result.chart, { downFirst: true, nextColumn: true }, 'the kana chart: あいうえお down a column, か in the next');
+        assert.equal(result.fits, true, 'the keyboard fits on the phone');
+        assert.match(result.katakana, /^カ/, 'the Katakana tab');
+        assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
+    });
+
     test('Japanese: the course "Japanese → English", Japanese tiles, and kana keys to type with', async () => {
         const LESSON = { id: 'tj', module: 'translation', moduleLabel: 'Translation Practice', level: 'beginner', title: 'Everyday words', direction: 'en-kn', passingScore: 60, language: 'ja', languageName: 'Japanese',
             learn: { intro: 'Translate into Japanese.' }, progress: { status: 'started', step: 'practice', bestScore: null, attempts: 0 },
@@ -1163,15 +1238,19 @@ createRoot(document.getElementById('root')).render(<div className="lingo flex ga
             const sent = window.__calls.find((c) => c[1].endsWith('/check'))?.[2];
             $('[data-swap-input]').click(); await sleep(120);
             const label = $$('[data-answer-area] button').find((b) => /japanese letters/i.test(b.innerText))?.innerText;
-            $$('[data-answer-area] button').find((b) => /japanese letters/i.test(b.innerText)).click(); await sleep(120);
+            const openAtOnce = !!$('[data-letter-keys="ja"]');
+            $('[data-letters-toggle]').click(); await sleep(150);
+            const popup = { open: !!$('[data-keys-popup="ja"] [data-letter-keys="ja"]'), says: $$('[data-keys-popup] [data-key-say]').slice(0, 7).map((x) => x.textContent) };
             for (const k of ['い', 'え']) { $$('[data-letter-keys="ja"] button').find((b) => b.getAttribute('aria-label') === 'Letter ' + k).click(); await sleep(40); }
-            return { shown, tiled, sent, label, typed: $('[data-translation] textarea').value, placeholder: $('[data-translation] textarea').placeholder, wide: (() => { ${SESSION_WIDE} })() };` });
+            return { shown, tiled, sent, label, openAtOnce, popup, typed: $('[data-translation] textarea').value, placeholder: $('[data-translation] textarea').placeholder, wide: (() => { ${SESSION_WIDE} })() };` });
         assert.deepEqual(errors, []);
         assert.equal(result.__error, undefined, result.__error);
         assert.equal(result.shown.title, 'この文を訳してください', 'the instruction in Japanese, the language they know (2026-10-24)'); assert.equal(result.shown.direction, 'Japanese → English', 'the course, from their language to the one learnt (2026-10-28), though this sentence is English to write in Japanese');
         assert.deepEqual(result.shown.tiles, ['ございます', '水', 'おはよう']);
         assert.equal(result.tiled, null, 'right: straight on'); assert.deepEqual(result.sent, { section: 'items', id: 'i3', given: 'おはよう ございます' });
         assert.match(result.label, /japanese letters/i);
+        assert.equal(result.openAtOnce, false, 'the letters wait for the keyboard icon (2026-10-29: a popup)');
+        assert.deepEqual(result.popup, { open: true, says: ['a', 'i', 'u', 'e', 'o', 'ka', 'ki'] }, 'it pops up, each kana with its sound in English letters under it');
         assert.equal(result.typed, 'いえ'); assert.equal(result.placeholder, '日本語で書いてください…');
         assert.ok(result.wide <= 1, `nothing wider than the phone (${result.wide}px)`);
     });

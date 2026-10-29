@@ -79,7 +79,7 @@ describe('a new student', () => {
     });
     test('Beginner is open; the level above is closed; along the path, each lesson waits for the one before (2026-10-24)', async () => {
         const p = (await api('GET', '/path')).body;
-        assert.deepEqual(p.levels.map((l) => l.open), [true, false, false]);
+        assert.deepEqual(p.levels.map((l) => l.open), [true, false]);
         const unit = p.levels[0].units[0];
         assert.equal(unit.title, 'Family', 'the first unit of the topic Home and family');
         assert.deepEqual(unit.lessons.map((l) => l.stop || l.review || l.module), ['vocabulary', 'grammar', 'chest', 'translation', 'hear', 'practice', 'unit'], 'words, grammar, a chest, sentences, listening, practice, then the unit review');
@@ -254,15 +254,17 @@ describe('vocabulary, translation, writing and speaking', () => {
 });
 
 describe('the learning path and the step-by-step lesson', () => {
-    test('the path: three levels as sections, topic units with a lesson of each kind, the level review, and the lesson to take next', async () => {
+    test('the path: two sections (Intermediate hidden, 2026-10-29), topic units with a lesson of each kind, the level review with the assessment, and the lesson to take next', async () => {
         const p = (await api('GET', '/path')).body;
-        assert.deepEqual(p.levels.map((l) => l.level), ['beginner', 'intermediate', 'advanced']);
+        assert.deepEqual(p.levels.map((l) => l.level), ['beginner', 'advanced']);
         assert.deepEqual(p.levels[0].units.map((u) => u.title), ['Family', 'Food, size and feelings', 'School and friends', 'Read and write', 'Getting around', 'Weather', 'Time and days', 'My day', 'Level review'], 'four topics (the third added 2026-10-24, the fourth 2026-10-28), each in two shorter units');
-        assert.deepEqual(p.levels[0].units.map((u) => u.lessons.length), [7, 8, 7, 8, 7, 8, 7, 8, 4], 'each unit with its two stops; the level review');
+        assert.deepEqual(p.levels[0].units.map((u) => u.lessons.length), [7, 8, 7, 8, 7, 8, 7, 8, 5], 'each unit with its two stops; the level review, the assessment last');
+        assert.equal(p.levels[0].units.at(-1).lessons.at(-1).title, 'Beginner assessment');
         assert.deepEqual(p.levels[0].units.map((u) => u.id), ['beginner-1', 'beginner-1-2', 'beginner-2', 'beginner-2-2', 'beginner-3', 'beginner-3-2', 'beginner-4', 'beginner-4-2', 'beginner-review']);
-        assert.deepEqual(p.levels.map((l) => l.units.length), [9, 9, 9], 'the same in every section: eight units and the review');
+        assert.deepEqual(p.levels.map((l) => l.units.length), [9, 6], 'Beginner: eight units and the review; Advanced: a track for each skill (2026-10-29)');
+        assert.deepEqual(p.levels[1].units.map((u) => [u.id, u.kind, u.title]), [['advanced-stories', 'track', 'Stories'], ['advanced-listening', 'track', 'Listening'], ['advanced-speaking', 'track', 'Speaking'], ['advanced-writing', 'track', 'Writing'], ['advanced-translation', 'track', 'Translation'], ['advanced-words', 'track', 'Words & grammar']]);
         assert.equal(p.levels[0].units[0].open, true);
-        assert.equal(p.levels[1].open, false, 'Intermediate is shut before placement');
+        assert.equal(p.levels[1].open, false, 'Advanced is shut before Beginner is finished');
         const all = p.levels[0].units.flatMap((u) => u.lessons);
         const first = all.find((l) => !l.stop && l.open && l.status !== 'completed');
         assert.equal(p.current, first.id, 'the next lesson is the first open one not done (a chest is not a lesson)');
@@ -291,8 +293,11 @@ describe('the learning path and the step-by-step lesson', () => {
         assert.equal(units[2].lessons[0].open, false);
         assert.equal((await kiranApi('GET', '/path')).body.levels[1].open, false);
         await LinguisticProgress.updateOne({ userId: kiran.user._id }, { $push: { levelsCompleted: { level: 'beginner', completedAt: new Date(), average: 80, course: 'en' } } });
+        assert.equal((await kiranApi('GET', '/path')).body.levels[1].open, false, 'Beginner finished before its new units came: Advanced waits for the assessment (2026-10-29)');
+        const gate = await LinguisticLesson.findOne({ seedKey: 'review-assessment-beginner' }).lean();
+        await LinguisticProgress.updateOne({ userId: kiran.user._id }, { $push: { lessons: { lessonId: gate._id, module: gate.module, level: 'beginner', status: 'completed', step: 'done', bestScore: 90, completedAt: new Date() } } });
         const p = (await kiranApi('GET', '/path')).body;
-        assert.deepEqual([p.levels[1].open, p.levels[1].units[0].lessons[0].open], [true, true], 'Beginner finished before its new units came');
+        assert.deepEqual([p.levels[1].open, p.levels[1].units[0].lessons[0].open], [true, true], 'and the assessment passed: open');
     });
     test('a quiz answer is checked as it is given, and nothing is saved until the quiz is submitted', async () => {
         const l = await lessonBy('grammar-beginner-2');
@@ -303,7 +308,7 @@ describe('the learning path and the step-by-step lesson', () => {
         assert.equal(wrong.body.correct, false); assert.match(wrong.body.explanation, /subject/);
         assert.equal(await require('../../src/linguistic/models').LinguisticAttempt.countDocuments({ userId: asha.user._id }), before, 'no attempt recorded');
         assert.equal((await api('POST', `/lessons/${l._id}/quiz/check`, { id: 'q99', given: 'x' })).status, 400);
-        const locked = await lessonBy('grammar-intermediate-1');
+        const locked = await lessonBy('grammar-advanced-1');
         assert.equal((await api('POST', `/lessons/${locked._id}/quiz/check`, { id: 'q1', given: 'x' })).status, 403, 'not for a locked lesson');
     });
     test('translations come with a word bank: the answer\'s words and a few others; tapped in order, it is right', async () => {
@@ -356,7 +361,7 @@ describe('the placement test', () => {
         const right = Object.fromEntries(require('../../src/linguistic/content/placement').map((q) => [q.id, q.answer]));
         const r = await api('POST', '/placement', { answers: right });
         assert.equal(r.body.level, 'advanced'); assert.equal(r.body.score, 15); assert.equal(r.body.kept, 'beginner', 'the level found, not where they start');
-        assert.deepEqual((await api('GET', '/modules/translation')).body.levels.map((l) => l.open), [true, false, false], 'sections open by finishing the one before');
+        assert.deepEqual((await api('GET', '/modules/translation')).body.levels.map((l) => l.open), [true, false], 'sections open by finishing the one before');
         const d = (await api('GET', '/')).body;
         assert.deepEqual([d.level, d.placement.found], ['beginner', 'advanced']); assert.equal(d.achievements.find((a) => a.key === 'first_step').earned, true);
     });
@@ -385,10 +390,10 @@ describe('a whole level: completion and its certificate', () => {
             if (!todo.length) break;
             for (const l of todo) last = await raviApi('POST', `/lessons/${l.id}/quiz`, { answers: await rightAnswers(l.id) });
         }
-        assert.equal(beginner.length, 48, 'twenty lessons (four topics), eight more for the topics\' second units, a listening stop and a review for each of the eight units, and the level\'s four reviews');
+        assert.equal(beginner.length, 49, 'twenty lessons (four topics), eight more for the topics\' second units, a listening stop and a review for each of the eight units, the level\'s four reviews, and its assessment (2026-10-29)');
         assert.equal(last.body.certificate?.level, 'beginner', 'the last lesson completes the level');
         const d = (await raviApi('GET', '/')).body;
-        assert.equal(d.level, 'intermediate');
+        assert.equal(d.level, 'advanced', 'the assessment passed with the rest: on to Advanced (Intermediate hidden, 2026-10-29)');
         assert.equal(d.levels[0].complete, true); assert.match(d.levels[0].certificate.number, /^YATI-ENG-B-/);
         assert.equal(d.achievements.find((a) => a.key === 'level_beginner').earned, true);
         const certs = (await raviApi('GET', '/certificates')).body.certificates;
@@ -455,10 +460,10 @@ describe('administrators', () => {
     test('progress: every student, with their level and results', async () => {
         const list = (await adminApi('GET', `/admin/students?search=${encodeURIComponent('Ling Ravi')}`)).body;
         assert.equal(list.students.length, 1);
-        assert.deepEqual([list.students[0].level, list.students[0].completed, list.students[0].certificates], ['intermediate', 48, ['beginner']]);
+        assert.deepEqual([list.students[0].level, list.students[0].completed, list.students[0].certificates], ['advanced', 49, ['beginner']]);
         const one = (await adminApi('GET', `/admin/students/${ravi.user._id}`)).body;
         assert.ok(one.attempts.some((a) => a.kind === 'quiz' && a.passed));
-        assert.ok(one.lessons.filter((l) => l.status === 'completed').length === 48);
+        assert.ok(one.lessons.filter((l) => l.status === 'completed').length === 49);
     });
     test('reviews: writing sent before 2026-10-26 waits; a score and comment reach the student, with points at the passing score; writing checked in a lesson never shows', async () => {
         // Since 2026-10-26 nothing new is sent to a teacher: these stand for writing sent before then.

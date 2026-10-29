@@ -14,10 +14,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
-import { Check, Lock, Crown, Trophy, BookOpen, X, Download, Dumbbell, Star, Mic, Headphones, Gift, PackageOpen, Flag, LayoutList, Loader2, MessageSquareText, CalendarDays } from 'lucide-react';
+import { Check, Lock, Crown, Trophy, BookOpen, X, Download, Dumbbell, Star, Mic, Headphones, Gift, PackageOpen, Flag, LayoutList, Loader2, MessageSquareText, CalendarDays, PenLine } from 'lucide-react';
 import { saveBlob } from '../native/saveFile';
 import { linguisticApi, announceRewards } from './api';
-import { COLORS, MODULES, shortDirection, blurbOf, levelOf } from './meta';
+import { COLORS, MODULES, shortDirection, blurbOf, levelOf, hasAssessment } from './meta';
 import { Bar, Chunky, Loading, Mascot, Problem, Panel } from './ui';
 
 /** How far each node sits from the middle, in turn: the path winds right, back, left, back. */
@@ -42,7 +42,9 @@ const TYPES = {
     lesson: [Star, null], story: [BookOpen, 'Story'], speaking: [Mic, 'Speaking'], listening: [Headphones, 'Listening'],
     practice: [Dumbbell, 'Practice'], chest: [Gift, 'Treasure chest'], review: [Trophy, 'Review'], checkpoint: [Flag, 'Checkpoint'],
     // Speak on a topic, corrected (Advanced).
-    talk: [MessageSquareText, 'Speak on a topic']
+    talk: [MessageSquareText, 'Speak on a topic'],
+    // An Advanced article's writing, in the Writing track (2026-10-29).
+    writing: [PenLine, 'Writing']
 };
 /** What kind of stop it is: Vocabulary, Grammar… (a lesson), Story, Listening… */
 const kindOf = (l) => TYPES[l.type]?.[1] || MODULES[l.module]?.short || 'Lesson';
@@ -63,7 +65,7 @@ function Guidebook({ unit, section, language, target, onClose }) {
                     <div className="min-w-0 flex-1">
                         <p className="text-xs font-extrabold uppercase tracking-wider text-white/85">{section.label} · Guidebook</p>
                         <h2 id="lingo-guide" className="text-2xl font-extrabold">{unit.title}</h2>
-                        <p className="mt-1 text-[15px] font-semibold text-white/90">{unit.kind === 'review' ? `Everything from ${section.label} again, before the trophy.` : `${[...new Set(unit.lessons.filter((l) => !l.review && !l.stop).map((l) => kindOf(l)))].join(' · ')}, then a review.`}</p>
+                        <p className="mt-1 text-[15px] font-semibold text-white/90">{unit.kind === 'review' ? `Everything from ${section.label} again, before the trophy.` : unit.kind === 'track' ? unit.note : `${[...new Set(unit.lessons.filter((l) => !l.review && !l.stop).map((l) => kindOf(l)))].join(' · ')}, then a review.`}</p>
                     </div>
                     <button type="button" onClick={onClose} aria-label="Close" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl hover:bg-white/15"><X size={24} strokeWidth={3} /></button>
                 </div>
@@ -262,7 +264,7 @@ export default function LinguisticHome() {
                                 <span className="text-sm font-extrabold tabular-nums text-[#AFAFAF]">{section.completed}/{section.total}</span>
                             </div>
                         )}
-                        {!section.open && <p className="mt-2 text-sm font-semibold text-[#777]" data-section-locked>Finish every unit of {levelOf(path.levels[si - 1]?.level).section || levelOf(path.levels[si - 1]?.level).label} to open these lessons.</p>}
+                        {!section.open && <p className="mt-2 text-sm font-semibold text-[#777]" data-section-locked>Finish every unit of {levelOf(path.levels[si - 1]?.level).section || levelOf(path.levels[si - 1]?.level).label}{hasAssessment(path.levels[si - 1]) ? ', then pass its assessment (50% or more),' : ''} to open these lessons.</p>}
                     </Panel>
 
                     {section.units.map((u, ui) => {
@@ -279,7 +281,7 @@ export default function LinguisticHome() {
                                 <div className="sticky top-[4.5rem] z-10 mb-10 flex items-center gap-3 rounded-2xl p-4 text-white" style={u.open ? { background: c.face, boxShadow: `0 4px 0 ${c.edge}` } : { background: '#C9CED6', boxShadow: '0 4px 0 #A9AFB8' }} data-unit-locked={u.open ? undefined : 'true'}>
                                     {!u.open && <Lock size={22} strokeWidth={2.8} className="shrink-0 text-white" aria-label="Locked" />}
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-xs font-extrabold uppercase tracking-wider text-white/85">{u.kind === 'review' ? `Section ${si + 1} · Review` : `Section ${si + 1}, Unit ${u.index}`}{!u.open && ' · Locked'}</p>
+                                        <p className="text-xs font-extrabold uppercase tracking-wider text-white/85">{u.kind === 'review' ? `Section ${si + 1} · Review` : u.kind === 'track' ? `Section ${si + 1} · Skill ${u.index} of ${section.units.length}` : `Section ${si + 1}, Unit ${u.index}`}{!u.open && ' · Locked'}</p>
                                         <h3 className="text-lg font-extrabold leading-tight sm:text-xl" data-unit-title>{u.title}</h3>
                                         {!u.open && <p className="mt-0.5 text-sm font-bold text-white/90">{ui > 0 && section.open ? `Finish ${section.units[ui - 1].title} to open it.` : `Finish ${si > 0 ? levelOf(path.levels[si - 1]?.level).section : 'the section before'} to open it.`}</p>}
                                     </div>
